@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Cash Flow Tracker - Login</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="center">
+    <div class="card">
+      <h1>Cash Flow Tracker</h1>
+      <p class="muted">Masuk untuk akses jurnal pembukuan pribadi.</p>
+
+      <form id="loginForm" class="form">
+        <label>
+          Username
+          <input name="username" autocomplete="username" required />
+        </label>
+
+        <label>
+          Password
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+
+        <button class="btn primary" type="submit">Login</button>
+      </form>
+
+      <div id="msg" class="msg"></div>
+
+      <button id="openRegisterBtn" class="btn" type="button" style="margin-top:14px;">First time? Register</button>
+    </div>
+
+    <div id="registerModal" class="modal" role="dialog" aria-modal="true" hidden>
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Register</h2>
+          <button id="closeRegisterModal" class="btn">✕</button>
+        </div>
+        <form id="registerForm" class="form">
+          <label>
+            Full Name
+            <input name="full_name" autocomplete="name" />
+          </label>
+          <label>
+            Username
+            <input name="username" autocomplete="username" required />
+          </label>
+          <label>
+            Password
+            <input name="password" type="password" autocomplete="new-password" required />
+          </label>
+          <button class="btn" type="submit">Register</button>
+          <p class="muted">Register ini untuk bootstrap. Kalau sudah production, kamu bisa hapus endpoint & UI ini.</p>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      const msg = document.getElementById("msg");
+
+      const postJson = (url, body) =>
+        fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+          .then(async (r) => ({ ok: r.ok, data: await r.json().catch(() => ({})) }));
+
+      document.getElementById("loginForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        msg.textContent = "";
+        const fd = new FormData(e.target);
+        const res = await postJson("/api/auth/login", Object.fromEntries(fd.entries()));
+        if (res.ok && res.data.ok) location.href = "./app.html";
+        else msg.textContent = res.data.detail || "Login gagal";
+      });
+
+      document.getElementById("registerForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        msg.textContent = "";
+        const fd = new FormData(e.target);
+        const res = await postJson("/api/auth/register", Object.fromEntries(fd.entries()));
+        msg.textContent = res.ok ? "Register sukses. Sekarang login." : (res.data.detail || "Register gagal");
+        if (res.ok) document.getElementById("registerModal").hidden = true;
+      });
+
+      const registerModal = document.getElementById("registerModal");
+      document.getElementById("openRegisterBtn").addEventListener("click", () => {
+        registerModal.hidden = false;
+      });
+      document.getElementById("closeRegisterModal").addEventListener("click", () => {
+        registerModal.hidden = true;
+      });
+      registerModal.addEventListener("click", (e) => e.target === registerModal && (registerModal.hidden = true));
+    </script>
+  </body>
+</html>

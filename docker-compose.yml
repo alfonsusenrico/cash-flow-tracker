@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16
+    container_name: ledger_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ledger}
+      POSTGRES_USER: ${POSTGRES_USER:-ledger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ledgerpass}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    container_name: ledger_api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ledger}:${POSTGRES_PASSWORD:-ledgerpass}@db:5432/${POSTGRES_DB:-ledger}
+      SESSION_SECRET: ${SESSION_SECRET:-change-me}
+      TZ: Asia/Jakarta
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    image: nginx:alpine
+    container_name: ledger_web
+    restart: unless-stopped
+    ports:
+      - "8090:80"
+    volumes:
+      - ./public:/usr/share/nginx/html:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+
+volumes:
+  db_data:

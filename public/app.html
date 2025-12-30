@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Cash Flow Tracker</title>
+    <link rel="stylesheet" href="./theme-hybrid.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">Cash Flow Tracker</div>
+      <button id="mobileMenuBtn" class="btn small mobile-menu-btn" aria-label="Open menu">☰</button>
+      <div class="topbar-right">
+        <button id="themeToggleBtn" class="btn small" title="Toggle Theme">🌙</button>
+        <div class="topbar-currency" aria-label="Currency format">
+          <div class="segmented compact" id="currencyToggle">
+            <button class="seg-btn" data-currency="IDR">IDR</button>
+            <button class="seg-btn" data-currency="USD">USD</button>
+          </div>
+        </div>
+        <span id="me" class="muted"></span>
+        <button id="manageAccountsBtn" class="btn small">Accounts</button>
+        <button id="logoutBtn" class="btn">Logout</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="workspace">
+        <section id="tab-ledger" class="panel ledger">
+          <div class="ledger-head">
+            <div>
+              <div class="ledger-title-row">
+                <div class="ledger-title-select-wrap">
+                  <select id="ledgerTitleSelect" class="ledger-title-select" aria-label="Account filter"></select>
+                </div>
+              </div>
+              <div class="ledger-range-row">
+                <div id="ledgerRangeText" class="ledger-range-text"></div>
+              </div>
+              <div class="ledger-range-inputs visually-hidden">
+                <label>
+                  From
+                  <input id="fromDate" type="date" />
+                </label>
+                <label>
+                  To
+                  <input id="toDate" type="date" />
+                </label>
+              </div>
+            </div>
+            <div class="table-totals">
+              <div>
+                <div class="total-label">Total Balance</div>
+                <div class="total-value" id="ledgerTotal"></div>
+              </div>
+              <div id="ledgerDiffBlock">
+                <div class="total-label">Unallocated</div>
+                <div class="total-value" id="ledgerDiff"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="ledgerRangeDisplay" class="ledger-range-display"></div>
+          <div class="mobile-account-filter">
+            <select id="mobileAccountSelect" aria-label="Account filter"></select>
+          </div>
+
+          <div class="table-wrap">
+            <table class="table" id="ledgerTable">
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th id="thAccount">Account</th>
+                  <th>Date</th>
+                  <th>Transaction</th>
+                  <th class="num">In</th>
+                  <th class="num">Out</th>
+                  <th class="num">Balance</th>
+                </tr>
+              </thead>
+              <tbody id="ledgerBody"></tbody>
+            </table>
+          </div>
+          <div class="ledger-footer">
+            <button id="addTxBtn" class="btn primary">+ Add Transaction</button>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+    <button id="mobileAddBtn" class="mobile-fab" aria-label="Add transaction">+</button>
+
+    <!-- Mobile Menu (Settings) -->
+    <div id="mobileMenuSheet" class="mobile-sheet" hidden>
+      <div class="sheet-content">
+        <div class="sheet-head">
+          <h3>Menu</h3>
+          <button id="closeMobileMenuBtn" class="btn small">✕</button>
+        </div>
+        <div class="stack">
+            <!-- Items moved/cloned from Sidebar/Topbar for Mobile accessibility -->
+            
+            <div class="menu-item-row">
+                <span>Dark Theme</span>
+                <label class="theme-switch">
+                  <input type="checkbox" id="mobileThemeToggleCheckbox">
+                  <span class="slider round"></span>
+                </label>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="stack">
+              <span class="menu-label">Currency</span>
+              <div class="segmented" id="mobileCurrencyToggle">
+                <button class="seg-btn" data-currency="IDR">IDR</button>
+                <button class="seg-btn" data-currency="USD">USD</button>
+              </div>
+              <button id="mobileFxRefreshBtn" class="btn full-width">Update Rate</button>
+            </div>
+            
+            <div class="divider"></div>
+
+            <button id="mobileManageAccountsBtn" class="btn full-width">Manage Accounts</button>
+
+            <div class="divider"></div>
+
+            <div class="menu-item-row">
+                 <div class="stack gap-0">
+                    <span id="mobileMe" class="small muted">User</span>
+                    <span class="small">Logged In</span>
+                 </div>
+                 <button id="mobileLogoutBtn" class="btn danger small">Logout</button>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Add Transaction -->
+    <div id="modal" class="modal" role="dialog" aria-modal="true" hidden>
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2 id="txModalTitle">Add Transaction</h2>
+          <button id="closeModal" class="btn">✕</button>
+        </div>
+
+        <form id="txForm" class="form stack large-gap">
+          <input type="hidden" name="transaction_id">
+          <div class="field">
+             <label>Transaction Type</label>
+             <div class="radio-toggle">
+                <label>
+                  <input type="radio" name="transaction_type" value="debit" checked>
+                  <span>Cash In</span>
+                </label>
+                <label>
+                  <input type="radio" name="transaction_type" value="credit">
+                  <span>Cash Out</span>
+                </label>
+             </div>
+          </div>
+
+          <div class="field">
+            <label>Account</label>
+            <select name="account_id" id="txAccountSelect" required></select>
+          </div>
+
+          <div class="field">
+            <label>Transaction name</label>
+            <input name="transaction_name" required placeholder="e.g. Grab, Makan siang, Topup" />
+          </div>
+
+          <div class="field">
+            <label>Amount (IDR)</label>
+            <input name="amount" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" required />
+          </div>
+
+          <div class="row gap">
+            <button class="btn primary grow" type="submit">Save Transaction</button>
+            <button id="deleteTxBtn" class="btn danger grow" type="button" hidden>Delete</button>
+          </div>
+          <div id="txMsg" class="msg"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal Manage Accounts -->
+    <div id="accountsModal" class="modal" role="dialog" aria-modal="true" hidden>
+      <div class="modal-card modal-wide">
+        <div class="modal-head">
+          <h2>Accounts</h2>
+          <button id="closeAccountsModal" class="btn">✕</button>
+        </div>
+
+        <div class="accounts-modal">
+          <nav class="accounts-nav">
+            <button class="nav-btn active" data-acc-tab="list">Account List</button>
+            <button class="nav-btn" data-acc-tab="create" id="accountFormTabBtn">Create Account</button>
+          </nav>
+
+          <div class="accounts-content">
+            <section id="acc-tab-list">
+              <div class="section-title">Accounts Category</div>
+              <div class="table-wrap">
+                <table class="table table-compact">
+                  <thead>
+                    <tr>
+                      <th>Account</th>
+                      <th class="num">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="accountsBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section id="acc-tab-create" class="hidden">
+              <div class="section-title" id="accountFormTitle">New Account Details</div>
+              <form id="accountForm" class="form stack large-gap">
+                <input id="accountId" type="hidden" />
+                <div class="field">
+                  <label>Account Name</label>
+                  <input id="newAccountName" placeholder="e.g. Transportasi" required />
+                </div>
+                <div class="field">
+                  <label>Opening Balance</label>
+                  <input id="openingBalance" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" />
+                </div>
+                <div class="row gap">
+                  <button id="saveAccountBtn" class="btn primary grow" type="submit">Save Account</button>
+                  <button id="cancelEditBtn" class="btn grow" type="button">Cancel</button>
+                </div>
+                <div id="accountMsg" class="msg"></div>
+              </form>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Password Confirmation -->
+    <div id="passwordModal" class="modal" role="dialog" aria-modal="true" hidden>
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Security Check</h2>
+          <button id="cancelPasswordBtn" class="btn">✕</button>
+        </div>
+        <div class="form stack large-gap">
+          <p class="muted small">Please enter your password to change the Main Account opening balance.</p>
+          <div class="field">
+            <label>Password</label>
+            <input id="confirmPasswordInput" type="password" required />
+          </div>
+          <button id="confirmPasswordBtn" class="btn primary full-width">Confirm Change</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
