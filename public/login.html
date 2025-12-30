@@ -6,29 +6,33 @@
     <title>Cash Flow Tracker - Login</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body class="center">
-    <div class="card">
-      <h1>Cash Flow Tracker</h1>
-      <p class="muted">Masuk untuk akses jurnal pembukuan pribadi.</p>
+  <body class="auth-body">
+    <main class="auth-shell">
+      <section class="auth-card">
+        <header class="auth-header">
+          <div class="brand">Cash Flow Tracker</div>
+          <p class="auth-subtitle">Masuk untuk akses jurnal pembukuan pribadi.</p>
+        </header>
 
-      <form id="loginForm" class="form">
-        <label>
-          Username
-          <input name="username" autocomplete="username" required />
-        </label>
+        <form id="loginForm" class="auth-form">
+          <label class="field">
+            <span>Username</span>
+            <input name="username" autocomplete="username" required />
+          </label>
 
-        <label>
-          Password
-          <input name="password" type="password" autocomplete="current-password" required />
-        </label>
+          <label class="field">
+            <span>Password</span>
+            <input name="password" type="password" autocomplete="current-password" required />
+          </label>
 
-        <button class="btn primary" type="submit">Login</button>
-      </form>
+          <button class="btn primary" type="submit">Login</button>
+        </form>
 
-      <div id="msg" class="msg"></div>
+        <div id="msg" class="msg"></div>
 
-      <button id="openRegisterBtn" class="btn" type="button" style="margin-top:14px;">First time? Register</button>
-    </div>
+        <button id="openRegisterBtn" class="btn ghost" type="button">First time? Register</button>
+      </section>
+    </main>
 
     <div id="registerModal" class="modal" role="dialog" aria-modal="true" hidden>
       <div class="modal-card">
@@ -36,21 +40,20 @@
           <h2>Register</h2>
           <button id="closeRegisterModal" class="btn">✕</button>
         </div>
-        <form id="registerForm" class="form">
-          <label>
-            Full Name
+        <form id="registerForm" class="auth-form">
+          <label class="field">
+            <span>Full Name</span>
             <input name="full_name" autocomplete="name" />
           </label>
-          <label>
-            Username
+          <label class="field">
+            <span>Username</span>
             <input name="username" autocomplete="username" required />
           </label>
-          <label>
-            Password
+          <label class="field">
+            <span>Password</span>
             <input name="password" type="password" autocomplete="new-password" required />
           </label>
-          <button class="btn" type="submit">Register</button>
-          <p class="muted">Register ini untuk bootstrap. Kalau sudah production, kamu bisa hapus endpoint & UI ini.</p>
+          <button class="btn primary" type="submit">Register</button>
         </form>
       </div>
     </div>
