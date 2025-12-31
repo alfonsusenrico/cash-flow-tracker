@@ -9,14 +9,13 @@ const state = {
   from: null,
   to: null,
   rows: [],
-  total_balance: 0,
-  balance_diff: 0,
+  total_asset: 0,
+  unallocated_balance: 0,
+  search_query: "",
   fx_rate: null,
   fx_updated_at: null,
   currency: "IDR",
-  editing_account: null, // { id, original_balance, is_main }
   editing_tx_id: null,
-  pending_payload: null, // payload waiting for password
 };
 
 const api = {
@@ -90,6 +89,29 @@ const isoToLocalDisplay = (isoZ) => {
 };
 
 const todayYMD = () => new Date().toISOString().slice(0, 10);
+
+const formatDisplayDate = (d) => {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+};
+
+const ymdToDate = (ymd) => {
+  if (!ymd) return null;
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+};
+
+const normalizeSearch = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const fuzzyMatch = (query, text) => {
+  if (!query) return true;
+  let qi = 0;
+  for (let i = 0; i < text.length && qi < query.length; i += 1) {
+    if (text[i] === query[qi]) qi += 1;
+  }
+  return qi === query.length;
+};
 
 const minusDaysYMD = (days) => {
   const d = new Date();
@@ -216,7 +238,7 @@ function renderAccounts() {
     const listItems = [
       `<label class="account-option">
         <input type="radio" name="accountFilter" value="all" ${state.scope === "all" ? "checked" : ""} />
-        <span>All</span>
+        <span>Main Account</span>
         <span class="tag">Main</span>
       </label>`,
       ...filterAccounts.map((a) => {
@@ -233,7 +255,7 @@ function renderAccounts() {
   const mobileSelect = $("mobileAccountSelect");
   if (mobileSelect) {
     const mobileOptions = [
-      `<option value="all">All</option>`,
+      `<option value="all">Main Account</option>`,
       ...filterAccounts.map((a) => `<option value="${a.account_id}">${a.account_name}</option>`),
     ];
     mobileSelect.innerHTML = mobileOptions.join("");
@@ -243,39 +265,111 @@ function renderAccounts() {
   const titleSelect = $("ledgerTitleSelect");
   if (titleSelect) {
     const titleOptions = [
-      `<option value="all">All Accounts</option>`,
+      `<option value="all">Main Account</option>`,
       ...filterAccounts.map((a) => `<option value="${a.account_id}">${a.account_name}</option>`),
     ];
     titleSelect.innerHTML = titleOptions.join("");
     titleSelect.value = state.scope === "account" && state.account_id ? state.account_id : "all";
   }
+
+  const allocateSelect = $("allocateAccountSelect");
+  if (allocateSelect) {
+    const allocateOptions = [
+      `<option value="">Select account</option>`,
+      ...filterAccounts.map((a) => `<option value="${a.account_id}">${a.account_name}</option>`),
+    ];
+    allocateSelect.innerHTML = allocateOptions.join("");
+  }
+
+  updateSwitchTargets();
+  updateExportAccounts();
 }
 
 function updateTotals(summary) {
-  const accounts = summary?.accounts || [];
-  if (!accounts.length) {
-    state.total_balance = 0;
-    state.balance_diff = 0;
-    return;
-  }
-  if (state.scope === "all") {
-    const main = accounts.find((a) => a.account_id === state.main_account_id);
-    state.total_balance = main ? Number(main.balance || 0) : Number(accounts[0].balance || 0);
-    const childSum = accounts
-      .filter((a) => a.account_id !== state.main_account_id)
-      .reduce((sum, a) => sum + Number(a.balance || 0), 0);
-    state.balance_diff = state.total_balance - childSum;
-    return;
-  }
-  const current = accounts.find((a) => a.account_id === state.account_id) || accounts[0];
-  state.total_balance = Number(current?.balance || 0);
-  state.balance_diff = 0;
+  state.total_asset = Number(summary?.total_asset || 0);
+  state.unallocated_balance = Number(summary?.unallocated || 0);
+  state.summary_accounts = summary?.accounts || [];
+}
+
+function updateSwitchTargets() {
+  const switchToSelect = $("switchToSelect");
+  if (!switchToSelect) return;
+  const sourceId = state.account_id;
+  const targetOptions = [
+    `<option value="">Select account</option>`,
+    ...state.accounts
+      .filter(
+        (a) => a.account_id !== state.main_account_id && (!sourceId || a.account_id !== sourceId)
+      )
+      .map((a) => `<option value="${a.account_id}">${a.account_name}</option>`),
+  ];
+  switchToSelect.innerHTML = targetOptions.join("");
+}
+
+function updateExportAccounts() {
+  const exportAccountSelect = $("exportAccountSelect");
+  if (!exportAccountSelect) return;
+  const nonMain = state.accounts
+    .filter((a) => a.account_id !== state.main_account_id)
+    .sort((a, b) => a.account_name.localeCompare(b.account_name));
+  const options = [
+    `<option value="all">Main Account</option>`,
+    ...nonMain.map((a) => `<option value="${a.account_id}">${a.account_name}</option>`),
+  ];
+  exportAccountSelect.innerHTML = options.join("");
+}
+
+function filterRowsBySearch(rows, query) {
+  const cleaned = normalizeSearch(query);
+  if (!cleaned) return rows;
+  return rows.filter((r) => {
+    const haystack = normalizeSearch(
+      [
+        r.transaction_name,
+        r.account_name,
+        isoToLocalDisplay(r.date),
+        r.debit,
+        r.credit,
+        r.balance,
+      ].join(" ")
+    );
+    return fuzzyMatch(cleaned, haystack);
+  });
 }
 
 function renderLedger(rows) {
   const body = $("ledgerBody");
   const table = $("ledgerTable");
   const isAll = state.scope === "all";
+  const isMainAccount = state.scope === "account" && state.account_id === state.main_account_id;
+  const showAllocate = isAll || isMainAccount;
+  const showSwitch = state.scope === "account" && state.account_id && state.account_id !== state.main_account_id;
+  const showAssetSummary = isAll || isMainAccount;
+  const allocateBtn = $("allocateBtn");
+  const switchBtn = $("switchBtn");
+  const fabAllocateOption = $("fabAllocateOption");
+  const fabSwitchOption = $("fabSwitchOption");
+  if (allocateBtn) allocateBtn.hidden = !showAllocate;
+  if (switchBtn) switchBtn.hidden = !showSwitch;
+  if (fabAllocateOption) fabAllocateOption.hidden = !showAllocate;
+  if (fabSwitchOption) fabSwitchOption.hidden = !showSwitch;
+  updateSwitchTargets();
+
+  const totalLabel = $("ledgerTotalLabel");
+  const diffLabel = $("ledgerDiffLabel");
+  const diffBlock = $("ledgerDiffBlock");
+  const accountBalance = state.summary_accounts?.find((a) => a.account_id === state.account_id)?.balance ?? 0;
+  if (showAssetSummary) {
+    if (totalLabel) totalLabel.textContent = "Total Asset";
+    if (diffLabel) diffLabel.textContent = "Unallocated Balance";
+    $("ledgerTotal").textContent = fmtMoney(state.total_asset || 0);
+    $("ledgerDiff").textContent = fmtMoney(state.unallocated_balance || 0);
+    if (diffBlock) diffBlock.hidden = false;
+  } else {
+    if (totalLabel) totalLabel.textContent = "Total Balance";
+    $("ledgerTotal").textContent = fmtMoney(accountBalance || 0);
+    if (diffBlock) diffBlock.hidden = true;
+  }
   
   // Update Title
   if (isAll) {
@@ -296,21 +390,23 @@ function renderLedger(rows) {
   // Update Range Display
   renderRangeDisplay();
 
-  if (!rows.length) {
+  const filteredRows = filterRowsBySearch(rows, state.search_query);
+
+  if (!filteredRows.length) {
     const colSpan = isAll ? 7 : 6;
-    body.innerHTML = `<tr><td colspan="${colSpan}" class="empty-row">No transactions yet for this range.</td></tr>`;
-    $("ledgerTotal").textContent = fmtMoney(state.total_balance || 0);
-    $("ledgerDiff").textContent = fmtMoney(state.balance_diff || 0);
-    $("ledgerDiffBlock").hidden = !isAll;
+    const message = state.search_query
+      ? "No transactions match your search."
+      : "No transactions yet for this range.";
+    body.innerHTML = `<tr><td colspan="${colSpan}" class="empty-row">${message}</td></tr>`;
     return;
   }
 
-  body.innerHTML = rows
+  body.innerHTML = filteredRows
     .map(
-      (r) => {
+      (r, idx) => {
         const accCell = `<td class="account-cell">${isAll ? r.account_name : ""}</td>`;
         return `<tr data-tx-id="${r.transaction_id}" style="cursor:pointer">
-        <td>${r.no}</td>
+        <td>${idx + 1}</td>
         ${accCell}
         <td>${isoToLocalDisplay(r.date)}</td>
         <td>${r.transaction_name}</td>
@@ -322,9 +418,6 @@ function renderLedger(rows) {
     )
     .join("");
 
-  $("ledgerTotal").textContent = fmtMoney(state.total_balance || 0);
-  $("ledgerDiff").textContent = fmtMoney(state.balance_diff || 0);
-  $("ledgerDiffBlock").hidden = !isAll;
 }
 
 async function loadMe() {
@@ -440,6 +533,15 @@ function bindEvents() {
     });
   }
 
+  const ledgerSearch = $("ledgerSearch");
+  if (ledgerSearch) {
+    ledgerSearch.value = state.search_query || "";
+    ledgerSearch.addEventListener("input", (e) => {
+      state.search_query = e.target.value || "";
+      renderLedger(state.rows);
+    });
+  }
+
   $("fromDate").addEventListener("change", () => {
     state.from = $("fromDate").value;
     renderRangeDisplay();
@@ -537,6 +639,7 @@ function bindEvents() {
   const mobileMenuBtn = $("mobileMenuBtn");
   if (mobileMenuBtn) {
     mobileMenuBtn.addEventListener("click", () => {
+      document.body.classList.remove("fab-open");
       setTimeout(() => document.body.classList.add("menu-open"), 10);
     });
   }
@@ -555,11 +658,28 @@ function bindEvents() {
   };
   syncMobileSheet();
 
+  const fabBackdrop = $("fabBackdrop");
+  const fabSheet = $("fabSheet");
+  const syncFabSheet = () => {
+    if (!fabBackdrop || !fabSheet) return;
+    if (isMobile()) {
+      fabBackdrop.removeAttribute("hidden");
+      fabSheet.removeAttribute("hidden");
+    } else {
+      fabBackdrop.setAttribute("hidden", "");
+      fabSheet.setAttribute("hidden", "");
+      document.body.classList.remove("fab-open");
+    }
+  };
+  syncFabSheet();
+
   window.addEventListener("resize", () => {
     if (!isMobile()) {
       document.body.classList.remove("menu-open");
+      document.body.classList.remove("fab-open");
     }
     syncMobileSheet();
+    syncFabSheet();
   });
 
   // Mobile Menu Actions
@@ -658,11 +778,259 @@ function bindEvents() {
   const addBtn = $("addTxBtn");
   if (addBtn) addBtn.addEventListener("click", () => openModal());
   const mobileAddBtn = $("mobileAddBtn");
-  if (mobileAddBtn) mobileAddBtn.addEventListener("click", () => openModal());
+  const closeFabMenu = () => document.body.classList.remove("fab-open");
+  const openFabMenu = () => {
+    if (!isMobile()) {
+      openModal();
+      return;
+    }
+    document.body.classList.remove("menu-open");
+    document.body.classList.add("fab-open");
+  };
+  if (mobileAddBtn) mobileAddBtn.addEventListener("click", openFabMenu);
+  if (fabBackdrop) fabBackdrop.addEventListener("click", closeFabMenu);
+  if (fabSheet) {
+    fabSheet.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn) return;
+      const action = btn.dataset.action;
+      closeFabMenu();
+      if (action === "add") return openModal();
+      if (action === "allocate") return openAllocateModal();
+      if (action === "switch") return openSwitchModal();
+      if (action === "export") return openExportModal();
+    });
+  }
   const closeBtn = $("closeModal");
   if (closeBtn) closeBtn.addEventListener("click", closeModal);
   const modal = $("modal");
   if (modal) modal.addEventListener("click", (e) => e.target === modal && closeModal());
+
+  const allocateModal = $("allocateModal");
+  const openAllocateModal = () => {
+    if (!allocateModal) return;
+    const form = $("allocateForm");
+    if (form) form.reset();
+    const msg = $("allocateMsg");
+    if (msg) msg.textContent = "";
+    allocateModal.hidden = false;
+  };
+  const closeAllocateModal = () => {
+    if (allocateModal) allocateModal.hidden = true;
+  };
+  const allocateBtn = $("allocateBtn");
+  if (allocateBtn) allocateBtn.addEventListener("click", openAllocateModal);
+  const closeAllocateBtn = $("closeAllocateModal");
+  if (closeAllocateBtn) closeAllocateBtn.addEventListener("click", closeAllocateModal);
+  if (allocateModal) {
+    allocateModal.addEventListener("click", (e) => e.target === allocateModal && closeAllocateModal());
+  }
+
+  const allocateForm = $("allocateForm");
+  if (allocateForm) {
+    allocateForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const target = $("allocateAccountSelect").value;
+      const amount = parseAmount($("allocateAmount").value);
+      const msg = $("allocateMsg");
+      if (msg) msg.textContent = "";
+      if (!target || amount <= 0) {
+        if (msg) msg.textContent = "Select account and amount.";
+        return;
+      }
+      try {
+        await api.post("/api/allocate", { target_account_id: target, amount });
+        closeAllocateModal();
+        await loadLedger();
+      } catch (err) {
+        if (msg) msg.textContent = err.message || "Allocate failed";
+      }
+    });
+  }
+
+  const switchModal = $("switchModal");
+  const openSwitchModal = () => {
+    if (!switchModal) return;
+    if (!state.account_id || state.account_id === state.main_account_id) return;
+    const form = $("switchForm");
+    if (form) form.reset();
+    const msg = $("switchMsg");
+    if (msg) msg.textContent = "";
+    updateSwitchTargets();
+    switchModal.hidden = false;
+  };
+  const closeSwitchModal = () => {
+    if (switchModal) switchModal.hidden = true;
+  };
+  const switchBtn = $("switchBtn");
+  if (switchBtn) switchBtn.addEventListener("click", openSwitchModal);
+  const closeSwitchBtn = $("closeSwitchModal");
+  if (closeSwitchBtn) closeSwitchBtn.addEventListener("click", closeSwitchModal);
+  if (switchModal) {
+    switchModal.addEventListener("click", (e) => e.target === switchModal && closeSwitchModal());
+  }
+
+  const switchForm = $("switchForm");
+  if (switchForm) {
+    switchForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const source = state.account_id;
+      const target = $("switchToSelect").value;
+      const amount = parseAmount($("switchAmount").value);
+      const msg = $("switchMsg");
+      if (msg) msg.textContent = "";
+      if (!source || !target || amount <= 0) {
+        if (msg) msg.textContent = "Select target account and amount.";
+        return;
+      }
+      const sourceBalance =
+        state.summary_accounts?.find((a) => a.account_id === source)?.balance ?? null;
+      if (sourceBalance !== null && amount > Number(sourceBalance)) {
+        if (msg) msg.textContent = "Amount exceeds the source account balance.";
+        return;
+      }
+      try {
+        await api.post("/api/switch", { source_account_id: source, target_account_id: target, amount });
+        closeSwitchModal();
+        await loadLedger();
+      } catch (err) {
+        if (msg) msg.textContent = err.message || "Switch failed";
+      }
+    });
+  }
+
+  const exportModal = $("exportModal");
+  const exportAccountSelect = $("exportAccountSelect");
+  const exportDay = $("exportDay");
+  const exportFormat = $("exportFormat");
+  const exportPreview = $("exportRangePreview");
+  const exportMsg = $("exportMsg");
+
+  const exportCount = $("exportCountPreview");
+  const exportIn = $("exportInPreview");
+  const exportOut = $("exportOutPreview");
+  const exportNet = $("exportNetPreview");
+  const setPreviewValue = (el, value) => {
+    if (el) el.textContent = value;
+  };
+
+  const updateExportPreview = async () => {
+    if (!exportDay || !exportPreview) return;
+    const day = Number(exportDay.value);
+    if (!day || day < 1 || day > 31) {
+      exportPreview.textContent = "Enter a day between 1 and 31.";
+      setPreviewValue(exportCount, "-");
+      setPreviewValue(exportIn, "-");
+      setPreviewValue(exportOut, "-");
+      setPreviewValue(exportNet, "-");
+      return;
+    }
+
+    const selectedAccount = exportAccountSelect?.value || "all";
+    const scope = selectedAccount === "all" ? "all" : "account";
+    const acc = scope === "account" ? `&account_id=${encodeURIComponent(selectedAccount)}` : "";
+    exportPreview.textContent = "Loading preview...";
+    try {
+      const res = await api.get(
+        `/api/export/preview?day=${encodeURIComponent(day)}&scope=${encodeURIComponent(scope)}${acc}`
+      );
+      const fromDate = ymdToDate(res?.range?.from);
+      const toDate = ymdToDate(res?.range?.to);
+      if (fromDate && toDate) {
+        exportPreview.textContent = `Range: ${formatDisplayDate(fromDate)} - ${formatDisplayDate(toDate)}`;
+      } else {
+        exportPreview.textContent = "Range unavailable.";
+      }
+      const summary = res?.summary || {};
+      setPreviewValue(exportCount, String(summary.count ?? 0));
+      setPreviewValue(exportIn, fmtMoney(summary.total_in ?? 0));
+      setPreviewValue(exportOut, fmtMoney(summary.total_out ?? 0));
+      setPreviewValue(exportNet, fmtMoney(summary.net ?? 0));
+    } catch (err) {
+      exportPreview.textContent = err.message || "Preview unavailable";
+      setPreviewValue(exportCount, "-");
+      setPreviewValue(exportIn, "-");
+      setPreviewValue(exportOut, "-");
+      setPreviewValue(exportNet, "-");
+    }
+  };
+
+  const openExportModal = () => {
+    if (!exportModal || !exportDay || !exportFormat || !exportAccountSelect) return;
+    updateExportAccounts();
+    const savedDay = localStorage.getItem("export_day");
+    const savedFormat = localStorage.getItem("export_format");
+    const savedAccount = localStorage.getItem("export_account");
+    const fallbackAccount =
+      state.scope === "account" && state.account_id ? state.account_id : "all";
+    exportDay.value = savedDay || "25";
+    exportFormat.value = savedFormat || "pdf";
+    const targetAccount = savedAccount || fallbackAccount;
+    const hasOption = exportAccountSelect.querySelector(`option[value="${targetAccount}"]`);
+    exportAccountSelect.value = hasOption ? targetAccount : "all";
+    if (exportMsg) exportMsg.textContent = "";
+    updateExportPreview();
+    exportModal.hidden = false;
+  };
+
+  const closeExportModal = () => {
+    if (exportModal) exportModal.hidden = true;
+  };
+
+  const exportBtn = $("exportBtn");
+  if (exportBtn) exportBtn.addEventListener("click", openExportModal);
+  const closeExportBtn = $("closeExportModal");
+  if (closeExportBtn) closeExportBtn.addEventListener("click", closeExportModal);
+  if (exportModal) {
+    exportModal.addEventListener("click", (e) => e.target === exportModal && closeExportModal());
+  }
+  if (exportDay) exportDay.addEventListener("input", updateExportPreview);
+  if (exportFormat) exportFormat.addEventListener("change", updateExportPreview);
+  if (exportAccountSelect) exportAccountSelect.addEventListener("change", updateExportPreview);
+
+  const exportForm = $("exportForm");
+  if (exportForm) {
+    exportForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!exportDay || !exportFormat || !exportAccountSelect) return;
+      const day = Number(exportDay.value);
+      if (!day || day < 1 || day > 31) {
+        if (exportMsg) exportMsg.textContent = "Enter a valid day of month.";
+        return;
+      }
+      if (state.currency === "USD" && !state.fx_rate) {
+        if (exportMsg) exportMsg.textContent = "USD rate unavailable. Switch to IDR or update rate.";
+        return;
+      }
+
+      if (exportMsg) exportMsg.textContent = "";
+      const selectedAccount = exportAccountSelect.value || "all";
+      const scope = selectedAccount === "all" ? "all" : "account";
+      const params = new URLSearchParams({
+        day: String(day),
+        format: exportFormat.value || "pdf",
+        scope,
+        currency: state.currency,
+      });
+      if (scope === "account" && selectedAccount) {
+        params.set("account_id", selectedAccount);
+      }
+      if (state.currency === "USD" && state.fx_rate) {
+        params.set("fx_rate", String(state.fx_rate));
+      }
+
+      const link = document.createElement("a");
+      link.href = `/api/export?${params.toString()}`;
+      link.download = `ledger_export.${exportFormat.value || "pdf"}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      closeExportModal();
+      localStorage.setItem("export_day", String(day));
+      localStorage.setItem("export_format", exportFormat.value || "pdf");
+      localStorage.setItem("export_account", selectedAccount);
+    });
+  }
 
   const ledgerBody = $("ledgerBody");
   if (ledgerBody) {
@@ -759,13 +1127,8 @@ function bindEvents() {
   };
 
   const resetAccountForm = () => {
-    state.editing_account = null;
-    state.pending_payload = null;
     $("accountId").value = "";
     $("newAccountName").value = "";
-    $("openingBalance").value = "";
-    $("openingBalance").placeholder = "0";
-    $("openingBalance").disabled = false;
     $("accountFormTitle").textContent = "New Account Details";
     $("cancelEditBtn").hidden = true;
     $("accountMsg").textContent = "";
@@ -821,20 +1184,8 @@ function bindEvents() {
     if (action === "edit") {
       const acc = state.accounts.find((a) => a.account_id === id);
       if (!acc) return;
-      const isMain = acc.account_id === state.main_account_id;
-      const opening = Number(acc.opening_balance || 0) + Number(acc.opening_adjust || 0);
-      
-      state.editing_account = {
-        id: acc.account_id,
-        original_balance: opening,
-        is_main: isMain
-      };
-
       $("accountId").value = acc.account_id;
       $("newAccountName").value = acc.account_name;
-      $("openingBalance").value = opening === 0 ? "" : fmtIDR(opening);
-      $("openingBalance").placeholder = "0";
-      $("openingBalance").disabled = false; // Always allow editing now
       $("accountFormTitle").textContent = "Edit Account Details";
       $("cancelEditBtn").hidden = false;
       setAccountFormTabLabel("Edit Account");
@@ -863,28 +1214,10 @@ function bindEvents() {
     $("accountMsg").textContent = "";
     const account_name = ($("newAccountName").value || "").trim();
     const account_id = $("accountId").value || null;
-    const opening_balance = parseAmount($("openingBalance").value);
 
     if (!account_name) return;
     
-    // Prepare payload
-    const payload = { account_name, opening_balance };
-    
-    // Check if we need password confirmation
-    if (account_id && state.editing_account && state.editing_account.id === account_id) {
-       const ctx = state.editing_account;
-       // If Main Account AND Balance Changed AND Original was not 0 (already set)
-       // actually user said "Lock... but open to re-edit". 
-       // If it was 0, maybe we don't need password? 
-       // But to be safe and consistent with "lock", let's require password if it's changing from a non-zero value.
-       if (ctx.is_main && ctx.original_balance !== 0 && opening_balance !== ctx.original_balance) {
-           // Require Password
-           state.pending_payload = payload;
-           $("confirmPasswordInput").value = "";
-           $("passwordModal").hidden = false;
-           return;
-       }
-    }
+    const payload = { account_name };
 
     try {
       if (account_id) {
@@ -901,32 +1234,6 @@ function bindEvents() {
     }
   });
 
-  // Password Modal Logic
-  $("cancelPasswordBtn").addEventListener("click", () => {
-      $("passwordModal").hidden = true;
-      state.pending_payload = null;
-  });
-
-  $("confirmPasswordBtn").addEventListener("click", async () => {
-      const pwd = $("confirmPasswordInput").value;
-      if (!pwd) return;
-      
-      const payload = { ...state.pending_payload, password: pwd };
-      const account_id = state.editing_account.id;
-      
-      try {
-          await api.put(`/api/accounts/${account_id}`, payload);
-          $("passwordModal").hidden = true;
-          state.pending_payload = null;
-          
-          resetAccountForm();
-          await loadAccounts();
-          await loadLedger();
-          switchAccountsTab("list");
-      } catch (err) {
-          alert(err.message || "Authentication failed");
-      }
-  });
 }
 
 (async function main() {

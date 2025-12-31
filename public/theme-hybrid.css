@@ -20,6 +20,9 @@
   --primary-hover: #0284c7;
   --primary-text: #ffffff;
   --primary-tint: rgba(14, 165, 233, 0.18);
+  --accent: #f59e0b;
+  --accent-soft: rgba(245, 158, 11, 0.18);
+  --accent-text: #92400e;
   
   --danger: #ef4444;
   --danger-tint: rgba(239, 68, 68, 0.14);
@@ -52,6 +55,9 @@ body.dark {
   --primary-text: #1b1206;
   --primary-tint: rgba(245, 158, 11, 0.22);
   --danger-tint: rgba(239, 68, 68, 0.18);
+  --accent: #38bdf8;
+  --accent-soft: rgba(56, 189, 248, 0.18);
+  --accent-text: #e0f2fe;
   
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
   --shadow-card: 0 8px 18px -12px rgba(0, 0, 0, 0.6);
@@ -378,6 +384,38 @@ body.dark .ledger-title-select {
 
 .field { margin-bottom: 0; }
 .field label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; font-weight: 500; }
+.msg {
+  min-height: 18px;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 13px;
+}
+.hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.export-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-hover);
+}
+.export-preview .preview-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.export-preview .preview-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-top: 4px;
+}
 
 input, select {
   background: var(--bg-input);
@@ -494,13 +532,45 @@ input:focus, select:focus {
   justify-content: space-between;
   align-items: center;
 }
+.ledger-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 24px 12px;
+}
+.ledger-search {
+  width: min(240px, 100%);
+}
+.ledger-search input {
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+.mobile-controls {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
 
 .ledger-footer {
   padding: 16px;
   border-top: 1px solid var(--border-subtle);
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
   background: var(--bg-app); /* Slight contrast for footer area */
+}
+.btn.secondary {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-text);
+}
+.btn.secondary:hover {
+  background: var(--accent);
+  color: #ffffff;
 }
 .ledger-range-display { display: none; }
 
@@ -561,6 +631,10 @@ input:focus, select:focus {
 .table th.num,
 .table td.num {
   white-space: nowrap;
+}
+#ledgerTable th.num,
+#ledgerTable td.num {
+  text-align: left;
 }
 .table td.amount-in { color: #10b981; }
 .table td.amount-out { color: #ef4444; }
@@ -686,6 +760,22 @@ input:focus, select:focus {
 }
 .sidebar-backdrop { display: none; }
 .mobile-sheet { display: none; }
+.fab-backdrop { display: none; }
+.fab-sheet { display: none; }
+.fab-option {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.fab-option:hover { background: var(--bg-hover); }
 
 /* Utilities */
 .hidden { display: none; }
@@ -721,7 +811,7 @@ input:focus, select:focus {
 /* Mobile Responsiveness (Native App Layout) */
 @media (max-width: 980px) {
   .container { 
-      padding: 16px 16px calc(24px + 56px + env(safe-area-inset-bottom)) 16px; 
+      padding: 16px 16px calc(16px + env(safe-area-inset-bottom)) 16px; 
       max-width: 100%;
   }
   
@@ -765,6 +855,49 @@ input:focus, select:focus {
   /* Hide redundant desktop "Add Transaction" button */
   #addTxBtn { display: none; }
   .currency-section { display: none; }
+  .ledger-footer { display: none; }
+
+  /* FAB Menu */
+  .fab-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 12, 20, 0.45);
+      backdrop-filter: blur(2px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      z-index: 70;
+  }
+  .fab-sheet {
+      display: grid;
+      position: fixed;
+      right: 20px;
+      bottom: calc(84px + env(safe-area-inset-bottom));
+      min-width: 200px;
+      padding: 8px;
+      gap: 6px;
+      border-radius: 16px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-panel);
+      box-shadow: var(--shadow-float);
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 90;
+  }
+  .fab-backdrop[hidden],
+  .fab-sheet[hidden] {
+      display: block !important;
+      visibility: hidden;
+  }
+  body.fab-open .fab-backdrop { opacity: 1; pointer-events: auto; }
+  body.fab-open .fab-sheet {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+  }
 
   /* Sidebar (Filters) as Drawer */
   .sidebar {
@@ -885,7 +1018,7 @@ input:focus, select:focus {
       gap: 8px;
       width: fit-content;
       max-width: 100%;
-      margin: 8px auto 18px;
+      margin: 8px auto 14px;
       padding: 0;
       border-radius: 0;
       border: none;
@@ -897,6 +1030,30 @@ input:focus, select:focus {
       cursor: default;
       user-select: none;
   }
+
+  .ledger-toolbar {
+      padding: 0;
+      justify-content: flex-end;
+      order: 2;
+      flex: 1;
+  }
+  .ledger-search { width: 100%; max-width: none; }
+  .mobile-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 0 16px 12px;
+      gap: 12px;
+  }
+  .mobile-account-filter {
+      padding: 0;
+      margin: 0;
+      order: 1;
+  }
+  .ledger-search input,
+  .mobile-account-filter select {
+      height: 36px;
+  }
+  .mobile-account-filter select { width: 100%; }
   .ledger-range-display .range-date {
       display: inline-flex;
       align-items: center;
@@ -924,7 +1081,7 @@ input:focus, select:focus {
   .mobile-account-filter {
       display: flex;
       justify-content: center;
-      margin: 0 auto 14px;
+      margin: 14px auto 14px;
       padding: 0 16px;
   }
   .mobile-account-filter select {
@@ -1129,6 +1286,8 @@ input:focus, select:focus {
 
   #ledgerTable td:nth-child(5):not(:empty) { color: #10b981; }
   #ledgerTable td:nth-child(6):not(:empty) { color: #ef4444; }
+  #ledgerTable td.amount-in { color: #10b981; }
+  #ledgerTable td.amount-out { color: #ef4444; }
   
   /* Header labels for Amount + Status */
   #ledgerTable th:nth-child(5),

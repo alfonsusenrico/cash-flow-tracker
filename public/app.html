@@ -50,19 +50,26 @@
             </div>
             <div class="table-totals">
               <div>
-                <div class="total-label">Total Balance</div>
+                <div class="total-label" id="ledgerTotalLabel">Total Asset</div>
                 <div class="total-value" id="ledgerTotal"></div>
               </div>
               <div id="ledgerDiffBlock">
-                <div class="total-label">Unallocated</div>
+                <div class="total-label" id="ledgerDiffLabel">Unallocated Balance</div>
                 <div class="total-value" id="ledgerDiff"></div>
               </div>
             </div>
           </div>
 
           <div id="ledgerRangeDisplay" class="ledger-range-display"></div>
-          <div class="mobile-account-filter">
-            <select id="mobileAccountSelect" aria-label="Account filter"></select>
+          <div class="mobile-controls">
+            <div class="ledger-toolbar">
+              <div class="ledger-search">
+                <input id="ledgerSearch" type="search" placeholder="Search transactions" aria-label="Search transactions" />
+              </div>
+            </div>
+            <div class="mobile-account-filter">
+              <select id="mobileAccountSelect" aria-label="Account filter"></select>
+            </div>
           </div>
 
           <div class="table-wrap">
@@ -82,6 +89,9 @@
             </table>
           </div>
           <div class="ledger-footer">
+            <button id="allocateBtn" class="btn secondary">Allocate Balance</button>
+            <button id="switchBtn" class="btn secondary">Switch Balance</button>
+            <button id="exportBtn" class="btn secondary">Export</button>
             <button id="addTxBtn" class="btn primary">+ Add Transaction</button>
           </div>
         </section>
@@ -90,6 +100,13 @@
 
     <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
     <button id="mobileAddBtn" class="mobile-fab" aria-label="Add transaction">+</button>
+    <div id="fabBackdrop" class="fab-backdrop" hidden></div>
+    <div id="fabSheet" class="fab-sheet" hidden>
+      <button class="fab-option" data-action="add">Add Transaction</button>
+      <button id="fabAllocateOption" class="fab-option" data-action="allocate">Allocate Balance</button>
+      <button id="fabSwitchOption" class="fab-option" data-action="switch">Switch Balance</button>
+      <button id="fabExportOption" class="fab-option" data-action="export">Export</button>
+    </div>
 
     <!-- Mobile Menu (Settings) -->
     <div id="mobileMenuSheet" class="mobile-sheet" hidden>
@@ -223,10 +240,6 @@
                   <label>Account Name</label>
                   <input id="newAccountName" placeholder="e.g. Transportasi" required />
                 </div>
-                <div class="field">
-                  <label>Opening Balance</label>
-                  <input id="openingBalance" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" />
-                </div>
                 <div class="row gap">
                   <button id="saveAccountBtn" class="btn primary grow" type="submit">Save Account</button>
                   <button id="cancelEditBtn" class="btn grow" type="button">Cancel</button>
@@ -239,21 +252,95 @@
       </div>
     </div>
 
-    <!-- Modal Password Confirmation -->
-    <div id="passwordModal" class="modal" role="dialog" aria-modal="true" hidden>
+    <!-- Modal Allocate Balance -->
+    <div id="allocateModal" class="modal" role="dialog" aria-modal="true" hidden>
       <div class="modal-card">
         <div class="modal-head">
-          <h2>Security Check</h2>
-          <button id="cancelPasswordBtn" class="btn">✕</button>
+          <h2>Allocate Balance</h2>
+          <button id="closeAllocateModal" class="btn">✕</button>
         </div>
-        <div class="form stack large-gap">
-          <p class="muted small">Please enter your password to change the Main Account opening balance.</p>
+        <form id="allocateForm" class="form stack large-gap">
           <div class="field">
-            <label>Password</label>
-            <input id="confirmPasswordInput" type="password" required />
+            <label>Allocate To</label>
+            <select id="allocateAccountSelect" required></select>
           </div>
-          <button id="confirmPasswordBtn" class="btn primary full-width">Confirm Change</button>
+          <div class="field">
+            <label>Amount (IDR)</label>
+            <input id="allocateAmount" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" required />
+          </div>
+          <button class="btn primary full-width" type="submit">Allocate Balance</button>
+          <div id="allocateMsg" class="msg"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal Switch Balance -->
+    <div id="switchModal" class="modal" role="dialog" aria-modal="true" hidden>
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Switch Balance</h2>
+          <button id="closeSwitchModal" class="btn">✕</button>
         </div>
+        <form id="switchForm" class="form stack large-gap">
+          <div class="field">
+            <label>To Account</label>
+            <select id="switchToSelect" required></select>
+          </div>
+          <div class="field">
+            <label>Amount (IDR)</label>
+            <input id="switchAmount" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" required />
+          </div>
+          <button class="btn primary full-width" type="submit">Switch Balance</button>
+          <div id="switchMsg" class="msg"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal Export Ledger -->
+    <div id="exportModal" class="modal" role="dialog" aria-modal="true" hidden>
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Export Ledger</h2>
+          <button id="closeExportModal" class="btn">✕</button>
+        </div>
+        <form id="exportForm" class="form stack large-gap">
+          <div class="field">
+            <label>Account</label>
+            <select id="exportAccountSelect" required></select>
+          </div>
+          <div class="field">
+            <label>Payday (Day of Month)</label>
+            <input id="exportDay" type="number" min="1" max="31" inputmode="numeric" placeholder="25" required />
+          </div>
+          <div class="field">
+            <label>Format</label>
+            <select id="exportFormat">
+              <option value="pdf" selected>PDF</option>
+              <option value="csv">CSV</option>
+            </select>
+          </div>
+          <p id="exportRangePreview" class="hint"></p>
+          <div class="export-preview">
+            <div>
+              <div class="preview-label">Transactions</div>
+              <div id="exportCountPreview" class="preview-value">-</div>
+            </div>
+            <div>
+              <div class="preview-label">Cash In</div>
+              <div id="exportInPreview" class="preview-value">-</div>
+            </div>
+            <div>
+              <div class="preview-label">Cash Out</div>
+              <div id="exportOutPreview" class="preview-value">-</div>
+            </div>
+            <div>
+              <div class="preview-label">Net</div>
+              <div id="exportNetPreview" class="preview-value">-</div>
+            </div>
+          </div>
+          <button class="btn primary full-width" type="submit">Export</button>
+          <div id="exportMsg" class="msg"></div>
+        </form>
       </div>
     </div>
 
