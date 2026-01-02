@@ -226,6 +226,31 @@ def build_ledger_data(
     start_rows = cur.fetchall()
     balance = {r["account_id"]: int(r["start_balance"]) for r in start_rows}
 
+    total_asset_running = None
+    if scope == "all":
+        main_start = int(balance.get(main_id, 0))
+        non_main_start = sum(
+            int(balance.get(aid, 0))
+            for aid, acc in acc_by_id.items()
+            if acc["parent_account_id"] is not None
+        )
+        cur.execute(
+            """
+            SELECT COALESCE(SUM(t.amount), 0) AS allocated_total
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE a.username=%s
+              AND a.parent_account_id IS NOT NULL
+              AND t.transaction_name=%s
+              AND t.transaction_type='debit'
+              AND t.date < %s
+            """,
+            (username, "Top Up Balance", from_dt),
+        )
+        allocated_start = int(cur.fetchone()["allocated_total"] or 0)
+        unallocated_start = main_start - allocated_start
+        total_asset_running = non_main_start + unallocated_start
+
     cur.execute(
         """
         SELECT t.transaction_id::text AS transaction_id,
@@ -258,6 +283,10 @@ def build_ledger_data(
         if scope == "account" and account_id == main_id and is_switch_tx_name(name):
             continue
         row_no += 1
+        row_balance = int(balance.get(aid, 0))
+        if scope == "all" and total_asset_running is not None:
+            total_asset_running += signed
+            row_balance = int(total_asset_running)
         rows.append(
             {
                 "no": row_no,
@@ -268,7 +297,7 @@ def build_ledger_data(
                 "transaction_name": t["transaction_name"],
                 "debit": int(t["amount"]) if t["transaction_type"] == "debit" else 0,
                 "credit": int(t["amount"]) if t["transaction_type"] == "credit" else 0,
-                "balance": int(balance.get(aid, 0)),
+                "balance": row_balance,
             }
         )
 
