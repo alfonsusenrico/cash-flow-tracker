@@ -13,6 +13,7 @@ const state = {
   unallocated_balance: 0,
   search_query: "",
   hide_balances: false,
+  sort_order: "desc",
   fx_rate: null,
   fx_updated_at: null,
   currency: "IDR",
@@ -392,10 +393,19 @@ function renderLedger(rows) {
 
   // Update Range Display
   renderRangeDisplay();
+  const dateHeader = $("ledgerDateHeader");
+  if (dateHeader) {
+    dateHeader.setAttribute("aria-sort", state.sort_order === "asc" ? "ascending" : "descending");
+  }
 
   const filteredRows = filterRowsBySearch(rows, state.search_query);
+  const sortedRows = [...filteredRows].sort((a, b) => {
+    const da = new Date(a.date).getTime();
+    const db = new Date(b.date).getTime();
+    return state.sort_order === "asc" ? da - db : db - da;
+  });
 
-  if (!filteredRows.length) {
+  if (!sortedRows.length) {
     const colSpan = isAll ? 7 : 6;
     const message = state.search_query
       ? "No transactions match your search."
@@ -404,7 +414,7 @@ function renderLedger(rows) {
     return;
   }
 
-  body.innerHTML = filteredRows
+  body.innerHTML = sortedRows
     .map(
       (r, idx) => {
         const accCell = `<td class="account-cell">${isAll ? r.account_name : ""}</td>`;
@@ -533,6 +543,15 @@ function bindEvents() {
       }
 
       loadLedger().catch(console.error);
+    });
+  }
+
+  const dateHeader = $("ledgerDateHeader");
+  if (dateHeader) {
+    dateHeader.addEventListener("click", () => {
+      state.sort_order = state.sort_order === "asc" ? "desc" : "asc";
+      dateHeader.setAttribute("aria-sort", state.sort_order === "asc" ? "ascending" : "descending");
+      renderLedger(state.rows);
     });
   }
 
@@ -973,29 +992,38 @@ function bindEvents() {
   };
 
   const hideBtn = $("hideBalancesBtn");
+  const mobileHideToggle = $("mobileHideBalancesToggle");
   const hideIcon = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const showIcon = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.77 21.77 0 0 1 5.06-6.94" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.77 21.77 0 0 1-3.24 4.24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.12 14.12a3 3 0 0 1-4.24-4.24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 1l22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const updateHideBtn = () => {
-    if (!hideBtn) return;
     const isHidden = state.hide_balances;
-    hideBtn.innerHTML = isHidden ? showIcon : hideIcon;
-    hideBtn.title = isHidden ? "Show balances" : "Hide balances";
-    hideBtn.setAttribute("aria-label", hideBtn.title);
-    hideBtn.setAttribute("aria-pressed", isHidden ? "true" : "false");
+    const apply = (btn) => {
+      if (!btn) return;
+      btn.innerHTML = isHidden ? showIcon : hideIcon;
+      btn.title = isHidden ? "Show balances" : "Hide balances";
+      btn.setAttribute("aria-label", btn.title);
+      btn.setAttribute("aria-pressed", isHidden ? "true" : "false");
+    };
+    apply(hideBtn);
+    if (mobileHideToggle) {
+      mobileHideToggle.checked = isHidden;
+    }
   };
   const savedHide = localStorage.getItem("hide_balances") === "true";
   state.hide_balances = savedHide;
   updateHideBtn();
-  if (hideBtn) {
-    hideBtn.addEventListener("click", () => {
-      state.hide_balances = !state.hide_balances;
-      localStorage.setItem("hide_balances", String(state.hide_balances));
-      updateHideBtn();
-      renderLedger(state.rows);
-      if (exportModal && !exportModal.hidden) {
-        updateExportPreview();
-      }
-    });
+  const handleHideToggle = (nextValue) => {
+    state.hide_balances = typeof nextValue === "boolean" ? nextValue : !state.hide_balances;
+    localStorage.setItem("hide_balances", String(state.hide_balances));
+    updateHideBtn();
+    renderLedger(state.rows);
+    if (exportModal && !exportModal.hidden) {
+      updateExportPreview();
+    }
+  };
+  if (hideBtn) hideBtn.addEventListener("click", () => handleHideToggle());
+  if (mobileHideToggle) {
+    mobileHideToggle.addEventListener("change", (e) => handleHideToggle(e.target.checked));
   }
 
   const openExportModal = () => {

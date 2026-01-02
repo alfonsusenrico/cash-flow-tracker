@@ -90,7 +90,7 @@ h1, h2, .brand {
     font-size: 20px; 
     color: var(--text-main);
     background: linear-gradient(135deg, var(--text-main) 0%, var(--primary) 100%);
-    -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     display: inline-block;
 }
@@ -628,6 +628,28 @@ input:focus, select:focus {
   position: sticky;
   top: 0;
   z-index: 10;
+}
+.table th.sortable {
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+.table th.sortable .sort-label {
+  display: inline-block;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+.table th.sortable::after {
+  content: "▼";
+  font-size: 10px;
+  margin-left: 6px;
+  color: var(--text-muted);
+  display: inline-block;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+.table th.sortable[aria-sort="ascending"]::after { content: "▲"; }
+.table th.sortable:hover .sort-label { color: var(--text-main); transform: translateY(-1px); }
+.table th.sortable:hover::after {
+  color: var(--text-main);
+  transform: translateY(-1px);
 }
 .table td {
   padding: 14px 24px;

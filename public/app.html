@@ -83,7 +83,7 @@
                 <tr>
                   <th>No</th>
                   <th id="thAccount">Account</th>
-                  <th>Date</th>
+                  <th id="ledgerDateHeader" class="sortable" role="button" aria-sort="descending"><span class="sort-label">Date</span></th>
                   <th>Transaction</th>
                   <th class="num">In</th>
                   <th class="num">Out</th>
@@ -127,6 +127,14 @@
                 <span>Dark Theme</span>
                 <label class="theme-switch">
                   <input type="checkbox" id="mobileThemeToggleCheckbox">
+                  <span class="slider round"></span>
+                </label>
+            </div>
+
+            <div class="menu-item-row">
+                <span>Hide Balances</span>
+                <label class="theme-switch">
+                  <input type="checkbox" id="mobileHideBalancesToggle">
                   <span class="slider round"></span>
                 </label>
             </div>
