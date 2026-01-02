@@ -29,6 +29,8 @@ const state = {
   search_offset: 0,
   search_has_more: true,
   search_loading: false,
+  ledger_loaded: false,
+  suppress_ledger_refresh: false,
   fx_rate: null,
   fx_updated_at: null,
   currency: "IDR",
@@ -681,6 +683,8 @@ async function loadLedgerPage({ reset = false } = {}) {
   const scope = state.scope;
   const acc = scope === "account" ? `&account_id=${encodeURIComponent(state.account_id || "")}` : "";
   const q = state.search_query ? `&q=${encodeURIComponent(state.search_query)}` : "";
+  const includeSummary = reset;
+  const summaryParam = includeSummary ? "" : "&include_summary=false";
   const url =
     `/api/ledger?scope=${encodeURIComponent(scope)}` +
     acc +
@@ -689,12 +693,13 @@ async function loadLedgerPage({ reset = false } = {}) {
     `&limit=${encodeURIComponent(state.page_size)}` +
     `&offset=${encodeURIComponent(state[offsetKey])}` +
     `&order=${encodeURIComponent(state.sort_order)}` +
-    q;
+    q +
+    summaryParam;
 
   try {
     const res = await api.get(url);
     const nextRows = res.rows || [];
-    updateTotals(res.summary);
+    if (res.summary) updateTotals(res.summary);
     state[rowsKey] = reset ? nextRows : state[rowsKey].concat(nextRows);
     const paging = res.paging || {};
     state[offsetKey] = paging.next_offset ?? state[offsetKey] + nextRows.length;
@@ -704,6 +709,7 @@ async function loadLedgerPage({ reset = false } = {}) {
     }
     renderLedgerChrome();
     if (reset) {
+      state.ledger_loaded = true;
       renderLedgerBody(activeRows());
     } else {
       appendLedgerRows(nextRows);
@@ -736,6 +742,28 @@ const reloadLedgerWithDefaultStale = () => {
   return reloadLedger();
 };
 
+let ledgerDebounceTimer = null;
+const scheduleLedgerReload = (runner, delay = 400) => {
+  if (ledgerDebounceTimer) {
+    clearTimeout(ledgerDebounceTimer);
+  }
+  setLedgerLoading(true);
+  ledgerDebounceTimer = setTimeout(() => {
+    ledgerDebounceTimer = null;
+    Promise.resolve()
+      .then(() => runner())
+      .catch(console.error)
+      .finally(() => setLedgerLoading(false));
+  }, delay);
+};
+const cancelLedgerReload = () => {
+  if (ledgerDebounceTimer) {
+    clearTimeout(ledgerDebounceTimer);
+    ledgerDebounceTimer = null;
+  }
+  setLedgerLoading(false);
+};
+
 const setActiveTab = (tab) => {
   const ledger = $("tab-ledger");
   const summary = $("tab-summary");
@@ -754,6 +782,10 @@ const setActiveTab = (tab) => {
   });
   if (tab === "summary") {
     loadSummary().catch(console.error);
+  } else if (tab === "ledger") {
+    if (!state.suppress_ledger_refresh && !state.default_loading) {
+      reloadLedgerWithDefaultStale().catch(console.error);
+    }
   }
 };
 
@@ -903,13 +935,16 @@ function bindEvents() {
     const openSummaryLedger = (card) => {
       const target = card?.dataset?.accountId;
       if (!target) return;
-      setActiveTab("ledger");
       const titleSelect = $("ledgerTitleSelect");
       if (titleSelect) {
+        state.suppress_ledger_refresh = true;
+        setActiveTab("ledger");
         titleSelect.value = target;
         titleSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        state.suppress_ledger_refresh = false;
         return;
       }
+      setActiveTab("ledger");
       if (target === "all") {
         state.scope = "all";
         state.account_id = null;
@@ -1016,6 +1051,7 @@ function bindEvents() {
     dateHeader.addEventListener("click", () => {
       state.sort_order = state.sort_order === "asc" ? "desc" : "asc";
       dateHeader.setAttribute("aria-sort", state.sort_order === "asc" ? "ascending" : "descending");
+      cancelLedgerReload();
       reloadLedgerWithDefaultStale().catch(console.error);
     });
   }
@@ -1023,12 +1059,11 @@ function bindEvents() {
   const ledgerSearch = $("ledgerSearch");
   if (ledgerSearch) {
     ledgerSearch.value = state.search_query || "";
-    let searchTimer = null;
     ledgerSearch.addEventListener("input", (e) => {
       const value = (e.target.value || "").trim();
       state.search_query = value;
       if (!value) {
-        if (searchTimer) clearTimeout(searchTimer);
+        cancelLedgerReload();
         if (state.default_stale) {
           const targetCount = state.rows.length;
           reloadLedgerToCount(targetCount).catch(console.error);
@@ -1037,10 +1072,7 @@ function bindEvents() {
         }
         return;
       }
-      if (searchTimer) clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => {
-        reloadLedger().catch(console.error);
-      }, 250);
+      scheduleLedgerReload(reloadLedger, 450);
     });
   }
 
@@ -1254,7 +1286,7 @@ function bindEvents() {
       if (toInput) toInput.value = state.to;
       renderRangeDisplay();
       closeDatePicker();
-      reloadLedgerWithDefaultStale().catch(console.error);
+      scheduleLedgerReload(reloadLedgerWithDefaultStale, 350);
     });
   }
   if (datePickerCancel) datePickerCancel.addEventListener("click", closeDatePicker);
@@ -1268,7 +1300,7 @@ function bindEvents() {
       if (toInput) toInput.value = state.to;
       renderRangeDisplay();
       closeDatePicker();
-      reloadLedgerWithDefaultStale().catch(console.error);
+      scheduleLedgerReload(reloadLedgerWithDefaultStale, 350);
     });
   }
   if (datePickerBackdrop) datePickerBackdrop.addEventListener("click", closeDatePicker);
@@ -2019,9 +2051,12 @@ function bindEvents() {
 
   bindEvents();
   setActiveTab("summary");
-  await reloadLedger();
   if (isFxStale()) {
-    fetchFxRate().then(updateFxUI).catch(() => updateFxUI());
+    if (state.currency === "USD") {
+      fetchFxRate().then(updateFxUI).catch(() => updateFxUI());
+    } else {
+      updateFxUI();
+    }
   } else {
     updateFxUI();
   }

@@ -2,6 +2,7 @@ import csv
 import io
 import os
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -17,6 +18,8 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 SESSION_SECRET = os.getenv("SESSION_SECRET")
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 TZ = os.getenv("TZ", "Asia/Jakarta")  # for display in UI only; DB stores timestamptz
+SUMMARY_CACHE_TTL = int(os.getenv("SUMMARY_CACHE_TTL", "30"))
+MONTH_SUMMARY_TTL = int(os.getenv("MONTH_SUMMARY_TTL", "60"))
 
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is required")
@@ -31,6 +34,30 @@ app.add_middleware(
     same_site="lax",
     https_only=COOKIE_SECURE,
 )
+
+_CACHE: dict[str, tuple[float, Any]] = {}
+
+
+def cache_get(key: str) -> Any | None:
+    payload = _CACHE.get(key)
+    if not payload:
+        return None
+    expires_at, value = payload
+    if time.time() > expires_at:
+        _CACHE.pop(key, None)
+        return None
+    return value
+
+
+def cache_set(key: str, value: Any, ttl: int) -> None:
+    _CACHE[key] = (time.time() + max(1, ttl), value)
+
+
+def invalidate_user_cache(username: str) -> None:
+    prefix = f"{username}:"
+    for key in list(_CACHE.keys()):
+        if key.startswith(prefix):
+            _CACHE.pop(key, None)
 
 
 def db():
@@ -403,6 +430,7 @@ def build_ledger_page(
     offset: int,
     order: str,
     query: str | None,
+    include_summary: bool = True,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int, int, dict[str, int | bool]]:
     cur.execute(
         """
@@ -436,7 +464,17 @@ def build_ledger_page(
     limit = max(1, min(int(limit or 25), 100))
     offset = max(0, int(offset or 0))
 
-    summary_accounts, total_asset, unallocated = compute_summary(cur, username, acc_by_id, main_id, to_dt)
+    summary_accounts: list[dict[str, Any]] = []
+    total_asset = 0
+    unallocated = 0
+    if include_summary:
+        summary_key = f"{username}:ledger:{to_dt.isoformat()}"
+        cached = cache_get(summary_key)
+        if cached:
+            summary_accounts, total_asset, unallocated = cached
+        else:
+            summary_accounts, total_asset, unallocated = compute_summary(cur, username, acc_by_id, main_id, to_dt)
+            cache_set(summary_key, (summary_accounts, total_asset, unallocated), SUMMARY_CACHE_TTL)
 
     base_balance = 0
     if scope == "all":
@@ -680,6 +718,7 @@ async def create_account(req: Request):
             conn.rollback()
             raise HTTPException(status_code=400, detail="Account name already exists")
 
+    invalidate_user_cache(username)
     return {"ok": True, "account_id": account_id}
 
 
@@ -721,6 +760,7 @@ async def update_account(account_id: str, req: Request):
         )
         conn.commit()
 
+    invalidate_user_cache(username)
     return {"ok": True}
 
 
@@ -748,6 +788,7 @@ def delete_account(account_id: str, req: Request):
         )
         conn.commit()
 
+    invalidate_user_cache(username)
     return {"ok": True}
 
 
@@ -787,6 +828,7 @@ async def create_tx(req: Request):
         tx_id = cur.fetchone()["transaction_id"]
         conn.commit()
 
+    invalidate_user_cache(username)
     return {"ok": True, "transaction_id": tx_id}
 
 
@@ -864,6 +906,7 @@ async def allocate_balance(req: Request):
         tx_id = cur.fetchone()["transaction_id"]
         conn.commit()
 
+    invalidate_user_cache(username)
     return {"ok": True, "transaction_id": tx_id}
 
 
@@ -934,6 +977,7 @@ async def switch_balance(req: Request):
         )
         conn.commit()
 
+    invalidate_user_cache(username)
     return {"ok": True}
 
 
@@ -1019,6 +1063,7 @@ async def update_tx(transaction_id: str, req: Request):
              raise HTTPException(status_code=404, detail="Transaction not found")
         conn.commit()
 
+    invalidate_user_cache(username)
     return {"ok": True}
 
 
@@ -1041,6 +1086,7 @@ def delete_tx(transaction_id: str, req: Request):
         if not cur.fetchone():
              raise HTTPException(status_code=404, detail="Transaction not found")
         conn.commit()
+    invalidate_user_cache(username)
     return {"ok": True}
 
 
@@ -1055,6 +1101,7 @@ def ledger(
     offset: int = 0,
     order: str = "desc",
     q: str | None = None,
+    include_summary: bool = True,
 ):
     """
     scope:
@@ -1082,7 +1129,7 @@ def ledger(
 
     with db() as conn, conn.cursor() as cur:
         rows, summary_accounts, total_asset, unallocated, paging = build_ledger_page(
-            cur, username, scope, account_id, from_dt, to_dt, limit, offset, order, q
+            cur, username, scope, account_id, from_dt, to_dt, limit, offset, order, q, include_summary
         )
 
     return {
@@ -1090,7 +1137,9 @@ def ledger(
         "scope": scope,
         "rows": rows,
         "paging": paging,
-        "summary": {"accounts": summary_accounts, "total_asset": int(total_asset), "unallocated": int(unallocated)},
+        "summary": None
+        if not include_summary
+        else {"accounts": summary_accounts, "total_asset": int(total_asset), "unallocated": int(unallocated)},
     }
 
 
@@ -1099,6 +1148,10 @@ def summary(req: Request, month: str | None = None):
     username = require_user(req)
     if not month:
         month = now_utc().strftime("%Y-%m")
+    cache_key = f"{username}:summary:{month}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
     from_date, to_date, from_dt, to_dt = compute_month_range(month)
     start_cutoff = from_dt - timedelta(milliseconds=1)
 
@@ -1113,7 +1166,9 @@ def summary(req: Request, month: str | None = None):
         )
         accounts = cur.fetchall()
         if not accounts:
-            return {"range": {"from": from_date, "to": to_date}, "accounts": []}
+            payload = {"range": {"from": from_date, "to": to_date}, "accounts": []}
+            cache_set(cache_key, payload, MONTH_SUMMARY_TTL)
+            return payload
 
         balances_start = get_account_balances(cur, username, start_cutoff)
         balances_now = get_account_balances(cur, username, now_utc())
@@ -1227,7 +1282,9 @@ def summary(req: Request, month: str | None = None):
             }
         )
 
-    return {"range": {"from": from_date, "to": to_date}, "accounts": payload}
+    payload = {"range": {"from": from_date, "to": to_date}, "accounts": payload}
+    cache_set(cache_key, payload, MONTH_SUMMARY_TTL)
+    return payload
 
 
 @app.get("/export/preview")
