@@ -22,7 +22,8 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ledger}:${POSTGRES_PASSWORD:-ledgerpass}@db:5432/${POSTGRES_DB:-ledger}
-      SESSION_SECRET: ${SESSION_SECRET:-change-me}
+      SESSION_SECRET: ${SESSION_SECRET}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       TZ: Asia/Jakarta
     depends_on:
       db:

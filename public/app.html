@@ -31,7 +31,11 @@
 
     <main class="container">
       <div class="workspace">
-        <section id="tab-ledger" class="panel ledger">
+        <div class="page-tabs" role="tablist" aria-label="Pages">
+          <button class="tab-btn active" data-tab="summary" aria-selected="true">Summary</button>
+          <button class="tab-btn" data-tab="ledger" aria-selected="false">Ledger</button>
+        </div>
+        <section id="tab-ledger" class="panel ledger" hidden>
           <div class="ledger-head">
             <div>
               <div class="ledger-title-row">
@@ -42,7 +46,7 @@
               <div class="ledger-range-row">
                 <div id="ledgerRangeText" class="ledger-range-text"></div>
               </div>
-              <div class="ledger-range-inputs visually-hidden">
+              <div class="ledger-range-inputs">
                 <label>
                   From
                   <input id="fromDate" type="date" />
@@ -77,21 +81,27 @@
             </div>
           </div>
 
-          <div class="table-wrap">
-            <table class="table" id="ledgerTable">
-              <thead>
-                <tr>
-                  <th>No</th>
-                  <th id="thAccount">Account</th>
-                  <th id="ledgerDateHeader" class="sortable" role="button" aria-sort="descending"><span class="sort-label">Date</span></th>
-                  <th>Transaction</th>
-                  <th class="num">In</th>
-                  <th class="num">Out</th>
-                  <th class="num">Balance</th>
-                </tr>
-              </thead>
-              <tbody id="ledgerBody"></tbody>
-            </table>
+          <div class="table-wrap ledger-table-wrap">
+            <div class="table-scroll" id="ledgerTableScroll">
+              <table class="table" id="ledgerTable">
+                <thead>
+                  <tr>
+                    <th>No</th>
+                    <th id="thAccount">Account</th>
+                    <th id="ledgerDateHeader" class="sortable" role="button" aria-sort="descending"><span class="sort-label">Date</span></th>
+                    <th>Transaction</th>
+                    <th class="num">In</th>
+                    <th class="num">Out</th>
+                    <th class="num">Balance</th>
+                  </tr>
+                </thead>
+                <tbody id="ledgerBody"></tbody>
+              </table>
+            </div>
+            <div id="ledgerLoading" class="table-loading" hidden aria-hidden="true" aria-busy="false">
+              <div class="spinner" aria-hidden="true"></div>
+              <span class="visually-hidden">Loading</span>
+            </div>
           </div>
           <div class="ledger-footer">
             <button id="allocateBtn" class="btn secondary">Allocate Balance</button>
@@ -100,8 +110,88 @@
             <button id="addTxBtn" class="btn primary">+ Add Transaction</button>
           </div>
         </section>
+        <section id="tab-summary" class="panel summary">
+          <div class="summary-head">
+            <div>
+              <div class="summary-title">Summary</div>
+              <div id="summaryRangeText" class="summary-range-text"></div>
+            </div>
+            <div class="summary-month-wrap">
+              <button id="summaryMonthBtn" class="summary-month-btn" type="button">
+                <span id="summaryMonthText"></span>
+                <svg class="summary-month-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div id="summaryMsg" class="msg"></div>
+          <div id="summaryCards" class="summary-grid"></div>
+        </section>
       </div>
     </main>
+
+    <div id="ledgerDatePickerBackdrop" class="date-picker-backdrop" hidden></div>
+    <div id="ledgerDatePicker" class="date-picker" hidden aria-hidden="true">
+      <div class="date-picker-header">
+        <button id="ledgerDatePrev" class="date-picker-nav" type="button" aria-label="Previous month">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="date-picker-title">
+          <span id="ledgerDatePickerLabel" class="date-picker-label"></span>
+          <span id="ledgerDatePickerMonth" class="date-picker-month"></span>
+        </div>
+        <button id="ledgerDateNext" class="date-picker-nav" type="button" aria-label="Next month">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="date-picker-weekdays">
+        <span>Mo</span>
+        <span>Tu</span>
+        <span>We</span>
+        <span>Th</span>
+        <span>Fr</span>
+        <span>Sa</span>
+        <span>Su</span>
+      </div>
+      <div id="ledgerDatePickerGrid" class="date-picker-grid"></div>
+      <div class="date-picker-footer">
+        <button id="ledgerDateClear" class="date-picker-text" type="button">Clear</button>
+        <div class="date-picker-actions">
+          <button id="ledgerDateCancel" class="date-picker-text" type="button">Cancel</button>
+          <button id="ledgerDateApply" class="date-picker-apply" type="button">Apply</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="summaryMonthPickerBackdrop" class="date-picker-backdrop" hidden></div>
+    <div id="summaryMonthPicker" class="date-picker month-picker" hidden aria-hidden="true">
+      <div class="date-picker-header">
+        <button id="summaryMonthPrev" class="date-picker-nav" type="button" aria-label="Previous year">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="date-picker-title">
+          <span class="date-picker-label">Year</span>
+          <span id="summaryMonthYear" class="date-picker-month"></span>
+        </div>
+        <button id="summaryMonthNext" class="date-picker-nav" type="button" aria-label="Next year">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <div id="summaryMonthGrid" class="month-picker-grid"></div>
+      <div class="date-picker-footer">
+        <button id="summaryMonthCancel" class="date-picker-text" type="button">Cancel</button>
+        <button id="summaryMonthApply" class="date-picker-apply" type="button">Apply</button>
+      </div>
+    </div>
 
     <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
     <button id="mobileAddBtn" class="mobile-fab" aria-label="Add transaction">+</button>
@@ -150,6 +240,10 @@
               <button id="mobileFxRefreshBtn" class="btn full-width">Update Rate</button>
             </div>
             
+            <div class="divider"></div>
+
+            <button id="mobileSummaryBtn" class="btn full-width">Summary</button>
+
             <div class="divider"></div>
 
             <button id="mobileManageAccountsBtn" class="btn full-width">Manage Accounts</button>

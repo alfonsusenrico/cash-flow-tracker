@@ -9,11 +9,26 @@ const state = {
   from: null,
   to: null,
   rows: [],
+  search_rows: [],
+  active_tab: "summary",
+  overview_accounts: [],
+  overview_range: null,
+  summary_month: "",
+  summary_loading: false,
+  summary_stale: true,
   total_asset: 0,
   unallocated_balance: 0,
   search_query: "",
   hide_balances: false,
   sort_order: "desc",
+  page_size: 25,
+  default_offset: 0,
+  default_has_more: true,
+  default_loading: false,
+  default_stale: false,
+  search_offset: 0,
+  search_has_more: true,
+  search_loading: false,
   fx_rate: null,
   fx_updated_at: null,
   currency: "IDR",
@@ -55,6 +70,40 @@ const api = {
     if (!r.ok) throw new Error(data.detail || "Request failed");
     return data;
   },
+};
+
+const ledgerLoadingState = {
+  startedAt: 0,
+  hideTimer: null,
+};
+
+const setLedgerLoading = (isLoading) => {
+  const el = $("ledgerLoading");
+  if (!el) return;
+  if (isLoading) {
+    if (ledgerLoadingState.hideTimer) {
+      clearTimeout(ledgerLoadingState.hideTimer);
+      ledgerLoadingState.hideTimer = null;
+    }
+    ledgerLoadingState.startedAt = Date.now();
+    el.hidden = false;
+    el.setAttribute("aria-hidden", "false");
+    el.setAttribute("aria-busy", "true");
+    return;
+  }
+  const elapsed = Date.now() - ledgerLoadingState.startedAt;
+  const minMs = 350;
+  const delay = Math.max(0, minMs - elapsed);
+  const finish = () => {
+    el.hidden = true;
+    el.setAttribute("aria-hidden", "true");
+    el.setAttribute("aria-busy", "false");
+  };
+  if (delay) {
+    ledgerLoadingState.hideTimer = setTimeout(finish, delay);
+  } else {
+    finish();
+  }
 };
 
 const fmtIDR = (n) => (n || 0).toLocaleString("id-ID");
@@ -105,17 +154,19 @@ const ymdToDate = (ymd) => {
   if (!y || !m || !d) return null;
   return new Date(y, m - 1, d);
 };
-
-const normalizeSearch = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-
-const fuzzyMatch = (query, text) => {
-  if (!query) return true;
-  let qi = 0;
-  for (let i = 0; i < text.length && qi < query.length; i += 1) {
-    if (text[i] === query[qi]) qi += 1;
-  }
-  return qi === query.length;
+const dateToYMD = (d) => {
+  if (!d) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
+
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 const minusDaysYMD = (days) => {
   const d = new Date();
@@ -137,9 +188,9 @@ const formatRangeText = (from, to) => {
 const formatRangeLabel = (from, to) => {
   const fmtDate = (ymd) => (ymd ? ymd.split("-").reverse().join("/") : "");
   return `
-    <span class="range-date" data-date-target="from">${fmtDate(from)}</span>
+    <span class="range-date" data-date-target="from">${escapeHtml(fmtDate(from))}</span>
     <span class="range-separator">-</span>
-    <span class="range-date" data-date-target="to">${fmtDate(to)}</span>
+    <span class="range-date" data-date-target="to">${escapeHtml(fmtDate(to))}</span>
   `;
 };
 
@@ -212,7 +263,7 @@ function updateFxUI() {
 
 function renderAccounts() {
   const opts = state.accounts
-    .map((a) => `<option value="${a.account_id}">${a.account_name}</option>`)
+    .map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`)
     .join("");
 
   $("txAccountSelect").innerHTML = opts;
@@ -221,11 +272,12 @@ function renderAccounts() {
     .map((a) => {
       const isMain = a.account_id === state.main_account_id;
       const tag = isMain ? `<span class="tag">Main</span>` : "";
+      const accountName = escapeHtml(a.account_name);
       const deleteBtn = isMain
         ? ""
         : `<button class="btn small danger" data-action="delete" data-id="${a.account_id}">Delete</button>`;
       return `<tr>
-        <td>${a.account_name}${tag}</td>
+        <td>${accountName}${tag}</td>
         <td class="num">
           <div class="actions">
             <button class="btn small" data-action="edit" data-id="${a.account_id}">Edit</button>
@@ -242,14 +294,15 @@ function renderAccounts() {
     const listItems = [
       `<label class="account-option">
         <input type="radio" name="accountFilter" value="all" ${state.scope === "all" ? "checked" : ""} />
-        <span>Main Account</span>
-        <span class="tag">Main</span>
+        <span>Total Ledger</span>
+        <span class="tag">Total</span>
       </label>`,
       ...filterAccounts.map((a) => {
         const checked = state.scope === "account" && state.account_id === a.account_id ? "checked" : "";
+        const accountName = escapeHtml(a.account_name);
         return `<label class="account-option">
           <input type="radio" name="accountFilter" value="${a.account_id}" ${checked} />
-          <span>${a.account_name}</span>
+          <span>${accountName}</span>
         </label>`;
       }),
     ];
@@ -259,8 +312,8 @@ function renderAccounts() {
   const mobileSelect = $("mobileAccountSelect");
   if (mobileSelect) {
     const mobileOptions = [
-      `<option value="all">Main Account</option>`,
-      ...filterAccounts.map((a) => `<option value="${a.account_id}">${a.account_name}</option>`),
+      `<option value="all">Total Ledger</option>`,
+      ...filterAccounts.map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
     ];
     mobileSelect.innerHTML = mobileOptions.join("");
     mobileSelect.value = state.scope === "account" && state.account_id ? state.account_id : "all";
@@ -269,8 +322,8 @@ function renderAccounts() {
   const titleSelect = $("ledgerTitleSelect");
   if (titleSelect) {
     const titleOptions = [
-      `<option value="all">Main Account</option>`,
-      ...filterAccounts.map((a) => `<option value="${a.account_id}">${a.account_name}</option>`),
+      `<option value="all">Total Ledger</option>`,
+      ...filterAccounts.map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
     ];
     titleSelect.innerHTML = titleOptions.join("");
     titleSelect.value = state.scope === "account" && state.account_id ? state.account_id : "all";
@@ -280,7 +333,7 @@ function renderAccounts() {
   if (allocateSelect) {
     const allocateOptions = [
       `<option value="">Select account</option>`,
-      ...filterAccounts.map((a) => `<option value="${a.account_id}">${a.account_name}</option>`),
+      ...filterAccounts.map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
     ];
     allocateSelect.innerHTML = allocateOptions.join("");
   }
@@ -295,19 +348,146 @@ function updateTotals(summary) {
   state.summary_accounts = summary?.accounts || [];
 }
 
+const currentMonthYM = () => {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  return `${now.getFullYear()}-${month}`;
+};
+
+const clampMonthYM = (ym) => {
+  const max = currentMonthYM();
+  if (!ym) return max;
+  return ym > max ? max : ym;
+};
+
+const parseYM = (ym) => {
+  if (!ym) return null;
+  const [year, month] = String(ym).split("-").map((v) => Number(v));
+  if (!year || !month) return null;
+  return { year, month };
+};
+
+const formatMonthLabel = (ym) => {
+  if (!ym) return "";
+  const [year, month] = ym.split("-").map((v) => Number(v));
+  if (!year || !month) return ym;
+  const date = new Date(year, month - 1, 1);
+  return date.toLocaleString("en-US", { month: "long", year: "numeric" });
+};
+
+const updateSummaryMonthText = () => {
+  const text = $("summaryMonthText");
+  if (!text) return;
+  const value = state.summary_month || currentMonthYM();
+  text.textContent = formatMonthLabel(value);
+};
+
+const renderSummary = () => {
+  const cards = $("summaryCards");
+  const rangeText = $("summaryRangeText");
+  const msg = $("summaryMsg");
+  if (msg) msg.textContent = "";
+  if (rangeText) {
+    const fromDate = ymdToDate(state.overview_range?.from);
+    const toDate = ymdToDate(state.overview_range?.to);
+    rangeText.textContent = fromDate && toDate
+      ? `${formatDisplayDate(fromDate)} - ${formatDisplayDate(toDate)}`
+      : "Range unavailable.";
+  }
+  if (!cards) return;
+  if (!state.overview_accounts.length) {
+    cards.innerHTML = `<div class="summary-empty">No accounts available for this period.</div>`;
+    return;
+  }
+  cards.innerHTML = state.overview_accounts
+    .map((acc) => {
+      const totalIn = Number(acc.total_in || 0);
+      const totalOut = Number(acc.total_out || 0);
+      const max = Math.max(totalIn, totalOut, 1);
+      const inPct = Math.min(100, (totalIn / max) * 100);
+      const outPct = Math.min(100, (totalOut / max) * 100);
+      const tag = acc.is_main ? `<span class="tag">Main</span>` : "";
+      const mainClass = acc.is_main ? " main" : "";
+      const cardTarget = acc.is_main ? "all" : acc.account_id;
+      const cardLabel = `View ledger for ${acc.account_name}`;
+      return `<div class="summary-card${mainClass}" data-account-id="${cardTarget}" role="button" tabindex="0" aria-label="${escapeHtml(cardLabel)}" style="--in:${inPct}%; --out:${outPct}%;">
+        <div class="summary-card-head">
+          <div class="summary-card-title">${escapeHtml(acc.account_name)}</div>
+          ${tag}
+        </div>
+        <div class="summary-balance-row">
+          <div>
+          <div class="summary-balance-label">Last Month Balance</div>
+            <div class="summary-balance">${displayMoney(acc.starting_balance || 0)}</div>
+          </div>
+          <div>
+            <div class="summary-balance-label">Current Balance</div>
+            <div class="summary-balance">${displayMoney(acc.current_balance || 0)}</div>
+          </div>
+        </div>
+        <div class="summary-io">
+          <div class="io-item">
+            <span class="io-label">Total In</span>
+            <span class="io-value" style="color:#10b981;">${displayMoney(totalIn)}</span>
+          </div>
+          <div class="io-item">
+            <span class="io-label">Total Out</span>
+            <span class="io-value" style="color:#ef4444;">${displayMoney(totalOut)}</span>
+          </div>
+        </div>
+        <div class="summary-bars">
+          <span class="in"></span>
+          <span class="out"></span>
+        </div>
+      </div>`;
+    })
+    .join("");
+};
+
+const loadSummary = async ({ force = false } = {}) => {
+  if (state.summary_loading) return;
+  if (!force && !state.summary_stale && state.overview_accounts.length) {
+    renderSummary();
+    return;
+  }
+  const msg = $("summaryMsg");
+  if (msg) msg.textContent = "Loading summary...";
+  state.summary_loading = true;
+  try {
+    const month = state.summary_month || currentMonthYM();
+    if (!state.summary_month) state.summary_month = month;
+    const res = await api.get(`/api/summary?month=${encodeURIComponent(month)}`);
+    state.overview_accounts = res.accounts || [];
+    state.overview_range = res.range || null;
+    state.summary_stale = false;
+    renderSummary();
+  } catch (err) {
+    if (msg) msg.textContent = err.message || "Failed to load summary";
+  } finally {
+    state.summary_loading = false;
+  }
+};
+
+const markSummaryStale = () => {
+  state.summary_stale = true;
+  if (state.active_tab === "summary") {
+    loadSummary({ force: true }).catch(console.error);
+  }
+};
+
 function updateSwitchTargets() {
   const switchToSelect = $("switchToSelect");
   if (!switchToSelect) return;
   const sourceId = state.account_id;
-  const targetOptions = [
-    `<option value="">Select account</option>`,
-    ...state.accounts
-      .filter(
-        (a) => a.account_id !== state.main_account_id && (!sourceId || a.account_id !== sourceId)
-      )
-      .map((a) => `<option value="${a.account_id}">${a.account_name}</option>`),
-  ];
-  switchToSelect.innerHTML = targetOptions.join("");
+    const targetOptions = [
+      `<option value="">Select account</option>`,
+      ...state.accounts
+        .filter(
+          (a) => a.account_id !== state.main_account_id && (!sourceId || a.account_id !== sourceId)
+        )
+        .map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
+    ];
+    switchToSelect.innerHTML = targetOptions.join("");
 }
 
 function updateExportAccounts() {
@@ -317,38 +497,39 @@ function updateExportAccounts() {
     .filter((a) => a.account_id !== state.main_account_id)
     .sort((a, b) => a.account_name.localeCompare(b.account_name));
   const options = [
-    `<option value="all">Main Account</option>`,
-    ...nonMain.map((a) => `<option value="${a.account_id}">${a.account_name}</option>`),
+    `<option value="all">Total Ledger</option>`,
+    ...nonMain.map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
   ];
   exportAccountSelect.innerHTML = options.join("");
 }
 
-function filterRowsBySearch(rows, query) {
-  const cleaned = normalizeSearch(query);
-  if (!cleaned) return rows;
-  return rows.filter((r) => {
-    const haystack = normalizeSearch(
-      [
-        r.transaction_name,
-        r.account_name,
-        isoToLocalDisplay(r.date),
-        r.debit,
-        r.credit,
-        r.balance,
-      ].join(" ")
-    );
-    return fuzzyMatch(cleaned, haystack);
-  });
-}
-
-function renderLedger(rows) {
-  const body = $("ledgerBody");
-  const table = $("ledgerTable");
+const getLedgerViewState = () => {
   const isAll = state.scope === "all";
   const isMainAccount = state.scope === "account" && state.account_id === state.main_account_id;
   const showAllocate = isAll || isMainAccount;
   const showSwitch = state.scope === "account" && state.account_id && state.account_id !== state.main_account_id;
   const showAssetSummary = isAll || isMainAccount;
+  return { isAll, isMainAccount, showAllocate, showSwitch, showAssetSummary };
+};
+
+const buildLedgerRow = (r, idx, isAll) => {
+  const accCell = `<td class="account-cell">${isAll ? escapeHtml(r.account_name) : ""}</td>`;
+  const dateLabel = escapeHtml(isoToLocalDisplay(r.date));
+  const nameLabel = escapeHtml(r.transaction_name);
+  return `<tr data-tx-id="${r.transaction_id}" style="cursor:pointer">
+    <td>${r.no ?? idx + 1}</td>
+    ${accCell}
+    <td title="${dateLabel}">${dateLabel}</td>
+    <td title="${nameLabel}">${nameLabel}</td>
+    <td class="num amount-in">${r.debit ? displayMoney(r.debit) : ""}</td>
+    <td class="num amount-out">${r.credit ? displayMoney(r.credit) : ""}</td>
+    <td class="num"><b>${displayMoney(r.balance)}</b></td>
+  </tr>`;
+};
+
+const renderLedgerChrome = () => {
+  const table = $("ledgerTable");
+  const { isAll, showAllocate, showSwitch, showAssetSummary } = getLedgerViewState();
   const allocateBtn = $("allocateBtn");
   const switchBtn = $("switchBtn");
   const fabAllocateOption = $("fabAllocateOption");
@@ -374,38 +555,34 @@ function renderLedger(rows) {
     $("ledgerTotal").textContent = displayMoney(accountBalance || 0);
     if (diffBlock) diffBlock.hidden = true;
   }
-  
-  // Update Title
+
   if (isAll) {
-      $("thAccount").hidden = false;
+    $("thAccount").hidden = false;
   } else {
-      $("thAccount").hidden = true;
+    $("thAccount").hidden = true;
   }
   const titleSelect = $("ledgerTitleSelect");
   if (titleSelect) {
-      const targetValue = isAll ? "all" : (state.account_id || "all");
-      const hasOption = titleSelect.querySelector(`option[value="${targetValue}"]`);
-      titleSelect.value = hasOption ? targetValue : "all";
+    const targetValue = isAll ? "all" : (state.account_id || "all");
+    const hasOption = titleSelect.querySelector(`option[value="${targetValue}"]`);
+    titleSelect.value = hasOption ? targetValue : "all";
   }
   if (table) {
     table.classList.toggle("is-account", !isAll);
   }
 
-  // Update Range Display
   renderRangeDisplay();
   const dateHeader = $("ledgerDateHeader");
   if (dateHeader) {
     dateHeader.setAttribute("aria-sort", state.sort_order === "asc" ? "ascending" : "descending");
   }
+};
 
-  const filteredRows = filterRowsBySearch(rows, state.search_query);
-  const sortedRows = [...filteredRows].sort((a, b) => {
-    const da = new Date(a.date).getTime();
-    const db = new Date(b.date).getTime();
-    return state.sort_order === "asc" ? da - db : db - da;
-  });
-
-  if (!sortedRows.length) {
+const renderLedgerBody = (rows) => {
+  const body = $("ledgerBody");
+  if (!body) return;
+  const { isAll } = getLedgerViewState();
+  if (!rows.length) {
     const colSpan = isAll ? 7 : 6;
     const message = state.search_query
       ? "No transactions match your search."
@@ -413,24 +590,25 @@ function renderLedger(rows) {
     body.innerHTML = `<tr><td colspan="${colSpan}" class="empty-row">${message}</td></tr>`;
     return;
   }
+  body.innerHTML = rows.map((r, idx) => buildLedgerRow(r, idx, isAll)).join("");
+};
 
-  body.innerHTML = sortedRows
-    .map(
-      (r, idx) => {
-        const accCell = `<td class="account-cell">${isAll ? r.account_name : ""}</td>`;
-        return `<tr data-tx-id="${r.transaction_id}" style="cursor:pointer">
-        <td>${idx + 1}</td>
-        ${accCell}
-        <td>${isoToLocalDisplay(r.date)}</td>
-        <td>${r.transaction_name}</td>
-        <td class="num amount-in">${r.debit ? displayMoney(r.debit) : ""}</td>
-        <td class="num amount-out">${r.credit ? displayMoney(r.credit) : ""}</td>
-        <td class="num"><b>${displayMoney(r.balance)}</b></td>
-      </tr>`;
-      }
-    )
-    .join("");
+const appendLedgerRows = (rows) => {
+  if (!rows.length) return;
+  const body = $("ledgerBody");
+  if (!body) return;
+  const { isAll } = getLedgerViewState();
+  if (body.querySelector(".empty-row")) {
+    body.innerHTML = "";
+  }
+  const existingCount = body.querySelectorAll("tr").length;
+  const html = rows.map((r, idx) => buildLedgerRow(r, existingCount + idx, isAll)).join("");
+  body.insertAdjacentHTML("beforeend", html);
+};
 
+function renderLedger(rows) {
+  renderLedgerChrome();
+  renderLedgerBody(rows);
 }
 
 async function loadMe() {
@@ -461,21 +639,308 @@ async function loadAccounts() {
   }
 }
 
-async function loadLedger() {
+const activeRows = () => (state.search_query ? state.search_rows : state.rows);
+
+const activePaging = () => {
+  if (state.search_query) {
+    return {
+      offsetKey: "search_offset",
+      hasMoreKey: "search_has_more",
+      loadingKey: "search_loading",
+      rowsKey: "search_rows",
+    };
+  }
+  return {
+    offsetKey: "default_offset",
+    hasMoreKey: "default_has_more",
+    loadingKey: "default_loading",
+    rowsKey: "rows",
+  };
+};
+
+const markDefaultStale = () => {
+  if (state.search_query) state.default_stale = true;
+};
+
+async function loadLedgerPage({ reset = false } = {}) {
+  const { offsetKey, hasMoreKey, loadingKey, rowsKey } = activePaging();
+  if (state[loadingKey]) return;
+  if (!state[hasMoreKey] && !reset) return;
+
+  if (reset) {
+    state[offsetKey] = 0;
+    state[hasMoreKey] = true;
+    state[rowsKey] = [];
+  }
+
+  state[loadingKey] = true;
+  const showSpinner = !reset && state[rowsKey].length > 0;
+  if (showSpinner) setLedgerLoading(true);
+  const ledgerWrap = $("ledgerTableScroll");
+  const prevScrollTop = !reset && ledgerWrap ? ledgerWrap.scrollTop : 0;
   const scope = state.scope;
   const acc = scope === "account" ? `&account_id=${encodeURIComponent(state.account_id || "")}` : "";
+  const q = state.search_query ? `&q=${encodeURIComponent(state.search_query)}` : "";
   const url =
     `/api/ledger?scope=${encodeURIComponent(scope)}` +
     acc +
     `&from_date=${encodeURIComponent(state.from)}` +
-    `&to_date=${encodeURIComponent(state.to)}`;
-  const res = await api.get(url);
-  state.rows = res.rows || [];
-  updateTotals(res.summary);
-  renderLedger(state.rows);
+    `&to_date=${encodeURIComponent(state.to)}` +
+    `&limit=${encodeURIComponent(state.page_size)}` +
+    `&offset=${encodeURIComponent(state[offsetKey])}` +
+    `&order=${encodeURIComponent(state.sort_order)}` +
+    q;
+
+  try {
+    const res = await api.get(url);
+    const nextRows = res.rows || [];
+    updateTotals(res.summary);
+    state[rowsKey] = reset ? nextRows : state[rowsKey].concat(nextRows);
+    const paging = res.paging || {};
+    state[offsetKey] = paging.next_offset ?? state[offsetKey] + nextRows.length;
+    state[hasMoreKey] = paging.has_more ?? nextRows.length === state.page_size;
+    if (!state.search_query) {
+      state.default_stale = false;
+    }
+    renderLedgerChrome();
+    if (reset) {
+      renderLedgerBody(activeRows());
+    } else {
+      appendLedgerRows(nextRows);
+      if (ledgerWrap) {
+        requestAnimationFrame(() => {
+          ledgerWrap.scrollTop = prevScrollTop;
+        });
+      }
+    }
+  } finally {
+    state[loadingKey] = false;
+    if (showSpinner) setLedgerLoading(false);
+  }
 }
 
+async function reloadLedger() {
+  await loadLedgerPage({ reset: true });
+}
+
+async function reloadLedgerToCount(targetCount) {
+  await reloadLedger();
+  if (!Number.isFinite(targetCount)) return;
+  while (state.rows.length < targetCount && state.default_has_more) {
+    await loadLedgerPage();
+  }
+}
+
+const reloadLedgerWithDefaultStale = () => {
+  markDefaultStale();
+  return reloadLedger();
+};
+
+const setActiveTab = (tab) => {
+  const ledger = $("tab-ledger");
+  const summary = $("tab-summary");
+  const fabBtn = $("mobileAddBtn");
+  state.active_tab = tab;
+  if (ledger) ledger.hidden = tab !== "ledger";
+  if (summary) summary.hidden = tab !== "summary";
+  if (fabBtn) fabBtn.hidden = tab !== "ledger";
+  if (tab !== "ledger") {
+    document.body.classList.remove("fab-open");
+  }
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    const isActive = btn.dataset.tab === tab;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+  if (tab === "summary") {
+    loadSummary().catch(console.error);
+  }
+};
+
 function bindEvents() {
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
+  });
+
+  const summaryMonthBtn = $("summaryMonthBtn");
+  const summaryMonthPicker = $("summaryMonthPicker");
+  const summaryMonthBackdrop = $("summaryMonthPickerBackdrop");
+  const summaryMonthGrid = $("summaryMonthGrid");
+  const summaryMonthYear = $("summaryMonthYear");
+  const summaryMonthPrev = $("summaryMonthPrev");
+  const summaryMonthNext = $("summaryMonthNext");
+  const summaryMonthApply = $("summaryMonthApply");
+  const summaryMonthCancel = $("summaryMonthCancel");
+  let monthPickerYear = null;
+  let monthPickerValue = null;
+
+  const formatMonthShort = (year, month) =>
+    new Date(year, month - 1, 1).toLocaleString("en-US", { month: "short" });
+
+  const positionMonthPicker = (anchorEl) => {
+    if (!summaryMonthPicker) return;
+    const rect = anchorEl?.getBoundingClientRect?.();
+    let pickerRect = summaryMonthPicker.getBoundingClientRect();
+    let left = 16;
+    let top = 16;
+    if (isMobile() || !rect) {
+      const width = Math.min(window.innerWidth - 32, pickerRect.width);
+      left = Math.round((window.innerWidth - width) / 2);
+      top = Math.round(Math.max(24, window.innerHeight * 0.2));
+      summaryMonthPicker.style.width = `${width}px`;
+      pickerRect = summaryMonthPicker.getBoundingClientRect();
+    } else {
+      summaryMonthPicker.style.width = "";
+      pickerRect = summaryMonthPicker.getBoundingClientRect();
+      left = rect.left;
+      top = rect.bottom + 8;
+      const maxLeft = window.innerWidth - pickerRect.width - 8;
+      const maxTop = window.innerHeight - pickerRect.height - 8;
+      left = Math.min(Math.max(8, left), Math.max(8, maxLeft));
+      top = Math.min(Math.max(8, top), Math.max(8, maxTop));
+      if (rect.bottom + pickerRect.height + 8 > window.innerHeight) {
+        top = Math.max(8, rect.top - pickerRect.height - 8);
+      }
+    }
+    summaryMonthPicker.style.left = `${Math.round(left)}px`;
+    summaryMonthPicker.style.top = `${Math.round(top)}px`;
+  };
+
+  const renderMonthPicker = () => {
+    if (!summaryMonthGrid || !summaryMonthYear || !monthPickerYear) return;
+    const max = parseYM(currentMonthYM());
+    summaryMonthYear.textContent = String(monthPickerYear);
+    summaryMonthGrid.innerHTML = "";
+    for (let m = 1; m <= 12; m += 1) {
+      const ym = `${monthPickerYear}-${String(m).padStart(2, "0")}`;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "month-cell";
+      btn.dataset.ym = ym;
+      btn.textContent = formatMonthShort(monthPickerYear, m);
+      const isDisabled = max && (monthPickerYear > max.year || (monthPickerYear === max.year && m > max.month));
+      if (isDisabled) {
+        btn.classList.add("is-disabled");
+        btn.disabled = true;
+      }
+      if (ym === currentMonthYM()) btn.classList.add("is-current");
+      if (ym === monthPickerValue) btn.classList.add("is-selected");
+      summaryMonthGrid.appendChild(btn);
+    }
+    if (summaryMonthNext) {
+      summaryMonthNext.disabled = max && monthPickerYear >= max.year;
+    }
+  };
+
+  const openMonthPicker = (anchorEl) => {
+    if (!summaryMonthPicker || !summaryMonthBackdrop) return;
+    const safeValue = clampMonthYM(state.summary_month || currentMonthYM());
+    const parsed = parseYM(safeValue);
+    monthPickerYear = parsed ? parsed.year : new Date().getFullYear();
+    monthPickerValue = safeValue;
+    summaryMonthPicker.removeAttribute("hidden");
+    summaryMonthPicker.setAttribute("aria-hidden", "false");
+    summaryMonthBackdrop.removeAttribute("hidden");
+    renderMonthPicker();
+    requestAnimationFrame(() => {
+      summaryMonthPicker.classList.add("open");
+      summaryMonthBackdrop.classList.add("open");
+      positionMonthPicker(anchorEl || summaryMonthBtn);
+    });
+  };
+
+  const closeMonthPicker = () => {
+    if (!summaryMonthPicker || !summaryMonthBackdrop) return;
+    summaryMonthPicker.classList.remove("open");
+    summaryMonthBackdrop.classList.remove("open");
+    setTimeout(() => {
+      summaryMonthPicker.setAttribute("hidden", "");
+      summaryMonthPicker.setAttribute("aria-hidden", "true");
+      summaryMonthBackdrop.setAttribute("hidden", "");
+    }, 160);
+  };
+
+  if (summaryMonthBtn) {
+    summaryMonthBtn.addEventListener("click", () => openMonthPicker(summaryMonthBtn));
+  }
+  if (summaryMonthGrid) {
+    summaryMonthGrid.addEventListener("click", (e) => {
+      const cell = e.target.closest(".month-cell");
+      if (!cell || cell.disabled) return;
+      monthPickerValue = cell.dataset.ym;
+      renderMonthPicker();
+    });
+  }
+  if (summaryMonthPrev) {
+    summaryMonthPrev.addEventListener("click", () => {
+      if (!monthPickerYear) return;
+      monthPickerYear -= 1;
+      renderMonthPicker();
+    });
+  }
+  if (summaryMonthNext) {
+    summaryMonthNext.addEventListener("click", () => {
+      if (!monthPickerYear) return;
+      monthPickerYear += 1;
+      renderMonthPicker();
+    });
+  }
+  if (summaryMonthApply) {
+    summaryMonthApply.addEventListener("click", () => {
+      if (!monthPickerValue) return closeMonthPicker();
+      state.summary_month = clampMonthYM(monthPickerValue);
+      updateSummaryMonthText();
+      markSummaryStale();
+      closeMonthPicker();
+    });
+  }
+  if (summaryMonthCancel) summaryMonthCancel.addEventListener("click", closeMonthPicker);
+  if (summaryMonthBackdrop) summaryMonthBackdrop.addEventListener("click", closeMonthPicker);
+  updateSummaryMonthText();
+
+  const summaryCards = $("summaryCards");
+  if (summaryCards) {
+    const openSummaryLedger = (card) => {
+      const target = card?.dataset?.accountId;
+      if (!target) return;
+      setActiveTab("ledger");
+      const titleSelect = $("ledgerTitleSelect");
+      if (titleSelect) {
+        titleSelect.value = target;
+        titleSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        return;
+      }
+      if (target === "all") {
+        state.scope = "all";
+        state.account_id = null;
+      } else {
+        state.scope = "account";
+        state.account_id = target;
+      }
+      reloadLedgerWithDefaultStale().catch(console.error);
+    };
+    summaryCards.addEventListener("click", (e) => {
+      const card = e.target.closest(".summary-card");
+      if (!card) return;
+      openSummaryLedger(card);
+    });
+    summaryCards.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const card = e.target.closest(".summary-card");
+      if (!card) return;
+      e.preventDefault();
+      openSummaryLedger(card);
+    });
+  }
+
+  const mobileSummaryBtn = $("mobileSummaryBtn");
+  if (mobileSummaryBtn) {
+    mobileSummaryBtn.addEventListener("click", () => {
+      setActiveTab("summary");
+      document.body.classList.remove("menu-open");
+    });
+  }
+
   const accountList = $("accountList");
   if (accountList) {
     accountList.addEventListener("change", (e) => {
@@ -492,7 +957,7 @@ function bindEvents() {
       if (mobileSelect) {
         mobileSelect.value = state.scope === "account" && state.account_id ? state.account_id : "all";
       }
-      loadLedger().catch(console.error);
+      reloadLedgerWithDefaultStale().catch(console.error);
     });
   }
 
@@ -517,7 +982,7 @@ function bindEvents() {
         titleSelect.value = state.scope === "account" && state.account_id ? state.account_id : "all";
       }
 
-      loadLedger().catch(console.error);
+      reloadLedgerWithDefaultStale().catch(console.error);
     });
   }
 
@@ -542,7 +1007,7 @@ function bindEvents() {
         mobileSelect.value = state.scope === "account" && state.account_id ? state.account_id : "all";
       }
 
-      loadLedger().catch(console.error);
+      reloadLedgerWithDefaultStale().catch(console.error);
     });
   }
 
@@ -551,45 +1016,270 @@ function bindEvents() {
     dateHeader.addEventListener("click", () => {
       state.sort_order = state.sort_order === "asc" ? "desc" : "asc";
       dateHeader.setAttribute("aria-sort", state.sort_order === "asc" ? "ascending" : "descending");
-      renderLedger(state.rows);
+      reloadLedgerWithDefaultStale().catch(console.error);
     });
   }
 
   const ledgerSearch = $("ledgerSearch");
   if (ledgerSearch) {
     ledgerSearch.value = state.search_query || "";
+    let searchTimer = null;
     ledgerSearch.addEventListener("input", (e) => {
-      state.search_query = e.target.value || "";
-      renderLedger(state.rows);
+      const value = (e.target.value || "").trim();
+      state.search_query = value;
+      if (!value) {
+        if (searchTimer) clearTimeout(searchTimer);
+        if (state.default_stale) {
+          const targetCount = state.rows.length;
+          reloadLedgerToCount(targetCount).catch(console.error);
+        } else {
+          renderLedger(activeRows());
+        }
+        return;
+      }
+      if (searchTimer) clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        reloadLedger().catch(console.error);
+      }, 250);
+    });
+  }
+
+  const ledgerWrap = $("ledgerTableScroll");
+  if (ledgerWrap) {
+    ledgerWrap.addEventListener("scroll", () => {
+      const threshold = 20;
+      if (ledgerWrap.scrollTop + ledgerWrap.clientHeight >= ledgerWrap.scrollHeight - threshold) {
+        loadLedgerPage().catch(console.error);
+      }
     });
   }
 
   $("fromDate").addEventListener("change", () => {
     state.from = $("fromDate").value;
     renderRangeDisplay();
-    loadLedger().catch(console.error);
+    reloadLedgerWithDefaultStale().catch(console.error);
   });
   $("toDate").addEventListener("change", () => {
     state.to = $("toDate").value;
     renderRangeDisplay();
-    loadLedger().catch(console.error);
+    reloadLedgerWithDefaultStale().catch(console.error);
   });
   
-  // Open picker on click
-  const showPicker = (e) => { try { e.target.showPicker(); } catch(err) {} };
-  $("fromDate").addEventListener("click", showPicker);
-  $("toDate").addEventListener("click", showPicker);
+  const datePicker = $("ledgerDatePicker");
+  const datePickerBackdrop = $("ledgerDatePickerBackdrop");
+  const datePickerGrid = $("ledgerDatePickerGrid");
+  const datePickerMonth = $("ledgerDatePickerMonth");
+  const datePickerLabel = $("ledgerDatePickerLabel");
+  const datePickerPrev = $("ledgerDatePrev");
+  const datePickerNext = $("ledgerDateNext");
+  const datePickerApply = $("ledgerDateApply");
+  const datePickerCancel = $("ledgerDateCancel");
+  const datePickerClear = $("ledgerDateClear");
+  let pickerTarget = "from";
+  let pickerMonth = null;
+  let pickerFrom = null;
+  let pickerTo = null;
+  let pickerAnchor = null;
 
-  const openFromDatePicker = () => {
-    const from = $("fromDate");
-    if (!from) return;
-    try { from.showPicker(); } catch (err) { from.focus(); }
+  const formatPickerMonth = (date) =>
+    date.toLocaleString("en-US", { month: "long", year: "numeric" });
+
+  const clampPickerPosition = (left, top, rect) => {
+    const maxLeft = window.innerWidth - rect.width - 8;
+    const maxTop = window.innerHeight - rect.height - 8;
+    const nextLeft = Math.min(Math.max(8, left), Math.max(8, maxLeft));
+    const nextTop = Math.min(Math.max(8, top), Math.max(8, maxTop));
+    return { left: nextLeft, top: nextTop };
   };
-  const openToDatePicker = () => {
-    const to = $("toDate");
-    if (!to) return;
-    try { to.showPicker(); } catch (err) { to.focus(); }
+
+  const positionDatePicker = (anchorEl) => {
+    if (!datePicker) return;
+    pickerAnchor = anchorEl || pickerAnchor;
+    const rect = pickerAnchor?.getBoundingClientRect?.();
+    let pickerRect = datePicker.getBoundingClientRect();
+    let left = 16;
+    let top = 16;
+    if (isMobile() || !rect) {
+      const width = Math.min(window.innerWidth - 32, pickerRect.width);
+      left = Math.round((window.innerWidth - width) / 2);
+      top = Math.round(Math.max(24, window.innerHeight * 0.18));
+      datePicker.style.width = `${width}px`;
+      pickerRect = datePicker.getBoundingClientRect();
+    } else {
+      datePicker.style.width = "";
+      pickerRect = datePicker.getBoundingClientRect();
+      left = rect.left;
+      top = rect.bottom + 8;
+      const adjusted = clampPickerPosition(left, top, pickerRect);
+      left = adjusted.left;
+      top = adjusted.top;
+      if (top === adjusted.top && rect.bottom + pickerRect.height + 8 > window.innerHeight) {
+        top = Math.max(8, rect.top - pickerRect.height - 8);
+      }
+    }
+    datePicker.style.left = `${Math.round(left)}px`;
+    datePicker.style.top = `${Math.round(top)}px`;
   };
+
+  const renderDatePicker = () => {
+    if (!datePickerGrid || !pickerMonth) return;
+    if (datePickerMonth) datePickerMonth.textContent = formatPickerMonth(pickerMonth);
+    if (datePickerLabel) {
+      datePickerLabel.textContent = pickerTarget === "to" ? "To" : "From";
+    }
+    const y = pickerMonth.getFullYear();
+    const m = pickerMonth.getMonth();
+    const firstDay = new Date(y, m, 1);
+    const weekday = (firstDay.getDay() + 6) % 7; // Monday start
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const daysInPrev = new Date(y, m, 0).getDate();
+    const fromDate = pickerFrom ? ymdToDate(pickerFrom) : null;
+    const toDate = pickerTo ? ymdToDate(pickerTo) : null;
+    const fromTs = fromDate ? fromDate.getTime() : null;
+    const toTs = toDate ? toDate.getTime() : null;
+    const rangeStart = fromTs && toTs ? Math.min(fromTs, toTs) : null;
+    const rangeEnd = fromTs && toTs ? Math.max(fromTs, toTs) : null;
+    const today = todayYMD();
+    datePickerGrid.innerHTML = "";
+    for (let i = 0; i < 42; i += 1) {
+      const dayNum = i - weekday + 1;
+      let cellDate = null;
+      let isMuted = false;
+      if (dayNum <= 0) {
+        cellDate = new Date(y, m - 1, daysInPrev + dayNum);
+        isMuted = true;
+      } else if (dayNum > daysInMonth) {
+        cellDate = new Date(y, m + 1, dayNum - daysInMonth);
+        isMuted = true;
+      } else {
+        cellDate = new Date(y, m, dayNum);
+      }
+      const ymd = dateToYMD(cellDate);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "date-cell";
+      btn.dataset.ymd = ymd;
+      btn.textContent = String(cellDate.getDate());
+      if (isMuted) btn.classList.add("is-muted");
+      if (ymd === today) btn.classList.add("is-today");
+      if (pickerFrom && ymd === pickerFrom) btn.classList.add("is-selected");
+      if (pickerTo && ymd === pickerTo) btn.classList.add("is-selected");
+      const cellTs = cellDate.getTime();
+      if (rangeStart && rangeEnd && cellTs >= rangeStart && cellTs <= rangeEnd) {
+        btn.classList.add("is-range");
+      }
+      datePickerGrid.appendChild(btn);
+    }
+  };
+
+  const closeDatePicker = () => {
+    if (!datePicker || !datePickerBackdrop) return;
+    datePicker.classList.remove("open");
+    datePickerBackdrop.classList.remove("open");
+    setTimeout(() => {
+      datePicker.setAttribute("hidden", "");
+      datePicker.setAttribute("aria-hidden", "true");
+      datePickerBackdrop.setAttribute("hidden", "");
+    }, 160);
+  };
+
+  const openDatePicker = (target, anchorEl) => {
+    if (!datePicker || !datePickerBackdrop) return;
+    pickerTarget = target;
+    pickerFrom = state.from;
+    pickerTo = state.to;
+    pickerAnchor = anchorEl || pickerAnchor;
+    const base =
+      ymdToDate(target === "to" ? pickerTo : pickerFrom) ||
+      ymdToDate(pickerFrom) ||
+      ymdToDate(pickerTo) ||
+      new Date();
+    pickerMonth = new Date(base.getFullYear(), base.getMonth(), 1);
+    renderDatePicker();
+    datePicker.removeAttribute("hidden");
+    datePicker.setAttribute("aria-hidden", "false");
+    datePickerBackdrop.removeAttribute("hidden");
+    requestAnimationFrame(() => {
+      datePicker.classList.add("open");
+      datePickerBackdrop.classList.add("open");
+      positionDatePicker(pickerAnchor);
+    });
+  };
+
+  if (datePickerGrid) {
+    datePickerGrid.addEventListener("click", (e) => {
+      const cell = e.target.closest(".date-cell");
+      if (!cell) return;
+      const ymd = cell.dataset.ymd;
+      if (!ymd) return;
+      if (pickerTarget === "from") {
+        pickerFrom = ymd;
+        if (pickerTo && pickerFrom > pickerTo) pickerTo = ymd;
+      } else {
+        pickerTo = ymd;
+        if (pickerFrom && pickerTo < pickerFrom) pickerFrom = ymd;
+      }
+      const clickedDate = ymdToDate(ymd);
+      if (clickedDate) {
+        pickerMonth = new Date(clickedDate.getFullYear(), clickedDate.getMonth(), 1);
+      }
+      renderDatePicker();
+    });
+  }
+
+  if (datePickerPrev) {
+    datePickerPrev.addEventListener("click", () => {
+      if (!pickerMonth) return;
+      pickerMonth = new Date(pickerMonth.getFullYear(), pickerMonth.getMonth() - 1, 1);
+      renderDatePicker();
+    });
+  }
+  if (datePickerNext) {
+    datePickerNext.addEventListener("click", () => {
+      if (!pickerMonth) return;
+      pickerMonth = new Date(pickerMonth.getFullYear(), pickerMonth.getMonth() + 1, 1);
+      renderDatePicker();
+    });
+  }
+  if (datePickerApply) {
+    datePickerApply.addEventListener("click", () => {
+      const nextFrom = pickerFrom || state.from;
+      const nextTo = pickerTo || state.to;
+      if (!nextFrom || !nextTo) return closeDatePicker();
+      state.from = nextFrom;
+      state.to = nextTo;
+      const fromInput = $("fromDate");
+      const toInput = $("toDate");
+      if (fromInput) fromInput.value = state.from;
+      if (toInput) toInput.value = state.to;
+      renderRangeDisplay();
+      closeDatePicker();
+      reloadLedgerWithDefaultStale().catch(console.error);
+    });
+  }
+  if (datePickerCancel) datePickerCancel.addEventListener("click", closeDatePicker);
+  if (datePickerClear) {
+    datePickerClear.addEventListener("click", () => {
+      state.from = minusDaysYMD(30);
+      state.to = todayYMD();
+      const fromInput = $("fromDate");
+      const toInput = $("toDate");
+      if (fromInput) fromInput.value = state.from;
+      if (toInput) toInput.value = state.to;
+      renderRangeDisplay();
+      closeDatePicker();
+      reloadLedgerWithDefaultStale().catch(console.error);
+    });
+  }
+  if (datePickerBackdrop) datePickerBackdrop.addEventListener("click", closeDatePicker);
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (datePicker?.classList.contains("open")) closeDatePicker();
+    if (summaryMonthPicker?.classList.contains("open")) closeMonthPicker();
+  });
+  window.addEventListener("resize", () => {
+    if (datePicker?.classList.contains("open")) positionDatePicker(pickerAnchor);
+  });
 
   const bindRangePicker = (el) => {
     if (!el) return;
@@ -597,18 +1287,17 @@ function bindEvents() {
     el.setAttribute("tabindex", "0");
     el.setAttribute("title", "Edit date range");
     el.addEventListener("click", (e) => {
-      const target = e.target.closest("[data-date-target]");
-      if (!target) return openFromDatePicker();
-      if (target.dataset.dateTarget === "to") {
-        openToDatePicker();
+      const target = e.target.closest("[data-date-target]") || el;
+      if (target.dataset?.dateTarget === "to") {
+        openDatePicker("to", target);
         return;
       }
-      openFromDatePicker();
+      openDatePicker("from", target);
     });
     el.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        openFromDatePicker();
+        openDatePicker("from", el);
       }
     });
   };
@@ -617,7 +1306,7 @@ function bindEvents() {
   bindRangePicker($("ledgerRangeText"));
 
   const reloadBtn = $("reloadBtn");
-  if (reloadBtn) reloadBtn.addEventListener("click", () => loadLedger().catch(console.error));
+  if (reloadBtn) reloadBtn.addEventListener("click", () => reloadLedger().catch(console.error));
 
   // Theme Toggle
   const themeBtn = $("themeToggleBtn");
@@ -625,7 +1314,6 @@ function bindEvents() {
   
   const setTheme = (isDark) => {
     document.body.classList.toggle("dark", isDark);
-    themeBtn.textContent = isDark ? "☀️" : "🌙";
     if (themeCheckbox) themeCheckbox.checked = isDark;
     localStorage.setItem("theme", isDark ? "dark" : "light");
   };
@@ -741,7 +1429,8 @@ function bindEvents() {
         try { await fetchFxRate(); } catch (err) { state.currency = "IDR"; }
       }
       updateFxUI();
-      renderLedger(state.rows);
+      renderLedger(activeRows());
+      renderSummary();
   };
 
   document.querySelectorAll(".seg-btn").forEach(btn => {
@@ -752,7 +1441,8 @@ function bindEvents() {
     try {
       await fetchFxRate();
       updateFxUI();
-      renderLedger(state.rows);
+      renderLedger(activeRows());
+      renderSummary();
     } catch (err) {
       console.error(err);
     }
@@ -877,7 +1567,8 @@ function bindEvents() {
       try {
         await api.post("/api/allocate", { target_account_id: target, amount });
         closeAllocateModal();
-        await loadLedger();
+        markSummaryStale();
+        await reloadLedgerWithDefaultStale();
       } catch (err) {
         if (msg) msg.textContent = err.message || "Allocate failed";
       }
@@ -928,7 +1619,8 @@ function bindEvents() {
       try {
         await api.post("/api/switch", { source_account_id: source, target_account_id: target, amount });
         closeSwitchModal();
-        await loadLedger();
+        markSummaryStale();
+        await reloadLedgerWithDefaultStale();
       } catch (err) {
         if (msg) msg.textContent = err.message || "Switch failed";
       }
@@ -1016,7 +1708,8 @@ function bindEvents() {
     state.hide_balances = typeof nextValue === "boolean" ? nextValue : !state.hide_balances;
     localStorage.setItem("hide_balances", String(state.hide_balances));
     updateHideBtn();
-    renderLedger(state.rows);
+    renderLedger(activeRows());
+    renderSummary();
     if (exportModal && !exportModal.hidden) {
       updateExportPreview();
     }
@@ -1108,7 +1801,7 @@ function bindEvents() {
     ledgerBody.addEventListener("click", (e) => {
       const row = e.target.closest("tr[data-tx-id]");
       if (!row) return;
-      const tx = state.rows.find((r) => r.transaction_id === row.dataset.txId);
+      const tx = activeRows().find((r) => r.transaction_id === row.dataset.txId);
       if (!tx) return;
       openModal(tx);
     });
@@ -1166,7 +1859,8 @@ function bindEvents() {
          await api.post("/api/transactions", body);
       }
       closeModal();
-      await loadLedger();
+      markSummaryStale();
+      await reloadLedgerWithDefaultStale();
     } catch (err) {
       $("txMsg").textContent = err.message || "Failed";
     }
@@ -1185,7 +1879,8 @@ function bindEvents() {
       try {
           await api.del(`/api/transactions/${id}`);
           closeModal();
-          await loadLedger();
+          markSummaryStale();
+          await reloadLedgerWithDefaultStale();
       } catch (err) {
           $("txMsg").textContent = err.message || "Delete failed";
       }
@@ -1268,7 +1963,8 @@ function bindEvents() {
       try {
         await api.del(`/api/accounts/${id}`);
         await loadAccounts();
-        await loadLedger();
+        markSummaryStale();
+        await reloadLedgerWithDefaultStale();
       } catch (err) {
         alert(err.message || "Delete failed");
       }
@@ -1298,7 +1994,8 @@ function bindEvents() {
       }
       resetAccountForm();
       await loadAccounts();
-      await loadLedger();
+      markSummaryStale();
+      await reloadLedgerWithDefaultStale();
       switchAccountsTab("list");
     } catch (err) {
       $("accountMsg").textContent = err.message || "Save failed";
@@ -1312,6 +2009,8 @@ function bindEvents() {
   loadFxCache();
   await loadAccounts();
 
+  state.summary_month = currentMonthYM();
+
   // default date range 30 days
   state.from = minusDaysYMD(30);
   state.to = todayYMD();
@@ -1319,7 +2018,8 @@ function bindEvents() {
   $("toDate").value = state.to;
 
   bindEvents();
-  await loadLedger();
+  setActiveTab("summary");
+  await reloadLedger();
   if (isFxStale()) {
     fetchFxRate().then(updateFxUI).catch(() => updateFxUI());
   } else {
