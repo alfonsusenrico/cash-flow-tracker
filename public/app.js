@@ -12,6 +12,7 @@ const state = {
   total_asset: 0,
   unallocated_balance: 0,
   search_query: "",
+  hide_balances: false,
   fx_rate: null,
   fx_updated_at: null,
   currency: "IDR",
@@ -67,6 +68,8 @@ const fmtMoney = (n) => {
   }
   return fmtIDRCurrency(n);
 };
+
+const displayMoney = (n) => (state.hide_balances ? "***" : fmtMoney(n));
 
 const isMobile = () => window.matchMedia("(max-width: 980px)").matches;
 
@@ -362,12 +365,12 @@ function renderLedger(rows) {
   if (showAssetSummary) {
     if (totalLabel) totalLabel.textContent = "Total Asset";
     if (diffLabel) diffLabel.textContent = "Unallocated Balance";
-    $("ledgerTotal").textContent = fmtMoney(state.total_asset || 0);
-    $("ledgerDiff").textContent = fmtMoney(state.unallocated_balance || 0);
+    $("ledgerTotal").textContent = displayMoney(state.total_asset || 0);
+    $("ledgerDiff").textContent = displayMoney(state.unallocated_balance || 0);
     if (diffBlock) diffBlock.hidden = false;
   } else {
     if (totalLabel) totalLabel.textContent = "Total Balance";
-    $("ledgerTotal").textContent = fmtMoney(accountBalance || 0);
+    $("ledgerTotal").textContent = displayMoney(accountBalance || 0);
     if (diffBlock) diffBlock.hidden = true;
   }
   
@@ -410,9 +413,9 @@ function renderLedger(rows) {
         ${accCell}
         <td>${isoToLocalDisplay(r.date)}</td>
         <td>${r.transaction_name}</td>
-        <td class="num amount-in">${r.debit ? fmtMoney(r.debit) : ""}</td>
-        <td class="num amount-out">${r.credit ? fmtMoney(r.credit) : ""}</td>
-        <td class="num"><b>${fmtMoney(r.balance)}</b></td>
+        <td class="num amount-in">${r.debit ? displayMoney(r.debit) : ""}</td>
+        <td class="num amount-out">${r.credit ? displayMoney(r.credit) : ""}</td>
+        <td class="num"><b>${displayMoney(r.balance)}</b></td>
       </tr>`;
       }
     )
@@ -612,16 +615,30 @@ function bindEvents() {
   const savedTheme = localStorage.getItem("theme");
   if (savedTheme === "dark") setTheme(true);
 
+  const sunIcon = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+  const moonIcon = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M21 15.5A9 9 0 1 1 8.5 3a7 7 0 0 0 12.5 12.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const updateThemeIcon = () => {
+    if (!themeBtn) return;
+    const isDark = document.body.classList.contains("dark");
+    themeBtn.innerHTML = isDark ? sunIcon : moonIcon;
+    themeBtn.setAttribute("aria-label", isDark ? "Switch to light theme" : "Switch to dark theme");
+    themeBtn.title = isDark ? "Switch to light theme" : "Switch to dark theme";
+  };
+
+  updateThemeIcon();
   themeBtn.addEventListener("click", () => {
     const isDark = !document.body.classList.contains("dark");
     setTheme(isDark);
+    updateThemeIcon();
   });
   
   if (themeCheckbox) {
       themeCheckbox.addEventListener("change", (e) => {
           setTheme(e.target.checked);
+          updateThemeIcon();
       });
   }
+
 
   $("logoutBtn").addEventListener("click", async () => {
     try {
@@ -943,9 +960,9 @@ function bindEvents() {
       }
       const summary = res?.summary || {};
       setPreviewValue(exportCount, String(summary.count ?? 0));
-      setPreviewValue(exportIn, fmtMoney(summary.total_in ?? 0));
-      setPreviewValue(exportOut, fmtMoney(summary.total_out ?? 0));
-      setPreviewValue(exportNet, fmtMoney(summary.net ?? 0));
+      setPreviewValue(exportIn, displayMoney(summary.total_in ?? 0));
+      setPreviewValue(exportOut, displayMoney(summary.total_out ?? 0));
+      setPreviewValue(exportNet, displayMoney(summary.net ?? 0));
     } catch (err) {
       exportPreview.textContent = err.message || "Preview unavailable";
       setPreviewValue(exportCount, "-");
@@ -954,6 +971,32 @@ function bindEvents() {
       setPreviewValue(exportNet, "-");
     }
   };
+
+  const hideBtn = $("hideBalancesBtn");
+  const hideIcon = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const showIcon = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.77 21.77 0 0 1 5.06-6.94" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.77 21.77 0 0 1-3.24 4.24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.12 14.12a3 3 0 0 1-4.24-4.24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 1l22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const updateHideBtn = () => {
+    if (!hideBtn) return;
+    const isHidden = state.hide_balances;
+    hideBtn.innerHTML = isHidden ? showIcon : hideIcon;
+    hideBtn.title = isHidden ? "Show balances" : "Hide balances";
+    hideBtn.setAttribute("aria-label", hideBtn.title);
+    hideBtn.setAttribute("aria-pressed", isHidden ? "true" : "false");
+  };
+  const savedHide = localStorage.getItem("hide_balances") === "true";
+  state.hide_balances = savedHide;
+  updateHideBtn();
+  if (hideBtn) {
+    hideBtn.addEventListener("click", () => {
+      state.hide_balances = !state.hide_balances;
+      localStorage.setItem("hide_balances", String(state.hide_balances));
+      updateHideBtn();
+      renderLedger(state.rows);
+      if (exportModal && !exportModal.hidden) {
+        updateExportPreview();
+      }
+    });
+  }
 
   const openExportModal = () => {
     if (!exportModal || !exportDay || !exportFormat || !exportAccountSelect) return;

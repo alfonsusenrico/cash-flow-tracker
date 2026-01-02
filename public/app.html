@@ -11,7 +11,12 @@
       <div class="brand">Cash Flow Tracker</div>
       <button id="mobileMenuBtn" class="btn small mobile-menu-btn" aria-label="Open menu">☰</button>
       <div class="topbar-right">
-        <button id="themeToggleBtn" class="btn small" title="Toggle Theme">🌙</button>
+        <button id="themeToggleBtn" class="btn small icon" title="Toggle Theme" aria-label="Toggle Theme">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+            <path d="M21 15.5A9 9 0 1 1 8.5 3a7 7 0 0 0 12.5 12.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button id="hideBalancesBtn" class="btn small icon" title="Hide balances" aria-label="Hide balances"></button>
         <div class="topbar-currency" aria-label="Currency format">
           <div class="segmented compact" id="currencyToggle">
             <button class="seg-btn" data-currency="IDR">IDR</button>
