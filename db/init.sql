@@ -27,7 +27,18 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS budgets (
+  budget_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+  account_id UUID NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+  month TEXT NOT NULL,
+  amount BIGINT NOT NULL CHECK (amount >= 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (username, account_id, month)
+);
+
 CREATE INDEX IF NOT EXISTS idx_accounts_username ON accounts(username);
 CREATE INDEX IF NOT EXISTS idx_tx_account_date ON transactions(account_id, date, transaction_id);
 CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date);
 CREATE INDEX IF NOT EXISTS idx_tx_date_type ON transactions(date, transaction_type);
+CREATE INDEX IF NOT EXISTS idx_budgets_username_month ON budgets(username, month);

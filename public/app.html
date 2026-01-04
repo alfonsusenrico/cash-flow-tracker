@@ -296,6 +296,12 @@
           </div>
 
           <div class="field">
+            <label>Date</label>
+            <input id="txDateDisplay" class="input-button" type="text" placeholder="Select date" readonly />
+            <input id="txDateInput" name="date" type="hidden" />
+          </div>
+
+          <div class="field">
             <label>Amount (IDR)</label>
             <input name="amount" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" required />
           </div>
@@ -346,6 +352,10 @@
                 <div class="field">
                   <label>Account Name</label>
                   <input id="newAccountName" placeholder="e.g. Transportasi" required />
+                </div>
+                <div class="field" id="accountBudgetField">
+                  <label>Monthly Budget (Summary Month)</label>
+                  <input id="accountBudget" class="budget-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" />
                 </div>
                 <div class="row gap">
                   <button id="saveAccountBtn" class="btn primary grow" type="submit">Save Account</button>

@@ -10,8 +10,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from fpdf import FPDF
 from passlib.hash import bcrypt
-from psycopg import connect
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 from starlette.middleware.sessions import SessionMiddleware
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
@@ -20,22 +20,50 @@ COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 TZ = os.getenv("TZ", "Asia/Jakarta")  # for display in UI only; DB stores timestamptz
 SUMMARY_CACHE_TTL = int(os.getenv("SUMMARY_CACHE_TTL", "30"))
 MONTH_SUMMARY_TTL = int(os.getenv("MONTH_SUMMARY_TTL", "60"))
+LOGIN_RATE_LIMIT = int(os.getenv("LOGIN_RATE_LIMIT", "10"))
+LOGIN_RATE_WINDOW = int(os.getenv("LOGIN_RATE_WINDOW", "300"))
+LOGIN_USER_RATE_LIMIT = int(os.getenv("LOGIN_USER_RATE_LIMIT", "5"))
+REGISTER_RATE_LIMIT = int(os.getenv("REGISTER_RATE_LIMIT", "5"))
+REGISTER_RATE_WINDOW = int(os.getenv("REGISTER_RATE_WINDOW", "900"))
+PASSWORD_MIN_LEN = int(os.getenv("PASSWORD_MIN_LEN", "8"))
+USERNAME_RE = re.compile(r"^[a-zA-Z0-9._-]{3,32}$")
+DB_POOL_MIN = max(1, int(os.getenv("DB_POOL_MIN", "1")))
+DB_POOL_MAX = max(DB_POOL_MIN, int(os.getenv("DB_POOL_MAX", "10")))
 
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is required")
 if not SESSION_SECRET:
     raise RuntimeError("SESSION_SECRET is required")
 
+DB_POOL = ConnectionPool(
+    DATABASE_URL,
+    min_size=DB_POOL_MIN,
+    max_size=DB_POOL_MAX,
+    open=False,
+    kwargs={"row_factory": dict_row},
+)
+
 app = FastAPI()
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
     session_cookie="ledger_session",
-    same_site="lax",
+    same_site="strict",
     https_only=COOKIE_SECURE,
 )
 
 _CACHE: dict[str, tuple[float, Any]] = {}
+_RATE_LIMIT: dict[str, list[float]] = {}
+
+
+@app.on_event("startup")
+def open_db_pool() -> None:
+    DB_POOL.open()
+
+
+@app.on_event("shutdown")
+def close_db_pool() -> None:
+    DB_POOL.close()
 
 
 def cache_get(key: str) -> Any | None:
@@ -60,8 +88,36 @@ def invalidate_user_cache(username: str) -> None:
             _CACHE.pop(key, None)
 
 
+def get_client_ip(req: Request) -> str:
+    forwarded = req.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    real_ip = req.headers.get("x-real-ip", "")
+    if real_ip:
+        return real_ip.strip()
+    if req.client:
+        return req.client.host
+    return "unknown"
+
+
+def rate_limit_exceeded(key: str, limit: int, window_seconds: int) -> bool:
+    now = time.time()
+    cutoff = now - window_seconds
+    events = _RATE_LIMIT.get(key, [])
+    events = [ts for ts in events if ts >= cutoff]
+    if len(events) >= limit:
+        _RATE_LIMIT[key] = events
+        return True
+    events.append(now)
+    if events:
+        _RATE_LIMIT[key] = events
+    else:
+        _RATE_LIMIT.pop(key, None)
+    return False
+
+
 def db():
-    return connect(DATABASE_URL, row_factory=dict_row)
+    return DB_POOL.connection()
 
 
 def now_utc():
@@ -159,6 +215,21 @@ def compute_month_range(month: str) -> tuple[str, str, datetime, datetime]:
     from_dt = parse_date_utc(from_date, end_of_day=False)
     to_dt = parse_date_utc(to_date, end_of_day=True)
     return from_date, to_date, from_dt, to_dt
+
+
+def compute_budget_status(budget_amount: int | None, used_amount: int) -> tuple[int | None, str | None, int | None]:
+    if budget_amount is None:
+        return None, None, None
+    if budget_amount <= 0:
+        return 100, "critical", int(budget_amount - used_amount)
+    pct = int(round((used_amount / budget_amount) * 100))
+    if pct >= 100:
+        status = "critical"
+    elif pct >= 80:
+        status = "warn"
+    else:
+        status = "ok"
+    return pct, status, int(budget_amount - used_amount)
 
 
 def parse_currency(currency: str | None, fx_rate: str | None) -> tuple[str, float | None]:
@@ -605,13 +676,23 @@ def health():
 async def register(req: Request):
     # For initial setup / testing. You can remove later.
     data = await req.json()
+    client_ip = get_client_ip(req)
+    if rate_limit_exceeded(f"register:ip:{client_ip}", REGISTER_RATE_LIMIT, REGISTER_RATE_WINDOW):
+        raise HTTPException(status_code=429, detail="Too many registration attempts. Try again later.")
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="username and password required")
+    if not USERNAME_RE.fullmatch(username):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid username. Use 3-32 chars: letters, numbers, dot, underscore, or hyphen.",
+        )
+    if len(password) < PASSWORD_MIN_LEN:
+        raise HTTPException(status_code=400, detail=f"Password too short (min {PASSWORD_MIN_LEN})")
     if len(password.encode("utf-8")) > 72:
         raise HTTPException(status_code=400, detail="Password too long (max 72 bytes)")
     full_name = (data.get("full_name") or "").strip() or username
-    if not username or not password:
-        raise HTTPException(status_code=400, detail="username and password required")
 
     pw_hash = bcrypt.hash(password)
 
@@ -648,6 +729,11 @@ async def login(req: Request):
         raise HTTPException(status_code=400, detail="Password too long (max 72 bytes)")
     if not username or not password:
         raise HTTPException(status_code=400, detail="username and password required")
+    client_ip = get_client_ip(req)
+    if rate_limit_exceeded(f"login:ip:{client_ip}", LOGIN_RATE_LIMIT, LOGIN_RATE_WINDOW):
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
+    if rate_limit_exceeded(f"login:user:{username}", LOGIN_USER_RATE_LIMIT, LOGIN_RATE_WINDOW):
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
 
     with db() as conn, conn.cursor() as cur:
         cur.execute("SELECT username, password_hash, full_name FROM users WHERE username=%s", (username,))
@@ -720,6 +806,128 @@ async def create_account(req: Request):
 
     invalidate_user_cache(username)
     return {"ok": True, "account_id": account_id}
+
+
+@app.get("/budgets")
+def list_budgets(req: Request, month: str | None = None):
+    username = require_user(req)
+    if not month:
+        month = now_utc().strftime("%Y-%m")
+    parse_month(month)
+    with db() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT b.budget_id::text AS budget_id,
+                   b.account_id::text AS account_id,
+                   b.month,
+                   b.amount
+            FROM budgets b
+            JOIN accounts a ON a.account_id=b.account_id
+            WHERE b.username=%s AND b.month=%s AND a.parent_account_id IS NOT NULL
+            ORDER BY a.account_name
+            """,
+            (username, month),
+        )
+        return {"month": month, "budgets": cur.fetchall()}
+
+
+@app.post("/budgets")
+async def upsert_budget(req: Request):
+    username = require_user(req)
+    data = await req.json()
+    account_id = data.get("account_id")
+    month = data.get("month")
+    amount = int(data.get("amount") or 0)
+    if not account_id or not month:
+        raise HTTPException(status_code=400, detail="account_id and month required")
+    parse_month(month)
+    if amount < 0:
+        raise HTTPException(status_code=400, detail="amount must be >= 0")
+
+    with db() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT parent_account_id IS NULL AS is_main
+            FROM accounts
+            WHERE username=%s AND account_id=%s::uuid
+            """,
+            (username, account_id),
+        )
+        acc = cur.fetchone()
+        if not acc:
+            raise HTTPException(status_code=404, detail="Account not found")
+        if acc["is_main"]:
+            raise HTTPException(status_code=400, detail="Cannot set budget for main account")
+
+        cur.execute(
+            """
+            INSERT INTO budgets (username, account_id, month, amount)
+            VALUES (%s, %s::uuid, %s, %s)
+            ON CONFLICT (username, account_id, month)
+            DO UPDATE SET amount=EXCLUDED.amount
+            RETURNING budget_id::text
+            """,
+            (username, account_id, month, amount),
+        )
+        budget_id = cur.fetchone()["budget_id"]
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True, "budget_id": budget_id}
+
+
+@app.put("/budgets/{budget_id}")
+async def update_budget(budget_id: str, req: Request):
+    username = require_user(req)
+    data = await req.json()
+    amount = int(data.get("amount") or 0)
+    if amount < 0:
+        raise HTTPException(status_code=400, detail="amount must be >= 0")
+
+    with db() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE budgets b
+            SET amount=%s
+            FROM accounts a
+            WHERE b.account_id=a.account_id
+              AND b.budget_id=%s::uuid
+              AND b.username=%s
+              AND a.parent_account_id IS NOT NULL
+            RETURNING b.budget_id
+            """,
+            (amount, budget_id, username),
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Budget not found")
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True}
+
+
+@app.delete("/budgets/{budget_id}")
+def delete_budget(budget_id: str, req: Request):
+    username = require_user(req)
+    with db() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            DELETE FROM budgets b
+            USING accounts a
+            WHERE b.account_id=a.account_id
+              AND b.budget_id=%s::uuid
+              AND b.username=%s
+              AND a.parent_account_id IS NOT NULL
+            RETURNING b.budget_id
+            """,
+            (budget_id, username),
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Budget not found")
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True}
 
 
 @app.put("/accounts/{account_id}")
@@ -1256,6 +1464,21 @@ def summary(req: Request, month: str | None = None):
         total_in_all = int(filtered_totals.get("total_in") or 0)
         total_out_all = int(filtered_totals.get("total_out") or 0)
 
+        cur.execute(
+            """
+            SELECT budget_id::text AS budget_id,
+                   account_id::text AS account_id,
+                   amount
+            FROM budgets
+            WHERE username=%s AND month=%s
+            """,
+            (username, month),
+        )
+        budgets = {
+            r["account_id"]: {"amount": int(r["amount"] or 0), "budget_id": r["budget_id"]}
+            for r in cur.fetchall()
+        }
+
     accounts_sorted = sorted(
         accounts,
         key=lambda a: (a["parent_account_id"] is not None, a["account_name"].lower()),
@@ -1266,19 +1489,36 @@ def summary(req: Request, month: str | None = None):
         total_row = totals.get(acc_id, {})
         total_in = int(total_row.get("total_in") or 0)
         total_out = int(total_row.get("total_out") or 0)
+        budget_info = budgets.get(acc_id) if acc["parent_account_id"] is not None else None
+        budget_amount = budget_info["amount"] if budget_info else None
+        budget_id = budget_info["budget_id"] if budget_info else None
+        budget_used = total_out if acc["parent_account_id"] is not None else 0
+        budget_pct, budget_status, budget_remaining = compute_budget_status(budget_amount, budget_used)
+        starting_balance = (
+            int(total_asset_start)
+            if acc["parent_account_id"] is None
+            else int(balances_start.get(acc_id, 0))
+        )
+        net_change = (
+            int(total_in_all - total_out_all)
+            if acc["parent_account_id"] is None
+            else int(total_in - total_out)
+        )
         payload.append(
             {
                 "account_id": acc_id,
                 "account_name": acc["account_name"],
                 "is_main": acc["parent_account_id"] is None,
-                "starting_balance": int(total_asset_start)
-                if acc["parent_account_id"] is None
-                else int(balances_start.get(acc_id, 0)),
-                "current_balance": int(total_in_all - total_out_all)
-                if acc["parent_account_id"] is None
-                else int(total_in - total_out),
+                "starting_balance": starting_balance,
+                "current_balance": int(starting_balance + net_change),
                 "total_in": int(total_in_all) if acc["parent_account_id"] is None else total_in,
                 "total_out": int(total_out_all) if acc["parent_account_id"] is None else total_out,
+                "budget_id": budget_id,
+                "budget": int(budget_amount) if budget_amount is not None else None,
+                "budget_used": int(budget_used) if budget_amount is not None else None,
+                "budget_remaining": int(budget_remaining) if budget_amount is not None else None,
+                "budget_pct": int(budget_pct) if budget_pct is not None else None,
+                "budget_status": budget_status,
             }
         )
 

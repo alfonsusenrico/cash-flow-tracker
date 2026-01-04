@@ -1,6 +1,6 @@
 fastapi==0.115.6
 uvicorn[standard]==0.32.1
-psycopg[binary]==3.2.3
+psycopg[binary,pool]==3.2.3
 python-multipart==0.0.20
 passlib[bcrypt]==1.7.4
 itsdangerous==2.2.0

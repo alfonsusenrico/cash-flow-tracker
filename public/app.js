@@ -1,4 +1,5 @@
 const $ = (id) => document.getElementById(id);
+const pad2 = (n) => String(n).padStart(2, "0");
 
 const state = {
   me: null,
@@ -35,6 +36,7 @@ const state = {
   fx_updated_at: null,
   currency: "IDR",
   editing_tx_id: null,
+  budgets_by_account: {},
 };
 
 const api = {
@@ -160,6 +162,43 @@ const dateToYMD = (d) => {
   if (!d) return "";
   const pad = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+const isoToLocalYMD = (isoZ) => {
+  const d = new Date(isoZ);
+  if (isNaN(d)) return "";
+  return dateToYMD(d);
+};
+
+const isoToLocalTime = (isoZ) => {
+  const d = new Date(isoZ);
+  if (isNaN(d)) return "";
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
+
+const nowTime = () => {
+  const d = new Date();
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
+
+const ymdTimeToIso = (ymd, time) => {
+  if (!ymd) return "";
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  if (!y || !m || !d) return "";
+  const [hh, mm] = String(time || "00:00").split(":").map(Number);
+  const local = new Date(y, m - 1, d, hh || 0, mm || 0, 0);
+  return local.toISOString();
+};
+
+const formatYmdDisplay = (ymd) => {
+  const d = ymdToDate(ymd);
+  return d ? formatDisplayDate(d) : "";
+};
+
+const clampYmdToToday = (ymd) => {
+  const today = dateToYMD(new Date());
+  if (!ymd) return today;
+  return ymd > today ? today : ymd;
 };
 
 const escapeHtml = (value) =>
@@ -344,6 +383,26 @@ function renderAccounts() {
   updateExportAccounts();
 }
 
+const getBudgetMonth = () => state.summary_month || currentMonthYM();
+
+function syncAccountBudgetInput(accountId) {
+  const input = $("accountBudget");
+  if (!input) return;
+  if (!accountId) {
+    input.value = "";
+    input.dataset.rawValue = "";
+    return;
+  }
+  const budget = state.budgets_by_account[accountId];
+  if (!budget) {
+    input.value = "";
+    input.dataset.rawValue = "";
+    return;
+  }
+  input.value = fmtNumber(budget.amount);
+  input.dataset.rawValue = String(budget.amount);
+}
+
 function updateTotals(summary) {
   state.total_asset = Number(summary?.total_asset || 0);
   state.unallocated_balance = Number(summary?.unallocated || 0);
@@ -355,6 +414,8 @@ const currentMonthYM = () => {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   return `${now.getFullYear()}-${month}`;
 };
+
+const fmtNumber = (n) => Number(n || 0).toLocaleString("id-ID");
 
 const clampMonthYM = (ym) => {
   const max = currentMonthYM();
@@ -410,14 +471,13 @@ const renderSummary = () => {
       const outPct = Math.min(100, (totalOut / max) * 100);
       const tag = acc.is_main ? `<span class="tag">Main</span>` : "";
       const mainClass = acc.is_main ? " main" : "";
+      const budgetClass = acc.budget_status ? ` budget-${acc.budget_status}` : "";
       const cardTarget = acc.is_main ? "all" : acc.account_id;
       const cardLabel = `View ledger for ${acc.account_name}`;
-      return `<div class="summary-card${mainClass}" data-account-id="${cardTarget}" role="button" tabindex="0" aria-label="${escapeHtml(cardLabel)}" style="--in:${inPct}%; --out:${outPct}%;">
-        <div class="summary-card-head">
-          <div class="summary-card-title">${escapeHtml(acc.account_name)}</div>
-          ${tag}
-        </div>
-        <div class="summary-balance-row">
+      const hasBudget = !acc.is_main && acc.budget != null;
+      const budgetValue = hasBudget ? displayMoney(acc.budget) : "-";
+      const balanceRow = acc.is_main
+        ? `<div class="summary-balance-row is-main">
           <div>
           <div class="summary-balance-label">Last Month Balance</div>
             <div class="summary-balance">${displayMoney(acc.starting_balance || 0)}</div>
@@ -426,7 +486,38 @@ const renderSummary = () => {
             <div class="summary-balance-label">Current Balance</div>
             <div class="summary-balance">${displayMoney(acc.current_balance || 0)}</div>
           </div>
+        </div>`
+        : `<div class="summary-balance-row">
+          <div>
+          <div class="summary-balance-label">Last Month Balance</div>
+            <div class="summary-balance">${displayMoney(acc.starting_balance || 0)}</div>
+          </div>
+          <div>
+            <div class="summary-balance-label">Current Balance</div>
+            <div class="summary-balance">${displayMoney(acc.current_balance || 0)}</div>
+          </div>
+          <div>
+            <div class="summary-balance-label">Budget</div>
+            <div class="summary-balance">${budgetValue}</div>
+          </div>
+        </div>`;
+      const editBtn = !acc.is_main
+        ? `<button class="card-edit" data-action="edit" data-id="${acc.account_id}" aria-label="Edit account ${escapeHtml(acc.account_name)}" title="Edit account">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 20h4l10-10-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>`
+        : "";
+      return `<div class="summary-card${mainClass}${budgetClass}" data-account-id="${cardTarget}" role="button" tabindex="0" aria-label="${escapeHtml(cardLabel)}" style="--in:${inPct}%; --out:${outPct}%;">
+        <div class="summary-card-head">
+          <div class="summary-card-title">${escapeHtml(acc.account_name)}</div>
+          <div class="summary-card-actions">
+            ${tag}
+            ${editBtn}
+          </div>
         </div>
+        ${balanceRow}
         <div class="summary-io">
           <div class="io-item">
             <span class="io-label">Total In</span>
@@ -460,9 +551,22 @@ const loadSummary = async ({ force = false } = {}) => {
     if (!state.summary_month) state.summary_month = month;
     const res = await api.get(`/api/summary?month=${encodeURIComponent(month)}`);
     state.overview_accounts = res.accounts || [];
+    state.budgets_by_account = {};
+    state.overview_accounts.forEach((acc) => {
+      if (acc && acc.account_id && acc.budget != null) {
+        state.budgets_by_account[acc.account_id] = {
+          amount: acc.budget,
+          budget_id: acc.budget_id || null,
+        };
+      }
+    });
     state.overview_range = res.range || null;
     state.summary_stale = false;
     renderSummary();
+    const currentAccountId = $("accountId")?.value;
+    if (currentAccountId) {
+      syncAccountBudgetInput(currentAccountId);
+    }
   } catch (err) {
     if (msg) msg.textContent = err.message || "Failed to load summary";
   } finally {
@@ -496,8 +600,8 @@ function updateExportAccounts() {
   const exportAccountSelect = $("exportAccountSelect");
   if (!exportAccountSelect) return;
   const nonMain = state.accounts
-    .filter((a) => a.account_id !== state.main_account_id)
-    .sort((a, b) => a.account_name.localeCompare(b.account_name));
+    .filter((a) => a && a.account_id !== state.main_account_id)
+    .sort((a, b) => String(a.account_name || "").localeCompare(String(b.account_name || "")));
   const options = [
     `<option value="all">Total Ledger</option>`,
     ...nonMain.map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
@@ -955,12 +1059,23 @@ function bindEvents() {
       reloadLedgerWithDefaultStale().catch(console.error);
     };
     summaryCards.addEventListener("click", (e) => {
+      const editBtn = e.target.closest("button[data-action='edit']");
+      if (editBtn) {
+        e.stopPropagation();
+        const acc = state.accounts.find((a) => a.account_id === editBtn.dataset.id);
+        if (acc) {
+          openAccountsModal("create");
+          startAccountEdit(acc);
+        }
+        return;
+      }
       const card = e.target.closest(".summary-card");
       if (!card) return;
       openSummaryLedger(card);
     });
     summaryCards.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" && e.key !== " ") return;
+      if (e.target.closest("button[data-action='edit']")) return;
       const card = e.target.closest(".summary-card");
       if (!card) return;
       e.preventDefault();
@@ -1107,10 +1222,13 @@ function bindEvents() {
   const datePickerApply = $("ledgerDateApply");
   const datePickerCancel = $("ledgerDateCancel");
   const datePickerClear = $("ledgerDateClear");
+  let pickerMode = "range";
   let pickerTarget = "from";
   let pickerMonth = null;
   let pickerFrom = null;
   let pickerTo = null;
+  let pickerSingle = null;
+  let pickerSingleApply = null;
   let pickerAnchor = null;
 
   const formatPickerMonth = (date) =>
@@ -1155,9 +1273,11 @@ function bindEvents() {
 
   const renderDatePicker = () => {
     if (!datePickerGrid || !pickerMonth) return;
+    const isSingle = pickerMode === "single";
+    const maxYmd = dateToYMD(new Date());
     if (datePickerMonth) datePickerMonth.textContent = formatPickerMonth(pickerMonth);
     if (datePickerLabel) {
-      datePickerLabel.textContent = pickerTarget === "to" ? "To" : "From";
+      datePickerLabel.textContent = isSingle ? "Date" : (pickerTarget === "to" ? "To" : "From");
     }
     const y = pickerMonth.getFullYear();
     const m = pickerMonth.getMonth();
@@ -1165,12 +1285,12 @@ function bindEvents() {
     const weekday = (firstDay.getDay() + 6) % 7; // Monday start
     const daysInMonth = new Date(y, m + 1, 0).getDate();
     const daysInPrev = new Date(y, m, 0).getDate();
-    const fromDate = pickerFrom ? ymdToDate(pickerFrom) : null;
-    const toDate = pickerTo ? ymdToDate(pickerTo) : null;
+    const fromDate = !isSingle && pickerFrom ? ymdToDate(pickerFrom) : null;
+    const toDate = !isSingle && pickerTo ? ymdToDate(pickerTo) : null;
     const fromTs = fromDate ? fromDate.getTime() : null;
     const toTs = toDate ? toDate.getTime() : null;
-    const rangeStart = fromTs && toTs ? Math.min(fromTs, toTs) : null;
-    const rangeEnd = fromTs && toTs ? Math.max(fromTs, toTs) : null;
+    const rangeStart = !isSingle && fromTs && toTs ? Math.min(fromTs, toTs) : null;
+    const rangeEnd = !isSingle && fromTs && toTs ? Math.max(fromTs, toTs) : null;
     const today = todayYMD();
     datePickerGrid.innerHTML = "";
     for (let i = 0; i < 42; i += 1) {
@@ -1192,10 +1312,15 @@ function bindEvents() {
       btn.className = "date-cell";
       btn.dataset.ymd = ymd;
       btn.textContent = String(cellDate.getDate());
+      if (isSingle && ymd > maxYmd) {
+        btn.disabled = true;
+        btn.classList.add("is-muted");
+      }
       if (isMuted) btn.classList.add("is-muted");
       if (ymd === today) btn.classList.add("is-today");
-      if (pickerFrom && ymd === pickerFrom) btn.classList.add("is-selected");
-      if (pickerTo && ymd === pickerTo) btn.classList.add("is-selected");
+      if (isSingle && pickerSingle && ymd === pickerSingle) btn.classList.add("is-selected");
+      if (!isSingle && pickerFrom && ymd === pickerFrom) btn.classList.add("is-selected");
+      if (!isSingle && pickerTo && ymd === pickerTo) btn.classList.add("is-selected");
       const cellTs = cellDate.getTime();
       if (rangeStart && rangeEnd && cellTs >= rangeStart && cellTs <= rangeEnd) {
         btn.classList.add("is-range");
@@ -1217,6 +1342,9 @@ function bindEvents() {
 
   const openDatePicker = (target, anchorEl) => {
     if (!datePicker || !datePickerBackdrop) return;
+    pickerMode = "range";
+    pickerSingle = null;
+    pickerSingleApply = null;
     pickerTarget = target;
     pickerFrom = state.from;
     pickerTo = state.to;
@@ -1238,12 +1366,39 @@ function bindEvents() {
     });
   };
 
+  const openDatePickerSingle = (value, anchorEl, onApply) => {
+    if (!datePicker || !datePickerBackdrop) return;
+    pickerMode = "single";
+    pickerSingle = clampYmdToToday(value);
+    pickerSingleApply = typeof onApply === "function" ? onApply : null;
+    pickerFrom = null;
+    pickerTo = null;
+    pickerAnchor = anchorEl || pickerAnchor;
+    const base = ymdToDate(pickerSingle) || new Date();
+    pickerMonth = new Date(base.getFullYear(), base.getMonth(), 1);
+    renderDatePicker();
+    datePicker.removeAttribute("hidden");
+    datePicker.setAttribute("aria-hidden", "false");
+    datePickerBackdrop.removeAttribute("hidden");
+    requestAnimationFrame(() => {
+      datePicker.classList.add("open");
+      datePickerBackdrop.classList.add("open");
+      positionDatePicker(pickerAnchor);
+    });
+  };
+
   if (datePickerGrid) {
     datePickerGrid.addEventListener("click", (e) => {
       const cell = e.target.closest(".date-cell");
       if (!cell) return;
+      if (cell.disabled) return;
       const ymd = cell.dataset.ymd;
       if (!ymd) return;
+      if (pickerMode === "single") {
+        pickerSingle = ymd;
+        renderDatePicker();
+        return;
+      }
       if (pickerTarget === "from") {
         pickerFrom = ymd;
         if (pickerTo && pickerFrom > pickerTo) pickerTo = ymd;
@@ -1275,6 +1430,12 @@ function bindEvents() {
   }
   if (datePickerApply) {
     datePickerApply.addEventListener("click", () => {
+      if (pickerMode === "single") {
+        const nextDate = pickerSingle || dateToYMD(new Date());
+        if (pickerSingleApply) pickerSingleApply(nextDate);
+        closeDatePicker();
+        return;
+      }
       const nextFrom = pickerFrom || state.from;
       const nextTo = pickerTo || state.to;
       if (!nextFrom || !nextTo) return closeDatePicker();
@@ -1292,6 +1453,11 @@ function bindEvents() {
   if (datePickerCancel) datePickerCancel.addEventListener("click", closeDatePicker);
   if (datePickerClear) {
     datePickerClear.addEventListener("click", () => {
+      if (pickerMode === "single") {
+        pickerSingle = dateToYMD(new Date());
+        renderDatePicker();
+        return;
+      }
       state.from = minusDaysYMD(30);
       state.to = todayYMD();
       const fromInput = $("fromDate");
@@ -1487,6 +1653,32 @@ function bindEvents() {
 
   const txForm = $("txForm");
   const txIdInput = document.querySelector('input[name="transaction_id"]');
+  const txDateInput = $("txDateInput");
+  const txDateDisplay = $("txDateDisplay");
+  let txDateInitial = "";
+  let txTimeInitial = "";
+
+  const setTxDate = (ymd, { setInitial = false } = {}) => {
+    const safeDate = clampYmdToToday(ymd);
+    if (!safeDate) return;
+    if (txDateInput) txDateInput.value = safeDate;
+    if (txDateDisplay) txDateDisplay.value = formatYmdDisplay(safeDate);
+    if (setInitial) txDateInitial = safeDate;
+  };
+
+  const openTxDatePicker = () => {
+    const current = clampYmdToToday(txDateInput?.value);
+    openDatePickerSingle(current, txDateDisplay, (next) => setTxDate(next));
+  };
+  if (txDateDisplay) {
+    txDateDisplay.addEventListener("click", openTxDatePicker);
+    txDateDisplay.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openTxDatePicker();
+      }
+    });
+  }
 
   const closeModal = () => {
     const modal = $("modal");
@@ -1497,6 +1689,10 @@ function bindEvents() {
     state.editing_tx_id = null;
     if (txForm) txForm.reset();
     if (txIdInput) txIdInput.value = "";
+    if (txDateInput) txDateInput.value = "";
+    if (txDateDisplay) txDateDisplay.value = "";
+    txDateInitial = "";
+    txTimeInitial = "";
   };
 
   const openModal = (tx) => {
@@ -1508,6 +1704,9 @@ function bindEvents() {
     if (txForm) txForm.reset();
     if (txIdInput) txIdInput.value = "";
     state.editing_tx_id = null;
+    const fallbackDate = clampYmdToToday();
+    txTimeInitial = nowTime();
+    setTxDate(fallbackDate, { setInitial: true });
 
     const defaultAccount = state.scope === "account" && state.account_id ? state.account_id : state.main_account_id;
     if (defaultAccount) {
@@ -1522,6 +1721,9 @@ function bindEvents() {
         txForm.amount.value = fmtIDR(tx.debit || tx.credit || 0);
       }
       if (tx.account_id) $("txAccountSelect").value = tx.account_id;
+      const txDate = isoToLocalYMD(tx.date);
+      if (txDate) setTxDate(txDate, { setInitial: true });
+      txTimeInitial = isoToLocalTime(tx.date) || txTimeInitial;
       const type = tx.debit ? "debit" : "credit";
       const typeInput = document.querySelector(`input[name="transaction_type"][value="${type}"]`);
       if (typeInput) typeInput.checked = true;
@@ -1880,8 +2082,19 @@ function bindEvents() {
     body.amount = parseAmount(body.amount);
     
     const isEdit = !!body.transaction_id;
-    if (!isEdit) {
-       body.date = new Date().toISOString(); 
+    if (txDateInput) {
+      const selectedDate = clampYmdToToday(txDateInput.value);
+      if (isEdit) {
+        if (selectedDate && selectedDate !== txDateInitial) {
+          body.date = ymdTimeToIso(selectedDate, txTimeInitial || nowTime());
+        } else {
+          delete body.date;
+        }
+      } else {
+        body.date = ymdTimeToIso(selectedDate, txTimeInitial || nowTime());
+      }
+    } else if (!isEdit) {
+      body.date = new Date().toISOString();
     }
 
     try {
@@ -1925,8 +2138,17 @@ function bindEvents() {
   };
 
   const resetAccountForm = () => {
+    const budgetInput = $("accountBudget");
+    const budgetField = $("accountBudgetField");
     $("accountId").value = "";
     $("newAccountName").value = "";
+    if (budgetInput) {
+      budgetInput.value = "";
+      budgetInput.dataset.rawValue = "";
+      budgetInput.disabled = false;
+      budgetInput.placeholder = "0";
+    }
+    if (budgetField) budgetField.hidden = false;
     $("accountFormTitle").textContent = "New Account Details";
     $("cancelEditBtn").hidden = true;
     $("accountMsg").textContent = "";
@@ -1948,6 +2170,33 @@ function bindEvents() {
   const closeAccountsModal = () => {
     $("accountsModal").hidden = true;
     resetAccountForm();
+  };
+
+  const startAccountEdit = (acc) => {
+    if (!acc) return;
+    const budgetField = $("accountBudgetField");
+    $("accountId").value = acc.account_id;
+    $("newAccountName").value = acc.account_name;
+    $("accountFormTitle").textContent = "Edit Account Details";
+    $("cancelEditBtn").hidden = false;
+    setAccountFormTabLabel("Edit Account");
+    const budgetInput = $("accountBudget");
+    if (budgetInput) {
+      const isMain = acc.account_id === state.main_account_id;
+      if (isMain) {
+        budgetInput.value = "";
+        budgetInput.dataset.rawValue = "";
+        budgetInput.disabled = true;
+        budgetInput.placeholder = "-";
+        if (budgetField) budgetField.hidden = true;
+      } else {
+        budgetInput.disabled = false;
+        budgetInput.placeholder = "0";
+        if (budgetField) budgetField.hidden = false;
+        syncAccountBudgetInput(acc.account_id);
+      }
+    }
+    switchAccountsTab("create");
   };
 
   resetAccountForm();
@@ -1973,7 +2222,8 @@ function bindEvents() {
     })
   );
 
-  $("accountsBody").addEventListener("click", async (e) => {
+  const accountsBody = $("accountsBody");
+  accountsBody.addEventListener("click", async (e) => {
     const btn = e.target.closest("button[data-action]");
     if (!btn) return;
     const id = btn.dataset.id;
@@ -1982,12 +2232,7 @@ function bindEvents() {
     if (action === "edit") {
       const acc = state.accounts.find((a) => a.account_id === id);
       if (!acc) return;
-      $("accountId").value = acc.account_id;
-      $("newAccountName").value = acc.account_name;
-      $("accountFormTitle").textContent = "Edit Account Details";
-      $("cancelEditBtn").hidden = false;
-      setAccountFormTabLabel("Edit Account");
-      switchAccountsTab("create");
+      startAccountEdit(acc);
     }
 
     if (action === "delete") {
@@ -2013,16 +2258,42 @@ function bindEvents() {
     $("accountMsg").textContent = "";
     const account_name = ($("newAccountName").value || "").trim();
     const account_id = $("accountId").value || null;
+    const budgetInput = $("accountBudget");
+    const budgetRaw = budgetInput && !budgetInput.disabled ? (budgetInput.value || "").trim() : "";
+    const budgetAmount = budgetRaw ? parseAmount(budgetRaw) : null;
+    const budgetMonth = getBudgetMonth();
 
     if (!account_name) return;
     
     const payload = { account_name };
 
     try {
+      let nextAccountId = account_id;
       if (account_id) {
         await api.put(`/api/accounts/${account_id}`, payload);
       } else {
-        await api.post("/api/accounts", payload);
+        const res = await api.post("/api/accounts", payload);
+        nextAccountId = res.account_id || null;
+      }
+      if (nextAccountId) {
+        const prevBudget = state.budgets_by_account[nextAccountId]?.amount ?? null;
+        const prevBudgetId = state.budgets_by_account[nextAccountId]?.budget_id ?? null;
+        if (budgetAmount == null) {
+          if (prevBudgetId) {
+            await api.del(`/api/budgets/${prevBudgetId}`);
+          }
+          delete state.budgets_by_account[nextAccountId];
+        } else if (budgetAmount !== prevBudget || !prevBudgetId) {
+          const res = await api.post("/api/budgets", {
+            account_id: nextAccountId,
+            month: budgetMonth,
+            amount: budgetAmount,
+          });
+          state.budgets_by_account[nextAccountId] = {
+            amount: budgetAmount,
+            budget_id: res.budget_id || prevBudgetId || null,
+          };
+        }
       }
       resetAccountForm();
       await loadAccounts();

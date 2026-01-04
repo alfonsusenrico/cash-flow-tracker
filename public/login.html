@@ -68,6 +68,18 @@
         fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
           .then(async (r) => ({ ok: r.ok, data: await r.json().catch(() => ({})) }));
 
+      const redirectIfLoggedIn = async () => {
+        try {
+          const res = await fetch("/api/me", { credentials: "include" });
+          if (res.ok) location.href = "./app.html";
+        } catch {
+          // ignore
+        }
+      };
+
+      window.addEventListener("pageshow", redirectIfLoggedIn);
+      redirectIfLoggedIn();
+
       document.getElementById("loginForm").addEventListener("submit", async (e) => {
         e.preventDefault();
         msg.textContent = "";
