@@ -97,11 +97,13 @@
                 </thead>
                 <tbody id="ledgerBody"></tbody>
               </table>
+              <div id="ledgerSentinel" class="table-sentinel" aria-hidden="true"></div>
             </div>
             <div id="ledgerLoading" class="table-loading" hidden aria-hidden="true" aria-busy="false">
               <div class="spinner" aria-hidden="true"></div>
               <span class="visually-hidden">Loading</span>
             </div>
+            <div id="ledgerMsg" class="msg ledger-msg" hidden></div>
           </div>
           <div class="ledger-footer">
             <button id="allocateBtn" class="btn secondary">Allocate Balance</button>
@@ -303,7 +305,7 @@
 
           <div class="field">
             <label>Amount (IDR)</label>
-            <input name="amount" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" required />
+            <input name="amount" class="money-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" required />
           </div>
 
           <div class="row gap">
@@ -355,7 +357,7 @@
                 </div>
                 <div class="field" id="accountBudgetField">
                   <label>Monthly Limit (Summary Month)</label>
-                  <input id="accountBudget" class="budget-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" />
+                  <input id="accountBudget" class="budget-input money-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" />
                 </div>
                 <div class="row gap">
                   <button id="saveAccountBtn" class="btn primary grow" type="submit">Save Account</button>
@@ -383,7 +385,7 @@
           </div>
           <div class="field">
             <label>Amount (IDR)</label>
-            <input id="allocateAmount" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" required />
+            <input id="allocateAmount" class="money-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" required />
           </div>
           <button class="btn primary full-width" type="submit">Allocate Balance</button>
           <div id="allocateMsg" class="msg"></div>
@@ -405,7 +407,7 @@
           </div>
           <div class="field">
             <label>Amount (IDR)</label>
-            <input id="switchAmount" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" required />
+            <input id="switchAmount" class="money-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" required />
           </div>
           <button class="btn primary full-width" type="submit">Switch Balance</button>
           <div id="switchMsg" class="msg"></div>

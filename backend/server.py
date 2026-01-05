@@ -285,12 +285,12 @@ def is_all_internal_name(name: str) -> bool:
 def build_search_pattern(query: str | None) -> str | None:
     if not query:
         return None
-    cleaned = re.sub(r"[^a-z0-9]", "", query.lower())
+    cleaned = query.strip().lower()
     if not cleaned:
         return None
     if len(cleaned) > 64:
         cleaned = cleaned[:64]
-    return "%" + "%".join(cleaned) + "%"
+    return f"%{cleaned}%"
 
 
 def parse_tx_datetime(date_str: str | None) -> datetime:
@@ -612,8 +612,8 @@ def build_ledger_page(
     search_sql = ""
     search_params: list[Any] = []
     if search_pattern:
-        search_sql = "WHERE transaction_name ILIKE %s OR account_name ILIKE %s"
-        search_params.extend([search_pattern, search_pattern])
+        search_sql = "WHERE transaction_name ILIKE %s"
+        search_params.append(search_pattern)
 
     sql = f"""
         WITH base AS (

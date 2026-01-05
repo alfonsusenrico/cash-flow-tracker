@@ -40,8 +40,8 @@ const state = {
 };
 
 const api = {
-  async get(url) {
-    const r = await fetch(url, { credentials: "include" });
+  async get(url, options = {}) {
+    const r = await fetch(url, { credentials: "include", signal: options.signal });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.detail || "Request failed");
     return data;
@@ -81,6 +81,9 @@ const ledgerLoadingState = {
   hideTimer: null,
 };
 
+let searchAbortController = null;
+let searchRequestToken = 0;
+
 const setLedgerLoading = (isLoading) => {
   const el = $("ledgerLoading");
   if (!el) return;
@@ -110,6 +113,18 @@ const setLedgerLoading = (isLoading) => {
   }
 };
 
+const setLedgerError = (message) => {
+  const el = $("ledgerMsg");
+  if (!el) return;
+  if (message) {
+    el.textContent = message;
+    el.hidden = false;
+  } else {
+    el.textContent = "";
+    el.hidden = true;
+  }
+};
+
 const fmtIDR = (n) => (n || 0).toLocaleString("id-ID");
 const fmtIDRCurrency = (n) => `Rp ${fmtIDR(n)}`;
 const fmtUSD = (n) =>
@@ -135,6 +150,35 @@ const setFxRateText = (text) => {
 const parseAmount = (value) => {
   const cleaned = String(value || "").replace(/[^\d]/g, "");
   return cleaned ? Number(cleaned) : 0;
+};
+
+const formatMoneyInput = (input) => {
+  if (!input) return;
+  const digits = String(input.value || "").replace(/[^\d]/g, "");
+  if (!digits) {
+    input.value = "";
+    input.dataset.rawValue = "";
+    return;
+  }
+  const normalized = digits.replace(/^0+(?=\d)/, "");
+  const formatted = normalized.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  input.value = formatted;
+  input.dataset.rawValue = normalized;
+  if (document.activeElement === input) {
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  }
+};
+
+const bindMoneyInput = (input) => {
+  if (!input) return;
+  const handler = () => formatMoneyInput(input);
+  input.addEventListener("input", handler);
+  input.addEventListener("blur", handler);
+};
+
+const bindMoneyInputs = () => {
+  document.querySelectorAll(".money-input").forEach((input) => bindMoneyInput(input));
 };
 
 const isoToLocalDisplay = (isoZ) => {
@@ -770,7 +814,8 @@ const markDefaultStale = () => {
 
 async function loadLedgerPage({ reset = false } = {}) {
   const { offsetKey, hasMoreKey, loadingKey, rowsKey } = activePaging();
-  if (state[loadingKey]) return;
+  const isSearch = !!state.search_query;
+  if (state[loadingKey] && !(reset && isSearch)) return;
   if (!state[hasMoreKey] && !reset) return;
 
   if (reset) {
@@ -779,9 +824,19 @@ async function loadLedgerPage({ reset = false } = {}) {
     state[rowsKey] = [];
   }
 
+  if (reset && isSearch) {
+    searchRequestToken += 1;
+    if (searchAbortController) searchAbortController.abort();
+    searchAbortController = new AbortController();
+  }
+
+  const requestToken = isSearch ? searchRequestToken : null;
+  const signal = isSearch && searchAbortController ? searchAbortController.signal : undefined;
+
   state[loadingKey] = true;
   const showSpinner = !reset && state[rowsKey].length > 0;
   if (showSpinner) setLedgerLoading(true);
+  if (reset) setLedgerError("");
   const ledgerWrap = $("ledgerTableScroll");
   const prevScrollTop = !reset && ledgerWrap ? ledgerWrap.scrollTop : 0;
   const scope = state.scope;
@@ -801,7 +856,8 @@ async function loadLedgerPage({ reset = false } = {}) {
     summaryParam;
 
   try {
-    const res = await api.get(url);
+    const res = await api.get(url, { signal });
+    if (isSearch && requestToken !== searchRequestToken) return;
     const nextRows = res.rows || [];
     if (res.summary) updateTotals(res.summary);
     state[rowsKey] = reset ? nextRows : state[rowsKey].concat(nextRows);
@@ -823,6 +879,10 @@ async function loadLedgerPage({ reset = false } = {}) {
         });
       }
     }
+    setLedgerError("");
+  } catch (err) {
+    if (err && err.name === "AbortError") return;
+    setLedgerError(err?.message || "Ledger load failed.");
   } finally {
     state[loadingKey] = false;
     if (showSpinner) setLedgerLoading(false);
@@ -894,6 +954,8 @@ const setActiveTab = (tab) => {
 };
 
 function bindEvents() {
+  bindMoneyInputs();
+
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
   });
@@ -1179,6 +1241,7 @@ function bindEvents() {
       state.search_query = value;
       if (!value) {
         cancelLedgerReload();
+        setLedgerError("");
         if (state.default_stale) {
           const targetCount = state.rows.length;
           reloadLedgerToCount(targetCount).catch(console.error);
@@ -1192,7 +1255,18 @@ function bindEvents() {
   }
 
   const ledgerWrap = $("ledgerTableScroll");
-  if (ledgerWrap) {
+  const ledgerSentinel = $("ledgerSentinel");
+  if (ledgerWrap && ledgerSentinel && "IntersectionObserver" in window) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          loadLedgerPage().catch(console.error);
+        }
+      },
+      { root: ledgerWrap, rootMargin: "120px 0px", threshold: 0.1 }
+    );
+    observer.observe(ledgerSentinel);
+  } else if (ledgerWrap) {
     ledgerWrap.addEventListener("scroll", () => {
       const threshold = 20;
       if (ledgerWrap.scrollTop + ledgerWrap.clientHeight >= ledgerWrap.scrollHeight - threshold) {

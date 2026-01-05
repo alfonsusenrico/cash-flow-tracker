@@ -623,6 +623,10 @@ body.dark .ledger-title-select {
   font-weight: 600;
   font-size: 13px;
 }
+.ledger-msg {
+  margin-top: 8px;
+  color: var(--danger);
+}
 .hint {
   margin: 0;
   color: var(--text-muted);
@@ -1066,6 +1070,10 @@ input.input-button[readonly] {
   flex: 1;
   min-height: 0;
   overflow: auto;
+}
+.table-sentinel {
+  width: 100%;
+  height: 1px;
 }
 .table {
   width: 100%;
