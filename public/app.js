@@ -497,7 +497,7 @@ const renderSummary = () => {
             <div class="summary-balance">${displayMoney(acc.current_balance || 0)}</div>
           </div>
           <div>
-            <div class="summary-balance-label">Budget</div>
+            <div class="summary-balance-label">Limit</div>
             <div class="summary-balance">${budgetValue}</div>
           </div>
         </div>`;
