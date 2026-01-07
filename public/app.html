@@ -1,530 +1,484 @@
 <!doctype html>
 <html lang="id">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Cash Flow Tracker</title>
-    <link rel="stylesheet" href="./theme-hybrid.css" />
-  </head>
-  <body>
-    <header class="topbar">
-      <div class="brand">Cash Flow Tracker</div>
-      <button id="mobileMenuBtn" class="btn small mobile-menu-btn" aria-label="Open menu">☰</button>
-      <div class="topbar-right">
-        <button id="themeToggleBtn" class="btn small icon" title="Toggle Theme" aria-label="Toggle Theme">
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
-            <path d="M21 15.5A9 9 0 1 1 8.5 3a7 7 0 0 0 12.5 12.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <button id="hideBalancesBtn" class="btn small icon" title="Hide balances" aria-label="Hide balances"></button>
-        <div class="topbar-currency" aria-label="Currency format">
-          <div class="segmented compact" id="currencyToggle">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cash Flow Tracker</title>
+  <link rel="stylesheet" href="./theme-hybrid.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">Cash Flow Tracker</div>
+    <button id="mobileMenuBtn" class="btn small mobile-menu-btn" aria-label="Open menu">☰</button>
+    <div class="topbar-right">
+      <button id="themeToggleBtn" class="btn small icon" title="Toggle Theme" aria-label="Toggle Theme">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+          <path d="M21 15.5A9 9 0 1 1 8.5 3a7 7 0 0 0 12.5 12.5z" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <button id="hideBalancesBtn" class="btn small icon" title="Hide balances" aria-label="Hide balances"></button>
+      <div class="topbar-currency" aria-label="Currency format">
+        <div class="segmented compact" id="currencyToggle">
+          <button class="seg-btn" data-currency="IDR">IDR</button>
+          <button class="seg-btn" data-currency="USD">USD</button>
+        </div>
+      </div>
+      <span id="me" class="muted"></span>
+      <button id="manageAccountsBtn" class="btn small">Accounts</button>
+      <button id="logoutBtn" class="btn">Logout</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="workspace">
+      <div class="page-tabs" role="tablist" aria-label="Pages">
+        <button class="tab-btn active" data-tab="summary" aria-selected="true">Summary</button>
+        <button class="tab-btn" data-tab="ledger" aria-selected="false">Transactions</button>
+      </div>
+      <section id="tab-ledger" class="panel ledger" hidden>
+        <div class="ledger-head">
+          <div>
+            <div class="ledger-title-row">
+              <div class="ledger-title-select-wrap">
+                <select id="ledgerTitleSelect" class="ledger-title-select" aria-label="Account filter"></select>
+              </div>
+            </div>
+            <div class="ledger-range-row">
+              <div id="ledgerRangeText" class="ledger-range-text"></div>
+            </div>
+            <div class="ledger-range-inputs">
+              <label>
+                From
+                <input id="fromDate" type="date" />
+              </label>
+              <label>
+                To
+                <input id="toDate" type="date" />
+              </label>
+            </div>
+          </div>
+          <div class="table-totals">
+            <div>
+              <div class="total-label" id="ledgerTotalLabel">Total Asset</div>
+              <div class="total-value" id="ledgerTotal"></div>
+            </div>
+            <div id="ledgerDiffBlock">
+              <div class="total-label" id="ledgerDiffLabel">Unallocated Balance</div>
+              <div class="total-value" id="ledgerDiff"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="ledgerRangeDisplay" class="ledger-range-display"></div>
+        <div class="mobile-controls">
+          <div class="ledger-toolbar">
+            <div class="ledger-search">
+              <input id="ledgerSearch" type="search" placeholder="Search transactions"
+                aria-label="Search transactions" />
+            </div>
+          </div>
+          <div class="mobile-account-filter">
+            <select id="mobileAccountSelect" aria-label="Account filter"></select>
+          </div>
+        </div>
+
+        <div class="table-wrap ledger-table-wrap">
+          <div class="table-scroll" id="ledgerTableScroll">
+            <table class="table" id="ledgerTable">
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th id="thAccount">Account</th>
+                  <th id="ledgerDateHeader" class="sortable" role="button" aria-sort="descending"><span
+                      class="sort-label">Date</span></th>
+                  <th>Transactions</th>
+                  <th class="num">In</th>
+                  <th class="num">Out</th>
+                  <th class="num">Balance</th>
+                </tr>
+              </thead>
+              <tbody id="ledgerBody"></tbody>
+            </table>
+            <div id="ledgerSentinel" class="table-sentinel" aria-hidden="true"></div>
+          </div>
+          <div id="ledgerLoading" class="table-loading" hidden aria-hidden="true" aria-busy="false">
+            <div class="spinner" aria-hidden="true"></div>
+            <span class="visually-hidden">Loading</span>
+          </div>
+          <div id="ledgerMsg" class="msg ledger-msg" hidden></div>
+        </div>
+        <div class="ledger-footer">
+          <button id="allocateBtn" class="btn secondary">Allocate Balance</button>
+          <button id="switchBtn" class="btn secondary">Switch Balance</button>
+          <button id="exportBtn" class="btn secondary">Export</button>
+          <button id="addTxBtn" class="btn primary">+ Add Transaction</button>
+        </div>
+      </section>
+      <section id="tab-summary" class="panel summary">
+        <div class="summary-head">
+          <div>
+            <div class="summary-title">Summary</div>
+            <div id="summaryRangeText" class="summary-range-text"></div>
+          </div>
+          <div class="summary-month-wrap">
+            <button id="summaryMonthBtn" class="summary-month-btn" type="button">
+              <span id="summaryMonthText"></span>
+              <svg class="summary-month-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div id="summaryMsg" class="msg"></div>
+        <div id="summaryCards" class="summary-grid"></div>
+      </section>
+
+    </div>
+  </main>
+
+  <div id="ledgerDatePickerBackdrop" class="date-picker-backdrop" hidden></div>
+  <div id="ledgerDatePicker" class="date-picker" hidden aria-hidden="true">
+    <div class="date-picker-header">
+      <button id="ledgerDatePrev" class="date-picker-nav" type="button" aria-label="Previous month">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+      </button>
+      <div class="date-picker-title">
+        <span id="ledgerDatePickerLabel" class="date-picker-label"></span>
+        <span id="ledgerDatePickerMonth" class="date-picker-month"></span>
+      </div>
+      <button id="ledgerDateNext" class="date-picker-nav" type="button" aria-label="Next month">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+      </button>
+    </div>
+    <div class="date-picker-weekdays">
+      <span>Mo</span>
+      <span>Tu</span>
+      <span>We</span>
+      <span>Th</span>
+      <span>Fr</span>
+      <span>Sa</span>
+      <span>Su</span>
+    </div>
+    <div id="ledgerDatePickerGrid" class="date-picker-grid"></div>
+    <div class="date-picker-footer">
+      <button id="ledgerDateClear" class="date-picker-text" type="button">Clear</button>
+      <div class="date-picker-actions">
+        <button id="ledgerDateCancel" class="date-picker-text" type="button">Cancel</button>
+        <button id="ledgerDateApply" class="date-picker-apply" type="button">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="summaryMonthPickerBackdrop" class="date-picker-backdrop" hidden></div>
+  <div id="summaryMonthPicker" class="date-picker month-picker" hidden aria-hidden="true">
+    <div class="date-picker-header">
+      <button id="summaryMonthPrev" class="date-picker-nav" type="button" aria-label="Previous year">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+      </button>
+      <div class="date-picker-title">
+        <span class="date-picker-label">Year</span>
+        <span id="summaryMonthYear" class="date-picker-month"></span>
+      </div>
+      <button id="summaryMonthNext" class="date-picker-nav" type="button" aria-label="Next year">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+      </button>
+    </div>
+    <div id="summaryMonthGrid" class="month-picker-grid"></div>
+    <div class="date-picker-footer">
+      <button id="summaryMonthCancel" class="date-picker-text" type="button">Cancel</button>
+      <button id="summaryMonthApply" class="date-picker-apply" type="button">Apply</button>
+    </div>
+  </div>
+
+  <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+  <button id="mobileAddBtn" class="mobile-fab" aria-label="Add transaction">+</button>
+  <div id="fabBackdrop" class="fab-backdrop" hidden></div>
+  <div id="fabSheet" class="fab-sheet" hidden>
+    <button class="fab-option" data-action="add">Add Transaction</button>
+    <button id="fabAllocateOption" class="fab-option" data-action="allocate">Allocate Balance</button>
+    <button id="fabSwitchOption" class="fab-option" data-action="switch">Switch Balance</button>
+    <button id="fabExportOption" class="fab-option" data-action="export">Export</button>
+  </div>
+
+  <!-- Mobile Menu (Settings) -->
+  <div id="mobileMenuSheet" class="mobile-sheet" hidden>
+    <div class="sheet-content">
+      <div class="sheet-head">
+        <h3>Menu</h3>
+        <button id="closeMobileMenuBtn" class="btn small">✕</button>
+      </div>
+      <div class="stack">
+        <!-- Items moved/cloned from Sidebar/Topbar for Mobile accessibility -->
+
+        <div class="menu-item-row">
+          <span>Dark Theme</span>
+          <label class="theme-switch">
+            <input type="checkbox" id="mobileThemeToggleCheckbox">
+            <span class="slider round"></span>
+          </label>
+        </div>
+
+        <div class="menu-item-row">
+          <span>Hide Balances</span>
+          <label class="theme-switch">
+            <input type="checkbox" id="mobileHideBalancesToggle">
+            <span class="slider round"></span>
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="stack">
+          <span class="menu-label">Currency</span>
+          <div class="segmented" id="mobileCurrencyToggle">
             <button class="seg-btn" data-currency="IDR">IDR</button>
             <button class="seg-btn" data-currency="USD">USD</button>
           </div>
+          <button id="mobileFxRefreshBtn" class="btn full-width">Update Rate</button>
         </div>
-        <span id="me" class="muted"></span>
-        <button id="manageAccountsBtn" class="btn small">Accounts</button>
-        <button id="logoutBtn" class="btn">Logout</button>
+
+        <div class="divider"></div>
+
+        <button id="mobileSummaryBtn" class="btn full-width">Summary</button>
+
+        <div class="divider"></div>
+
+        <button id="mobileManageAccountsBtn" class="btn full-width">Manage Accounts</button>
+
+        <div class="divider"></div>
+
+        <div class="menu-item-row">
+          <div class="stack gap-0">
+            <span id="mobileMe" class="small muted">User</span>
+            <span class="small">Logged In</span>
+          </div>
+          <button id="mobileLogoutBtn" class="btn danger small">Logout</button>
+        </div>
       </div>
-    </header>
+    </div>
+  </div>
 
-    <main class="container">
-      <div class="workspace">
-        <div class="page-tabs" role="tablist" aria-label="Pages">
-          <button class="tab-btn active" data-tab="summary" aria-selected="true">Summary</button>
-          <button class="tab-btn" data-tab="insights" aria-selected="false">Insights</button>
-          <button class="tab-btn" data-tab="ledger" aria-selected="false">Ledger</button>
+  <!-- Modal Add Transaction -->
+  <div id="modal" class="modal" role="dialog" aria-modal="true" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="txModalTitle">Add Transaction</h2>
+        <button id="closeModal" class="btn">✕</button>
+      </div>
+
+      <form id="txForm" class="form stack large-gap">
+        <input type="hidden" name="transaction_id">
+        <div class="field">
+          <label>Transaction Type</label>
+          <div class="radio-toggle">
+            <label>
+              <input type="radio" name="transaction_type" value="debit" checked>
+              <span>Cash In</span>
+            </label>
+            <label>
+              <input type="radio" name="transaction_type" value="credit">
+              <span>Cash Out</span>
+            </label>
+          </div>
         </div>
-        <section id="tab-ledger" class="panel ledger" hidden>
-          <div class="ledger-head">
-            <div>
-              <div class="ledger-title-row">
-                <div class="ledger-title-select-wrap">
-                  <select id="ledgerTitleSelect" class="ledger-title-select" aria-label="Account filter"></select>
-                </div>
-              </div>
-              <div class="ledger-range-row">
-                <div id="ledgerRangeText" class="ledger-range-text"></div>
-              </div>
-              <div class="ledger-range-inputs">
-                <label>
-                  From
-                  <input id="fromDate" type="date" />
-                </label>
-                <label>
-                  To
-                  <input id="toDate" type="date" />
-                </label>
-              </div>
-            </div>
-            <div class="table-totals">
-              <div>
-                <div class="total-label" id="ledgerTotalLabel">Total Asset</div>
-                <div class="total-value" id="ledgerTotal"></div>
-              </div>
-              <div id="ledgerDiffBlock">
-                <div class="total-label" id="ledgerDiffLabel">Unallocated Balance</div>
-                <div class="total-value" id="ledgerDiff"></div>
-              </div>
-            </div>
-          </div>
 
-          <div id="ledgerRangeDisplay" class="ledger-range-display"></div>
-          <div class="mobile-controls">
-            <div class="ledger-toolbar">
-              <div class="ledger-search">
-                <input id="ledgerSearch" type="search" placeholder="Search transactions" aria-label="Search transactions" />
-              </div>
-            </div>
-            <div class="mobile-account-filter">
-              <select id="mobileAccountSelect" aria-label="Account filter"></select>
-            </div>
-          </div>
+        <div class="field">
+          <label>Account</label>
+          <select name="account_id" id="txAccountSelect" required></select>
+        </div>
 
-          <div class="table-wrap ledger-table-wrap">
-            <div class="table-scroll" id="ledgerTableScroll">
-              <table class="table" id="ledgerTable">
+        <div class="field">
+          <label>Transaction name</label>
+          <input name="transaction_name" required placeholder="e.g. Grab, Makan siang, Topup" />
+        </div>
+
+        <div class="field">
+          <label>Date</label>
+          <input id="txDateDisplay" class="input-button" type="text" placeholder="Select date" readonly />
+          <input id="txDateInput" name="date" type="hidden" />
+        </div>
+
+        <div class="field">
+          <label>Amount (IDR)</label>
+          <input name="amount" class="money-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0"
+            required />
+        </div>
+
+        <div class="row gap">
+          <button class="btn primary grow" type="submit">Save Transaction</button>
+          <button id="deleteTxBtn" class="btn danger grow" type="button" hidden>Delete</button>
+        </div>
+        <div id="txMsg" class="msg"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Manage Accounts -->
+  <div id="accountsModal" class="modal" role="dialog" aria-modal="true" hidden>
+    <div class="modal-card modal-wide">
+      <div class="modal-head">
+        <h2>Accounts</h2>
+        <button id="closeAccountsModal" class="btn">✕</button>
+      </div>
+
+      <div class="accounts-modal">
+        <nav class="accounts-nav">
+          <button class="nav-btn active" data-acc-tab="list">Account List</button>
+          <button class="nav-btn" data-acc-tab="create" id="accountFormTabBtn">Create Account</button>
+        </nav>
+
+        <div class="accounts-content">
+          <section id="acc-tab-list">
+            <div class="section-title">Accounts Category</div>
+            <div class="table-wrap">
+              <table class="table table-compact">
                 <thead>
                   <tr>
-                    <th>No</th>
-                    <th id="thAccount">Account</th>
-                    <th id="ledgerDateHeader" class="sortable" role="button" aria-sort="descending"><span class="sort-label">Date</span></th>
-                    <th>Transaction</th>
-                    <th class="num">In</th>
-                    <th class="num">Out</th>
-                    <th class="num">Balance</th>
+                    <th>Account</th>
+                    <th class="num">Actions</th>
                   </tr>
                 </thead>
-                <tbody id="ledgerBody"></tbody>
+                <tbody id="accountsBody"></tbody>
               </table>
-              <div id="ledgerSentinel" class="table-sentinel" aria-hidden="true"></div>
             </div>
-            <div id="ledgerLoading" class="table-loading" hidden aria-hidden="true" aria-busy="false">
-              <div class="spinner" aria-hidden="true"></div>
-              <span class="visually-hidden">Loading</span>
-            </div>
-            <div id="ledgerMsg" class="msg ledger-msg" hidden></div>
-          </div>
-          <div class="ledger-footer">
-            <button id="allocateBtn" class="btn secondary">Allocate Balance</button>
-            <button id="switchBtn" class="btn secondary">Switch Balance</button>
-            <button id="exportBtn" class="btn secondary">Export</button>
-            <button id="addTxBtn" class="btn primary">+ Add Transaction</button>
-          </div>
-        </section>
-        <section id="tab-summary" class="panel summary">
-          <div class="summary-head">
-            <div>
-              <div class="summary-title">Summary</div>
-              <div id="summaryRangeText" class="summary-range-text"></div>
-            </div>
-            <div class="summary-month-wrap">
-              <button id="summaryMonthBtn" class="summary-month-btn" type="button">
-                <span id="summaryMonthText"></span>
-                <svg class="summary-month-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-          <div id="summaryMsg" class="msg"></div>
-          <div id="summaryCards" class="summary-grid"></div>
-        </section>
-        <section id="tab-insights" class="panel insights" hidden>
-          <div class="insights-head">
-            <div>
-              <div class="summary-title">Insights</div>
-              <div id="insightsRangeText" class="summary-range-text"></div>
-            </div>
-            <div class="insights-controls">
-              <div class="segmented compact" id="insightsPeriodToggle">
-                <button class="seg-btn" data-period="month">Month</button>
-                <button class="seg-btn" data-period="quarter">Quarter</button>
-                <button class="seg-btn" data-period="year">Year</button>
-              </div>
-              <div class="insights-period-nav">
-                <button id="insightsPrevBtn" class="btn small icon" type="button" aria-label="Previous period">‹</button>
-                <button id="insightsPeriodBtn" class="btn small" type="button">Select period</button>
-                <button id="insightsNextBtn" class="btn small icon" type="button" aria-label="Next period">›</button>
-              </div>
-            </div>
-          </div>
-          <div id="insightsMsg" class="msg" hidden></div>
-          <div id="insightsMetrics" class="insights-grid"></div>
-          <div class="insights-section">
-            <div class="section-title">Budget Utilization</div>
-            <div id="insightsBudgetList" class="insights-list"></div>
-          </div>
-          <div class="insights-section">
-            <div class="section-title">Top Spending (Top 5)</div>
-            <div id="insightsTopList" class="insights-list"></div>
-          </div>
-          <div class="insights-section">
-            <div class="section-title">Period Comparison</div>
-            <div id="insightsCompare" class="insights-compare"></div>
-          </div>
-        </section>
-      </div>
-    </main>
+          </section>
 
-    <div id="ledgerDatePickerBackdrop" class="date-picker-backdrop" hidden></div>
-    <div id="ledgerDatePicker" class="date-picker" hidden aria-hidden="true">
-      <div class="date-picker-header">
-        <button id="ledgerDatePrev" class="date-picker-nav" type="button" aria-label="Previous month">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <div class="date-picker-title">
-          <span id="ledgerDatePickerLabel" class="date-picker-label"></span>
-          <span id="ledgerDatePickerMonth" class="date-picker-month"></span>
-        </div>
-        <button id="ledgerDateNext" class="date-picker-nav" type="button" aria-label="Next month">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-      </div>
-      <div class="date-picker-weekdays">
-        <span>Mo</span>
-        <span>Tu</span>
-        <span>We</span>
-        <span>Th</span>
-        <span>Fr</span>
-        <span>Sa</span>
-        <span>Su</span>
-      </div>
-      <div id="ledgerDatePickerGrid" class="date-picker-grid"></div>
-      <div class="date-picker-footer">
-        <button id="ledgerDateClear" class="date-picker-text" type="button">Clear</button>
-        <div class="date-picker-actions">
-          <button id="ledgerDateCancel" class="date-picker-text" type="button">Cancel</button>
-          <button id="ledgerDateApply" class="date-picker-apply" type="button">Apply</button>
+          <section id="acc-tab-create" class="hidden">
+            <div class="section-title" id="accountFormTitle">New Account Details</div>
+            <form id="accountForm" class="form stack large-gap">
+              <input id="accountId" type="hidden" />
+              <div class="field">
+                <label>Account Name</label>
+                <input id="newAccountName" placeholder="e.g. Transportasi" required />
+              </div>
+              <div class="field" id="accountBudgetField">
+                <label>Monthly Limit (Summary Month)</label>
+                <input id="accountBudget" class="budget-input money-input" type="text" inputmode="numeric"
+                  pattern="[0-9.]*" placeholder="0" />
+              </div>
+              <div class="row gap">
+                <button id="saveAccountBtn" class="btn primary grow" type="submit">Save</button>
+                <button id="cancelEditBtn" class="btn grow" type="button">Cancel</button>
+              </div>
+              <div id="accountMsg" class="msg"></div>
+            </form>
+          </section>
         </div>
       </div>
     </div>
+  </div>
 
-    <div id="summaryMonthPickerBackdrop" class="date-picker-backdrop" hidden></div>
-    <div id="summaryMonthPicker" class="date-picker month-picker" hidden aria-hidden="true">
-      <div class="date-picker-header">
-        <button id="summaryMonthPrev" class="date-picker-nav" type="button" aria-label="Previous year">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <div class="date-picker-title">
-          <span class="date-picker-label">Year</span>
-          <span id="summaryMonthYear" class="date-picker-month"></span>
-        </div>
-        <button id="summaryMonthNext" class="date-picker-nav" type="button" aria-label="Next year">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
+  <!-- Modal Allocate Balance -->
+  <div id="allocateModal" class="modal" role="dialog" aria-modal="true" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>Allocate Balance</h2>
+        <button id="closeAllocateModal" class="btn">✕</button>
       </div>
-      <div id="summaryMonthGrid" class="month-picker-grid"></div>
-      <div class="date-picker-footer">
-        <button id="summaryMonthCancel" class="date-picker-text" type="button">Cancel</button>
-        <button id="summaryMonthApply" class="date-picker-apply" type="button">Apply</button>
-      </div>
-    </div>
-
-    <div id="insightsPeriodBackdrop" class="date-picker-backdrop" hidden></div>
-    <div id="insightsPeriodPicker" class="date-picker insights-picker" hidden aria-hidden="true">
-      <div class="insights-picker-body">
+      <form id="allocateForm" class="form stack large-gap">
         <div class="field">
-          <label>Year</label>
-          <input id="insightsYearInput" type="number" inputmode="numeric" min="2000" max="2100" />
+          <label>Allocate To</label>
+          <select id="allocateAccountSelect" required></select>
         </div>
-        <div class="field" id="insightsMonthField">
-          <label>Month</label>
-          <select id="insightsMonthSelect"></select>
+        <div class="field">
+          <label>Amount (IDR)</label>
+          <input id="allocateAmount" class="money-input" type="text" inputmode="numeric" pattern="[0-9.]*"
+            placeholder="0" required />
         </div>
-        <div class="field" id="insightsQuarterField">
-          <label>Quarter</label>
-          <select id="insightsQuarterSelect">
-            <option value="1">Q1</option>
-            <option value="2">Q2</option>
-            <option value="3">Q3</option>
-            <option value="4">Q4</option>
+        <button class="btn primary full-width" type="submit">Allocate Balance</button>
+        <div id="allocateMsg" class="msg"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Switch Balance -->
+  <div id="switchModal" class="modal" role="dialog" aria-modal="true" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>Switch Balance</h2>
+        <button id="closeSwitchModal" class="btn">✕</button>
+      </div>
+      <form id="switchForm" class="form stack large-gap">
+        <div class="field">
+          <label>To Account</label>
+          <select id="switchToSelect" required></select>
+        </div>
+        <div class="field">
+          <label>Amount (IDR)</label>
+          <input id="switchAmount" class="money-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0"
+            required />
+        </div>
+        <button class="btn primary full-width" type="submit">Switch Balance</button>
+        <div id="switchMsg" class="msg"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Export Ledger -->
+  <div id="exportModal" class="modal" role="dialog" aria-modal="true" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>Export Transactions</h2>
+        <button id="closeExportModal" class="btn">✕</button>
+      </div>
+      <form id="exportForm" class="form stack large-gap">
+        <div class="field">
+          <label>Account</label>
+          <select id="exportAccountSelect" required></select>
+        </div>
+        <div class="field">
+          <label>Payday (Day of Month)</label>
+          <input id="exportDay" type="number" min="1" max="31" inputmode="numeric" placeholder="25" required />
+        </div>
+        <div class="field">
+          <label>Format</label>
+          <select id="exportFormat">
+            <option value="pdf" selected>PDF</option>
+            <option value="csv">CSV</option>
           </select>
         </div>
-      </div>
-      <div class="date-picker-actions">
-        <button id="insightsPeriodCancel" class="date-picker-text" type="button">Cancel</button>
-        <button id="insightsPeriodApply" class="date-picker-apply" type="button">Apply</button>
-      </div>
-    </div>
-
-    <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
-    <button id="mobileAddBtn" class="mobile-fab" aria-label="Add transaction">+</button>
-    <div id="fabBackdrop" class="fab-backdrop" hidden></div>
-    <div id="fabSheet" class="fab-sheet" hidden>
-      <button class="fab-option" data-action="add">Add Transaction</button>
-      <button id="fabAllocateOption" class="fab-option" data-action="allocate">Allocate Balance</button>
-      <button id="fabSwitchOption" class="fab-option" data-action="switch">Switch Balance</button>
-      <button id="fabExportOption" class="fab-option" data-action="export">Export</button>
-    </div>
-
-    <!-- Mobile Menu (Settings) -->
-    <div id="mobileMenuSheet" class="mobile-sheet" hidden>
-      <div class="sheet-content">
-        <div class="sheet-head">
-          <h3>Menu</h3>
-          <button id="closeMobileMenuBtn" class="btn small">✕</button>
-        </div>
-        <div class="stack">
-            <!-- Items moved/cloned from Sidebar/Topbar for Mobile accessibility -->
-            
-            <div class="menu-item-row">
-                <span>Dark Theme</span>
-                <label class="theme-switch">
-                  <input type="checkbox" id="mobileThemeToggleCheckbox">
-                  <span class="slider round"></span>
-                </label>
-            </div>
-
-            <div class="menu-item-row">
-                <span>Hide Balances</span>
-                <label class="theme-switch">
-                  <input type="checkbox" id="mobileHideBalancesToggle">
-                  <span class="slider round"></span>
-                </label>
-            </div>
-
-            <div class="divider"></div>
-
-            <div class="stack">
-              <span class="menu-label">Currency</span>
-              <div class="segmented" id="mobileCurrencyToggle">
-                <button class="seg-btn" data-currency="IDR">IDR</button>
-                <button class="seg-btn" data-currency="USD">USD</button>
-              </div>
-              <button id="mobileFxRefreshBtn" class="btn full-width">Update Rate</button>
-            </div>
-            
-            <div class="divider"></div>
-
-            <button id="mobileSummaryBtn" class="btn full-width">Summary</button>
-
-            <div class="divider"></div>
-
-            <button id="mobileManageAccountsBtn" class="btn full-width">Manage Accounts</button>
-
-            <div class="divider"></div>
-
-            <div class="menu-item-row">
-                 <div class="stack gap-0">
-                    <span id="mobileMe" class="small muted">User</span>
-                    <span class="small">Logged In</span>
-                 </div>
-                 <button id="mobileLogoutBtn" class="btn danger small">Logout</button>
-            </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal Add Transaction -->
-    <div id="modal" class="modal" role="dialog" aria-modal="true" hidden>
-      <div class="modal-card">
-        <div class="modal-head">
-          <h2 id="txModalTitle">Add Transaction</h2>
-          <button id="closeModal" class="btn">✕</button>
-        </div>
-
-        <form id="txForm" class="form stack large-gap">
-          <input type="hidden" name="transaction_id">
-          <div class="field">
-             <label>Transaction Type</label>
-             <div class="radio-toggle">
-                <label>
-                  <input type="radio" name="transaction_type" value="debit" checked>
-                  <span>Cash In</span>
-                </label>
-                <label>
-                  <input type="radio" name="transaction_type" value="credit">
-                  <span>Cash Out</span>
-                </label>
-             </div>
+        <p id="exportRangePreview" class="hint"></p>
+        <div class="export-preview">
+          <div>
+            <div class="preview-label">Transactions</div>
+            <div id="exportCountPreview" class="preview-value">-</div>
           </div>
-
-          <div class="field">
-            <label>Account</label>
-            <select name="account_id" id="txAccountSelect" required></select>
+          <div>
+            <div class="preview-label">Cash In</div>
+            <div id="exportInPreview" class="preview-value">-</div>
           </div>
-
-          <div class="field">
-            <label>Transaction name</label>
-            <input name="transaction_name" required placeholder="e.g. Grab, Makan siang, Topup" />
+          <div>
+            <div class="preview-label">Cash Out</div>
+            <div id="exportOutPreview" class="preview-value">-</div>
           </div>
-
-          <div class="field">
-            <label>Date</label>
-            <input id="txDateDisplay" class="input-button" type="text" placeholder="Select date" readonly />
-            <input id="txDateInput" name="date" type="hidden" />
-          </div>
-
-          <div class="field">
-            <label>Amount (IDR)</label>
-            <input name="amount" class="money-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" required />
-          </div>
-
-          <div class="row gap">
-            <button class="btn primary grow" type="submit">Save Transaction</button>
-            <button id="deleteTxBtn" class="btn danger grow" type="button" hidden>Delete</button>
-          </div>
-          <div id="txMsg" class="msg"></div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Modal Manage Accounts -->
-    <div id="accountsModal" class="modal" role="dialog" aria-modal="true" hidden>
-      <div class="modal-card modal-wide">
-        <div class="modal-head">
-          <h2>Accounts</h2>
-          <button id="closeAccountsModal" class="btn">✕</button>
-        </div>
-
-        <div class="accounts-modal">
-          <nav class="accounts-nav">
-            <button class="nav-btn active" data-acc-tab="list">Account List</button>
-            <button class="nav-btn" data-acc-tab="create" id="accountFormTabBtn">Create Account</button>
-          </nav>
-
-          <div class="accounts-content">
-            <section id="acc-tab-list">
-              <div class="section-title">Accounts Category</div>
-              <div class="table-wrap">
-                <table class="table table-compact">
-                  <thead>
-                    <tr>
-                      <th>Account</th>
-                      <th class="num">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody id="accountsBody"></tbody>
-                </table>
-              </div>
-            </section>
-
-            <section id="acc-tab-create" class="hidden">
-              <div class="section-title" id="accountFormTitle">New Account Details</div>
-              <form id="accountForm" class="form stack large-gap">
-                <input id="accountId" type="hidden" />
-                <div class="field">
-                  <label>Account Name</label>
-                  <input id="newAccountName" placeholder="e.g. Transportasi" required />
-                </div>
-                <div class="field" id="accountBudgetField">
-                  <label>Monthly Limit (Summary Month)</label>
-                  <input id="accountBudget" class="budget-input money-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" />
-                </div>
-                <div class="row gap">
-                  <button id="saveAccountBtn" class="btn primary grow" type="submit">Save</button>
-                  <button id="cancelEditBtn" class="btn grow" type="button">Cancel</button>
-                </div>
-                <div id="accountMsg" class="msg"></div>
-              </form>
-            </section>
+          <div>
+            <div class="preview-label">Net</div>
+            <div id="exportNetPreview" class="preview-value">-</div>
           </div>
         </div>
-      </div>
+        <button class="btn primary full-width" type="submit">Export</button>
+        <div id="exportMsg" class="msg"></div>
+      </form>
     </div>
+  </div>
 
-    <!-- Modal Allocate Balance -->
-    <div id="allocateModal" class="modal" role="dialog" aria-modal="true" hidden>
-      <div class="modal-card">
-        <div class="modal-head">
-          <h2>Allocate Balance</h2>
-          <button id="closeAllocateModal" class="btn">✕</button>
-        </div>
-        <form id="allocateForm" class="form stack large-gap">
-          <div class="field">
-            <label>Allocate To</label>
-            <select id="allocateAccountSelect" required></select>
-          </div>
-          <div class="field">
-            <label>Amount (IDR)</label>
-            <input id="allocateAmount" class="money-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" required />
-          </div>
-          <button class="btn primary full-width" type="submit">Allocate Balance</button>
-          <div id="allocateMsg" class="msg"></div>
-        </form>
-      </div>
-    </div>
+  <script src="./app.js"></script>
+</body>
 
-    <!-- Modal Switch Balance -->
-    <div id="switchModal" class="modal" role="dialog" aria-modal="true" hidden>
-      <div class="modal-card">
-        <div class="modal-head">
-          <h2>Switch Balance</h2>
-          <button id="closeSwitchModal" class="btn">✕</button>
-        </div>
-        <form id="switchForm" class="form stack large-gap">
-          <div class="field">
-            <label>To Account</label>
-            <select id="switchToSelect" required></select>
-          </div>
-          <div class="field">
-            <label>Amount (IDR)</label>
-            <input id="switchAmount" class="money-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" required />
-          </div>
-          <button class="btn primary full-width" type="submit">Switch Balance</button>
-          <div id="switchMsg" class="msg"></div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Modal Export Ledger -->
-    <div id="exportModal" class="modal" role="dialog" aria-modal="true" hidden>
-      <div class="modal-card">
-        <div class="modal-head">
-          <h2>Export Ledger</h2>
-          <button id="closeExportModal" class="btn">✕</button>
-        </div>
-        <form id="exportForm" class="form stack large-gap">
-          <div class="field">
-            <label>Account</label>
-            <select id="exportAccountSelect" required></select>
-          </div>
-          <div class="field">
-            <label>Payday (Day of Month)</label>
-            <input id="exportDay" type="number" min="1" max="31" inputmode="numeric" placeholder="25" required />
-          </div>
-          <div class="field">
-            <label>Format</label>
-            <select id="exportFormat">
-              <option value="pdf" selected>PDF</option>
-              <option value="csv">CSV</option>
-            </select>
-          </div>
-          <p id="exportRangePreview" class="hint"></p>
-          <div class="export-preview">
-            <div>
-              <div class="preview-label">Transactions</div>
-              <div id="exportCountPreview" class="preview-value">-</div>
-            </div>
-            <div>
-              <div class="preview-label">Cash In</div>
-              <div id="exportInPreview" class="preview-value">-</div>
-            </div>
-            <div>
-              <div class="preview-label">Cash Out</div>
-              <div id="exportOutPreview" class="preview-value">-</div>
-            </div>
-            <div>
-              <div class="preview-label">Net</div>
-              <div id="exportNetPreview" class="preview-value">-</div>
-            </div>
-          </div>
-          <button class="btn primary full-width" type="submit">Export</button>
-          <div id="exportMsg" class="msg"></div>
-        </form>
-      </div>
-    </div>
-
-    <script src="./app.js"></script>
-  </body>
 </html>
