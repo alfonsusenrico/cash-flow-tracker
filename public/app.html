@@ -33,6 +33,7 @@
       <div class="workspace">
         <div class="page-tabs" role="tablist" aria-label="Pages">
           <button class="tab-btn active" data-tab="summary" aria-selected="true">Summary</button>
+          <button class="tab-btn" data-tab="insights" aria-selected="false">Insights</button>
           <button class="tab-btn" data-tab="ledger" aria-selected="false">Ledger</button>
         </div>
         <section id="tab-ledger" class="panel ledger" hidden>
@@ -130,6 +131,40 @@
           <div id="summaryMsg" class="msg"></div>
           <div id="summaryCards" class="summary-grid"></div>
         </section>
+        <section id="tab-insights" class="panel insights" hidden>
+          <div class="insights-head">
+            <div>
+              <div class="summary-title">Insights</div>
+              <div id="insightsRangeText" class="summary-range-text"></div>
+            </div>
+            <div class="insights-controls">
+              <div class="segmented compact" id="insightsPeriodToggle">
+                <button class="seg-btn" data-period="month">Month</button>
+                <button class="seg-btn" data-period="quarter">Quarter</button>
+                <button class="seg-btn" data-period="year">Year</button>
+              </div>
+              <div class="insights-period-nav">
+                <button id="insightsPrevBtn" class="btn small icon" type="button" aria-label="Previous period">‹</button>
+                <button id="insightsPeriodBtn" class="btn small" type="button">Select period</button>
+                <button id="insightsNextBtn" class="btn small icon" type="button" aria-label="Next period">›</button>
+              </div>
+            </div>
+          </div>
+          <div id="insightsMsg" class="msg" hidden></div>
+          <div id="insightsMetrics" class="insights-grid"></div>
+          <div class="insights-section">
+            <div class="section-title">Budget Utilization</div>
+            <div id="insightsBudgetList" class="insights-list"></div>
+          </div>
+          <div class="insights-section">
+            <div class="section-title">Top Spending (Top 5)</div>
+            <div id="insightsTopList" class="insights-list"></div>
+          </div>
+          <div class="insights-section">
+            <div class="section-title">Period Comparison</div>
+            <div id="insightsCompare" class="insights-compare"></div>
+          </div>
+        </section>
       </div>
     </main>
 
@@ -192,6 +227,33 @@
       <div class="date-picker-footer">
         <button id="summaryMonthCancel" class="date-picker-text" type="button">Cancel</button>
         <button id="summaryMonthApply" class="date-picker-apply" type="button">Apply</button>
+      </div>
+    </div>
+
+    <div id="insightsPeriodBackdrop" class="date-picker-backdrop" hidden></div>
+    <div id="insightsPeriodPicker" class="date-picker insights-picker" hidden aria-hidden="true">
+      <div class="insights-picker-body">
+        <div class="field">
+          <label>Year</label>
+          <input id="insightsYearInput" type="number" inputmode="numeric" min="2000" max="2100" />
+        </div>
+        <div class="field" id="insightsMonthField">
+          <label>Month</label>
+          <select id="insightsMonthSelect"></select>
+        </div>
+        <div class="field" id="insightsQuarterField">
+          <label>Quarter</label>
+          <select id="insightsQuarterSelect">
+            <option value="1">Q1</option>
+            <option value="2">Q2</option>
+            <option value="3">Q3</option>
+            <option value="4">Q4</option>
+          </select>
+        </div>
+      </div>
+      <div class="date-picker-actions">
+        <button id="insightsPeriodCancel" class="date-picker-text" type="button">Cancel</button>
+        <button id="insightsPeriodApply" class="date-picker-apply" type="button">Apply</button>
       </div>
     </div>
 
@@ -360,7 +422,7 @@
                   <input id="accountBudget" class="budget-input money-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0" />
                 </div>
                 <div class="row gap">
-                  <button id="saveAccountBtn" class="btn primary grow" type="submit">Save Account</button>
+                  <button id="saveAccountBtn" class="btn primary grow" type="submit">Save</button>
                   <button id="cancelEditBtn" class="btn grow" type="button">Cancel</button>
                 </div>
                 <div id="accountMsg" class="msg"></div>

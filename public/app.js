@@ -17,6 +17,10 @@ const state = {
   summary_month: "",
   summary_loading: false,
   summary_stale: true,
+  insights_period_type: "month",
+  insights_period_value: "",
+  insights_loading: false,
+  insights_data: null,
   total_asset: 0,
   unallocated_balance: 0,
   search_query: "",
@@ -379,7 +383,7 @@ function renderAccounts() {
     const listItems = [
       `<label class="account-option">
         <input type="radio" name="accountFilter" value="all" ${state.scope === "all" ? "checked" : ""} />
-        <span>Total Ledger</span>
+        <span>All</span>
         <span class="tag">Total</span>
       </label>`,
       ...filterAccounts.map((a) => {
@@ -397,7 +401,7 @@ function renderAccounts() {
   const mobileSelect = $("mobileAccountSelect");
   if (mobileSelect) {
     const mobileOptions = [
-      `<option value="all">Total Ledger</option>`,
+      `<option value="all">All</option>`,
       ...filterAccounts.map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
     ];
     mobileSelect.innerHTML = mobileOptions.join("");
@@ -407,7 +411,7 @@ function renderAccounts() {
   const titleSelect = $("ledgerTitleSelect");
   if (titleSelect) {
     const titleOptions = [
-      `<option value="all">Total Ledger</option>`,
+      `<option value="all">All</option>`,
       ...filterAccounts.map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
     ];
     titleSelect.innerHTML = titleOptions.join("");
@@ -480,6 +484,94 @@ const formatMonthLabel = (ym) => {
   if (!year || !month) return ym;
   const date = new Date(year, month - 1, 1);
   return date.toLocaleString("en-US", { month: "long", year: "numeric" });
+};
+
+const currentQuarterValue = () => {
+  const now = new Date();
+  const quarter = Math.floor(now.getMonth() / 3) + 1;
+  return `${now.getFullYear()}-Q${quarter}`;
+};
+
+const currentYearValue = () => String(new Date().getFullYear());
+
+const parsePeriodValue = (type, value) => {
+  if (!value) return null;
+  if (type === "month") {
+    const [year, month] = String(value).split("-").map((v) => Number(v));
+    if (!year || !month || month < 1 || month > 12) return null;
+    return { year, month };
+  }
+  if (type === "quarter") {
+    const match = String(value).match(/^(\d{4})-Q([1-4])$/);
+    if (!match) return null;
+    return { year: Number(match[1]), quarter: Number(match[2]) };
+  }
+  if (type === "year") {
+    const year = Number(value);
+    if (!year) return null;
+    return { year };
+  }
+  return null;
+};
+
+const getCurrentPeriodValue = (type) => {
+  if (type === "quarter") return currentQuarterValue();
+  if (type === "year") return currentYearValue();
+  return currentMonthYM();
+};
+
+const periodIndex = (type, value) => {
+  const parsed = parsePeriodValue(type, value);
+  if (!parsed) return null;
+  if (type === "month") return parsed.year * 12 + (parsed.month - 1);
+  if (type === "quarter") return parsed.year * 4 + (parsed.quarter - 1);
+  return parsed.year;
+};
+
+const clampInsightsPeriod = (type, value) => {
+  const current = getCurrentPeriodValue(type);
+  const currentIndex = periodIndex(type, current);
+  const targetIndex = periodIndex(type, value);
+  if (currentIndex == null || targetIndex == null) return current;
+  if (targetIndex > currentIndex) return current;
+  return value;
+};
+
+const shiftPeriodValue = (type, value, delta) => {
+  const parsed = parsePeriodValue(type, value);
+  if (!parsed) return getCurrentPeriodValue(type);
+  if (type === "month") {
+    const index = parsed.year * 12 + (parsed.month - 1) + delta;
+    const year = Math.floor(index / 12);
+    const month = (index % 12 + 12) % 12 + 1;
+    return `${year}-${String(month).padStart(2, "0")}`;
+  }
+  if (type === "quarter") {
+    const index = parsed.year * 4 + (parsed.quarter - 1) + delta;
+    const year = Math.floor(index / 4);
+    const quarter = (index % 4 + 4) % 4 + 1;
+    return `${year}-Q${quarter}`;
+  }
+  const year = parsed.year + delta;
+  return String(year);
+};
+
+const formatPeriodLabel = (type, value) => {
+  const parsed = parsePeriodValue(type, value);
+  if (!parsed) return "";
+  if (type === "month") {
+    const date = new Date(parsed.year, parsed.month - 1, 1);
+    return date.toLocaleString("en-US", { month: "long", year: "numeric" });
+  }
+  if (type === "quarter") {
+    return `Q${parsed.quarter} ${parsed.year}`;
+  }
+  return String(parsed.year);
+};
+
+const formatPct = (value) => {
+  if (!Number.isFinite(value)) return "-";
+  return `${(value * 100).toFixed(value * 100 >= 10 ? 0 : 1)}%`;
 };
 
 const updateSummaryMonthText = () => {
@@ -625,19 +717,232 @@ const markSummaryStale = () => {
   }
 };
 
+const renderSparkline = (values) => {
+  if (!values || !values.length) return "";
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = max - min || 1;
+  const points = values.map((val, idx) => {
+    const x = (idx / (values.length - 1 || 1)) * 100;
+    const y = 30 - ((val - min) / range) * 30;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+  return `<svg viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+    <polyline fill="none" stroke="currentColor" stroke-width="2" points="${points.join(" ")}" />
+  </svg>`;
+};
+
+const formatDeltaText = (current, previous) => {
+  if (!Number.isFinite(previous) || previous === 0) return "No previous data";
+  const diff = current - previous;
+  const base = Math.abs(previous);
+  const pct = base ? diff / base : 0;
+  const sign = diff > 0 ? "+" : diff < 0 ? "-" : "";
+  return `${sign}${formatPct(Math.abs(pct))} vs last period`;
+};
+
+const renderInsights = () => {
+  const data = state.insights_data;
+  const metricsEl = $("insightsMetrics");
+  const budgetEl = $("insightsBudgetList");
+  const topEl = $("insightsTopList");
+  const compareEl = $("insightsCompare");
+  const rangeText = $("insightsRangeText");
+  const periodBtn = $("insightsPeriodBtn");
+  const type = state.insights_period_type || "month";
+  const value = state.insights_period_value || getCurrentPeriodValue(type);
+  const label = data?.period?.label || formatPeriodLabel(type, value);
+  if (periodBtn) periodBtn.textContent = label || "Select period";
+
+  if (rangeText && data?.period?.from && data?.period?.to) {
+    const fromDate = ymdToDate(data.period.from);
+    const toDate = ymdToDate(data.period.to);
+    rangeText.textContent = fromDate && toDate
+      ? `${formatDisplayDate(fromDate)} - ${formatDisplayDate(toDate)}`
+      : "";
+  }
+
+  if (!data || !metricsEl || !budgetEl || !topEl || !compareEl) return;
+
+  const totals = data.totals || {};
+  const prev = data.previous_totals || {};
+  const totalIn = Number(totals.total_in || 0);
+  const totalOut = Number(totals.total_out || 0);
+  const net = Number(totals.net || 0);
+  const prevNet = Number(prev.total_in || 0) - Number(prev.total_out || 0);
+  const savingsLabel = net >= 0 ? "Saving" : "Spending";
+  const sparks = data.sparklines || {};
+
+  metricsEl.innerHTML = [
+    {
+      label: "Total In",
+      value: displayMoney(totalIn),
+      delta: formatDeltaText(totalIn, Number(prev.total_in || 0)),
+      spark: sparks.total_in || [],
+    },
+    {
+      label: "Total Out",
+      value: displayMoney(totalOut),
+      delta: formatDeltaText(totalOut, Number(prev.total_out || 0)),
+      spark: sparks.total_out || [],
+    },
+    {
+      label: "Net",
+      value: displayMoney(net),
+      delta: formatDeltaText(net, prevNet),
+      spark: sparks.net || [],
+    },
+    {
+      label: "Savings Status",
+      value: savingsLabel,
+      delta: net >= 0 ? "Net positive" : "Net negative",
+      spark: sparks.net || [],
+    },
+  ]
+    .map(
+      (card) => `<div class="insight-card">
+        <div class="insight-label">${card.label}</div>
+        <div class="insight-value">${card.value}</div>
+        <div class="insight-sub">${card.delta}</div>
+        <div class="sparkline">${renderSparkline(card.spark)}</div>
+      </div>`
+    )
+    .join("");
+
+  const budgets = data.budgets || [];
+  if (!budgets.length) {
+    budgetEl.innerHTML = `<div class="summary-empty">No limits set for this period.</div>`;
+  } else {
+    budgetEl.innerHTML = budgets
+      .map((item) => {
+        const limit = Number(item.limit || 0);
+        const used = Number(item.used || 0);
+        const remaining = Math.max(0, limit - used);
+        const pct = limit > 0 ? Math.min(1, used / limit) : 1;
+        const width = Math.round(pct * 100);
+        const status = item.status || "ok";
+        return `<div class="budget-row">
+          <div class="budget-header">
+            <div class="budget-title">${escapeHtml(item.account_name || "")}</div>
+            <span class="status-chip ${status}">${status.toUpperCase()}</span>
+          </div>
+          <div class="budget-meta">
+            <span>Limit: ${displayMoney(limit)}</span>
+            <span>Used: ${displayMoney(used)}</span>
+            <span>Remaining: ${displayMoney(remaining)}</span>
+          </div>
+          <div class="budget-bar">
+            <span class="${status}" style="width:${width}%"></span>
+          </div>
+        </div>`;
+      })
+      .join("");
+  }
+
+  const top = data.top_spending || [];
+  if (!top.length) {
+    topEl.innerHTML = `<div class="summary-empty">No spending data for this period.</div>`;
+  } else {
+    const maxOut = Math.max(...top.map((t) => Number(t.total_out || 0)), 1);
+    topEl.innerHTML = top
+      .map((item) => {
+        const total = Number(item.total_out || 0);
+        const width = Math.round((total / maxOut) * 100);
+        return `<div class="top-row">
+          <div class="top-name">${escapeHtml(item.account_name || "")}</div>
+          <div class="top-amount">${displayMoney(total)}</div>
+          <div class="top-bar"><span style="width:${width}%"></span></div>
+          <div class="top-pct">${formatPct(item.pct_of_total_out)}</div>
+        </div>`;
+      })
+      .join("");
+  }
+
+  const outDelta = totalOut - Number(prev.total_out || 0);
+  const outPct = Number(prev.total_out || 0) ? outDelta / Number(prev.total_out || 0) : null;
+  const outDirection =
+    outDelta > 0 ? "increased" : outDelta < 0 ? "decreased" : "was flat";
+  const outPctText = outPct == null ? "no previous data" : `${formatPct(Math.abs(outPct))}`;
+  const topDriver = top[0];
+  const driverText = topDriver
+    ? `Top driver: ${escapeHtml(topDriver.account_name || "")} (${formatPct(topDriver.pct_of_total_out)} of outflow).`
+    : "No top drivers this period.";
+  compareEl.innerHTML = `<div class="compare-card">
+    <div class="compare-title">Total Out ${outDirection}</div>
+    <div class="compare-value">${outPctText} vs last period</div>
+    <div class="compare-sub">${driverText}</div>
+  </div>`;
+};
+
+const updateInsightsToggle = () => {
+  document.querySelectorAll("#insightsPeriodToggle .seg-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.period === state.insights_period_type);
+  });
+};
+
+const updateInsightsNav = () => {
+  const nextBtn = $("insightsNextBtn");
+  const type = state.insights_period_type || "month";
+  const currentValue = getCurrentPeriodValue(type);
+  const currentIndex = periodIndex(type, currentValue);
+  const valueIndex = periodIndex(type, state.insights_period_value || currentValue);
+  if (nextBtn && currentIndex != null && valueIndex != null) {
+    nextBtn.disabled = valueIndex >= currentIndex;
+  }
+};
+
+const loadInsights = async ({ force = false } = {}) => {
+  if (state.insights_loading) return;
+  const type = state.insights_period_type || "month";
+  const fallback = getCurrentPeriodValue(type);
+  const currentValue = clampInsightsPeriod(type, state.insights_period_value || fallback);
+  state.insights_period_value = currentValue;
+  updateInsightsToggle();
+  updateInsightsNav();
+  if (!force && state.insights_data) {
+    renderInsights();
+    return;
+  }
+
+  const msg = $("insightsMsg");
+  if (msg) {
+    msg.textContent = "Loading insights...";
+    msg.hidden = false;
+  }
+  state.insights_loading = true;
+  try {
+    const res = await api.get(
+      `/api/insights?type=${encodeURIComponent(type)}&period=${encodeURIComponent(currentValue)}`
+    );
+    state.insights_data = res;
+    renderInsights();
+    if (msg) {
+      msg.textContent = "";
+      msg.hidden = true;
+    }
+  } catch (err) {
+    if (msg) {
+      msg.textContent = err.message || "Failed to load insights";
+      msg.hidden = false;
+    }
+  } finally {
+    state.insights_loading = false;
+  }
+};
+
 function updateSwitchTargets() {
   const switchToSelect = $("switchToSelect");
   if (!switchToSelect) return;
   const sourceId = state.account_id;
-    const targetOptions = [
-      `<option value="">Select account</option>`,
-      ...state.accounts
-        .filter(
-          (a) => a.account_id !== state.main_account_id && (!sourceId || a.account_id !== sourceId)
-        )
-        .map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
-    ];
-    switchToSelect.innerHTML = targetOptions.join("");
+  const targetOptions = [
+    `<option value="">Select account</option>`,
+    ...state.accounts
+      .filter(
+        (a) => a.account_id !== state.main_account_id && (!sourceId || a.account_id !== sourceId)
+      )
+      .map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
+  ];
+  switchToSelect.innerHTML = targetOptions.join("");
 }
 
 function updateExportAccounts() {
@@ -647,7 +952,7 @@ function updateExportAccounts() {
     .filter((a) => a && a.account_id !== state.main_account_id)
     .sort((a, b) => String(a.account_name || "").localeCompare(String(b.account_name || "")));
   const options = [
-    `<option value="all">Total Ledger</option>`,
+    `<option value="all">All</option>`,
     ...nonMain.map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
   ];
   exportAccountSelect.innerHTML = options.join("");
@@ -931,10 +1236,12 @@ const cancelLedgerReload = () => {
 const setActiveTab = (tab) => {
   const ledger = $("tab-ledger");
   const summary = $("tab-summary");
+  const insights = $("tab-insights");
   const fabBtn = $("mobileAddBtn");
   state.active_tab = tab;
   if (ledger) ledger.hidden = tab !== "ledger";
   if (summary) summary.hidden = tab !== "summary";
+  if (insights) insights.hidden = tab !== "insights";
   if (fabBtn) fabBtn.hidden = tab !== "ledger";
   if (tab !== "ledger") {
     document.body.classList.remove("fab-open");
@@ -946,6 +1253,8 @@ const setActiveTab = (tab) => {
   });
   if (tab === "summary") {
     loadSummary().catch(console.error);
+  } else if (tab === "insights") {
+    loadInsights({ force: true }).catch(console.error);
   } else if (tab === "ledger") {
     if (!state.suppress_ledger_refresh && !state.default_loading) {
       reloadLedgerWithDefaultStale().catch(console.error);
@@ -1095,6 +1404,146 @@ function bindEvents() {
   if (summaryMonthCancel) summaryMonthCancel.addEventListener("click", closeMonthPicker);
   if (summaryMonthBackdrop) summaryMonthBackdrop.addEventListener("click", closeMonthPicker);
   updateSummaryMonthText();
+
+  const insightsPeriodToggle = $("insightsPeriodToggle");
+  const insightsPeriodBtn = $("insightsPeriodBtn");
+  const insightsPrevBtn = $("insightsPrevBtn");
+  const insightsNextBtn = $("insightsNextBtn");
+  const insightsPeriodPicker = $("insightsPeriodPicker");
+  const insightsPeriodBackdrop = $("insightsPeriodBackdrop");
+  const insightsYearInput = $("insightsYearInput");
+  const insightsMonthField = $("insightsMonthField");
+  const insightsMonthSelect = $("insightsMonthSelect");
+  const insightsQuarterField = $("insightsQuarterField");
+  const insightsQuarterSelect = $("insightsQuarterSelect");
+  const insightsPeriodApply = $("insightsPeriodApply");
+  const insightsPeriodCancel = $("insightsPeriodCancel");
+
+  if (insightsMonthSelect) {
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    insightsMonthSelect.innerHTML = monthNames
+      .map((name, idx) => `<option value="${idx + 1}">${name}</option>`)
+      .join("");
+  }
+
+  const updateInsightsPickerFields = () => {
+    const type = state.insights_period_type || "month";
+    if (insightsMonthField) insightsMonthField.hidden = type !== "month";
+    if (insightsQuarterField) insightsQuarterField.hidden = type !== "quarter";
+  };
+
+  const positionInsightsPicker = (anchorEl) => {
+    if (!insightsPeriodPicker) return;
+    const rect = anchorEl?.getBoundingClientRect?.();
+    let pickerRect = insightsPeriodPicker.getBoundingClientRect();
+    let left = 16;
+    let top = 16;
+    if (isMobile() || !rect) {
+      const width = Math.min(window.innerWidth - 32, pickerRect.width);
+      left = Math.round((window.innerWidth - width) / 2);
+      top = Math.round(Math.max(24, window.innerHeight * 0.2));
+      insightsPeriodPicker.style.width = `${width}px`;
+      pickerRect = insightsPeriodPicker.getBoundingClientRect();
+    } else {
+      insightsPeriodPicker.style.width = "";
+      pickerRect = insightsPeriodPicker.getBoundingClientRect();
+      left = rect.left;
+      top = rect.bottom + 8;
+      const maxLeft = window.innerWidth - pickerRect.width - 8;
+      const maxTop = window.innerHeight - pickerRect.height - 8;
+      left = Math.min(Math.max(8, left), Math.max(8, maxLeft));
+      top = Math.min(Math.max(8, top), Math.max(8, maxTop));
+      if (rect.bottom + pickerRect.height + 8 > window.innerHeight) {
+        top = Math.max(8, rect.top - pickerRect.height - 8);
+      }
+    }
+    insightsPeriodPicker.style.left = `${Math.round(left)}px`;
+    insightsPeriodPicker.style.top = `${Math.round(top)}px`;
+  };
+
+  const openInsightsPicker = (anchorEl) => {
+    if (!insightsPeriodPicker || !insightsPeriodBackdrop) return;
+    const type = state.insights_period_type || "month";
+    const value = state.insights_period_value || getCurrentPeriodValue(type);
+    const parsed = parsePeriodValue(type, value);
+    updateInsightsPickerFields();
+    if (insightsYearInput) {
+      insightsYearInput.max = currentYearValue();
+      insightsYearInput.value = String(parsed?.year || currentYearValue());
+    }
+    if (type === "month" && insightsMonthSelect) {
+      insightsMonthSelect.value = String(parsed?.month || new Date().getMonth() + 1);
+    }
+    if (type === "quarter" && insightsQuarterSelect) {
+      insightsQuarterSelect.value = String(parsed?.quarter || Math.floor(new Date().getMonth() / 3) + 1);
+    }
+    insightsPeriodPicker.removeAttribute("hidden");
+    insightsPeriodPicker.setAttribute("aria-hidden", "false");
+    insightsPeriodBackdrop.removeAttribute("hidden");
+    requestAnimationFrame(() => {
+      insightsPeriodPicker.classList.add("open");
+      insightsPeriodBackdrop.classList.add("open");
+      positionInsightsPicker(anchorEl || insightsPeriodBtn);
+    });
+  };
+
+  const closeInsightsPicker = () => {
+    if (!insightsPeriodPicker || !insightsPeriodBackdrop) return;
+    insightsPeriodPicker.classList.remove("open");
+    insightsPeriodBackdrop.classList.remove("open");
+    setTimeout(() => {
+      insightsPeriodPicker.setAttribute("hidden", "");
+      insightsPeriodPicker.setAttribute("aria-hidden", "true");
+      insightsPeriodBackdrop.setAttribute("hidden", "");
+    }, 200);
+  };
+
+  const applyInsightsPeriod = () => {
+    const type = state.insights_period_type || "month";
+    const year = Number(insightsYearInput?.value || currentYearValue());
+    let nextValue = getCurrentPeriodValue(type);
+    if (type === "month") {
+      const month = Number(insightsMonthSelect?.value || new Date().getMonth() + 1);
+      nextValue = `${year}-${String(month).padStart(2, "0")}`;
+    } else if (type === "quarter") {
+      const quarter = Number(insightsQuarterSelect?.value || Math.floor(new Date().getMonth() / 3) + 1);
+      nextValue = `${year}-Q${quarter}`;
+    } else {
+      nextValue = String(year);
+    }
+    state.insights_period_value = clampInsightsPeriod(type, nextValue);
+    closeInsightsPicker();
+    loadInsights({ force: true }).catch(console.error);
+  };
+
+  if (insightsPeriodToggle) {
+    insightsPeriodToggle.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-period]");
+      if (!btn) return;
+      const nextType = btn.dataset.period;
+      if (!nextType || nextType === state.insights_period_type) return;
+      state.insights_period_type = nextType;
+      state.insights_period_value = getCurrentPeriodValue(nextType);
+      updateInsightsToggle();
+      updateInsightsNav();
+      loadInsights({ force: true }).catch(console.error);
+    });
+  }
+
+  if (insightsPeriodBtn) insightsPeriodBtn.addEventListener("click", () => openInsightsPicker(insightsPeriodBtn));
+  if (insightsPeriodApply) insightsPeriodApply.addEventListener("click", applyInsightsPeriod);
+  if (insightsPeriodCancel) insightsPeriodCancel.addEventListener("click", closeInsightsPicker);
+  if (insightsPeriodBackdrop) insightsPeriodBackdrop.addEventListener("click", closeInsightsPicker);
+
+  const shiftInsights = (delta) => {
+    const type = state.insights_period_type || "month";
+    const value = state.insights_period_value || getCurrentPeriodValue(type);
+    state.insights_period_value = clampInsightsPeriod(type, shiftPeriodValue(type, value, delta));
+    updateInsightsNav();
+    loadInsights({ force: true }).catch(console.error);
+  };
+  if (insightsPrevBtn) insightsPrevBtn.addEventListener("click", () => shiftInsights(-1));
+  if (insightsNextBtn) insightsNextBtn.addEventListener("click", () => shiftInsights(1));
 
   const summaryCards = $("summaryCards");
   if (summaryCards) {
@@ -1285,7 +1734,7 @@ function bindEvents() {
     renderRangeDisplay();
     reloadLedgerWithDefaultStale().catch(console.error);
   });
-  
+
   const datePicker = $("ledgerDatePicker");
   const datePickerBackdrop = $("ledgerDatePickerBackdrop");
   const datePickerGrid = $("ledgerDatePickerGrid");
@@ -1583,13 +2032,13 @@ function bindEvents() {
   // Theme Toggle
   const themeBtn = $("themeToggleBtn");
   const themeCheckbox = $("mobileThemeToggleCheckbox");
-  
+
   const setTheme = (isDark) => {
     document.body.classList.toggle("dark", isDark);
     if (themeCheckbox) themeCheckbox.checked = isDark;
     localStorage.setItem("theme", isDark ? "dark" : "light");
   };
-  
+
   // Init theme
   const savedTheme = localStorage.getItem("theme");
   if (savedTheme === "dark") setTheme(true);
@@ -1610,12 +2059,12 @@ function bindEvents() {
     setTheme(isDark);
     updateThemeIcon();
   });
-  
+
   if (themeCheckbox) {
-      themeCheckbox.addEventListener("change", (e) => {
-          setTheme(e.target.checked);
-          updateThemeIcon();
-      });
+    themeCheckbox.addEventListener("change", (e) => {
+      setTheme(e.target.checked);
+      updateThemeIcon();
+    });
   }
 
 
@@ -1629,7 +2078,7 @@ function bindEvents() {
 
   const backdrop = $("sidebarBackdrop");
   if (backdrop) backdrop.addEventListener("click", () => {
-      document.body.classList.remove("menu-open");
+    document.body.classList.remove("menu-open");
   });
 
   const mobileMenuBtn = $("mobileMenuBtn");
@@ -1682,31 +2131,32 @@ function bindEvents() {
   // Theme toggle handled by 'change' event on checkbox above
 
   $("mobileLogoutBtn").addEventListener("click", async () => {
-    try { await api.post("/api/auth/logout", {}); } 
+    try { await api.post("/api/auth/logout", {}); }
     finally { location.href = "./login.html"; }
   });
 
   // Unified Currency Toggle Logic for Desktop and Mobile
   const handleCurrencyChange = async (target) => {
-      const next = target.dataset.currency;
-      if (!next || next === state.currency) return;
-      state.currency = next;
-      
-      // Update UI for all toggle buttons (sync desktop and mobile)
-      document.querySelectorAll(".seg-btn").forEach(b => 
-          b.classList.toggle("active", b.dataset.currency === state.currency)
-      );
-      
-      if (state.currency === "USD" && isFxStale()) {
-        try { await fetchFxRate(); } catch (err) { state.currency = "IDR"; }
-      }
-      updateFxUI();
-      renderLedger(activeRows());
-      renderSummary();
+    const next = target.dataset.currency;
+    if (!next || next === state.currency) return;
+    state.currency = next;
+
+    // Update UI for all toggle buttons (sync desktop and mobile)
+    document.querySelectorAll("#currencyToggle .seg-btn, #mobileCurrencyToggle .seg-btn").forEach(b =>
+      b.classList.toggle("active", b.dataset.currency === state.currency)
+    );
+
+    if (state.currency === "USD" && isFxStale()) {
+      try { await fetchFxRate(); } catch (err) { state.currency = "IDR"; }
+    }
+    updateFxUI();
+    renderLedger(activeRows());
+    renderSummary();
+    renderInsights();
   };
 
-  document.querySelectorAll(".seg-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => handleCurrencyChange(e.target));
+  document.querySelectorAll("#currencyToggle .seg-btn, #mobileCurrencyToggle .seg-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => handleCurrencyChange(e.target));
   });
 
   const refreshFx = async () => {
@@ -1715,6 +2165,7 @@ function bindEvents() {
       updateFxUI();
       renderLedger(activeRows());
       renderSummary();
+      renderInsights();
     } catch (err) {
       console.error(err);
     }
@@ -2018,6 +2469,7 @@ function bindEvents() {
     updateHideBtn();
     renderLedger(activeRows());
     renderSummary();
+    renderInsights();
     if (exportModal && !exportModal.hidden) {
       updateExportPreview();
     }
@@ -2120,13 +2572,13 @@ function bindEvents() {
     bottomNav.addEventListener("click", (e) => {
       const btn = e.target.closest("button[data-action]");
       if (!btn) return;
-      
+
       // Update Active State
       bottomNav.querySelectorAll(".dock-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
 
       const action = btn.dataset.action;
-      
+
       // Close other panels
       document.body.classList.remove("menu-open");
 
@@ -2154,7 +2606,7 @@ function bindEvents() {
       body.transaction_id = state.editing_tx_id;
     }
     body.amount = parseAmount(body.amount);
-    
+
     const isEdit = !!body.transaction_id;
     if (txDateInput) {
       const selectedDate = clampYmdToToday(txDateInput.value);
@@ -2173,9 +2625,9 @@ function bindEvents() {
 
     try {
       if (isEdit) {
-         await api.put(`/api/transactions/${body.transaction_id}`, body);
+        await api.put(`/api/transactions/${body.transaction_id}`, body);
       } else {
-         await api.post("/api/transactions", body);
+        await api.post("/api/transactions", body);
       }
       closeModal();
       markSummaryStale();
@@ -2184,25 +2636,25 @@ function bindEvents() {
       $("txMsg").textContent = err.message || "Failed";
     }
   });
-  
+
   // Delete Transaction
   $("deleteTxBtn").addEventListener("click", async () => {
-      const id =
-        (txIdInput && txIdInput.value) ||
-        state.editing_tx_id ||
-        $("deleteTxBtn").dataset.txId ||
-        "";
-      if (!id) return;
-      if (!confirm("Delete this transaction?")) return;
-      
-      try {
-          await api.del(`/api/transactions/${id}`);
-          closeModal();
-          markSummaryStale();
-          await reloadLedgerWithDefaultStale();
-      } catch (err) {
-          $("txMsg").textContent = err.message || "Delete failed";
-      }
+    const id =
+      (txIdInput && txIdInput.value) ||
+      state.editing_tx_id ||
+      $("deleteTxBtn").dataset.txId ||
+      "";
+    if (!id) return;
+    if (!confirm("Delete this transaction?")) return;
+
+    try {
+      await api.del(`/api/transactions/${id}`);
+      closeModal();
+      markSummaryStale();
+      await reloadLedgerWithDefaultStale();
+    } catch (err) {
+      $("txMsg").textContent = err.message || "Delete failed";
+    }
   });
 
   // Accounts modal
@@ -2338,7 +2790,7 @@ function bindEvents() {
     const budgetMonth = getBudgetMonth();
 
     if (!account_name) return;
-    
+
     const payload = { account_name };
 
     try {
@@ -2387,6 +2839,7 @@ function bindEvents() {
   await loadAccounts();
 
   state.summary_month = currentMonthYM();
+  state.insights_period_value = getCurrentPeriodValue(state.insights_period_type);
 
   // default date range 30 days
   state.from = minusDaysYMD(30);
