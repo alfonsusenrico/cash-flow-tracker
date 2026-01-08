@@ -34,6 +34,7 @@ const state = {
   suppress_ledger_refresh: false,
   fx_rate: null,
   fx_updated_at: null,
+  fx_loading: false,
   currency: "IDR",
   editing_tx_id: null,
   budgets_by_account: {},
@@ -142,6 +143,32 @@ const displayMoney = (n) => (state.hide_balances ? "***" : fmtMoney(n));
 
 const isMobile = () => window.matchMedia("(max-width: 980px)").matches;
 
+const syncMobileScrollState = () => {
+  if (!isMobile()) {
+    document.body.classList.remove("summary-scrolled", "ledger-scrolled");
+    return;
+  }
+  if (state.active_tab === "summary") {
+    const summary = $("tab-summary");
+    document.body.classList.toggle("summary-scrolled", summary && summary.scrollTop > 8);
+    document.body.classList.remove("ledger-scrolled");
+  } else {
+    const ledger = $("tab-ledger");
+    document.body.classList.toggle("ledger-scrolled", ledger && ledger.scrollTop > 8);
+    document.body.classList.remove("summary-scrolled");
+  }
+};
+
+const bindMobileScrollState = () => {
+  const summary = $("tab-summary");
+  const ledger = $("tab-ledger");
+  const handler = () => syncMobileScrollState();
+  if (summary) summary.addEventListener("scroll", handler);
+  if (ledger) ledger.addEventListener("scroll", handler);
+  window.addEventListener("resize", handler);
+  syncMobileScrollState();
+};
+
 const setFxRateText = (text) => {
   const el = $("fxRate");
   if (el) el.textContent = text;
@@ -201,6 +228,16 @@ const ymdToDate = (ymd) => {
   const [y, m, d] = String(ymd).split("-").map(Number);
   if (!y || !m || !d) return null;
   return new Date(y, m - 1, d);
+};
+const formatLedgerDayLabel = (ymd) => {
+  const d = ymdToDate(ymd);
+  if (!d) return ymd || "";
+  const nowYear = new Date().getFullYear();
+  const options = { weekday: "short", day: "2-digit", month: "short" };
+  if (d.getFullYear() !== nowYear) {
+    options.year = "numeric";
+  }
+  return d.toLocaleDateString("en-US", options);
 };
 const dateToYMD = (d) => {
   if (!d) return "";
@@ -338,12 +375,33 @@ function updateFxUI() {
   const rateEl = $("fxRate");
   if (!rateEl) return;
   if (!state.fx_rate) {
-    rateEl.textContent = state.currency === "USD" ? "Rate: loading..." : "Rate: -";
+    rateEl.textContent = state.fx_loading ? "Rate: loading..." : "Rate: -";
     return;
   }
   const idrPerUsd = Math.round(1 / state.fx_rate);
   const date = state.fx_updated_at ? ` (${state.fx_updated_at})` : "";
   rateEl.textContent = `Rate: 1 USD = ${fmtIDRCurrency(idrPerUsd)}${date}`;
+}
+
+async function loadFxOnStartup() {
+  if (!isFxStale()) {
+    updateFxUI();
+    return;
+  }
+  state.fx_loading = true;
+  updateFxUI();
+  try {
+    await fetchFxRate();
+  } catch (err) {
+    console.error(err);
+  } finally {
+    state.fx_loading = false;
+    updateFxUI();
+    if (state.currency === "USD") {
+      renderLedger(activeRows());
+      renderSummary();
+    }
+  }
 }
 
 function renderAccounts() {
@@ -664,17 +722,35 @@ const getLedgerViewState = () => {
   return { isAll, isMainAccount, showAllocate, showSwitch, showAssetSummary };
 };
 
+const buildLedgerDayRow = (dayKey, label, colSpan) => `
+  <tr class="ledger-day" data-day="${dayKey}">
+    <td colspan="${colSpan}"><span>${label}</span></td>
+  </tr>`;
+
+const TREND_ICON =
+  '<svg class="amount-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+  '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+  '<polyline points="17 6 23 6 23 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+  "</svg>";
+
 const buildLedgerRow = (r, idx, isAll) => {
+  const dayKey = isoToLocalYMD(r.date);
   const accCell = `<td class="account-cell">${isAll ? escapeHtml(r.account_name) : ""}</td>`;
+  const timeLabel = escapeHtml(isoToLocalTime(r.date));
   const dateLabel = escapeHtml(isoToLocalDisplay(r.date));
   const nameLabel = escapeHtml(r.transaction_name);
-  return `<tr data-tx-id="${r.transaction_id}" style="cursor:pointer">
+  const inValue = r.debit ? `${TREND_ICON}${displayMoney(r.debit)}` : "";
+  const outValue = r.credit ? `${TREND_ICON}${displayMoney(r.credit)}` : "";
+  return `<tr class="ledger-row" data-tx-id="${r.transaction_id}" data-day="${dayKey || ""}" style="cursor:pointer">
     <td>${r.no ?? idx + 1}</td>
     ${accCell}
-    <td title="${dateLabel}">${dateLabel}</td>
-    <td title="${nameLabel}">${nameLabel}</td>
-    <td class="num amount-in">${r.debit ? displayMoney(r.debit) : ""}</td>
-    <td class="num amount-out">${r.credit ? displayMoney(r.credit) : ""}</td>
+    <td class="tx-date" title="${dateLabel}">
+      <span class="tx-time">${timeLabel}</span>
+      <span class="tx-date-full">${dateLabel}</span>
+    </td>
+    <td class="tx-name" title="${nameLabel}">${nameLabel}</td>
+    <td class="num amount-in">${inValue}</td>
+    <td class="num amount-out">${outValue}</td>
     <td class="num"><b>${displayMoney(r.balance)}</b></td>
   </tr>`;
 };
@@ -742,7 +818,18 @@ const renderLedgerBody = (rows) => {
     body.innerHTML = `<tr><td colspan="${colSpan}" class="empty-row">${message}</td></tr>`;
     return;
   }
-  body.innerHTML = rows.map((r, idx) => buildLedgerRow(r, idx, isAll)).join("");
+  const colSpan = isAll ? 7 : 6;
+  let lastDay = null;
+  const html = [];
+  rows.forEach((r, idx) => {
+    const dayKey = isoToLocalYMD(r.date);
+    if (dayKey && dayKey !== lastDay) {
+      html.push(buildLedgerDayRow(dayKey, formatLedgerDayLabel(dayKey), colSpan));
+      lastDay = dayKey;
+    }
+    html.push(buildLedgerRow(r, idx, isAll));
+  });
+  body.innerHTML = html.join("");
 };
 
 const appendLedgerRows = (rows) => {
@@ -753,9 +840,20 @@ const appendLedgerRows = (rows) => {
   if (body.querySelector(".empty-row")) {
     body.innerHTML = "";
   }
-  const existingCount = body.querySelectorAll("tr").length;
-  const html = rows.map((r, idx) => buildLedgerRow(r, existingCount + idx, isAll)).join("");
-  body.insertAdjacentHTML("beforeend", html);
+  const existingCount = body.querySelectorAll("tr[data-tx-id]").length;
+  const colSpan = isAll ? 7 : 6;
+  const dayRows = body.querySelectorAll("tr.ledger-day");
+  let lastDay = dayRows.length ? dayRows[dayRows.length - 1].dataset.day : null;
+  const html = [];
+  rows.forEach((r, idx) => {
+    const dayKey = isoToLocalYMD(r.date);
+    if (dayKey && dayKey !== lastDay) {
+      html.push(buildLedgerDayRow(dayKey, formatLedgerDayLabel(dayKey), colSpan));
+      lastDay = dayKey;
+    }
+    html.push(buildLedgerRow(r, existingCount + idx, isAll));
+  });
+  body.insertAdjacentHTML("beforeend", html.join(""));
 };
 
 function renderLedger(rows) {
@@ -953,10 +1051,12 @@ const setActiveTab = (tab) => {
       reloadLedgerWithDefaultStale().catch(console.error);
     }
   }
+  syncMobileScrollState();
 };
 
 function bindEvents() {
   bindMoneyInputs();
+  bindMobileScrollState();
 
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
@@ -1144,14 +1244,6 @@ function bindEvents() {
       if (!card) return;
       e.preventDefault();
       openSummaryLedger(card);
-    });
-  }
-
-  const mobileSummaryBtn = $("mobileSummaryBtn");
-  if (mobileSummaryBtn) {
-    mobileSummaryBtn.addEventListener("click", () => {
-      setActiveTab("summary");
-      document.body.classList.remove("menu-open");
     });
   }
 
@@ -1689,7 +1781,7 @@ function bindEvents() {
   });
 
   // Unified Currency Toggle Logic for Desktop and Mobile
-  const handleCurrencyChange = async (target) => {
+  const handleCurrencyChange = (target) => {
     const next = target.dataset.currency;
     if (!next || next === state.currency) return;
     state.currency = next;
@@ -1699,9 +1791,6 @@ function bindEvents() {
       b.classList.toggle("active", b.dataset.currency === state.currency)
     );
 
-    if (state.currency === "USD" && isFxStale()) {
-      try { await fetchFxRate(); } catch (err) { state.currency = "IDR"; }
-    }
     updateFxUI();
     renderLedger(activeRows());
     renderSummary();
@@ -1710,22 +1799,6 @@ function bindEvents() {
   document.querySelectorAll("#currencyToggle .seg-btn, #mobileCurrencyToggle .seg-btn").forEach(btn => {
     btn.addEventListener("click", (e) => handleCurrencyChange(e.target));
   });
-
-  const refreshFx = async () => {
-    try {
-      await fetchFxRate();
-      updateFxUI();
-      renderLedger(activeRows());
-      renderSummary();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fxBtn = $("fxRefreshBtn");
-  if (fxBtn) fxBtn.addEventListener("click", refreshFx);
-  const mobileFxBtn = $("mobileFxRefreshBtn");
-  if (mobileFxBtn) mobileFxBtn.addEventListener("click", refreshFx);
 
   const txForm = $("txForm");
   const txIdInput = document.querySelector('input[name="transaction_id"]');
@@ -2398,13 +2471,5 @@ function bindEvents() {
 
   bindEvents();
   setActiveTab("summary");
-  if (isFxStale()) {
-    if (state.currency === "USD") {
-      fetchFxRate().then(updateFxUI).catch(() => updateFxUI());
-    } else {
-      updateFxUI();
-    }
-  } else {
-    updateFxUI();
-  }
+  loadFxOnStartup();
 })();
