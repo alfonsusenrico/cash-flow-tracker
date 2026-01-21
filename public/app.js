@@ -17,6 +17,9 @@ const state = {
   summary_month: "",
   summary_loading: false,
   summary_stale: true,
+  analysis_loading: false,
+  analysis_stale: true,
+  analysis_data: null,
   total_asset: 0,
   unallocated_balance: 0,
   search_query: "",
@@ -143,27 +146,42 @@ const displayMoney = (n) => (state.hide_balances ? "***" : fmtMoney(n));
 
 const isMobile = () => window.matchMedia("(max-width: 980px)").matches;
 
+const getLedgerScrollElement = () => {
+  const ledgerPanel = $("tab-ledger");
+  const ledgerWrap = $("ledgerTableScroll");
+  if (isMobile()) return ledgerPanel || ledgerWrap;
+  return ledgerWrap || ledgerPanel;
+};
+
+const getAnalysisScrollElement = () => $("analysisBody") || $("tab-analysis");
+
 const syncMobileScrollState = () => {
   if (!isMobile()) {
-    document.body.classList.remove("summary-scrolled", "ledger-scrolled");
+    document.body.classList.remove("summary-scrolled", "analysis-scrolled", "ledger-scrolled");
     return;
   }
   if (state.active_tab === "summary") {
     const summary = $("tab-summary");
     document.body.classList.toggle("summary-scrolled", summary && summary.scrollTop > 8);
-    document.body.classList.remove("ledger-scrolled");
+    document.body.classList.remove("ledger-scrolled", "analysis-scrolled");
+  } else if (state.active_tab === "analysis") {
+    const analysis = getAnalysisScrollElement();
+    document.body.classList.toggle("analysis-scrolled", analysis && analysis.scrollTop > 8);
+    document.body.classList.remove("summary-scrolled", "ledger-scrolled");
   } else {
     const ledger = $("tab-ledger");
     document.body.classList.toggle("ledger-scrolled", ledger && ledger.scrollTop > 8);
-    document.body.classList.remove("summary-scrolled");
+    document.body.classList.remove("summary-scrolled", "analysis-scrolled");
   }
 };
 
 const bindMobileScrollState = () => {
   const summary = $("tab-summary");
+  const analysis = getAnalysisScrollElement();
   const ledger = $("tab-ledger");
   const handler = () => syncMobileScrollState();
   if (summary) summary.addEventListener("scroll", handler);
+  if (analysis) analysis.addEventListener("scroll", handler);
   if (ledger) ledger.addEventListener("scroll", handler);
   window.addEventListener("resize", handler);
   syncMobileScrollState();
@@ -206,6 +224,97 @@ const bindMoneyInput = (input) => {
 
 const bindMoneyInputs = () => {
   document.querySelectorAll(".money-input").forEach((input) => bindMoneyInput(input));
+};
+
+const bindHorizontalWheelScroll = (el) => {
+  if (!el) return;
+  el.addEventListener(
+    "wheel",
+    (e) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      if (el.scrollWidth <= el.clientWidth) return;
+      el.scrollLeft += e.deltaY;
+      e.preventDefault();
+    },
+    { passive: false }
+  );
+};
+
+const bindHorizontalDragScroll = (el) => {
+  if (!el || !("PointerEvent" in window)) return;
+  let isDragging = false;
+  let startX = 0;
+  let startScroll = 0;
+  let pointerId = null;
+  let lastX = 0;
+  let lastTime = 0;
+  let velocity = 0;
+  let rafId = null;
+  let lastFrameTime = 0;
+  const stopMomentum = () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    lastFrameTime = 0;
+  };
+  const stepMomentum = (t) => {
+    if (!lastFrameTime) lastFrameTime = t;
+    const dt = t - lastFrameTime;
+    lastFrameTime = t;
+    el.scrollLeft -= velocity * dt;
+    velocity *= 0.95;
+    if (Math.abs(velocity) > 0.02) {
+      rafId = requestAnimationFrame(stepMomentum);
+    } else {
+      stopMomentum();
+    }
+  };
+  const onPointerDown = (e) => {
+    if (e.pointerType === "touch") return;
+    if (typeof e.button === "number" && e.button !== 0) return;
+    stopMomentum();
+    isDragging = true;
+    startX = e.clientX;
+    startScroll = el.scrollLeft;
+    lastX = e.clientX;
+    lastTime = performance.now();
+    velocity = 0;
+    pointerId = e.pointerId;
+    el.classList.add("is-dragging");
+    el.setPointerCapture(pointerId);
+  };
+  const onPointerMove = (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - startX;
+    el.scrollLeft = startScroll - dx;
+    const now = performance.now();
+    const dt = Math.max(1, now - lastTime);
+    const nextVelocity = (e.clientX - lastX) / dt;
+    velocity = velocity * 0.7 + nextVelocity * 0.3;
+    lastX = e.clientX;
+    lastTime = now;
+    e.preventDefault();
+  };
+  const endDrag = () => {
+    if (!isDragging) return;
+    isDragging = false;
+    el.classList.remove("is-dragging");
+    if (pointerId !== null) {
+      try {
+        el.releasePointerCapture(pointerId);
+      } catch {
+        // ignore
+      }
+    }
+    pointerId = null;
+    if (Math.abs(velocity) > 0.02) {
+      rafId = requestAnimationFrame(stepMomentum);
+    }
+  };
+  el.addEventListener("pointerdown", onPointerDown);
+  el.addEventListener("pointermove", onPointerMove);
+  el.addEventListener("pointerup", endDrag);
+  el.addEventListener("pointerleave", endDrag);
+  el.addEventListener("pointercancel", endDrag);
 };
 
 const isoToLocalDisplay = (isoZ) => {
@@ -274,6 +383,19 @@ const ymdTimeToIso = (ymd, time) => {
 const formatYmdDisplay = (ymd) => {
   const d = ymdToDate(ymd);
   return d ? formatDisplayDate(d) : "";
+};
+
+const buildDateList = (from, to) => {
+  const start = ymdToDate(from);
+  const end = ymdToDate(to);
+  if (!start || !end) return [];
+  const dates = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    dates.push(dateToYMD(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
 };
 
 const clampYmdToToday = (ymd) => {
@@ -400,6 +522,7 @@ async function loadFxOnStartup() {
     if (state.currency === "USD") {
       renderLedger(activeRows());
       renderSummary();
+      renderAnalysis();
     }
   }
 }
@@ -542,10 +665,11 @@ const formatMonthLabel = (ym) => {
 
 
 const updateSummaryMonthText = () => {
-  const text = $("summaryMonthText");
-  if (!text) return;
   const value = state.summary_month || currentMonthYM();
-  text.textContent = formatMonthLabel(value);
+  const labels = [$("summaryMonthText"), $("analysisMonthText")];
+  labels.forEach((el) => {
+    if (el) el.textContent = formatMonthLabel(value);
+  });
 };
 
 const renderSummary = () => {
@@ -677,10 +801,291 @@ const loadSummary = async ({ force = false } = {}) => {
   }
 };
 
+const renderAnalysis = () => {
+  const data = state.analysis_data || {};
+  const totals = data.totals || { total_in: 0, total_out: 0, net: 0 };
+  const rangeText = $("analysisRangeText");
+  const msg = $("analysisMsg");
+  if (msg) msg.textContent = "";
+  if (rangeText) {
+    const fromDate = ymdToDate(data.range?.from);
+    const toDate = ymdToDate(data.range?.to);
+    rangeText.textContent = fromDate && toDate
+      ? `${formatDisplayDate(fromDate)} - ${formatDisplayDate(toDate)}`
+      : "Range unavailable.";
+  }
+
+  const totalsEl = $("analysisTotals");
+  if (totalsEl) {
+    const net = Number(totals.net || 0);
+    const netClass = net < 0 ? "neg" : "pos";
+    totalsEl.innerHTML = `
+      <div class="analysis-card">
+        <div class="analysis-card-label">Total In</div>
+        <div class="analysis-card-value in">${displayMoney(totals.total_in || 0)}</div>
+      </div>
+      <div class="analysis-card">
+        <div class="analysis-card-label">Total Out</div>
+        <div class="analysis-card-value out">${displayMoney(totals.total_out || 0)}</div>
+      </div>
+      <div class="analysis-card">
+        <div class="analysis-card-label">Net</div>
+        <div class="analysis-card-value ${netClass}">${displayMoney(net)}</div>
+      </div>
+    `;
+  }
+
+  const renderFlowCards = (rows, el, { labelFn, metaFn } = {}) => {
+    if (!el) return;
+    if (!rows.length) {
+      el.innerHTML = `<div class="analysis-empty">No activity in this period.</div>`;
+      return;
+    }
+    const maxVal = Math.max(
+      1,
+      ...rows.map((r) => Math.max(Number(r.total_in || 0), Number(r.total_out || 0)))
+    );
+    el.innerHTML = rows
+      .map((r, idx) => {
+        const totalIn = Number(r.total_in || 0);
+        const totalOut = Number(r.total_out || 0);
+        const net = totalIn - totalOut;
+        const inPct = Math.min(100, Math.round((totalIn / maxVal) * 100));
+        const outPct = Math.min(100, Math.round((totalOut / maxVal) * 100));
+        const label = labelFn ? escapeHtml(labelFn(r, idx)) : "";
+        const meta = metaFn ? escapeHtml(metaFn(r, idx)) : "";
+        const metaLine = meta ? `<div class="analysis-chip-meta">${meta}</div>` : "";
+        const netClass = net < 0 ? "neg" : "pos";
+        return `
+          <div class="analysis-chip" style="--in:${inPct}%; --out:${outPct}%;">
+            <div class="analysis-chip-label">${label}</div>
+            ${metaLine}
+            <div class="analysis-chip-value ${netClass}">${displayMoney(net)}</div>
+            <div class="analysis-chip-sub">
+              <span class="analysis-in">In ${displayMoney(totalIn)}</span>
+              <span class="analysis-out">Out ${displayMoney(totalOut)}</span>
+            </div>
+            <div class="analysis-bars">
+              <span class="in"></span>
+              <span class="out"></span>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+  };
+
+  const dailyRows = Array.isArray(data.daily) ? data.daily : [];
+  renderFlowCards(dailyRows, $("analysisDaily"), {
+    labelFn: (r) => formatLedgerDayLabel(r.date),
+  });
+
+  const weeklyRows = Array.isArray(data.weekly) ? data.weekly : [];
+  renderFlowCards(weeklyRows, $("analysisWeekly"), {
+    labelFn: (_, idx) => `Week ${idx + 1}`,
+    metaFn: (r) => `${formatYmdDisplay(r.from)} - ${formatYmdDisplay(r.to)}`,
+  });
+
+  const categoriesEl = $("analysisCategories");
+  const categories = Array.isArray(data.categories) ? data.categories : [];
+  if (categoriesEl) {
+    if (!categories.length) {
+      categoriesEl.innerHTML = `<div class="analysis-empty">No category activity yet.</div>`;
+    } else {
+      const maxOut = Math.max(1, ...categories.map((c) => Number(c.total_out || 0)));
+      const totalOut = Number(totals.total_out || 0);
+      categoriesEl.innerHTML = categories
+        .map((c) => {
+          const totalIn = Number(c.total_in || 0);
+          const totalOutCat = Number(c.total_out || 0);
+          const net = totalIn - totalOutCat;
+          const pct = totalOut > 0 ? Math.round((totalOutCat / totalOut) * 100) : 0;
+          const fill = Math.min(100, Math.round((totalOutCat / maxOut) * 100));
+          const name = escapeHtml(c.account_name || "Unknown");
+          const netClass = net < 0 ? "neg" : "pos";
+          return `
+            <div class="analysis-row analysis-row-compact" style="--fill:${fill}%;">
+              <div class="analysis-row-head">
+                <span class="analysis-label">${name}</span>
+                <span class="analysis-net ${netClass}">${displayMoney(net)}</span>
+              </div>
+              <div class="analysis-values">
+                <span class="analysis-in">In ${displayMoney(totalIn)}</span>
+                <span class="analysis-out">Out ${displayMoney(totalOutCat)}</span>
+                <span class="analysis-sub">${pct}% of spend</span>
+              </div>
+              <div class="analysis-bar">
+                <span></span>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+    }
+  }
+};
+
+const loadAnalysis = async ({ force = false } = {}) => {
+  if (state.analysis_loading) return;
+  if (!force && !state.analysis_stale && state.analysis_data) {
+    renderAnalysis();
+    return;
+  }
+  const msg = $("analysisMsg");
+  if (msg) msg.textContent = "Loading analysis...";
+  state.analysis_loading = true;
+  try {
+    const month = state.summary_month || currentMonthYM();
+    if (!state.summary_month) state.summary_month = month;
+    const res = await api.get(`/api/analysis?month=${encodeURIComponent(month)}`);
+    state.analysis_data = res || null;
+    state.analysis_stale = false;
+    renderAnalysis();
+  } catch (err) {
+    if (msg) msg.textContent = err.message || "Failed to load analysis";
+  } finally {
+    state.analysis_loading = false;
+  }
+};
+
+const seedDemoData = async ({ force = false } = {}) => {
+  const msg = $("analysisMsg");
+  const seedBtn = $("seedDemoBtn");
+  const month = state.summary_month || currentMonthYM();
+  const seedKey = `seed_demo_${month}`;
+  if (!force && localStorage.getItem(seedKey) === "true") {
+    if (!confirm("Demo data already seeded for this month. Seed again?")) return;
+  } else if (!force) {
+    if (!confirm("This will create demo accounts and transactions. Continue?")) return;
+  }
+  if (seedBtn) seedBtn.disabled = true;
+  if (msg) msg.textContent = "Seeding demo data...";
+
+  try {
+    const analysis = await api.get(`/api/analysis?month=${encodeURIComponent(month)}`);
+    const fromDate = analysis?.range?.from || minusDaysYMD(30);
+    const toDate = analysis?.range?.to || todayYMD();
+    const dates = buildDateList(fromDate, toDate);
+    const pickDate = () => dates[Math.floor(Math.random() * dates.length)] || fromDate;
+    const pickTime = () => {
+      const hh = String(8 + Math.floor(Math.random() * 12)).padStart(2, "0");
+      const mm = String(Math.floor(Math.random() * 60)).padStart(2, "0");
+      return `${hh}:${mm}`;
+    };
+    const randomAmount = (min, max) =>
+      Math.max(min, Math.round(min + Math.random() * (max - min)));
+
+    await loadAccounts();
+    const existing = new Map(
+      state.accounts.map((acc) => [String(acc.account_name || "").toLowerCase(), acc])
+    );
+    const seedCategories = [
+      { name: "Food", allocate: 1500000, labels: ["Groceries", "Coffee", "Dinner"], min: 40000, max: 200000 },
+      { name: "Transport", allocate: 900000, labels: ["Fuel", "Ride", "Parking"], min: 30000, max: 180000 },
+      { name: "Bills", allocate: 1800000, labels: ["Electricity", "Water", "Internet"], min: 80000, max: 350000 },
+      { name: "Shopping", allocate: 1200000, labels: ["Clothes", "Home", "Gadgets"], min: 60000, max: 300000 },
+      { name: "Health", allocate: 700000, labels: ["Pharmacy", "Checkup"], min: 50000, max: 200000 },
+      { name: "Entertainment", allocate: 800000, labels: ["Movies", "Games", "Events"], min: 40000, max: 220000 },
+      { name: "Savings", allocate: 2000000, labels: ["Savings"], min: 100000, max: 400000 },
+    ];
+
+    for (const cat of seedCategories) {
+      if (!existing.has(cat.name.toLowerCase())) {
+        await api.post("/api/accounts", { account_name: cat.name });
+      }
+    }
+
+    await loadAccounts();
+    const mainId = state.main_account_id;
+    const categories = seedCategories
+      .map((cat) => {
+        const acc = state.accounts.find(
+          (a) => String(a.account_name || "").toLowerCase() === cat.name.toLowerCase()
+        );
+        return acc ? { ...cat, account_id: acc.account_id } : null;
+      })
+      .filter(Boolean);
+
+    if (!mainId || !categories.length) {
+      if (msg) msg.textContent = "Seeding failed: missing accounts.";
+      return;
+    }
+
+    const incomeDates = [
+      dates[Math.min(1, dates.length - 1)] || fromDate,
+      dates[Math.max(0, Math.floor(dates.length * 0.6))] || fromDate,
+    ];
+    const incomeTotal = categories.reduce((sum, c) => sum + c.allocate, 0) + 2500000;
+    const incomes = [
+      { name: "Seed: Salary", amount: Math.round(incomeTotal * 0.7), date: incomeDates[0] },
+      { name: "Seed: Side Income", amount: Math.round(incomeTotal * 0.3), date: incomeDates[1] },
+    ];
+
+    for (const income of incomes) {
+      await api.post("/api/transactions", {
+        account_id: mainId,
+        transaction_type: "debit",
+        transaction_name: income.name,
+        amount: income.amount,
+        date: ymdTimeToIso(income.date, pickTime()),
+      });
+    }
+
+    for (const cat of categories) {
+      await api.post("/api/allocate", {
+        target_account_id: cat.account_id,
+        amount: cat.allocate,
+        date: ymdTimeToIso(pickDate(), pickTime()),
+      });
+
+      const spendCount = 3 + (categories.indexOf(cat) % 3);
+      for (let i = 0; i < spendCount; i += 1) {
+        const label = cat.labels[i % cat.labels.length];
+        await api.post("/api/transactions", {
+          account_id: cat.account_id,
+          transaction_type: "credit",
+          transaction_name: `Seed: ${label}`,
+          amount: randomAmount(cat.min, cat.max),
+          date: ymdTimeToIso(pickDate(), pickTime()),
+        });
+      }
+
+      if (categories.indexOf(cat) % 2 === 0) {
+        await api.post("/api/transactions", {
+          account_id: cat.account_id,
+          transaction_type: "debit",
+          transaction_name: "Seed: Refund",
+          amount: randomAmount(Math.round(cat.min * 0.6), Math.round(cat.max * 0.6)),
+          date: ymdTimeToIso(pickDate(), pickTime()),
+        });
+      }
+    }
+
+    localStorage.setItem(seedKey, "true");
+    await loadAccounts();
+    markSummaryStale();
+    if (state.active_tab === "analysis") {
+      await loadAnalysis({ force: true });
+    }
+    if (state.active_tab === "ledger") {
+      await reloadLedgerWithDefaultStale();
+    }
+    if (msg) msg.textContent = "Demo data seeded.";
+  } catch (err) {
+    if (msg) msg.textContent = err.message || "Seeding failed.";
+  } finally {
+    if (seedBtn) seedBtn.disabled = false;
+  }
+};
+
 const markSummaryStale = () => {
   state.summary_stale = true;
+  state.analysis_stale = true;
   if (state.active_tab === "summary") {
     loadSummary({ force: true }).catch(console.error);
+  }
+  if (state.active_tab === "analysis") {
+    loadAnalysis({ force: true }).catch(console.error);
   }
 };
 
@@ -937,8 +1342,8 @@ async function loadLedgerPage({ reset = false } = {}) {
   const showSpinner = !reset && state[rowsKey].length > 0;
   if (showSpinner) setLedgerLoading(true);
   if (reset) setLedgerError("");
-  const ledgerWrap = $("ledgerTableScroll");
-  const prevScrollTop = !reset && ledgerWrap ? ledgerWrap.scrollTop : 0;
+  const scrollEl = getLedgerScrollElement();
+  const prevScrollTop = !reset && scrollEl ? scrollEl.scrollTop : 0;
   const scope = state.scope;
   const acc = scope === "account" ? `&account_id=${encodeURIComponent(state.account_id || "")}` : "";
   const q = state.search_query ? `&q=${encodeURIComponent(state.search_query)}` : "";
@@ -973,9 +1378,9 @@ async function loadLedgerPage({ reset = false } = {}) {
       renderLedgerBody(activeRows());
     } else {
       appendLedgerRows(nextRows);
-      if (ledgerWrap) {
+      if (scrollEl) {
         requestAnimationFrame(() => {
-          ledgerWrap.scrollTop = prevScrollTop;
+          scrollEl.scrollTop = prevScrollTop;
         });
       }
     }
@@ -1031,10 +1436,12 @@ const cancelLedgerReload = () => {
 const setActiveTab = (tab) => {
   const ledger = $("tab-ledger");
   const summary = $("tab-summary");
+  const analysis = $("tab-analysis");
   const fabBtn = $("mobileAddBtn");
   state.active_tab = tab;
   if (ledger) ledger.hidden = tab !== "ledger";
   if (summary) summary.hidden = tab !== "summary";
+  if (analysis) analysis.hidden = tab !== "analysis";
   if (fabBtn) fabBtn.hidden = tab !== "ledger";
   if (tab !== "ledger") {
     document.body.classList.remove("fab-open");
@@ -1046,6 +1453,8 @@ const setActiveTab = (tab) => {
   });
   if (tab === "summary") {
     loadSummary().catch(console.error);
+  } else if (tab === "analysis") {
+    loadAnalysis().catch(console.error);
   } else if (tab === "ledger") {
     if (!state.suppress_ledger_refresh && !state.default_loading) {
       reloadLedgerWithDefaultStale().catch(console.error);
@@ -1063,6 +1472,7 @@ function bindEvents() {
   });
 
   const summaryMonthBtn = $("summaryMonthBtn");
+  const analysisMonthBtn = $("analysisMonthBtn");
   const summaryMonthPicker = $("summaryMonthPicker");
   const summaryMonthBackdrop = $("summaryMonthPickerBackdrop");
   const summaryMonthGrid = $("summaryMonthGrid");
@@ -1163,6 +1573,9 @@ function bindEvents() {
   if (summaryMonthBtn) {
     summaryMonthBtn.addEventListener("click", () => openMonthPicker(summaryMonthBtn));
   }
+  if (analysisMonthBtn) {
+    analysisMonthBtn.addEventListener("click", () => openMonthPicker(analysisMonthBtn));
+  }
   if (summaryMonthGrid) {
     summaryMonthGrid.addEventListener("click", (e) => {
       const cell = e.target.closest(".month-cell");
@@ -1197,6 +1610,16 @@ function bindEvents() {
   if (summaryMonthCancel) summaryMonthCancel.addEventListener("click", closeMonthPicker);
   if (summaryMonthBackdrop) summaryMonthBackdrop.addEventListener("click", closeMonthPicker);
   updateSummaryMonthText();
+
+  const seedBtn = $("seedDemoBtn");
+  if (seedBtn) {
+    seedBtn.addEventListener("click", () => seedDemoData().catch(console.error));
+  }
+
+  document.querySelectorAll(".analysis-scroll").forEach((el) => {
+    bindHorizontalWheelScroll(el);
+    bindHorizontalDragScroll(el);
+  });
 
   const summaryCards = $("summaryCards");
   if (summaryCards) {
@@ -1348,22 +1771,22 @@ function bindEvents() {
     });
   }
 
-  const ledgerWrap = $("ledgerTableScroll");
   const ledgerSentinel = $("ledgerSentinel");
-  if (ledgerWrap && ledgerSentinel && "IntersectionObserver" in window) {
+  const scrollEl = getLedgerScrollElement();
+  if (scrollEl && ledgerSentinel && "IntersectionObserver" in window) {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
           loadLedgerPage().catch(console.error);
         }
       },
-      { root: ledgerWrap, rootMargin: "120px 0px", threshold: 0.1 }
+      { root: scrollEl, rootMargin: "120px 0px", threshold: 0.1 }
     );
     observer.observe(ledgerSentinel);
-  } else if (ledgerWrap) {
-    ledgerWrap.addEventListener("scroll", () => {
+  } else if (scrollEl) {
+    scrollEl.addEventListener("scroll", () => {
       const threshold = 20;
-      if (ledgerWrap.scrollTop + ledgerWrap.clientHeight >= ledgerWrap.scrollHeight - threshold) {
+      if (scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - threshold) {
         loadLedgerPage().catch(console.error);
       }
     });
@@ -1794,6 +2217,7 @@ function bindEvents() {
     updateFxUI();
     renderLedger(activeRows());
     renderSummary();
+    renderAnalysis();
   };
 
   document.querySelectorAll("#currencyToggle .seg-btn, #mobileCurrencyToggle .seg-btn").forEach(btn => {
@@ -2093,6 +2517,7 @@ function bindEvents() {
     updateHideBtn();
     renderLedger(activeRows());
     renderSummary();
+    renderAnalysis();
     if (exportModal && !exportModal.hidden) {
       updateExportPreview();
     }

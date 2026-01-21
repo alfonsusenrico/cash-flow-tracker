@@ -4,7 +4,7 @@ import io
 import os
 import re
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -292,6 +292,76 @@ def build_search_pattern(query: str | None) -> str | None:
     if len(cleaned) > 64:
         cleaned = cleaned[:64]
     return f"%{cleaned}%"
+
+
+def build_daily_series(
+    from_date: str, to_date: str, rows: list[dict[str, Any]]
+) -> list[dict[str, int | str]]:
+    start = datetime.fromisoformat(from_date).date()
+    end = datetime.fromisoformat(to_date).date()
+    by_day: dict[str, dict[str, int]] = {}
+    for row in rows:
+        day_val = row.get("day")
+        day_key = day_val.isoformat() if hasattr(day_val, "isoformat") else str(day_val)
+        total_in = int(row.get("total_in") or 0)
+        total_out = int(row.get("total_out") or 0)
+        by_day[day_key] = {"total_in": total_in, "total_out": total_out}
+
+    series: list[dict[str, int | str]] = []
+    cursor = start
+    while cursor <= end:
+        key = cursor.isoformat()
+        totals = by_day.get(key, {"total_in": 0, "total_out": 0})
+        total_in = int(totals.get("total_in") or 0)
+        total_out = int(totals.get("total_out") or 0)
+        series.append(
+            {
+                "date": key,
+                "total_in": total_in,
+                "total_out": total_out,
+                "net": int(total_in - total_out),
+            }
+        )
+        cursor += timedelta(days=1)
+    return series
+
+
+def build_weekly_series(
+    from_date: str, to_date: str, daily: list[dict[str, int | str]]
+) -> list[dict[str, int | str]]:
+    start = datetime.fromisoformat(from_date).date()
+    end = datetime.fromisoformat(to_date).date()
+    by_day: dict[str, dict[str, int | str]] = {}
+    for row in daily:
+        date_str = row.get("date")
+        if not date_str:
+            continue
+        by_day[str(date_str)] = row
+
+    series: list[dict[str, int | str]] = []
+    cursor = start
+    while cursor <= end:
+        period_from = cursor
+        period_to = min(end, cursor + timedelta(days=6))
+        total_in = 0
+        total_out = 0
+        day = period_from
+        while day <= period_to:
+            row = by_day.get(day.isoformat(), {})
+            total_in += int(row.get("total_in") or 0)
+            total_out += int(row.get("total_out") or 0)
+            day += timedelta(days=1)
+        series.append(
+            {
+                "from": period_from.isoformat(),
+                "to": period_to.isoformat(),
+                "total_in": total_in,
+                "total_out": total_out,
+                "net": int(total_in - total_out),
+            }
+        )
+        cursor = period_to + timedelta(days=1)
+    return series
 
 
 
@@ -1527,6 +1597,97 @@ def summary(req: Request, month: str | None = None):
         )
 
     payload = {"range": {"from": from_date, "to": to_date}, "accounts": payload}
+    cache_set(cache_key, payload, MONTH_SUMMARY_TTL)
+    return payload
+
+
+@app.get("/analysis")
+def analysis(req: Request, month: str | None = None):
+    username = require_user(req)
+    if not month:
+        month = now_utc().strftime("%Y-%m")
+    parse_month(month)
+    cache_key = f"{username}:analysis:{month}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
+    from_date, to_date, from_dt, to_dt = compute_month_range(month)
+    base_filters = [
+        "a.username=%s",
+        "t.date >= %s",
+        "t.date <= %s",
+        "NOT (t.transaction_name = %s OR t.transaction_name ILIKE %s OR t.transaction_name ILIKE %s)",
+    ]
+    params: list[Any] = [username, from_dt, to_dt, "Top Up Balance", "Switching from %", "Switching to %"]
+
+    with db() as conn, conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
+                   COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS total_out
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE {" AND ".join(base_filters)}
+            """,
+            params,
+        )
+        totals_row = cur.fetchone() or {}
+        total_in = int(totals_row.get("total_in") or 0)
+        total_out = int(totals_row.get("total_out") or 0)
+
+        cur.execute(
+            f"""
+            SELECT (t.date AT TIME ZONE 'UTC')::date AS day,
+                   COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
+                   COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS total_out
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE {" AND ".join(base_filters)}
+            GROUP BY day
+            ORDER BY day
+            """,
+            params,
+        )
+        daily_rows = cur.fetchall()
+        daily_series = build_daily_series(from_date, to_date, daily_rows)
+        weekly_series = build_weekly_series(from_date, to_date, daily_series)
+
+        cur.execute(
+            f"""
+            SELECT t.account_id::text AS account_id,
+                   a.account_name,
+                   COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
+                   COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS total_out
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE {" AND ".join(base_filters)}
+              AND a.parent_account_id IS NOT NULL
+            GROUP BY t.account_id, a.account_name
+            ORDER BY total_out DESC, a.account_name ASC
+            """,
+            params,
+        )
+        categories_raw = cur.fetchall()
+
+    categories = [
+        {
+            "account_id": r.get("account_id"),
+            "account_name": r.get("account_name"),
+            "total_in": int(r.get("total_in") or 0),
+            "total_out": int(r.get("total_out") or 0),
+            "net": int(r.get("total_in") or 0) - int(r.get("total_out") or 0),
+        }
+        for r in categories_raw
+    ]
+
+    payload = {
+        "range": {"from": from_date, "to": to_date},
+        "totals": {"total_in": total_in, "total_out": total_out, "net": int(total_in - total_out)},
+        "daily": daily_series,
+        "weekly": weekly_series,
+        "categories": categories,
+    }
     cache_set(cache_key, payload, MONTH_SUMMARY_TTL)
     return payload
 

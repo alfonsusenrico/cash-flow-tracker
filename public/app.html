@@ -36,6 +36,7 @@
     <div class="workspace">
       <div class="page-tabs" role="tablist" aria-label="Pages">
         <button class="tab-btn active" data-tab="summary" aria-selected="true">Summary</button>
+        <button class="tab-btn" data-tab="analysis" aria-selected="false">Analysis</button>
         <button class="tab-btn" data-tab="ledger" aria-selected="false">Transactions</button>
       </div>
       <section id="tab-ledger" class="panel ledger" hidden>
@@ -135,6 +136,62 @@
         </div>
         <div id="summaryMsg" class="msg"></div>
         <div id="summaryCards" class="summary-grid"></div>
+      </section>
+
+      <section id="tab-analysis" class="panel analysis" hidden>
+        <div class="analysis-head">
+          <div>
+            <div class="analysis-title">Analysis</div>
+            <div id="analysisRangeText" class="analysis-range-text"></div>
+          </div>
+          <div class="analysis-month-wrap">
+            <button id="analysisMonthBtn" class="summary-month-btn" type="button">
+              <span id="analysisMonthText"></span>
+              <svg class="summary-month-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="analysis-body" id="analysisBody">
+          <div class="analysis-actions">
+            <div id="analysisMsg" class="msg"></div>
+            <button id="seedDemoBtn" class="btn secondary small" type="button">Seed demo data</button>
+          </div>
+
+          <div class="analysis-section">
+            <div class="analysis-section-head">
+              <div class="analysis-section-title">Monthly</div>
+              <div class="analysis-section-subtitle">Overview</div>
+            </div>
+            <div class="analysis-cards" id="analysisTotals"></div>
+          </div>
+
+          <div class="analysis-section">
+            <div class="analysis-section-head">
+              <div class="analysis-section-title">Daily</div>
+              <div class="analysis-section-subtitle">Cash flow totals</div>
+            </div>
+            <div class="analysis-scroll" id="analysisDaily"></div>
+          </div>
+
+          <div class="analysis-section">
+            <div class="analysis-section-head">
+              <div class="analysis-section-title">Weekly</div>
+              <div class="analysis-section-subtitle">7-day blocks</div>
+            </div>
+            <div class="analysis-week-grid" id="analysisWeekly"></div>
+          </div>
+
+          <div class="analysis-section">
+            <div class="analysis-section-head">
+              <div class="analysis-section-title">Categories</div>
+              <div class="analysis-section-subtitle">Sorted by spend</div>
+            </div>
+            <div class="analysis-list analysis-list-grid" id="analysisCategories"></div>
+          </div>
+        </div>
       </section>
 
     </div>
