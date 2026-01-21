@@ -153,7 +153,7 @@ const getLedgerScrollElement = () => {
   return ledgerWrap || ledgerPanel;
 };
 
-const getAnalysisScrollElement = () => $("analysisBody") || $("tab-analysis");
+const getAnalysisScrollElement = () => $("tab-analysis") || $("analysisBody");
 
 const syncMobileScrollState = () => {
   if (!isMobile()) {
@@ -348,6 +348,15 @@ const formatLedgerDayLabel = (ymd) => {
   }
   return d.toLocaleDateString("en-US", options);
 };
+
+const formatDayParts = (ymd) => {
+  const d = ymdToDate(ymd);
+  if (!d) return { label: ymd || "", weekday: "" };
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = d.toLocaleDateString("en-US", { month: "short" });
+  const weekday = d.toLocaleDateString("en-US", { weekday: "short" });
+  return { label: `${day} ${month}`, weekday };
+};
 const dateToYMD = (d) => {
   if (!d) return "";
   const pad = (n) => String(n).padStart(2, "0");
@@ -432,9 +441,9 @@ const formatRangeText = (from, to) => {
 const formatRangeLabel = (from, to) => {
   const fmtDate = (ymd) => (ymd ? ymd.split("-").reverse().join("/") : "");
   return `
-    <span class="range-date" data-date-target="from">${escapeHtml(fmtDate(from))}</span>
+    <span class="range-date" data-date-target="from" role="button" tabindex="0" aria-label="Edit from date">${escapeHtml(fmtDate(from))}</span>
     <span class="range-separator">-</span>
-    <span class="range-date" data-date-target="to">${escapeHtml(fmtDate(to))}</span>
+    <span class="range-date" data-date-target="to" role="button" tabindex="0" aria-label="Edit to date">${escapeHtml(fmtDate(to))}</span>
   `;
 };
 
@@ -449,6 +458,58 @@ function renderRangeDisplay() {
   }
   rangeEl.textContent = formatRangeText(state.from, state.to);
 }
+
+const clearLedgerSearch = () => {
+  if (searchAbortController) {
+    searchAbortController.abort();
+    searchAbortController = null;
+  }
+  state.search_query = "";
+  state.search_rows = [];
+  state.search_offset = 0;
+  state.search_has_more = true;
+  state.search_loading = false;
+  const ledgerSearch = $("ledgerSearch");
+  if (ledgerSearch) ledgerSearch.value = "";
+};
+
+const applyLedgerRange = (from, to) => {
+  if (!from || !to) return;
+  state.from = from;
+  state.to = to;
+  const fromInput = $("fromDate");
+  const toInput = $("toDate");
+  if (fromInput) fromInput.value = state.from;
+  if (toInput) toInput.value = state.to;
+  renderRangeDisplay();
+};
+
+const setLedgerScopeAll = () => {
+  state.scope = "all";
+  state.account_id = null;
+  document.querySelectorAll('input[name="accountFilter"]').forEach((input) => {
+    input.checked = input.value === "all";
+  });
+  const mobileSelect = $("mobileAccountSelect");
+  if (mobileSelect) mobileSelect.value = "all";
+  const titleSelect = $("ledgerTitleSelect");
+  if (titleSelect) titleSelect.value = "all";
+};
+
+const navigateToLedgerDay = (ymd) => {
+  if (!ymd) return;
+  const day = clampYmdToToday(ymd);
+  if (!day) return;
+  cancelLedgerReload();
+  clearLedgerSearch();
+  setLedgerScopeAll();
+  applyLedgerRange(day, day);
+  if (state.active_tab === "ledger") {
+    reloadLedgerWithDefaultStale().catch(console.error);
+  } else {
+    setActiveTab("ledger");
+  }
+};
 
 const FX_STORAGE_KEY = "fx_rate_idr_usd";
 
@@ -835,6 +896,73 @@ const renderAnalysis = () => {
     `;
   }
 
+  const renderDailyWeeks = (rows, weeklyRows, el) => {
+    if (!el) return;
+    if (!rows.length) {
+      el.innerHTML = `<div class="analysis-empty">No activity in this period.</div>`;
+      return;
+    }
+    const weeks = [];
+    for (let i = 0; i < rows.length; i += 7) {
+      weeks.push(rows.slice(i, i + 7));
+    }
+    el.innerHTML = weeks
+      .map((week, idx) => {
+        const summary = Array.isArray(weeklyRows) ? weeklyRows[idx] : null;
+        const fallbackTotals = week.reduce(
+          (acc, day) => {
+            acc.totalIn += Number(day.total_in || 0);
+            acc.totalOut += Number(day.total_out || 0);
+            return acc;
+          },
+          { totalIn: 0, totalOut: 0 }
+        );
+        const totalIn = Number(summary?.total_in ?? fallbackTotals.totalIn);
+        const totalOut = Number(summary?.total_out ?? fallbackTotals.totalOut);
+        const net = totalIn - totalOut;
+        const netClass = net < 0 ? "neg" : "pos";
+        const cards = week
+          .map((r) => {
+            const totalIn = Number(r.total_in || 0);
+            const totalOut = Number(r.total_out || 0);
+            const net = totalIn - totalOut;
+            const netClass = net < 0 ? "neg" : "pos";
+            const parts = formatDayParts(r.date);
+            const weekday = escapeHtml(parts.weekday);
+            const label = escapeHtml(parts.label);
+            const ariaLabel = escapeHtml(`View transactions for ${formatYmdDisplay(r.date)}`);
+            return `
+              <div class="analysis-day-card" role="button" tabindex="0" data-date="${escapeHtml(r.date)}" aria-label="${ariaLabel}">
+                <div class="analysis-day-top">
+                  <span class="analysis-day-weekday">${weekday}</span>
+                  <span class="analysis-day-date">${label}</span>
+                </div>
+                <div class="analysis-day-net ${netClass}">${displayMoney(net)}</div>
+                <div class="analysis-day-sub">
+                  <span class="analysis-day-in">In ${displayMoney(totalIn)}</span>
+                  <span class="analysis-day-out">Out ${displayMoney(totalOut)}</span>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+        return `
+          <div class="analysis-week-block">
+            <div class="analysis-week-summary">
+              <div class="analysis-week-title">Week ${idx + 1}</div>
+              <div class="analysis-week-metrics">
+                <span class="analysis-week-net ${netClass}">Net ${displayMoney(net)}</span>
+                <span class="analysis-week-in">In ${displayMoney(totalIn)}</span>
+                <span class="analysis-week-out">Out ${displayMoney(totalOut)}</span>
+              </div>
+            </div>
+            <div class="analysis-week-row">${cards}</div>
+          </div>
+        `;
+      })
+      .join("");
+  };
+
   const renderFlowCards = (rows, el, { labelFn, metaFn } = {}) => {
     if (!el) return;
     if (!rows.length) {
@@ -876,15 +1004,8 @@ const renderAnalysis = () => {
   };
 
   const dailyRows = Array.isArray(data.daily) ? data.daily : [];
-  renderFlowCards(dailyRows, $("analysisDaily"), {
-    labelFn: (r) => formatLedgerDayLabel(r.date),
-  });
-
   const weeklyRows = Array.isArray(data.weekly) ? data.weekly : [];
-  renderFlowCards(weeklyRows, $("analysisWeekly"), {
-    labelFn: (_, idx) => `Week ${idx + 1}`,
-    metaFn: (r) => `${formatYmdDisplay(r.from)} - ${formatYmdDisplay(r.to)}`,
-  });
+  renderDailyWeeks(dailyRows, weeklyRows, $("analysisDaily"));
 
   const categoriesEl = $("analysisCategories");
   const categories = Array.isArray(data.categories) ? data.categories : [];
@@ -1127,11 +1248,6 @@ const getLedgerViewState = () => {
   return { isAll, isMainAccount, showAllocate, showSwitch, showAssetSummary };
 };
 
-const buildLedgerDayRow = (dayKey, label, colSpan) => `
-  <tr class="ledger-day" data-day="${dayKey}">
-    <td colspan="${colSpan}"><span>${label}</span></td>
-  </tr>`;
-
 const TREND_ICON =
   '<svg class="amount-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
   '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
@@ -1141,7 +1257,10 @@ const TREND_ICON =
 const buildLedgerRow = (r, idx, isAll) => {
   const dayKey = isoToLocalYMD(r.date);
   const accCell = `<td class="account-cell">${isAll ? escapeHtml(r.account_name) : ""}</td>`;
-  const timeLabel = escapeHtml(isoToLocalTime(r.date));
+  const dayLabel = dayKey ? formatDayParts(dayKey).label : "";
+  const timeValue = isoToLocalTime(r.date);
+  const timeLine = dayLabel && timeValue ? `${dayLabel} - ${timeValue}` : (dayLabel || timeValue);
+  const timeLabel = escapeHtml(timeLine);
   const dateLabel = escapeHtml(isoToLocalDisplay(r.date));
   const nameLabel = escapeHtml(r.transaction_name);
   const inValue = r.debit ? `${TREND_ICON}${displayMoney(r.debit)}` : "";
@@ -1223,15 +1342,8 @@ const renderLedgerBody = (rows) => {
     body.innerHTML = `<tr><td colspan="${colSpan}" class="empty-row">${message}</td></tr>`;
     return;
   }
-  const colSpan = isAll ? 7 : 6;
-  let lastDay = null;
   const html = [];
   rows.forEach((r, idx) => {
-    const dayKey = isoToLocalYMD(r.date);
-    if (dayKey && dayKey !== lastDay) {
-      html.push(buildLedgerDayRow(dayKey, formatLedgerDayLabel(dayKey), colSpan));
-      lastDay = dayKey;
-    }
     html.push(buildLedgerRow(r, idx, isAll));
   });
   body.innerHTML = html.join("");
@@ -1246,16 +1358,8 @@ const appendLedgerRows = (rows) => {
     body.innerHTML = "";
   }
   const existingCount = body.querySelectorAll("tr[data-tx-id]").length;
-  const colSpan = isAll ? 7 : 6;
-  const dayRows = body.querySelectorAll("tr.ledger-day");
-  let lastDay = dayRows.length ? dayRows[dayRows.length - 1].dataset.day : null;
   const html = [];
   rows.forEach((r, idx) => {
-    const dayKey = isoToLocalYMD(r.date);
-    if (dayKey && dayKey !== lastDay) {
-      html.push(buildLedgerDayRow(dayKey, formatLedgerDayLabel(dayKey), colSpan));
-      lastDay = dayKey;
-    }
     html.push(buildLedgerRow(r, existingCount + idx, isAll));
   });
   body.insertAdjacentHTML("beforeend", html.join(""));
@@ -1626,6 +1730,10 @@ function bindEvents() {
     const openSummaryLedger = (card) => {
       const target = card?.dataset?.accountId;
       if (!target) return;
+      const summaryRange = state.overview_range;
+      if (summaryRange?.from && summaryRange?.to) {
+        applyLedgerRange(summaryRange.from, summaryRange.to);
+      }
       const titleSelect = $("ledgerTitleSelect");
       if (titleSelect) {
         state.suppress_ledger_refresh = true;
@@ -1642,6 +1750,9 @@ function bindEvents() {
       } else {
         state.scope = "account";
         state.account_id = target;
+      }
+      if (summaryRange?.from && summaryRange?.to) {
+        applyLedgerRange(summaryRange.from, summaryRange.to);
       }
       reloadLedgerWithDefaultStale().catch(console.error);
     };
@@ -2072,11 +2183,10 @@ function bindEvents() {
 
   const bindRangePicker = (el) => {
     if (!el) return;
-    el.setAttribute("role", "button");
-    el.setAttribute("tabindex", "0");
     el.setAttribute("title", "Edit date range");
     el.addEventListener("click", (e) => {
-      const target = e.target.closest("[data-date-target]") || el;
+      const target = e.target.closest(".range-date[data-date-target]");
+      if (!target || !el.contains(target)) return;
       if (target.dataset?.dateTarget === "to") {
         openDatePicker("to", target);
         return;
@@ -2085,14 +2195,38 @@ function bindEvents() {
     });
     el.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
+        const target = e.target.closest(".range-date[data-date-target]");
+        if (!target || !el.contains(target)) return;
         e.preventDefault();
-        openDatePicker("from", el);
+        if (target.dataset?.dateTarget === "to") {
+          openDatePicker("to", target);
+          return;
+        }
+        openDatePicker("from", target);
       }
     });
   };
 
   bindRangePicker($("ledgerRangeDisplay"));
   bindRangePicker($("ledgerRangeText"));
+
+  const analysisDaily = $("analysisDaily");
+  if (analysisDaily) {
+    analysisDaily.addEventListener("click", (e) => {
+      const card = e.target.closest(".analysis-day-card[data-date]");
+      if (!card) return;
+      const day = card.dataset.date;
+      navigateToLedgerDay(day);
+    });
+    analysisDaily.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const card = e.target.closest(".analysis-day-card[data-date]");
+      if (!card) return;
+      e.preventDefault();
+      const day = card.dataset.date;
+      navigateToLedgerDay(day);
+    });
+  }
 
   const reloadBtn = $("reloadBtn");
   if (reloadBtn) reloadBtn.addEventListener("click", () => reloadLedger().catch(console.error));
