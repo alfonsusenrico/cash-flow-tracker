@@ -1389,6 +1389,12 @@ async function loadMe() {
   }
 }
 
+function updateEmptyAccountsBanner() {
+  const banner = $("emptyAccountsBanner");
+  if (!banner) return;
+  banner.hidden = state.accounts.length > 0;
+}
+
 async function loadAccounts() {
   const res = await api.get("/api/accounts");
   state.accounts = res.accounts || [];
@@ -1396,6 +1402,7 @@ async function loadAccounts() {
   state.primary_account_id = primary?.account_id || null;
 
   renderAccounts();
+  updateEmptyAccountsBanner();
 
   if (state.scope === "account") {
     const exists = state.accounts.find((a) => a.account_id === state.account_id);
@@ -3122,6 +3129,10 @@ function bindEvents() {
       document.body.classList.remove("menu-open");
       openAccountsModal("list");
     });
+  }
+  const emptyAccountsCreateBtn = $("emptyAccountsCreateBtn");
+  if (emptyAccountsCreateBtn) {
+    emptyAccountsCreateBtn.addEventListener("click", () => openAccountsModal("create"));
   }
   $("closeAccountsModal").addEventListener("click", closeAccountsModal);
   $("accountsModal").addEventListener("click", (e) => e.target === $("accountsModal") && closeAccountsModal());

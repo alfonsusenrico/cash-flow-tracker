@@ -39,6 +39,13 @@
         <button class="tab-btn" data-tab="analysis" aria-selected="false">Analysis</button>
         <button class="tab-btn" data-tab="ledger" aria-selected="false">Transactions</button>
       </div>
+      <div id="emptyAccountsBanner" class="banner warning" hidden>
+        <div class="banner-text">
+          <strong>No accounts yet.</strong>
+          Create your first account to start recording transactions.
+        </div>
+        <button id="emptyAccountsCreateBtn" class="btn small">Create Account</button>
+      </div>
       <section id="tab-ledger" class="panel ledger" hidden>
         <div class="ledger-head">
           <div>
