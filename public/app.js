@@ -21,6 +21,8 @@ const state = {
   analysis_stale: true,
   analysis_data: null,
   total_asset: 0,
+  summary_total_asset: 0,
+  analysis_total_asset: 0,
   payday_day: null,
   payday_source: "default",
   payday_default: null,
@@ -685,6 +687,18 @@ function updateTotals(summary) {
   state.summary_accounts = summary?.accounts || [];
 }
 
+const updateSummaryTotalAsset = (value) => {
+  state.summary_total_asset = Number(value || 0);
+  const el = $("summaryTotalAsset");
+  if (el) el.textContent = displayMoney(state.summary_total_asset || 0);
+};
+
+const updateAnalysisTotalAsset = (value) => {
+  state.analysis_total_asset = Number(value || 0);
+  const el = $("analysisTotalAsset");
+  if (el) el.textContent = displayMoney(state.analysis_total_asset || 0);
+};
+
 const currentMonthYM = () => {
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -748,6 +762,7 @@ const renderSummary = () => {
   const rangeText = $("summaryRangeText");
   const msg = $("summaryMsg");
   if (msg) msg.textContent = "";
+  updateSummaryTotalAsset(state.summary_total_asset);
   if (rangeText) {
     const fromDate = ymdToDate(state.overview_range?.from);
     const toDate = ymdToDate(state.overview_range?.to);
@@ -833,6 +848,7 @@ const loadSummary = async ({ force = false } = {}) => {
     if (!state.summary_month) state.summary_month = month;
     const res = await api.get(`/api/summary?month=${encodeURIComponent(month)}`);
     applyPaydayInfo(res.payday);
+    updateSummaryTotalAsset(res.total_asset || 0);
     state.overview_accounts = res.accounts || [];
     state.budgets_by_account = {};
     state.overview_accounts.forEach((acc) => {
@@ -863,6 +879,7 @@ const renderAnalysis = () => {
   const rangeText = $("analysisRangeText");
   const msg = $("analysisMsg");
   if (msg) msg.textContent = "";
+  updateAnalysisTotalAsset(state.analysis_total_asset);
   if (rangeText) {
     const fromDate = ymdToDate(data.range?.from);
     const toDate = ymdToDate(data.range?.to);
@@ -1056,6 +1073,7 @@ const loadAnalysis = async ({ force = false } = {}) => {
     const res = await api.get(`/api/analysis?month=${encodeURIComponent(month)}`);
     state.analysis_data = res || null;
     applyPaydayInfo(res?.payday);
+    updateAnalysisTotalAsset(res?.total_asset || 0);
     state.analysis_stale = false;
     renderAnalysis();
   } catch (err) {

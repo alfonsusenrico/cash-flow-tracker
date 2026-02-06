@@ -1664,6 +1664,7 @@ def summary(req: Request, month: str | None = None):
                     "default_day": default_day,
                     "override_day": override_day,
                 },
+                "total_asset": 0,
                 "accounts": [],
             }
             cache_set(cache_key, payload, MONTH_SUMMARY_TTL)
@@ -1671,6 +1672,7 @@ def summary(req: Request, month: str | None = None):
 
         balances_start = get_account_balances(cur, username, start_cutoff)
         balances_end = get_account_balances(cur, username, to_dt)
+        total_asset = sum(int(balances_end.get(acc["account_id"], 0)) for acc in accounts)
 
         cur.execute(
             """
@@ -1743,6 +1745,7 @@ def summary(req: Request, month: str | None = None):
             "default_day": default_day,
             "override_day": override_day,
         },
+        "total_asset": int(total_asset),
         "accounts": payload_accounts,
     }
     cache_set(cache_key, payload, MONTH_SUMMARY_TTL)
@@ -1816,6 +1819,18 @@ def analysis(req: Request, month: str | None = None):
         )
         categories_raw = cur.fetchall()
 
+        cur.execute(
+            """
+            SELECT account_id::text AS account_id
+            FROM accounts
+            WHERE username=%s
+            """,
+            (username,),
+        )
+        acc_rows = cur.fetchall()
+        balances = get_account_balances(cur, username, to_dt)
+        total_asset = sum(int(balances.get(r["account_id"], 0)) for r in acc_rows)
+
     categories = [
         {
             "account_id": r.get("account_id"),
@@ -1836,6 +1851,7 @@ def analysis(req: Request, month: str | None = None):
             "default_day": default_day,
             "override_day": override_day,
         },
+        "total_asset": int(total_asset),
         "totals": {"total_in": total_in, "total_out": total_out, "net": int(total_in - total_out)},
         "daily": daily_series,
         "weekly": weekly_series,

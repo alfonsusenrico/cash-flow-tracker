@@ -1702,6 +1702,13 @@ input.input-button[readonly] {
   background: var(--bg-panel);
 }
 
+.panel-total {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 8px 0 12px;
+}
+
 .banner {
   display: flex;
   align-items: center;
