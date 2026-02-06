@@ -1,14 +1,13 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE users (
   username TEXT PRIMARY KEY,
   password_hash TEXT NOT NULL,
   full_name TEXT NOT NULL,
-  default_payday_day INT NOT NULL DEFAULT 25 CHECK (default_payday_day BETWEEN 1 AND 31),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS accounts (
+CREATE TABLE accounts (
   account_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
   account_name TEXT NOT NULL,
@@ -18,19 +17,17 @@ CREATE TABLE IF NOT EXISTS accounts (
   UNIQUE (username, account_name)
 );
 
-CREATE TABLE IF NOT EXISTS transactions (
+CREATE TABLE transactions (
   transaction_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id UUID NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
   transaction_type TEXT NOT NULL CHECK (transaction_type IN ('debit','credit')),
   transaction_name TEXT NOT NULL,
   amount BIGINT NOT NULL CHECK (amount > 0),
   date TIMESTAMPTZ NOT NULL,
-  is_transfer BOOLEAN NOT NULL DEFAULT FALSE,
-  transfer_id UUID NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS budgets (
+CREATE TABLE budgets (
   budget_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
   account_id UUID NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
@@ -40,18 +37,8 @@ CREATE TABLE IF NOT EXISTS budgets (
   UNIQUE (username, account_id, month)
 );
 
-CREATE TABLE IF NOT EXISTS payday_overrides (
-  username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
-  month TEXT NOT NULL,
-  payday_day INT NOT NULL CHECK (payday_day BETWEEN 1 AND 31),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (username, month)
-);
-
-CREATE INDEX IF NOT EXISTS idx_accounts_username ON accounts(username);
-CREATE INDEX IF NOT EXISTS idx_tx_account_date ON transactions(account_id, date, transaction_id);
-CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date);
-CREATE INDEX IF NOT EXISTS idx_tx_date_type ON transactions(date, transaction_type);
-CREATE INDEX IF NOT EXISTS idx_tx_transfer_id ON transactions(transfer_id);
-CREATE INDEX IF NOT EXISTS idx_budgets_username_month ON budgets(username, month);
-CREATE INDEX IF NOT EXISTS idx_payday_overrides_username_month ON payday_overrides(username, month);
+CREATE INDEX idx_accounts_username ON accounts(username);
+CREATE INDEX idx_tx_account_date ON transactions(account_id, date, transaction_id);
+CREATE INDEX idx_tx_date ON transactions(date);
+CREATE INDEX idx_tx_date_type ON transactions(date, transaction_type);
+CREATE INDEX idx_budgets_username_month ON budgets(username, month);

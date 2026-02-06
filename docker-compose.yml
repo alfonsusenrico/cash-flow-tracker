@@ -9,7 +9,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ledgerpass}
     volumes:
       - db_data:/var/lib/postgresql/data
-      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -24,10 +23,28 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ledger}:${POSTGRES_PASSWORD:-ledgerpass}@db:5432/${POSTGRES_DB:-ledger}
       SESSION_SECRET: ${SESSION_SECRET}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      INVITE_CODE: ${INVITE_CODE}
       TZ: Asia/Jakarta
     depends_on:
       db:
         condition: service_healthy
+
+  migrate:
+    image: flyway/flyway:10
+    container_name: ledger_migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-ledger}
+      FLYWAY_USER: ${POSTGRES_USER:-ledger}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-ledgerpass}
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
+      FLYWAY_BASELINE_VERSION: "1"
+      FLYWAY_LOCATIONS: filesystem:/flyway/migrations
+    command: -connectRetries=60 migrate
+    volumes:
+      - ./db/migrations:/flyway/migrations:ro
 
   web:
     image: nginx:alpine

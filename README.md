@@ -24,32 +24,32 @@ Self-hosted personal cash flow tracker with monthly summaries, a transaction led
 ## Architecture
 Nginx serves static assets and proxies `/api` to the FastAPI backend. The backend reads/writes to PostgreSQL, handles auth with session cookies, and serves summary/ledger/analysis endpoints. The frontend is a static app that calls the API and renders the views.
 
-## Setup
-1) Clone
+## Quickstart (Fresh Install)
+Copy-paste this to get the app running from scratch:
 ```bash
 git clone https://github.com/alfonsusenrico/cash-flow-tracker.git
 cd cash-flow-tracker
-```
 
-2) Install
-```bash
-docker compose build
-```
-
-3) Configure
-```bash
 cat > .env <<'EOF'
 SESSION_SECRET=change-me
 COOKIE_SECURE=false
 POSTGRES_DB=ledger
 POSTGRES_USER=ledger
 POSTGRES_PASSWORD=ledgerpass
+INVITE_CODE=CASHFLOWTRACKER
 EOF
+
+docker compose up -d db
+docker compose run --rm migrate
+docker compose up -d
 ```
 
-4) Run
+Open: `http://localhost:8090/login.html`
+
+## Migrations
+Run migrations any time you update the codebase (safe to re-run):
 ```bash
-docker compose up -d
+docker compose run --rm migrate
 ```
 
 ## Environment Variables
@@ -60,6 +60,7 @@ docker compose up -d
 | POSTGRES_DB | no | ledger | Database name |
 | POSTGRES_USER | no | ledger | Database user |
 | POSTGRES_PASSWORD | no | ledgerpass | Database password |
+| INVITE_CODE | yes | CASHFLOWTRACKER | Invite-only registration code |
 | TZ | no | Asia/Jakarta | Display timezone in UI |
 | SUMMARY_CACHE_TTL | no | 30 | Summary cache TTL (seconds) |
 | MONTH_SUMMARY_TTL | no | 60 | Monthly summary/analysis cache TTL (seconds) |
