@@ -30,14 +30,11 @@ Copy-paste this to get the app running from scratch:
 git clone https://github.com/alfonsusenrico/cash-flow-tracker.git
 cd cash-flow-tracker
 
-cat > .env <<'EOF'
-SESSION_SECRET=change-me
-COOKIE_SECURE=false
-POSTGRES_DB=ledger
-POSTGRES_USER=ledger
-POSTGRES_PASSWORD=ledgerpass
-INVITE_CODE=CASHFLOWTRACKER
-EOF
+cp .env.example .env
+
+SESSION_SECRET=$(openssl rand -hex 32)
+sed -i.bak "s/^SESSION_SECRET=.*/SESSION_SECRET=${SESSION_SECRET}/" .env
+rm .env.bak
 
 docker compose up -d db
 docker compose run --rm migrate
