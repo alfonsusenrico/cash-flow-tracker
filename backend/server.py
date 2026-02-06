@@ -4,6 +4,7 @@ import io
 import os
 import re
 import time
+import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -30,6 +31,7 @@ PASSWORD_MIN_LEN = int(os.getenv("PASSWORD_MIN_LEN", "8"))
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9._-]{3,32}$")
 DB_POOL_MIN = max(1, int(os.getenv("DB_POOL_MIN", "1")))
 DB_POOL_MAX = max(DB_POOL_MIN, int(os.getenv("DB_POOL_MAX", "10")))
+INVITE_CODE = (os.getenv("INVITE_CODE") or "").strip()
 
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is required")
@@ -132,23 +134,6 @@ def require_user(req: Request) -> str:
     return u
 
 
-def get_main_account(cur, username: str) -> dict[str, Any]:
-    cur.execute(
-        """
-        SELECT account_id::text AS account_id, account_name
-        FROM accounts
-        WHERE username=%s AND parent_account_id IS NULL
-        ORDER BY created_at ASC
-        LIMIT 1
-        """,
-        (username,),
-    )
-    main = cur.fetchone()
-    if not main:
-        raise HTTPException(status_code=400, detail="Main account missing")
-    return main
-
-
 def parse_date_utc(date_str: str, end_of_day: bool = False) -> datetime:
     # Accepts YYYY-MM-DD, returns UTC datetime range boundary
     try:
@@ -167,6 +152,27 @@ def clamp_day(year: int, month: int, day: int) -> int:
     return min(day, last_day)
 
 
+def get_default_payday_day(cur, username: str) -> int:
+    cur.execute("SELECT default_payday_day FROM users WHERE username=%s", (username,))
+    row = cur.fetchone()
+    try:
+        return int(row["default_payday_day"]) if row else 25
+    except Exception:
+        return 25
+
+
+def get_payday_day(cur, username: str, month: str) -> tuple[int, str, int | None]:
+    cur.execute(
+        "SELECT payday_day FROM payday_overrides WHERE username=%s AND month=%s",
+        (username, month),
+    )
+    override = cur.fetchone()
+    if override:
+        return int(override["payday_day"]), "override", int(override["payday_day"])
+    default_day = get_default_payday_day(cur, username)
+    return int(default_day), "default", None
+
+
 def compute_export_range(day: int) -> tuple[str, str, datetime, datetime]:
     if day < 1 or day > 31:
         raise HTTPException(status_code=400, detail="Day must be between 1 and 31")
@@ -181,8 +187,7 @@ def compute_export_range(day: int) -> tuple[str, str, datetime, datetime]:
         last_payday = datetime(prev_year, prev_month, clamp_day(prev_year, prev_month, day)).date()
     else:
         last_payday = payday_this
-    start = last_payday + timedelta(days=1)
-    from_date = start.isoformat()
+    from_date = last_payday.isoformat()
     to_date = today.isoformat()
     from_dt = parse_date_utc(from_date, end_of_day=False)
     to_dt = parse_date_utc(to_date, end_of_day=True)
@@ -197,15 +202,30 @@ def parse_month(month: str) -> tuple[int, int]:
     return dt.year, dt.month
 
 
-def compute_month_range(month: str) -> tuple[str, str, datetime, datetime]:
+def prev_month_str(month: str) -> str:
     year, month_num = parse_month(month)
-    payday = datetime(year, month_num, clamp_day(year, month_num, 31)).date()
     prev_month = month_num - 1
     prev_year = year
     if prev_month == 0:
         prev_month = 12
         prev_year -= 1
-    prev_payday = datetime(prev_year, prev_month, clamp_day(prev_year, prev_month, 31)).date()
+    return f"{prev_year:04d}-{prev_month:02d}"
+
+
+def compute_month_range(
+    month: str,
+    payday_day: int,
+    prev_payday_day: int | None = None,
+) -> tuple[str, str, datetime, datetime]:
+    year, month_num = parse_month(month)
+    payday = datetime(year, month_num, clamp_day(year, month_num, payday_day)).date()
+    prev_month = month_num - 1
+    prev_year = year
+    if prev_month == 0:
+        prev_month = 12
+        prev_year -= 1
+    prev_day = prev_payday_day if prev_payday_day is not None else payday_day
+    prev_payday = datetime(prev_year, prev_month, clamp_day(prev_year, prev_month, prev_day)).date()
     start_date = prev_payday
     end_date = payday - timedelta(days=1)
     today = now_utc().date()
@@ -271,16 +291,6 @@ def safe_pdf_text(value: Any) -> str:
         return text
     except UnicodeEncodeError:
         return text.encode("latin-1", "replace").decode("latin-1")
-
-
-def is_switch_tx_name(name: str) -> bool:
-    return name.startswith("Switching from ") or name.startswith("Switching to ")
-
-
-def is_all_internal_name(name: str) -> bool:
-    if name == "Top Up Balance":
-        return True
-    return is_switch_tx_name(name)
 
 
 def build_search_pattern(query: str | None) -> str | None:
@@ -378,6 +388,62 @@ def parse_tx_datetime(date_str: str | None) -> datetime:
         return parse_date_utc(date_str, end_of_day=False)
 
 
+def get_balance_before(
+    cur,
+    account_id: str,
+    before_dt: datetime,
+    exclude_tx_ids: list[str] | None = None,
+) -> int:
+    sql = """
+        SELECT COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS balance
+        FROM transactions t
+        WHERE t.account_id=%s::uuid AND t.date < %s
+    """
+    params: list[Any] = [account_id, before_dt]
+    if exclude_tx_ids:
+        sql += " AND t.transaction_id <> ALL(%s::uuid[])"
+        params.append(exclude_tx_ids)
+    cur.execute(sql, params)
+    row = cur.fetchone() or {}
+    return int(row.get("balance") or 0)
+
+
+def ensure_account_non_negative(
+    cur,
+    account_id: str,
+    effective_from: datetime,
+    new_rows: list[dict[str, Any]] | None = None,
+    exclude_tx_ids: list[str] | None = None,
+) -> None:
+    start_balance = get_balance_before(cur, account_id, effective_from, exclude_tx_ids)
+    sql = """
+        SELECT t.transaction_id::text AS transaction_id,
+               t.date,
+               t.transaction_type,
+               t.amount
+        FROM transactions t
+        WHERE t.account_id=%s::uuid AND t.date >= %s
+    """
+    params: list[Any] = [account_id, effective_from]
+    if exclude_tx_ids:
+        sql += " AND t.transaction_id <> ALL(%s::uuid[])"
+        params.append(exclude_tx_ids)
+    sql += " ORDER BY t.date ASC, t.transaction_id ASC"
+    cur.execute(sql, params)
+    rows = cur.fetchall()
+    if new_rows:
+        rows.extend(new_rows)
+    rows.sort(key=lambda r: (r["date"], str(r["transaction_id"])))
+    balance = start_balance
+    for row in rows:
+        signed = int(row.get("amount") or 0)
+        if row.get("transaction_type") == "credit":
+            signed = -signed
+        balance += signed
+        if balance < 0:
+            raise HTTPException(status_code=400, detail="Insufficient balance")
+
+
 def get_account_balances(cur, username: str, up_to: datetime) -> dict[str, int]:
     cur.execute(
         """
@@ -398,9 +464,8 @@ def compute_summary(
     cur,
     username: str,
     acc_by_id: dict[str, dict[str, Any]],
-    main_id: str,
     to_dt: datetime,
-) -> tuple[list[dict[str, Any]], int, int]:
+) -> tuple[list[dict[str, Any]], int]:
     balances_all = get_account_balances(cur, username, to_dt)
     summary_accounts = [
         {
@@ -410,30 +475,8 @@ def compute_summary(
         }
         for aid in sorted(acc_by_id.keys(), key=lambda x: acc_by_id[x]["account_name"].lower())
     ]
-
-    cur.execute(
-        """
-        SELECT COALESCE(SUM(t.amount), 0) AS allocated_total
-        FROM transactions t
-        JOIN accounts a ON a.account_id=t.account_id
-        WHERE a.username=%s
-          AND a.parent_account_id IS NOT NULL
-          AND t.transaction_name=%s
-          AND t.transaction_type='debit'
-          AND t.date <= %s
-        """,
-        (username, "Top Up Balance", to_dt),
-    )
-    allocated_total = int(cur.fetchone()["allocated_total"] or 0)
-    main_balance = int(balances_all.get(main_id, 0))
-    unallocated = main_balance - allocated_total
-    total_asset = sum(
-        int(balances_all.get(aid, 0))
-        for aid, acc in acc_by_id.items()
-        if acc["parent_account_id"] is not None
-    ) + int(unallocated)
-
-    return summary_accounts, int(total_asset), int(unallocated)
+    total_asset = sum(int(balances_all.get(aid, 0)) for aid in acc_by_id.keys())
+    return summary_accounts, int(total_asset)
 
 
 def build_ledger_data(
@@ -443,10 +486,10 @@ def build_ledger_data(
     account_id: str | None,
     from_dt: datetime,
     to_dt: datetime,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int, int]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int]:
     cur.execute(
         """
-        SELECT account_id::text, account_name, parent_account_id::text AS parent_account_id
+        SELECT account_id::text, account_name
         FROM accounts
         WHERE username=%s
         """,
@@ -454,10 +497,6 @@ def build_ledger_data(
     )
     accounts = cur.fetchall()
     acc_by_id = {a["account_id"]: a for a in accounts}
-    main = next((a for a in accounts if a["parent_account_id"] is None), None)
-    if not main:
-        raise HTTPException(status_code=400, detail="Main account missing")
-    main_id = main["account_id"]
 
     if scope not in ("all", "account"):
         raise HTTPException(status_code=400, detail="Invalid scope")
@@ -485,28 +524,7 @@ def build_ledger_data(
 
     total_asset_running = None
     if scope == "all":
-        main_start = int(balance.get(main_id, 0))
-        non_main_start = sum(
-            int(balance.get(aid, 0))
-            for aid, acc in acc_by_id.items()
-            if acc["parent_account_id"] is not None
-        )
-        cur.execute(
-            """
-            SELECT COALESCE(SUM(t.amount), 0) AS allocated_total
-            FROM transactions t
-            JOIN accounts a ON a.account_id=t.account_id
-            WHERE a.username=%s
-              AND a.parent_account_id IS NOT NULL
-              AND t.transaction_name=%s
-              AND t.transaction_type='debit'
-              AND t.date < %s
-            """,
-            (username, "Top Up Balance", from_dt),
-        )
-        allocated_start = int(cur.fetchone()["allocated_total"] or 0)
-        unallocated_start = main_start - allocated_start
-        total_asset_running = non_main_start + unallocated_start
+        total_asset_running = sum(int(balance.get(aid, 0)) for aid in acc_by_id.keys())
 
     cur.execute(
         """
@@ -516,7 +534,9 @@ def build_ledger_data(
                t.transaction_type,
                t.transaction_name,
                t.amount,
-               t.date
+               t.date,
+               t.is_transfer,
+               t.transfer_id::text AS transfer_id
         FROM transactions t
         JOIN accounts a ON a.account_id=t.account_id
         WHERE a.username=%s
@@ -534,11 +554,6 @@ def build_ledger_data(
         aid = t["account_id"]
         signed = int(t["amount"]) if t["transaction_type"] == "debit" else -int(t["amount"])
         balance[aid] = int(balance.get(aid, 0) + signed)
-        name = (t.get("transaction_name") or "").strip()
-        if scope == "all" and is_all_internal_name(name):
-            continue
-        if scope == "account" and account_id == main_id and is_switch_tx_name(name):
-            continue
         row_no += 1
         row_balance = int(balance.get(aid, 0))
         if scope == "all" and total_asset_running is not None:
@@ -555,12 +570,14 @@ def build_ledger_data(
                 "debit": int(t["amount"]) if t["transaction_type"] == "debit" else 0,
                 "credit": int(t["amount"]) if t["transaction_type"] == "credit" else 0,
                 "balance": row_balance,
+                "is_transfer": bool(t.get("is_transfer")),
+                "transfer_id": t.get("transfer_id"),
             }
         )
 
-    summary_accounts, total_asset, unallocated = compute_summary(cur, username, acc_by_id, main_id, to_dt)
+    summary_accounts, total_asset = compute_summary(cur, username, acc_by_id, to_dt)
 
-    return rows, summary_accounts, total_asset, unallocated
+    return rows, summary_accounts, total_asset
 
 
 def build_ledger_page(
@@ -575,10 +592,10 @@ def build_ledger_page(
     order: str,
     query: str | None,
     include_summary: bool = True,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int, int, dict[str, int | bool]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int, dict[str, int | bool]]:
     cur.execute(
         """
-        SELECT account_id::text, account_name, parent_account_id::text AS parent_account_id
+        SELECT account_id::text, account_name
         FROM accounts
         WHERE username=%s
         """,
@@ -586,13 +603,9 @@ def build_ledger_page(
     )
     accounts = cur.fetchall()
     if not accounts:
-        return [], [], 0, 0, {"limit": limit, "offset": offset, "has_more": False, "next_offset": offset}
+        return [], [], 0, {"limit": limit, "offset": offset, "has_more": False, "next_offset": offset}
 
     acc_by_id = {a["account_id"]: a for a in accounts}
-    main = next((a for a in accounts if a["parent_account_id"] is None), None)
-    if not main:
-        raise HTTPException(status_code=400, detail="Main account missing")
-    main_id = main["account_id"]
 
     if scope not in ("all", "account"):
         raise HTTPException(status_code=400, detail="Invalid scope")
@@ -610,15 +623,14 @@ def build_ledger_page(
 
     summary_accounts: list[dict[str, Any]] = []
     total_asset = 0
-    unallocated = 0
     if include_summary:
         summary_key = f"{username}:ledger:{to_dt.isoformat()}"
         cached = cache_get(summary_key)
         if cached:
-            summary_accounts, total_asset, unallocated = cached
+            summary_accounts, total_asset = cached
         else:
-            summary_accounts, total_asset, unallocated = compute_summary(cur, username, acc_by_id, main_id, to_dt)
-            cache_set(summary_key, (summary_accounts, total_asset, unallocated), SUMMARY_CACHE_TTL)
+            summary_accounts, total_asset = compute_summary(cur, username, acc_by_id, to_dt)
+            cache_set(summary_key, (summary_accounts, total_asset), SUMMARY_CACHE_TTL)
 
     base_balance = 0
     if scope == "all":
@@ -637,28 +649,7 @@ def build_ledger_page(
         )
         start_rows = cur.fetchall()
         balance = {r["account_id"]: int(r["start_balance"]) for r in start_rows}
-        main_start = int(balance.get(main_id, 0))
-        non_main_start = sum(
-            int(balance.get(aid, 0))
-            for aid, acc in acc_by_id.items()
-            if acc["parent_account_id"] is not None
-        )
-        cur.execute(
-            """
-            SELECT COALESCE(SUM(t.amount), 0) AS allocated_total
-            FROM transactions t
-            JOIN accounts a ON a.account_id=t.account_id
-            WHERE a.username=%s
-              AND a.parent_account_id IS NOT NULL
-              AND t.transaction_name=%s
-              AND t.transaction_type='debit'
-              AND t.date < %s
-            """,
-            (username, "Top Up Balance", from_dt),
-        )
-        allocated_start = int(cur.fetchone()["allocated_total"] or 0)
-        unallocated_start = main_start - allocated_start
-        base_balance = non_main_start + unallocated_start
+        base_balance = sum(int(balance.get(aid, 0)) for aid in acc_by_id.keys())
     else:
         cur.execute(
             """
@@ -675,11 +666,6 @@ def build_ledger_page(
     if scope == "account":
         base_filters.append("t.account_id=%s::uuid")
         params.append(account_id)
-    if scope == "all":
-        base_filters.append(
-            "NOT (t.transaction_name = %s OR t.transaction_name ILIKE %s OR t.transaction_name ILIKE %s)"
-        )
-        params.extend(["Top Up Balance", "Switching from %", "Switching to %"])
 
     search_pattern = build_search_pattern(query)
     search_sql = ""
@@ -697,13 +683,15 @@ def build_ledger_page(
                    t.transaction_name,
                    t.amount,
                    t.date,
+                   t.is_transfer,
+                   t.transfer_id::text AS transfer_id,
                    SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END)
                      OVER (ORDER BY t.date ASC, t.transaction_id ASC) AS running_delta
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
             WHERE {" AND ".join(base_filters)}
         )
-        SELECT transaction_id, account_id, account_name, transaction_type, transaction_name, amount, date, running_delta
+        SELECT transaction_id, account_id, account_name, transaction_type, transaction_name, amount, date, is_transfer, transfer_id, running_delta
         FROM base
         {search_sql}
         ORDER BY date {order_dir}, transaction_id {order_dir}
@@ -733,11 +721,13 @@ def build_ledger_page(
                 "debit": int(r["amount"]) if r["transaction_type"] == "debit" else 0,
                 "credit": int(r["amount"]) if r["transaction_type"] == "credit" else 0,
                 "balance": int(balance),
+                "is_transfer": bool(r.get("is_transfer")),
+                "transfer_id": r.get("transfer_id"),
             }
         )
 
     paging = {"limit": limit, "offset": offset, "has_more": has_more, "next_offset": offset + len(rows)}
-    return rows, summary_accounts, total_asset, unallocated, paging
+    return rows, summary_accounts, total_asset, paging
 
 
 @app.get("/health")
@@ -747,11 +737,16 @@ def health():
 
 @app.post("/auth/register")
 async def register(req: Request):
-    # For initial setup / testing. You can remove later.
+    # Invite-only registration.
     data = await req.json()
     client_ip = get_client_ip(req)
     if rate_limit_exceeded(f"register:ip:{client_ip}", REGISTER_RATE_LIMIT, REGISTER_RATE_WINDOW):
         raise HTTPException(status_code=429, detail="Too many registration attempts. Try again later.")
+    if not INVITE_CODE:
+        raise HTTPException(status_code=403, detail="Registration disabled")
+    invite_code = (data.get("invite_code") or "").strip()
+    if invite_code != INVITE_CODE:
+        raise HTTPException(status_code=403, detail="Invalid invite code")
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
     if not username or not password:
@@ -776,11 +771,11 @@ async def register(req: Request):
                 "INSERT INTO users (username, password_hash, full_name) VALUES (%s, %s, %s)",
                 (username, pw_hash, full_name),
             )
-            # auto-create main account
+            # auto-create a default account
             cur.execute(
                 """
-                INSERT INTO accounts (username, account_name, parent_account_id)
-                VALUES (%s, %s, NULL)
+                INSERT INTO accounts (username, account_name)
+                VALUES (%s, %s)
                 RETURNING account_id::text
                 """,
                 (username, "Main Account"),
@@ -839,11 +834,10 @@ def list_accounts(req: Request):
         cur.execute(
             """
             SELECT a.account_id::text,
-                   a.account_name,
-                   a.parent_account_id::text AS parent_account_id
+                   a.account_name
             FROM accounts a
             WHERE a.username=%s
-            ORDER BY (a.parent_account_id IS NOT NULL), a.account_name
+            ORDER BY a.account_name
             """,
             (username,),
         )
@@ -855,23 +849,35 @@ async def create_account(req: Request):
     username = require_user(req)
     data = await req.json()
     account_name = (data.get("account_name") or "").strip()
+    initial_balance_raw = data.get("initial_balance", 0)
+    try:
+        initial_balance = int(initial_balance_raw or 0)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid initial balance")
     if not account_name:
         raise HTTPException(status_code=400, detail="account_name required")
+    if initial_balance < 0:
+        raise HTTPException(status_code=400, detail="initial balance must be >= 0")
 
     with db() as conn, conn.cursor() as cur:
-        main = get_main_account(cur, username)
-        parent_account_id = main["account_id"]
-
         try:
             cur.execute(
                 """
-                INSERT INTO accounts (username, account_name, parent_account_id)
-                VALUES (%s, %s, %s::uuid)
+                INSERT INTO accounts (username, account_name)
+                VALUES (%s, %s)
                 RETURNING account_id::text
                 """,
-                (username, account_name, parent_account_id),
+                (username, account_name),
             )
             account_id = cur.fetchone()["account_id"]
+            if initial_balance > 0:
+                cur.execute(
+                    """
+                    INSERT INTO transactions (account_id, transaction_type, transaction_name, amount, date, is_transfer)
+                    VALUES (%s::uuid, 'debit', %s, %s, %s, false)
+                    """,
+                    (account_id, "Top Up Balance", initial_balance, now_utc()),
+                )
             conn.commit()
         except Exception:
             conn.rollback()
@@ -896,7 +902,7 @@ def list_budgets(req: Request, month: str | None = None):
                    b.amount
             FROM budgets b
             JOIN accounts a ON a.account_id=b.account_id
-            WHERE b.username=%s AND b.month=%s AND a.parent_account_id IS NOT NULL
+            WHERE b.username=%s AND b.month=%s
             ORDER BY a.account_name
             """,
             (username, month),
@@ -919,18 +925,11 @@ async def upsert_budget(req: Request):
 
     with db() as conn, conn.cursor() as cur:
         cur.execute(
-            """
-            SELECT parent_account_id IS NULL AS is_main
-            FROM accounts
-            WHERE username=%s AND account_id=%s::uuid
-            """,
+            "SELECT 1 FROM accounts WHERE username=%s AND account_id=%s::uuid",
             (username, account_id),
         )
-        acc = cur.fetchone()
-        if not acc:
+        if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Account not found")
-        if acc["is_main"]:
-            raise HTTPException(status_code=400, detail="Cannot set budget for main account")
 
         cur.execute(
             """
@@ -966,7 +965,6 @@ async def update_budget(budget_id: str, req: Request):
             WHERE b.account_id=a.account_id
               AND b.budget_id=%s::uuid
               AND b.username=%s
-              AND a.parent_account_id IS NOT NULL
             RETURNING b.budget_id
             """,
             (amount, budget_id, username),
@@ -990,7 +988,6 @@ def delete_budget(budget_id: str, req: Request):
             WHERE b.account_id=a.account_id
               AND b.budget_id=%s::uuid
               AND b.username=%s
-              AND a.parent_account_id IS NOT NULL
             RETURNING b.budget_id
             """,
             (budget_id, username),
@@ -1050,19 +1047,11 @@ def delete_account(account_id: str, req: Request):
     username = require_user(req)
     with db() as conn, conn.cursor() as cur:
         cur.execute(
-            """
-            SELECT account_id::text AS account_id, parent_account_id IS NULL AS is_main
-            FROM accounts
-            WHERE username=%s AND account_id=%s::uuid
-            """,
+            "SELECT account_id::text AS account_id FROM accounts WHERE username=%s AND account_id=%s::uuid",
             (username, account_id),
         )
-        acc = cur.fetchone()
-        if not acc:
+        if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Account not found")
-        if acc["is_main"]:
-            raise HTTPException(status_code=400, detail="Cannot delete main account")
-
         cur.execute(
             "DELETE FROM accounts WHERE username=%s AND account_id=%s::uuid",
             (username, account_id),
@@ -1098,91 +1087,28 @@ async def create_tx(req: Request):
         if not cur.fetchone():
             raise HTTPException(status_code=400, detail="Invalid account_id")
 
+        temp_id = str(uuid.uuid4())
+        ensure_account_non_negative(
+            cur,
+            account_id,
+            dt,
+            [
+                {
+                    "transaction_id": temp_id,
+                    "date": dt,
+                    "transaction_type": tx_type,
+                    "amount": amount,
+                }
+            ],
+        )
+
         cur.execute(
             """
-            INSERT INTO transactions (account_id, transaction_type, transaction_name, amount, date)
-            VALUES (%s::uuid, %s, %s, %s, %s)
+            INSERT INTO transactions (account_id, transaction_type, transaction_name, amount, date, is_transfer)
+            VALUES (%s::uuid, %s, %s, %s, %s, false)
             RETURNING transaction_id::text
             """,
             (account_id, tx_type, name, amount, dt),
-        )
-        tx_id = cur.fetchone()["transaction_id"]
-        conn.commit()
-
-    invalidate_user_cache(username)
-    return {"ok": True, "transaction_id": tx_id}
-
-
-@app.post("/allocate")
-async def allocate_balance(req: Request):
-    username = require_user(req)
-    data = await req.json()
-    target_account_id = data.get("target_account_id")
-    amount = int(data.get("amount") or 0)
-    date_str = data.get("date")
-
-    if not target_account_id or amount <= 0:
-        raise HTTPException(status_code=400, detail="Invalid allocation payload")
-
-    dt = parse_tx_datetime(date_str)
-
-    with db() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT account_id::text AS account_id,
-                   account_name,
-                   parent_account_id IS NULL AS is_main
-            FROM accounts
-            WHERE username=%s AND account_id=%s::uuid
-            """,
-            (username, target_account_id),
-        )
-        target = cur.fetchone()
-        if not target:
-            raise HTTPException(status_code=404, detail="Account not found")
-        if target["is_main"]:
-            raise HTTPException(status_code=400, detail="Cannot allocate to main account")
-
-        main = get_main_account(cur, username)
-        cur.execute(
-            "SELECT account_id::text AS account_id, parent_account_id FROM accounts WHERE username=%s",
-            (username,),
-        )
-        all_accounts = cur.fetchall()
-        balances_all = get_account_balances(cur, username, now_utc())
-        now_ts = now_utc()
-        cur.execute(
-            """
-            SELECT t.amount
-            FROM transactions t
-            JOIN accounts a ON a.account_id=t.account_id
-            WHERE a.username=%s
-              AND a.parent_account_id IS NOT NULL
-              AND t.transaction_name=%s
-              AND t.transaction_type='debit'
-              AND t.date <= %s
-            """,
-            (username, "Top Up Balance", now_ts),
-        )
-        allocated_total = sum(int(t["amount"]) for t in cur.fetchall())
-        main_balance = int(balances_all.get(main["account_id"], 0))
-        unallocated = main_balance - int(allocated_total)
-        total_asset = sum(
-            int(balances_all.get(a["account_id"], 0))
-            for a in all_accounts
-            if a["parent_account_id"] is not None
-        ) + unallocated
-
-        if amount > unallocated:
-            raise HTTPException(status_code=400, detail="Insufficient unallocated balance")
-
-        cur.execute(
-            """
-            INSERT INTO transactions (account_id, transaction_type, transaction_name, amount, date)
-            VALUES (%s::uuid, 'debit', %s, %s, %s)
-            RETURNING transaction_id::text
-            """,
-            (target_account_id, "Top Up Balance", amount, dt),
         )
         tx_id = cur.fetchone()["transaction_id"]
         conn.commit()
@@ -1211,8 +1137,7 @@ async def switch_balance(req: Request):
         cur.execute(
             """
             SELECT account_id::text AS account_id,
-                   account_name,
-                   parent_account_id IS NULL AS is_main
+                   account_name
             FROM accounts
             WHERE username=%s AND account_id IN (%s::uuid, %s::uuid)
             """,
@@ -1227,22 +1152,31 @@ async def switch_balance(req: Request):
         target = acc_map.get(target_account_id)
         if not source or not target:
             raise HTTPException(status_code=404, detail="Account not found")
-        if source["is_main"] or target["is_main"]:
-            raise HTTPException(status_code=400, detail="Cannot switch with main account")
 
-        balances_all = get_account_balances(cur, username, dt)
-        source_balance = int(balances_all.get(source_account_id, 0))
-        if amount > source_balance:
-            raise HTTPException(status_code=400, detail="Insufficient balance in source account")
+        temp_id = str(uuid.uuid4())
+        ensure_account_non_negative(
+            cur,
+            source_account_id,
+            dt,
+            [
+                {
+                    "transaction_id": temp_id,
+                    "date": dt,
+                    "transaction_type": "credit",
+                    "amount": amount,
+                }
+            ],
+        )
 
         source_name = f"Switching to {target['account_name']}"
         target_name = f"Switching from {source['account_name']}"
+        transfer_id = str(uuid.uuid4())
         cur.execute(
             """
-            INSERT INTO transactions (account_id, transaction_type, transaction_name, amount, date)
+            INSERT INTO transactions (account_id, transaction_type, transaction_name, amount, date, is_transfer, transfer_id)
             VALUES
-              (%s::uuid, 'credit', %s, %s, %s),
-              (%s::uuid, 'debit', %s, %s, %s)
+              (%s::uuid, 'credit', %s, %s, %s, true, %s::uuid),
+              (%s::uuid, 'debit', %s, %s, %s, true, %s::uuid)
             RETURNING transaction_id::text
             """,
             (
@@ -1250,11 +1184,249 @@ async def switch_balance(req: Request):
                 source_name,
                 amount,
                 dt,
+                transfer_id,
                 target_account_id,
                 target_name,
                 amount,
                 dt,
+                transfer_id,
             ),
+        )
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True, "transfer_id": transfer_id}
+
+
+@app.get("/switch/{transfer_id}")
+def get_switch(transfer_id: str, req: Request):
+    username = require_user(req)
+    with db() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT t.transaction_id::text AS transaction_id,
+                   t.account_id::text AS account_id,
+                   t.transaction_type,
+                   t.amount,
+                   t.date,
+                   a.account_name
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE t.transfer_id=%s::uuid AND a.username=%s
+            """,
+            (transfer_id, username),
+        )
+        rows = cur.fetchall()
+        if len(rows) != 2:
+            raise HTTPException(status_code=404, detail="Switch not found")
+        source = next((r for r in rows if r["transaction_type"] == "credit"), None)
+        target = next((r for r in rows if r["transaction_type"] == "debit"), None)
+        if not source or not target:
+            raise HTTPException(status_code=400, detail="Invalid switch data")
+    return {
+        "transfer_id": transfer_id,
+        "source_account_id": source["account_id"],
+        "target_account_id": target["account_id"],
+        "amount": int(source["amount"]),
+        "date": source["date"].astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+
+
+@app.put("/switch/{transfer_id}")
+async def update_switch(transfer_id: str, req: Request):
+    username = require_user(req)
+    data = await req.json()
+    with db() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT t.transaction_id::text AS transaction_id,
+                   t.account_id::text AS account_id,
+                   t.transaction_type,
+                   t.amount,
+                   t.date,
+                   a.account_name
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE t.transfer_id=%s::uuid AND a.username=%s
+            """,
+            (transfer_id, username),
+        )
+        rows = cur.fetchall()
+        if len(rows) != 2:
+            raise HTTPException(status_code=404, detail="Switch not found")
+
+        source = next((r for r in rows if r["transaction_type"] == "credit"), None)
+        target = next((r for r in rows if r["transaction_type"] == "debit"), None)
+        if not source or not target:
+            raise HTTPException(status_code=400, detail="Invalid switch data")
+
+        source_account_id = data.get("source_account_id") or source["account_id"]
+        target_account_id = data.get("target_account_id") or target["account_id"]
+        if source_account_id == target_account_id:
+            raise HTTPException(status_code=400, detail="Source and target must differ")
+
+        amount = int(data.get("amount") or source["amount"])
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be > 0")
+
+        if "date" in data and data.get("date"):
+            new_date = parse_tx_datetime(data.get("date"))
+        else:
+            new_date = source["date"]
+
+        cur.execute(
+            """
+            SELECT account_id::text AS account_id, account_name
+            FROM accounts
+            WHERE username=%s AND account_id IN (%s::uuid, %s::uuid)
+            """,
+            (username, source_account_id, target_account_id),
+        )
+        accounts = cur.fetchall()
+        if len(accounts) != 2:
+            raise HTTPException(status_code=404, detail="Account not found")
+        acc_map = {a["account_id"]: a for a in accounts}
+        source_label = acc_map[source_account_id]["account_name"]
+        target_label = acc_map[target_account_id]["account_name"]
+        source_name = f"Switching to {target_label}"
+        target_name = f"Switching from {source_label}"
+
+        old_rows = [
+            {
+                "transaction_id": source["transaction_id"],
+                "account_id": source["account_id"],
+                "date": source["date"],
+            },
+            {
+                "transaction_id": target["transaction_id"],
+                "account_id": target["account_id"],
+                "date": target["date"],
+            },
+        ]
+        new_rows = [
+            {
+                "transaction_id": source["transaction_id"],
+                "account_id": source_account_id,
+                "date": new_date,
+                "transaction_type": "credit",
+                "amount": amount,
+            },
+            {
+                "transaction_id": target["transaction_id"],
+                "account_id": target_account_id,
+                "date": new_date,
+                "transaction_type": "debit",
+                "amount": amount,
+            },
+        ]
+
+        affected: dict[str, dict[str, Any]] = {}
+        for row in old_rows:
+            acc = row["account_id"]
+            affected.setdefault(acc, {"exclude": [], "dates": [], "new": []})
+            affected[acc]["exclude"].append(row["transaction_id"])
+            affected[acc]["dates"].append(row["date"])
+        for row in new_rows:
+            acc = row["account_id"]
+            affected.setdefault(acc, {"exclude": [], "dates": [], "new": []})
+            affected[acc]["new"].append(row)
+            affected[acc]["dates"].append(row["date"])
+
+        for acc_id, payload in affected.items():
+            effective_from = min(payload["dates"])
+            ensure_account_non_negative(
+                cur,
+                acc_id,
+                effective_from,
+                payload["new"],
+                exclude_tx_ids=payload["exclude"],
+            )
+
+        cur.execute(
+            """
+            UPDATE transactions
+            SET account_id=%s::uuid,
+                transaction_type='credit',
+                transaction_name=%s,
+                amount=%s,
+                date=%s,
+                is_transfer=true
+            WHERE transaction_id=%s::uuid AND transfer_id=%s::uuid
+            """,
+            (
+                source_account_id,
+                source_name,
+                amount,
+                new_date,
+                source["transaction_id"],
+                transfer_id,
+            ),
+        )
+        cur.execute(
+            """
+            UPDATE transactions
+            SET account_id=%s::uuid,
+                transaction_type='debit',
+                transaction_name=%s,
+                amount=%s,
+                date=%s,
+                is_transfer=true
+            WHERE transaction_id=%s::uuid AND transfer_id=%s::uuid
+            """,
+            (
+                target_account_id,
+                target_name,
+                amount,
+                new_date,
+                target["transaction_id"],
+                transfer_id,
+            ),
+        )
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True}
+
+
+@app.delete("/switch/{transfer_id}")
+def delete_switch(transfer_id: str, req: Request):
+    username = require_user(req)
+    with db() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT t.transaction_id::text AS transaction_id,
+                   t.account_id::text AS account_id,
+                   t.date
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE t.transfer_id=%s::uuid AND a.username=%s
+            """,
+            (transfer_id, username),
+        )
+        rows = cur.fetchall()
+        if len(rows) != 2:
+            raise HTTPException(status_code=404, detail="Switch not found")
+
+        affected: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            acc = row["account_id"]
+            affected.setdefault(acc, {"exclude": [], "dates": [], "new": []})
+            affected[acc]["exclude"].append(row["transaction_id"])
+            affected[acc]["dates"].append(row["date"])
+
+        for acc_id, payload in affected.items():
+            effective_from = min(payload["dates"])
+            ensure_account_non_negative(
+                cur,
+                acc_id,
+                effective_from,
+                [],
+                exclude_tx_ids=payload["exclude"],
+            )
+
+        cur.execute(
+            "DELETE FROM transactions WHERE transfer_id=%s::uuid",
+            (transfer_id,),
         )
         conn.commit()
 
@@ -1266,82 +1438,109 @@ async def switch_balance(req: Request):
 async def update_tx(transaction_id: str, req: Request):
     username = require_user(req)
     data = await req.json()
-    
-    # We allow updating mostly everything
-    # But we need to handle if account_id changes (move tx)
-    
-    account_id = data.get("account_id")
-    tx_type = data.get("transaction_type")
-    name = (data.get("transaction_name") or "").strip()
-    amount = data.get("amount")
-    date_str = data.get("date")
-
-    updates = []
-    params: list[Any] = []
-
-    if account_id:
-        # verify new account belongs to user
-        with db() as conn, conn.cursor() as cur:
-            cur.execute("SELECT 1 FROM accounts WHERE username=%s AND account_id=%s::uuid", (username, account_id))
-            if not cur.fetchone():
-                 raise HTTPException(status_code=400, detail="Invalid account_id")
-        updates.append("account_id=%s::uuid")
-        params.append(account_id)
-    
-    if tx_type:
-        if tx_type not in ("debit", "credit"):
-             raise HTTPException(status_code=400, detail="Invalid type")
-        updates.append("transaction_type=%s")
-        params.append(tx_type)
-        
-    if name:
-        updates.append("transaction_name=%s")
-        params.append(name)
-        
-    if amount is not None:
-        amt = int(amount)
-        if amt <= 0:
-             raise HTTPException(status_code=400, detail="Amount must be > 0")
-        updates.append("amount=%s")
-        params.append(amt)
-        
-    if date_str:
-        dt = None
-        try:
-            dt = datetime.fromisoformat(date_str)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            else:
-                dt = dt.astimezone(timezone.utc)
-        except:
-             # try parse_date_utc if it was just YYYY-MM-DD, but frontend sends ISO usually
-             pass
-        if dt:
-            updates.append("date=%s")
-            params.append(dt)
-
-    if not updates:
-         raise HTTPException(status_code=400, detail="No changes")
-
-    params.append(transaction_id)
-    params.append(username)
 
     with db() as conn, conn.cursor() as cur:
-        # Update ensuring tx belongs to user (via account join)
         cur.execute(
-            f"""
-            UPDATE transactions t
-            SET {", ".join(updates)}
-            FROM accounts a
-            WHERE t.account_id = a.account_id
-              AND t.transaction_id = %s::uuid
-              AND a.username = %s
-            RETURNING t.transaction_id
+            """
+            SELECT t.transaction_id::text AS transaction_id,
+                   t.account_id::text AS account_id,
+                   t.transaction_type,
+                   t.transaction_name,
+                   t.amount,
+                   t.date,
+                   t.is_transfer
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE t.transaction_id=%s::uuid AND a.username=%s
             """,
-            params
+            (transaction_id, username),
+        )
+        tx = cur.fetchone()
+        if not tx:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        if tx.get("is_transfer"):
+            raise HTTPException(status_code=400, detail="Use switch endpoints to edit transfers")
+
+        new_account_id = data.get("account_id") or tx["account_id"]
+        new_type = data.get("transaction_type") or tx["transaction_type"]
+        if new_type not in ("debit", "credit"):
+            raise HTTPException(status_code=400, detail="Invalid type")
+
+        if "transaction_name" in data:
+            new_name = (data.get("transaction_name") or "").strip()
+            if not new_name:
+                raise HTTPException(status_code=400, detail="transaction_name required")
+        else:
+            new_name = tx["transaction_name"]
+
+        if "amount" in data:
+            new_amount = int(data.get("amount") or 0)
+        else:
+            new_amount = int(tx["amount"])
+        if new_amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be > 0")
+
+        if "date" in data and data.get("date"):
+            new_date = parse_tx_datetime(data.get("date"))
+        else:
+            new_date = tx["date"]
+
+        old_account_id = tx["account_id"]
+        old_date = tx["date"]
+
+        if new_account_id != old_account_id:
+            cur.execute(
+                "SELECT 1 FROM accounts WHERE username=%s AND account_id=%s::uuid",
+                (username, new_account_id),
+            )
+            if not cur.fetchone():
+                raise HTTPException(status_code=400, detail="Invalid account_id")
+            ensure_account_non_negative(cur, old_account_id, old_date, [], exclude_tx_ids=[transaction_id])
+            ensure_account_non_negative(
+                cur,
+                new_account_id,
+                new_date,
+                [
+                    {
+                        "transaction_id": transaction_id,
+                        "date": new_date,
+                        "transaction_type": new_type,
+                        "amount": new_amount,
+                    }
+                ],
+            )
+        else:
+            effective_from = min(old_date, new_date)
+            ensure_account_non_negative(
+                cur,
+                old_account_id,
+                effective_from,
+                [
+                    {
+                        "transaction_id": transaction_id,
+                        "date": new_date,
+                        "transaction_type": new_type,
+                        "amount": new_amount,
+                    }
+                ],
+                exclude_tx_ids=[transaction_id],
+            )
+
+        cur.execute(
+            """
+            UPDATE transactions
+            SET account_id=%s::uuid,
+                transaction_type=%s,
+                transaction_name=%s,
+                amount=%s,
+                date=%s
+            WHERE transaction_id=%s::uuid
+            RETURNING transaction_id
+            """,
+            (new_account_id, new_type, new_name, new_amount, new_date, transaction_id),
         )
         if not cur.fetchone():
-             raise HTTPException(status_code=404, detail="Transaction not found")
+            raise HTTPException(status_code=404, detail="Transaction not found")
         conn.commit()
 
     invalidate_user_cache(username)
@@ -1352,20 +1551,34 @@ async def update_tx(transaction_id: str, req: Request):
 def delete_tx(transaction_id: str, req: Request):
     username = require_user(req)
     with db() as conn, conn.cursor() as cur:
-        # Check ownership and delete
         cur.execute(
             """
-            DELETE FROM transactions t
-            USING accounts a
-            WHERE t.account_id = a.account_id
-              AND t.transaction_id = %s::uuid
-              AND a.username = %s
-            RETURNING t.transaction_id
+            SELECT t.transaction_id::text AS transaction_id,
+                   t.account_id::text AS account_id,
+                   t.date,
+                   t.is_transfer
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE t.transaction_id=%s::uuid AND a.username=%s
             """,
             (transaction_id, username)
         )
-        if not cur.fetchone():
-             raise HTTPException(status_code=404, detail="Transaction not found")
+        tx = cur.fetchone()
+        if not tx:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        if tx.get("is_transfer"):
+            raise HTTPException(status_code=400, detail="Use switch endpoints to delete transfers")
+
+        ensure_account_non_negative(cur, tx["account_id"], tx["date"], [], exclude_tx_ids=[transaction_id])
+
+        cur.execute(
+            """
+            DELETE FROM transactions
+            WHERE transaction_id=%s::uuid
+            RETURNING transaction_id
+            """,
+            (transaction_id,),
+        )
         conn.commit()
     invalidate_user_cache(username)
     return {"ok": True}
@@ -1409,7 +1622,7 @@ def ledger(
     to_dt = parse_date_utc(to_date, end_of_day=True)
 
     with db() as conn, conn.cursor() as cur:
-        rows, summary_accounts, total_asset, unallocated, paging = build_ledger_page(
+        rows, summary_accounts, total_asset, paging = build_ledger_page(
             cur, username, scope, account_id, from_dt, to_dt, limit, offset, order, q, include_summary
         )
 
@@ -1420,7 +1633,7 @@ def ledger(
         "paging": paging,
         "summary": None
         if not include_summary
-        else {"accounts": summary_accounts, "total_asset": int(total_asset), "unallocated": int(unallocated)},
+        else {"accounts": summary_accounts, "total_asset": int(total_asset)},
     }
 
 
@@ -1430,17 +1643,21 @@ def summary(req: Request, month: str | None = None):
     username = require_user(req)
     if not month:
         month = now_utc().strftime("%Y-%m")
+    parse_month(month)
     cache_key = f"{username}:summary:{month}"
     cached = cache_get(cache_key)
     if cached:
         return cached
-    from_date, to_date, from_dt, to_dt = compute_month_range(month)
-    start_cutoff = from_dt - timedelta(milliseconds=1)
-
     with db() as conn, conn.cursor() as cur:
+        payday_day, payday_source, override_day = get_payday_day(cur, username, month)
+        default_day = get_default_payday_day(cur, username)
+        prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))
+        from_date, to_date, from_dt, to_dt = compute_month_range(month, payday_day, prev_day)
+        start_cutoff = from_dt - timedelta(milliseconds=1)
+
         cur.execute(
             """
-            SELECT account_id::text, account_name, parent_account_id::text AS parent_account_id
+            SELECT account_id::text, account_name
             FROM accounts
             WHERE username=%s
             """,
@@ -1448,59 +1665,22 @@ def summary(req: Request, month: str | None = None):
         )
         accounts = cur.fetchall()
         if not accounts:
-            payload = {"range": {"from": from_date, "to": to_date}, "accounts": []}
+            payload = {
+                "range": {"from": from_date, "to": to_date},
+                "month": month,
+                "payday": {
+                    "day": payday_day,
+                    "source": payday_source,
+                    "default_day": default_day,
+                    "override_day": override_day,
+                },
+                "accounts": [],
+            }
             cache_set(cache_key, payload, MONTH_SUMMARY_TTL)
             return payload
 
         balances_start = get_account_balances(cur, username, start_cutoff)
-        balances_now = get_account_balances(cur, username, now_utc())
-        main = next((a for a in accounts if a["parent_account_id"] is None), None)
-        if not main:
-            raise HTTPException(status_code=400, detail="Main account missing")
-        main_id = main["account_id"]
-        cur.execute(
-            """
-            SELECT COALESCE(SUM(t.amount), 0) AS allocated_total
-            FROM transactions t
-            JOIN accounts a ON a.account_id=t.account_id
-            WHERE a.username=%s
-              AND a.parent_account_id IS NOT NULL
-              AND t.transaction_name=%s
-              AND t.transaction_type='debit'
-              AND t.date <= %s
-            """,
-            (username, "Top Up Balance", start_cutoff),
-        )
-        allocated_start = int(cur.fetchone()["allocated_total"] or 0)
-        main_balance_start = int(balances_start.get(main_id, 0))
-        unallocated_start = main_balance_start - allocated_start
-        total_asset_start = sum(
-            int(balances_start.get(acc["account_id"], 0))
-            for acc in accounts
-            if acc["parent_account_id"] is not None
-        ) + int(unallocated_start)
-
-        cur.execute(
-            """
-            SELECT COALESCE(SUM(t.amount), 0) AS allocated_total
-            FROM transactions t
-            JOIN accounts a ON a.account_id=t.account_id
-            WHERE a.username=%s
-              AND a.parent_account_id IS NOT NULL
-              AND t.transaction_name=%s
-              AND t.transaction_type='debit'
-              AND t.date <= %s
-            """,
-            (username, "Top Up Balance", now_utc()),
-        )
-        allocated_now = int(cur.fetchone()["allocated_total"] or 0)
-        main_balance_now = int(balances_now.get(main_id, 0))
-        unallocated_now = main_balance_now - allocated_now
-        total_asset_now = sum(
-            int(balances_now.get(acc["account_id"], 0))
-            for acc in accounts
-            if acc["parent_account_id"] is not None
-        ) + int(unallocated_now)
+        balances_end = get_account_balances(cur, username, to_dt)
 
         cur.execute(
             """
@@ -1517,26 +1697,6 @@ def summary(req: Request, month: str | None = None):
             (username, from_dt, to_dt),
         )
         totals = {r["account_id"]: r for r in cur.fetchall()}
-        cur.execute(
-            """
-            SELECT COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
-                   COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS total_out
-            FROM transactions t
-            JOIN accounts a ON a.account_id=t.account_id
-            WHERE a.username=%s
-              AND t.date >= %s
-              AND t.date <= %s
-              AND NOT (
-                t.transaction_name = %s
-                OR t.transaction_name ILIKE %s
-                OR t.transaction_name ILIKE %s
-              )
-            """,
-            (username, from_dt, to_dt, "Top Up Balance", "Switching from %", "Switching to %"),
-        )
-        filtered_totals = cur.fetchone() or {}
-        total_in_all = int(filtered_totals.get("total_in") or 0)
-        total_out_all = int(filtered_totals.get("total_out") or 0)
 
         cur.execute(
             """
@@ -1553,50 +1713,48 @@ def summary(req: Request, month: str | None = None):
             for r in cur.fetchall()
         }
 
-    accounts_sorted = sorted(
-        accounts,
-        key=lambda a: (a["parent_account_id"] is not None, a["account_name"].lower()),
-    )
-    payload = []
+    accounts_sorted = sorted(accounts, key=lambda a: a["account_name"].lower())
+    payload_accounts = []
     for acc in accounts_sorted:
         acc_id = acc["account_id"]
         total_row = totals.get(acc_id, {})
         total_in = int(total_row.get("total_in") or 0)
         total_out = int(total_row.get("total_out") or 0)
-        budget_info = budgets.get(acc_id) if acc["parent_account_id"] is not None else None
+        budget_info = budgets.get(acc_id)
         budget_amount = budget_info["amount"] if budget_info else None
         budget_id = budget_info["budget_id"] if budget_info else None
-        budget_used = total_out if acc["parent_account_id"] is not None else 0
-        budget_pct, budget_status, budget_remaining = compute_budget_status(budget_amount, budget_used)
-        starting_balance = (
-            int(total_asset_start)
-            if acc["parent_account_id"] is None
-            else int(balances_start.get(acc_id, 0))
-        )
-        net_change = (
-            int(total_in_all - total_out_all)
-            if acc["parent_account_id"] is None
-            else int(total_in - total_out)
-        )
-        payload.append(
+        budget_used = total_out if budget_amount is not None else None
+        budget_pct, budget_status, budget_remaining = compute_budget_status(budget_amount, total_out)
+        starting_balance = int(balances_start.get(acc_id, 0))
+        current_balance = int(balances_end.get(acc_id, 0))
+        payload_accounts.append(
             {
                 "account_id": acc_id,
                 "account_name": acc["account_name"],
-                "is_main": acc["parent_account_id"] is None,
                 "starting_balance": starting_balance,
-                "current_balance": int(starting_balance + net_change),
-                "total_in": int(total_in_all) if acc["parent_account_id"] is None else total_in,
-                "total_out": int(total_out_all) if acc["parent_account_id"] is None else total_out,
+                "current_balance": current_balance,
+                "total_in": total_in,
+                "total_out": total_out,
                 "budget_id": budget_id,
                 "budget": int(budget_amount) if budget_amount is not None else None,
-                "budget_used": int(budget_used) if budget_amount is not None else None,
-                "budget_remaining": int(budget_remaining) if budget_amount is not None else None,
+                "budget_used": int(budget_used) if budget_used is not None else None,
+                "budget_remaining": int(budget_remaining) if budget_remaining is not None else None,
                 "budget_pct": int(budget_pct) if budget_pct is not None else None,
                 "budget_status": budget_status,
             }
         )
 
-    payload = {"range": {"from": from_date, "to": to_date}, "accounts": payload}
+    payload = {
+        "range": {"from": from_date, "to": to_date},
+        "month": month,
+        "payday": {
+            "day": payday_day,
+            "source": payday_source,
+            "default_day": default_day,
+            "override_day": override_day,
+        },
+        "accounts": payload_accounts,
+    }
     cache_set(cache_key, payload, MONTH_SUMMARY_TTL)
     return payload
 
@@ -1612,16 +1770,15 @@ def analysis(req: Request, month: str | None = None):
     if cached:
         return cached
 
-    from_date, to_date, from_dt, to_dt = compute_month_range(month)
-    base_filters = [
-        "a.username=%s",
-        "t.date >= %s",
-        "t.date <= %s",
-        "NOT (t.transaction_name = %s OR t.transaction_name ILIKE %s OR t.transaction_name ILIKE %s)",
-    ]
-    params: list[Any] = [username, from_dt, to_dt, "Top Up Balance", "Switching from %", "Switching to %"]
-
     with db() as conn, conn.cursor() as cur:
+        payday_day, payday_source, override_day = get_payday_day(cur, username, month)
+        default_day = get_default_payday_day(cur, username)
+        prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))
+        from_date, to_date, from_dt, to_dt = compute_month_range(month, payday_day, prev_day)
+
+        base_filters = ["a.username=%s", "t.date >= %s", "t.date <= %s"]
+        params: list[Any] = [username, from_dt, to_dt]
+
         cur.execute(
             f"""
             SELECT COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
@@ -1662,7 +1819,6 @@ def analysis(req: Request, month: str | None = None):
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
             WHERE {" AND ".join(base_filters)}
-              AND a.parent_account_id IS NOT NULL
             GROUP BY t.account_id, a.account_name
             ORDER BY total_out DESC, a.account_name ASC
             """,
@@ -1683,6 +1839,13 @@ def analysis(req: Request, month: str | None = None):
 
     payload = {
         "range": {"from": from_date, "to": to_date},
+        "month": month,
+        "payday": {
+            "day": payday_day,
+            "source": payday_source,
+            "default_day": default_day,
+            "override_day": override_day,
+        },
         "totals": {"total_in": total_in, "total_out": total_out, "net": int(total_in - total_out)},
         "daily": daily_series,
         "weekly": weekly_series,
@@ -1692,13 +1855,84 @@ def analysis(req: Request, month: str | None = None):
     return payload
 
 
+@app.get("/payday")
+def get_payday(req: Request, month: str | None = None):
+    username = require_user(req)
+    if not month:
+        month = now_utc().strftime("%Y-%m")
+    parse_month(month)
+    with db() as conn, conn.cursor() as cur:
+        payday_day, payday_source, override_day = get_payday_day(cur, username, month)
+        default_day = get_default_payday_day(cur, username)
+    return {
+        "month": month,
+        "day": payday_day,
+        "source": payday_source,
+        "default_day": default_day,
+        "override_day": override_day,
+    }
+
+
+@app.put("/payday")
+async def set_payday(req: Request):
+    username = require_user(req)
+    data = await req.json()
+    month = data.get("month")
+    day_val = data.get("day")
+    clear_override = bool(data.get("clear_override"))
+
+    if month:
+        parse_month(month)
+        if clear_override:
+            with db() as conn, conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM payday_overrides WHERE username=%s AND month=%s",
+                    (username, month),
+                )
+                conn.commit()
+        else:
+            try:
+                day = int(day_val)
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid payday day")
+            if day < 1 or day > 31:
+                raise HTTPException(status_code=400, detail="Payday day must be between 1 and 31")
+            with db() as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO payday_overrides (username, month, payday_day)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (username, month)
+                    DO UPDATE SET payday_day=EXCLUDED.payday_day
+                    """,
+                    (username, month, day),
+                )
+                conn.commit()
+    else:
+        try:
+            day = int(day_val)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid payday day")
+        if day < 1 or day > 31:
+            raise HTTPException(status_code=400, detail="Payday day must be between 1 and 31")
+        with db() as conn, conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET default_payday_day=%s WHERE username=%s",
+                (day, username),
+            )
+            conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True}
+
+
 @app.get("/export/preview")
 def export_preview(req: Request, day: int, scope: str = "all", account_id: str | None = None):
     username = require_user(req)
     from_date, to_date, from_dt, to_dt = compute_export_range(day)
 
     with db() as conn, conn.cursor() as cur:
-        rows, _, _, _ = build_ledger_data(cur, username, scope, account_id, from_dt, to_dt)
+        rows, _, _ = build_ledger_data(cur, username, scope, account_id, from_dt, to_dt)
 
     total_in = sum(int(r.get("debit") or 0) for r in rows)
     total_out = sum(int(r.get("credit") or 0) for r in rows)
@@ -1732,7 +1966,7 @@ def export_ledger(
     from_date, to_date, from_dt, to_dt = compute_export_range(day)
 
     with db() as conn, conn.cursor() as cur:
-        rows, summary_accounts, _, _ = build_ledger_data(cur, username, scope, account_id, from_dt, to_dt)
+        rows, summary_accounts, _ = build_ledger_data(cur, username, scope, account_id, from_dt, to_dt)
 
     account_name = "All"
     if scope == "account" and account_id:
