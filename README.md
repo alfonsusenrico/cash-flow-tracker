@@ -43,6 +43,8 @@ docker compose up -d
 
 Open: `http://localhost:8090/login.html`
 
+After your first login, create an account via **Manage Accounts** to start recording transactions.
+
 ## Migrations
 Run migrations any time you update the codebase (safe to re-run):
 ```bash

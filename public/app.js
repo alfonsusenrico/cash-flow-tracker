@@ -3224,6 +3224,10 @@ function bindEvents() {
     }
   });
 
+  if (!state.accounts.length) {
+    openAccountsModal("create");
+  }
+
 }
 
 (async function main() {

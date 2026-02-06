@@ -764,21 +764,11 @@ async def register(req: Request):
 
     pw_hash = bcrypt.hash(password)
 
-    delta_total = None
     with db() as conn, conn.cursor() as cur:
         try:
             cur.execute(
                 "INSERT INTO users (username, password_hash, full_name) VALUES (%s, %s, %s)",
                 (username, pw_hash, full_name),
-            )
-            # auto-create a default account
-            cur.execute(
-                """
-                INSERT INTO accounts (username, account_name)
-                VALUES (%s, %s)
-                RETURNING account_id::text
-                """,
-                (username, "Main Account"),
             )
             conn.commit()
         except Exception as e:
