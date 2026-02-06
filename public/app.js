@@ -4,7 +4,7 @@ const pad2 = (n) => String(n).padStart(2, "0");
 const state = {
   me: null,
   accounts: [],
-  main_account_id: null,
+  primary_account_id: null,
   scope: "all",
   account_id: null,
   from: null,
@@ -21,7 +21,10 @@ const state = {
   analysis_stale: true,
   analysis_data: null,
   total_asset: 0,
-  unallocated_balance: 0,
+  payday_day: null,
+  payday_source: "default",
+  payday_default: null,
+  payday_override: null,
   search_query: "",
   hide_balances: false,
   sort_order: "desc",
@@ -40,6 +43,7 @@ const state = {
   fx_loading: false,
   currency: "IDR",
   editing_tx_id: null,
+  editing_transfer_id: null,
   budgets_by_account: {},
 };
 
@@ -597,14 +601,10 @@ function renderAccounts() {
 
   $("accountsBody").innerHTML = state.accounts
     .map((a) => {
-      const isMain = a.account_id === state.main_account_id;
-      const tag = isMain ? `<span class="tag">Main</span>` : "";
       const accountName = escapeHtml(a.account_name);
-      const deleteBtn = isMain
-        ? ""
-        : `<button class="btn small danger" data-action="delete" data-id="${a.account_id}">Delete</button>`;
+      const deleteBtn = `<button class="btn small danger" data-action="delete" data-id="${a.account_id}">Delete</button>`;
       return `<tr>
-        <td>${accountName}${tag}</td>
+        <td>${accountName}</td>
         <td class="num">
           <div class="actions">
             <button class="btn small" data-action="edit" data-id="${a.account_id}">Edit</button>
@@ -615,7 +615,7 @@ function renderAccounts() {
     })
     .join("");
 
-  const filterAccounts = state.accounts.filter((a) => a.account_id !== state.main_account_id);
+  const filterAccounts = state.accounts.slice();
   const accountList = $("accountList");
   if (accountList) {
     const listItems = [
@@ -656,15 +656,6 @@ function renderAccounts() {
     titleSelect.value = state.scope === "account" && state.account_id ? state.account_id : "all";
   }
 
-  const allocateSelect = $("allocateAccountSelect");
-  if (allocateSelect) {
-    const allocateOptions = [
-      `<option value="">Select account</option>`,
-      ...filterAccounts.map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
-    ];
-    allocateSelect.innerHTML = allocateOptions.join("");
-  }
-
   updateSwitchTargets();
   updateExportAccounts();
 }
@@ -691,7 +682,6 @@ function syncAccountBudgetInput(accountId) {
 
 function updateTotals(summary) {
   state.total_asset = Number(summary?.total_asset || 0);
-  state.unallocated_balance = Number(summary?.unallocated || 0);
   state.summary_accounts = summary?.accounts || [];
 }
 
@@ -733,6 +723,26 @@ const updateSummaryMonthText = () => {
   });
 };
 
+const updatePaydayText = () => {
+  const day = state.payday_day;
+  const suffix = state.payday_source === "override" ? " (custom)" : "";
+  const label = day ? `Payday: ${day}${suffix}` : "Payday";
+  const buttons = [$("paydayBtn"), $("analysisPaydayBtn")];
+  buttons.forEach((btn) => {
+    if (btn) btn.textContent = label;
+  });
+};
+
+const applyPaydayInfo = (payday) => {
+  if (!payday) return;
+  const dayVal = Number(payday.day || 0);
+  state.payday_day = Number.isFinite(dayVal) && dayVal > 0 ? dayVal : null;
+  state.payday_source = payday.source || "default";
+  state.payday_default = payday.default_day ?? null;
+  state.payday_override = payday.override_day ?? null;
+  updatePaydayText();
+};
+
 const renderSummary = () => {
   const cards = $("summaryCards");
   const rangeText = $("summaryRangeText");
@@ -757,27 +767,14 @@ const renderSummary = () => {
       const max = Math.max(totalIn, totalOut, 1);
       const inPct = Math.min(100, (totalIn / max) * 100);
       const outPct = Math.min(100, (totalOut / max) * 100);
-      const tag = acc.is_main ? `<span class="tag">Main</span>` : "";
-      const mainClass = acc.is_main ? " main" : "";
       const budgetClass = acc.budget_status ? ` budget-${acc.budget_status}` : "";
-      const cardTarget = acc.is_main ? "all" : acc.account_id;
+      const cardTarget = acc.account_id;
       const cardLabel = `View ledger for ${acc.account_name}`;
-      const hasBudget = !acc.is_main && acc.budget != null;
+      const hasBudget = acc.budget != null;
       const budgetValue = hasBudget ? displayMoney(acc.budget) : "-";
-      const balanceRow = acc.is_main
-        ? `<div class="summary-balance-row is-main">
+      const balanceRow = `<div class="summary-balance-row">
           <div>
-          <div class="summary-balance-label">Last Month Balance</div>
-            <div class="summary-balance">${displayMoney(acc.starting_balance || 0)}</div>
-          </div>
-          <div>
-            <div class="summary-balance-label">Current Balance</div>
-            <div class="summary-balance">${displayMoney(acc.current_balance || 0)}</div>
-          </div>
-        </div>`
-        : `<div class="summary-balance-row">
-          <div>
-          <div class="summary-balance-label">Last Month Balance</div>
+            <div class="summary-balance-label">Last Month Balance</div>
             <div class="summary-balance">${displayMoney(acc.starting_balance || 0)}</div>
           </div>
           <div>
@@ -789,19 +786,16 @@ const renderSummary = () => {
             <div class="summary-balance">${budgetValue}</div>
           </div>
         </div>`;
-      const editBtn = !acc.is_main
-        ? `<button class="card-edit" data-action="edit" data-id="${acc.account_id}" aria-label="Edit account ${escapeHtml(acc.account_name)}" title="Edit account">
+      const editBtn = `<button class="card-edit" data-action="edit" data-id="${acc.account_id}" aria-label="Edit account ${escapeHtml(acc.account_name)}" title="Edit account">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M4 20h4l10-10-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
               <path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
-          </button>`
-        : "";
-      return `<div class="summary-card${mainClass}${budgetClass}" data-account-id="${cardTarget}" role="button" tabindex="0" aria-label="${escapeHtml(cardLabel)}" style="--in:${inPct}%; --out:${outPct}%;">
+          </button>`;
+      return `<div class="summary-card${budgetClass}" data-account-id="${cardTarget}" role="button" tabindex="0" aria-label="${escapeHtml(cardLabel)}" style="--in:${inPct}%; --out:${outPct}%;">
         <div class="summary-card-head">
           <div class="summary-card-title">${escapeHtml(acc.account_name)}</div>
           <div class="summary-card-actions">
-            ${tag}
             ${editBtn}
           </div>
         </div>
@@ -838,6 +832,7 @@ const loadSummary = async ({ force = false } = {}) => {
     const month = state.summary_month || currentMonthYM();
     if (!state.summary_month) state.summary_month = month;
     const res = await api.get(`/api/summary?month=${encodeURIComponent(month)}`);
+    applyPaydayInfo(res.payday);
     state.overview_accounts = res.accounts || [];
     state.budgets_by_account = {};
     state.overview_accounts.forEach((acc) => {
@@ -1060,6 +1055,7 @@ const loadAnalysis = async ({ force = false } = {}) => {
     if (!state.summary_month) state.summary_month = month;
     const res = await api.get(`/api/analysis?month=${encodeURIComponent(month)}`);
     state.analysis_data = res || null;
+    applyPaydayInfo(res?.payday);
     state.analysis_stale = false;
     renderAnalysis();
   } catch (err) {
@@ -1117,7 +1113,7 @@ const seedDemoData = async ({ force = false } = {}) => {
     }
 
     await loadAccounts();
-    const mainId = state.main_account_id;
+    const mainId = state.primary_account_id || state.accounts[0]?.account_id;
     const categories = seedCategories
       .map((cat) => {
         const acc = state.accounts.find(
@@ -1153,7 +1149,8 @@ const seedDemoData = async ({ force = false } = {}) => {
     }
 
     for (const cat of categories) {
-      await api.post("/api/allocate", {
+      await api.post("/api/switch", {
+        source_account_id: mainId,
         target_account_id: cat.account_id,
         amount: cat.allocate,
         date: ymdTimeToIso(pickDate(), pickTime()),
@@ -1211,16 +1208,25 @@ const markSummaryStale = () => {
 };
 
 
-function updateSwitchTargets() {
+function updateSwitchTargets(sourceOverride) {
+  const switchFromSelect = $("switchFromSelect");
   const switchToSelect = $("switchToSelect");
   if (!switchToSelect) return;
-  const sourceId = state.account_id;
+  const sourceId = sourceOverride || (switchFromSelect ? switchFromSelect.value : null) || state.account_id;
+  const allOptions = state.accounts.map(
+    (a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`
+  );
+  if (switchFromSelect) {
+    switchFromSelect.innerHTML = [
+      `<option value="">Select account</option>`,
+      ...allOptions,
+    ].join("");
+    if (sourceId) switchFromSelect.value = sourceId;
+  }
   const targetOptions = [
     `<option value="">Select account</option>`,
     ...state.accounts
-      .filter(
-        (a) => a.account_id !== state.main_account_id && (!sourceId || a.account_id !== sourceId)
-      )
+      .filter((a) => (!sourceId || a.account_id !== sourceId))
       .map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
   ];
   switchToSelect.innerHTML = targetOptions.join("");
@@ -1229,23 +1235,31 @@ function updateSwitchTargets() {
 function updateExportAccounts() {
   const exportAccountSelect = $("exportAccountSelect");
   if (!exportAccountSelect) return;
-  const nonMain = state.accounts
-    .filter((a) => a && a.account_id !== state.main_account_id)
+  const list = state.accounts
+    .filter((a) => a)
     .sort((a, b) => String(a.account_name || "").localeCompare(String(b.account_name || "")));
   const options = [
     `<option value="all">All</option>`,
-    ...nonMain.map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
+    ...list.map((a) => `<option value="${a.account_id}">${escapeHtml(a.account_name)}</option>`),
   ];
   exportAccountSelect.innerHTML = options.join("");
 }
 
 const getLedgerViewState = () => {
   const isAll = state.scope === "all";
-  const isMainAccount = state.scope === "account" && state.account_id === state.main_account_id;
-  const showAllocate = isAll || isMainAccount;
-  const showSwitch = state.scope === "account" && state.account_id && state.account_id !== state.main_account_id;
-  const showAssetSummary = isAll || isMainAccount;
-  return { isAll, isMainAccount, showAllocate, showSwitch, showAssetSummary };
+  const canTransact = state.scope === "account" && state.account_id;
+  const showSwitch = canTransact;
+  const showAdd = canTransact;
+  const showAssetSummary = isAll;
+  return { isAll, showSwitch, showAdd, showAssetSummary };
+};
+
+const canTransactOnAccount = () => state.scope === "account" && !!state.account_id;
+
+const requireAccountScope = (message) => {
+  if (canTransactOnAccount()) return true;
+  alert(message || "Select an account to manage transactions.");
+  return false;
 };
 
 const TREND_ICON =
@@ -1281,31 +1295,25 @@ const buildLedgerRow = (r, idx, isAll) => {
 
 const renderLedgerChrome = () => {
   const table = $("ledgerTable");
-  const { isAll, showAllocate, showSwitch, showAssetSummary } = getLedgerViewState();
-  const allocateBtn = $("allocateBtn");
+  const { isAll, showSwitch, showAdd, showAssetSummary } = getLedgerViewState();
   const switchBtn = $("switchBtn");
-  const fabAllocateOption = $("fabAllocateOption");
   const fabSwitchOption = $("fabSwitchOption");
-  if (allocateBtn) allocateBtn.hidden = !showAllocate;
+  const addBtn = $("addTxBtn");
+  const fabAddOption = document.querySelector('#fabSheet button[data-action="add"]');
   if (switchBtn) switchBtn.hidden = !showSwitch;
-  if (fabAllocateOption) fabAllocateOption.hidden = !showAllocate;
   if (fabSwitchOption) fabSwitchOption.hidden = !showSwitch;
+  if (addBtn) addBtn.hidden = !showAdd;
+  if (fabAddOption) fabAddOption.hidden = !showAdd;
   updateSwitchTargets();
 
   const totalLabel = $("ledgerTotalLabel");
-  const diffLabel = $("ledgerDiffLabel");
-  const diffBlock = $("ledgerDiffBlock");
   const accountBalance = state.summary_accounts?.find((a) => a.account_id === state.account_id)?.balance ?? 0;
   if (showAssetSummary) {
     if (totalLabel) totalLabel.textContent = "Total Asset";
-    if (diffLabel) diffLabel.textContent = "Unallocated Balance";
     $("ledgerTotal").textContent = displayMoney(state.total_asset || 0);
-    $("ledgerDiff").textContent = displayMoney(state.unallocated_balance || 0);
-    if (diffBlock) diffBlock.hidden = false;
   } else {
     if (totalLabel) totalLabel.textContent = "Total Balance";
     $("ledgerTotal").textContent = displayMoney(accountBalance || 0);
-    if (diffBlock) diffBlock.hidden = true;
   }
 
   if (isAll) {
@@ -1384,14 +1392,14 @@ async function loadMe() {
 async function loadAccounts() {
   const res = await api.get("/api/accounts");
   state.accounts = res.accounts || [];
-  const main = state.accounts.find((a) => !a.parent_account_id);
-  state.main_account_id = main?.account_id || null;
+  const primary = state.accounts[0] || null;
+  state.primary_account_id = primary?.account_id || null;
 
   renderAccounts();
 
   if (state.scope === "account") {
     const exists = state.accounts.find((a) => a.account_id === state.account_id);
-    if (!exists || state.account_id === state.main_account_id) {
+    if (!exists) {
       state.scope = "all";
       state.account_id = null;
     }
@@ -1714,6 +1722,99 @@ function bindEvents() {
   if (summaryMonthCancel) summaryMonthCancel.addEventListener("click", closeMonthPicker);
   if (summaryMonthBackdrop) summaryMonthBackdrop.addEventListener("click", closeMonthPicker);
   updateSummaryMonthText();
+  updatePaydayText();
+
+  const paydayBtn = $("paydayBtn");
+  const analysisPaydayBtn = $("analysisPaydayBtn");
+  const paydayModal = $("paydayModal");
+  const paydayForm = $("paydayForm");
+  const paydayDayInput = $("paydayDayInput");
+  const paydayMsg = $("paydayMsg");
+  const paydayMonthLabel = $("paydayMonthLabel");
+  const paydayDefaultHint = $("paydayDefaultHint");
+  const closePaydayBtn = $("closePaydayModal");
+  const setPaydayDefaultBtn = $("setPaydayDefaultBtn");
+  const clearPaydayOverrideBtn = $("clearPaydayOverrideBtn");
+
+  const openPaydayModal = () => {
+    if (!paydayModal) return;
+    const month = state.summary_month || currentMonthYM();
+    if (paydayMonthLabel) paydayMonthLabel.value = formatMonthLabel(month);
+    if (paydayDayInput) {
+      const fallback = state.payday_day || state.payday_default || "";
+      paydayDayInput.value = fallback ? String(fallback) : "";
+    }
+    if (paydayDefaultHint) {
+      const defaultLabel = state.payday_default ? `Default: ${state.payday_default}` : "Default: -";
+      const sourceLabel = state.payday_source === "override" ? " (custom for this month)" : "";
+      paydayDefaultHint.textContent = `${defaultLabel}${sourceLabel}`;
+    }
+    if (paydayMsg) paydayMsg.textContent = "";
+    paydayModal.hidden = false;
+  };
+
+  const closePaydayModal = () => {
+    if (paydayModal) paydayModal.hidden = true;
+  };
+
+  if (paydayBtn) paydayBtn.addEventListener("click", openPaydayModal);
+  if (analysisPaydayBtn) analysisPaydayBtn.addEventListener("click", openPaydayModal);
+  if (closePaydayBtn) closePaydayBtn.addEventListener("click", closePaydayModal);
+  if (paydayModal) {
+    paydayModal.addEventListener("click", (e) => e.target === paydayModal && closePaydayModal());
+  }
+
+  if (clearPaydayOverrideBtn) {
+    clearPaydayOverrideBtn.addEventListener("click", async () => {
+      const month = state.summary_month || currentMonthYM();
+      if (paydayMsg) paydayMsg.textContent = "";
+      try {
+        await api.put("/api/payday", { month, clear_override: true });
+        closePaydayModal();
+        markSummaryStale();
+      } catch (err) {
+        if (paydayMsg) paydayMsg.textContent = err.message || "Failed to reset payday";
+      }
+    });
+  }
+
+  if (setPaydayDefaultBtn) {
+    setPaydayDefaultBtn.addEventListener("click", async () => {
+      const day = Number(paydayDayInput?.value || 0);
+      if (!day || day < 1 || day > 31) {
+        if (paydayMsg) paydayMsg.textContent = "Enter a day between 1 and 31.";
+        return;
+      }
+      if (paydayMsg) paydayMsg.textContent = "";
+      try {
+        await api.put("/api/payday", { day });
+        closePaydayModal();
+        markSummaryStale();
+      } catch (err) {
+        if (paydayMsg) paydayMsg.textContent = err.message || "Failed to save default payday";
+      }
+    });
+  }
+
+  if (paydayForm) {
+    paydayForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const month = state.summary_month || currentMonthYM();
+      const day = Number(paydayDayInput?.value || 0);
+      if (!day || day < 1 || day > 31) {
+        if (paydayMsg) paydayMsg.textContent = "Enter a day between 1 and 31.";
+        return;
+      }
+      if (paydayMsg) paydayMsg.textContent = "";
+      try {
+        await api.put("/api/payday", { month, day });
+        closePaydayModal();
+        markSummaryStale();
+      } catch (err) {
+        if (paydayMsg) paydayMsg.textContent = err.message || "Failed to save payday";
+      }
+    });
+  }
 
   const seedBtn = $("seedDemoBtn");
   if (seedBtn) {
@@ -1744,13 +1845,8 @@ function bindEvents() {
         return;
       }
       setActiveTab("ledger");
-      if (target === "all") {
-        state.scope = "all";
-        state.account_id = null;
-      } else {
-        state.scope = "account";
-        state.account_id = target;
-      }
+      state.scope = "account";
+      state.account_id = target;
       if (summaryRange?.from && summaryRange?.to) {
         applyLedgerRange(summaryRange.from, summaryRange.to);
       }
@@ -2415,7 +2511,9 @@ function bindEvents() {
     txTimeInitial = nowTime();
     setTxDate(fallbackDate, { setInitial: true });
 
-    const defaultAccount = state.scope === "account" && state.account_id ? state.account_id : state.main_account_id;
+    const defaultAccount = state.scope === "account" && state.account_id
+      ? state.account_id
+      : (state.primary_account_id || state.accounts[0]?.account_id);
     if (defaultAccount) {
       $("txAccountSelect").value = defaultAccount;
     }
@@ -2443,11 +2541,17 @@ function bindEvents() {
   };
 
   const addBtn = $("addTxBtn");
-  if (addBtn) addBtn.addEventListener("click", () => openModal());
+  if (addBtn) {
+    addBtn.addEventListener("click", () => {
+      if (!requireAccountScope("Select an account to add transactions.")) return;
+      openModal();
+    });
+  }
   const mobileAddBtn = $("mobileAddBtn");
   const closeFabMenu = () => document.body.classList.remove("fab-open");
   const openFabMenu = () => {
     if (!isMobile()) {
+      if (!requireAccountScope("Select an account to add transactions.")) return;
       openModal();
       return;
     }
@@ -2462,9 +2566,14 @@ function bindEvents() {
       if (!btn) return;
       const action = btn.dataset.action;
       closeFabMenu();
-      if (action === "add") return openModal();
-      if (action === "allocate") return openAllocateModal();
-      if (action === "switch") return openSwitchModal();
+      if (action === "add") {
+        if (!requireAccountScope("Select an account to add transactions.")) return;
+        return openModal();
+      }
+      if (action === "switch") {
+        if (!requireAccountScope("Select an account to switch balances.")) return;
+        return openSwitchModal();
+      }
       if (action === "export") return openExportModal();
     });
   }
@@ -2473,97 +2582,182 @@ function bindEvents() {
   const modal = $("modal");
   if (modal) modal.addEventListener("click", (e) => e.target === modal && closeModal());
 
-  const allocateModal = $("allocateModal");
-  const openAllocateModal = () => {
-    if (!allocateModal) return;
-    const form = $("allocateForm");
-    if (form) form.reset();
-    const msg = $("allocateMsg");
-    if (msg) msg.textContent = "";
-    allocateModal.hidden = false;
-  };
-  const closeAllocateModal = () => {
-    if (allocateModal) allocateModal.hidden = true;
-  };
-  const allocateBtn = $("allocateBtn");
-  if (allocateBtn) allocateBtn.addEventListener("click", openAllocateModal);
-  const closeAllocateBtn = $("closeAllocateModal");
-  if (closeAllocateBtn) closeAllocateBtn.addEventListener("click", closeAllocateModal);
-  if (allocateModal) {
-    allocateModal.addEventListener("click", (e) => e.target === allocateModal && closeAllocateModal());
-  }
+  const switchModal = $("switchModal");
+  const switchForm = $("switchForm");
+  const switchFromSelect = $("switchFromSelect");
+  const switchToSelect = $("switchToSelect");
+  const switchAmountInput = $("switchAmount");
+  const switchDateInput = $("switchDateInput");
+  const switchDateDisplay = $("switchDateDisplay");
+  const switchTitle = $("switchModalTitle");
+  const deleteSwitchBtn = $("deleteSwitchBtn");
+  let switchDateInitial = "";
+  let switchTimeInitial = "";
 
-  const allocateForm = $("allocateForm");
-  if (allocateForm) {
-    allocateForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const target = $("allocateAccountSelect").value;
-      const amount = parseAmount($("allocateAmount").value);
-      const msg = $("allocateMsg");
-      if (msg) msg.textContent = "";
-      if (!target || amount <= 0) {
-        if (msg) msg.textContent = "Select account and amount.";
-        return;
-      }
-      try {
-        await api.post("/api/allocate", { target_account_id: target, amount });
-        closeAllocateModal();
-        markSummaryStale();
-        await reloadLedgerWithDefaultStale();
-      } catch (err) {
-        if (msg) msg.textContent = err.message || "Allocate failed";
+  const setSwitchDate = (ymd, { setInitial = false } = {}) => {
+    const safeDate = clampYmdToToday(ymd);
+    if (!safeDate) return;
+    if (switchDateInput) switchDateInput.value = safeDate;
+    if (switchDateDisplay) switchDateDisplay.value = formatYmdDisplay(safeDate);
+    if (setInitial) switchDateInitial = safeDate;
+  };
+
+  const openSwitchDatePicker = () => {
+    const current = clampYmdToToday(switchDateInput?.value);
+    openDatePickerSingle(current, switchDateDisplay, (next) => setSwitchDate(next));
+  };
+
+  if (switchDateDisplay) {
+    switchDateDisplay.addEventListener("click", openSwitchDatePicker);
+    switchDateDisplay.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openSwitchDatePicker();
       }
     });
   }
 
-  const switchModal = $("switchModal");
-  const openSwitchModal = () => {
+  const openSwitchModal = ({ sourceId, targetId, amount, date, transferId } = {}) => {
     if (!switchModal) return;
-    if (!state.account_id || state.account_id === state.main_account_id) return;
-    const form = $("switchForm");
-    if (form) form.reset();
+    if (switchForm) switchForm.reset();
+    if (switchTitle) switchTitle.textContent = transferId ? "Edit Switch" : "Switch Balance";
     const msg = $("switchMsg");
     if (msg) msg.textContent = "";
-    updateSwitchTargets();
+    state.editing_transfer_id = transferId || null;
+    if (deleteSwitchBtn) {
+      deleteSwitchBtn.hidden = !transferId;
+      deleteSwitchBtn.dataset.transferId = transferId || "";
+    }
+
+    const fallbackSource =
+      sourceId || state.account_id || state.primary_account_id || state.accounts[0]?.account_id;
+    updateSwitchTargets(fallbackSource || undefined);
+    if (switchFromSelect && fallbackSource) switchFromSelect.value = fallbackSource;
+    if (switchToSelect && targetId) switchToSelect.value = targetId;
+
+    if (switchAmountInput) {
+      switchAmountInput.value = amount ? fmtIDR(amount) : "";
+    }
+
+    const ymd = date ? isoToLocalYMD(date) : clampYmdToToday();
+    switchTimeInitial = date ? (isoToLocalTime(date) || nowTime()) : nowTime();
+    setSwitchDate(ymd, { setInitial: true });
+
     switchModal.hidden = false;
   };
+
+  const openSwitchEdit = async (tx) => {
+    if (!tx?.transfer_id) return;
+    try {
+      const detail = await api.get(`/api/switch/${tx.transfer_id}`);
+      openSwitchModal({
+        sourceId: detail.source_account_id,
+        targetId: detail.target_account_id,
+        amount: detail.amount,
+        date: detail.date,
+        transferId: detail.transfer_id,
+      });
+    } catch (err) {
+      alert(err.message || "Failed to load switch details");
+    }
+  };
+
   const closeSwitchModal = () => {
     if (switchModal) switchModal.hidden = true;
+    state.editing_transfer_id = null;
+    if (deleteSwitchBtn) {
+      deleteSwitchBtn.hidden = true;
+      deleteSwitchBtn.dataset.transferId = "";
+    }
   };
+
   const switchBtn = $("switchBtn");
-  if (switchBtn) switchBtn.addEventListener("click", openSwitchModal);
+  if (switchBtn) {
+    switchBtn.addEventListener("click", () => {
+      if (!requireAccountScope("Select an account to switch balances.")) return;
+      openSwitchModal();
+    });
+  }
   const closeSwitchBtn = $("closeSwitchModal");
   if (closeSwitchBtn) closeSwitchBtn.addEventListener("click", closeSwitchModal);
   if (switchModal) {
     switchModal.addEventListener("click", (e) => e.target === switchModal && closeSwitchModal());
   }
 
-  const switchForm = $("switchForm");
+  if (switchFromSelect) {
+    switchFromSelect.addEventListener("change", (e) => {
+      const sourceId = e.target.value || null;
+      updateSwitchTargets(sourceId || undefined);
+    });
+  }
+
   if (switchForm) {
     switchForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const source = state.account_id;
-      const target = $("switchToSelect").value;
-      const amount = parseAmount($("switchAmount").value);
+      const source = switchFromSelect?.value || state.account_id;
+      const target = switchToSelect?.value || "";
+      const amount = parseAmount(switchAmountInput?.value || "");
       const msg = $("switchMsg");
       if (msg) msg.textContent = "";
       if (!source || !target || amount <= 0) {
-        if (msg) msg.textContent = "Select target account and amount.";
+        if (msg) msg.textContent = "Select source, target, and amount.";
         return;
       }
-      const sourceBalance =
-        state.summary_accounts?.find((a) => a.account_id === source)?.balance ?? null;
-      if (sourceBalance !== null && amount > Number(sourceBalance)) {
-        if (msg) msg.textContent = "Amount exceeds the source account balance.";
+      if (source === target) {
+        if (msg) msg.textContent = "Source and target must differ.";
         return;
       }
+
+      const selectedDate = clampYmdToToday(switchDateInput?.value);
+      let datePayload = undefined;
+      if (selectedDate) {
+        if (state.editing_transfer_id) {
+          if (selectedDate !== switchDateInitial) {
+            datePayload = ymdTimeToIso(selectedDate, switchTimeInitial || nowTime());
+          }
+        } else {
+          datePayload = ymdTimeToIso(selectedDate, switchTimeInitial || nowTime());
+        }
+      }
+
       try {
-        await api.post("/api/switch", { source_account_id: source, target_account_id: target, amount });
+        if (state.editing_transfer_id) {
+          await api.put(`/api/switch/${state.editing_transfer_id}`, {
+            source_account_id: source,
+            target_account_id: target,
+            amount,
+            date: datePayload,
+          });
+        } else {
+          await api.post("/api/switch", {
+            source_account_id: source,
+            target_account_id: target,
+            amount,
+            date: datePayload,
+          });
+        }
         closeSwitchModal();
         markSummaryStale();
         await reloadLedgerWithDefaultStale();
       } catch (err) {
         if (msg) msg.textContent = err.message || "Switch failed";
+      }
+    });
+  }
+
+  if (deleteSwitchBtn) {
+    deleteSwitchBtn.addEventListener("click", async () => {
+      const id = deleteSwitchBtn.dataset.transferId || state.editing_transfer_id;
+      if (!id) return;
+      if (!confirm("Delete this switch?")) return;
+      try {
+        await api.del(`/api/switch/${id}`);
+        closeSwitchModal();
+        markSummaryStale();
+        await reloadLedgerWithDefaultStale();
+      } catch (err) {
+        const msg = $("switchMsg");
+        if (msg) msg.textContent = err.message || "Delete failed";
       }
     });
   }
@@ -2743,9 +2937,14 @@ function bindEvents() {
     ledgerBody.addEventListener("click", (e) => {
       const row = e.target.closest("tr[data-tx-id]");
       if (!row) return;
+      if (!requireAccountScope("Select an account to manage transactions.")) return;
       const tx = activeRows().find((r) => r.transaction_id === row.dataset.txId);
       if (!tx) return;
-      openModal(tx);
+      if (tx.is_transfer && tx.transfer_id) {
+        openSwitchEdit(tx);
+      } else {
+        openModal(tx);
+      }
     });
   }
 
@@ -2769,6 +2968,7 @@ function bindEvents() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
       if (action === "add") {
+        if (!requireAccountScope("Select an account to add transactions.")) return;
         openModal();
       }
       if (action === "accounts") {
@@ -2848,8 +3048,15 @@ function bindEvents() {
   const resetAccountForm = () => {
     const budgetInput = $("accountBudget");
     const budgetField = $("accountBudgetField");
+    const initialField = $("accountInitialField");
+    const initialInput = $("accountInitialBalance");
     $("accountId").value = "";
     $("newAccountName").value = "";
+    if (initialInput) {
+      initialInput.value = "";
+      initialInput.dataset.rawValue = "";
+    }
+    if (initialField) initialField.hidden = false;
     if (budgetInput) {
       budgetInput.value = "";
       budgetInput.dataset.rawValue = "";
@@ -2883,26 +3090,24 @@ function bindEvents() {
   const startAccountEdit = (acc) => {
     if (!acc) return;
     const budgetField = $("accountBudgetField");
+    const initialField = $("accountInitialField");
+    const initialInput = $("accountInitialBalance");
     $("accountId").value = acc.account_id;
     $("newAccountName").value = acc.account_name;
+    if (initialInput) {
+      initialInput.value = "";
+      initialInput.dataset.rawValue = "";
+    }
+    if (initialField) initialField.hidden = true;
     $("accountFormTitle").textContent = "Edit Account Details";
     $("cancelEditBtn").hidden = false;
     setAccountFormTabLabel("Edit Account");
     const budgetInput = $("accountBudget");
     if (budgetInput) {
-      const isMain = acc.account_id === state.main_account_id;
-      if (isMain) {
-        budgetInput.value = "";
-        budgetInput.dataset.rawValue = "";
-        budgetInput.disabled = true;
-        budgetInput.placeholder = "-";
-        if (budgetField) budgetField.hidden = true;
-      } else {
-        budgetInput.disabled = false;
-        budgetInput.placeholder = "0";
-        if (budgetField) budgetField.hidden = false;
-        syncAccountBudgetInput(acc.account_id);
-      }
+      budgetInput.disabled = false;
+      budgetInput.placeholder = "0";
+      if (budgetField) budgetField.hidden = false;
+      syncAccountBudgetInput(acc.account_id);
     }
     switchAccountsTab("create");
   };
@@ -2970,10 +3175,16 @@ function bindEvents() {
     const budgetRaw = budgetInput && !budgetInput.disabled ? (budgetInput.value || "").trim() : "";
     const budgetAmount = budgetRaw ? parseAmount(budgetRaw) : null;
     const budgetMonth = getBudgetMonth();
+    const initialInput = $("accountInitialBalance");
+    const initialRaw = initialInput ? (initialInput.value || "").trim() : "";
+    const initialAmount = initialRaw ? parseAmount(initialRaw) : 0;
 
     if (!account_name) return;
 
     const payload = { account_name };
+    if (!account_id && initialAmount > 0) {
+      payload.initial_balance = initialAmount;
+    }
 
     try {
       let nextAccountId = account_id;

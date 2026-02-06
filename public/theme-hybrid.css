@@ -831,7 +831,7 @@ input.input-button[readonly] {
 
 .budget-input {
   max-width: 140px;
-  text-align: right;
+  text-align: left;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1052,6 +1052,7 @@ input.input-button[readonly] {
   position: relative;
   display: inline-flex;
   align-items: center;
+  gap: 10px;
 }
 
 .summary-month-btn:hover {
@@ -1067,6 +1068,11 @@ input.input-button[readonly] {
   width: 16px;
   height: 16px;
   color: var(--text-muted);
+}
+
+.summary-payday-btn {
+  padding: 8px 12px;
+  font-size: 12px;
 }
 
 .summary-grid {
@@ -1306,6 +1312,7 @@ input.input-button[readonly] {
   position: relative;
   display: inline-flex;
   align-items: center;
+  gap: 10px;
 }
 
 .analysis-cards {
@@ -2545,6 +2552,16 @@ body.dark .table-loading {
 
   .summary-month-wrap {
     width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .analysis-month-wrap {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
   }
 
   .summary-month-btn {
