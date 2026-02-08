@@ -1,0 +1,710 @@
+import calendar
+import csv
+import io
+import uuid
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+from fastapi import HTTPException
+from fpdf import FPDF
+
+from app.core.config import settings
+from app.services.state import cache
+
+
+def cache_get(key: str) -> Any | None:
+    return cache.get(key)
+
+
+def cache_set(key: str, value: Any, ttl: int) -> None:
+    cache.set(key, value, ttl)
+
+
+def invalidate_user_cache(username: str) -> None:
+    cache.invalidate_prefix(f"{username}:")
+
+
+def now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def parse_date_utc(date_str: str, end_of_day: bool = False) -> datetime:
+    try:
+        d = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid date format, expected YYYY-MM-DD")
+    dt = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
+    return dt + (timedelta(days=1) - timedelta(milliseconds=1) if end_of_day else timedelta(0))
+
+
+def clamp_day(year: int, month: int, day: int) -> int:
+    if month == 12:
+        last_day = (datetime(year + 1, 1, 1) - timedelta(days=1)).day
+    else:
+        last_day = (datetime(year, month + 1, 1) - timedelta(days=1)).day
+    return min(day, last_day)
+
+
+def get_default_payday_day(cur, username: str) -> int:
+    cur.execute("SELECT default_payday_day FROM users WHERE username=%s", (username,))
+    row = cur.fetchone()
+    try:
+        return int(row["default_payday_day"]) if row else 25
+    except Exception:
+        return 25
+
+
+def get_payday_day(cur, username: str, month: str) -> tuple[int, str, int | None]:
+    cur.execute(
+        "SELECT payday_day FROM payday_overrides WHERE username=%s AND month=%s",
+        (username, month),
+    )
+    override = cur.fetchone()
+    if override:
+        return int(override["payday_day"]), "override", int(override["payday_day"])
+    default_day = get_default_payday_day(cur, username)
+    return int(default_day), "default", None
+
+
+def parse_month(month: str) -> tuple[int, int]:
+    try:
+        dt = datetime.strptime(month, "%Y-%m")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid month format, expected YYYY-MM")
+    return dt.year, dt.month
+
+
+def prev_month_str(month: str) -> str:
+    year, month_num = parse_month(month)
+    prev_month = month_num - 1
+    prev_year = year
+    if prev_month == 0:
+        prev_month = 12
+        prev_year -= 1
+    return f"{prev_year:04d}-{prev_month:02d}"
+
+
+def compute_export_range(day: int) -> tuple[str, str, datetime, datetime]:
+    if day < 1 or day > 31:
+        raise HTTPException(status_code=400, detail="Day must be between 1 and 31")
+    today = now_utc().date()
+    payday_this = datetime(today.year, today.month, clamp_day(today.year, today.month, day)).date()
+    if today <= payday_this:
+        prev_month = today.month - 1
+        prev_year = today.year
+        if prev_month == 0:
+            prev_month = 12
+            prev_year -= 1
+        last_payday = datetime(prev_year, prev_month, clamp_day(prev_year, prev_month, day)).date()
+    else:
+        last_payday = payday_this
+    from_date = last_payday.isoformat()
+    to_date = today.isoformat()
+    from_dt = parse_date_utc(from_date, end_of_day=False)
+    to_dt = parse_date_utc(to_date, end_of_day=True)
+    return from_date, to_date, from_dt, to_dt
+
+
+def compute_month_range(
+    month: str,
+    payday_day: int,
+    prev_payday_day: int | None = None,
+) -> tuple[str, str, datetime, datetime]:
+    year, month_num = parse_month(month)
+    payday = datetime(year, month_num, clamp_day(year, month_num, payday_day)).date()
+    prev_month = month_num - 1
+    prev_year = year
+    if prev_month == 0:
+        prev_month = 12
+        prev_year -= 1
+    prev_day = prev_payday_day if prev_payday_day is not None else payday_day
+    prev_payday = datetime(prev_year, prev_month, clamp_day(prev_year, prev_month, prev_day)).date()
+    start_date = prev_payday
+    end_date = payday - timedelta(days=1)
+    today = now_utc().date()
+    if end_date > today:
+        end_date = today
+    from_date = start_date.isoformat()
+    to_date = end_date.isoformat()
+    from_dt = parse_date_utc(from_date, end_of_day=False)
+    to_dt = parse_date_utc(to_date, end_of_day=True)
+    return from_date, to_date, from_dt, to_dt
+
+
+def compute_budget_status(budget_amount: int | None, used_amount: int) -> tuple[int | None, str | None, int | None]:
+    if budget_amount is None:
+        return None, None, None
+    if budget_amount <= 0:
+        return 100, "critical", int(budget_amount - used_amount)
+    pct = int(round((used_amount / budget_amount) * 100))
+    if pct >= 100:
+        status = "critical"
+    elif pct >= 80:
+        status = "warn"
+    else:
+        status = "ok"
+    return pct, status, int(budget_amount - used_amount)
+
+
+def parse_currency(currency: str | None, fx_rate: str | None) -> tuple[str, float | None]:
+    cur = (currency or "IDR").upper()
+    if cur not in ("IDR", "USD"):
+        cur = "IDR"
+    fx = None
+    if cur == "USD":
+        try:
+            fx = float(fx_rate or 0)
+        except Exception:
+            fx = None
+        if not fx or fx <= 0:
+            raise HTTPException(status_code=400, detail="fx_rate required for USD export")
+    return cur, fx
+
+
+def format_amount(amount: int, currency: str, fx_rate: float | None) -> str:
+    if currency == "USD":
+        value = float(amount) * float(fx_rate or 0)
+        return f"${value:,.2f}"
+    return f"Rp {amount:,.0f}".replace(",", ".")
+
+
+def format_tx_date(iso_z: str) -> str:
+    if not iso_z:
+        return ""
+    iso_val = iso_z.replace("Z", "+00:00")
+    dt = datetime.fromisoformat(iso_val)
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M")
+
+
+def safe_pdf_text(value: Any) -> str:
+    text = str(value or "")
+    text = text.replace("\n", " ").replace("\r", " ")
+    try:
+        text.encode("latin-1")
+        return text
+    except UnicodeEncodeError:
+        return text.encode("latin-1", "replace").decode("latin-1")
+
+
+def build_search_pattern(query: str | None) -> str | None:
+    if not query:
+        return None
+    cleaned = query.strip().lower()
+    if not cleaned:
+        return None
+    if len(cleaned) > 64:
+        cleaned = cleaned[:64]
+    return f"%{cleaned}%"
+
+
+def build_daily_series(from_date: str, to_date: str, rows: list[dict[str, Any]]) -> list[dict[str, int | str]]:
+    start = datetime.fromisoformat(from_date).date()
+    end = datetime.fromisoformat(to_date).date()
+    by_day: dict[str, dict[str, int]] = {}
+    for row in rows:
+        day_val = row.get("day")
+        day_key = day_val.isoformat() if hasattr(day_val, "isoformat") else str(day_val)
+        total_in = int(row.get("total_in") or 0)
+        total_out = int(row.get("total_out") or 0)
+        by_day[day_key] = {"total_in": total_in, "total_out": total_out}
+
+    series: list[dict[str, int | str]] = []
+    cursor = start
+    while cursor <= end:
+        key = cursor.isoformat()
+        totals = by_day.get(key, {"total_in": 0, "total_out": 0})
+        total_in = int(totals.get("total_in") or 0)
+        total_out = int(totals.get("total_out") or 0)
+        series.append({"date": key, "total_in": total_in, "total_out": total_out, "net": int(total_in - total_out)})
+        cursor += timedelta(days=1)
+    return series
+
+
+def build_weekly_series(from_date: str, to_date: str, daily: list[dict[str, int | str]]) -> list[dict[str, int | str]]:
+    start = datetime.fromisoformat(from_date).date()
+    end = datetime.fromisoformat(to_date).date()
+    by_day: dict[str, dict[str, int | str]] = {}
+    for row in daily:
+        date_str = row.get("date")
+        if not date_str:
+            continue
+        by_day[str(date_str)] = row
+
+    series: list[dict[str, int | str]] = []
+    cursor = start
+    while cursor <= end:
+        period_from = cursor
+        period_to = min(end, cursor + timedelta(days=6))
+        total_in = 0
+        total_out = 0
+        day = period_from
+        while day <= period_to:
+            row = by_day.get(day.isoformat(), {})
+            total_in += int(row.get("total_in") or 0)
+            total_out += int(row.get("total_out") or 0)
+            day += timedelta(days=1)
+        series.append(
+            {
+                "from": period_from.isoformat(),
+                "to": period_to.isoformat(),
+                "total_in": total_in,
+                "total_out": total_out,
+                "net": int(total_in - total_out),
+            }
+        )
+        cursor = period_to + timedelta(days=1)
+    return series
+
+
+def parse_tx_datetime(date_str: str | None) -> datetime:
+    if not date_str:
+        return now_utc()
+    try:
+        dt = datetime.fromisoformat(date_str)
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return parse_date_utc(date_str, end_of_day=False)
+
+
+def lock_accounts_for_update(cur, username: str, account_ids: list[str]) -> None:
+    unique_ids = sorted({aid for aid in account_ids if aid})
+    if not unique_ids:
+        return
+    cur.execute(
+        """
+        SELECT account_id::text AS account_id
+        FROM accounts
+        WHERE username=%s AND account_id = ANY(%s::uuid[])
+        ORDER BY account_id
+        FOR UPDATE
+        """,
+        (username, unique_ids),
+    )
+    rows = cur.fetchall()
+    if len(rows) != len(unique_ids):
+        raise HTTPException(status_code=404, detail="Account not found")
+
+
+def get_balance_before(cur, account_id: str, before_dt: datetime, exclude_tx_ids: list[str] | None = None) -> int:
+    sql = """
+        SELECT COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS balance
+        FROM transactions t
+        WHERE t.account_id=%s::uuid AND t.date < %s
+    """
+    params: list[Any] = [account_id, before_dt]
+    if exclude_tx_ids:
+        sql += " AND t.transaction_id <> ALL(%s::uuid[])"
+        params.append(exclude_tx_ids)
+    cur.execute(sql, params)
+    row = cur.fetchone() or {}
+    return int(row.get("balance") or 0)
+
+
+def ensure_account_non_negative(
+    cur,
+    account_id: str,
+    effective_from: datetime,
+    new_rows: list[dict[str, Any]] | None = None,
+    exclude_tx_ids: list[str] | None = None,
+) -> None:
+    start_balance = get_balance_before(cur, account_id, effective_from, exclude_tx_ids)
+    sql = """
+        SELECT t.transaction_id::text AS transaction_id,
+               t.date,
+               t.transaction_type,
+               t.amount
+        FROM transactions t
+        WHERE t.account_id=%s::uuid AND t.date >= %s
+    """
+    params: list[Any] = [account_id, effective_from]
+    if exclude_tx_ids:
+        sql += " AND t.transaction_id <> ALL(%s::uuid[])"
+        params.append(exclude_tx_ids)
+    sql += " ORDER BY t.date ASC, t.transaction_id ASC"
+    cur.execute(sql, params)
+    rows = cur.fetchall()
+    if new_rows:
+        rows.extend(new_rows)
+    rows.sort(key=lambda r: (r["date"], str(r["transaction_id"])))
+    balance = start_balance
+    for row in rows:
+        signed = int(row.get("amount") or 0)
+        if row.get("transaction_type") == "credit":
+            signed = -signed
+        balance += signed
+        if balance < 0:
+            raise HTTPException(status_code=400, detail="Insufficient balance")
+
+
+def get_account_balances(cur, username: str, up_to: datetime) -> dict[str, int]:
+    cur.execute(
+        """
+        SELECT a.account_id::text AS account_id,
+               COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS balance
+        FROM accounts a
+        LEFT JOIN transactions t
+          ON t.account_id=a.account_id AND t.date <= %s
+        WHERE a.username=%s
+        GROUP BY a.account_id
+        """,
+        (up_to, username),
+    )
+    return {r["account_id"]: int(r["balance"] or 0) for r in cur.fetchall()}
+
+
+def compute_summary(cur, username: str, acc_by_id: dict[str, dict[str, Any]], to_dt: datetime) -> tuple[list[dict[str, Any]], int]:
+    balances_all = get_account_balances(cur, username, to_dt)
+    summary_accounts = [
+        {"account_id": aid, "account_name": acc_by_id[aid]["account_name"], "balance": int(balances_all.get(aid, 0))}
+        for aid in sorted(acc_by_id.keys(), key=lambda x: acc_by_id[x]["account_name"].lower())
+    ]
+    total_asset = sum(int(balances_all.get(aid, 0)) for aid in acc_by_id.keys())
+    return summary_accounts, int(total_asset)
+
+
+def build_ledger_data(
+    cur,
+    username: str,
+    scope: str,
+    account_id: str | None,
+    from_dt: datetime,
+    to_dt: datetime,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int]:
+    cur.execute(
+        """
+        SELECT account_id::text, account_name
+        FROM accounts
+        WHERE username=%s
+        """,
+        (username,),
+    )
+    accounts = cur.fetchall()
+    acc_by_id = {a["account_id"]: a for a in accounts}
+
+    if scope not in ("all", "account"):
+        raise HTTPException(status_code=400, detail="Invalid scope")
+    if scope == "account" and not account_id:
+        raise HTTPException(status_code=400, detail="account_id required for scope=account")
+    if scope == "account" and account_id not in acc_by_id:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    acc_ids = list(acc_by_id.keys()) if scope == "all" else [account_id]
+
+    cur.execute(
+        """
+        SELECT a.account_id::text AS account_id,
+               COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS start_balance
+        FROM accounts a
+        LEFT JOIN transactions t
+          ON t.account_id=a.account_id AND t.date < %s
+        WHERE a.username=%s AND a.account_id = ANY(%s::uuid[])
+        GROUP BY a.account_id
+        """,
+        (from_dt, username, acc_ids),
+    )
+    start_rows = cur.fetchall()
+    balance = {r["account_id"]: int(r["start_balance"]) for r in start_rows}
+
+    total_asset_running = None
+    if scope == "all":
+        total_asset_running = sum(int(balance.get(aid, 0)) for aid in acc_by_id.keys())
+
+    cur.execute(
+        """
+        SELECT t.transaction_id::text AS transaction_id,
+               t.account_id::text AS account_id,
+               a.account_name,
+               t.transaction_type,
+               t.transaction_name,
+               t.amount,
+               t.date,
+               t.is_transfer,
+               t.transfer_id::text AS transfer_id
+        FROM transactions t
+        JOIN accounts a ON a.account_id=t.account_id
+        WHERE a.username=%s
+          AND t.account_id = ANY(%s::uuid[])
+          AND t.date >= %s AND t.date <= %s
+        ORDER BY t.date ASC, t.transaction_id ASC
+        """,
+        (username, acc_ids, from_dt, to_dt),
+    )
+    txs = cur.fetchall()
+
+    rows = []
+    row_no = 0
+    for t in txs:
+        aid = t["account_id"]
+        signed = int(t["amount"]) if t["transaction_type"] == "debit" else -int(t["amount"])
+        balance[aid] = int(balance.get(aid, 0) + signed)
+        row_no += 1
+        row_balance = int(balance.get(aid, 0))
+        if scope == "all" and total_asset_running is not None:
+            total_asset_running += signed
+            row_balance = int(total_asset_running)
+        rows.append(
+            {
+                "no": row_no,
+                "account_id": aid,
+                "account_name": t["account_name"],
+                "date": t["date"].astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "transaction_id": t["transaction_id"],
+                "transaction_name": t["transaction_name"],
+                "debit": int(t["amount"]) if t["transaction_type"] == "debit" else 0,
+                "credit": int(t["amount"]) if t["transaction_type"] == "credit" else 0,
+                "balance": row_balance,
+                "is_transfer": bool(t.get("is_transfer")),
+                "transfer_id": t.get("transfer_id"),
+            }
+        )
+
+    summary_accounts, total_asset = compute_summary(cur, username, acc_by_id, to_dt)
+
+    return rows, summary_accounts, total_asset
+
+
+def build_ledger_page(
+    cur,
+    username: str,
+    scope: str,
+    account_id: str | None,
+    from_dt: datetime,
+    to_dt: datetime,
+    limit: int,
+    offset: int,
+    order: str,
+    query: str | None,
+    include_summary: bool = True,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int, dict[str, int | bool]]:
+    cur.execute(
+        """
+        SELECT account_id::text, account_name
+        FROM accounts
+        WHERE username=%s
+        """,
+        (username,),
+    )
+    accounts = cur.fetchall()
+    if not accounts:
+        return [], [], 0, {"limit": limit, "offset": offset, "has_more": False, "next_offset": offset}
+
+    acc_by_id = {a["account_id"]: a for a in accounts}
+
+    if scope not in ("all", "account"):
+        raise HTTPException(status_code=400, detail="Invalid scope")
+    if scope == "account":
+        if not account_id:
+            raise HTTPException(status_code=400, detail="account_id required for scope=account")
+        if account_id not in acc_by_id:
+            raise HTTPException(status_code=404, detail="Account not found")
+
+    if order not in ("asc", "desc"):
+        order = "desc"
+    order_dir = "ASC" if order == "asc" else "DESC"
+    limit = max(1, min(int(limit or 25), 100))
+    offset = max(0, int(offset or 0))
+
+    summary_accounts: list[dict[str, Any]] = []
+    total_asset = 0
+    if include_summary:
+        summary_key = f"{username}:ledger:{to_dt.isoformat()}"
+        cached = cache_get(summary_key)
+        if cached:
+            summary_accounts, total_asset = cached
+        else:
+            summary_accounts, total_asset = compute_summary(cur, username, acc_by_id, to_dt)
+            cache_set(summary_key, (summary_accounts, total_asset), settings.summary_cache_ttl)
+
+    base_balance = 0
+    if scope == "all":
+        all_ids = list(acc_by_id.keys())
+        cur.execute(
+            """
+            SELECT a.account_id::text AS account_id,
+                   COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS start_balance
+            FROM accounts a
+            LEFT JOIN transactions t
+              ON t.account_id=a.account_id AND t.date < %s
+            WHERE a.username=%s AND a.account_id = ANY(%s::uuid[])
+            GROUP BY a.account_id
+            """,
+            (from_dt, username, all_ids),
+        )
+        start_rows = cur.fetchall()
+        balance = {r["account_id"]: int(r["start_balance"]) for r in start_rows}
+        base_balance = sum(int(balance.get(aid, 0)) for aid in acc_by_id.keys())
+    else:
+        cur.execute(
+            """
+            SELECT COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS start_balance
+            FROM transactions t
+            WHERE t.account_id=%s::uuid AND t.date < %s
+            """,
+            (account_id, from_dt),
+        )
+        base_balance = int(cur.fetchone()["start_balance"] or 0)
+
+    base_filters = ["a.username=%s", "t.date >= %s", "t.date <= %s"]
+    params: list[Any] = [username, from_dt, to_dt]
+    if scope == "account":
+        base_filters.append("t.account_id=%s::uuid")
+        params.append(account_id)
+
+    search_pattern = build_search_pattern(query)
+    search_sql = ""
+    search_params: list[Any] = []
+    if search_pattern:
+        search_sql = "WHERE transaction_name ILIKE %s"
+        search_params.append(search_pattern)
+
+    sql = f"""
+        WITH base AS (
+            SELECT t.transaction_id::text AS transaction_id,
+                   t.account_id::text AS account_id,
+                   a.account_name,
+                   t.transaction_type,
+                   t.transaction_name,
+                   t.amount,
+                   t.date,
+                   t.is_transfer,
+                   t.transfer_id::text AS transfer_id,
+                   SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END)
+                     OVER (ORDER BY t.date ASC, t.transaction_id ASC) AS running_delta
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE {' AND '.join(base_filters)}
+        )
+        SELECT transaction_id, account_id, account_name, transaction_type, transaction_name, amount, date, is_transfer, transfer_id, running_delta
+        FROM base
+        {search_sql}
+        ORDER BY date {order_dir}, transaction_id {order_dir}
+        LIMIT %s OFFSET %s
+    """
+    params.extend(search_params)
+    params.extend([limit + 1, offset])
+
+    cur.execute(sql, params)
+    raw_rows = cur.fetchall()
+    has_more = len(raw_rows) > limit
+    if has_more:
+        raw_rows = raw_rows[:limit]
+
+    rows = []
+    for idx, r in enumerate(raw_rows, start=1):
+        signed_balance = int(r.get("running_delta") or 0)
+        balance = base_balance + signed_balance
+        rows.append(
+            {
+                "no": offset + idx,
+                "account_id": r["account_id"],
+                "account_name": r["account_name"],
+                "date": r["date"].astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "transaction_id": r["transaction_id"],
+                "transaction_name": r["transaction_name"],
+                "debit": int(r["amount"]) if r["transaction_type"] == "debit" else 0,
+                "credit": int(r["amount"]) if r["transaction_type"] == "credit" else 0,
+                "balance": int(balance),
+                "is_transfer": bool(r.get("is_transfer")),
+                "transfer_id": r.get("transfer_id"),
+            }
+        )
+
+    paging = {"limit": limit, "offset": offset, "has_more": has_more, "next_offset": offset + len(rows)}
+    return rows, summary_accounts, total_asset, paging
+
+
+def export_ledger_file(
+    rows: list[dict[str, Any]],
+    summary_accounts: list[dict[str, Any]],
+    scope: str,
+    account_id: str | None,
+    username: str,
+    from_date: str,
+    to_date: str,
+    export_format: str,
+    currency: str,
+    fx: float | None,
+):
+    account_name = "All"
+    if scope == "account" and account_id:
+        match = next((a for a in summary_accounts if a["account_id"] == account_id), None)
+        if match:
+            account_name = match["account_name"]
+
+    include_account = scope == "all"
+    headers = (
+        ["No", "Account", "Date", "Transaction", "In", "Out", "Balance"]
+        if include_account
+        else ["No", "Date", "Transaction", "In", "Out", "Balance"]
+    )
+
+    def row_cells(r: dict[str, Any]) -> list[str]:
+        debit = int(r.get("debit") or 0)
+        credit = int(r.get("credit") or 0)
+        base = [
+            str(r.get("no") or ""),
+            format_tx_date(r.get("date") or ""),
+            str(r.get("transaction_name") or ""),
+            format_amount(debit, currency, fx) if debit else "",
+            format_amount(credit, currency, fx) if credit else "",
+            format_amount(int(r.get("balance") or 0), currency, fx),
+        ]
+        if include_account:
+            base.insert(1, str(r.get("account_name") or ""))
+        return base
+
+    if export_format == "csv":
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(headers)
+        for r in rows:
+            writer.writerow(row_cells(r))
+        filename = f"ledger_{from_date}_to_{to_date}.csv"
+        return {
+            "content": output.getvalue(),
+            "media_type": "text/csv",
+            "filename": filename,
+        }
+
+    pdf = FPDF(orientation="L" if include_account else "P", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 8, "Ledger Export", ln=True)
+    pdf.set_font("Helvetica", size=10)
+    meta = f"User: {username} | Account: {account_name} | Range: {from_date} to {to_date}"
+    pdf.multi_cell(0, 6, meta)
+    pdf.ln(2)
+
+    widths = [10, 32, 64, 28, 28, 28]
+    if include_account:
+        widths = [10, 36, 32, 58, 28, 28, 28]
+
+    pdf.set_font("Helvetica", "B", 9)
+    for idx, label in enumerate(headers):
+        pdf.cell(widths[idx], 7, label, border=1)
+    pdf.ln()
+
+    pdf.set_font("Helvetica", size=9)
+    for r in rows:
+        cells = row_cells(r)
+        for idx, val in enumerate(cells):
+            cell = safe_pdf_text(val)
+            if len(cell) > 40:
+                cell = cell[:37] + "..."
+            pdf.cell(widths[idx], 6, cell, border=1)
+        pdf.ln()
+
+    pdf_bytes = pdf.output(dest="S")
+    if isinstance(pdf_bytes, bytearray):
+        pdf_bytes = bytes(pdf_bytes)
+    elif isinstance(pdf_bytes, str):
+        pdf_bytes = pdf_bytes.encode("latin-1")
+    filename = f"ledger_{from_date}_to_{to_date}.pdf"
+    return {
+        "content": pdf_bytes,
+        "media_type": "application/pdf",
+        "filename": filename,
+    }

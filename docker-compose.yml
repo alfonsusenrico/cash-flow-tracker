@@ -24,10 +24,26 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       INVITE_CODE: ${INVITE_CODE}
-      TZ: Asia/Jakarta
+      TZ: ${TZ:-Asia/Jakarta}
+      SUMMARY_CACHE_TTL: ${SUMMARY_CACHE_TTL:-30}
+      MONTH_SUMMARY_TTL: ${MONTH_SUMMARY_TTL:-60}
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10}
+      LOGIN_RATE_WINDOW: ${LOGIN_RATE_WINDOW:-300}
+      LOGIN_USER_RATE_LIMIT: ${LOGIN_USER_RATE_LIMIT:-5}
+      REGISTER_RATE_LIMIT: ${REGISTER_RATE_LIMIT:-5}
+      REGISTER_RATE_WINDOW: ${REGISTER_RATE_WINDOW:-900}
+      PASSWORD_MIN_LEN: ${PASSWORD_MIN_LEN:-8}
+      DB_POOL_MIN: ${DB_POOL_MIN:-1}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-30}
+      DB_POOL_MAX_WAITING: ${DB_POOL_MAX_WAITING:-100}
+      PUBLIC_RATE_LIMIT: ${PUBLIC_RATE_LIMIT:-120}
+      PUBLIC_RATE_WINDOW: ${PUBLIC_RATE_WINDOW:-60}
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   migrate:
     image: flyway/flyway:10
