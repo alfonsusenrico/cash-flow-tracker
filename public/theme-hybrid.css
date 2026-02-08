@@ -779,6 +779,12 @@ body.dark .ledger-title-select {
   line-height: 1.4;
 }
 
+.api-key-input {
+  font-family: "JetBrains Mono", "SFMono-Regular", "Menlo", "Consolas", monospace;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
 .export-preview {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

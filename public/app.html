@@ -27,6 +27,7 @@
         </div>
       </div>
       <span id="me" class="muted"></span>
+      <button id="apiKeyBtn" class="btn small">API Key</button>
       <button id="manageAccountsBtn" class="btn small">Accounts</button>
       <button id="logoutBtn" class="btn">Logout</button>
     </div>
@@ -341,6 +342,7 @@
         <div class="divider"></div>
 
         <button id="mobileManageAccountsBtn" class="btn full-width">Manage Accounts</button>
+        <button id="mobileApiKeyBtn" class="btn full-width">API Key</button>
 
         <div class="divider"></div>
 
@@ -466,6 +468,32 @@
             </form>
           </section>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal API Key -->
+  <div id="apiKeyModal" class="modal" role="dialog" aria-modal="true" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>API Key</h2>
+        <button id="closeApiKeyModal" class="btn">✕</button>
+      </div>
+      <div class="form stack large-gap">
+        <div class="field">
+          <label>Masked Key</label>
+          <input id="apiKeyMasked" class="api-key-input" type="text" readonly value="Loading..." />
+          <div class="hint">For security, only part of the key is shown.</div>
+        </div>
+        <div id="apiKeyPlainWrap" class="field" hidden>
+          <label>New Key (copy now, shown once)</label>
+          <input id="apiKeyPlain" class="api-key-input" type="text" readonly />
+        </div>
+        <div class="row gap">
+          <button id="copyApiKeyBtn" class="btn grow" type="button" hidden>Copy New Key</button>
+          <button id="resetApiKeyBtn" class="btn primary grow" type="button">Reset API Key</button>
+        </div>
+        <div id="apiKeyMsg" class="msg"></div>
       </div>
     </div>
   </div>

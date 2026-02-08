@@ -3072,6 +3072,129 @@ function bindEvents() {
     }
   });
 
+  // API key modal
+  const apiKeyModal = $("apiKeyModal");
+  const apiKeyMaskedInput = $("apiKeyMasked");
+  const apiKeyPlainWrap = $("apiKeyPlainWrap");
+  const apiKeyPlainInput = $("apiKeyPlain");
+  const apiKeyMsg = $("apiKeyMsg");
+  const copyApiKeyBtn = $("copyApiKeyBtn");
+  const resetApiKeyBtn = $("resetApiKeyBtn");
+
+  const resetApiKeyView = () => {
+    if (apiKeyPlainInput) apiKeyPlainInput.value = "";
+    if (apiKeyPlainWrap) apiKeyPlainWrap.hidden = true;
+    if (copyApiKeyBtn) copyApiKeyBtn.hidden = true;
+  };
+
+  const closeApiKeyModal = () => {
+    if (apiKeyModal) apiKeyModal.hidden = true;
+    if (apiKeyMsg) apiKeyMsg.textContent = "";
+    resetApiKeyView();
+  };
+
+  const loadApiKey = async () => {
+    if (apiKeyMaskedInput) apiKeyMaskedInput.value = "Loading...";
+    if (apiKeyMsg) apiKeyMsg.textContent = "";
+    resetApiKeyView();
+    try {
+      const res = await api.get("/api/api-key");
+      const key = res?.api_key || {};
+      if (apiKeyMaskedInput) apiKeyMaskedInput.value = key.key_masked || "Unavailable";
+      if (apiKeyMsg) {
+        apiKeyMsg.textContent = key.last_used_at
+          ? `Last used: ${isoToLocalDisplay(key.last_used_at)}`
+          : "API key is active and ready.";
+      }
+    } catch (err) {
+      const msg = err?.message || "Failed to load API key";
+      if (apiKeyMaskedInput) {
+        apiKeyMaskedInput.value = msg.includes("API key not found") ? "No active API key" : "Unavailable";
+      }
+      if (apiKeyMsg) {
+        apiKeyMsg.textContent = msg.includes("API key not found")
+          ? "No API key yet. Click Reset API Key to generate one."
+          : msg;
+      }
+    }
+  };
+
+  const openApiKeyModal = async () => {
+    if (!apiKeyModal) return;
+    apiKeyModal.hidden = false;
+    await loadApiKey();
+  };
+
+  const copyText = async (text) => {
+    if (!text) return false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // fallback below
+    }
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.style.position = "fixed";
+    el.style.left = "-9999px";
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch {
+      ok = false;
+    }
+    document.body.removeChild(el);
+    return ok;
+  };
+
+  if (resetApiKeyBtn) {
+    resetApiKeyBtn.addEventListener("click", async () => {
+      if (!confirm("Reset API key? Current key will stop working immediately.")) return;
+      if (apiKeyMsg) apiKeyMsg.textContent = "";
+      resetApiKeyBtn.disabled = true;
+      try {
+        const res = await api.post("/api/api-key/reset", {});
+        if (apiKeyMaskedInput) apiKeyMaskedInput.value = res.masked || "Updated";
+        if (apiKeyPlainInput) apiKeyPlainInput.value = res.api_key || "";
+        if (apiKeyPlainWrap) apiKeyPlainWrap.hidden = false;
+        if (copyApiKeyBtn) copyApiKeyBtn.hidden = !(res.api_key || "");
+        if (apiKeyMsg) apiKeyMsg.textContent = "API key reset. Update your integrations now.";
+      } catch (err) {
+        if (apiKeyMsg) apiKeyMsg.textContent = err.message || "Failed to reset API key";
+      } finally {
+        resetApiKeyBtn.disabled = false;
+      }
+    });
+  }
+
+  if (copyApiKeyBtn) {
+    copyApiKeyBtn.addEventListener("click", async () => {
+      const text = apiKeyPlainInput?.value || "";
+      const ok = await copyText(text);
+      if (apiKeyMsg) apiKeyMsg.textContent = ok ? "New API key copied." : "Copy failed.";
+    });
+  }
+
+  const apiKeyBtn = $("apiKeyBtn");
+  if (apiKeyBtn) apiKeyBtn.addEventListener("click", openApiKeyModal);
+  const mobileApiKeyBtn = $("mobileApiKeyBtn");
+  if (mobileApiKeyBtn) {
+    mobileApiKeyBtn.addEventListener("click", () => {
+      document.body.classList.remove("menu-open");
+      openApiKeyModal();
+    });
+  }
+  const closeApiKeyBtn = $("closeApiKeyModal");
+  if (closeApiKeyBtn) closeApiKeyBtn.addEventListener("click", closeApiKeyModal);
+  if (apiKeyModal) {
+    apiKeyModal.addEventListener("click", (e) => e.target === apiKeyModal && closeApiKeyModal());
+  }
+
   // Accounts modal
   const setAccountFormTabLabel = (label) => {
     const tabBtn = $("accountFormTabBtn");
