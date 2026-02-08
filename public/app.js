@@ -1266,17 +1266,25 @@ function updateExportAccounts() {
 const getLedgerViewState = () => {
   const isAll = state.scope === "all";
   const canTransact = state.scope === "account" && state.account_id;
+  const hasAccounts = Array.isArray(state.accounts) && state.accounts.length > 0;
   const showSwitch = canTransact;
-  const showAdd = canTransact;
+  const showAdd = hasAccounts;
   const showAssetSummary = isAll;
   return { isAll, showSwitch, showAdd, showAssetSummary };
 };
 
 const canTransactOnAccount = () => state.scope === "account" && !!state.account_id;
+const hasAnyAccount = () => Array.isArray(state.accounts) && state.accounts.length > 0;
 
 const requireAccountScope = (message) => {
   if (canTransactOnAccount()) return true;
   alert(message || "Select an account to manage transactions.");
+  return false;
+};
+
+const requireAnyAccount = (message) => {
+  if (hasAnyAccount()) return true;
+  alert(message || "Create an account first.");
   return false;
 };
 
@@ -2568,7 +2576,7 @@ function bindEvents() {
   const addBtn = $("addTxBtn");
   if (addBtn) {
     addBtn.addEventListener("click", () => {
-      if (!requireAccountScope("Select an account to add transactions.")) return;
+      if (!requireAnyAccount("Create an account first to add transactions.")) return;
       openModal();
     });
   }
@@ -2576,7 +2584,7 @@ function bindEvents() {
   const closeFabMenu = () => document.body.classList.remove("fab-open");
   const openFabMenu = () => {
     if (!isMobile()) {
-      if (!requireAccountScope("Select an account to add transactions.")) return;
+      if (!requireAnyAccount("Create an account first to add transactions.")) return;
       openModal();
       return;
     }
@@ -2592,7 +2600,7 @@ function bindEvents() {
       const action = btn.dataset.action;
       closeFabMenu();
       if (action === "add") {
-        if (!requireAccountScope("Select an account to add transactions.")) return;
+        if (!requireAnyAccount("Create an account first to add transactions.")) return;
         return openModal();
       }
       if (action === "switch") {
@@ -2993,7 +3001,7 @@ function bindEvents() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
       if (action === "add") {
-        if (!requireAccountScope("Select an account to add transactions.")) return;
+        if (!requireAnyAccount("Create an account first to add transactions.")) return;
         openModal();
       }
       if (action === "accounts") {
