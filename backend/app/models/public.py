@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PublicRegisterRequest(BaseModel):
@@ -16,6 +16,10 @@ class PublicRegisterResponse(BaseModel):
     username: str
     full_name: str
     api_key: str
+
+
+class EmptyBodyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 
 class CreateApiKeyResponse(BaseModel):
@@ -43,17 +47,11 @@ class ApiKeyResetResponse(BaseModel):
 class AccountCreateRequest(BaseModel):
     account_name: str = Field(min_length=1)
     initial_balance: int = Field(default=0, ge=0)
+    monthly_limit: int | None = Field(default=None, ge=0)
 
 
-class TransactionCreateRequest(BaseModel):
-    account_id: str
-    transaction_type: Literal["debit", "credit"]
-    transaction_name: str = Field(min_length=1)
-    amount: int = Field(gt=0)
-    date: str | None = None
-
-
-class TransactionUpdateRequest(BaseModel):
+class TransactionUpsertRequest(BaseModel):
+    transaction_id: str | None = None
     account_id: str | None = None
     transaction_type: Literal["debit", "credit"] | None = None
     transaction_name: str | None = None
@@ -92,9 +90,6 @@ class CursorLedgerResponse(BaseModel):
     paging: dict
 
 
-class SummaryQuery(BaseModel):
+class PeriodQuery(BaseModel):
     month: str | None = None
-
-
-class AnalysisQuery(BaseModel):
-    month: str | None = None
+    year: str | None = None

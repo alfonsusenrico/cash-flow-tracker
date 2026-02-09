@@ -12,14 +12,13 @@ from app.models.public import (
     AccountCreateRequest,
     ApiKeyInfoResponse,
     ApiKeyResetResponse,
-    AnalysisQuery,
     CursorLedgerResponse,
+    EmptyBodyRequest,
     LedgerListRequest,
+    PeriodQuery,
     PublicRegisterRequest,
     PublicRegisterResponse,
-    SummaryQuery,
-    TransactionCreateRequest,
-    TransactionUpdateRequest,
+    TransactionUpsertRequest,
 )
 from app.services.auth import (
     create_api_key,
@@ -79,6 +78,28 @@ def decode_cursor(token: str | None) -> dict[str, Any] | None:
     return payload
 
 
+def resolve_period_month(month: str | None, year: str | None) -> str:
+    if month is None and year is None:
+        return now_utc().strftime("%Y-%m")
+    if month is None or year is None:
+        raise HTTPException(status_code=400, detail="month and year must be provided together")
+
+    month_clean = str(month).strip()
+    year_clean = str(year).strip()
+    if len(month_clean) != 2 or not month_clean.isdigit():
+        raise HTTPException(status_code=400, detail="month must be MM format")
+    if len(year_clean) != 4 or not year_clean.isdigit():
+        raise HTTPException(status_code=400, detail="year must be YYYY format")
+
+    month_num = int(month_clean)
+    if month_num < 1 or month_num > 12:
+        raise HTTPException(status_code=400, detail="month must be between 01 and 12")
+
+    value = f"{year_clean}-{month_clean}"
+    parse_month(value)
+    return value
+
+
 @router.post("/auth/register", response_model=PublicRegisterResponse)
 async def public_register(req: Request, payload: PublicRegisterRequest):
     enforce_register_rate_limit(req)
@@ -95,8 +116,8 @@ async def public_register(req: Request, payload: PublicRegisterRequest):
     return PublicRegisterResponse(username=username, full_name=full_name, api_key=api_key)
 
 
-@router.get("/api-key", response_model=ApiKeyInfoResponse)
-def public_get_api_key(req: Request):
+@router.post("/api-key/info", response_model=ApiKeyInfoResponse)
+def public_get_api_key(req: Request, _payload: EmptyBodyRequest):
     username = require_public_user(req)
     with db_conn() as conn, conn.cursor() as cur:
         key_meta = get_active_api_key(cur, username)
@@ -106,7 +127,7 @@ def public_get_api_key(req: Request):
 
 
 @router.post("/api-key/reset", response_model=ApiKeyResetResponse)
-def public_reset_api_key(req: Request):
+def public_reset_api_key(req: Request, _payload: EmptyBodyRequest):
     username = require_public_user(req)
     with db_conn() as conn, conn.cursor() as cur:
         new_key = create_api_key(cur, username, "reset")
@@ -117,8 +138,8 @@ def public_reset_api_key(req: Request):
     return {"ok": True, "api_key": new_key, "masked": key_meta["key_masked"]}
 
 
-@router.get("/accounts")
-def public_accounts(req: Request):
+@router.post("/accounts/list")
+def public_accounts(req: Request, _payload: EmptyBodyRequest):
     username = require_public_user(req)
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
@@ -160,6 +181,17 @@ def public_create_account(req: Request, payload: AccountCreateRequest):
                     """,
                     (account_id, "Top Up Balance", payload.initial_balance, now_utc()),
                 )
+            if payload.monthly_limit is not None:
+                budget_month = now_utc().strftime("%Y-%m")
+                cur.execute(
+                    """
+                    INSERT INTO budgets (username, account_id, month, amount)
+                    VALUES (%s, %s::uuid, %s, %s)
+                    ON CONFLICT (username, account_id, month)
+                    DO UPDATE SET amount=EXCLUDED.amount
+                    """,
+                    (username, account_id, budget_month, int(payload.monthly_limit)),
+                )
             conn.commit()
         except Exception:
             conn.rollback()
@@ -170,20 +202,131 @@ def public_create_account(req: Request, payload: AccountCreateRequest):
 
 
 @router.post("/transactions")
-def public_create_transaction(req: Request, payload: TransactionCreateRequest):
+def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
     username = require_public_user(req)
+
+    # Update flow when transaction_id is present.
+    if payload.transaction_id:
+        transaction_id = payload.transaction_id
+        with db_conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT t.transaction_id::text AS transaction_id,
+                       t.account_id::text AS account_id,
+                       t.transaction_type,
+                       t.transaction_name,
+                       t.amount,
+                       t.date,
+                       t.is_transfer
+                FROM transactions t
+                JOIN accounts a ON a.account_id=t.account_id
+                WHERE t.transaction_id=%s::uuid AND a.username=%s
+                """,
+                (transaction_id, username),
+            )
+            tx = cur.fetchone()
+            if not tx:
+                raise HTTPException(status_code=404, detail="Transaction not found")
+            if tx.get("is_transfer"):
+                raise HTTPException(status_code=400, detail="Use switch endpoints to edit transfers")
+
+            new_account_id = payload.account_id or tx["account_id"]
+            new_type = payload.transaction_type or tx["transaction_type"]
+            if new_type not in ("debit", "credit"):
+                raise HTTPException(status_code=400, detail="Invalid transaction_type")
+
+            if payload.transaction_name is not None:
+                new_name = payload.transaction_name.strip()
+                if not new_name:
+                    raise HTTPException(status_code=400, detail="transaction_name required")
+            else:
+                new_name = tx["transaction_name"]
+
+            if payload.amount is not None:
+                new_amount = int(payload.amount)
+            else:
+                new_amount = int(tx["amount"])
+            if new_amount <= 0:
+                raise HTTPException(status_code=400, detail="amount must be > 0")
+
+            if payload.date:
+                new_date = parse_tx_datetime(payload.date)
+            else:
+                new_date = tx["date"]
+
+            old_account_id = tx["account_id"]
+            old_date = tx["date"]
+
+            lock_accounts_for_update(cur, username, [old_account_id, new_account_id])
+
+            if new_account_id != old_account_id:
+                ensure_account_non_negative(cur, old_account_id, old_date, [], exclude_tx_ids=[transaction_id])
+                ensure_account_non_negative(
+                    cur,
+                    new_account_id,
+                    new_date,
+                    [
+                        {
+                            "transaction_id": transaction_id,
+                            "date": new_date,
+                            "transaction_type": new_type,
+                            "amount": new_amount,
+                        }
+                    ],
+                )
+            else:
+                effective_from = min(old_date, new_date)
+                ensure_account_non_negative(
+                    cur,
+                    old_account_id,
+                    effective_from,
+                    [
+                        {
+                            "transaction_id": transaction_id,
+                            "date": new_date,
+                            "transaction_type": new_type,
+                            "amount": new_amount,
+                        }
+                    ],
+                    exclude_tx_ids=[transaction_id],
+                )
+
+            cur.execute(
+                """
+                UPDATE transactions
+                SET account_id=%s::uuid,
+                    transaction_type=%s,
+                    transaction_name=%s,
+                    amount=%s,
+                    date=%s
+                WHERE transaction_id=%s::uuid
+                RETURNING transaction_id::text
+                """,
+                (new_account_id, new_type, new_name, new_amount, new_date, transaction_id),
+            )
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Transaction not found")
+            conn.commit()
+
+        invalidate_user_cache(username)
+        return {"ok": True, "transaction_id": transaction_id}
+
+    # Create flow when transaction_id is absent.
     account_id = payload.account_id
     tx_type = payload.transaction_type
-    name = payload.transaction_name.strip()
+    name = (payload.transaction_name or "").strip()
     amount = payload.amount
 
+    if not account_id:
+        raise HTTPException(status_code=400, detail="account_id required")
     if tx_type not in ("debit", "credit"):
         raise HTTPException(status_code=400, detail="Invalid transaction_type")
     if not name:
         raise HTTPException(status_code=400, detail="transaction_name required")
+    if amount is None or int(amount) <= 0:
+        raise HTTPException(status_code=400, detail="amount must be > 0")
 
     dt = parse_tx_datetime(payload.date)
-
     with db_conn() as conn, conn.cursor() as cur:
         lock_accounts_for_update(cur, username, [account_id])
         temp_id = str(uuid.uuid4())
@@ -196,7 +339,7 @@ def public_create_transaction(req: Request, payload: TransactionCreateRequest):
                     "transaction_id": temp_id,
                     "date": dt,
                     "transaction_type": tx_type,
-                    "amount": amount,
+                    "amount": int(amount),
                 }
             ],
         )
@@ -207,7 +350,7 @@ def public_create_transaction(req: Request, payload: TransactionCreateRequest):
             VALUES (%s::uuid, %s, %s, %s, %s, false)
             RETURNING transaction_id::text
             """,
-            (account_id, tx_type, name, amount, dt),
+            (account_id, tx_type, name, int(amount), dt),
         )
         tx_id = cur.fetchone()["transaction_id"]
         conn.commit()
@@ -216,137 +359,10 @@ def public_create_transaction(req: Request, payload: TransactionCreateRequest):
     return {"ok": True, "transaction_id": tx_id}
 
 
-@router.put("/transactions/{transaction_id}")
-def public_update_transaction(transaction_id: str, req: Request, payload: TransactionUpdateRequest):
+@router.post("/ledger", response_model=CursorLedgerResponse)
+def public_ledger(req: Request, payload: LedgerListRequest):
     username = require_public_user(req)
-
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT t.transaction_id::text AS transaction_id,
-                   t.account_id::text AS account_id,
-                   t.transaction_type,
-                   t.transaction_name,
-                   t.amount,
-                   t.date,
-                   t.is_transfer
-            FROM transactions t
-            JOIN accounts a ON a.account_id=t.account_id
-            WHERE t.transaction_id=%s::uuid AND a.username=%s
-            """,
-            (transaction_id, username),
-        )
-        tx = cur.fetchone()
-        if not tx:
-            raise HTTPException(status_code=404, detail="Transaction not found")
-        if tx.get("is_transfer"):
-            raise HTTPException(status_code=400, detail="Use switch endpoints to edit transfers")
-
-        new_account_id = payload.account_id or tx["account_id"]
-        new_type = payload.transaction_type or tx["transaction_type"]
-        if new_type not in ("debit", "credit"):
-            raise HTTPException(status_code=400, detail="Invalid transaction_type")
-
-        if payload.transaction_name is not None:
-            new_name = payload.transaction_name.strip()
-            if not new_name:
-                raise HTTPException(status_code=400, detail="transaction_name required")
-        else:
-            new_name = tx["transaction_name"]
-
-        if payload.amount is not None:
-            new_amount = int(payload.amount)
-        else:
-            new_amount = int(tx["amount"])
-        if new_amount <= 0:
-            raise HTTPException(status_code=400, detail="amount must be > 0")
-
-        if payload.date:
-            new_date = parse_tx_datetime(payload.date)
-        else:
-            new_date = tx["date"]
-
-        old_account_id = tx["account_id"]
-        old_date = tx["date"]
-
-        lock_accounts_for_update(cur, username, [old_account_id, new_account_id])
-
-        if new_account_id != old_account_id:
-            ensure_account_non_negative(cur, old_account_id, old_date, [], exclude_tx_ids=[transaction_id])
-            ensure_account_non_negative(
-                cur,
-                new_account_id,
-                new_date,
-                [
-                    {
-                        "transaction_id": transaction_id,
-                        "date": new_date,
-                        "transaction_type": new_type,
-                        "amount": new_amount,
-                    }
-                ],
-            )
-        else:
-            effective_from = min(old_date, new_date)
-            ensure_account_non_negative(
-                cur,
-                old_account_id,
-                effective_from,
-                [
-                    {
-                        "transaction_id": transaction_id,
-                        "date": new_date,
-                        "transaction_type": new_type,
-                        "amount": new_amount,
-                    }
-                ],
-                exclude_tx_ids=[transaction_id],
-            )
-
-        cur.execute(
-            """
-            UPDATE transactions
-            SET account_id=%s::uuid,
-                transaction_type=%s,
-                transaction_name=%s,
-                amount=%s,
-                date=%s
-            WHERE transaction_id=%s::uuid
-            RETURNING transaction_id::text
-            """,
-            (new_account_id, new_type, new_name, new_amount, new_date, transaction_id),
-        )
-        if not cur.fetchone():
-            raise HTTPException(status_code=404, detail="Transaction not found")
-        conn.commit()
-
-    invalidate_user_cache(username)
-    return {"ok": True, "transaction_id": transaction_id}
-
-
-@router.get("/ledger", response_model=CursorLedgerResponse)
-def public_ledger(
-    req: Request,
-    scope: str = "all",
-    account_id: str | None = None,
-    from_date: str | None = None,
-    to_date: str | None = None,
-    limit: int = 25,
-    cursor: str | None = None,
-    order: str = "desc",
-    q: str | None = None,
-):
-    username = require_public_user(req)
-    query = LedgerListRequest(
-        scope=scope,
-        account_id=account_id,
-        from_date=from_date,
-        to_date=to_date,
-        limit=limit,
-        cursor=cursor,
-        order=order,
-        q=q,
-    )
+    query = payload
     scope = query.scope
     account_id = query.account_id
     from_date = query.from_date
@@ -429,14 +445,10 @@ def public_ledger(
     )
 
 
-@router.get("/summary")
-def public_summary(req: Request, month: str | None = None):
+@router.post("/summary")
+def public_summary(req: Request, payload: PeriodQuery):
     username = require_public_user(req)
-    query = SummaryQuery(month=month)
-    month = query.month
-    if not month:
-        month = now_utc().strftime("%Y-%m")
-    parse_month(month)
+    month = resolve_period_month(payload.month, payload.year)
 
     cache_key = f"{username}:summary:{month}"
     cached = cache_get(cache_key)
@@ -557,14 +569,10 @@ def public_summary(req: Request, month: str | None = None):
     return payload
 
 
-@router.get("/analysis")
-def public_analysis(req: Request, month: str | None = None):
+@router.post("/analysis")
+def public_analysis(req: Request, payload: PeriodQuery):
     username = require_public_user(req)
-    query = AnalysisQuery(month=month)
-    month = query.month
-    if not month:
-        month = now_utc().strftime("%Y-%m")
-    parse_month(month)
+    month = resolve_period_month(payload.month, payload.year)
 
     cache_key = f"{username}:analysis:{month}"
     cached = cache_get(cache_key)
