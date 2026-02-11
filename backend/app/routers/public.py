@@ -5,6 +5,7 @@ from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from psycopg.errors import UniqueViolation
 
 from app.core.config import settings
 from app.db.pool import db_conn
@@ -110,9 +111,9 @@ async def public_register(req: Request, payload: PublicRegisterRequest):
         except HTTPException:
             conn.rollback()
             raise
-        except Exception:
+        except UniqueViolation:
             conn.rollback()
-            raise HTTPException(status_code=400, detail="User already exists or invalid data")
+            raise HTTPException(status_code=400, detail="User already exists")
     return PublicRegisterResponse(username=username, full_name=full_name, api_key=api_key)
 
 
@@ -193,7 +194,7 @@ def public_create_account(req: Request, payload: AccountCreateRequest):
                     (username, account_id, budget_month, int(payload.monthly_limit)),
                 )
             conn.commit()
-        except Exception:
+        except UniqueViolation:
             conn.rollback()
             raise HTTPException(status_code=400, detail="Account name already exists")
 
@@ -220,7 +221,7 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
                        t.is_transfer
                 FROM transactions t
                 JOIN accounts a ON a.account_id=t.account_id
-                WHERE t.transaction_id=%s::uuid AND a.username=%s
+                WHERE t.transaction_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
                 """,
                 (transaction_id, username),
             )
@@ -299,7 +300,7 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
                     transaction_name=%s,
                     amount=%s,
                     date=%s
-                WHERE transaction_id=%s::uuid
+                WHERE transaction_id=%s::uuid AND deleted_at IS NULL
                 RETURNING transaction_id::text
                 """,
                 (new_account_id, new_type, new_name, new_amount, new_date, transaction_id),
@@ -385,7 +386,7 @@ def public_ledger(req: Request, payload: LedgerListRequest):
     decoded = decode_cursor(cursor) or {}
     try:
         offset = int(decoded.get("offset", 0) or 0)
-    except Exception:
+    except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="Invalid cursor")
     if offset < 0:
         raise HTTPException(status_code=400, detail="Invalid cursor")
@@ -499,6 +500,7 @@ def public_summary(req: Request, payload: PeriodQuery):
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
             WHERE a.username=%s
+              AND t.deleted_at IS NULL
               AND t.date >= %s
               AND t.date <= %s
             GROUP BY t.account_id
@@ -585,7 +587,7 @@ def public_analysis(req: Request, payload: PeriodQuery):
         prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))
         from_date, to_date, from_dt, to_dt = compute_month_range(month, payday_day, prev_day)
 
-        base_filters = ["a.username=%s", "t.date >= %s", "t.date <= %s"]
+        base_filters = ["a.username=%s", "t.deleted_at IS NULL", "t.date >= %s", "t.date <= %s"]
         params: list[Any] = [username, from_dt, to_dt]
 
         cur.execute(

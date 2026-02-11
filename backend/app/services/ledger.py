@@ -1,6 +1,7 @@
 import calendar
 import csv
 import io
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -258,14 +259,16 @@ def build_weekly_series(from_date: str, to_date: str, daily: list[dict[str, int 
 
 def parse_tx_datetime(date_str: str | None) -> datetime:
     if not date_str:
-        return now_utc()
+        return now_utc().replace(microsecond=0)
     try:
         dt = datetime.fromisoformat(date_str)
         if dt.tzinfo is None:
-            return dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc)
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
+        return dt.replace(microsecond=0)
     except Exception:
-        return parse_date_utc(date_str, end_of_day=False)
+        return parse_date_utc(date_str, end_of_day=False).replace(microsecond=0)
 
 
 def lock_accounts_for_update(cur, username: str, account_ids: list[str]) -> None:
@@ -291,7 +294,7 @@ def get_balance_before(cur, account_id: str, before_dt: datetime, exclude_tx_ids
     sql = """
         SELECT COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS balance
         FROM transactions t
-        WHERE t.account_id=%s::uuid AND t.date < %s
+        WHERE t.account_id=%s::uuid AND t.date < %s AND t.deleted_at IS NULL
     """
     params: list[Any] = [account_id, before_dt]
     if exclude_tx_ids:
@@ -316,7 +319,7 @@ def ensure_account_non_negative(
                t.transaction_type,
                t.amount
         FROM transactions t
-        WHERE t.account_id=%s::uuid AND t.date >= %s
+        WHERE t.account_id=%s::uuid AND t.date >= %s AND t.deleted_at IS NULL
     """
     params: list[Any] = [account_id, effective_from]
     if exclude_tx_ids:
@@ -345,13 +348,114 @@ def get_account_balances(cur, username: str, up_to: datetime) -> dict[str, int]:
                COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS balance
         FROM accounts a
         LEFT JOIN transactions t
-          ON t.account_id=a.account_id AND t.date <= %s
+          ON t.account_id=a.account_id AND t.date <= %s AND t.deleted_at IS NULL
         WHERE a.username=%s
         GROUP BY a.account_id
         """,
         (up_to, username),
     )
     return {r["account_id"]: int(r["balance"] or 0) for r in cur.fetchall()}
+
+
+def write_transaction_audit(
+    cur,
+    *,
+    username: str,
+    performed_by: str,
+    action: str,
+    tx_row: dict[str, Any],
+) -> None:
+    payload = json.dumps(
+        {
+            "transaction_id": tx_row.get("transaction_id"),
+            "account_id": tx_row.get("account_id"),
+            "transaction_type": tx_row.get("transaction_type"),
+            "transaction_name": tx_row.get("transaction_name"),
+            "amount": int(tx_row.get("amount") or 0),
+            "date": tx_row.get("date").astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+            if tx_row.get("date")
+            else None,
+            "is_transfer": bool(tx_row.get("is_transfer")),
+            "transfer_id": tx_row.get("transfer_id"),
+            "deleted_at": tx_row.get("deleted_at").astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+            if tx_row.get("deleted_at")
+            else None,
+            "deleted_by": tx_row.get("deleted_by"),
+            "delete_reason": tx_row.get("delete_reason"),
+        },
+        separators=(",", ":"),
+    )
+    cur.execute(
+        """
+        INSERT INTO transaction_audit (transaction_id, account_id, username, action, payload, performed_by)
+        VALUES (%s::uuid, %s::uuid, %s, %s, %s::jsonb, %s)
+        """,
+        (
+            tx_row.get("transaction_id"),
+            tx_row.get("account_id"),
+            username,
+            action,
+            payload,
+            performed_by,
+        ),
+    )
+
+
+def recompute_balances_report(cur, username: str) -> dict[str, Any]:
+    cur.execute(
+        """
+        SELECT account_id::text AS account_id,
+               account_name
+        FROM accounts
+        WHERE username=%s
+        ORDER BY account_name
+        """,
+        (username,),
+    )
+    accounts = cur.fetchall()
+    result_accounts: list[dict[str, Any]] = []
+    has_negative = False
+
+    for account in accounts:
+        account_id = account["account_id"]
+        cur.execute(
+            """
+            SELECT transaction_id::text AS transaction_id,
+                   date,
+                   transaction_type,
+                   amount
+            FROM transactions
+            WHERE account_id=%s::uuid AND deleted_at IS NULL
+            ORDER BY date ASC, transaction_id ASC
+            """,
+            (account_id,),
+        )
+        rows = cur.fetchall()
+        balance = 0
+        min_balance = 0
+        first_negative_at = None
+        for row in rows:
+            signed = int(row["amount"]) if row["transaction_type"] == "debit" else -int(row["amount"])
+            balance += signed
+            if balance < min_balance:
+                min_balance = balance
+            if balance < 0 and first_negative_at is None:
+                first_negative_at = row["date"].astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+                has_negative = True
+
+        result_accounts.append(
+            {
+                "account_id": account_id,
+                "account_name": account["account_name"],
+                "transactions_count": len(rows),
+                "current_balance": int(balance),
+                "min_balance": int(min_balance),
+                "first_negative_at": first_negative_at,
+            }
+        )
+
+    total_asset = sum(int(row["current_balance"]) for row in result_accounts)
+    return {"accounts": result_accounts, "has_negative": has_negative, "total_asset": int(total_asset)}
 
 
 def compute_summary(cur, username: str, acc_by_id: dict[str, dict[str, Any]], to_dt: datetime) -> tuple[list[dict[str, Any]], int]:
@@ -398,7 +502,7 @@ def build_ledger_data(
                COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS start_balance
         FROM accounts a
         LEFT JOIN transactions t
-          ON t.account_id=a.account_id AND t.date < %s
+          ON t.account_id=a.account_id AND t.date < %s AND t.deleted_at IS NULL
         WHERE a.username=%s AND a.account_id = ANY(%s::uuid[])
         GROUP BY a.account_id
         """,
@@ -426,6 +530,7 @@ def build_ledger_data(
         JOIN accounts a ON a.account_id=t.account_id
         WHERE a.username=%s
           AND t.account_id = ANY(%s::uuid[])
+          AND t.deleted_at IS NULL
           AND t.date >= %s AND t.date <= %s
         ORDER BY t.date ASC, t.transaction_id ASC
         """,
@@ -526,7 +631,7 @@ def build_ledger_page(
                    COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS start_balance
             FROM accounts a
             LEFT JOIN transactions t
-              ON t.account_id=a.account_id AND t.date < %s
+              ON t.account_id=a.account_id AND t.date < %s AND t.deleted_at IS NULL
             WHERE a.username=%s AND a.account_id = ANY(%s::uuid[])
             GROUP BY a.account_id
             """,
@@ -540,13 +645,13 @@ def build_ledger_page(
             """
             SELECT COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS start_balance
             FROM transactions t
-            WHERE t.account_id=%s::uuid AND t.date < %s
+            WHERE t.account_id=%s::uuid AND t.date < %s AND t.deleted_at IS NULL
             """,
             (account_id, from_dt),
         )
         base_balance = int(cur.fetchone()["start_balance"] or 0)
 
-    base_filters = ["a.username=%s", "t.date >= %s", "t.date <= %s"]
+    base_filters = ["a.username=%s", "t.deleted_at IS NULL", "t.date >= %s", "t.date <= %s"]
     params: list[Any] = [username, from_dt, to_dt]
     if scope == "account":
         base_filters.append("t.account_id=%s::uuid")

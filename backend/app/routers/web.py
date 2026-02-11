@@ -1,13 +1,11 @@
-import csv
-import io
 import uuid
 from datetime import timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
-from fpdf import FPDF
 from passlib.hash import bcrypt
+from psycopg.errors import UniqueViolation
 
 from app.core.config import settings
 from app.db.pool import db_conn
@@ -30,8 +28,7 @@ from app.services.ledger import (
     compute_export_range,
     compute_month_range,
     ensure_account_non_negative,
-    format_amount,
-    format_tx_date,
+    export_ledger_file,
     get_account_balances,
     get_default_payday_day,
     get_payday_day,
@@ -43,7 +40,8 @@ from app.services.ledger import (
     parse_month,
     parse_tx_datetime,
     prev_month_str,
-    safe_pdf_text,
+    recompute_balances_report,
+    write_transaction_audit,
 )
 
 router = APIRouter()
@@ -65,9 +63,9 @@ async def register(req: Request):
         except HTTPException:
             conn.rollback()
             raise
-        except Exception:
+        except UniqueViolation:
             conn.rollback()
-            raise HTTPException(status_code=400, detail="User already exists or invalid data")
+            raise HTTPException(status_code=400, detail="User already exists")
 
     return {"ok": True}
 
@@ -154,7 +152,7 @@ async def create_account(req: Request):
     initial_balance_raw = data.get("initial_balance", 0)
     try:
         initial_balance = int(initial_balance_raw or 0)
-    except Exception:
+    except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="Invalid initial balance")
     if not account_name:
         raise HTTPException(status_code=400, detail="account_name required")
@@ -181,7 +179,7 @@ async def create_account(req: Request):
                     (account_id, "Top Up Balance", initial_balance, now_utc()),
                 )
             conn.commit()
-        except Exception:
+        except UniqueViolation:
             conn.rollback()
             raise HTTPException(status_code=400, detail="Account name already exists")
 
@@ -509,7 +507,7 @@ def get_switch(transfer_id: str, req: Request):
                    a.account_name
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
-            WHERE t.transfer_id=%s::uuid AND a.username=%s
+            WHERE t.transfer_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
             """,
             (transfer_id, username),
         )
@@ -544,7 +542,7 @@ async def update_switch(transfer_id: str, req: Request):
                    a.account_name
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
-            WHERE t.transfer_id=%s::uuid AND a.username=%s
+            WHERE t.transfer_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
             """,
             (transfer_id, username),
         )
@@ -654,7 +652,7 @@ async def update_switch(transfer_id: str, req: Request):
                 amount=%s,
                 date=%s,
                 is_transfer=true
-            WHERE transaction_id=%s::uuid AND transfer_id=%s::uuid
+            WHERE transaction_id=%s::uuid AND transfer_id=%s::uuid AND deleted_at IS NULL
             """,
             (
                 source_account_id,
@@ -665,6 +663,8 @@ async def update_switch(transfer_id: str, req: Request):
                 transfer_id,
             ),
         )
+        if cur.rowcount != 1:
+            raise HTTPException(status_code=409, detail="Switch changed, please retry")
         cur.execute(
             """
             UPDATE transactions
@@ -674,7 +674,7 @@ async def update_switch(transfer_id: str, req: Request):
                 amount=%s,
                 date=%s,
                 is_transfer=true
-            WHERE transaction_id=%s::uuid AND transfer_id=%s::uuid
+            WHERE transaction_id=%s::uuid AND transfer_id=%s::uuid AND deleted_at IS NULL
             """,
             (
                 target_account_id,
@@ -685,6 +685,8 @@ async def update_switch(transfer_id: str, req: Request):
                 transfer_id,
             ),
         )
+        if cur.rowcount != 1:
+            raise HTTPException(status_code=409, detail="Switch changed, please retry")
         conn.commit()
 
     invalidate_user_cache(username)
@@ -699,10 +701,15 @@ def delete_switch(transfer_id: str, req: Request):
             """
             SELECT t.transaction_id::text AS transaction_id,
                    t.account_id::text AS account_id,
-                   t.date
+                   t.date,
+                   t.transaction_type,
+                   t.transaction_name,
+                   t.amount,
+                   t.is_transfer,
+                   t.transfer_id::text AS transfer_id
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
-            WHERE t.transfer_id=%s::uuid AND a.username=%s
+            WHERE t.transfer_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
             """,
             (transfer_id, username),
         )
@@ -711,28 +718,40 @@ def delete_switch(transfer_id: str, req: Request):
             raise HTTPException(status_code=404, detail="Switch not found")
 
         lock_accounts_for_update(cur, username, [row["account_id"] for row in rows])
-
-        affected: dict[str, dict[str, Any]] = {}
-        for row in rows:
-            acc = row["account_id"]
-            affected.setdefault(acc, {"exclude": [], "dates": [], "new": []})
-            affected[acc]["exclude"].append(row["transaction_id"])
-            affected[acc]["dates"].append(row["date"])
-
-        for acc_id, payload in affected.items():
-            effective_from = min(payload["dates"])
-            ensure_account_non_negative(
-                cur,
-                acc_id,
-                effective_from,
-                [],
-                exclude_tx_ids=payload["exclude"],
-            )
-
+        deleted_at = now_utc()
         cur.execute(
-            "DELETE FROM transactions WHERE transfer_id=%s::uuid",
-            (transfer_id,),
+            """
+            UPDATE transactions
+            SET deleted_at=%s,
+                deleted_by=%s,
+                delete_reason=%s
+            WHERE transfer_id=%s::uuid
+              AND deleted_at IS NULL
+            RETURNING transaction_id::text AS transaction_id,
+                      account_id::text AS account_id,
+                      transaction_type,
+                      transaction_name,
+                      amount,
+                      date,
+                      is_transfer,
+                      transfer_id::text AS transfer_id,
+                      deleted_at,
+                      deleted_by,
+                      delete_reason
+            """,
+            (deleted_at, username, "user_request", transfer_id),
         )
+        deleted_rows = cur.fetchall()
+        if len(deleted_rows) != 2:
+            raise HTTPException(status_code=409, detail="Switch changed, please retry")
+        for row in deleted_rows:
+            write_transaction_audit(
+                cur,
+                username=username,
+                performed_by=username,
+                action="soft_delete",
+                tx_row=row,
+            )
         conn.commit()
 
     invalidate_user_cache(username)
@@ -756,7 +775,7 @@ async def update_tx(transaction_id: str, req: Request):
                    t.is_transfer
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
-            WHERE t.transaction_id=%s::uuid AND a.username=%s
+            WHERE t.transaction_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
             """,
             (transaction_id, username),
         )
@@ -835,7 +854,7 @@ async def update_tx(transaction_id: str, req: Request):
                 transaction_name=%s,
                 amount=%s,
                 date=%s
-            WHERE transaction_id=%s::uuid
+            WHERE transaction_id=%s::uuid AND deleted_at IS NULL
             RETURNING transaction_id
             """,
             (new_account_id, new_type, new_name, new_amount, new_date, transaction_id),
@@ -857,10 +876,14 @@ def delete_tx(transaction_id: str, req: Request):
             SELECT t.transaction_id::text AS transaction_id,
                    t.account_id::text AS account_id,
                    t.date,
-                   t.is_transfer
+                   t.transaction_type,
+                   t.transaction_name,
+                   t.amount,
+                   t.is_transfer,
+                   t.transfer_id::text AS transfer_id
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
-            WHERE t.transaction_id=%s::uuid AND a.username=%s
+            WHERE t.transaction_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
             """,
             (transaction_id, username)
         )
@@ -871,15 +894,39 @@ def delete_tx(transaction_id: str, req: Request):
             raise HTTPException(status_code=400, detail="Use switch endpoints to delete transfers")
 
         lock_accounts_for_update(cur, username, [tx["account_id"]])
-        ensure_account_non_negative(cur, tx["account_id"], tx["date"], [], exclude_tx_ids=[transaction_id])
 
+        deleted_at = now_utc()
         cur.execute(
             """
-            DELETE FROM transactions
+            UPDATE transactions
+            SET deleted_at=%s,
+                deleted_by=%s,
+                delete_reason=%s
             WHERE transaction_id=%s::uuid
-            RETURNING transaction_id
+              AND deleted_at IS NULL
+            RETURNING transaction_id::text AS transaction_id,
+                      account_id::text AS account_id,
+                      transaction_type,
+                      transaction_name,
+                      amount,
+                      date,
+                      is_transfer,
+                      transfer_id::text AS transfer_id,
+                      deleted_at,
+                      deleted_by,
+                      delete_reason
             """,
-            (transaction_id,),
+            (deleted_at, username, "user_request", transaction_id),
+        )
+        deleted_row = cur.fetchone()
+        if not deleted_row:
+            raise HTTPException(status_code=409, detail="Transaction changed, please retry")
+        write_transaction_audit(
+            cur,
+            username=username,
+            performed_by=username,
+            action="soft_delete",
+            tx_row=deleted_row,
         )
         conn.commit()
     invalidate_user_cache(username)
@@ -994,6 +1041,7 @@ def summary(req: Request, month: str | None = None):
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
             WHERE a.username=%s
+              AND t.deleted_at IS NULL
               AND t.date >= %s
               AND t.date <= %s
             GROUP BY t.account_id
@@ -1081,7 +1129,7 @@ def analysis(req: Request, month: str | None = None):
         prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))
         from_date, to_date, from_dt, to_dt = compute_month_range(month, payday_day, prev_day)
 
-        base_filters = ["a.username=%s", "t.date >= %s", "t.date <= %s"]
+        base_filters = ["a.username=%s", "t.deleted_at IS NULL", "t.date >= %s", "t.date <= %s"]
         params: list[Any] = [username, from_dt, to_dt]
 
         cur.execute(
@@ -1211,7 +1259,7 @@ async def set_payday(req: Request):
         else:
             try:
                 day = int(day_val)
-            except Exception:
+            except (TypeError, ValueError):
                 raise HTTPException(status_code=400, detail="Invalid payday day")
             if day < 1 or day > 31:
                 raise HTTPException(status_code=400, detail="Payday day must be between 1 and 31")
@@ -1229,7 +1277,7 @@ async def set_payday(req: Request):
     else:
         try:
             day = int(day_val)
-        except Exception:
+        except (TypeError, ValueError):
             raise HTTPException(status_code=400, detail="Invalid payday day")
         if day < 1 or day > 31:
             raise HTTPException(status_code=400, detail="Payday day must be between 1 and 31")
@@ -1242,6 +1290,67 @@ async def set_payday(req: Request):
 
     invalidate_user_cache(username)
     return {"ok": True}
+
+
+@router.post("/balances/recompute")
+def recompute_balances(req: Request):
+    username = require_session_user(req)
+    with db_conn() as conn, conn.cursor() as cur:
+        report = recompute_balances_report(cur, username)
+    invalidate_user_cache(username)
+    return {
+        "ok": True,
+        "checked_at": now_utc().isoformat().replace("+00:00", "Z"),
+        **report,
+    }
+
+
+@router.get("/transactions/audit")
+def list_transaction_audit(req: Request, transaction_id: str | None = None, limit: int = 50):
+    username = require_session_user(req)
+    try:
+        limit = max(1, min(int(limit or 50), 200))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid limit")
+
+    sql = """
+        SELECT audit_id::text AS audit_id,
+               transaction_id::text AS transaction_id,
+               account_id::text AS account_id,
+               username,
+               action,
+               payload,
+               performed_by,
+               performed_at
+        FROM transaction_audit
+        WHERE username=%s
+    """
+    params: list[Any] = [username]
+    if transaction_id:
+        sql += " AND transaction_id=%s::uuid"
+        params.append(transaction_id)
+    sql += " ORDER BY performed_at DESC LIMIT %s"
+    params.append(limit)
+
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+
+    return {
+        "audit": [
+            {
+                "audit_id": row["audit_id"],
+                "transaction_id": row["transaction_id"],
+                "account_id": row["account_id"],
+                "username": row["username"],
+                "action": row["action"],
+                "payload": row["payload"],
+                "performed_by": row["performed_by"],
+                "performed_at": row["performed_at"].astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+            }
+            for row in rows
+        ]
+    }
 
 
 @router.get("/export/preview")
@@ -1285,85 +1394,20 @@ def export_ledger(
 
     with db_conn() as conn, conn.cursor() as cur:
         rows, summary_accounts, _ = build_ledger_data(cur, username, scope, account_id, from_dt, to_dt)
-
-    account_name = "All"
-    if scope == "account" and account_id:
-        match = next((a for a in summary_accounts if a["account_id"] == account_id), None)
-        if match:
-            account_name = match["account_name"]
-
-    include_account = scope == "all"
-    headers = (
-        ["No", "Account", "Date", "Transaction", "In", "Out", "Balance"]
-        if include_account
-        else ["No", "Date", "Transaction", "In", "Out", "Balance"]
+    export_payload = export_ledger_file(
+        rows=rows,
+        summary_accounts=summary_accounts,
+        scope=scope,
+        account_id=account_id,
+        username=username,
+        from_date=from_date,
+        to_date=to_date,
+        export_format=export_format,
+        currency=cur_currency,
+        fx=fx,
     )
-
-    def row_cells(r: dict[str, Any]) -> list[str]:
-        debit = int(r.get("debit") or 0)
-        credit = int(r.get("credit") or 0)
-        base = [
-            str(r.get("no") or ""),
-            format_tx_date(r.get("date") or ""),
-            str(r.get("transaction_name") or ""),
-            format_amount(debit, cur_currency, fx) if debit else "",
-            format_amount(credit, cur_currency, fx) if credit else "",
-            format_amount(int(r.get("balance") or 0), cur_currency, fx),
-        ]
-        if include_account:
-            base.insert(1, str(r.get("account_name") or ""))
-        return base
-
-    if export_format == "csv":
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(headers)
-        for r in rows:
-            writer.writerow(row_cells(r))
-        filename = f"ledger_{from_date}_to_{to_date}.csv"
-        return Response(
-            content=output.getvalue(),
-            media_type="text/csv",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-        )
-
-    pdf = FPDF(orientation="L" if include_account else "P", unit="mm", format="A4")
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-    pdf.set_font("Helvetica", "B", 14)
-    pdf.cell(0, 8, "Ledger Export", ln=True)
-    pdf.set_font("Helvetica", size=10)
-    meta = f"User: {username} | Account: {account_name} | Range: {from_date} to {to_date}"
-    pdf.multi_cell(0, 6, meta)
-    pdf.ln(2)
-
-    widths = [10, 32, 64, 28, 28, 28]
-    if include_account:
-        widths = [10, 36, 32, 58, 28, 28, 28]
-
-    pdf.set_font("Helvetica", "B", 9)
-    for idx, label in enumerate(headers):
-        pdf.cell(widths[idx], 7, label, border=1)
-    pdf.ln()
-
-    pdf.set_font("Helvetica", size=9)
-    for r in rows:
-        cells = row_cells(r)
-        for idx, val in enumerate(cells):
-            cell = safe_pdf_text(val)
-            if len(cell) > 40:
-                cell = cell[:37] + "..."
-            pdf.cell(widths[idx], 6, cell, border=1)
-        pdf.ln()
-
-    pdf_bytes = pdf.output(dest="S")
-    if isinstance(pdf_bytes, bytearray):
-        pdf_bytes = bytes(pdf_bytes)
-    elif isinstance(pdf_bytes, str):
-        pdf_bytes = pdf_bytes.encode("latin-1")
-    filename = f"ledger_{from_date}_to_{to_date}.pdf"
     return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        content=export_payload["content"],
+        media_type=export_payload["media_type"],
+        headers={"Content-Disposition": f'attachment; filename="{export_payload["filename"]}"'},
     )

@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS transactions (
   date TIMESTAMPTZ NOT NULL,
   is_transfer BOOLEAN NOT NULL DEFAULT FALSE,
   transfer_id UUID NULL,
+  deleted_at TIMESTAMPTZ NULL,
+  deleted_by TEXT NULL REFERENCES users(username) ON DELETE SET NULL,
+  delete_reason TEXT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -48,10 +51,25 @@ CREATE TABLE IF NOT EXISTS payday_overrides (
   PRIMARY KEY (username, month)
 );
 
+CREATE TABLE IF NOT EXISTS transaction_audit (
+  audit_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  transaction_id UUID NOT NULL,
+  account_id UUID NULL,
+  username TEXT NOT NULL,
+  action TEXT NOT NULL CHECK (action IN ('soft_delete')),
+  payload JSONB NOT NULL,
+  performed_by TEXT NULL REFERENCES users(username) ON DELETE SET NULL,
+  performed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_accounts_username ON accounts(username);
 CREATE INDEX IF NOT EXISTS idx_tx_account_date ON transactions(account_id, date, transaction_id);
 CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date);
 CREATE INDEX IF NOT EXISTS idx_tx_date_type ON transactions(date, transaction_type);
 CREATE INDEX IF NOT EXISTS idx_tx_transfer_id ON transactions(transfer_id);
+CREATE INDEX IF NOT EXISTS idx_tx_active_account_date ON transactions(account_id, date, transaction_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_tx_deleted_at ON transactions(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_budgets_username_month ON budgets(username, month);
 CREATE INDEX IF NOT EXISTS idx_payday_overrides_username_month ON payday_overrides(username, month);
+CREATE INDEX IF NOT EXISTS idx_tx_audit_username_time ON transaction_audit(username, performed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tx_audit_transaction_time ON transaction_audit(transaction_id, performed_at DESC);
