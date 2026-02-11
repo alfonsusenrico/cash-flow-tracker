@@ -1,5 +1,7 @@
 import hashlib
 import secrets
+import threading
+from queue import Full, Queue
 from datetime import datetime, timezone
 from typing import Any
 
@@ -9,6 +11,52 @@ from passlib.hash import bcrypt
 from app.core.config import settings
 from app.db.pool import db_conn
 from app.services.state import rate_limiter
+
+_TOUCH_QUEUE: Queue[str] = Queue(maxsize=10000)
+_TOUCH_WORKER_STARTED = False
+_TOUCH_WORKER_LOCK = threading.Lock()
+
+
+def _touch_api_key_last_used(token_hash: str) -> None:
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE api_keys SET last_used_at=%s WHERE key_hash=%s",
+            (datetime.now(timezone.utc), token_hash),
+        )
+        conn.commit()
+
+
+def _touch_worker() -> None:
+    while True:
+        token_hash = _TOUCH_QUEUE.get()
+        try:
+            _touch_api_key_last_used(token_hash)
+        except Exception:
+            # Ignore touch failures; auth validity has already been checked.
+            pass
+        finally:
+            _TOUCH_QUEUE.task_done()
+
+
+def _ensure_touch_worker() -> None:
+    global _TOUCH_WORKER_STARTED
+    if _TOUCH_WORKER_STARTED:
+        return
+    with _TOUCH_WORKER_LOCK:
+        if _TOUCH_WORKER_STARTED:
+            return
+        worker = threading.Thread(target=_touch_worker, name="api-key-last-used-touch", daemon=True)
+        worker.start()
+        _TOUCH_WORKER_STARTED = True
+
+
+def queue_api_key_touch(token_hash: str) -> None:
+    _ensure_touch_worker()
+    try:
+        _TOUCH_QUEUE.put_nowait(token_hash)
+    except Full:
+        # Avoid blocking request thread if queue is full.
+        pass
 
 
 def get_client_ip(req: Request) -> str:
@@ -104,12 +152,8 @@ def get_api_user_by_token(token: str) -> str:
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=401, detail="Invalid API key")
-        cur.execute(
-            "UPDATE api_keys SET last_used_at=%s WHERE key_hash=%s",
-            (datetime.now(timezone.utc), token_hash),
-        )
-        conn.commit()
-        return row["username"]
+    queue_api_key_touch(token_hash)
+    return row["username"]
 
 
 def require_api_user(req: Request) -> str:
