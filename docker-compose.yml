@@ -15,6 +15,17 @@ services:
       timeout: 3s
       retries: 20
 
+  redis:
+    image: redis:7-alpine
+    container_name: ledger_redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   api:
     build: ./backend
     container_name: ledger_api
@@ -39,8 +50,12 @@ services:
       DB_POOL_MAX_WAITING: ${DB_POOL_MAX_WAITING:-100}
       PUBLIC_RATE_LIMIT: ${PUBLIC_RATE_LIMIT:-120}
       PUBLIC_RATE_WINDOW: ${PUBLIC_RATE_WINDOW:-60}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_PREFIX: ${REDIS_PREFIX:-cashflow}
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully

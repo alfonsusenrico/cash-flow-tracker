@@ -6,6 +6,8 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Settings:
     database_url: str
+    redis_url: str | None
+    redis_prefix: str
     session_secret: str
     cookie_secure: bool
     tz: str
@@ -42,6 +44,8 @@ def load_settings() -> Settings:
 
     return Settings(
         database_url=database_url,
+        redis_url=(os.getenv("REDIS_URL") or "").strip() or None,
+        redis_prefix=(os.getenv("REDIS_PREFIX") or "cashflow").strip() or "cashflow",
         session_secret=session_secret,
         cookie_secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
         tz=os.getenv("TZ", "Asia/Jakarta"),
