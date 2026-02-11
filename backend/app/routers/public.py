@@ -642,21 +642,6 @@ def public_analysis(req: Request, payload: PeriodQuery):
         categories_raw = cur.fetchall()
 
         cur.execute(
-            f"""
-            SELECT t.account_id::text AS account_id,
-                   COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS switch_in,
-                   COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS switch_out
-            FROM transactions t
-            JOIN accounts a ON a.account_id=t.account_id
-            WHERE {' AND '.join(base_filters)}
-              AND t.transfer_id IS NOT NULL
-            GROUP BY t.account_id
-            """,
-            params,
-        )
-        switch_raw = cur.fetchall()
-
-        cur.execute(
             """
             SELECT account_id::text AS account_id
             FROM accounts
@@ -668,14 +653,6 @@ def public_analysis(req: Request, payload: PeriodQuery):
         balances = get_account_balances(cur, username, to_dt)
         total_asset = sum(int(balances.get(r["account_id"], 0)) for r in acc_rows)
 
-    switch_by_account = {
-        r.get("account_id"): {
-            "switch_in": int(r.get("switch_in") or 0),
-            "switch_out": int(r.get("switch_out") or 0),
-        }
-        for r in switch_raw
-    }
-
     categories = [
         {
             "account_id": r.get("account_id"),
@@ -683,8 +660,6 @@ def public_analysis(req: Request, payload: PeriodQuery):
             "total_in": int(r.get("total_in") or 0),
             "total_out": int(r.get("total_out") or 0),
             "net": int(r.get("total_in") or 0) - int(r.get("total_out") or 0),
-            "switch_in": int((switch_by_account.get(r.get("account_id")) or {}).get("switch_in") or 0),
-            "switch_out": int((switch_by_account.get(r.get("account_id")) or {}).get("switch_out") or 0),
         }
         for r in categories_raw
     ]
