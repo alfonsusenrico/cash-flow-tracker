@@ -193,11 +193,6 @@ const bindMobileScrollState = () => {
   syncMobileScrollState();
 };
 
-const setFxRateText = (text) => {
-  const el = $("fxRate");
-  if (el) el.textContent = text;
-};
-
 const parseAmount = (value) => {
   const cleaned = String(value || "").replace(/[^\d]/g, "");
   return cleaned ? Number(cleaned) : 0;
@@ -375,23 +370,28 @@ const isoToLocalYMD = (isoZ) => {
   return dateToYMD(d);
 };
 
-const isoToLocalTime = (isoZ) => {
+const isoToLocalTimeWithSeconds = (isoZ) => {
   const d = new Date(isoZ);
   if (isNaN(d)) return "";
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 };
 
-const nowTime = () => {
+const isoToLocalTime = (isoZ) => {
+  const withSeconds = isoToLocalTimeWithSeconds(isoZ);
+  return withSeconds ? withSeconds.slice(0, 5) : "";
+};
+
+const nowTimeWithSeconds = () => {
   const d = new Date();
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 };
 
-const ymdTimeToIso = (ymd, time) => {
+const ymdTimeToIso = (ymd, timeWithSeconds) => {
   if (!ymd) return "";
   const [y, m, d] = String(ymd).split("-").map(Number);
   if (!y || !m || !d) return "";
-  const [hh, mm] = String(time || "00:00").split(":").map(Number);
-  const local = new Date(y, m - 1, d, hh || 0, mm || 0, 0);
+  const [hh, mm, ss] = String(timeWithSeconds || "00:00:00").split(":").map(Number);
+  const local = new Date(y, m - 1, d, hh || 0, mm || 0, ss || 0);
   return local.toISOString();
 };
 
@@ -431,12 +431,6 @@ const minusDaysYMD = (days) => {
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString().slice(0, 10);
-};
-
-const defaultTxDatetimeLocal = () => {
-  const d = new Date();
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
 };
 
 const formatRangeText = (from, to) => {
@@ -493,9 +487,6 @@ const applyLedgerRange = (from, to) => {
 const setLedgerScopeAll = () => {
   state.scope = "all";
   state.account_id = null;
-  document.querySelectorAll('input[name="accountFilter"]').forEach((input) => {
-    input.checked = input.value === "all";
-  });
   const mobileSelect = $("mobileAccountSelect");
   if (mobileSelect) mobileSelect.value = "all";
   const titleSelect = $("ledgerTitleSelect");
@@ -618,25 +609,6 @@ function renderAccounts() {
     .join("");
 
   const filterAccounts = state.accounts.slice();
-  const accountList = $("accountList");
-  if (accountList) {
-    const listItems = [
-      `<label class="account-option">
-        <input type="radio" name="accountFilter" value="all" ${state.scope === "all" ? "checked" : ""} />
-        <span>All</span>
-        <span class="tag">Total</span>
-      </label>`,
-      ...filterAccounts.map((a) => {
-        const checked = state.scope === "account" && state.account_id === a.account_id ? "checked" : "";
-        const accountName = escapeHtml(a.account_name);
-        return `<label class="account-option">
-          <input type="radio" name="accountFilter" value="${a.account_id}" ${checked} />
-          <span>${accountName}</span>
-        </label>`;
-      }),
-    ];
-    accountList.innerHTML = listItems.join("");
-  }
 
   const mobileSelect = $("mobileAccountSelect");
   if (mobileSelect) {
@@ -1080,137 +1052,6 @@ const loadAnalysis = async ({ force = false } = {}) => {
     if (msg) msg.textContent = err.message || "Failed to load analysis";
   } finally {
     state.analysis_loading = false;
-  }
-};
-
-const seedDemoData = async ({ force = false } = {}) => {
-  const msg = $("analysisMsg");
-  const seedBtn = $("seedDemoBtn");
-  const month = state.summary_month || currentMonthYM();
-  const seedKey = `seed_demo_${month}`;
-  if (!force && localStorage.getItem(seedKey) === "true") {
-    if (!confirm("Demo data already seeded for this month. Seed again?")) return;
-  } else if (!force) {
-    if (!confirm("This will create demo accounts and transactions. Continue?")) return;
-  }
-  if (seedBtn) seedBtn.disabled = true;
-  if (msg) msg.textContent = "Seeding demo data...";
-
-  try {
-    const analysis = await api.get(`/api/analysis?month=${encodeURIComponent(month)}`);
-    const fromDate = analysis?.range?.from || minusDaysYMD(30);
-    const toDate = analysis?.range?.to || todayYMD();
-    const dates = buildDateList(fromDate, toDate);
-    const pickDate = () => dates[Math.floor(Math.random() * dates.length)] || fromDate;
-    const pickTime = () => {
-      const hh = String(8 + Math.floor(Math.random() * 12)).padStart(2, "0");
-      const mm = String(Math.floor(Math.random() * 60)).padStart(2, "0");
-      return `${hh}:${mm}`;
-    };
-    const randomAmount = (min, max) =>
-      Math.max(min, Math.round(min + Math.random() * (max - min)));
-
-    await loadAccounts();
-    const existing = new Map(
-      state.accounts.map((acc) => [String(acc.account_name || "").toLowerCase(), acc])
-    );
-    const seedCategories = [
-      { name: "Food", allocate: 1500000, labels: ["Groceries", "Coffee", "Dinner"], min: 40000, max: 200000 },
-      { name: "Transport", allocate: 900000, labels: ["Fuel", "Ride", "Parking"], min: 30000, max: 180000 },
-      { name: "Bills", allocate: 1800000, labels: ["Electricity", "Water", "Internet"], min: 80000, max: 350000 },
-      { name: "Shopping", allocate: 1200000, labels: ["Clothes", "Home", "Gadgets"], min: 60000, max: 300000 },
-      { name: "Health", allocate: 700000, labels: ["Pharmacy", "Checkup"], min: 50000, max: 200000 },
-      { name: "Entertainment", allocate: 800000, labels: ["Movies", "Games", "Events"], min: 40000, max: 220000 },
-      { name: "Savings", allocate: 2000000, labels: ["Savings"], min: 100000, max: 400000 },
-    ];
-
-    for (const cat of seedCategories) {
-      if (!existing.has(cat.name.toLowerCase())) {
-        await api.post("/api/accounts", { account_name: cat.name });
-      }
-    }
-
-    await loadAccounts();
-    const mainId = state.primary_account_id || state.accounts[0]?.account_id;
-    const categories = seedCategories
-      .map((cat) => {
-        const acc = state.accounts.find(
-          (a) => String(a.account_name || "").toLowerCase() === cat.name.toLowerCase()
-        );
-        return acc ? { ...cat, account_id: acc.account_id } : null;
-      })
-      .filter(Boolean);
-
-    if (!mainId || !categories.length) {
-      if (msg) msg.textContent = "Seeding failed: missing accounts.";
-      return;
-    }
-
-    const incomeDates = [
-      dates[Math.min(1, dates.length - 1)] || fromDate,
-      dates[Math.max(0, Math.floor(dates.length * 0.6))] || fromDate,
-    ];
-    const incomeTotal = categories.reduce((sum, c) => sum + c.allocate, 0) + 2500000;
-    const incomes = [
-      { name: "Seed: Salary", amount: Math.round(incomeTotal * 0.7), date: incomeDates[0] },
-      { name: "Seed: Side Income", amount: Math.round(incomeTotal * 0.3), date: incomeDates[1] },
-    ];
-
-    for (const income of incomes) {
-      await api.post("/api/transactions", {
-        account_id: mainId,
-        transaction_type: "debit",
-        transaction_name: income.name,
-        amount: income.amount,
-        date: ymdTimeToIso(income.date, pickTime()),
-      });
-    }
-
-    for (const cat of categories) {
-      await api.post("/api/switch", {
-        source_account_id: mainId,
-        target_account_id: cat.account_id,
-        amount: cat.allocate,
-        date: ymdTimeToIso(pickDate(), pickTime()),
-      });
-
-      const spendCount = 3 + (categories.indexOf(cat) % 3);
-      for (let i = 0; i < spendCount; i += 1) {
-        const label = cat.labels[i % cat.labels.length];
-        await api.post("/api/transactions", {
-          account_id: cat.account_id,
-          transaction_type: "credit",
-          transaction_name: `Seed: ${label}`,
-          amount: randomAmount(cat.min, cat.max),
-          date: ymdTimeToIso(pickDate(), pickTime()),
-        });
-      }
-
-      if (categories.indexOf(cat) % 2 === 0) {
-        await api.post("/api/transactions", {
-          account_id: cat.account_id,
-          transaction_type: "debit",
-          transaction_name: "Seed: Refund",
-          amount: randomAmount(Math.round(cat.min * 0.6), Math.round(cat.max * 0.6)),
-          date: ymdTimeToIso(pickDate(), pickTime()),
-        });
-      }
-    }
-
-    localStorage.setItem(seedKey, "true");
-    await loadAccounts();
-    markSummaryStale();
-    if (state.active_tab === "analysis") {
-      await loadAnalysis({ force: true });
-    }
-    if (state.active_tab === "ledger") {
-      await reloadLedgerWithDefaultStale();
-    }
-    if (msg) msg.textContent = "Demo data seeded.";
-  } catch (err) {
-    if (msg) msg.textContent = err.message || "Seeding failed.";
-  } finally {
-    if (seedBtn) seedBtn.disabled = false;
   }
 };
 
@@ -1849,11 +1690,6 @@ function bindEvents() {
     });
   }
 
-  const seedBtn = $("seedDemoBtn");
-  if (seedBtn) {
-    seedBtn.addEventListener("click", () => seedDemoData().catch(console.error));
-  }
-
   document.querySelectorAll(".analysis-scroll").forEach((el) => {
     bindHorizontalWheelScroll(el);
     bindHorizontalDragScroll(el);
@@ -1910,26 +1746,6 @@ function bindEvents() {
     });
   }
 
-  const accountList = $("accountList");
-  if (accountList) {
-    accountList.addEventListener("change", (e) => {
-      const input = e.target;
-      if (!input || input.name !== "accountFilter") return;
-      if (input.value === "all") {
-        state.scope = "all";
-        state.account_id = null;
-      } else {
-        state.scope = "account";
-        state.account_id = input.value;
-      }
-      const mobileSelect = $("mobileAccountSelect");
-      if (mobileSelect) {
-        mobileSelect.value = state.scope === "account" && state.account_id ? state.account_id : "all";
-      }
-      reloadLedgerWithDefaultStale().catch(console.error);
-    });
-  }
-
   const mobileAccountSelect = $("mobileAccountSelect");
   if (mobileAccountSelect) {
     mobileAccountSelect.addEventListener("change", (e) => {
@@ -1941,10 +1757,6 @@ function bindEvents() {
         state.scope = "account";
         state.account_id = value;
       }
-
-      document.querySelectorAll('input[name="accountFilter"]').forEach((input) => {
-        input.checked = input.value === (state.scope === "account" ? state.account_id : "all");
-      });
 
       const titleSelect = $("ledgerTitleSelect");
       if (titleSelect) {
@@ -1966,10 +1778,6 @@ function bindEvents() {
         state.scope = "account";
         state.account_id = value;
       }
-
-      document.querySelectorAll('input[name="accountFilter"]').forEach((input) => {
-        input.checked = input.value === (state.scope === "account" ? state.account_id : "all");
-      });
 
       const mobileSelect = $("mobileAccountSelect");
       if (mobileSelect) {
@@ -2357,9 +2165,6 @@ function bindEvents() {
     });
   }
 
-  const reloadBtn = $("reloadBtn");
-  if (reloadBtn) reloadBtn.addEventListener("click", () => reloadLedger().catch(console.error));
-
   // Theme Toggle
   const themeBtn = $("themeToggleBtn");
   const themeCheckbox = $("mobileThemeToggleCheckbox");
@@ -2541,7 +2346,7 @@ function bindEvents() {
     if (txIdInput) txIdInput.value = "";
     state.editing_tx_id = null;
     const fallbackDate = clampYmdToToday();
-    txTimeInitial = nowTime();
+    txTimeInitial = nowTimeWithSeconds();
     setTxDate(fallbackDate, { setInitial: true });
 
     const defaultAccount = state.scope === "account" && state.account_id
@@ -2561,7 +2366,7 @@ function bindEvents() {
       if (tx.account_id) $("txAccountSelect").value = tx.account_id;
       const txDate = isoToLocalYMD(tx.date);
       if (txDate) setTxDate(txDate, { setInitial: true });
-      txTimeInitial = isoToLocalTime(tx.date) || txTimeInitial;
+      txTimeInitial = isoToLocalTimeWithSeconds(tx.date) || txTimeInitial;
       const type = tx.debit ? "debit" : "credit";
       const typeInput = document.querySelector(`input[name="transaction_type"][value="${type}"]`);
       if (typeInput) typeInput.checked = true;
@@ -2673,7 +2478,7 @@ function bindEvents() {
     }
 
     const ymd = date ? isoToLocalYMD(date) : clampYmdToToday();
-    switchTimeInitial = date ? (isoToLocalTime(date) || nowTime()) : nowTime();
+    switchTimeInitial = date ? (isoToLocalTimeWithSeconds(date) || nowTimeWithSeconds()) : nowTimeWithSeconds();
     setSwitchDate(ymd, { setInitial: true });
 
     switchModal.hidden = false;
@@ -2746,10 +2551,10 @@ function bindEvents() {
       if (selectedDate) {
         if (state.editing_transfer_id) {
           if (selectedDate !== switchDateInitial) {
-            datePayload = ymdTimeToIso(selectedDate, switchTimeInitial || nowTime());
+            datePayload = ymdTimeToIso(selectedDate, switchTimeInitial || nowTimeWithSeconds());
           }
         } else {
-          datePayload = ymdTimeToIso(selectedDate, switchTimeInitial || nowTime());
+          datePayload = ymdTimeToIso(selectedDate, switchTimeInitial || nowTimeWithSeconds());
         }
       }
 
@@ -2981,38 +2786,6 @@ function bindEvents() {
     });
   }
 
-  const bottomNav = $("bottomNav");
-  if (bottomNav) {
-    bottomNav.addEventListener("click", (e) => {
-      const btn = e.target.closest("button[data-action]");
-      if (!btn) return;
-
-      // Update Active State
-      bottomNav.querySelectorAll(".dock-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-
-      const action = btn.dataset.action;
-
-      // Close other panels
-      document.body.classList.remove("menu-open");
-
-      if (action === "ledger") {
-        // Just scroll top or reset view if needed
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-      if (action === "add") {
-        if (!requireAnyAccount("Create an account first to add transactions.")) return;
-        openModal();
-      }
-      if (action === "accounts") {
-        openAccountsModal("list");
-      }
-      if (action === "menu") {
-        setTimeout(() => document.body.classList.add("menu-open"), 10);
-      }
-    });
-  }
-
   $("txForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     $("txMsg").textContent = "";
@@ -3027,12 +2800,12 @@ function bindEvents() {
       const selectedDate = clampYmdToToday(txDateInput.value);
       if (isEdit) {
         if (selectedDate && selectedDate !== txDateInitial) {
-          body.date = ymdTimeToIso(selectedDate, txTimeInitial || nowTime());
+          body.date = ymdTimeToIso(selectedDate, txTimeInitial || nowTimeWithSeconds());
         } else {
           delete body.date;
         }
       } else {
-        body.date = ymdTimeToIso(selectedDate, txTimeInitial || nowTime());
+        body.date = ymdTimeToIso(selectedDate, txTimeInitial || nowTimeWithSeconds());
       }
     } else if (!isEdit) {
       body.date = new Date().toISOString();
