@@ -1643,6 +1643,12 @@ input.input-button[readonly] {
   color: #ef4444;
 }
 
+.analysis-spend {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ef4444;
+}
+
 .analysis-values {
   display: flex;
   justify-content: space-between;

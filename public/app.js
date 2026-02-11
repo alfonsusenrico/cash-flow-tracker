@@ -988,26 +988,27 @@ const renderAnalysis = () => {
       categoriesEl.innerHTML = `<div class="analysis-empty">No category activity yet.</div>`;
     } else {
       const maxOut = Math.max(1, ...categories.map((c) => Number(c.total_out || 0)));
-      const totalOut = Number(totals.total_out || 0);
       categoriesEl.innerHTML = categories
         .map((c) => {
           const totalIn = Number(c.total_in || 0);
           const totalOutCat = Number(c.total_out || 0);
-          const net = totalIn - totalOutCat;
-          const pct = totalOut > 0 ? Math.round((totalOutCat / totalOut) * 100) : 0;
+          const startingBalance = Number(c.starting_balance || 0);
+          const usagePct = c.usage_pct == null ? null : Number(c.usage_pct);
+          const usageText = startingBalance > 0
+            ? `Used ${usagePct == null ? Math.round((totalOutCat / startingBalance) * 100) : usagePct}% of initial ${displayMoney(startingBalance)}`
+            : `Used n/a of initial ${displayMoney(startingBalance)}`;
           const fill = Math.min(100, Math.round((totalOutCat / maxOut) * 100));
           const name = escapeHtml(c.account_name || "Unknown");
-          const netClass = net < 0 ? "neg" : "pos";
           return `
             <div class="analysis-row analysis-row-compact" style="--fill:${fill}%;">
               <div class="analysis-row-head">
                 <span class="analysis-label">${name}</span>
-                <span class="analysis-net ${netClass}">${displayMoney(net)}</span>
+                <span class="analysis-spend">${displayMoney(totalOutCat)}</span>
               </div>
               <div class="analysis-values">
                 <span class="analysis-in">In ${displayMoney(totalIn)}</span>
-                <span class="analysis-out">Out ${displayMoney(totalOutCat)}</span>
-                <span class="analysis-sub">${pct}% of spend</span>
+                <span class="analysis-out">Spend ${displayMoney(totalOutCat)}</span>
+                <span class="analysis-sub">${escapeHtml(usageText)}</span>
               </div>
               <div class="analysis-bar">
                 <span></span>

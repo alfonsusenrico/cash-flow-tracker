@@ -1129,6 +1129,7 @@ def analysis(req: Request, month: str | None = None):
         default_day = get_default_payday_day(cur, username)
         prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))
         from_date, to_date, from_dt, to_dt = compute_month_range(month, payday_day, prev_day)
+        start_cutoff = from_dt - timedelta(milliseconds=1)
 
         base_filters = ["a.username=%s", "t.deleted_at IS NULL", "t.date >= %s", "t.date <= %s"]
         params: list[Any] = [username, from_dt, to_dt]
@@ -1192,19 +1193,28 @@ def analysis(req: Request, month: str | None = None):
             (username,),
         )
         acc_rows = cur.fetchall()
+        balances_start = get_account_balances(cur, username, start_cutoff)
         balances = get_account_balances(cur, username, to_dt)
         total_asset = sum(int(balances.get(r["account_id"], 0)) for r in acc_rows)
 
-    categories = [
-        {
-            "account_id": r.get("account_id"),
-            "account_name": r.get("account_name"),
-            "total_in": int(r.get("total_in") or 0),
-            "total_out": int(r.get("total_out") or 0),
-            "net": int(r.get("total_in") or 0) - int(r.get("total_out") or 0),
-        }
-        for r in categories_raw
-    ]
+    categories = []
+    for row in categories_raw:
+        account_id = row.get("account_id")
+        total_in_cat = int(row.get("total_in") or 0)
+        total_out_cat = int(row.get("total_out") or 0)
+        starting_balance = int(balances_start.get(account_id, 0))
+        usage_pct = int(round((total_out_cat / starting_balance) * 100)) if starting_balance > 0 else None
+        categories.append(
+            {
+                "account_id": account_id,
+                "account_name": row.get("account_name"),
+                "total_in": total_in_cat,
+                "total_out": total_out_cat,
+                "net": int(total_in_cat - total_out_cat),
+                "starting_balance": starting_balance,
+                "usage_pct": usage_pct,
+            }
+        )
 
     payload = {
         "range": {"from": from_date, "to": to_date},
