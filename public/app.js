@@ -2284,15 +2284,14 @@ function bindEvents() {
   const txIdInput = document.querySelector('input[name="transaction_id"]');
   const txDateInput = $("txDateInput");
   const txDateDisplay = $("txDateDisplay");
+  const txTopupField = $("txTopupField");
   const txTopupFlag = $("txTopupFlag");
   const syncTxTopupState = () => {
     if (!txForm || !txTopupFlag) return;
     const selectedType = txForm.querySelector('input[name="transaction_type"]:checked')?.value;
     const allowTopup = selectedType === "debit";
     if (!allowTopup) txTopupFlag.checked = false;
-    txTopupFlag.disabled = !allowTopup;
-    const label = txTopupFlag.closest(".checkline");
-    if (label) label.classList.toggle("is-disabled", !allowTopup);
+    if (txTopupField) txTopupField.hidden = !allowTopup;
   };
   let txDateInitial = "";
   let txTimeInitial = "";
@@ -2435,6 +2434,7 @@ function bindEvents() {
   const switchAmountInput = $("switchAmount");
   const switchDateInput = $("switchDateInput");
   const switchDateDisplay = $("switchDateDisplay");
+  const switchTopupField = $("switchTopupField");
   const switchTopupFlag = $("switchTopupFlag");
   const switchTitle = $("switchModalTitle");
   const deleteSwitchBtn = $("deleteSwitchBtn");
@@ -2467,6 +2467,7 @@ function bindEvents() {
   const openSwitchModal = ({ sourceId, targetId, amount, date, transferId, isCycleTopup } = {}) => {
     if (!switchModal) return;
     if (switchForm) switchForm.reset();
+    const isEditMode = !!transferId;
     if (switchTitle) switchTitle.textContent = transferId ? "Edit Switch" : "Switch Balance";
     const msg = $("switchMsg");
     if (msg) msg.textContent = "";
@@ -2485,7 +2486,8 @@ function bindEvents() {
     if (switchAmountInput) {
       switchAmountInput.value = amount ? fmtIDR(amount) : "";
     }
-    if (switchTopupFlag) switchTopupFlag.checked = !!isCycleTopup;
+    if (switchTopupField) switchTopupField.hidden = isEditMode;
+    if (switchTopupFlag) switchTopupFlag.checked = isEditMode ? false : !!isCycleTopup;
 
     const ymd = date ? isoToLocalYMD(date) : clampYmdToToday();
     switchTimeInitial = date ? (isoToLocalTimeWithSeconds(date) || nowTimeWithSeconds()) : nowTimeWithSeconds();
@@ -2570,16 +2572,15 @@ function bindEvents() {
       }
 
       try {
-        const isCycleTopup = !!switchTopupFlag?.checked;
         if (state.editing_transfer_id) {
           await api.put(`/api/switch/${state.editing_transfer_id}`, {
             source_account_id: source,
             target_account_id: target,
             amount,
             date: datePayload,
-            is_cycle_topup: isCycleTopup,
           });
         } else {
+          const isCycleTopup = !!switchTopupFlag?.checked;
           await api.post("/api/switch", {
             source_account_id: source,
             target_account_id: target,
@@ -2789,7 +2790,6 @@ function bindEvents() {
     ledgerBody.addEventListener("click", (e) => {
       const row = e.target.closest("tr[data-tx-id]");
       if (!row) return;
-      if (!requireAccountScope("Select an account to manage transactions.")) return;
       const tx = activeRows().find((r) => r.transaction_id === row.dataset.txId);
       if (!tx) return;
       if (tx.is_transfer && tx.transfer_id) {

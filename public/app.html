@@ -401,12 +401,11 @@
           <input name="amount" class="money-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="0"
             required />
         </div>
-        <div class="field">
+        <div id="txTopupField" class="field">
           <label class="checkline">
             <input id="txTopupFlag" name="is_cycle_topup" type="checkbox" />
-            <span>Mark as Top-up / Payroll</span>
+            <span>Topup / Payroll</span>
           </label>
-          <div class="hint">Used as analysis base for spend usage in this cycle.</div>
         </div>
 
         <div class="row gap">
@@ -530,12 +529,11 @@
           <input id="switchDateDisplay" class="input-button" type="text" placeholder="Select date" readonly />
           <input id="switchDateInput" type="hidden" />
         </div>
-        <div class="field">
+        <div id="switchTopupField" class="field">
           <label class="checkline">
             <input id="switchTopupFlag" type="checkbox" />
-            <span>Mark target as Top-up / Payroll</span>
+            <span>Topup / Payroll</span>
           </label>
-          <div class="hint">Applied to the target account entry only.</div>
         </div>
         <button class="btn primary full-width" type="submit">Save Switch</button>
         <button id="deleteSwitchBtn" class="btn danger full-width" type="button" hidden>Delete Switch</button>
