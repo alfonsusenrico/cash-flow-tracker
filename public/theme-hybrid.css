@@ -779,6 +779,31 @@ body.dark .ledger-title-select {
   line-height: 1.4;
 }
 
+.checkline {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.checkline input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.checkline span {
+  line-height: 1.3;
+}
+
+.checkline.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .api-key-input {
   font-family: "JetBrains Mono", "SFMono-Regular", "Menlo", "Consolas", monospace;
   font-size: 12px;

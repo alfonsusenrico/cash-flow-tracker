@@ -990,13 +990,12 @@ const renderAnalysis = () => {
       const maxOut = Math.max(1, ...categories.map((c) => Number(c.total_out || 0)));
       categoriesEl.innerHTML = categories
         .map((c) => {
-          const totalIn = Number(c.total_in || 0);
           const totalOutCat = Number(c.total_out || 0);
-          const startingBalance = Number(c.starting_balance || 0);
+          const topupBase = Number(c.topup_base || 0);
           const usagePct = c.usage_pct == null ? null : Number(c.usage_pct);
-          const usageText = startingBalance > 0
-            ? `Used ${usagePct == null ? Math.round((totalOutCat / startingBalance) * 100) : usagePct}% of initial ${displayMoney(startingBalance)}`
-            : `Used n/a of initial ${displayMoney(startingBalance)}`;
+          const usageText = topupBase > 0
+            ? `Used ${usagePct == null ? Math.round((totalOutCat / topupBase) * 100) : usagePct}% of top-up ${displayMoney(topupBase)}`
+            : "No top-up/payroll base in this cycle";
           const fill = Math.min(100, Math.round((totalOutCat / maxOut) * 100));
           const name = escapeHtml(c.account_name || "Unknown");
           return `
@@ -1006,8 +1005,6 @@ const renderAnalysis = () => {
                 <span class="analysis-spend">${displayMoney(totalOutCat)}</span>
               </div>
               <div class="analysis-values">
-                <span class="analysis-in">In ${displayMoney(totalIn)}</span>
-                <span class="analysis-out">Spend ${displayMoney(totalOutCat)}</span>
                 <span class="analysis-sub">${escapeHtml(usageText)}</span>
               </div>
               <div class="analysis-bar">
@@ -2287,6 +2284,16 @@ function bindEvents() {
   const txIdInput = document.querySelector('input[name="transaction_id"]');
   const txDateInput = $("txDateInput");
   const txDateDisplay = $("txDateDisplay");
+  const txTopupFlag = $("txTopupFlag");
+  const syncTxTopupState = () => {
+    if (!txForm || !txTopupFlag) return;
+    const selectedType = txForm.querySelector('input[name="transaction_type"]:checked')?.value;
+    const allowTopup = selectedType === "debit";
+    if (!allowTopup) txTopupFlag.checked = false;
+    txTopupFlag.disabled = !allowTopup;
+    const label = txTopupFlag.closest(".checkline");
+    if (label) label.classList.toggle("is-disabled", !allowTopup);
+  };
   let txDateInitial = "";
   let txTimeInitial = "";
 
@@ -2323,6 +2330,8 @@ function bindEvents() {
     if (txIdInput) txIdInput.value = "";
     if (txDateInput) txDateInput.value = "";
     if (txDateDisplay) txDateDisplay.value = "";
+    if (txTopupFlag) txTopupFlag.checked = false;
+    syncTxTopupState();
     txDateInitial = "";
     txTimeInitial = "";
   };
@@ -2361,11 +2370,13 @@ function bindEvents() {
       const type = tx.debit ? "debit" : "credit";
       const typeInput = document.querySelector(`input[name="transaction_type"][value="${type}"]`);
       if (typeInput) typeInput.checked = true;
+      if (txTopupFlag) txTopupFlag.checked = !!tx.is_cycle_topup;
       $("deleteTxBtn").hidden = false;
       $("deleteTxBtn").dataset.txId = tx.transaction_id;
       state.editing_tx_id = tx.transaction_id;
     }
 
+    syncTxTopupState();
     modal.hidden = false;
   };
 
@@ -2410,6 +2421,12 @@ function bindEvents() {
   if (closeBtn) closeBtn.addEventListener("click", closeModal);
   const modal = $("modal");
   if (modal) modal.addEventListener("click", (e) => e.target === modal && closeModal());
+  if (txForm) {
+    txForm.querySelectorAll('input[name="transaction_type"]').forEach((el) => {
+      el.addEventListener("change", syncTxTopupState);
+    });
+    syncTxTopupState();
+  }
 
   const switchModal = $("switchModal");
   const switchForm = $("switchForm");
@@ -2418,6 +2435,7 @@ function bindEvents() {
   const switchAmountInput = $("switchAmount");
   const switchDateInput = $("switchDateInput");
   const switchDateDisplay = $("switchDateDisplay");
+  const switchTopupFlag = $("switchTopupFlag");
   const switchTitle = $("switchModalTitle");
   const deleteSwitchBtn = $("deleteSwitchBtn");
   let switchDateInitial = "";
@@ -2446,7 +2464,7 @@ function bindEvents() {
     });
   }
 
-  const openSwitchModal = ({ sourceId, targetId, amount, date, transferId } = {}) => {
+  const openSwitchModal = ({ sourceId, targetId, amount, date, transferId, isCycleTopup } = {}) => {
     if (!switchModal) return;
     if (switchForm) switchForm.reset();
     if (switchTitle) switchTitle.textContent = transferId ? "Edit Switch" : "Switch Balance";
@@ -2467,6 +2485,7 @@ function bindEvents() {
     if (switchAmountInput) {
       switchAmountInput.value = amount ? fmtIDR(amount) : "";
     }
+    if (switchTopupFlag) switchTopupFlag.checked = !!isCycleTopup;
 
     const ymd = date ? isoToLocalYMD(date) : clampYmdToToday();
     switchTimeInitial = date ? (isoToLocalTimeWithSeconds(date) || nowTimeWithSeconds()) : nowTimeWithSeconds();
@@ -2485,6 +2504,7 @@ function bindEvents() {
         amount: detail.amount,
         date: detail.date,
         transferId: detail.transfer_id,
+        isCycleTopup: detail.is_cycle_topup,
       });
     } catch (err) {
       alert(err.message || "Failed to load switch details");
@@ -2550,12 +2570,14 @@ function bindEvents() {
       }
 
       try {
+        const isCycleTopup = !!switchTopupFlag?.checked;
         if (state.editing_transfer_id) {
           await api.put(`/api/switch/${state.editing_transfer_id}`, {
             source_account_id: source,
             target_account_id: target,
             amount,
             date: datePayload,
+            is_cycle_topup: isCycleTopup,
           });
         } else {
           await api.post("/api/switch", {
@@ -2563,6 +2585,7 @@ function bindEvents() {
             target_account_id: target,
             amount,
             date: datePayload,
+            is_cycle_topup: isCycleTopup,
           });
         }
         closeSwitchModal();
@@ -2781,6 +2804,7 @@ function bindEvents() {
     e.preventDefault();
     $("txMsg").textContent = "";
     const body = Object.fromEntries(new FormData(e.target).entries());
+    body.is_cycle_topup = !!txTopupFlag?.checked;
     if (!body.transaction_id && state.editing_tx_id) {
       body.transaction_id = state.editing_tx_id;
     }
