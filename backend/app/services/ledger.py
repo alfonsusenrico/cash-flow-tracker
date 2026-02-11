@@ -207,35 +207,16 @@ def build_daily_series(from_date: str, to_date: str, rows: list[dict[str, Any]])
         day_key = day_val.isoformat() if hasattr(day_val, "isoformat") else str(day_val)
         total_in = int(row.get("total_in") or 0)
         total_out = int(row.get("total_out") or 0)
-        switch_in = int(row.get("switch_in") or 0)
-        switch_out = int(row.get("switch_out") or 0)
-        by_day[day_key] = {
-            "total_in": total_in,
-            "total_out": total_out,
-            "switch_in": switch_in,
-            "switch_out": switch_out,
-        }
+        by_day[day_key] = {"total_in": total_in, "total_out": total_out}
 
     series: list[dict[str, int | str]] = []
     cursor = start
     while cursor <= end:
         key = cursor.isoformat()
-        totals = by_day.get(key, {"total_in": 0, "total_out": 0, "switch_in": 0, "switch_out": 0})
+        totals = by_day.get(key, {"total_in": 0, "total_out": 0})
         total_in = int(totals.get("total_in") or 0)
         total_out = int(totals.get("total_out") or 0)
-        switch_in = int(totals.get("switch_in") or 0)
-        switch_out = int(totals.get("switch_out") or 0)
-        series.append(
-            {
-                "date": key,
-                "total_in": total_in,
-                "total_out": total_out,
-                "net": int(total_in - total_out),
-                "switch_in": switch_in,
-                "switch_out": switch_out,
-                "switch_net": int(switch_in - switch_out),
-            }
-        )
+        series.append({"date": key, "total_in": total_in, "total_out": total_out, "net": int(total_in - total_out)})
         cursor += timedelta(days=1)
     return series
 
@@ -257,15 +238,11 @@ def build_weekly_series(from_date: str, to_date: str, daily: list[dict[str, int 
         period_to = min(end, cursor + timedelta(days=6))
         total_in = 0
         total_out = 0
-        switch_in = 0
-        switch_out = 0
         day = period_from
         while day <= period_to:
             row = by_day.get(day.isoformat(), {})
             total_in += int(row.get("total_in") or 0)
             total_out += int(row.get("total_out") or 0)
-            switch_in += int(row.get("switch_in") or 0)
-            switch_out += int(row.get("switch_out") or 0)
             day += timedelta(days=1)
         series.append(
             {
@@ -274,9 +251,6 @@ def build_weekly_series(from_date: str, to_date: str, daily: list[dict[str, int 
                 "total_in": total_in,
                 "total_out": total_out,
                 "net": int(total_in - total_out),
-                "switch_in": switch_in,
-                "switch_out": switch_out,
-                "switch_net": int(switch_in - switch_out),
             }
         )
         cursor = period_to + timedelta(days=1)

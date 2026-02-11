@@ -34,14 +34,7 @@ if "fpdf" not in sys.modules:
     fpdf_stub.FPDF = FPDF
     sys.modules["fpdf"] = fpdf_stub
 
-from app.services.ledger import (
-    build_daily_series,
-    build_weekly_series,
-    get_balance_before,
-    parse_tx_datetime,
-    recompute_balances_report,
-    write_transaction_audit,
-)
+from app.services.ledger import get_balance_before, parse_tx_datetime, recompute_balances_report, write_transaction_audit
 
 
 class CursorSpy:
@@ -161,41 +154,6 @@ class LedgerServiceTests(unittest.TestCase):
         self.assertEqual(accounts["acc-1"]["min_balance"], 0)
         self.assertEqual(accounts["acc-2"]["current_balance"], -50000)
         self.assertEqual(accounts["acc-2"]["first_negative_at"], "2026-02-03T10:00:00Z")
-
-    def test_build_daily_series_includes_switch_totals(self):
-        rows = [
-            {
-                "day": datetime(2026, 2, 1, 0, 0, tzinfo=timezone.utc).date(),
-                "total_in": 500_000,
-                "total_out": 120_000,
-                "switch_in": 300_000,
-                "switch_out": 0,
-            }
-        ]
-
-        series = build_daily_series("2026-02-01", "2026-02-02", rows)
-        self.assertEqual(len(series), 2)
-        self.assertEqual(series[0]["net"], 380000)
-        self.assertEqual(series[0]["switch_in"], 300000)
-        self.assertEqual(series[0]["switch_out"], 0)
-        self.assertEqual(series[0]["switch_net"], 300000)
-        self.assertEqual(series[1]["switch_in"], 0)
-        self.assertEqual(series[1]["switch_out"], 0)
-
-    def test_build_weekly_series_rolls_up_switch_totals(self):
-        daily = [
-            {"date": "2026-02-01", "total_in": 100, "total_out": 40, "switch_in": 70, "switch_out": 20},
-            {"date": "2026-02-02", "total_in": 0, "total_out": 10, "switch_in": 0, "switch_out": 50},
-        ]
-
-        series = build_weekly_series("2026-02-01", "2026-02-07", daily)
-        self.assertEqual(len(series), 1)
-        self.assertEqual(series[0]["total_in"], 100)
-        self.assertEqual(series[0]["total_out"], 50)
-        self.assertEqual(series[0]["switch_in"], 70)
-        self.assertEqual(series[0]["switch_out"], 70)
-        self.assertEqual(series[0]["switch_net"], 0)
-
 
 if __name__ == "__main__":
     unittest.main()

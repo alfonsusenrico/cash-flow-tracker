@@ -741,8 +741,6 @@ const renderSummary = () => {
     .map((acc) => {
       const totalIn = Number(acc.total_in || 0);
       const totalOut = Number(acc.total_out || 0);
-      const switchIn = Number(acc.switch_in || 0);
-      const switchOut = Number(acc.switch_out || 0);
       const max = Math.max(totalIn, totalOut, 1);
       const inPct = Math.min(100, (totalIn / max) * 100);
       const outPct = Math.min(100, (totalOut / max) * 100);
@@ -787,16 +785,6 @@ const renderSummary = () => {
           <div class="io-item">
             <span class="io-label">Transaction Out</span>
             <span class="io-value" style="color:#ef4444;">${displayMoney(totalOut)}</span>
-          </div>
-        </div>
-        <div class="summary-io">
-          <div class="io-item">
-            <span class="io-label">Switch In</span>
-            <span class="io-value" style="color:#0284c7;">${displayMoney(switchIn)}</span>
-          </div>
-          <div class="io-item">
-            <span class="io-label">Switch Out</span>
-            <span class="io-value" style="color:#f59e0b;">${displayMoney(switchOut)}</span>
           </div>
         </div>
         <div class="summary-bars">
@@ -849,7 +837,7 @@ const loadSummary = async ({ force = false } = {}) => {
 
 const renderAnalysis = () => {
   const data = state.analysis_data || {};
-  const totals = data.totals || { total_in: 0, total_out: 0, net: 0, switch_in: 0, switch_out: 0, switch_net: 0 };
+  const totals = data.totals || { total_in: 0, total_out: 0, net: 0 };
   const rangeText = $("analysisRangeText");
   const msg = $("analysisMsg");
   if (msg) msg.textContent = "";
@@ -866,8 +854,6 @@ const renderAnalysis = () => {
   if (totalsEl) {
     const net = Number(totals.net || 0);
     const netClass = net < 0 ? "neg" : "pos";
-    const switchIn = Number(totals.switch_in || 0);
-    const switchOut = Number(totals.switch_out || 0);
     totalsEl.innerHTML = `
       <div class="analysis-card">
         <div class="analysis-card-label">Transaction In</div>
@@ -880,14 +866,6 @@ const renderAnalysis = () => {
       <div class="analysis-card">
         <div class="analysis-card-label">Transaction Net</div>
         <div class="analysis-card-value ${netClass}">${displayMoney(net)}</div>
-      </div>
-      <div class="analysis-card">
-        <div class="analysis-card-label">Switch In</div>
-        <div class="analysis-card-value" style="color:#0284c7;">${displayMoney(switchIn)}</div>
-      </div>
-      <div class="analysis-card">
-        <div class="analysis-card-label">Switch Out</div>
-        <div class="analysis-card-value" style="color:#f59e0b;">${displayMoney(switchOut)}</div>
       </div>
     `;
   }
@@ -909,24 +887,18 @@ const renderAnalysis = () => {
           (acc, day) => {
             acc.totalIn += Number(day.total_in || 0);
             acc.totalOut += Number(day.total_out || 0);
-            acc.switchIn += Number(day.switch_in || 0);
-            acc.switchOut += Number(day.switch_out || 0);
             return acc;
           },
-          { totalIn: 0, totalOut: 0, switchIn: 0, switchOut: 0 }
+          { totalIn: 0, totalOut: 0 }
         );
         const totalIn = Number(summary?.total_in ?? fallbackTotals.totalIn);
         const totalOut = Number(summary?.total_out ?? fallbackTotals.totalOut);
-        const switchIn = Number(summary?.switch_in ?? fallbackTotals.switchIn);
-        const switchOut = Number(summary?.switch_out ?? fallbackTotals.switchOut);
         const net = totalIn - totalOut;
         const netClass = net < 0 ? "neg" : "pos";
         const cards = week
           .map((r) => {
             const totalIn = Number(r.total_in || 0);
             const totalOut = Number(r.total_out || 0);
-            const switchIn = Number(r.switch_in || 0);
-            const switchOut = Number(r.switch_out || 0);
             const net = totalIn - totalOut;
             const netClass = net < 0 ? "neg" : "pos";
             const parts = formatDayParts(r.date);
@@ -943,7 +915,6 @@ const renderAnalysis = () => {
                 <div class="analysis-day-sub">
                   <span class="analysis-day-in">In ${displayMoney(totalIn)}</span>
                   <span class="analysis-day-out">Out ${displayMoney(totalOut)}</span>
-                  <span class="analysis-day-switch">Switch In ${displayMoney(switchIn)} / Out ${displayMoney(switchOut)}</span>
                 </div>
               </div>
             `;
@@ -957,8 +928,6 @@ const renderAnalysis = () => {
                 <span class="analysis-week-net ${netClass}">Net ${displayMoney(net)}</span>
                 <span class="analysis-week-in">In ${displayMoney(totalIn)}</span>
                 <span class="analysis-week-out">Out ${displayMoney(totalOut)}</span>
-                <span class="analysis-week-switch-in">Switch In ${displayMoney(switchIn)}</span>
-                <span class="analysis-week-switch-out">Switch Out ${displayMoney(switchOut)}</span>
               </div>
             </div>
             <div class="analysis-week-row">${cards}</div>
