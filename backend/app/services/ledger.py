@@ -376,6 +376,7 @@ def write_transaction_audit(
             if tx_row.get("date")
             else None,
             "is_transfer": bool(tx_row.get("is_transfer")),
+            "is_cycle_topup": bool(tx_row.get("is_cycle_topup")),
             "transfer_id": tx_row.get("transfer_id"),
             "deleted_at": tx_row.get("deleted_at").astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
             if tx_row.get("deleted_at")
@@ -525,6 +526,7 @@ def build_ledger_data(
                t.amount,
                t.date,
                t.is_transfer,
+               t.is_cycle_topup,
                t.transfer_id::text AS transfer_id
         FROM transactions t
         JOIN accounts a ON a.account_id=t.account_id
@@ -561,6 +563,7 @@ def build_ledger_data(
                 "credit": int(t["amount"]) if t["transaction_type"] == "credit" else 0,
                 "balance": row_balance,
                 "is_transfer": bool(t.get("is_transfer")),
+                "is_cycle_topup": bool(t.get("is_cycle_topup")),
                 "transfer_id": t.get("transfer_id"),
             }
         )
@@ -674,6 +677,7 @@ def build_ledger_page(
                    t.amount,
                    t.date,
                    t.is_transfer,
+                   t.is_cycle_topup,
                    t.transfer_id::text AS transfer_id,
                    SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END)
                      OVER (ORDER BY t.date ASC, t.transaction_id ASC) AS running_delta
@@ -681,7 +685,7 @@ def build_ledger_page(
             JOIN accounts a ON a.account_id=t.account_id
             WHERE {' AND '.join(base_filters)}
         )
-        SELECT transaction_id, account_id, account_name, transaction_type, transaction_name, amount, date, is_transfer, transfer_id, running_delta
+        SELECT transaction_id, account_id, account_name, transaction_type, transaction_name, amount, date, is_transfer, is_cycle_topup, transfer_id, running_delta
         FROM base
         {search_sql}
         ORDER BY date {order_dir}, transaction_id {order_dir}
@@ -712,6 +716,7 @@ def build_ledger_page(
                 "credit": int(r["amount"]) if r["transaction_type"] == "credit" else 0,
                 "balance": int(balance),
                 "is_transfer": bool(r.get("is_transfer")),
+                "is_cycle_topup": bool(r.get("is_cycle_topup")),
                 "transfer_id": r.get("transfer_id"),
             }
         )

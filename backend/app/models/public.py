@@ -54,6 +54,7 @@ class TransactionUpsertRequest(BaseModel):
     transaction_id: str | None = None
     account_id: str | None = None
     transaction_type: Literal["debit", "credit"] | None = None
+    is_cycle_topup: bool | None = None
     transaction_name: str | None = None
     amount: int | None = Field(default=None, gt=0)
     date: str | None = None

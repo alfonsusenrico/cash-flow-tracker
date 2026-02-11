@@ -177,8 +177,16 @@ def public_create_account(req: Request, payload: AccountCreateRequest):
             if payload.initial_balance > 0:
                 cur.execute(
                     """
-                    INSERT INTO transactions (account_id, transaction_type, transaction_name, amount, date, is_transfer)
-                    VALUES (%s::uuid, 'debit', %s, %s, %s, false)
+                    INSERT INTO transactions (
+                        account_id,
+                        transaction_type,
+                        is_cycle_topup,
+                        transaction_name,
+                        amount,
+                        date,
+                        is_transfer
+                    )
+                    VALUES (%s::uuid, 'debit', true, %s, %s, %s, false)
                     """,
                     (account_id, "Top Up Balance", payload.initial_balance, now_utc()),
                 )
@@ -215,6 +223,7 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
                 SELECT t.transaction_id::text AS transaction_id,
                        t.account_id::text AS account_id,
                        t.transaction_type,
+                       t.is_cycle_topup,
                        t.transaction_name,
                        t.amount,
                        t.date,
@@ -235,6 +244,12 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
             new_type = payload.transaction_type or tx["transaction_type"]
             if new_type not in ("debit", "credit"):
                 raise HTTPException(status_code=400, detail="Invalid transaction_type")
+            if payload.is_cycle_topup is None:
+                is_cycle_topup = bool(tx.get("is_cycle_topup"))
+            else:
+                is_cycle_topup = bool(payload.is_cycle_topup)
+            if is_cycle_topup and new_type != "debit":
+                raise HTTPException(status_code=400, detail="Top-up/payroll can only be set on cash-in transactions")
 
             if payload.transaction_name is not None:
                 new_name = payload.transaction_name.strip()
@@ -297,13 +312,14 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
                 UPDATE transactions
                 SET account_id=%s::uuid,
                     transaction_type=%s,
+                    is_cycle_topup=%s,
                     transaction_name=%s,
                     amount=%s,
                     date=%s
                 WHERE transaction_id=%s::uuid AND deleted_at IS NULL
                 RETURNING transaction_id::text
                 """,
-                (new_account_id, new_type, new_name, new_amount, new_date, transaction_id),
+                (new_account_id, new_type, is_cycle_topup, new_name, new_amount, new_date, transaction_id),
             )
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Transaction not found")
@@ -322,6 +338,9 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
         raise HTTPException(status_code=400, detail="account_id required")
     if tx_type not in ("debit", "credit"):
         raise HTTPException(status_code=400, detail="Invalid transaction_type")
+    is_cycle_topup = bool(payload.is_cycle_topup) if payload.is_cycle_topup is not None else False
+    if is_cycle_topup and tx_type != "debit":
+        raise HTTPException(status_code=400, detail="Top-up/payroll can only be set on cash-in transactions")
     if not name:
         raise HTTPException(status_code=400, detail="transaction_name required")
     if amount is None or int(amount) <= 0:
@@ -347,11 +366,19 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
 
         cur.execute(
             """
-            INSERT INTO transactions (account_id, transaction_type, transaction_name, amount, date, is_transfer)
-            VALUES (%s::uuid, %s, %s, %s, %s, false)
+            INSERT INTO transactions (
+                account_id,
+                transaction_type,
+                is_cycle_topup,
+                transaction_name,
+                amount,
+                date,
+                is_transfer
+            )
+            VALUES (%s::uuid, %s, %s, %s, %s, %s, false)
             RETURNING transaction_id::text
             """,
-            (account_id, tx_type, name, int(amount), dt),
+            (account_id, tx_type, is_cycle_topup, name, int(amount), dt),
         )
         tx_id = cur.fetchone()["transaction_id"]
         conn.commit()
@@ -587,7 +614,6 @@ def public_analysis(req: Request, payload: PeriodQuery):
         default_day = get_default_payday_day(cur, username)
         prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))
         from_date, to_date, from_dt, to_dt = compute_month_range(month, payday_day, prev_day)
-        start_cutoff = from_dt - timedelta(milliseconds=1)
 
         base_filters = ["a.username=%s", "t.deleted_at IS NULL", "t.date >= %s", "t.date <= %s"]
         params: list[Any] = [username, from_dt, to_dt]
@@ -643,6 +669,21 @@ def public_analysis(req: Request, payload: PeriodQuery):
         categories_raw = cur.fetchall()
 
         cur.execute(
+            f"""
+            SELECT t.account_id::text AS account_id,
+                   COALESCE(SUM(t.amount), 0) AS topup_base
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE {' AND '.join(base_filters)}
+              AND t.is_cycle_topup = TRUE
+              AND t.transaction_type = 'debit'
+            GROUP BY t.account_id
+            """,
+            params,
+        )
+        topup_raw = cur.fetchall()
+
+        cur.execute(
             """
             SELECT account_id::text AS account_id
             FROM accounts
@@ -651,17 +692,18 @@ def public_analysis(req: Request, payload: PeriodQuery):
             (username,),
         )
         acc_rows = cur.fetchall()
-        balances_start = get_account_balances(cur, username, start_cutoff)
         balances = get_account_balances(cur, username, to_dt)
         total_asset = sum(int(balances.get(r["account_id"], 0)) for r in acc_rows)
+
+    topup_by_account = {r.get("account_id"): int(r.get("topup_base") or 0) for r in topup_raw}
 
     categories = []
     for row in categories_raw:
         account_id = row.get("account_id")
         total_in_cat = int(row.get("total_in") or 0)
         total_out_cat = int(row.get("total_out") or 0)
-        starting_balance = int(balances_start.get(account_id, 0))
-        usage_pct = int(round((total_out_cat / starting_balance) * 100)) if starting_balance > 0 else None
+        topup_base = int(topup_by_account.get(account_id, 0))
+        usage_pct = int(round((total_out_cat / topup_base) * 100)) if topup_base > 0 else None
         categories.append(
             {
                 "account_id": account_id,
@@ -669,7 +711,7 @@ def public_analysis(req: Request, payload: PeriodQuery):
                 "total_in": total_in_cat,
                 "total_out": total_out_cat,
                 "net": int(total_in_cat - total_out_cat),
-                "starting_balance": starting_balance,
+                "topup_base": topup_base,
                 "usage_pct": usage_pct,
             }
         )

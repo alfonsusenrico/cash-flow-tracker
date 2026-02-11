@@ -46,6 +46,23 @@ from app.services.ledger import (
 
 router = APIRouter()
 
+
+def parse_optional_bool(value: Any, field_name: str) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in ("true", "1", "yes", "on"):
+            return True
+        if lowered in ("false", "0", "no", "off", ""):
+            return False
+    raise HTTPException(status_code=400, detail=f"Invalid {field_name}, expected boolean")
+
+
 @router.get("/health")
 def health():
     return {"ok": True}
@@ -173,8 +190,16 @@ async def create_account(req: Request):
             if initial_balance > 0:
                 cur.execute(
                     """
-                    INSERT INTO transactions (account_id, transaction_type, transaction_name, amount, date, is_transfer)
-                    VALUES (%s::uuid, 'debit', %s, %s, %s, false)
+                    INSERT INTO transactions (
+                        account_id,
+                        transaction_type,
+                        is_cycle_topup,
+                        transaction_name,
+                        amount,
+                        date,
+                        is_transfer
+                    )
+                    VALUES (%s::uuid, 'debit', true, %s, %s, %s, false)
                     """,
                     (account_id, "Top Up Balance", initial_balance, now_utc()),
                 )
@@ -372,9 +397,14 @@ async def create_tx(req: Request):
     name = (data.get("transaction_name") or "").strip()
     amount = int(data.get("amount") or 0)
     date_str = data.get("date")  # ISO string (from input datetime-local) or YYYY-MM-DD
+    is_cycle_topup = parse_optional_bool(data.get("is_cycle_topup"), "is_cycle_topup")
+    if is_cycle_topup is None:
+        is_cycle_topup = False
 
     if not account_id or tx_type not in ("debit", "credit") or not name or amount <= 0 or not date_str:
         raise HTTPException(status_code=400, detail="Invalid transaction payload")
+    if is_cycle_topup and tx_type != "debit":
+        raise HTTPException(status_code=400, detail="Top-up/payroll can only be set on cash-in transactions")
 
     dt = parse_tx_datetime(date_str)
 
@@ -398,11 +428,19 @@ async def create_tx(req: Request):
 
         cur.execute(
             """
-            INSERT INTO transactions (account_id, transaction_type, transaction_name, amount, date, is_transfer)
-            VALUES (%s::uuid, %s, %s, %s, %s, false)
+            INSERT INTO transactions (
+                account_id,
+                transaction_type,
+                is_cycle_topup,
+                transaction_name,
+                amount,
+                date,
+                is_transfer
+            )
+            VALUES (%s::uuid, %s, %s, %s, %s, %s, false)
             RETURNING transaction_id::text
             """,
-            (account_id, tx_type, name, amount, dt),
+            (account_id, tx_type, is_cycle_topup, name, amount, dt),
         )
         tx_id = cur.fetchone()["transaction_id"]
         conn.commit()
@@ -419,6 +457,9 @@ async def switch_balance(req: Request):
     target_account_id = data.get("target_account_id")
     amount = int(data.get("amount") or 0)
     date_str = data.get("date")
+    is_cycle_topup = parse_optional_bool(data.get("is_cycle_topup"), "is_cycle_topup")
+    if is_cycle_topup is None:
+        is_cycle_topup = False
 
     if not source_account_id or not target_account_id or amount <= 0:
         raise HTTPException(status_code=400, detail="Invalid switch payload")
@@ -468,10 +509,19 @@ async def switch_balance(req: Request):
         transfer_id = str(uuid.uuid4())
         cur.execute(
             """
-            INSERT INTO transactions (account_id, transaction_type, transaction_name, amount, date, is_transfer, transfer_id)
+            INSERT INTO transactions (
+                account_id,
+                transaction_type,
+                is_cycle_topup,
+                transaction_name,
+                amount,
+                date,
+                is_transfer,
+                transfer_id
+            )
             VALUES
-              (%s::uuid, 'credit', %s, %s, %s, true, %s::uuid),
-              (%s::uuid, 'debit', %s, %s, %s, true, %s::uuid)
+              (%s::uuid, 'credit', false, %s, %s, %s, true, %s::uuid),
+              (%s::uuid, 'debit', %s, %s, %s, %s, true, %s::uuid)
             RETURNING transaction_id::text
             """,
             (
@@ -481,6 +531,7 @@ async def switch_balance(req: Request):
                 dt,
                 transfer_id,
                 target_account_id,
+                is_cycle_topup,
                 target_name,
                 amount,
                 dt,
@@ -504,6 +555,7 @@ def get_switch(transfer_id: str, req: Request):
                    t.transaction_type,
                    t.amount,
                    t.date,
+                   t.is_cycle_topup,
                    a.account_name
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
@@ -524,6 +576,7 @@ def get_switch(transfer_id: str, req: Request):
         "target_account_id": target["account_id"],
         "amount": int(source["amount"]),
         "date": source["date"].astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "is_cycle_topup": bool(target.get("is_cycle_topup")),
     }
 
 
@@ -539,6 +592,7 @@ async def update_switch(transfer_id: str, req: Request):
                    t.transaction_type,
                    t.amount,
                    t.date,
+                   t.is_cycle_topup,
                    a.account_name
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
@@ -568,6 +622,9 @@ async def update_switch(transfer_id: str, req: Request):
             new_date = parse_tx_datetime(data.get("date"))
         else:
             new_date = source["date"]
+        is_cycle_topup = parse_optional_bool(data.get("is_cycle_topup"), "is_cycle_topup")
+        if is_cycle_topup is None:
+            is_cycle_topup = bool(target.get("is_cycle_topup"))
 
         lock_accounts_for_update(
             cur,
@@ -648,6 +705,7 @@ async def update_switch(transfer_id: str, req: Request):
             UPDATE transactions
             SET account_id=%s::uuid,
                 transaction_type='credit',
+                is_cycle_topup=false,
                 transaction_name=%s,
                 amount=%s,
                 date=%s,
@@ -670,6 +728,7 @@ async def update_switch(transfer_id: str, req: Request):
             UPDATE transactions
             SET account_id=%s::uuid,
                 transaction_type='debit',
+                is_cycle_topup=%s,
                 transaction_name=%s,
                 amount=%s,
                 date=%s,
@@ -678,6 +737,7 @@ async def update_switch(transfer_id: str, req: Request):
             """,
             (
                 target_account_id,
+                is_cycle_topup,
                 target_name,
                 amount,
                 new_date,
@@ -706,6 +766,7 @@ def delete_switch(transfer_id: str, req: Request):
                    t.transaction_name,
                    t.amount,
                    t.is_transfer,
+                   t.is_cycle_topup,
                    t.transfer_id::text AS transfer_id
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
@@ -734,6 +795,7 @@ def delete_switch(transfer_id: str, req: Request):
                       amount,
                       date,
                       is_transfer,
+                      is_cycle_topup,
                       transfer_id::text AS transfer_id,
                       deleted_at,
                       deleted_by,
@@ -772,7 +834,8 @@ async def update_tx(transaction_id: str, req: Request):
                    t.transaction_name,
                    t.amount,
                    t.date,
-                   t.is_transfer
+                   t.is_transfer,
+                   t.is_cycle_topup
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
             WHERE t.transaction_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
@@ -808,6 +871,11 @@ async def update_tx(transaction_id: str, req: Request):
             new_date = parse_tx_datetime(data.get("date"))
         else:
             new_date = tx["date"]
+        is_cycle_topup = parse_optional_bool(data.get("is_cycle_topup"), "is_cycle_topup")
+        if is_cycle_topup is None:
+            is_cycle_topup = bool(tx.get("is_cycle_topup"))
+        if is_cycle_topup and new_type != "debit":
+            raise HTTPException(status_code=400, detail="Top-up/payroll can only be set on cash-in transactions")
 
         old_account_id = tx["account_id"]
         old_date = tx["date"]
@@ -851,13 +919,14 @@ async def update_tx(transaction_id: str, req: Request):
             UPDATE transactions
             SET account_id=%s::uuid,
                 transaction_type=%s,
+                is_cycle_topup=%s,
                 transaction_name=%s,
                 amount=%s,
                 date=%s
             WHERE transaction_id=%s::uuid AND deleted_at IS NULL
             RETURNING transaction_id
             """,
-            (new_account_id, new_type, new_name, new_amount, new_date, transaction_id),
+            (new_account_id, new_type, is_cycle_topup, new_name, new_amount, new_date, transaction_id),
         )
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Transaction not found")
@@ -880,6 +949,7 @@ def delete_tx(transaction_id: str, req: Request):
                    t.transaction_name,
                    t.amount,
                    t.is_transfer,
+                   t.is_cycle_topup,
                    t.transfer_id::text AS transfer_id
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
@@ -911,6 +981,7 @@ def delete_tx(transaction_id: str, req: Request):
                       amount,
                       date,
                       is_transfer,
+                      is_cycle_topup,
                       transfer_id::text AS transfer_id,
                       deleted_at,
                       deleted_by,
@@ -1129,7 +1200,6 @@ def analysis(req: Request, month: str | None = None):
         default_day = get_default_payday_day(cur, username)
         prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))
         from_date, to_date, from_dt, to_dt = compute_month_range(month, payday_day, prev_day)
-        start_cutoff = from_dt - timedelta(milliseconds=1)
 
         base_filters = ["a.username=%s", "t.deleted_at IS NULL", "t.date >= %s", "t.date <= %s"]
         params: list[Any] = [username, from_dt, to_dt]
@@ -1185,6 +1255,21 @@ def analysis(req: Request, month: str | None = None):
         categories_raw = cur.fetchall()
 
         cur.execute(
+            f"""
+            SELECT t.account_id::text AS account_id,
+                   COALESCE(SUM(t.amount), 0) AS topup_base
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE {" AND ".join(base_filters)}
+              AND t.is_cycle_topup = TRUE
+              AND t.transaction_type = 'debit'
+            GROUP BY t.account_id
+            """,
+            params,
+        )
+        topup_raw = cur.fetchall()
+
+        cur.execute(
             """
             SELECT account_id::text AS account_id
             FROM accounts
@@ -1193,17 +1278,18 @@ def analysis(req: Request, month: str | None = None):
             (username,),
         )
         acc_rows = cur.fetchall()
-        balances_start = get_account_balances(cur, username, start_cutoff)
         balances = get_account_balances(cur, username, to_dt)
         total_asset = sum(int(balances.get(r["account_id"], 0)) for r in acc_rows)
+
+    topup_by_account = {r.get("account_id"): int(r.get("topup_base") or 0) for r in topup_raw}
 
     categories = []
     for row in categories_raw:
         account_id = row.get("account_id")
         total_in_cat = int(row.get("total_in") or 0)
         total_out_cat = int(row.get("total_out") or 0)
-        starting_balance = int(balances_start.get(account_id, 0))
-        usage_pct = int(round((total_out_cat / starting_balance) * 100)) if starting_balance > 0 else None
+        topup_base = int(topup_by_account.get(account_id, 0))
+        usage_pct = int(round((total_out_cat / topup_base) * 100)) if topup_base > 0 else None
         categories.append(
             {
                 "account_id": account_id,
@@ -1211,7 +1297,7 @@ def analysis(req: Request, month: str | None = None):
                 "total_in": total_in_cat,
                 "total_out": total_out_cat,
                 "net": int(total_in_cat - total_out_cat),
-                "starting_balance": starting_balance,
+                "topup_base": topup_base,
                 "usage_pct": usage_pct,
             }
         )

@@ -120,6 +120,7 @@ class LedgerServiceTests(unittest.TestCase):
             "amount": 150000,
             "date": datetime(2026, 2, 11, 8, 30, 5, tzinfo=timezone.utc),
             "is_transfer": False,
+            "is_cycle_topup": True,
             "transfer_id": None,
             "deleted_at": datetime(2026, 2, 11, 9, 0, 0, tzinfo=timezone.utc),
             "deleted_by": "alice",
@@ -138,6 +139,7 @@ class LedgerServiceTests(unittest.TestCase):
         _, params = cur.calls[0]
         payload = json.loads(params[4])
         self.assertEqual(payload["transaction_name"], "Top Up")
+        self.assertTrue(payload["is_cycle_topup"])
         self.assertTrue(payload["date"].endswith("Z"))
         self.assertTrue(payload["deleted_at"].endswith("Z"))
         self.assertEqual(params[2], "alice")
