@@ -1442,6 +1442,14 @@ input.input-button[readonly] {
   color: #ef4444;
 }
 
+.analysis-week-switch-in {
+  color: #0284c7;
+}
+
+.analysis-week-switch-out {
+  color: #f59e0b;
+}
+
 .analysis-week-row {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -1526,6 +1534,10 @@ input.input-button[readonly] {
 
 .analysis-day-out {
   color: #ef4444;
+}
+
+.analysis-day-switch {
+  color: var(--text-muted);
 }
 
 .analysis-scroll {

@@ -495,8 +495,10 @@ def public_summary(req: Request, payload: PeriodQuery):
         cur.execute(
             """
             SELECT t.account_id::text AS account_id,
-                   COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
-                   COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS total_out
+                   COALESCE(SUM(CASE WHEN t.transfer_id IS NULL AND t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
+                   COALESCE(SUM(CASE WHEN t.transfer_id IS NULL AND t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS total_out,
+                   COALESCE(SUM(CASE WHEN t.transfer_id IS NOT NULL AND t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS switch_in,
+                   COALESCE(SUM(CASE WHEN t.transfer_id IS NOT NULL AND t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS switch_out
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
             WHERE a.username=%s
@@ -531,6 +533,8 @@ def public_summary(req: Request, payload: PeriodQuery):
         total_row = totals.get(acc_id, {})
         total_in = int(total_row.get("total_in") or 0)
         total_out = int(total_row.get("total_out") or 0)
+        switch_in = int(total_row.get("switch_in") or 0)
+        switch_out = int(total_row.get("switch_out") or 0)
         budget_info = budgets.get(acc_id)
         budget_amount = budget_info["amount"] if budget_info else None
         budget_id = budget_info["budget_id"] if budget_info else None
@@ -546,6 +550,8 @@ def public_summary(req: Request, payload: PeriodQuery):
                 "current_balance": current_balance,
                 "total_in": total_in,
                 "total_out": total_out,
+                "switch_in": switch_in,
+                "switch_out": switch_out,
                 "budget_id": budget_id,
                 "budget": int(budget_amount) if budget_amount is not None else None,
                 "budget_used": int(budget_used) if budget_used is not None else None,
@@ -592,8 +598,10 @@ def public_analysis(req: Request, payload: PeriodQuery):
 
         cur.execute(
             f"""
-            SELECT COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
-                   COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS total_out
+            SELECT COALESCE(SUM(CASE WHEN t.transfer_id IS NULL AND t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
+                   COALESCE(SUM(CASE WHEN t.transfer_id IS NULL AND t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS total_out,
+                   COALESCE(SUM(CASE WHEN t.transfer_id IS NOT NULL AND t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS switch_in,
+                   COALESCE(SUM(CASE WHEN t.transfer_id IS NOT NULL AND t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS switch_out
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
             WHERE {' AND '.join(base_filters)}
@@ -603,12 +611,16 @@ def public_analysis(req: Request, payload: PeriodQuery):
         totals_row = cur.fetchone() or {}
         total_in = int(totals_row.get("total_in") or 0)
         total_out = int(totals_row.get("total_out") or 0)
+        switch_in = int(totals_row.get("switch_in") or 0)
+        switch_out = int(totals_row.get("switch_out") or 0)
 
         cur.execute(
             f"""
             SELECT (t.date AT TIME ZONE 'UTC')::date AS day,
-                   COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
-                   COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS total_out
+                   COALESCE(SUM(CASE WHEN t.transfer_id IS NULL AND t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
+                   COALESCE(SUM(CASE WHEN t.transfer_id IS NULL AND t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS total_out,
+                   COALESCE(SUM(CASE WHEN t.transfer_id IS NOT NULL AND t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS switch_in,
+                   COALESCE(SUM(CASE WHEN t.transfer_id IS NOT NULL AND t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS switch_out
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
             WHERE {' AND '.join(base_filters)}
@@ -630,6 +642,7 @@ def public_analysis(req: Request, payload: PeriodQuery):
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
             WHERE {' AND '.join(base_filters)}
+              AND t.transfer_id IS NULL
             GROUP BY t.account_id, a.account_name
             ORDER BY total_out DESC, a.account_name ASC
             """,
@@ -670,7 +683,14 @@ def public_analysis(req: Request, payload: PeriodQuery):
             "override_day": override_day,
         },
         "total_asset": int(total_asset),
-        "totals": {"total_in": total_in, "total_out": total_out, "net": int(total_in - total_out)},
+        "totals": {
+            "total_in": total_in,
+            "total_out": total_out,
+            "net": int(total_in - total_out),
+            "switch_in": switch_in,
+            "switch_out": switch_out,
+            "switch_net": int(switch_in - switch_out),
+        },
         "daily": daily_series,
         "weekly": weekly_series,
         "categories": categories,
