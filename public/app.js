@@ -993,6 +993,8 @@ const renderAnalysis = () => {
         .map((c) => {
           const totalIn = Number(c.total_in || 0);
           const totalOutCat = Number(c.total_out || 0);
+          const switchIn = Number(c.switch_in || 0);
+          const switchOut = Number(c.switch_out || 0);
           const net = totalIn - totalOutCat;
           const pct = totalOut > 0 ? Math.round((totalOutCat / totalOut) * 100) : 0;
           const fill = Math.min(100, Math.round((totalOutCat / maxOut) * 100));
@@ -1002,11 +1004,19 @@ const renderAnalysis = () => {
             <div class="analysis-row analysis-row-compact" style="--fill:${fill}%;">
               <div class="analysis-row-head">
                 <span class="analysis-label">${name}</span>
-                <span class="analysis-net ${netClass}">${displayMoney(net)}</span>
+                <span class="analysis-net ${netClass}">Tx Net ${displayMoney(net)}</span>
               </div>
               <div class="analysis-values">
-                <span class="analysis-in">In ${displayMoney(totalIn)}</span>
-                <span class="analysis-out">Out ${displayMoney(totalOutCat)}</span>
+                <div class="analysis-flow-group">
+                  <span class="analysis-flow-label">Tx</span>
+                  <span class="analysis-in">In ${displayMoney(totalIn)}</span>
+                  <span class="analysis-out">Out ${displayMoney(totalOutCat)}</span>
+                </div>
+                <div class="analysis-flow-group">
+                  <span class="analysis-flow-label">Switch</span>
+                  <span class="analysis-switch-in">In ${displayMoney(switchIn)}</span>
+                  <span class="analysis-switch-out">Out ${displayMoney(switchOut)}</span>
+                </div>
                 <span class="analysis-sub">${pct}% of spend</span>
               </div>
               <div class="analysis-bar">
