@@ -22,7 +22,7 @@ Self-hosted personal cash flow tracker with monthly summaries, a transaction led
 - Infra: Docker Compose + Nginx
 
 ## Architecture
-Nginx serves static assets and proxies `/api` to the FastAPI backend. The backend reads/writes to PostgreSQL, handles auth with session cookies, and serves summary/ledger/analysis endpoints. The frontend is a static app that calls the API and renders the views.
+Nginx serves static assets and proxies `/api` to the FastAPI backend. The backend reads/writes to PostgreSQL, handles auth with session cookies, and serves summary/ledger/analysis endpoints. Redis is used for shared cache and rate-limit state. The frontend is a static app that calls the API and renders the views.
 
 ## Quickstart (Fresh Install)
 Copy-paste this to get the app running from scratch:
@@ -51,6 +51,13 @@ Run migrations any time you update the codebase (safe to re-run):
 docker compose run --rm migrate
 ```
 
+## Testing
+Run backend unit tests:
+```bash
+cd backend
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
 ## Environment Variables
 | Name | Required | Example | Notes |
 |------|----------|---------|-------|
@@ -63,6 +70,8 @@ docker compose run --rm migrate
 | TZ | no | Asia/Jakarta | Display timezone in UI |
 | SUMMARY_CACHE_TTL | no | 30 | Summary cache TTL (seconds) |
 | MONTH_SUMMARY_TTL | no | 60 | Monthly summary/analysis cache TTL (seconds) |
+| REDIS_URL | no | redis://redis:6379/0 | Redis URL for shared cache/rate limits |
+| REDIS_PREFIX | no | cashflow | Redis key prefix |
 
 ## Usage
 ```bash
