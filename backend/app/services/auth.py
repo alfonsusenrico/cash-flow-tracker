@@ -60,12 +60,15 @@ def queue_api_key_touch(token_hash: str) -> None:
 
 
 def get_client_ip(req: Request) -> str:
-    forwarded = req.headers.get("x-forwarded-for", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
     real_ip = req.headers.get("x-real-ip", "")
     if real_ip:
         return real_ip.strip()
+    forwarded = req.headers.get("x-forwarded-for", "")
+    if forwarded:
+        # Trust closest proxy hop when X-Forwarded-For contains multiple entries.
+        parts = [part.strip() for part in forwarded.split(",") if part.strip()]
+        if parts:
+            return parts[-1]
     if req.client:
         return req.client.host
     return "unknown"
