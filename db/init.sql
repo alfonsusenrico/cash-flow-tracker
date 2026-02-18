@@ -64,6 +64,24 @@ CREATE TABLE IF NOT EXISTS transaction_audit (
   performed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS transaction_receipts (
+  receipt_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  transaction_id UUID NOT NULL REFERENCES transactions(transaction_id) ON DELETE CASCADE,
+  username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+  category TEXT NOT NULL,
+  original_filename TEXT NULL,
+  original_mime TEXT NOT NULL,
+  stored_mime TEXT NOT NULL,
+  storage_encoding TEXT NOT NULL DEFAULT 'identity' CHECK (storage_encoding IN ('identity', 'gzip')),
+  compression TEXT NOT NULL DEFAULT 'none' CHECK (compression IN ('none', 'gzip', 'webp')),
+  relative_path TEXT NOT NULL UNIQUE,
+  original_size BIGINT NOT NULL CHECK (original_size >= 0),
+  stored_size BIGINT NOT NULL CHECK (stored_size >= 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (transaction_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_accounts_username ON accounts(username);
 CREATE INDEX IF NOT EXISTS idx_tx_account_date ON transactions(account_id, date, transaction_id);
 CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date);
@@ -76,3 +94,5 @@ CREATE INDEX IF NOT EXISTS idx_budgets_username_month ON budgets(username, month
 CREATE INDEX IF NOT EXISTS idx_payday_overrides_username_month ON payday_overrides(username, month);
 CREATE INDEX IF NOT EXISTS idx_tx_audit_username_time ON transaction_audit(username, performed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tx_audit_transaction_time ON transaction_audit(transaction_id, performed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_receipts_username ON transaction_receipts(username);
+CREATE INDEX IF NOT EXISTS idx_receipts_transaction ON transaction_receipts(transaction_id);
