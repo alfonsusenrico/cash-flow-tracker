@@ -76,6 +76,71 @@ python -m unittest discover -s tests -p "test_*.py" -v
 | RECEIPT_MAX_MB | no | 10 | Maximum upload size per receipt file |
 | RECEIPT_WEBP_QUALITY | no | 75 | WEBP quality used for uploaded image receipts |
 
+## Public API (`/api/v1`)
+All endpoints require Bearer token auth unless stated otherwise:
+
+```http
+Authorization: Bearer <API_KEY>
+```
+
+Base URL example:
+
+```text
+https://cash-flow-tracker.alfonsusenrico.com/api/v1
+```
+
+### Core endpoints
+- Auth/key
+  - `POST /auth/register` (invite-based registration)
+  - `POST /api-key/info`
+  - `POST /api-key/reset`
+- Accounts
+  - `POST /accounts/list`
+  - `POST /accounts`
+  - `PUT /accounts/{account_id}`
+  - `DELETE /accounts/{account_id}`
+- Transactions
+  - `POST /transactions` (create, or update when `transaction_id` is provided)
+  - `PUT /transactions/{transaction_id}`
+  - `DELETE /transactions/{transaction_id}`
+- Receipts
+  - `POST /transactions/{transaction_id}/receipt`
+  - `GET /transactions/{transaction_id}/receipt`
+  - `GET /transactions/{transaction_id}/receipt/view`
+  - `DELETE /transactions/{transaction_id}/receipt`
+- Ledger/reporting
+  - `POST /ledger`
+  - `POST /summary`
+  - `POST /analysis`
+- Budgets
+  - `POST /budgets` (upsert by `account_id + month`)
+  - `GET /budgets?month=YYYY-MM`
+  - `PUT /budgets/{budget_id}`
+  - `DELETE /budgets/{budget_id}`
+- Switch transfer
+  - `POST /switch`
+  - `GET /switch/{transfer_id}`
+  - `PUT /switch/{transfer_id}`
+  - `DELETE /switch/{transfer_id}`
+- Payday/balances/audit/export
+  - `GET /payday?month=YYYY-MM`
+  - `PUT /payday`
+  - `POST /balances/recompute`
+  - `POST /transactions/audit`
+  - `POST /export/preview`
+  - `POST /export`
+
+### Quick smoke test
+```bash
+BASE_URL="https://cash-flow-tracker.alfonsusenrico.com/api/v1"
+API_KEY="<API_KEY>"
+
+curl -sS -X POST "$BASE_URL/accounts/list" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
 ## Usage
 ```bash
 xdg-open http://localhost:8090/login.html
