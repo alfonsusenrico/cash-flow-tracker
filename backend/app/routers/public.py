@@ -4,7 +4,8 @@ import uuid
 from datetime import timedelta
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import Response
 from psycopg.errors import UniqueViolation
 
 from app.core.config import settings
@@ -48,7 +49,21 @@ from app.services.ledger import (
     parse_date_utc,
     parse_month,
     parse_tx_datetime,
+    parse_uuid_value,
     prev_month_str,
+)
+from app.services.receipts import (
+    build_receipt_relative_path,
+    delete_receipt_row,
+    get_receipt_row,
+    infer_inline_filename,
+    load_receipt_content,
+    prepare_receipt_payload,
+    remove_receipt_file,
+    require_transaction_owner,
+    serialize_receipt_row,
+    store_receipt,
+    upsert_receipt_row,
 )
 
 router = APIRouter(prefix="/v1")
@@ -216,7 +231,7 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
 
     # Update flow when transaction_id is present.
     if payload.transaction_id:
-        transaction_id = payload.transaction_id
+        transaction_id = parse_uuid_value(payload.transaction_id, "transaction_id")
         with db_conn() as conn, conn.cursor() as cur:
             cur.execute(
                 """
@@ -385,6 +400,107 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
 
     invalidate_user_cache(username)
     return {"ok": True, "transaction_id": tx_id}
+
+
+@router.post("/transactions/{transaction_id}/receipt")
+async def public_upload_tx_receipt(
+    transaction_id: str,
+    req: Request,
+    file: UploadFile = File(...),
+    category: str | None = Form(None),
+):
+    username = require_public_user(req)
+    transaction_id = parse_uuid_value(transaction_id, "transaction_id")
+    raw = await file.read()
+    prepared = prepare_receipt_payload(
+        raw=raw,
+        filename=file.filename,
+        content_type=file.content_type,
+        category=category,
+    )
+
+    relative_path = build_receipt_relative_path(
+        username=username,
+        transaction_id=transaction_id,
+        category=prepared.category,
+        ext=prepared.stored_ext,
+    )
+    old_relative_path: str | None = None
+    stored_new_file = False
+
+    try:
+        store_receipt(relative_path, prepared.content)
+        stored_new_file = True
+        with db_conn() as conn, conn.cursor() as cur:
+            require_transaction_owner(cur, username, transaction_id)
+            row, old_relative_path = upsert_receipt_row(
+                cur,
+                username=username,
+                transaction_id=transaction_id,
+                prepared=prepared,
+                relative_path=relative_path,
+            )
+            conn.commit()
+    except HTTPException:
+        if stored_new_file:
+            remove_receipt_file(relative_path)
+        raise
+    except Exception:
+        if stored_new_file:
+            remove_receipt_file(relative_path)
+        raise
+
+    if old_relative_path and old_relative_path != relative_path:
+        remove_receipt_file(old_relative_path)
+
+    return {"ok": True, "receipt": serialize_receipt_row(row)}
+
+
+@router.get("/transactions/{transaction_id}/receipt")
+def public_get_tx_receipt(transaction_id: str, req: Request):
+    username = require_public_user(req)
+    transaction_id = parse_uuid_value(transaction_id, "transaction_id")
+    with db_conn() as conn, conn.cursor() as cur:
+        require_transaction_owner(cur, username, transaction_id)
+        row = get_receipt_row(cur, username, transaction_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    return {"receipt": serialize_receipt_row(row)}
+
+
+@router.get("/transactions/{transaction_id}/receipt/view")
+def public_view_tx_receipt(transaction_id: str, req: Request):
+    username = require_public_user(req)
+    transaction_id = parse_uuid_value(transaction_id, "transaction_id")
+    with db_conn() as conn, conn.cursor() as cur:
+        require_transaction_owner(cur, username, transaction_id)
+        row = get_receipt_row(cur, username, transaction_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    content = load_receipt_content(row["relative_path"], row["storage_encoding"])
+    filename = infer_inline_filename(row["transaction_id"], row["category"], row["stored_mime"])
+    return Response(
+        content=content,
+        media_type=row["stored_mime"],
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Cache-Control": "private, max-age=60",
+        },
+    )
+
+
+@router.delete("/transactions/{transaction_id}/receipt")
+def public_delete_tx_receipt(transaction_id: str, req: Request):
+    username = require_public_user(req)
+    transaction_id = parse_uuid_value(transaction_id, "transaction_id")
+    with db_conn() as conn, conn.cursor() as cur:
+        require_transaction_owner(cur, username, transaction_id)
+        deleted = delete_receipt_row(cur, username, transaction_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Receipt not found")
+        conn.commit()
+    remove_receipt_file(deleted.get("relative_path"))
+    return {"ok": True}
 
 
 @router.post("/ledger", response_model=CursorLedgerResponse)
