@@ -1,7 +1,7 @@
 import base64
 import json
 import uuid
-from datetime import timedelta
+from datetime import timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
@@ -33,24 +33,30 @@ from app.services.auth import (
 )
 from app.services.ledger import (
     build_daily_series,
+    build_ledger_data,
     build_ledger_page,
     build_weekly_series,
     cache_get,
     cache_set,
     compute_budget_status,
+    compute_export_range,
     compute_month_range,
     ensure_account_non_negative,
+    export_ledger_file,
     get_account_balances,
     get_default_payday_day,
     get_payday_day,
     invalidate_user_cache,
     lock_accounts_for_update,
     now_utc,
+    parse_currency,
     parse_date_utc,
     parse_month,
     parse_tx_datetime,
     parse_uuid_value,
     prev_month_str,
+    recompute_balances_report,
+    write_transaction_audit,
 )
 from app.services.receipts import (
     build_receipt_relative_path,
@@ -114,6 +120,35 @@ def resolve_period_month(month: str | None, year: str | None) -> str:
     value = f"{year_clean}-{month_clean}"
     parse_month(value)
     return value
+
+
+def parse_optional_bool(value: Any, field_name: str) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in ("true", "1", "yes", "on"):
+            return True
+        if lowered in ("false", "0", "no", "off", ""):
+            return False
+    raise HTTPException(status_code=400, detail=f"Invalid {field_name}, expected boolean")
+
+
+def parse_int_field(value: Any, field_name: str, default: int | None = None) -> int:
+    if value is None or (isinstance(value, str) and not value.strip()):
+        if default is not None:
+            return default
+        raise HTTPException(status_code=400, detail=f"{field_name} required")
+    if isinstance(value, bool):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
 
 
 @router.post("/auth/register", response_model=PublicRegisterResponse)
@@ -849,3 +884,653 @@ def public_analysis(req: Request, payload: PeriodQuery):
     }
     cache_set(cache_key, payload, settings.month_summary_ttl)
     return payload
+
+
+@router.put("/accounts/{account_id}")
+def public_update_account(account_id: str, req: Request, payload: AccountCreateRequest):
+    username = require_public_user(req)
+    account_id = parse_uuid_value(account_id, "account_id")
+    account_name = payload.account_name.strip()
+    if not account_name:
+        raise HTTPException(status_code=400, detail="account_name required")
+
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM accounts WHERE username=%s AND account_id=%s::uuid",
+            (username, account_id),
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Account not found")
+        try:
+            cur.execute(
+                "UPDATE accounts SET account_name=%s WHERE username=%s AND account_id=%s::uuid",
+                (account_name, username, account_id),
+            )
+            conn.commit()
+        except UniqueViolation:
+            conn.rollback()
+            raise HTTPException(status_code=400, detail="Account name already exists")
+
+    invalidate_user_cache(username)
+    return {"ok": True}
+
+
+@router.delete("/accounts/{account_id}")
+def public_delete_account(account_id: str, req: Request):
+    username = require_public_user(req)
+    account_id = parse_uuid_value(account_id, "account_id")
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM accounts WHERE username=%s AND account_id=%s::uuid RETURNING account_id",
+            (username, account_id),
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Account not found")
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True}
+
+
+@router.post("/budgets")
+def public_upsert_budget(req: Request, payload: dict[str, Any]):
+    username = require_public_user(req)
+    account_id = parse_uuid_value(payload.get("account_id"), "account_id")
+    month = str(payload.get("month") or "").strip()
+    amount = parse_int_field(payload.get("amount"), "amount", default=0)
+    if not month:
+        raise HTTPException(status_code=400, detail="month required")
+    parse_month(month)
+    if amount < 0:
+        raise HTTPException(status_code=400, detail="amount must be >= 0")
+
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM accounts WHERE username=%s AND account_id=%s::uuid",
+            (username, account_id),
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Account not found")
+        cur.execute(
+            """
+            INSERT INTO budgets (username, account_id, month, amount)
+            VALUES (%s, %s::uuid, %s, %s)
+            ON CONFLICT (username, account_id, month)
+            DO UPDATE SET amount=EXCLUDED.amount
+            RETURNING budget_id::text
+            """,
+            (username, account_id, month, amount),
+        )
+        budget_id = cur.fetchone()["budget_id"]
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True, "budget_id": budget_id}
+
+
+@router.get("/budgets")
+def public_list_budgets(req: Request, month: str | None = None):
+    username = require_public_user(req)
+    if not month:
+        month = now_utc().strftime("%Y-%m")
+    parse_month(month)
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT b.budget_id::text AS budget_id,
+                   b.account_id::text AS account_id,
+                   b.month,
+                   b.amount
+            FROM budgets b
+            JOIN accounts a ON a.account_id=b.account_id
+            WHERE b.username=%s AND b.month=%s
+            ORDER BY a.account_name
+            """,
+            (username, month),
+        )
+        budgets = cur.fetchall()
+    return {"month": month, "budgets": budgets}
+
+
+@router.put("/budgets/{budget_id}")
+def public_update_budget(budget_id: str, req: Request, payload: dict[str, Any]):
+    username = require_public_user(req)
+    budget_id = parse_uuid_value(budget_id, "budget_id")
+    amount = parse_int_field(payload.get("amount"), "amount", default=0)
+    if amount < 0:
+        raise HTTPException(status_code=400, detail="amount must be >= 0")
+
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE budgets b
+            SET amount=%s
+            FROM accounts a
+            WHERE b.account_id=a.account_id
+              AND b.budget_id=%s::uuid
+              AND b.username=%s
+            RETURNING b.budget_id
+            """,
+            (amount, budget_id, username),
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Budget not found")
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True}
+
+
+@router.delete("/budgets/{budget_id}")
+def public_delete_budget(budget_id: str, req: Request):
+    username = require_public_user(req)
+    budget_id = parse_uuid_value(budget_id, "budget_id")
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            DELETE FROM budgets b
+            USING accounts a
+            WHERE b.account_id=a.account_id
+              AND b.budget_id=%s::uuid
+              AND b.username=%s
+            RETURNING b.budget_id
+            """,
+            (budget_id, username),
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Budget not found")
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True}
+
+
+@router.put("/transactions/{transaction_id}")
+def public_update_transaction(transaction_id: str, req: Request, payload: TransactionUpsertRequest):
+    payload.transaction_id = parse_uuid_value(transaction_id, "transaction_id")
+    return public_upsert_transaction(req, payload)
+
+
+@router.delete("/transactions/{transaction_id}")
+def public_delete_transaction(transaction_id: str, req: Request):
+    username = require_public_user(req)
+    transaction_id = parse_uuid_value(transaction_id, "transaction_id")
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT t.transaction_id::text AS transaction_id,
+                   t.account_id::text AS account_id,
+                   t.date,
+                   t.transaction_type,
+                   t.transaction_name,
+                   t.amount,
+                   t.is_transfer,
+                   t.is_cycle_topup,
+                   t.transfer_id::text AS transfer_id
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE t.transaction_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
+            """,
+            (transaction_id, username),
+        )
+        tx = cur.fetchone()
+        if not tx:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        if tx.get("is_transfer"):
+            raise HTTPException(status_code=400, detail="Use switch endpoints to delete transfers")
+
+        lock_accounts_for_update(cur, username, [tx["account_id"]])
+        deleted_at = now_utc()
+        cur.execute(
+            """
+            UPDATE transactions
+            SET deleted_at=%s,
+                deleted_by=%s,
+                delete_reason=%s
+            WHERE transaction_id=%s::uuid
+              AND deleted_at IS NULL
+            RETURNING transaction_id::text AS transaction_id,
+                      account_id::text AS account_id,
+                      transaction_type,
+                      transaction_name,
+                      amount,
+                      date,
+                      is_transfer,
+                      is_cycle_topup,
+                      transfer_id::text AS transfer_id,
+                      deleted_at,
+                      deleted_by,
+                      delete_reason
+            """,
+            (deleted_at, username, "user_request", transaction_id),
+        )
+        deleted_row = cur.fetchone()
+        if not deleted_row:
+            raise HTTPException(status_code=409, detail="Transaction changed, please retry")
+        write_transaction_audit(cur, username=username, performed_by=username, action="soft_delete", tx_row=deleted_row)
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True}
+
+
+@router.post("/switch")
+def public_create_switch(req: Request, payload: dict[str, Any]):
+    username = require_public_user(req)
+    source_account_id = parse_uuid_value(payload.get("source_account_id"), "source_account_id")
+    target_account_id = parse_uuid_value(payload.get("target_account_id"), "target_account_id")
+    amount = parse_int_field(payload.get("amount"), "amount", default=0)
+    date_str = payload.get("date")
+    is_cycle_topup = parse_optional_bool(payload.get("is_cycle_topup"), "is_cycle_topup")
+    if is_cycle_topup is None:
+        is_cycle_topup = False
+    if source_account_id == target_account_id:
+        raise HTTPException(status_code=400, detail="Source and target must differ")
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid switch payload")
+    dt = parse_tx_datetime(date_str)
+
+    with db_conn() as conn, conn.cursor() as cur:
+        lock_accounts_for_update(cur, username, [source_account_id, target_account_id])
+        cur.execute(
+            """
+            SELECT account_id::text AS account_id, account_name
+            FROM accounts
+            WHERE username=%s AND account_id IN (%s::uuid, %s::uuid)
+            """,
+            (username, source_account_id, target_account_id),
+        )
+        accounts = cur.fetchall()
+        if len(accounts) != 2:
+            raise HTTPException(status_code=404, detail="Account not found")
+        acc_map = {a["account_id"]: a for a in accounts}
+        source = acc_map.get(source_account_id)
+        target = acc_map.get(target_account_id)
+
+        temp_id = str(uuid.uuid4())
+        ensure_account_non_negative(cur, source_account_id, dt, [{"transaction_id": temp_id, "date": dt, "transaction_type": "credit", "amount": amount}])
+
+        transfer_id = str(uuid.uuid4())
+        cur.execute(
+            """
+            INSERT INTO transactions (
+                account_id, transaction_type, is_cycle_topup, transaction_name, amount, date, is_transfer, transfer_id
+            )
+            VALUES
+              (%s::uuid, 'credit', false, %s, %s, %s, true, %s::uuid),
+              (%s::uuid, 'debit', %s, %s, %s, %s, true, %s::uuid)
+            """,
+            (
+                source_account_id,
+                f"Switching to {target['account_name']}",
+                amount,
+                dt,
+                transfer_id,
+                target_account_id,
+                is_cycle_topup,
+                f"Switching from {source['account_name']}",
+                amount,
+                dt,
+                transfer_id,
+            ),
+        )
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True, "transfer_id": transfer_id}
+
+
+@router.get("/switch/{transfer_id}")
+def public_get_switch(transfer_id: str, req: Request):
+    username = require_public_user(req)
+    transfer_id = parse_uuid_value(transfer_id, "transfer_id")
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT t.transaction_id::text AS transaction_id,
+                   t.account_id::text AS account_id,
+                   t.transaction_type,
+                   t.amount,
+                   t.date,
+                   t.is_cycle_topup,
+                   a.account_name
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE t.transfer_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
+            """,
+            (transfer_id, username),
+        )
+        rows = cur.fetchall()
+        if len(rows) != 2:
+            raise HTTPException(status_code=404, detail="Switch not found")
+        source = next((r for r in rows if r["transaction_type"] == "credit"), None)
+        target = next((r for r in rows if r["transaction_type"] == "debit"), None)
+    return {
+        "transfer_id": transfer_id,
+        "source_account_id": source["account_id"],
+        "target_account_id": target["account_id"],
+        "amount": int(source["amount"]),
+        "date": source["date"].astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "is_cycle_topup": bool(target.get("is_cycle_topup")),
+    }
+
+
+@router.put("/switch/{transfer_id}")
+def public_update_switch(transfer_id: str, req: Request, payload: dict[str, Any]):
+    username = require_public_user(req)
+    transfer_id = parse_uuid_value(transfer_id, "transfer_id")
+    source_account_id = payload.get("source_account_id")
+    target_account_id = payload.get("target_account_id")
+    amount = payload.get("amount")
+    date = payload.get("date")
+    is_cycle_topup = payload.get("is_cycle_topup")
+
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT t.transaction_id::text AS transaction_id,
+                   t.account_id::text AS account_id,
+                   t.transaction_type,
+                   t.amount,
+                   t.date,
+                   t.is_cycle_topup,
+                   a.account_name
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE t.transfer_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
+            """,
+            (transfer_id, username),
+        )
+        rows = cur.fetchall()
+        if len(rows) != 2:
+            raise HTTPException(status_code=404, detail="Switch not found")
+        source = next((r for r in rows if r["transaction_type"] == "credit"), None)
+        target = next((r for r in rows if r["transaction_type"] == "debit"), None)
+
+        source_account_id = parse_uuid_value(source_account_id or source["account_id"], "source_account_id")
+        target_account_id = parse_uuid_value(target_account_id or target["account_id"], "target_account_id")
+        if source_account_id == target_account_id:
+            raise HTTPException(status_code=400, detail="Source and target must differ")
+        amount = parse_int_field(amount if amount is not None else source["amount"], "amount")
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be > 0")
+        new_date = parse_tx_datetime(date) if date else source["date"]
+        parsed_topup = parse_optional_bool(is_cycle_topup, "is_cycle_topup")
+        if parsed_topup is None:
+            parsed_topup = bool(target.get("is_cycle_topup"))
+
+        lock_accounts_for_update(cur, username, [source["account_id"], target["account_id"], source_account_id, target_account_id])
+        cur.execute(
+            "SELECT account_id::text AS account_id, account_name FROM accounts WHERE username=%s AND account_id IN (%s::uuid,%s::uuid)",
+            (username, source_account_id, target_account_id),
+        )
+        accounts = cur.fetchall()
+        if len(accounts) != 2:
+            raise HTTPException(status_code=404, detail="Account not found")
+        acc_map = {a["account_id"]: a for a in accounts}
+
+        old_rows = [
+            {"transaction_id": source["transaction_id"], "account_id": source["account_id"], "date": source["date"]},
+            {"transaction_id": target["transaction_id"], "account_id": target["account_id"], "date": target["date"]},
+        ]
+        new_rows = [
+            {"transaction_id": source["transaction_id"], "account_id": source_account_id, "date": new_date, "transaction_type": "credit", "amount": amount},
+            {"transaction_id": target["transaction_id"], "account_id": target_account_id, "date": new_date, "transaction_type": "debit", "amount": amount},
+        ]
+        affected: dict[str, dict[str, Any]] = {}
+        for row in old_rows:
+            acc = row["account_id"]
+            affected.setdefault(acc, {"exclude": [], "dates": [], "new": []})
+            affected[acc]["exclude"].append(row["transaction_id"])
+            affected[acc]["dates"].append(row["date"])
+        for row in new_rows:
+            acc = row["account_id"]
+            affected.setdefault(acc, {"exclude": [], "dates": [], "new": []})
+            affected[acc]["new"].append(row)
+            affected[acc]["dates"].append(row["date"])
+        for acc_id, p in affected.items():
+            ensure_account_non_negative(cur, acc_id, min(p["dates"]), p["new"], exclude_tx_ids=p["exclude"])
+
+        cur.execute(
+            """
+            UPDATE transactions
+            SET account_id=%s::uuid, transaction_type='credit', is_cycle_topup=false, transaction_name=%s, amount=%s, date=%s, is_transfer=true
+            WHERE transaction_id=%s::uuid AND transfer_id=%s::uuid AND deleted_at IS NULL
+            """,
+            (source_account_id, f"Switching to {acc_map[target_account_id]['account_name']}", amount, new_date, source["transaction_id"], transfer_id),
+        )
+        cur.execute(
+            """
+            UPDATE transactions
+            SET account_id=%s::uuid, transaction_type='debit', is_cycle_topup=%s, transaction_name=%s, amount=%s, date=%s, is_transfer=true
+            WHERE transaction_id=%s::uuid AND transfer_id=%s::uuid AND deleted_at IS NULL
+            """,
+            (target_account_id, parsed_topup, f"Switching from {acc_map[source_account_id]['account_name']}", amount, new_date, target["transaction_id"], transfer_id),
+        )
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True}
+
+
+@router.delete("/switch/{transfer_id}")
+def public_delete_switch(transfer_id: str, req: Request):
+    username = require_public_user(req)
+    transfer_id = parse_uuid_value(transfer_id, "transfer_id")
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT t.transaction_id::text AS transaction_id,
+                   t.account_id::text AS account_id,
+                   t.date,
+                   t.transaction_type,
+                   t.transaction_name,
+                   t.amount,
+                   t.is_transfer,
+                   t.is_cycle_topup,
+                   t.transfer_id::text AS transfer_id
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE t.transfer_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
+            """,
+            (transfer_id, username),
+        )
+        rows = cur.fetchall()
+        if len(rows) != 2:
+            raise HTTPException(status_code=404, detail="Switch not found")
+        lock_accounts_for_update(cur, username, [row["account_id"] for row in rows])
+        deleted_at = now_utc()
+        cur.execute(
+            """
+            UPDATE transactions
+            SET deleted_at=%s, deleted_by=%s, delete_reason=%s
+            WHERE transfer_id=%s::uuid AND deleted_at IS NULL
+            RETURNING transaction_id::text AS transaction_id,
+                      account_id::text AS account_id,
+                      transaction_type,
+                      transaction_name,
+                      amount,
+                      date,
+                      is_transfer,
+                      is_cycle_topup,
+                      transfer_id::text AS transfer_id,
+                      deleted_at,
+                      deleted_by,
+                      delete_reason
+            """,
+            (deleted_at, username, "user_request", transfer_id),
+        )
+        deleted_rows = cur.fetchall()
+        if len(deleted_rows) != 2:
+            raise HTTPException(status_code=409, detail="Switch changed, please retry")
+        for row in deleted_rows:
+            write_transaction_audit(cur, username=username, performed_by=username, action="soft_delete", tx_row=row)
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True}
+
+
+@router.get("/payday")
+def public_get_payday(req: Request, month: str | None = None):
+    username = require_public_user(req)
+    if not month:
+        month = now_utc().strftime("%Y-%m")
+    parse_month(month)
+    with db_conn() as conn, conn.cursor() as cur:
+        payday_day, payday_source, override_day = get_payday_day(cur, username, month)
+        default_day = get_default_payday_day(cur, username)
+    return {"month": month, "day": payday_day, "source": payday_source, "default_day": default_day, "override_day": override_day}
+
+
+@router.put("/payday")
+def public_set_payday(req: Request, payload: dict[str, Any]):
+    username = require_public_user(req)
+    month = payload.get("month")
+    day_val = payload.get("day")
+    clear_override_value = parse_optional_bool(payload.get("clear_override"), "clear_override")
+    clear_override = bool(clear_override_value) if clear_override_value is not None else False
+
+    if month:
+        parse_month(month)
+        if clear_override:
+            with db_conn() as conn, conn.cursor() as cur:
+                cur.execute("DELETE FROM payday_overrides WHERE username=%s AND month=%s", (username, month))
+                conn.commit()
+        else:
+            day = parse_int_field(day_val, "day")
+            if day < 1 or day > 31:
+                raise HTTPException(status_code=400, detail="Payday day must be between 1 and 31")
+            with db_conn() as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO payday_overrides (username, month, payday_day)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (username, month)
+                    DO UPDATE SET payday_day=EXCLUDED.payday_day
+                    """,
+                    (username, month, day),
+                )
+                conn.commit()
+    else:
+        day = parse_int_field(day_val, "day")
+        if day < 1 or day > 31:
+            raise HTTPException(status_code=400, detail="Payday day must be between 1 and 31")
+        with db_conn() as conn, conn.cursor() as cur:
+            cur.execute("UPDATE users SET default_payday_day=%s WHERE username=%s", (day, username))
+            conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True}
+
+
+@router.post("/balances/recompute")
+def public_recompute_balances(req: Request, _payload: EmptyBodyRequest):
+    username = require_public_user(req)
+    with db_conn() as conn, conn.cursor() as cur:
+        report = recompute_balances_report(cur, username)
+    invalidate_user_cache(username)
+    return {"ok": True, "checked_at": now_utc().isoformat().replace("+00:00", "Z"), **report}
+
+
+@router.post("/transactions/audit")
+def public_transaction_audit(req: Request, payload: dict[str, Any]):
+    username = require_public_user(req)
+    transaction_id = payload.get("transaction_id")
+    limit = parse_int_field(payload.get("limit"), "limit", default=50)
+    limit = max(1, min(limit, 200))
+    if transaction_id:
+        transaction_id = parse_uuid_value(transaction_id, "transaction_id")
+
+    sql = """
+        SELECT audit_id::text AS audit_id,
+               transaction_id::text AS transaction_id,
+               account_id::text AS account_id,
+               username,
+               action,
+               payload,
+               performed_by,
+               performed_at
+        FROM transaction_audit
+        WHERE username=%s
+    """
+    params: list[Any] = [username]
+    if transaction_id:
+        sql += " AND transaction_id=%s::uuid"
+        params.append(transaction_id)
+    sql += " ORDER BY performed_at DESC LIMIT %s"
+    params.append(limit)
+
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+
+    return {
+        "audit": [
+            {
+                "audit_id": row["audit_id"],
+                "transaction_id": row["transaction_id"],
+                "account_id": row["account_id"],
+                "username": row["username"],
+                "action": row["action"],
+                "payload": row["payload"],
+                "performed_by": row["performed_by"],
+                "performed_at": row["performed_at"].astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+            }
+            for row in rows
+        ]
+    }
+
+
+@router.post("/export/preview")
+def public_export_preview(req: Request, payload: dict[str, Any]):
+    username = require_public_user(req)
+    day = parse_int_field(payload.get("day"), "day")
+    scope = str(payload.get("scope") or "all")
+    account_id = payload.get("account_id")
+    from_date, to_date, from_dt, to_dt = compute_export_range(day)
+
+    with db_conn() as conn, conn.cursor() as cur:
+        rows, _, _ = build_ledger_data(cur, username, scope, account_id, from_dt, to_dt)
+
+    total_in = sum(int(r.get("debit") or 0) for r in rows)
+    total_out = sum(int(r.get("credit") or 0) for r in rows)
+    return {"range": {"from": from_date, "to": to_date}, "summary": {"count": len(rows), "total_in": int(total_in), "total_out": int(total_out), "net": int(total_in - total_out)}}
+
+
+@router.post("/export")
+def public_export(req: Request, payload: dict[str, Any]):
+    username = require_public_user(req)
+    day = parse_int_field(payload.get("day"), "day")
+    export_format = str(payload.get("format") or "pdf").lower()
+    scope = str(payload.get("scope") or "all")
+    account_id = payload.get("account_id")
+    currency = payload.get("currency")
+    fx_rate = payload.get("fx_rate")
+
+    if export_format not in ("pdf", "csv"):
+        raise HTTPException(status_code=400, detail="Invalid export format")
+
+    cur_currency, fx = parse_currency(currency, fx_rate)
+    from_date, to_date, from_dt, to_dt = compute_export_range(day)
+
+    with db_conn() as conn, conn.cursor() as cur:
+        rows, summary_accounts, _ = build_ledger_data(cur, username, scope, account_id, from_dt, to_dt)
+
+    export_payload = export_ledger_file(
+        rows=rows,
+        summary_accounts=summary_accounts,
+        scope=scope,
+        account_id=account_id,
+        username=username,
+        from_date=from_date,
+        to_date=to_date,
+        export_format=export_format,
+        currency=cur_currency,
+        fx=fx,
+    )
+    return Response(
+        content=export_payload["content"],
+        media_type=export_payload["media_type"],
+        headers={"Content-Disposition": f'attachment; filename="{export_payload["filename"]}"'},
+    )
