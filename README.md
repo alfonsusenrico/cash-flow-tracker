@@ -141,6 +141,73 @@ curl -sS -X POST "$BASE_URL/accounts/list" \
   -d '{}'
 ```
 
+### Automation examples (curl)
+```bash
+BASE_URL="https://cash-flow-tracker.alfonsusenrico.com/api/v1"
+API_KEY="<API_KEY>"
+AUTH=(-H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json")
+```
+
+1) Create account:
+```bash
+curl -sS -X POST "$BASE_URL/accounts" "${AUTH[@]}" -d '{
+  "account_name": "Cash",
+  "initial_balance": 500000
+}'
+```
+
+2) Create transaction:
+```bash
+curl -sS -X POST "$BASE_URL/transactions" "${AUTH[@]}" -d '{
+  "account_id": "<ACCOUNT_ID>",
+  "transaction_type": "credit",
+  "transaction_name": "Makan siang",
+  "amount": 35000
+}'
+```
+
+3) Update and delete transaction:
+```bash
+curl -sS -X PUT "$BASE_URL/transactions/<TRANSACTION_ID>" "${AUTH[@]}" -d '{
+  "account_id": "<ACCOUNT_ID>",
+  "transaction_type": "credit",
+  "transaction_name": "Makan siang (revisi)",
+  "amount": 30000
+}'
+
+curl -sS -X DELETE "$BASE_URL/transactions/<TRANSACTION_ID>" -H "Authorization: Bearer $API_KEY"
+```
+
+4) Create switch transfer antar akun:
+```bash
+curl -sS -X POST "$BASE_URL/switch" "${AUTH[@]}" -d '{
+  "source_account_id": "<ACCOUNT_ID_SUMBER>",
+  "target_account_id": "<ACCOUNT_ID_TUJUAN>",
+  "amount": 100000
+}'
+```
+
+5) Upsert budget bulanan:
+```bash
+curl -sS -X POST "$BASE_URL/budgets" "${AUTH[@]}" -d '{
+  "account_id": "<ACCOUNT_ID>",
+  "month": "2026-02",
+  "amount": 2000000
+}'
+```
+
+6) Summary, analysis, dan export CSV:
+```bash
+curl -sS -X POST "$BASE_URL/summary" "${AUTH[@]}" -d '{"month":"02","year":"2026"}'
+curl -sS -X POST "$BASE_URL/analysis" "${AUTH[@]}" -d '{"month":"02","year":"2026"}'
+
+curl -sS -X POST "$BASE_URL/export" "${AUTH[@]}" -d '{
+  "day": 1,
+  "format": "csv",
+  "scope": "all"
+}' -o ledger-export.csv
+```
+
 ## Usage
 ```bash
 xdg-open http://localhost:8090/login.html
