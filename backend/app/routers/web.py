@@ -2,7 +2,7 @@ import uuid
 from datetime import timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from passlib.hash import bcrypt
 from psycopg.errors import UniqueViolation
@@ -43,6 +43,19 @@ from app.services.ledger import (
     recompute_balances_report,
     write_transaction_audit,
 )
+from app.services.receipts import (
+    build_receipt_relative_path,
+    delete_receipt_row,
+    get_receipt_row,
+    infer_inline_filename,
+    load_receipt_content,
+    prepare_receipt_payload,
+    remove_receipt_file,
+    require_transaction_owner,
+    serialize_receipt_row,
+    store_receipt,
+    upsert_receipt_row,
+)
 
 router = APIRouter()
 
@@ -61,6 +74,29 @@ def parse_optional_bool(value: Any, field_name: str) -> bool | None:
         if lowered in ("false", "0", "no", "off", ""):
             return False
     raise HTTPException(status_code=400, detail=f"Invalid {field_name}, expected boolean")
+
+
+def parse_int_field(value: Any, field_name: str, default: int | None = None) -> int:
+    if value is None or (isinstance(value, str) and not value.strip()):
+        if default is not None:
+            return default
+        raise HTTPException(status_code=400, detail=f"{field_name} required")
+    if isinstance(value, bool):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
+
+
+def parse_uuid_field(value: Any, field_name: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail=f"{field_name} required")
+    try:
+        return str(uuid.UUID(raw))
+    except (TypeError, ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
 
 
 @router.get("/health")
@@ -239,10 +275,10 @@ def list_budgets(req: Request, month: str | None = None):
 async def upsert_budget(req: Request):
     username = require_session_user(req)
     data = await req.json()
-    account_id = data.get("account_id")
+    account_id = parse_uuid_field(data.get("account_id"), "account_id")
     month = data.get("month")
-    amount = int(data.get("amount") or 0)
-    if not account_id or not month:
+    amount = parse_int_field(data.get("amount"), "amount", default=0)
+    if not month:
         raise HTTPException(status_code=400, detail="account_id and month required")
     parse_month(month)
     if amount < 0:
@@ -276,8 +312,9 @@ async def upsert_budget(req: Request):
 @router.put("/budgets/{budget_id}")
 async def update_budget(budget_id: str, req: Request):
     username = require_session_user(req)
+    budget_id = parse_uuid_field(budget_id, "budget_id")
     data = await req.json()
-    amount = int(data.get("amount") or 0)
+    amount = parse_int_field(data.get("amount"), "amount", default=0)
     if amount < 0:
         raise HTTPException(status_code=400, detail="amount must be >= 0")
 
@@ -305,6 +342,7 @@ async def update_budget(budget_id: str, req: Request):
 @router.delete("/budgets/{budget_id}")
 def delete_budget(budget_id: str, req: Request):
     username = require_session_user(req)
+    budget_id = parse_uuid_field(budget_id, "budget_id")
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -328,6 +366,7 @@ def delete_budget(budget_id: str, req: Request):
 @router.put("/accounts/{account_id}")
 async def update_account(account_id: str, req: Request):
     username = require_session_user(req)
+    account_id = parse_uuid_field(account_id, "account_id")
     data = await req.json()
     account_name = (data.get("account_name") or "").strip()
     if not account_name:
@@ -353,15 +392,19 @@ async def update_account(account_id: str, req: Request):
         params.append(account_name)
 
         params.extend([username, account_id])
-        cur.execute(
-            f"""
-            UPDATE accounts
-            SET {", ".join(updates)}
-            WHERE username=%s AND account_id=%s::uuid
-            """,
-            params,
-        )
-        conn.commit()
+        try:
+            cur.execute(
+                f"""
+                UPDATE accounts
+                SET {", ".join(updates)}
+                WHERE username=%s AND account_id=%s::uuid
+                """,
+                params,
+            )
+            conn.commit()
+        except UniqueViolation:
+            conn.rollback()
+            raise HTTPException(status_code=400, detail="Account name already exists")
 
     invalidate_user_cache(username)
     return {"ok": True}
@@ -370,6 +413,7 @@ async def update_account(account_id: str, req: Request):
 @router.delete("/accounts/{account_id}")
 def delete_account(account_id: str, req: Request):
     username = require_session_user(req)
+    account_id = parse_uuid_field(account_id, "account_id")
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT account_id::text AS account_id FROM accounts WHERE username=%s AND account_id=%s::uuid",
@@ -395,7 +439,7 @@ async def create_tx(req: Request):
     account_id = data.get("account_id")
     tx_type = data.get("transaction_type")
     name = (data.get("transaction_name") or "").strip()
-    amount = int(data.get("amount") or 0)
+    amount = parse_int_field(data.get("amount"), "amount", default=0)
     date_str = data.get("date")  # ISO string (from input datetime-local) or YYYY-MM-DD
     is_cycle_topup = parse_optional_bool(data.get("is_cycle_topup"), "is_cycle_topup")
     if is_cycle_topup is None:
@@ -455,7 +499,7 @@ async def switch_balance(req: Request):
     data = await req.json()
     source_account_id = data.get("source_account_id")
     target_account_id = data.get("target_account_id")
-    amount = int(data.get("amount") or 0)
+    amount = parse_int_field(data.get("amount"), "amount", default=0)
     date_str = data.get("date")
     is_cycle_topup = parse_optional_bool(data.get("is_cycle_topup"), "is_cycle_topup")
     if is_cycle_topup is None:
@@ -547,6 +591,7 @@ async def switch_balance(req: Request):
 @router.get("/switch/{transfer_id}")
 def get_switch(transfer_id: str, req: Request):
     username = require_session_user(req)
+    transfer_id = parse_uuid_field(transfer_id, "transfer_id")
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -583,6 +628,7 @@ def get_switch(transfer_id: str, req: Request):
 @router.put("/switch/{transfer_id}")
 async def update_switch(transfer_id: str, req: Request):
     username = require_session_user(req)
+    transfer_id = parse_uuid_field(transfer_id, "transfer_id")
     data = await req.json()
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
@@ -614,7 +660,10 @@ async def update_switch(transfer_id: str, req: Request):
         if source_account_id == target_account_id:
             raise HTTPException(status_code=400, detail="Source and target must differ")
 
-        amount = int(data.get("amount") or source["amount"])
+        if "amount" in data and data.get("amount") is not None:
+            amount = parse_int_field(data.get("amount"), "amount")
+        else:
+            amount = int(source["amount"])
         if amount <= 0:
             raise HTTPException(status_code=400, detail="Amount must be > 0")
 
@@ -756,6 +805,7 @@ async def update_switch(transfer_id: str, req: Request):
 @router.delete("/switch/{transfer_id}")
 def delete_switch(transfer_id: str, req: Request):
     username = require_session_user(req)
+    transfer_id = parse_uuid_field(transfer_id, "transfer_id")
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -823,6 +873,7 @@ def delete_switch(transfer_id: str, req: Request):
 @router.put("/transactions/{transaction_id}")
 async def update_tx(transaction_id: str, req: Request):
     username = require_session_user(req)
+    transaction_id = parse_uuid_field(transaction_id, "transaction_id")
     data = await req.json()
 
     with db_conn() as conn, conn.cursor() as cur:
@@ -861,7 +912,7 @@ async def update_tx(transaction_id: str, req: Request):
             new_name = tx["transaction_name"]
 
         if "amount" in data:
-            new_amount = int(data.get("amount") or 0)
+            new_amount = parse_int_field(data.get("amount"), "amount", default=0)
         else:
             new_amount = int(tx["amount"])
         if new_amount <= 0:
@@ -939,6 +990,7 @@ async def update_tx(transaction_id: str, req: Request):
 @router.delete("/transactions/{transaction_id}")
 def delete_tx(transaction_id: str, req: Request):
     username = require_session_user(req)
+    transaction_id = parse_uuid_field(transaction_id, "transaction_id")
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -1001,6 +1053,108 @@ def delete_tx(transaction_id: str, req: Request):
         )
         conn.commit()
     invalidate_user_cache(username)
+    return {"ok": True}
+
+
+@router.post("/transactions/{transaction_id}/receipt")
+async def upload_tx_receipt(
+    transaction_id: str,
+    req: Request,
+    file: UploadFile = File(...),
+    category: str | None = Form(None),
+):
+    username = require_session_user(req)
+    transaction_id = parse_uuid_field(transaction_id, "transaction_id")
+    raw = await file.read()
+    prepared = prepare_receipt_payload(
+        raw=raw,
+        filename=file.filename,
+        content_type=file.content_type,
+        category=category,
+    )
+
+    relative_path = build_receipt_relative_path(
+        username=username,
+        transaction_id=transaction_id,
+        category=prepared.category,
+        ext=prepared.stored_ext,
+    )
+    old_relative_path: str | None = None
+    stored_new_file = False
+
+    try:
+        store_receipt(relative_path, prepared.content)
+        stored_new_file = True
+        with db_conn() as conn, conn.cursor() as cur:
+            require_transaction_owner(cur, username, transaction_id)
+            row, old_relative_path = upsert_receipt_row(
+                cur,
+                username=username,
+                transaction_id=transaction_id,
+                prepared=prepared,
+                relative_path=relative_path,
+            )
+            conn.commit()
+    except HTTPException:
+        if stored_new_file:
+            remove_receipt_file(relative_path)
+        raise
+    except Exception:
+        if stored_new_file:
+            remove_receipt_file(relative_path)
+        raise
+
+    if old_relative_path and old_relative_path != relative_path:
+        remove_receipt_file(old_relative_path)
+
+    return {"ok": True, "receipt": serialize_receipt_row(row)}
+
+
+@router.get("/transactions/{transaction_id}/receipt")
+def get_tx_receipt(transaction_id: str, req: Request):
+    username = require_session_user(req)
+    transaction_id = parse_uuid_field(transaction_id, "transaction_id")
+    with db_conn() as conn, conn.cursor() as cur:
+        require_transaction_owner(cur, username, transaction_id)
+        row = get_receipt_row(cur, username, transaction_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    return {"receipt": serialize_receipt_row(row)}
+
+
+@router.get("/transactions/{transaction_id}/receipt/view")
+def view_tx_receipt(transaction_id: str, req: Request):
+    username = require_session_user(req)
+    transaction_id = parse_uuid_field(transaction_id, "transaction_id")
+    with db_conn() as conn, conn.cursor() as cur:
+        require_transaction_owner(cur, username, transaction_id)
+        row = get_receipt_row(cur, username, transaction_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+
+    payload = load_receipt_content(row["relative_path"], row["storage_encoding"])
+    filename = infer_inline_filename(row["transaction_id"], row["category"], row["stored_mime"])
+    return Response(
+        content=payload,
+        media_type=row["stored_mime"],
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Cache-Control": "private, max-age=60",
+        },
+    )
+
+
+@router.delete("/transactions/{transaction_id}/receipt")
+def delete_tx_receipt(transaction_id: str, req: Request):
+    username = require_session_user(req)
+    transaction_id = parse_uuid_field(transaction_id, "transaction_id")
+    with db_conn() as conn, conn.cursor() as cur:
+        require_transaction_owner(cur, username, transaction_id)
+        deleted = delete_receipt_row(cur, username, transaction_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Receipt not found")
+        conn.commit()
+    remove_receipt_file(deleted.get("relative_path"))
     return {"ok": True}
 
 
@@ -1345,7 +1499,8 @@ async def set_payday(req: Request):
     data = await req.json()
     month = data.get("month")
     day_val = data.get("day")
-    clear_override = bool(data.get("clear_override"))
+    clear_override_value = parse_optional_bool(data.get("clear_override"), "clear_override")
+    clear_override = bool(clear_override_value) if clear_override_value is not None else False
 
     if month:
         parse_month(month)
@@ -1412,6 +1567,8 @@ def list_transaction_audit(req: Request, transaction_id: str | None = None, limi
         limit = max(1, min(int(limit or 50), 200))
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="Invalid limit")
+    if transaction_id:
+        transaction_id = parse_uuid_field(transaction_id, "transaction_id")
 
     sql = """
         SELECT audit_id::text AS audit_id,
