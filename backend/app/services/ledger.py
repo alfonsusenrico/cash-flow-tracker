@@ -271,8 +271,18 @@ def parse_tx_datetime(date_str: str | None) -> datetime:
         return parse_date_utc(date_str, end_of_day=False).replace(microsecond=0)
 
 
+def parse_uuid_value(value: Any, field_name: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail=f"{field_name} required")
+    try:
+        return str(uuid.UUID(raw))
+    except (TypeError, ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
+
+
 def lock_accounts_for_update(cur, username: str, account_ids: list[str]) -> None:
-    unique_ids = sorted({aid for aid in account_ids if aid})
+    unique_ids = sorted({parse_uuid_value(aid, "account_id") for aid in account_ids if aid})
     if not unique_ids:
         return
     cur.execute(
