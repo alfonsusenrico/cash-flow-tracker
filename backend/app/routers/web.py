@@ -100,6 +100,13 @@ def parse_uuid_field(value: Any, field_name: str) -> str:
         raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
 
 
+def parse_profile_type(value: Any) -> str:
+    raw = str(value or "dynamic_spending").strip().lower()
+    if raw not in ("tabungan", "fixed_spending", "dynamic_spending"):
+        raise HTTPException(status_code=400, detail="Invalid profile_type")
+    return raw
+
+
 @router.get("/health")
 def health():
     return {"ok": True}
@@ -188,7 +195,12 @@ def list_accounts(req: Request):
         cur.execute(
             """
             SELECT a.account_id::text,
-                   a.account_name
+                   a.account_name,
+                   a.profile_type,
+                   a.is_payroll_source,
+                   a.is_no_limit,
+                   a.is_buffer,
+                   a.fixed_limit_amount
             FROM accounts a
             WHERE a.username=%s
             ORDER BY a.account_name
@@ -409,6 +421,47 @@ async def update_account(account_id: str, req: Request):
 
     invalidate_user_cache(username)
     return {"ok": True}
+
+
+@router.put("/accounts/{account_id}/profile")
+async def update_account_profile(account_id: str, req: Request):
+    username = require_session_user(req)
+    account_id = parse_uuid_field(account_id, "account_id")
+    data = await req.json()
+
+    profile_type = parse_profile_type(data.get("profile_type"))
+    is_payroll_source = bool(parse_optional_bool(data.get("is_payroll_source"), "is_payroll_source") or False)
+    is_no_limit = bool(parse_optional_bool(data.get("is_no_limit"), "is_no_limit") or False)
+    is_buffer = bool(parse_optional_bool(data.get("is_buffer"), "is_buffer") or False)
+
+    fixed_limit_raw = data.get("fixed_limit_amount")
+    fixed_limit_amount = None
+    if fixed_limit_raw is not None and str(fixed_limit_raw).strip() != "":
+        fixed_limit_amount = parse_int_field(fixed_limit_raw, "fixed_limit_amount", default=0)
+        if fixed_limit_amount < 0:
+            raise HTTPException(status_code=400, detail="fixed_limit_amount must be >= 0")
+
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE accounts
+            SET profile_type=%s,
+                is_payroll_source=%s,
+                is_no_limit=%s,
+                is_buffer=%s,
+                fixed_limit_amount=%s
+            WHERE username=%s AND account_id=%s::uuid
+            RETURNING account_id::text, account_name, profile_type, is_payroll_source, is_no_limit, is_buffer, fixed_limit_amount
+            """,
+            (profile_type, is_payroll_source, is_no_limit, is_buffer, fixed_limit_amount, username, account_id),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Account not found")
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True, "account": row}
 
 
 @router.delete("/accounts/{account_id}")

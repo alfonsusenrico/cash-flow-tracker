@@ -423,7 +423,12 @@ def compute_budget_shift_analysis(
     cur.execute(
         """
         SELECT account_id::text AS account_id,
-               account_name
+               account_name,
+               profile_type,
+               is_payroll_source,
+               is_no_limit,
+               is_buffer,
+               fixed_limit_amount
         FROM accounts
         WHERE username=%s
         ORDER BY account_name
@@ -431,7 +436,7 @@ def compute_budget_shift_analysis(
         (username,),
     )
     accounts = cur.fetchall()
-    account_map = {row["account_id"]: row.get("account_name") for row in accounts}
+    account_map = {row["account_id"]: row for row in accounts}
 
     strategy_normalized = str(strategy or "normal").strip().lower()
     if strategy_normalized not in ("conservative", "normal", "aggressive"):
@@ -541,31 +546,48 @@ def compute_budget_shift_analysis(
     total_switch_in = 0
     total_switch_out = 0
 
-    for account_id, account_name in account_map.items():
+    for account_id, account_row in account_map.items():
+        account_name = account_row.get("account_name")
+        profile_type = str(account_row.get("profile_type") or "dynamic_spending")
+        is_payroll_source = bool(account_row.get("is_payroll_source"))
+        is_no_limit = bool(account_row.get("is_no_limit"))
+        is_buffer = bool(account_row.get("is_buffer"))
+        fixed_limit_amount = account_row.get("fixed_limit_amount")
+
         budget = budgets.get(account_id)
+        effective_budget = int(fixed_limit_amount) if fixed_limit_amount is not None else budget
         real_spend = int(real_by_acc.get(account_id, {}).get("real_spend") or 0)
         real_income = int(real_by_acc.get(account_id, {}).get("real_income") or 0)
         switch_in = int(switch_by_acc.get(account_id, {}).get("switch_in") or 0)
         switch_out = int(switch_by_acc.get(account_id, {}).get("switch_out") or 0)
         net_switch = int(switch_in - switch_out)
 
-        if budget is None:
+        if is_no_limit:
+            budget_gap = None
+            stress_ratio = None
+            suggested_budget = max(0, real_spend)
+            status = "no_limit"
+            reason = "No-limit account"
+        elif effective_budget is None:
             budget_gap = None
             stress_ratio = None
             suggested_budget = max(0, real_spend)
             status = "no_budget"
             reason = "No budget set yet"
         else:
-            budget_gap = int(real_spend - budget)
-            stress_ratio = (real_spend / budget) if budget > 0 else (1.0 if real_spend == 0 else 999.0)
-            suggested_budget = int(max(real_spend, budget))
+            budget_gap = int(real_spend - effective_budget)
+            stress_ratio = (real_spend / effective_budget) if effective_budget > 0 else (1.0 if real_spend == 0 else 999.0)
+            suggested_budget = int(max(real_spend, effective_budget))
             if net_switch > 0:
                 uplift = int(round(net_switch * receiver_weight))
-                suggested_budget = max(suggested_budget, budget + uplift)
-            if switch_out > 0 and real_spend < budget:
-                reducible = min(switch_out, budget - real_spend)
+                suggested_budget = max(suggested_budget, effective_budget + uplift)
+            if switch_out > 0 and real_spend < effective_budget:
+                reducible = min(switch_out, effective_budget - real_spend)
                 cut = int(round(reducible * donor_weight))
-                suggested_budget = max(real_spend, budget - cut)
+                suggested_budget = max(real_spend, effective_budget - cut)
+
+            if profile_type == "fixed_spending" and fixed_limit_amount is not None:
+                suggested_budget = int(fixed_limit_amount)
 
             if budget_gap > 0 and net_switch > 0:
                 status = "under_allocated"
@@ -573,14 +595,14 @@ def compute_budget_shift_analysis(
             elif budget_gap > 0:
                 status = "overspend"
                 reason = "Over budget"
-            elif net_switch < 0 and real_spend < budget:
+            elif net_switch < 0 and real_spend < effective_budget:
                 status = "donor_capacity"
                 reason = "Consistent switch-out while spend is below budget"
             else:
                 status = "balanced"
                 reason = "Within planned budget"
 
-        total_budget += int(budget or 0)
+        total_budget += int(effective_budget or 0)
         total_spend += real_spend
         total_switch_in += switch_in
         total_switch_out += switch_out
@@ -589,7 +611,12 @@ def compute_budget_shift_analysis(
             {
                 "account_id": account_id,
                 "account_name": account_name,
-                "planned_budget": int(budget) if budget is not None else None,
+                "profile_type": profile_type,
+                "is_payroll_source": is_payroll_source,
+                "is_no_limit": is_no_limit,
+                "is_buffer": is_buffer,
+                "fixed_limit_amount": int(fixed_limit_amount) if fixed_limit_amount is not None else None,
+                "planned_budget": int(effective_budget) if effective_budget is not None else None,
                 "actual_spend": real_spend,
                 "actual_income": real_income,
                 "switch_in": switch_in,
@@ -598,7 +625,7 @@ def compute_budget_shift_analysis(
                 "budget_gap": budget_gap,
                 "stress_ratio": round(stress_ratio, 4) if stress_ratio is not None else None,
                 "suggested_budget": int(suggested_budget),
-                "suggested_delta": int(suggested_budget - budget) if budget is not None else None,
+                "suggested_delta": int(suggested_budget - effective_budget) if effective_budget is not None else None,
                 "status": status,
                 "reason": reason,
             }

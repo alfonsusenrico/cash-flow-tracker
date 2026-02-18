@@ -1080,7 +1080,7 @@ const renderAnalysis = () => {
   const shiftBody = $("analysisBudgetShiftBody");
   if (shiftBody) {
     if (!shiftAccounts.length) {
-      shiftBody.innerHTML = `<tr><td colspan="8" class="muted">No budget shift data for this month.</td></tr>`;
+      shiftBody.innerHTML = `<tr><td colspan="9" class="muted">No budget shift data for this month.</td></tr>`;
     } else {
       shiftBody.innerHTML = shiftAccounts
         .map((row) => {
@@ -1097,6 +1097,7 @@ const renderAnalysis = () => {
               <td class="num">${displayMoney(row.switch_out || 0)}</td>
               <td class="num ${gapClass}">${gap == null ? "—" : displayMoney(gap)}</td>
               <td class="num">${displayMoney(row.suggested_budget || 0)}</td>
+              <td>${escapeHtml(String(row.profile_type || "dynamic_spending").replaceAll("_", " "))}</td>
               <td><span class="analysis-status ${escapeHtml(String(row.status || "balanced"))}">${escapeHtml(statusLabel || "balanced")}</span></td>
             </tr>
           `;

@@ -3733,7 +3733,8 @@ body.dark .table-loading {
   color: #38bdf8;
 }
 
-.analysis-status.no_budget {
+.analysis-status.no_budget,
+.analysis-status.no_limit {
   background: rgba(245, 158, 11, 0.15);
   color: #f59e0b;
 }
