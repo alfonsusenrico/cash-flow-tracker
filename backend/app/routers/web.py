@@ -24,6 +24,7 @@ from app.services.ledger import (
     build_weekly_series,
     cache_get,
     cache_set,
+    compute_budget_shift_analysis,
     compute_budget_status,
     compute_export_range,
     compute_month_range,
@@ -1471,6 +1472,28 @@ def analysis(req: Request, month: str | None = None):
         "weekly": weekly_series,
         "categories": categories,
     }
+    cache_set(cache_key, payload, settings.month_summary_ttl)
+    return payload
+
+
+@router.get("/analysis/budget-shift")
+def analysis_budget_shift(req: Request, month: str | None = None):
+    username = require_session_user(req)
+    if not month:
+        month = now_utc().strftime("%Y-%m")
+    parse_month(month)
+
+    cache_key = f"{username}:analysis:budget_shift:{month}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
+    with db_conn() as conn, conn.cursor() as cur:
+        payday_day, _, _ = get_payday_day(cur, username, month)
+        prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))
+        _, _, from_dt, to_dt = compute_month_range(month, payday_day, prev_day)
+        payload = compute_budget_shift_analysis(cur, username, month, from_dt, to_dt)
+
     cache_set(cache_key, payload, settings.month_summary_ttl)
     return payload
 

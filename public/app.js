@@ -20,6 +20,7 @@ const state = {
   analysis_loading: false,
   analysis_stale: true,
   analysis_data: null,
+  analysis_budget_shift: null,
   total_asset: 0,
   summary_total_asset: 0,
   analysis_total_asset: 0,
@@ -1033,6 +1034,87 @@ const renderAnalysis = () => {
         .join("");
     }
   }
+
+  const shift = state.analysis_budget_shift || {};
+  const shiftTotals = shift.totals || {};
+  const shiftAccounts = Array.isArray(shift.accounts) ? shift.accounts : [];
+  const shiftEdges = Array.isArray(shift.switch_edges) ? shift.switch_edges : [];
+
+  const shiftTotalsEl = $("analysisBudgetShiftTotals");
+  if (shiftTotalsEl) {
+    const gap = Number(shiftTotals.budget_gap || 0);
+    const gapClass = gap > 0 ? "neg" : "pos";
+    shiftTotalsEl.innerHTML = `
+      <div class="analysis-card">
+        <div class="analysis-card-label">Planned Budget</div>
+        <div class="analysis-card-value">${displayMoney(shiftTotals.planned_budget || 0)}</div>
+      </div>
+      <div class="analysis-card">
+        <div class="analysis-card-label">Actual Spend</div>
+        <div class="analysis-card-value out">${displayMoney(shiftTotals.actual_spend || 0)}</div>
+      </div>
+      <div class="analysis-card">
+        <div class="analysis-card-label">Budget Gap</div>
+        <div class="analysis-card-value ${gapClass}">${displayMoney(gap)}</div>
+      </div>
+      <div class="analysis-card">
+        <div class="analysis-card-label">Net Switching</div>
+        <div class="analysis-card-value">${displayMoney(shiftTotals.net_switch || 0)}</div>
+      </div>
+    `;
+  }
+
+  const shiftBody = $("analysisBudgetShiftBody");
+  if (shiftBody) {
+    if (!shiftAccounts.length) {
+      shiftBody.innerHTML = `<tr><td colspan="8" class="muted">No budget shift data for this month.</td></tr>`;
+    } else {
+      shiftBody.innerHTML = shiftAccounts
+        .map((row) => {
+          const budget = row.planned_budget == null ? "—" : displayMoney(row.planned_budget);
+          const gap = row.budget_gap == null ? null : Number(row.budget_gap || 0);
+          const gapClass = gap == null ? "" : gap > 0 ? "neg" : "pos";
+          const statusLabel = String(row.status || "").replaceAll("_", " ");
+          return `
+            <tr>
+              <td>${escapeHtml(row.account_name || "Unknown")}</td>
+              <td class="num">${budget}</td>
+              <td class="num">${displayMoney(row.actual_spend || 0)}</td>
+              <td class="num">${displayMoney(row.switch_in || 0)}</td>
+              <td class="num">${displayMoney(row.switch_out || 0)}</td>
+              <td class="num ${gapClass}">${gap == null ? "—" : displayMoney(gap)}</td>
+              <td class="num">${displayMoney(row.suggested_budget || 0)}</td>
+              <td><span class="analysis-status ${escapeHtml(String(row.status || "balanced"))}">${escapeHtml(statusLabel || "balanced")}</span></td>
+            </tr>
+          `;
+        })
+        .join("");
+    }
+  }
+
+  const flowEl = $("analysisSwitchFlow");
+  if (flowEl) {
+    if (!shiftEdges.length) {
+      flowEl.innerHTML = `<div class="analysis-empty">No switching flow in this period.</div>`;
+    } else {
+      flowEl.innerHTML = shiftEdges
+        .map((edge) => {
+          const amount = Number(edge.amount || 0);
+          return `
+            <div class="analysis-row analysis-row-compact">
+              <div class="analysis-row-head">
+                <span class="analysis-label">${escapeHtml(edge.source_account_name || "Unknown")} → ${escapeHtml(edge.target_account_name || "Unknown")}</span>
+                <span class="analysis-spend">${displayMoney(amount)}</span>
+              </div>
+              <div class="analysis-values">
+                <span class="analysis-sub">Transfer pressure signal</span>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+    }
+  }
 };
 
 const loadAnalysis = async ({ force = false } = {}) => {
@@ -1047,8 +1129,12 @@ const loadAnalysis = async ({ force = false } = {}) => {
   try {
     const month = state.summary_month || currentMonthYM();
     if (!state.summary_month) state.summary_month = month;
-    const res = await api.get(`/api/analysis?month=${encodeURIComponent(month)}`);
+    const [res, shiftRes] = await Promise.all([
+      api.get(`/api/analysis?month=${encodeURIComponent(month)}`),
+      api.get(`/api/analysis/budget-shift?month=${encodeURIComponent(month)}`),
+    ]);
     state.analysis_data = res || null;
+    state.analysis_budget_shift = shiftRes || null;
     applyPaydayInfo(res?.payday);
     updateAnalysisTotalAsset(res?.total_asset || 0);
     state.analysis_stale = false;

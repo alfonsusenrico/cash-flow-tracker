@@ -412,6 +412,222 @@ def write_transaction_audit(
     )
 
 
+def compute_budget_shift_analysis(
+    cur,
+    username: str,
+    month: str,
+    from_dt: datetime,
+    to_dt: datetime,
+) -> dict[str, Any]:
+    cur.execute(
+        """
+        SELECT account_id::text AS account_id,
+               account_name
+        FROM accounts
+        WHERE username=%s
+        ORDER BY account_name
+        """,
+        (username,),
+    )
+    accounts = cur.fetchall()
+    account_map = {row["account_id"]: row.get("account_name") for row in accounts}
+
+    cur.execute(
+        """
+        SELECT account_id::text AS account_id,
+               amount
+        FROM budgets
+        WHERE username=%s AND month=%s
+        """,
+        (username, month),
+    )
+    budget_rows = cur.fetchall()
+    budgets = {row["account_id"]: int(row.get("amount") or 0) for row in budget_rows}
+
+    cur.execute(
+        """
+        SELECT t.account_id::text AS account_id,
+               COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS real_spend,
+               COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS real_income
+        FROM transactions t
+        JOIN accounts a ON a.account_id=t.account_id
+        WHERE a.username=%s
+          AND t.deleted_at IS NULL
+          AND t.date >= %s
+          AND t.date <= %s
+          AND t.transfer_id IS NULL
+        GROUP BY t.account_id
+        """,
+        (username, from_dt, to_dt),
+    )
+    real_rows = cur.fetchall()
+
+    cur.execute(
+        """
+        SELECT t.account_id::text AS account_id,
+               COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS switch_in,
+               COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS switch_out
+        FROM transactions t
+        JOIN accounts a ON a.account_id=t.account_id
+        WHERE a.username=%s
+          AND t.deleted_at IS NULL
+          AND t.date >= %s
+          AND t.date <= %s
+          AND t.transfer_id IS NOT NULL
+        GROUP BY t.account_id
+        """,
+        (username, from_dt, to_dt),
+    )
+    switch_rows = cur.fetchall()
+
+    cur.execute(
+        """
+        SELECT src.account_id::text AS source_account_id,
+               src.account_name AS source_account_name,
+               dst.account_id::text AS target_account_id,
+               dst.account_name AS target_account_name,
+               COALESCE(SUM(t_out.amount), 0) AS amount
+        FROM transactions t_out
+        JOIN transactions t_in
+          ON t_in.transfer_id=t_out.transfer_id
+         AND t_in.deleted_at IS NULL
+         AND t_in.transaction_type='debit'
+        JOIN accounts src ON src.account_id=t_out.account_id
+        JOIN accounts dst ON dst.account_id=t_in.account_id
+        WHERE t_out.deleted_at IS NULL
+          AND t_out.transaction_type='credit'
+          AND src.username=%s
+          AND dst.username=%s
+          AND t_out.date >= %s
+          AND t_out.date <= %s
+        GROUP BY src.account_id, src.account_name, dst.account_id, dst.account_name
+        ORDER BY amount DESC, src.account_name ASC, dst.account_name ASC
+        """,
+        (username, username, from_dt, to_dt),
+    )
+    edge_rows = cur.fetchall()
+
+    real_by_acc = {
+        row["account_id"]: {
+            "real_spend": int(row.get("real_spend") or 0),
+            "real_income": int(row.get("real_income") or 0),
+        }
+        for row in real_rows
+    }
+    switch_by_acc = {
+        row["account_id"]: {
+            "switch_in": int(row.get("switch_in") or 0),
+            "switch_out": int(row.get("switch_out") or 0),
+        }
+        for row in switch_rows
+    }
+
+    items: list[dict[str, Any]] = []
+    total_budget = 0
+    total_spend = 0
+    total_switch_in = 0
+    total_switch_out = 0
+
+    for account_id, account_name in account_map.items():
+        budget = budgets.get(account_id)
+        real_spend = int(real_by_acc.get(account_id, {}).get("real_spend") or 0)
+        real_income = int(real_by_acc.get(account_id, {}).get("real_income") or 0)
+        switch_in = int(switch_by_acc.get(account_id, {}).get("switch_in") or 0)
+        switch_out = int(switch_by_acc.get(account_id, {}).get("switch_out") or 0)
+        net_switch = int(switch_in - switch_out)
+
+        if budget is None:
+            budget_gap = None
+            stress_ratio = None
+            suggested_budget = max(0, real_spend)
+            status = "no_budget"
+            reason = "No budget set yet"
+        else:
+            budget_gap = int(real_spend - budget)
+            stress_ratio = (real_spend / budget) if budget > 0 else (1.0 if real_spend == 0 else 999.0)
+            suggested_budget = int(max(real_spend, budget))
+            if net_switch > 0:
+                suggested_budget = max(suggested_budget, budget + net_switch)
+            if switch_out > 0 and real_spend < budget:
+                reducible = min(switch_out, budget - real_spend)
+                suggested_budget = max(real_spend, budget - reducible)
+
+            if budget_gap > 0 and net_switch > 0:
+                status = "under_allocated"
+                reason = "Over budget and receives switch-in"
+            elif budget_gap > 0:
+                status = "overspend"
+                reason = "Over budget"
+            elif net_switch < 0 and real_spend < budget:
+                status = "donor_capacity"
+                reason = "Consistent switch-out while spend is below budget"
+            else:
+                status = "balanced"
+                reason = "Within planned budget"
+
+        total_budget += int(budget or 0)
+        total_spend += real_spend
+        total_switch_in += switch_in
+        total_switch_out += switch_out
+
+        items.append(
+            {
+                "account_id": account_id,
+                "account_name": account_name,
+                "planned_budget": int(budget) if budget is not None else None,
+                "actual_spend": real_spend,
+                "actual_income": real_income,
+                "switch_in": switch_in,
+                "switch_out": switch_out,
+                "net_switch": net_switch,
+                "budget_gap": budget_gap,
+                "stress_ratio": round(stress_ratio, 4) if stress_ratio is not None else None,
+                "suggested_budget": int(suggested_budget),
+                "suggested_delta": int(suggested_budget - budget) if budget is not None else None,
+                "status": status,
+                "reason": reason,
+            }
+        )
+
+    items.sort(
+        key=lambda row: (
+            0 if row.get("status") == "under_allocated" else 1,
+            -(row.get("budget_gap") or 0),
+            -abs(row.get("net_switch") or 0),
+            row.get("account_name") or "",
+        )
+    )
+
+    switch_edges = [
+        {
+            "source_account_id": row.get("source_account_id"),
+            "source_account_name": row.get("source_account_name"),
+            "target_account_id": row.get("target_account_id"),
+            "target_account_name": row.get("target_account_name"),
+            "amount": int(row.get("amount") or 0),
+        }
+        for row in edge_rows
+    ]
+
+    return {
+        "month": month,
+        "range": {
+            "from": from_dt.date().isoformat(),
+            "to": to_dt.date().isoformat(),
+        },
+        "totals": {
+            "planned_budget": int(total_budget),
+            "actual_spend": int(total_spend),
+            "budget_gap": int(total_spend - total_budget),
+            "switch_in": int(total_switch_in),
+            "switch_out": int(total_switch_out),
+            "net_switch": int(total_switch_in - total_switch_out),
+        },
+        "accounts": items,
+        "switch_edges": switch_edges,
+    }
+
+
 def recompute_balances_report(cur, username: str) -> dict[str, Any]:
     cur.execute(
         """

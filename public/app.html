@@ -195,6 +195,39 @@
             </div>
             <div class="analysis-list analysis-list-grid" id="analysisCategories"></div>
           </div>
+
+          <div class="analysis-section">
+            <div class="analysis-section-head">
+              <div class="analysis-section-title">Budget Stress & Switch</div>
+              <div class="analysis-section-subtitle">Planned budget vs actual spend + transfer pressure</div>
+            </div>
+            <div class="analysis-cards" id="analysisBudgetShiftTotals"></div>
+            <div class="analysis-budget-table-wrap">
+              <table class="table analysis-budget-table">
+                <thead>
+                  <tr>
+                    <th>Account</th>
+                    <th class="num">Budget</th>
+                    <th class="num">Spend</th>
+                    <th class="num">Switch In</th>
+                    <th class="num">Switch Out</th>
+                    <th class="num">Gap</th>
+                    <th class="num">Suggested</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="analysisBudgetShiftBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="analysis-section">
+            <div class="analysis-section-head">
+              <div class="analysis-section-title">Switching Flow</div>
+              <div class="analysis-section-subtitle">Who funds whom in this cycle</div>
+            </div>
+            <div class="analysis-list" id="analysisSwitchFlow"></div>
+          </div>
         </div>
       </section>
 
