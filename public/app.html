@@ -198,8 +198,15 @@
 
           <div class="analysis-section">
             <div class="analysis-section-head">
-              <div class="analysis-section-title">Budget Stress & Switch</div>
-              <div class="analysis-section-subtitle">Planned budget vs actual spend + transfer pressure</div>
+              <div>
+                <div class="analysis-section-title">Budget Stress & Switch</div>
+                <div class="analysis-section-subtitle">Planned budget vs actual spend + transfer pressure</div>
+              </div>
+              <div class="segmented compact" id="budgetShiftModeToggle" aria-label="Recommendation mode">
+                <button class="seg-btn active" data-budget-mode="normal">Normal</button>
+                <button class="seg-btn" data-budget-mode="conservative">Conservative</button>
+                <button class="seg-btn" data-budget-mode="aggressive">Aggressive</button>
+              </div>
             </div>
             <div class="analysis-cards" id="analysisBudgetShiftTotals"></div>
             <div class="analysis-budget-table-wrap">

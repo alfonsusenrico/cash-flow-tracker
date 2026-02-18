@@ -888,11 +888,12 @@ def public_analysis(req: Request, payload: PeriodQuery):
 
 
 @router.post("/analysis/budget-shift")
-def public_budget_shift_analysis(req: Request, payload: PeriodQuery):
+def public_budget_shift_analysis(req: Request, payload: dict[str, Any]):
     username = require_public_user(req)
-    month = resolve_period_month(payload.month, payload.year)
+    month = resolve_period_month(payload.get("month"), payload.get("year"))
+    mode = str(payload.get("mode") or "normal").strip().lower()
 
-    cache_key = f"{username}:analysis:budget_shift:{month}"
+    cache_key = f"{username}:analysis:budget_shift:{month}:{mode}"
     cached = cache_get(cache_key)
     if cached:
         return cached
@@ -901,7 +902,7 @@ def public_budget_shift_analysis(req: Request, payload: PeriodQuery):
         payday_day, _, _ = get_payday_day(cur, username, month)
         prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))
         _, _, from_dt, to_dt = compute_month_range(month, payday_day, prev_day)
-        result = compute_budget_shift_analysis(cur, username, month, from_dt, to_dt)
+        result = compute_budget_shift_analysis(cur, username, month, from_dt, to_dt, strategy=mode)
 
     cache_set(cache_key, result, settings.month_summary_ttl)
     return result

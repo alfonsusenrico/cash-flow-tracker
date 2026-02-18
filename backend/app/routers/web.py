@@ -1477,13 +1477,14 @@ def analysis(req: Request, month: str | None = None):
 
 
 @router.get("/analysis/budget-shift")
-def analysis_budget_shift(req: Request, month: str | None = None):
+def analysis_budget_shift(req: Request, month: str | None = None, mode: str = "normal"):
     username = require_session_user(req)
     if not month:
         month = now_utc().strftime("%Y-%m")
     parse_month(month)
 
-    cache_key = f"{username}:analysis:budget_shift:{month}"
+    mode = str(mode or "normal").strip().lower()
+    cache_key = f"{username}:analysis:budget_shift:{month}:{mode}"
     cached = cache_get(cache_key)
     if cached:
         return cached
@@ -1492,7 +1493,7 @@ def analysis_budget_shift(req: Request, month: str | None = None):
         payday_day, _, _ = get_payday_day(cur, username, month)
         prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))
         _, _, from_dt, to_dt = compute_month_range(month, payday_day, prev_day)
-        payload = compute_budget_shift_analysis(cur, username, month, from_dt, to_dt)
+        payload = compute_budget_shift_analysis(cur, username, month, from_dt, to_dt, strategy=mode)
 
     cache_set(cache_key, payload, settings.month_summary_ttl)
     return payload

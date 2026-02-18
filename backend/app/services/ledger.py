@@ -418,6 +418,7 @@ def compute_budget_shift_analysis(
     month: str,
     from_dt: datetime,
     to_dt: datetime,
+    strategy: str = "normal",
 ) -> dict[str, Any]:
     cur.execute(
         """
@@ -431,6 +432,18 @@ def compute_budget_shift_analysis(
     )
     accounts = cur.fetchall()
     account_map = {row["account_id"]: row.get("account_name") for row in accounts}
+
+    strategy_normalized = str(strategy or "normal").strip().lower()
+    if strategy_normalized not in ("conservative", "normal", "aggressive"):
+        strategy_normalized = "normal"
+
+    strategy_cfg = {
+        "conservative": {"receiver_weight": 0.5, "donor_weight": 0.3},
+        "normal": {"receiver_weight": 0.8, "donor_weight": 0.5},
+        "aggressive": {"receiver_weight": 1.0, "donor_weight": 0.8},
+    }
+    receiver_weight = float(strategy_cfg[strategy_normalized]["receiver_weight"])
+    donor_weight = float(strategy_cfg[strategy_normalized]["donor_weight"])
 
     cur.execute(
         """
@@ -547,10 +560,12 @@ def compute_budget_shift_analysis(
             stress_ratio = (real_spend / budget) if budget > 0 else (1.0 if real_spend == 0 else 999.0)
             suggested_budget = int(max(real_spend, budget))
             if net_switch > 0:
-                suggested_budget = max(suggested_budget, budget + net_switch)
+                uplift = int(round(net_switch * receiver_weight))
+                suggested_budget = max(suggested_budget, budget + uplift)
             if switch_out > 0 and real_spend < budget:
                 reducible = min(switch_out, budget - real_spend)
-                suggested_budget = max(real_spend, budget - reducible)
+                cut = int(round(reducible * donor_weight))
+                suggested_budget = max(real_spend, budget - cut)
 
             if budget_gap > 0 and net_switch > 0:
                 status = "under_allocated"
@@ -611,6 +626,7 @@ def compute_budget_shift_analysis(
 
     return {
         "month": month,
+        "strategy": strategy_normalized,
         "range": {
             "from": from_dt.date().isoformat(),
             "to": to_dt.date().isoformat(),

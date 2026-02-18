@@ -21,6 +21,7 @@ const state = {
   analysis_stale: true,
   analysis_data: null,
   analysis_budget_shift: null,
+  analysis_budget_mode: "normal",
   total_asset: 0,
   summary_total_asset: 0,
   analysis_total_asset: 0,
@@ -567,7 +568,15 @@ async function fetchFxRate() {
 
 function updateFxUI() {
   document.querySelectorAll(".seg-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.currency === state.currency);
+    if (btn.dataset.currency) {
+      btn.classList.toggle("active", btn.dataset.currency === state.currency);
+    }
+  });
+}
+
+function updateBudgetShiftModeUI() {
+  document.querySelectorAll("#budgetShiftModeToggle .seg-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.budgetMode === state.analysis_budget_mode);
   });
 }
 
@@ -1036,6 +1045,10 @@ const renderAnalysis = () => {
   }
 
   const shift = state.analysis_budget_shift || {};
+  if (shift.strategy) {
+    state.analysis_budget_mode = String(shift.strategy);
+  }
+  updateBudgetShiftModeUI();
   const shiftTotals = shift.totals || {};
   const shiftAccounts = Array.isArray(shift.accounts) ? shift.accounts : [];
   const shiftEdges = Array.isArray(shift.switch_edges) ? shift.switch_edges : [];
@@ -1129,9 +1142,10 @@ const loadAnalysis = async ({ force = false } = {}) => {
   try {
     const month = state.summary_month || currentMonthYM();
     if (!state.summary_month) state.summary_month = month;
+    const mode = encodeURIComponent(state.analysis_budget_mode || "normal");
     const [res, shiftRes] = await Promise.all([
       api.get(`/api/analysis?month=${encodeURIComponent(month)}`),
-      api.get(`/api/analysis/budget-shift?month=${encodeURIComponent(month)}`),
+      api.get(`/api/analysis/budget-shift?month=${encodeURIComponent(month)}&mode=${mode}`),
     ]);
     state.analysis_data = res || null;
     state.analysis_budget_shift = shiftRes || null;
@@ -1547,6 +1561,20 @@ function bindEvents() {
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
   });
+
+  document.querySelectorAll("#budgetShiftModeToggle .seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const nextMode = btn.dataset.budgetMode || "normal";
+      if (nextMode === state.analysis_budget_mode) return;
+      state.analysis_budget_mode = nextMode;
+      updateBudgetShiftModeUI();
+      state.analysis_stale = true;
+      if (state.active_tab === "analysis") {
+        loadAnalysis({ force: true }).catch(console.error);
+      }
+    });
+  });
+  updateBudgetShiftModeUI();
 
   const summaryMonthBtn = $("summaryMonthBtn");
   const analysisMonthBtn = $("analysisMonthBtn");
