@@ -407,6 +407,28 @@
             <span>Topup / Payroll</span>
           </label>
         </div>
+        <div class="field">
+          <label>Receipt Category (optional)</label>
+          <input id="txReceiptCategory" name="receipt_category" placeholder="e.g. transport, groceries" />
+        </div>
+        <div class="field">
+          <label>Receipt File (optional)</label>
+          <input
+            id="txReceiptFile"
+            name="receipt_file"
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+          />
+          <p class="hint">Accepted: PDF, PNG, JPG/JPEG. Images are stored compressed as WEBP.</p>
+        </div>
+        <div id="txReceiptSection" class="field receipt-section" hidden>
+          <div class="receipt-head">
+            <a id="txReceiptOpen" href="#" target="_blank" rel="noopener">Open Receipt</a>
+            <button id="deleteReceiptBtn" class="btn danger" type="button">Delete Receipt</button>
+          </div>
+          <div id="txReceiptMeta" class="hint"></div>
+          <div id="txReceiptPreview" class="receipt-preview"></div>
+        </div>
 
         <div class="row gap">
           <button class="btn primary grow" type="submit">Save Transaction</button>
