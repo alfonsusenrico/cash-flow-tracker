@@ -34,7 +34,15 @@ if "fpdf" not in sys.modules:
     fpdf_stub.FPDF = FPDF
     sys.modules["fpdf"] = fpdf_stub
 
-from app.services.ledger import get_balance_before, parse_tx_datetime, recompute_balances_report, write_transaction_audit
+from fastapi import HTTPException
+
+from app.services.ledger import (
+    get_balance_before,
+    parse_tx_datetime,
+    parse_uuid_value,
+    recompute_balances_report,
+    write_transaction_audit,
+)
 
 
 class CursorSpy:
@@ -109,6 +117,12 @@ class LedgerServiceTests(unittest.TestCase):
         cur = CursorSpy()
         _ = get_balance_before(cur, "acc-1", datetime(2026, 2, 1, tzinfo=timezone.utc))
         self.assertIn("t.deleted_at IS NULL", cur.last_sql)
+
+    def test_parse_uuid_value_rejects_invalid_uuid(self):
+        with self.assertRaises(HTTPException) as ctx:
+            parse_uuid_value("not-a-uuid", "account_id")
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(ctx.exception.detail, "Invalid account_id")
 
     def test_write_transaction_audit_serializes_snapshot_payload(self):
         cur = CursorSpy()
