@@ -84,6 +84,16 @@ const api = {
     if (!r.ok) throw new Error(data.detail || "Request failed");
     return data;
   },
+  async postForm(url, formData) {
+    const r = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.detail || "Request failed");
+    return data;
+  },
 };
 
 const ledgerLoadingState = {
@@ -139,6 +149,13 @@ const fmtIDR = (n) => (n || 0).toLocaleString("id-ID");
 const fmtIDRCurrency = (n) => `Rp ${fmtIDR(n)}`;
 const fmtUSD = (n) =>
   `$${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmtBytes = (value) => {
+  const size = Number(value || 0);
+  if (!Number.isFinite(size) || size <= 0) return "0 B";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+};
 
 const fmtMoney = (n) => {
   if (state.currency === "USD") {
@@ -2286,6 +2303,63 @@ function bindEvents() {
   const txDateDisplay = $("txDateDisplay");
   const txTopupField = $("txTopupField");
   const txTopupFlag = $("txTopupFlag");
+  const txReceiptFile = $("txReceiptFile");
+  const txReceiptCategory = $("txReceiptCategory");
+  const txReceiptSection = $("txReceiptSection");
+  const txReceiptOpen = $("txReceiptOpen");
+  const txReceiptMeta = $("txReceiptMeta");
+  const txReceiptPreview = $("txReceiptPreview");
+  const deleteReceiptBtn = $("deleteReceiptBtn");
+
+  const receiptViewUrl = (txId) =>
+    `/api/transactions/${encodeURIComponent(txId)}/receipt/view?v=${Date.now()}`;
+
+  const resetTxReceiptUI = () => {
+    if (txReceiptSection) txReceiptSection.hidden = true;
+    if (txReceiptOpen) txReceiptOpen.href = "#";
+    if (txReceiptMeta) txReceiptMeta.textContent = "";
+    if (txReceiptPreview) txReceiptPreview.innerHTML = "";
+  };
+
+  const renderTxReceipt = (txId, receipt) => {
+    if (!txId || !receipt) {
+      resetTxReceiptUI();
+      return;
+    }
+    if (txReceiptSection) txReceiptSection.hidden = false;
+    const viewUrl = receiptViewUrl(txId);
+    if (txReceiptOpen) txReceiptOpen.href = viewUrl;
+    const sourceLabel = receipt.original_filename || receipt.original_mime || "receipt";
+    const metaText = `${sourceLabel} | ${receipt.category} | ${fmtBytes(receipt.stored_size)} stored`;
+    if (txReceiptMeta) txReceiptMeta.textContent = metaText;
+    if (!txReceiptPreview) return;
+    if (receipt.stored_mime && String(receipt.stored_mime).startsWith("image/")) {
+      txReceiptPreview.innerHTML = `<img src="${viewUrl}" alt="Receipt preview" loading="lazy" />`;
+      return;
+    }
+    txReceiptPreview.innerHTML = `<iframe src="${viewUrl}" title="Receipt preview"></iframe>`;
+  };
+
+  const loadTxReceipt = async (txId) => {
+    if (!txId) {
+      resetTxReceiptUI();
+      return;
+    }
+    try {
+      const res = await api.get(`/api/transactions/${encodeURIComponent(txId)}/receipt`);
+      renderTxReceipt(txId, res?.receipt || null);
+      if (txReceiptCategory && res?.receipt?.category) {
+        txReceiptCategory.value = res.receipt.category;
+      }
+    } catch (err) {
+      if (String(err.message || "").includes("Receipt not found")) {
+        resetTxReceiptUI();
+        return;
+      }
+      $("txMsg").textContent = err.message || "Failed to load receipt";
+      resetTxReceiptUI();
+    }
+  };
   const syncTxTopupState = () => {
     if (!txForm || !txTopupFlag) return;
     const selectedType = txForm.querySelector('input[name="transaction_type"]:checked')?.value;
@@ -2330,6 +2404,9 @@ function bindEvents() {
     if (txDateInput) txDateInput.value = "";
     if (txDateDisplay) txDateDisplay.value = "";
     if (txTopupFlag) txTopupFlag.checked = false;
+    if (txReceiptFile) txReceiptFile.value = "";
+    if (txReceiptCategory) txReceiptCategory.value = "general";
+    resetTxReceiptUI();
     syncTxTopupState();
     txDateInitial = "";
     txTimeInitial = "";
@@ -2343,6 +2420,9 @@ function bindEvents() {
     $("txModalTitle").textContent = "Add Transaction";
     if (txForm) txForm.reset();
     if (txIdInput) txIdInput.value = "";
+    if (txReceiptCategory) txReceiptCategory.value = "general";
+    if (txReceiptFile) txReceiptFile.value = "";
+    resetTxReceiptUI();
     state.editing_tx_id = null;
     const fallbackDate = clampYmdToToday();
     txTimeInitial = nowTimeWithSeconds();
@@ -2373,6 +2453,8 @@ function bindEvents() {
       $("deleteTxBtn").hidden = false;
       $("deleteTxBtn").dataset.txId = tx.transaction_id;
       state.editing_tx_id = tx.transaction_id;
+      if (txReceiptCategory) txReceiptCategory.value = "general";
+      loadTxReceipt(tx.transaction_id);
     }
 
     syncTxTopupState();
@@ -2425,6 +2507,19 @@ function bindEvents() {
       el.addEventListener("change", syncTxTopupState);
     });
     syncTxTopupState();
+  }
+  if (deleteReceiptBtn) {
+    deleteReceiptBtn.addEventListener("click", async () => {
+      const txId = (txIdInput && txIdInput.value) || state.editing_tx_id;
+      if (!txId) return;
+      if (!confirm("Delete receipt from this transaction?")) return;
+      try {
+        await api.del(`/api/transactions/${encodeURIComponent(txId)}/receipt`);
+        resetTxReceiptUI();
+      } catch (err) {
+        $("txMsg").textContent = err.message || "Failed to delete receipt";
+      }
+    });
   }
 
   const switchModal = $("switchModal");
@@ -2803,7 +2898,13 @@ function bindEvents() {
   $("txForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     $("txMsg").textContent = "";
-    const body = Object.fromEntries(new FormData(e.target).entries());
+    const formData = new FormData(e.target);
+    const receiptFile = formData.get("receipt_file");
+    const receiptCategoryValue = String(formData.get("receipt_category") || "").trim() || "general";
+    formData.delete("receipt_file");
+    formData.delete("receipt_category");
+
+    const body = Object.fromEntries(formData.entries());
     body.is_cycle_topup = !!txTopupFlag?.checked;
     if (!body.transaction_id && state.editing_tx_id) {
       body.transaction_id = state.editing_tx_id;
@@ -2827,11 +2928,24 @@ function bindEvents() {
     }
 
     try {
+      let transactionId = body.transaction_id || null;
       if (isEdit) {
         await api.put(`/api/transactions/${body.transaction_id}`, body);
       } else {
-        await api.post("/api/transactions", body);
+        const created = await api.post("/api/transactions", body);
+        transactionId = created?.transaction_id || null;
       }
+
+      if (receiptFile instanceof File && receiptFile.size > 0) {
+        if (!transactionId) {
+          throw new Error("Transaction created but missing transaction id");
+        }
+        const receiptForm = new FormData();
+        receiptForm.append("file", receiptFile);
+        receiptForm.append("category", receiptCategoryValue);
+        await api.postForm(`/api/transactions/${encodeURIComponent(transactionId)}/receipt`, receiptForm);
+      }
+
       closeModal();
       markSummaryStale();
       await reloadLedgerWithDefaultStale();
