@@ -72,6 +72,9 @@ python -m unittest discover -s tests -p "test_*.py" -v
 | MONTH_SUMMARY_TTL | no | 60 | Monthly summary/analysis cache TTL (seconds) |
 | REDIS_URL | no | redis://redis:6379/0 | Redis URL for shared cache/rate limits |
 | REDIS_PREFIX | no | cashflow | Redis key prefix |
+| RECEIPTS_DIR | no | /app/storage/receipts | Filesystem directory for stored receipts |
+| RECEIPT_MAX_MB | no | 10 | Maximum upload size per receipt file |
+| RECEIPT_WEBP_QUALITY | no | 75 | WEBP quality used for uploaded image receipts |
 
 ## Usage
 ```bash
