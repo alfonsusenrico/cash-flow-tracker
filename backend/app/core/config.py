@@ -27,6 +27,9 @@ class Settings:
     invite_code: str
     public_rate_limit: int
     public_rate_window: int
+    receipts_dir: str
+    receipt_max_mb: int
+    receipt_webp_quality: int
 
 
 def load_settings() -> Settings:
@@ -65,6 +68,9 @@ def load_settings() -> Settings:
         invite_code=(os.getenv("INVITE_CODE") or "").strip(),
         public_rate_limit=int(os.getenv("PUBLIC_RATE_LIMIT", "120")),
         public_rate_window=int(os.getenv("PUBLIC_RATE_WINDOW", "60")),
+        receipts_dir=(os.getenv("RECEIPTS_DIR") or "/app/storage/receipts").strip() or "/app/storage/receipts",
+        receipt_max_mb=max(1, int(os.getenv("RECEIPT_MAX_MB", "10"))),
+        receipt_webp_quality=max(1, min(100, int(os.getenv("RECEIPT_WEBP_QUALITY", "75")))),
     )
 
 
