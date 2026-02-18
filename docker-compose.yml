@@ -52,6 +52,11 @@ services:
       PUBLIC_RATE_WINDOW: ${PUBLIC_RATE_WINDOW:-60}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       REDIS_PREFIX: ${REDIS_PREFIX:-cashflow}
+      RECEIPTS_DIR: ${RECEIPTS_DIR:-/app/storage/receipts}
+      RECEIPT_MAX_MB: ${RECEIPT_MAX_MB:-10}
+      RECEIPT_WEBP_QUALITY: ${RECEIPT_WEBP_QUALITY:-75}
+    volumes:
+      - ./storage:/app/storage
     depends_on:
       db:
         condition: service_healthy
@@ -82,7 +87,7 @@ services:
     container_name: ledger_web
     restart: unless-stopped
     ports:
-      - "8090:80"
+      - "127.0.0.1:8090:80"
     volumes:
       - ./public:/usr/share/nginx/html:ro
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
