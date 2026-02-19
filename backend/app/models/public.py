@@ -69,6 +69,7 @@ class LedgerListRequest(BaseModel):
     cursor: str | None = None
     order: Literal["asc", "desc"] = "desc"
     q: str | None = None
+    include_switch: bool = False
 
 
 class PublicTransactionItem(BaseModel):

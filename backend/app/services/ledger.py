@@ -854,6 +854,7 @@ def build_ledger_page(
     order: str,
     query: str | None,
     include_summary: bool = True,
+    include_switch: bool = True,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int, dict[str, int | bool]]:
     cur.execute(
         """
@@ -876,6 +877,10 @@ def build_ledger_page(
             raise HTTPException(status_code=400, detail="account_id required for scope=account")
         if account_id not in acc_by_id:
             raise HTTPException(status_code=404, detail="Account not found")
+
+    # Internal switch visibility only applies to All scope.
+    if scope != "all":
+        include_switch = True
 
     if order not in ("asc", "desc"):
         order = "desc"
@@ -910,7 +915,7 @@ def build_ledger_page(
             (from_dt, username, all_ids),
         )
         start_rows = cur.fetchall()
-        balance = {r["account_id"]: int(r["start_balance"]) for r in start_rows}
+        balance = {r["account_id"]: int(r["start_balance"] or 0) for r in start_rows}
         base_balance = sum(int(balance.get(aid, 0)) for aid in acc_by_id.keys())
     else:
         cur.execute(
@@ -923,12 +928,6 @@ def build_ledger_page(
         )
         base_balance = int(cur.fetchone()["start_balance"] or 0)
 
-    base_filters = ["a.username=%s", "t.deleted_at IS NULL", "t.date >= %s", "t.date <= %s"]
-    params: list[Any] = [username, from_dt, to_dt]
-    if scope == "account":
-        base_filters.append("t.account_id=%s::uuid")
-        params.append(account_id)
-
     search_pattern = build_search_pattern(query)
     search_sql = ""
     search_params: list[Any] = []
@@ -936,32 +935,200 @@ def build_ledger_page(
         search_sql = "WHERE transaction_name ILIKE %s"
         search_params.append(search_pattern)
 
-    sql = f"""
-        WITH base AS (
-            SELECT t.transaction_id::text AS transaction_id,
-                   t.account_id::text AS account_id,
-                   a.account_name,
-                   t.transaction_type,
-                   t.transaction_name,
-                   t.amount,
-                   t.date,
-                   t.is_transfer,
-                   t.is_cycle_topup,
-                   t.transfer_id::text AS transfer_id,
-                   SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END)
-                     OVER (ORDER BY t.date ASC, t.transaction_id ASC) AS running_delta
-            FROM transactions t
-            JOIN accounts a ON a.account_id=t.account_id
-            WHERE {' AND '.join(base_filters)}
-        )
-        SELECT transaction_id, account_id, account_name, transaction_type, transaction_name, amount, date, is_transfer, is_cycle_topup, transfer_id, running_delta
-        FROM base
-        {search_sql}
-        ORDER BY date {order_dir}, transaction_id {order_dir}
-        LIMIT %s OFFSET %s
-    """
-    params.extend(search_params)
-    params.extend([limit + 1, offset])
+    if scope == "all":
+        if include_switch:
+            sql = f"""
+                WITH tx AS (
+                    SELECT t.transaction_id::text AS transaction_id,
+                           t.account_id::text AS account_id,
+                           a.account_name,
+                           t.transaction_type,
+                           t.transaction_name,
+                           t.amount,
+                           t.date,
+                           t.is_cycle_topup,
+                           t.transfer_id::text AS transfer_id
+                    FROM transactions t
+                    JOIN accounts a ON a.account_id=t.account_id
+                    WHERE a.username=%s
+                      AND t.deleted_at IS NULL
+                      AND t.date >= %s
+                      AND t.date <= %s
+                ),
+                non_transfer AS (
+                    SELECT transaction_id AS event_id,
+                           account_id,
+                           account_name,
+                           transaction_name,
+                           amount,
+                           date,
+                           false AS is_transfer,
+                           false AS is_cycle_topup,
+                           NULL::text AS transfer_id,
+                           CASE WHEN transaction_type='debit' THEN amount ELSE -amount END AS signed_delta,
+                           CASE WHEN transaction_type='debit' THEN amount ELSE 0 END AS debit,
+                           CASE WHEN transaction_type='credit' THEN amount ELSE 0 END AS credit
+                    FROM tx
+                    WHERE transfer_id IS NULL
+                ),
+                transfer_group AS (
+                    SELECT 'switch:' || transfer_id AS event_id,
+                           NULL::text AS account_id,
+                           'Internal'::text AS account_name,
+                           CONCAT(
+                               'Switch: ',
+                               COALESCE(MAX(CASE WHEN transaction_type='credit' THEN account_name END), 'Unknown'),
+                               ' → ',
+                               COALESCE(MAX(CASE WHEN transaction_type='debit' THEN account_name END), 'Unknown')
+                           ) AS transaction_name,
+                           COALESCE(MAX(CASE WHEN transaction_type='debit' THEN amount ELSE 0 END), 0) AS amount,
+                           MAX(date) AS date,
+                           true AS is_transfer,
+                           BOOL_OR(is_cycle_topup) AS is_cycle_topup,
+                           transfer_id,
+                           0::bigint AS signed_delta,
+                           COALESCE(MAX(CASE WHEN transaction_type='debit' THEN amount ELSE 0 END), 0) AS debit,
+                           COALESCE(MAX(CASE WHEN transaction_type='credit' THEN amount ELSE 0 END), 0) AS credit
+                    FROM tx
+                    WHERE transfer_id IS NOT NULL
+                    GROUP BY transfer_id
+                ),
+                events AS (
+                    SELECT * FROM non_transfer
+                    UNION ALL
+                    SELECT * FROM transfer_group
+                ),
+                events_running AS (
+                    SELECT event_id,
+                           account_id,
+                           account_name,
+                           transaction_name,
+                           amount,
+                           date,
+                           is_transfer,
+                           is_cycle_topup,
+                           transfer_id,
+                           debit,
+                           credit,
+                           SUM(signed_delta) OVER (ORDER BY date ASC, event_id ASC) AS running_delta
+                    FROM events
+                )
+                SELECT event_id,
+                       account_id,
+                       account_name,
+                       transaction_name,
+                       amount,
+                       date,
+                       is_transfer,
+                       is_cycle_topup,
+                       transfer_id,
+                       debit,
+                       credit,
+                       running_delta
+                FROM events_running
+                {search_sql}
+                ORDER BY date {order_dir}, event_id {order_dir}
+                LIMIT %s OFFSET %s
+            """
+        else:
+            sql = f"""
+                WITH events AS (
+                    SELECT t.transaction_id::text AS event_id,
+                           t.account_id::text AS account_id,
+                           a.account_name,
+                           t.transaction_name,
+                           t.amount,
+                           t.date,
+                           false AS is_transfer,
+                           t.is_cycle_topup,
+                           NULL::text AS transfer_id,
+                           CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END AS signed_delta,
+                           CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END AS debit,
+                           CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END AS credit
+                    FROM transactions t
+                    JOIN accounts a ON a.account_id=t.account_id
+                    WHERE a.username=%s
+                      AND t.deleted_at IS NULL
+                      AND t.date >= %s
+                      AND t.date <= %s
+                      AND t.transfer_id IS NULL
+                ),
+                events_running AS (
+                    SELECT event_id,
+                           account_id,
+                           account_name,
+                           transaction_name,
+                           amount,
+                           date,
+                           is_transfer,
+                           is_cycle_topup,
+                           transfer_id,
+                           debit,
+                           credit,
+                           SUM(signed_delta) OVER (ORDER BY date ASC, event_id ASC) AS running_delta
+                    FROM events
+                )
+                SELECT event_id,
+                       account_id,
+                       account_name,
+                       transaction_name,
+                       amount,
+                       date,
+                       is_transfer,
+                       is_cycle_topup,
+                       transfer_id,
+                       debit,
+                       credit,
+                       running_delta
+                FROM events_running
+                {search_sql}
+                ORDER BY date {order_dir}, event_id {order_dir}
+                LIMIT %s OFFSET %s
+            """
+        params: list[Any] = [username, from_dt, to_dt]
+        params.extend(search_params)
+        params.extend([limit + 1, offset])
+    else:
+        base_filters = ["a.username=%s", "t.deleted_at IS NULL", "t.date >= %s", "t.date <= %s", "t.account_id=%s::uuid"]
+        params = [username, from_dt, to_dt, account_id]
+
+        sql = f"""
+            WITH base AS (
+                SELECT t.transaction_id::text AS transaction_id,
+                       t.account_id::text AS account_id,
+                       a.account_name,
+                       t.transaction_type,
+                       t.transaction_name,
+                       t.amount,
+                       t.date,
+                       t.is_transfer,
+                       t.is_cycle_topup,
+                       t.transfer_id::text AS transfer_id,
+                       SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END)
+                         OVER (ORDER BY t.date ASC, t.transaction_id ASC) AS running_delta
+                FROM transactions t
+                JOIN accounts a ON a.account_id=t.account_id
+                WHERE {' AND '.join(base_filters)}
+            )
+            SELECT transaction_id AS event_id,
+                   account_id,
+                   account_name,
+                   transaction_name,
+                   amount,
+                   date,
+                   is_transfer,
+                   is_cycle_topup,
+                   transfer_id,
+                   CASE WHEN transaction_type='debit' THEN amount ELSE 0 END AS debit,
+                   CASE WHEN transaction_type='credit' THEN amount ELSE 0 END AS credit,
+                   running_delta
+            FROM base
+            {search_sql}
+            ORDER BY date {order_dir}, event_id {order_dir}
+            LIMIT %s OFFSET %s
+        """
+        params.extend(search_params)
+        params.extend([limit + 1, offset])
 
     cur.execute(sql, params)
     raw_rows = cur.fetchall()
@@ -976,13 +1143,13 @@ def build_ledger_page(
         rows.append(
             {
                 "no": offset + idx,
-                "account_id": r["account_id"],
-                "account_name": r["account_name"],
+                "account_id": r.get("account_id"),
+                "account_name": r.get("account_name") or "",
                 "date": r["date"].astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
-                "transaction_id": r["transaction_id"],
+                "transaction_id": r["event_id"],
                 "transaction_name": r["transaction_name"],
-                "debit": int(r["amount"]) if r["transaction_type"] == "debit" else 0,
-                "credit": int(r["amount"]) if r["transaction_type"] == "credit" else 0,
+                "debit": int(r.get("debit") or 0),
+                "credit": int(r.get("credit") or 0),
                 "balance": int(balance),
                 "is_transfer": bool(r.get("is_transfer")),
                 "is_cycle_topup": bool(r.get("is_cycle_topup")),

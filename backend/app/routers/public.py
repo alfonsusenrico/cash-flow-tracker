@@ -563,6 +563,7 @@ def public_ledger(req: Request, payload: LedgerListRequest):
     cursor = query.cursor
     order = query.order
     q = query.q
+    include_switch = query.include_switch
 
     if not to_date:
         to_dt = now_utc()
@@ -595,6 +596,8 @@ def public_ledger(req: Request, payload: LedgerListRequest):
             raise HTTPException(status_code=400, detail="Cursor does not match order")
         if (decoded.get("q") or None) != q:
             raise HTTPException(status_code=400, detail="Cursor does not match query")
+        if bool(decoded.get("include_switch", False)) != bool(include_switch):
+            raise HTTPException(status_code=400, detail="Cursor does not match include_switch")
 
     with db_conn() as conn, conn.cursor() as cur:
         rows, summary_accounts, total_asset, paging = build_ledger_page(
@@ -609,6 +612,7 @@ def public_ledger(req: Request, payload: LedgerListRequest):
             order,
             q,
             True,
+            include_switch,
         )
 
     next_cursor = None
@@ -622,6 +626,7 @@ def public_ledger(req: Request, payload: LedgerListRequest):
                 "to_date": to_date,
                 "order": order,
                 "q": q,
+                "include_switch": bool(include_switch),
             }
         )
 

@@ -1027,11 +1027,24 @@ input.input-button[readonly] {
 .ledger-toolbar {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   padding: 12px 24px 12px;
 }
 
 .ledger-search {
   width: min(240px, 100%);
+  flex: 1;
+}
+
+.ledger-switch-toggle {
+  white-space: nowrap;
+}
+
+.ledger-switch-toggle.active {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-text);
 }
 
 .ledger-search input {
@@ -2621,12 +2634,21 @@ body.dark .table-loading {
     padding: 0;
     justify-content: flex-end;
     order: 2;
-    flex: 1;
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
   }
 
   .ledger-search {
     width: 100%;
     max-width: none;
+  }
+
+  .ledger-switch-toggle {
+    min-width: 104px;
+    width: auto;
   }
 
   .mobile-controls {

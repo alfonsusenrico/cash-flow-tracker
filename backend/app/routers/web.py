@@ -1224,6 +1224,7 @@ def ledger(
     order: str = "desc",
     q: str | None = None,
     include_summary: bool = True,
+    include_switch: bool = False,
 ):
     """
     scope:
@@ -1251,7 +1252,18 @@ def ledger(
 
     with db_conn() as conn, conn.cursor() as cur:
         rows, summary_accounts, total_asset, paging = build_ledger_page(
-            cur, username, scope, account_id, from_dt, to_dt, limit, offset, order, q, include_summary
+            cur,
+            username,
+            scope,
+            account_id,
+            from_dt,
+            to_dt,
+            limit,
+            offset,
+            order,
+            q,
+            include_summary,
+            include_switch,
         )
 
     return {

@@ -30,6 +30,7 @@ const state = {
   payday_default: null,
   payday_override: null,
   search_query: "",
+  include_switch_all: false,
   hide_balances: false,
   sort_order: "desc",
   page_size: 25,
@@ -1217,7 +1218,8 @@ const getLedgerViewState = () => {
   const showSwitch = canTransact;
   const showAdd = hasAccounts;
   const showAssetSummary = isAll;
-  return { isAll, showSwitch, showAdd, showAssetSummary };
+  const showInternalToggle = isAll;
+  return { isAll, showSwitch, showAdd, showAssetSummary, showInternalToggle };
 };
 
 const canTransactOnAccount = () => state.scope === "account" && !!state.account_id;
@@ -1268,15 +1270,22 @@ const buildLedgerRow = (r, idx, isAll) => {
 
 const renderLedgerChrome = () => {
   const table = $("ledgerTable");
-  const { isAll, showSwitch, showAdd, showAssetSummary } = getLedgerViewState();
+  const { isAll, showSwitch, showAdd, showAssetSummary, showInternalToggle } = getLedgerViewState();
   const switchBtn = $("switchBtn");
   const fabSwitchOption = $("fabSwitchOption");
   const addBtn = $("addTxBtn");
+  const switchToggle = $("ledgerSwitchToggle");
   const fabAddOption = document.querySelector('#fabSheet button[data-action="add"]');
   if (switchBtn) switchBtn.hidden = !showSwitch;
   if (fabSwitchOption) fabSwitchOption.hidden = !showSwitch;
   if (addBtn) addBtn.hidden = !showAdd;
   if (fabAddOption) fabAddOption.hidden = !showAdd;
+  if (switchToggle) {
+    switchToggle.hidden = !showInternalToggle;
+    switchToggle.textContent = state.include_switch_all ? "Internal: On" : "Internal: Off";
+    switchToggle.setAttribute("aria-pressed", state.include_switch_all ? "true" : "false");
+    switchToggle.classList.toggle("active", !!state.include_switch_all);
+  }
   updateSwitchTargets();
 
   const totalLabel = $("ledgerTotalLabel");
@@ -1441,6 +1450,7 @@ async function loadLedgerPage({ reset = false } = {}) {
   const q = state.search_query ? `&q=${encodeURIComponent(state.search_query)}` : "";
   const includeSummary = reset;
   const summaryParam = includeSummary ? "" : "&include_summary=false";
+  const includeSwitchParam = scope === "all" ? `&include_switch=${state.include_switch_all ? "true" : "false"}` : "";
   const url =
     `/api/ledger?scope=${encodeURIComponent(scope)}` +
     acc +
@@ -1450,6 +1460,7 @@ async function loadLedgerPage({ reset = false } = {}) {
     `&offset=${encodeURIComponent(state[offsetKey])}` +
     `&order=${encodeURIComponent(state.sort_order)}` +
     q +
+    includeSwitchParam +
     summaryParam;
 
   try {
@@ -1904,6 +1915,16 @@ function bindEvents() {
         mobileSelect.value = state.scope === "account" && state.account_id ? state.account_id : "all";
       }
 
+      reloadLedgerWithDefaultStale().catch(console.error);
+    });
+  }
+
+  const ledgerSwitchToggle = $("ledgerSwitchToggle");
+  if (ledgerSwitchToggle) {
+    ledgerSwitchToggle.addEventListener("click", () => {
+      if (state.scope !== "all") return;
+      state.include_switch_all = !state.include_switch_all;
+      renderLedgerChrome();
       reloadLedgerWithDefaultStale().catch(console.error);
     });
   }
