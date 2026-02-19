@@ -974,7 +974,7 @@ def build_ledger_page(
                 transfer_group AS (
                     SELECT 'switch:' || transfer_id AS event_id,
                            NULL::text AS account_id,
-                           'Internal'::text AS account_name,
+                           ''::text AS account_name,
                            CONCAT(
                                'Switch: ',
                                COALESCE(MAX(CASE WHEN transaction_type='credit' THEN account_name END), 'Unknown'),
