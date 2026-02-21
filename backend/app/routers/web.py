@@ -987,37 +987,45 @@ async def update_tx(transaction_id: str, req: Request):
 
         lock_accounts_for_update(cur, username, [old_account_id, new_account_id])
 
-        if new_account_id != old_account_id:
-            ensure_account_non_negative(cur, old_account_id, old_date, [], exclude_tx_ids=[transaction_id])
-            ensure_account_non_negative(
-                cur,
-                new_account_id,
-                new_date,
-                [
-                    {
-                        "transaction_id": transaction_id,
-                        "date": new_date,
-                        "transaction_type": new_type,
-                        "amount": new_amount,
-                    }
-                ],
-            )
-        else:
-            effective_from = min(old_date, new_date)
-            ensure_account_non_negative(
-                cur,
-                old_account_id,
-                effective_from,
-                [
-                    {
-                        "transaction_id": transaction_id,
-                        "date": new_date,
-                        "transaction_type": new_type,
-                        "amount": new_amount,
-                    }
-                ],
-                exclude_tx_ids=[transaction_id],
-            )
+        balance_sensitive_changed = (
+            new_account_id != old_account_id
+            or new_type != tx["transaction_type"]
+            or int(new_amount) != int(tx["amount"])
+            or new_date != old_date
+        )
+
+        if balance_sensitive_changed:
+            if new_account_id != old_account_id:
+                ensure_account_non_negative(cur, old_account_id, old_date, [], exclude_tx_ids=[transaction_id])
+                ensure_account_non_negative(
+                    cur,
+                    new_account_id,
+                    new_date,
+                    [
+                        {
+                            "transaction_id": transaction_id,
+                            "date": new_date,
+                            "transaction_type": new_type,
+                            "amount": new_amount,
+                        }
+                    ],
+                )
+            else:
+                effective_from = min(old_date, new_date)
+                ensure_account_non_negative(
+                    cur,
+                    old_account_id,
+                    effective_from,
+                    [
+                        {
+                            "transaction_id": transaction_id,
+                            "date": new_date,
+                            "transaction_type": new_type,
+                            "amount": new_amount,
+                        }
+                    ],
+                    exclude_tx_ids=[transaction_id],
+                )
 
         cur.execute(
             """
