@@ -30,7 +30,7 @@ const state = {
   payday_default: null,
   payday_override: null,
   search_query: "",
-  include_switch_all: false,
+  include_switch_all: true,
   hide_balances: false,
   sort_order: "desc",
   page_size: 25,
