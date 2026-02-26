@@ -148,10 +148,15 @@ def compute_dynamic_month_range(
     prev_day = prev_payday_day if prev_payday_day is not None else payday_day
 
     default_start = datetime(prev_year, prev_month, clamp_day(prev_year, prev_month, prev_day)).date()
-    default_end_target = datetime(year, month_num, clamp_day(year, month_num, payday_day)).date()
 
-    start_window_from = parse_date_utc((default_start - timedelta(days=7)).isoformat(), end_of_day=False)
-    start_window_to_exclusive = parse_date_utc((default_start + timedelta(days=8)).isoformat(), end_of_day=False)
+    month_start = datetime(year, month_num, 1).date()
+    if month_num == 12:
+        next_month_start = datetime(year + 1, 1, 1).date()
+    else:
+        next_month_start = datetime(year, month_num + 1, 1).date()
+
+    start_window_from = parse_date_utc((month_start - timedelta(days=7)).isoformat(), end_of_day=False)
+    start_window_to_exclusive = parse_date_utc((month_start + timedelta(days=8)).isoformat(), end_of_day=False)
 
     cur.execute(
         """
@@ -173,8 +178,8 @@ def compute_dynamic_month_range(
 
     start_date = row_start["date"].date() if row_start else default_start
 
-    end_window_from = parse_date_utc((default_end_target - timedelta(days=7)).isoformat(), end_of_day=False)
-    end_window_to_exclusive = parse_date_utc((default_end_target + timedelta(days=8)).isoformat(), end_of_day=False)
+    end_window_from = parse_date_utc((next_month_start - timedelta(days=7)).isoformat(), end_of_day=False)
+    end_window_to_exclusive = parse_date_utc((next_month_start + timedelta(days=8)).isoformat(), end_of_day=False)
 
     cur.execute(
         """
