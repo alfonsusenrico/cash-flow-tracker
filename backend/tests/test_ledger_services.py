@@ -4,7 +4,7 @@ import pathlib
 import sys
 import types
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -130,15 +130,18 @@ class LedgerServiceTests(unittest.TestCase):
         self.assertEqual(dt.isoformat(), "2026-02-11T03:15:12+00:00")
 
     def test_compute_dynamic_month_range_uses_topup_windows(self):
+        next_topup = datetime(2026, 2, 26, 8, 0, tzinfo=timezone.utc)
         cur = DynamicRangeCursor(
             {"date": datetime(2026, 1, 26, 7, 0, tzinfo=timezone.utc)},
-            {"date": datetime(2026, 2, 26, 8, 0, tzinfo=timezone.utc)},
+            {"date": next_topup},
         )
 
-        from_date, to_date, _, _ = compute_dynamic_month_range(cur, "alice", "2026-02", 25, 25)
+        from_date, to_date, from_dt, to_dt = compute_dynamic_month_range(cur, "alice", "2026-02", 25, 25)
 
         self.assertEqual(from_date, "2026-01-26")
-        self.assertEqual(to_date, "2026-02-25")
+        self.assertEqual(to_date, "2026-02-26")
+        self.assertEqual(from_dt.isoformat(), "2026-01-26T07:00:00+00:00")
+        self.assertEqual(to_dt, next_topup - timedelta(microseconds=1))
         self.assertEqual(len(cur.calls), 2)
         self.assertIn("JOIN accounts", cur.calls[0][0])
         self.assertIn("JOIN accounts", cur.calls[1][0])

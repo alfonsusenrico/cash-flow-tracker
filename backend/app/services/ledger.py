@@ -176,7 +176,7 @@ def compute_dynamic_month_range(
     )
     row_start = cur.fetchone()
 
-    start_date = row_start["date"].date() if row_start else default_start
+    from_dt = row_start["date"] if row_start else parse_date_utc(default_start.isoformat(), end_of_day=False)
 
     end_window_from = parse_date_utc((next_month_start - timedelta(days=7)).isoformat(), end_of_day=False)
     end_window_to_exclusive = parse_date_utc((next_month_start + timedelta(days=8)).isoformat(), end_of_day=False)
@@ -200,17 +200,15 @@ def compute_dynamic_month_range(
     row_end = cur.fetchone()
 
     if row_end:
-        end_date = row_end["date"].date() - timedelta(days=1)
+        to_dt = row_end["date"] - timedelta(microseconds=1)
     else:
-        end_date = now_utc().date()
+        to_dt = now_utc().replace(microsecond=0)
 
-    if end_date < start_date:
-        end_date = start_date
+    if to_dt < from_dt:
+        to_dt = from_dt
 
-    from_date = start_date.isoformat()
-    to_date = end_date.isoformat()
-    from_dt = parse_date_utc(from_date, end_of_day=False)
-    to_dt = parse_date_utc(to_date, end_of_day=True)
+    from_date = from_dt.date().isoformat()
+    to_date = to_dt.date().isoformat()
     return from_date, to_date, from_dt, to_dt
 
 
