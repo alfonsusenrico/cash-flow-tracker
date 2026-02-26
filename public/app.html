@@ -274,6 +274,17 @@
       <span>Su</span>
     </div>
     <div id="ledgerDatePickerGrid" class="date-picker-grid"></div>
+    <div id="ledgerDateTimeControls" class="date-picker-time" hidden>
+      <label class="date-picker-time-field">
+        <span>HH</span>
+        <input id="ledgerDateHour" type="number" min="0" max="23" inputmode="numeric" />
+      </label>
+      <span class="date-picker-time-sep">:</span>
+      <label class="date-picker-time-field">
+        <span>MM</span>
+        <input id="ledgerDateMinute" type="number" min="0" max="59" inputmode="numeric" />
+      </label>
+    </div>
     <div class="date-picker-footer">
       <button id="ledgerDateClear" class="date-picker-text" type="button">Clear</button>
       <div class="date-picker-actions">
@@ -435,7 +446,7 @@
 
         <div class="field">
           <label>Date</label>
-          <input id="txDateDisplay" class="input-button" type="text" placeholder="Select date" readonly />
+          <input id="txDateDisplay" class="input-button" type="text" placeholder="Select date & time" readonly />
           <input id="txDateInput" name="date" type="hidden" />
         </div>
 
@@ -591,7 +602,7 @@
         </div>
         <div class="field">
           <label>Date</label>
-          <input id="switchDateDisplay" class="input-button" type="text" placeholder="Select date" readonly />
+          <input id="switchDateDisplay" class="input-button" type="text" placeholder="Select date & time" readonly />
           <input id="switchDateInput" type="hidden" />
         </div>
         <div id="switchTopupField" class="field">

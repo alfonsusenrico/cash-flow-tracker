@@ -5,6 +5,7 @@ import sys
 import types
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
@@ -37,6 +38,7 @@ if "fpdf" not in sys.modules:
 from fastapi import HTTPException
 
 from app.services.ledger import (
+    compute_dynamic_month_range,
     get_balance_before,
     parse_tx_datetime,
     parse_uuid_value,
@@ -106,12 +108,48 @@ class RecomputeCursor:
         return []
 
 
+class DynamicRangeCursor:
+    def __init__(self, first=None, second=None) -> None:
+        self.rows = [first, second]
+        self.calls: list[tuple[str, tuple | list | None]] = []
+
+    def execute(self, sql, params=None):
+        self.calls.append((sql, params))
+
+    def fetchone(self):
+        if not self.rows:
+            return None
+        return self.rows.pop(0)
+
+
 class LedgerServiceTests(unittest.TestCase):
     def test_parse_tx_datetime_normalizes_to_seconds_and_utc(self):
         dt = parse_tx_datetime("2026-02-11T10:15:12.987654+07:00")
         self.assertEqual(dt.tzinfo, timezone.utc)
         self.assertEqual(dt.microsecond, 0)
         self.assertEqual(dt.isoformat(), "2026-02-11T03:15:12+00:00")
+
+    def test_compute_dynamic_month_range_uses_topup_windows(self):
+        cur = DynamicRangeCursor(
+            {"date": datetime(2026, 1, 26, 7, 0, tzinfo=timezone.utc)},
+            {"date": datetime(2026, 2, 26, 8, 0, tzinfo=timezone.utc)},
+        )
+
+        from_date, to_date, _, _ = compute_dynamic_month_range(cur, "alice", "2026-02", 25, 25)
+
+        self.assertEqual(from_date, "2026-01-26")
+        self.assertEqual(to_date, "2026-02-25")
+        self.assertEqual(len(cur.calls), 2)
+        self.assertIn("JOIN accounts", cur.calls[0][0])
+        self.assertIn("JOIN accounts", cur.calls[1][0])
+
+    def test_compute_dynamic_month_range_fallback_open_cycle_to_today(self):
+        cur = DynamicRangeCursor(None, None)
+        with patch("app.services.ledger.now_utc", return_value=datetime(2026, 2, 27, 3, 0, tzinfo=timezone.utc)):
+            from_date, to_date, _, _ = compute_dynamic_month_range(cur, "alice", "2026-02", 25, 25)
+
+        self.assertEqual(from_date, "2026-01-25")
+        self.assertEqual(to_date, "2026-02-27")
 
     def test_get_balance_before_filters_soft_deleted_rows(self):
         cur = CursorSpy()

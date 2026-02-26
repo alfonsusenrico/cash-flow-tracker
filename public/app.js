@@ -406,11 +406,23 @@ const nowTimeWithSeconds = () => {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 };
 
+const normalizeTimeWithSeconds = (value, fallback = "00:00:00") => {
+  const [hRaw, mRaw, sRaw] = String(value || fallback).split(":");
+  const h = Number(hRaw);
+  const m = Number(mRaw);
+  const s = Number(sRaw ?? 0);
+  if (!Number.isFinite(h) || !Number.isFinite(m) || !Number.isFinite(s)) return fallback;
+  const hh = Math.min(23, Math.max(0, h));
+  const mm = Math.min(59, Math.max(0, m));
+  const ss = Math.min(59, Math.max(0, s));
+  return `${pad2(hh)}:${pad2(mm)}:${pad2(ss)}`;
+};
+
 const ymdTimeToIso = (ymd, timeWithSeconds) => {
   if (!ymd) return "";
   const [y, m, d] = String(ymd).split("-").map(Number);
   if (!y || !m || !d) return "";
-  const [hh, mm, ss] = String(timeWithSeconds || "00:00:00").split(":").map(Number);
+  const [hh, mm, ss] = normalizeTimeWithSeconds(timeWithSeconds || "00:00:00").split(":").map(Number);
   const local = new Date(y, m - 1, d, hh || 0, mm || 0, ss || 0);
   return local.toISOString();
 };
@@ -418,6 +430,13 @@ const ymdTimeToIso = (ymd, timeWithSeconds) => {
 const formatYmdDisplay = (ymd) => {
   const d = ymdToDate(ymd);
   return d ? formatDisplayDate(d) : "";
+};
+
+const formatYmdTimeDisplay = (ymd, timeWithSeconds) => {
+  const datePart = formatYmdDisplay(ymd);
+  const timePart = normalizeTimeWithSeconds(timeWithSeconds || "00:00:00").slice(0, 5);
+  if (!datePart) return "";
+  return `${datePart} ${timePart}`;
 };
 
 const buildDateList = (from, to) => {
@@ -2002,17 +2021,34 @@ function bindEvents() {
   const datePickerApply = $("ledgerDateApply");
   const datePickerCancel = $("ledgerDateCancel");
   const datePickerClear = $("ledgerDateClear");
+  const datePickerTimeControls = $("ledgerDateTimeControls");
+  const datePickerHour = $("ledgerDateHour");
+  const datePickerMinute = $("ledgerDateMinute");
   let pickerMode = "range";
   let pickerTarget = "from";
   let pickerMonth = null;
   let pickerFrom = null;
   let pickerTo = null;
   let pickerSingle = null;
+  let pickerSingleTime = "00:00:00";
   let pickerSingleApply = null;
   let pickerAnchor = null;
 
   const formatPickerMonth = (date) =>
     date.toLocaleString("en-US", { month: "long", year: "numeric" });
+
+  const setPickerSingleTime = (timeValue) => {
+    pickerSingleTime = normalizeTimeWithSeconds(timeValue || nowTimeWithSeconds());
+    const [hh, mm] = pickerSingleTime.split(":");
+    if (datePickerHour) datePickerHour.value = hh;
+    if (datePickerMinute) datePickerMinute.value = mm;
+  };
+
+  const getPickerSingleTime = () => {
+    const hh = pad2(Math.min(23, Math.max(0, Number(datePickerHour?.value || 0) || 0)));
+    const mm = pad2(Math.min(59, Math.max(0, Number(datePickerMinute?.value || 0) || 0)));
+    return `${hh}:${mm}:00`;
+  };
 
   const clampPickerPosition = (left, top, rect) => {
     const maxLeft = window.innerWidth - rect.width - 8;
@@ -2057,7 +2093,15 @@ function bindEvents() {
     const maxYmd = dateToYMD(new Date());
     if (datePickerMonth) datePickerMonth.textContent = formatPickerMonth(pickerMonth);
     if (datePickerLabel) {
-      datePickerLabel.textContent = isSingle ? "Date" : (pickerTarget === "to" ? "To" : "From");
+      datePickerLabel.textContent = isSingle ? "Date & Time" : (pickerTarget === "to" ? "To" : "From");
+    }
+    if (datePickerTimeControls) {
+      if (isSingle) {
+        datePickerTimeControls.removeAttribute("hidden");
+        setPickerSingleTime(pickerSingleTime);
+      } else {
+        datePickerTimeControls.setAttribute("hidden", "");
+      }
     }
     const y = pickerMonth.getFullYear();
     const m = pickerMonth.getMonth();
@@ -2124,6 +2168,7 @@ function bindEvents() {
     if (!datePicker || !datePickerBackdrop) return;
     pickerMode = "range";
     pickerSingle = null;
+    pickerSingleTime = nowTimeWithSeconds();
     pickerSingleApply = null;
     pickerTarget = target;
     pickerFrom = state.from;
@@ -2146,10 +2191,11 @@ function bindEvents() {
     });
   };
 
-  const openDatePickerSingle = (value, anchorEl, onApply) => {
+  const openDatePickerSingle = (value, timeValue, anchorEl, onApply) => {
     if (!datePicker || !datePickerBackdrop) return;
     pickerMode = "single";
     pickerSingle = clampYmdToToday(value);
+    pickerSingleTime = normalizeTimeWithSeconds(timeValue || nowTimeWithSeconds());
     pickerSingleApply = typeof onApply === "function" ? onApply : null;
     pickerFrom = null;
     pickerTo = null;
@@ -2194,6 +2240,28 @@ function bindEvents() {
     });
   }
 
+  const clampTimeInput = (inputEl, max) => {
+    if (!inputEl) return;
+    const raw = String(inputEl.value || "").replace(/\D/g, "").slice(0, 2);
+    if (!raw) {
+      inputEl.value = "00";
+      pickerSingleTime = getPickerSingleTime();
+      return;
+    }
+    const next = Math.min(max, Math.max(0, Number(raw) || 0));
+    inputEl.value = pad2(next);
+    pickerSingleTime = getPickerSingleTime();
+  };
+
+  if (datePickerHour) {
+    datePickerHour.addEventListener("input", () => clampTimeInput(datePickerHour, 23));
+    datePickerHour.addEventListener("blur", () => clampTimeInput(datePickerHour, 23));
+  }
+  if (datePickerMinute) {
+    datePickerMinute.addEventListener("input", () => clampTimeInput(datePickerMinute, 59));
+    datePickerMinute.addEventListener("blur", () => clampTimeInput(datePickerMinute, 59));
+  }
+
   if (datePickerPrev) {
     datePickerPrev.addEventListener("click", () => {
       if (!pickerMonth) return;
@@ -2212,7 +2280,8 @@ function bindEvents() {
     datePickerApply.addEventListener("click", () => {
       if (pickerMode === "single") {
         const nextDate = pickerSingle || dateToYMD(new Date());
-        if (pickerSingleApply) pickerSingleApply(nextDate);
+        const nextTime = getPickerSingleTime();
+        if (pickerSingleApply) pickerSingleApply(nextDate, nextTime);
         closeDatePicker();
         return;
       }
@@ -2235,6 +2304,7 @@ function bindEvents() {
     datePickerClear.addEventListener("click", () => {
       if (pickerMode === "single") {
         pickerSingle = dateToYMD(new Date());
+        pickerSingleTime = nowTimeWithSeconds();
         renderDatePicker();
         return;
       }
@@ -2505,18 +2575,25 @@ function bindEvents() {
   };
   let txDateInitial = "";
   let txTimeInitial = "";
+  let txTimeValue = nowTimeWithSeconds();
 
-  const setTxDate = (ymd, { setInitial = false } = {}) => {
+  const setTxDate = (ymd, { setInitial = false, time = null } = {}) => {
     const safeDate = clampYmdToToday(ymd);
     if (!safeDate) return;
+    txTimeValue = normalizeTimeWithSeconds(time || txTimeValue || nowTimeWithSeconds());
     if (txDateInput) txDateInput.value = safeDate;
-    if (txDateDisplay) txDateDisplay.value = formatYmdDisplay(safeDate);
-    if (setInitial) txDateInitial = safeDate;
+    if (txDateDisplay) txDateDisplay.value = formatYmdTimeDisplay(safeDate, txTimeValue);
+    if (setInitial) {
+      txDateInitial = safeDate;
+      txTimeInitial = txTimeValue;
+    }
   };
 
   const openTxDatePicker = () => {
     const current = clampYmdToToday(txDateInput?.value);
-    openDatePickerSingle(current, txDateDisplay, (next) => setTxDate(next));
+    openDatePickerSingle(current, txTimeValue, txDateDisplay, (nextDate, nextTime) => {
+      setTxDate(nextDate, { time: nextTime });
+    });
   };
   if (txDateDisplay) {
     txDateDisplay.addEventListener("click", openTxDatePicker);
@@ -2546,6 +2623,7 @@ function bindEvents() {
     syncTxTopupState();
     txDateInitial = "";
     txTimeInitial = "";
+    txTimeValue = nowTimeWithSeconds();
   };
 
   const openModal = (tx) => {
@@ -2561,8 +2639,8 @@ function bindEvents() {
     resetTxReceiptUI();
     state.editing_tx_id = null;
     const fallbackDate = clampYmdToToday();
-    txTimeInitial = nowTimeWithSeconds();
-    setTxDate(fallbackDate, { setInitial: true });
+    txTimeValue = nowTimeWithSeconds();
+    setTxDate(fallbackDate, { setInitial: true, time: txTimeValue });
 
     const defaultAccount = state.scope === "account" && state.account_id
       ? state.account_id
@@ -2580,8 +2658,8 @@ function bindEvents() {
       }
       if (tx.account_id) $("txAccountSelect").value = tx.account_id;
       const txDate = isoToLocalYMD(tx.date);
-      if (txDate) setTxDate(txDate, { setInitial: true });
-      txTimeInitial = isoToLocalTimeWithSeconds(tx.date) || txTimeInitial;
+      const txTime = isoToLocalTimeWithSeconds(tx.date) || txTimeValue;
+      if (txDate) setTxDate(txDate, { setInitial: true, time: txTime });
       const type = tx.debit ? "debit" : "credit";
       const typeInput = document.querySelector(`input[name="transaction_type"][value="${type}"]`);
       if (typeInput) typeInput.checked = true;
@@ -2671,18 +2749,25 @@ function bindEvents() {
   const deleteSwitchBtn = $("deleteSwitchBtn");
   let switchDateInitial = "";
   let switchTimeInitial = "";
+  let switchTimeValue = nowTimeWithSeconds();
 
-  const setSwitchDate = (ymd, { setInitial = false } = {}) => {
+  const setSwitchDate = (ymd, { setInitial = false, time = null } = {}) => {
     const safeDate = clampYmdToToday(ymd);
     if (!safeDate) return;
+    switchTimeValue = normalizeTimeWithSeconds(time || switchTimeValue || nowTimeWithSeconds());
     if (switchDateInput) switchDateInput.value = safeDate;
-    if (switchDateDisplay) switchDateDisplay.value = formatYmdDisplay(safeDate);
-    if (setInitial) switchDateInitial = safeDate;
+    if (switchDateDisplay) switchDateDisplay.value = formatYmdTimeDisplay(safeDate, switchTimeValue);
+    if (setInitial) {
+      switchDateInitial = safeDate;
+      switchTimeInitial = switchTimeValue;
+    }
   };
 
   const openSwitchDatePicker = () => {
     const current = clampYmdToToday(switchDateInput?.value);
-    openDatePickerSingle(current, switchDateDisplay, (next) => setSwitchDate(next));
+    openDatePickerSingle(current, switchTimeValue, switchDateDisplay, (nextDate, nextTime) => {
+      setSwitchDate(nextDate, { time: nextTime });
+    });
   };
 
   if (switchDateDisplay) {
@@ -2721,8 +2806,8 @@ function bindEvents() {
     if (switchTopupFlag) switchTopupFlag.checked = isEditMode ? false : !!isCycleTopup;
 
     const ymd = date ? isoToLocalYMD(date) : clampYmdToToday();
-    switchTimeInitial = date ? (isoToLocalTimeWithSeconds(date) || nowTimeWithSeconds()) : nowTimeWithSeconds();
-    setSwitchDate(ymd, { setInitial: true });
+    switchTimeValue = date ? (isoToLocalTimeWithSeconds(date) || nowTimeWithSeconds()) : nowTimeWithSeconds();
+    setSwitchDate(ymd, { setInitial: true, time: switchTimeValue });
 
     switchModal.hidden = false;
   };
@@ -2747,6 +2832,9 @@ function bindEvents() {
   const closeSwitchModal = () => {
     if (switchModal) switchModal.hidden = true;
     state.editing_transfer_id = null;
+    switchDateInitial = "";
+    switchTimeInitial = "";
+    switchTimeValue = nowTimeWithSeconds();
     if (deleteSwitchBtn) {
       deleteSwitchBtn.hidden = true;
       deleteSwitchBtn.dataset.transferId = "";
@@ -2791,14 +2879,17 @@ function bindEvents() {
       }
 
       const selectedDate = clampYmdToToday(switchDateInput?.value);
+      const selectedTime = normalizeTimeWithSeconds(switchTimeValue || nowTimeWithSeconds());
       let datePayload = undefined;
       if (selectedDate) {
         if (state.editing_transfer_id) {
-          if (selectedDate !== switchDateInitial) {
-            datePayload = ymdTimeToIso(selectedDate, switchTimeInitial || nowTimeWithSeconds());
+          const dateChanged = selectedDate !== switchDateInitial;
+          const timeChanged = selectedTime !== normalizeTimeWithSeconds(switchTimeInitial || nowTimeWithSeconds());
+          if (dateChanged || timeChanged) {
+            datePayload = ymdTimeToIso(selectedDate, selectedTime);
           }
         } else {
-          datePayload = ymdTimeToIso(selectedDate, switchTimeInitial || nowTimeWithSeconds());
+          datePayload = ymdTimeToIso(selectedDate, selectedTime);
         }
       }
 
@@ -3050,14 +3141,17 @@ function bindEvents() {
     const isEdit = !!body.transaction_id;
     if (txDateInput) {
       const selectedDate = clampYmdToToday(txDateInput.value);
+      const selectedTime = normalizeTimeWithSeconds(txTimeValue || nowTimeWithSeconds());
       if (isEdit) {
-        if (selectedDate && selectedDate !== txDateInitial) {
-          body.date = ymdTimeToIso(selectedDate, txTimeInitial || nowTimeWithSeconds());
+        const dateChanged = selectedDate && selectedDate !== txDateInitial;
+        const timeChanged = selectedTime !== normalizeTimeWithSeconds(txTimeInitial || nowTimeWithSeconds());
+        if (selectedDate && (dateChanged || timeChanged)) {
+          body.date = ymdTimeToIso(selectedDate, selectedTime);
         } else {
           delete body.date;
         }
       } else {
-        body.date = ymdTimeToIso(selectedDate, txTimeInitial || nowTimeWithSeconds());
+        body.date = ymdTimeToIso(selectedDate, selectedTime);
       }
     } else if (!isEdit) {
       body.date = new Date().toISOString();

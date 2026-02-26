@@ -27,7 +27,7 @@ from app.services.ledger import (
     compute_budget_shift_analysis,
     compute_budget_status,
     compute_export_range,
-    compute_month_range,
+    compute_dynamic_month_range,
     ensure_account_non_negative,
     export_ledger_file,
     get_account_balances,
@@ -1300,7 +1300,7 @@ def summary(req: Request, month: str | None = None):
         payday_day, payday_source, override_day = get_payday_day(cur, username, month)
         default_day = get_default_payday_day(cur, username)
         prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))
-        from_date, to_date, from_dt, to_dt = compute_month_range(month, payday_day, prev_day)
+        from_date, to_date, from_dt, to_dt = compute_dynamic_month_range(cur, username, month, payday_day, prev_day)
         start_cutoff = from_dt - timedelta(milliseconds=1)
 
         cur.execute(
@@ -1427,7 +1427,7 @@ def analysis(req: Request, month: str | None = None):
         payday_day, payday_source, override_day = get_payday_day(cur, username, month)
         default_day = get_default_payday_day(cur, username)
         prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))
-        from_date, to_date, from_dt, to_dt = compute_month_range(month, payday_day, prev_day)
+        from_date, to_date, from_dt, to_dt = compute_dynamic_month_range(cur, username, month, payday_day, prev_day)
 
         base_filters = ["a.username=%s", "t.deleted_at IS NULL", "t.date >= %s", "t.date <= %s"]
         params: list[Any] = [username, from_dt, to_dt]
@@ -1565,7 +1565,7 @@ def analysis_budget_shift(req: Request, month: str | None = None, mode: str = "n
     with db_conn() as conn, conn.cursor() as cur:
         payday_day, _, _ = get_payday_day(cur, username, month)
         prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))
-        _, _, from_dt, to_dt = compute_month_range(month, payday_day, prev_day)
+        _, _, from_dt, to_dt = compute_dynamic_month_range(cur, username, month, payday_day, prev_day)
         payload = compute_budget_shift_analysis(cur, username, month, from_dt, to_dt, strategy=mode)
 
     cache_set(cache_key, payload, settings.month_summary_ttl)

@@ -285,6 +285,47 @@ h2 {
   gap: 6px;
 }
 
+.date-picker-time {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.date-picker-time-field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.date-picker-time-field input {
+  width: 56px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  color: var(--text-main);
+  text-align: center;
+  font-weight: 600;
+}
+
+.date-picker-time-field input:focus-visible {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px var(--primary-tint);
+}
+
+.date-picker-time-sep {
+  margin-top: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
 .month-picker-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

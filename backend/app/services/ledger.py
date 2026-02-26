@@ -132,6 +132,83 @@ def compute_month_range(
     return from_date, to_date, from_dt, to_dt
 
 
+def compute_dynamic_month_range(
+    cur: Any,
+    username: str,
+    month: str,
+    payday_day: int,
+    prev_payday_day: int | None = None,
+) -> tuple[str, str, datetime, datetime]:
+    year, month_num = parse_month(month)
+    prev_month = month_num - 1
+    prev_year = year
+    if prev_month == 0:
+        prev_month = 12
+        prev_year -= 1
+    prev_day = prev_payday_day if prev_payday_day is not None else payday_day
+
+    default_start = datetime(prev_year, prev_month, clamp_day(prev_year, prev_month, prev_day)).date()
+    default_end_target = datetime(year, month_num, clamp_day(year, month_num, payday_day)).date()
+
+    start_window_from = parse_date_utc((default_start - timedelta(days=7)).isoformat(), end_of_day=False)
+    start_window_to_exclusive = parse_date_utc((default_start + timedelta(days=8)).isoformat(), end_of_day=False)
+
+    cur.execute(
+        """
+        SELECT t.date
+        FROM transactions t
+        JOIN accounts a ON a.account_id=t.account_id
+        WHERE a.username=%s
+          AND t.deleted_at IS NULL
+          AND t.is_cycle_topup = TRUE
+          AND t.transaction_type = 'debit'
+          AND t.date >= %s
+          AND t.date < %s
+        ORDER BY t.date DESC
+        LIMIT 1
+        """,
+        (username, start_window_from, start_window_to_exclusive),
+    )
+    row_start = cur.fetchone()
+
+    start_date = row_start["date"].date() if row_start else default_start
+
+    end_window_from = parse_date_utc((default_end_target - timedelta(days=7)).isoformat(), end_of_day=False)
+    end_window_to_exclusive = parse_date_utc((default_end_target + timedelta(days=8)).isoformat(), end_of_day=False)
+
+    cur.execute(
+        """
+        SELECT t.date
+        FROM transactions t
+        JOIN accounts a ON a.account_id=t.account_id
+        WHERE a.username=%s
+          AND t.deleted_at IS NULL
+          AND t.is_cycle_topup = TRUE
+          AND t.transaction_type = 'debit'
+          AND t.date >= %s
+          AND t.date < %s
+        ORDER BY t.date ASC
+        LIMIT 1
+        """,
+        (username, end_window_from, end_window_to_exclusive),
+    )
+    row_end = cur.fetchone()
+
+    if row_end:
+        end_date = row_end["date"].date() - timedelta(days=1)
+    else:
+        end_date = now_utc().date()
+
+    if end_date < start_date:
+        end_date = start_date
+
+    from_date = start_date.isoformat()
+    to_date = end_date.isoformat()
+    from_dt = parse_date_utc(from_date, end_of_day=False)
+    to_dt = parse_date_utc(to_date, end_of_day=True)
+    return from_date, to_date, from_dt, to_dt
+
+
 def compute_budget_status(budget_amount: int | None, used_amount: int) -> tuple[int | None, str | None, int | None]:
     if budget_amount is None:
         return None, None, None
