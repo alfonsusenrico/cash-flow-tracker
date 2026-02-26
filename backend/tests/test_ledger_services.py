@@ -38,7 +38,9 @@ if "fpdf" not in sys.modules:
 from fastapi import HTTPException
 
 from app.services.ledger import (
+    compute_shortfall_at_transaction,
     compute_dynamic_month_range,
+    get_balance_at_transaction,
     get_balance_before,
     parse_tx_datetime,
     parse_uuid_value,
@@ -122,6 +124,15 @@ class DynamicRangeCursor:
         return self.rows.pop(0)
 
 
+class BalanceCursor(CursorSpy):
+    def __init__(self, balance: int) -> None:
+        super().__init__()
+        self._balance = balance
+
+    def fetchone(self):
+        return {"balance": self._balance}
+
+
 class LedgerServiceTests(unittest.TestCase):
     def test_parse_tx_datetime_normalizes_to_seconds_and_utc(self):
         dt = parse_tx_datetime("2026-02-11T10:15:12.987654+07:00")
@@ -158,6 +169,28 @@ class LedgerServiceTests(unittest.TestCase):
         cur = CursorSpy()
         _ = get_balance_before(cur, "acc-1", datetime(2026, 2, 1, tzinfo=timezone.utc))
         self.assertIn("t.deleted_at IS NULL", cur.last_sql)
+
+    def test_get_balance_at_transaction_can_exclude_transfer_ids(self):
+        cur = BalanceCursor(120000)
+        _ = get_balance_at_transaction(
+            cur,
+            "11111111-1111-1111-1111-111111111111",
+            datetime(2026, 2, 1, 12, 0, tzinfo=timezone.utc),
+            "22222222-2222-2222-2222-222222222222",
+            exclude_transfer_ids=["33333333-3333-3333-3333-333333333333"],
+        )
+        self.assertIn("t.transfer_id <> ALL(%s::uuid[])", cur.last_sql)
+        self.assertEqual(cur.last_params[-1], ["33333333-3333-3333-3333-333333333333"])
+
+    def test_compute_shortfall_at_transaction_uses_negative_balance(self):
+        cur = BalanceCursor(-45000)
+        shortfall = compute_shortfall_at_transaction(
+            cur,
+            "11111111-1111-1111-1111-111111111111",
+            datetime(2026, 2, 1, 12, 0, tzinfo=timezone.utc),
+            "22222222-2222-2222-2222-222222222222",
+        )
+        self.assertEqual(shortfall, 45000)
 
     def test_parse_uuid_value_rejects_invalid_uuid(self):
         with self.assertRaises(HTTPException) as ctx:

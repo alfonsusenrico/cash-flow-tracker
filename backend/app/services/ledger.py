@@ -447,6 +447,42 @@ def get_account_balances(cur, username: str, up_to: datetime) -> dict[str, int]:
     return {r["account_id"]: int(r["balance"] or 0) for r in cur.fetchall()}
 
 
+def get_balance_at_transaction(
+    cur,
+    account_id: str,
+    tx_date: datetime,
+    tx_id: str,
+    exclude_transfer_ids: list[str] | None = None,
+) -> int:
+    sql = """
+        SELECT COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS balance
+        FROM transactions t
+        WHERE t.account_id=%s::uuid
+          AND t.deleted_at IS NULL
+          AND (t.date < %s OR (t.date = %s AND t.transaction_id <= %s::uuid))
+    """
+    params: list[Any] = [account_id, tx_date, tx_date, tx_id]
+    if exclude_transfer_ids:
+        normalized_ids = sorted({parse_uuid_value(value, "transfer_id") for value in exclude_transfer_ids if value})
+        if normalized_ids:
+            sql += " AND (t.transfer_id IS NULL OR t.transfer_id <> ALL(%s::uuid[]))"
+            params.append(normalized_ids)
+    cur.execute(sql, params)
+    row = cur.fetchone() or {}
+    return int(row.get("balance") or 0)
+
+
+def compute_shortfall_at_transaction(
+    cur,
+    account_id: str,
+    tx_date: datetime,
+    tx_id: str,
+    exclude_transfer_ids: list[str] | None = None,
+) -> int:
+    balance = get_balance_at_transaction(cur, account_id, tx_date, tx_id, exclude_transfer_ids=exclude_transfer_ids)
+    return max(0, -int(balance))
+
+
 def write_transaction_audit(
     cur,
     *,

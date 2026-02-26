@@ -14,6 +14,7 @@ const state = {
   active_tab: "summary",
   overview_accounts: [],
   overview_range: null,
+  summary_accounts: [],
   summary_month: "",
   summary_loading: false,
   summary_stale: true,
@@ -22,6 +23,9 @@ const state = {
   analysis_data: null,
   analysis_budget_shift: null,
   analysis_budget_mode: "normal",
+  loans_loading: false,
+  loans_stale: true,
+  loans: [],
   total_asset: 0,
   summary_total_asset: 0,
   analysis_total_asset: 0,
@@ -180,24 +184,29 @@ const getLedgerScrollElement = () => {
 };
 
 const getAnalysisScrollElement = () => $("tab-analysis") || $("analysisBody");
+const getLoansScrollElement = () => $("tab-loans");
 
 const syncMobileScrollState = () => {
   if (!isMobile()) {
-    document.body.classList.remove("summary-scrolled", "analysis-scrolled", "ledger-scrolled");
+    document.body.classList.remove("summary-scrolled", "analysis-scrolled", "ledger-scrolled", "loans-scrolled");
     return;
   }
   if (state.active_tab === "summary") {
     const summary = $("tab-summary");
     document.body.classList.toggle("summary-scrolled", summary && summary.scrollTop > 8);
-    document.body.classList.remove("ledger-scrolled", "analysis-scrolled");
+    document.body.classList.remove("ledger-scrolled", "analysis-scrolled", "loans-scrolled");
   } else if (state.active_tab === "analysis") {
     const analysis = getAnalysisScrollElement();
     document.body.classList.toggle("analysis-scrolled", analysis && analysis.scrollTop > 8);
-    document.body.classList.remove("summary-scrolled", "ledger-scrolled");
+    document.body.classList.remove("summary-scrolled", "ledger-scrolled", "loans-scrolled");
+  } else if (state.active_tab === "loans") {
+    const loans = getLoansScrollElement();
+    document.body.classList.toggle("loans-scrolled", loans && loans.scrollTop > 8);
+    document.body.classList.remove("summary-scrolled", "analysis-scrolled", "ledger-scrolled");
   } else {
     const ledger = $("tab-ledger");
     document.body.classList.toggle("ledger-scrolled", ledger && ledger.scrollTop > 8);
-    document.body.classList.remove("summary-scrolled", "analysis-scrolled");
+    document.body.classList.remove("summary-scrolled", "analysis-scrolled", "loans-scrolled");
   }
 };
 
@@ -205,10 +214,12 @@ const bindMobileScrollState = () => {
   const summary = $("tab-summary");
   const analysis = getAnalysisScrollElement();
   const ledger = $("tab-ledger");
+  const loans = getLoansScrollElement();
   const handler = () => syncMobileScrollState();
   if (summary) summary.addEventListener("scroll", handler);
   if (analysis) analysis.addEventListener("scroll", handler);
   if (ledger) ledger.addEventListener("scroll", handler);
+  if (loans) loans.addEventListener("scroll", handler);
   window.addEventListener("resize", handler);
   syncMobileScrollState();
 };
@@ -1181,6 +1192,69 @@ const loadAnalysis = async ({ force = false } = {}) => {
   }
 };
 
+const renderLoans = () => {
+  const body = $("loansBody");
+  const msg = $("loansMsg");
+  if (!body) return;
+  if (msg) msg.textContent = "";
+  const rows = Array.isArray(state.loans) ? state.loans : [];
+  if (!rows.length) {
+    body.innerHTML = `<tr><td colspan="7" class="empty-row">No internal loans recorded yet.</td></tr>`;
+    return;
+  }
+  body.innerHTML = rows
+    .map((loan) => {
+      const status = String(loan.status || "open");
+      const statusLabel = status === "finalized" ? "Finalized" : "Open";
+      const statusClass = status === "finalized" ? "finalized" : "open";
+      const dateIso = loan.trigger_transaction_date || loan.created_at || "";
+      const triggerDate = dateIso ? isoToLocalDisplay(dateIso) : "-";
+      const triggerName = escapeHtml(loan.trigger_transaction_name || "-");
+      const action = status === "open"
+        ? `<button class="btn small" data-action="finalize-loan" data-loan-id="${loan.loan_id}">Finalize</button>`
+        : `<span class="muted">-</span>`;
+      return `<tr>
+        <td>${escapeHtml(triggerDate)}</td>
+        <td>${escapeHtml(loan.borrower_account_name || "-")}</td>
+        <td>${escapeHtml(loan.lender_account_name || "-")}</td>
+        <td title="${triggerName}">${triggerName}</td>
+        <td class="num">${displayMoney(loan.principal_amount || 0)}</td>
+        <td><span class="loan-status ${statusClass}">${escapeHtml(statusLabel)}</span></td>
+        <td>${action}</td>
+      </tr>`;
+    })
+    .join("");
+};
+
+const loadLoans = async ({ force = false } = {}) => {
+  if (state.loans_loading) return;
+  if (!force && !state.loans_stale && Array.isArray(state.loans)) {
+    renderLoans();
+    return;
+  }
+  state.loans_loading = true;
+  const msg = $("loansMsg");
+  if (msg) msg.textContent = "Loading loans...";
+  try {
+    const res = await api.get("/api/loans");
+    state.loans = Array.isArray(res?.loans) ? res.loans : [];
+    state.loans_stale = false;
+    renderLoans();
+    if (msg) msg.textContent = "";
+  } catch (err) {
+    if (msg) msg.textContent = err.message || "Failed to load loans";
+  } finally {
+    state.loans_loading = false;
+  }
+};
+
+const markLoansStale = () => {
+  state.loans_stale = true;
+  if (state.active_tab === "loans") {
+    loadLoans({ force: true }).catch(console.error);
+  }
+};
+
 const markSummaryStale = () => {
   state.summary_stale = true;
   state.analysis_stale = true;
@@ -1190,6 +1264,29 @@ const markSummaryStale = () => {
   if (state.active_tab === "analysis") {
     loadAnalysis({ force: true }).catch(console.error);
   }
+};
+
+const reloadAllPrimaryViews = async () => {
+  state.summary_stale = true;
+  state.analysis_stale = true;
+  state.loans_stale = true;
+  await Promise.all([
+    reloadLedgerWithDefaultStale(),
+    loadSummary({ force: true }),
+    loadAnalysis({ force: true }),
+    loadLoans({ force: true }),
+  ]);
+};
+
+const ensureSummaryAccountsForLoanPrompt = async () => {
+  const existing = Array.isArray(state.summary_accounts) ? state.summary_accounts : [];
+  if (existing.length) return existing;
+  const today = todayYMD();
+  const res = await api.get(
+    `/api/ledger?scope=all&from_date=${encodeURIComponent(today)}&to_date=${encodeURIComponent(today)}&limit=1&offset=0`
+  );
+  if (res?.summary) updateTotals(res.summary);
+  return Array.isArray(state.summary_accounts) ? state.summary_accounts : [];
 };
 
 
@@ -1559,11 +1656,13 @@ const setActiveTab = (tab) => {
   const ledger = $("tab-ledger");
   const summary = $("tab-summary");
   const analysis = $("tab-analysis");
+  const loans = $("tab-loans");
   const fabBtn = $("mobileAddBtn");
   state.active_tab = tab;
   if (ledger) ledger.hidden = tab !== "ledger";
   if (summary) summary.hidden = tab !== "summary";
   if (analysis) analysis.hidden = tab !== "analysis";
+  if (loans) loans.hidden = tab !== "loans";
   if (fabBtn) fabBtn.hidden = tab !== "ledger";
   if (tab !== "ledger") {
     document.body.classList.remove("fab-open");
@@ -1577,6 +1676,8 @@ const setActiveTab = (tab) => {
     loadSummary().catch(console.error);
   } else if (tab === "analysis") {
     loadAnalysis().catch(console.error);
+  } else if (tab === "loans") {
+    loadLoans().catch(console.error);
   } else if (tab === "ledger") {
     if (!state.suppress_ledger_refresh && !state.default_loading) {
       reloadLedgerWithDefaultStale().catch(console.error);
@@ -2516,6 +2617,14 @@ function bindEvents() {
   const txReceiptMeta = $("txReceiptMeta");
   const txReceiptPreview = $("txReceiptPreview");
   const deleteReceiptBtn = $("deleteReceiptBtn");
+  const loanPromptModal = $("loanPromptModal");
+  const loanPromptForm = $("loanPromptForm");
+  const loanPromptText = $("loanPromptText");
+  const loanPromptMsg = $("loanPromptMsg");
+  const loanLenderSelect = $("loanLenderSelect");
+  const loanPromptConfirmBtn = $("loanPromptConfirmBtn");
+  const loanPromptSkipBtn = $("loanPromptSkipBtn");
+  const closeLoanPromptBtn = $("closeLoanPromptModal");
 
   const receiptViewUrl = (txId) =>
     `/api/transactions/${encodeURIComponent(txId)}/receipt/view?v=${Date.now()}`;
@@ -2674,6 +2783,89 @@ function bindEvents() {
     syncTxTopupState();
     modal.hidden = false;
   };
+
+  let pendingLoanPrompt = null;
+
+  const closeLoanPromptModal = () => {
+    if (loanPromptModal) loanPromptModal.hidden = true;
+    pendingLoanPrompt = null;
+    if (loanPromptMsg) loanPromptMsg.textContent = "";
+    if (loanLenderSelect) loanLenderSelect.innerHTML = "";
+    if (loanPromptConfirmBtn) loanPromptConfirmBtn.disabled = false;
+  };
+
+  const openLoanPromptModal = async ({ transactionId, borrowerAccountId, shortfall }) => {
+    if (!loanPromptModal || !loanLenderSelect) return;
+    const safeShortfall = Number(shortfall || 0);
+    if (!transactionId || !borrowerAccountId || safeShortfall <= 0) return;
+
+    pendingLoanPrompt = {
+      transaction_id: transactionId,
+      borrower_account_id: borrowerAccountId,
+      shortfall: safeShortfall,
+    };
+
+    if (loanPromptMsg) loanPromptMsg.textContent = "";
+    if (loanPromptText) {
+      loanPromptText.textContent = `Balance not sufficient. Shortfall: ${fmtMoney(safeShortfall)}. Choose a lender account to create an internal loan.`;
+    }
+
+    let sourceAccounts = Array.isArray(state.summary_accounts) ? state.summary_accounts : [];
+    if (!sourceAccounts.length) {
+      sourceAccounts = await ensureSummaryAccountsForLoanPrompt();
+    }
+
+    const lenders = sourceAccounts
+      .filter((acc) => acc && acc.account_id && acc.account_id !== borrowerAccountId)
+      .filter((acc) => Number(acc.balance || 0) >= safeShortfall)
+      .sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0));
+
+    if (!lenders.length) {
+      loanLenderSelect.innerHTML = `<option value="">No eligible lender account</option>`;
+      loanLenderSelect.disabled = true;
+      if (loanPromptConfirmBtn) loanPromptConfirmBtn.disabled = true;
+      if (loanPromptMsg) loanPromptMsg.textContent = "No lender account has enough balance for this shortfall.";
+    } else {
+      loanLenderSelect.disabled = false;
+      if (loanPromptConfirmBtn) loanPromptConfirmBtn.disabled = false;
+      loanLenderSelect.innerHTML = lenders
+        .map(
+          (acc) =>
+            `<option value="${acc.account_id}">${escapeHtml(acc.account_name)} (${escapeHtml(fmtMoney(acc.balance || 0))})</option>`
+        )
+        .join("");
+    }
+
+    loanPromptModal.hidden = false;
+  };
+
+  if (closeLoanPromptBtn) closeLoanPromptBtn.addEventListener("click", closeLoanPromptModal);
+  if (loanPromptSkipBtn) loanPromptSkipBtn.addEventListener("click", closeLoanPromptModal);
+  if (loanPromptModal) {
+    loanPromptModal.addEventListener("click", (e) => e.target === loanPromptModal && closeLoanPromptModal());
+  }
+  if (loanPromptForm) {
+    loanPromptForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!pendingLoanPrompt) return;
+      const lenderAccountId = loanLenderSelect?.value || "";
+      if (!lenderAccountId) {
+        if (loanPromptMsg) loanPromptMsg.textContent = "Select a lender account.";
+        return;
+      }
+      if (loanPromptMsg) loanPromptMsg.textContent = "";
+      try {
+        await api.post("/api/loans/from-transaction", {
+          transaction_id: pendingLoanPrompt.transaction_id,
+          lender_account_id: lenderAccountId,
+        });
+        closeLoanPromptModal();
+        await reloadAllPrimaryViews();
+      } catch (err) {
+        if (loanPromptMsg) loanPromptMsg.textContent = err.message || "Failed to create internal loan";
+      }
+    });
+  }
 
   const addBtn = $("addTxBtn");
   if (addBtn) {
@@ -3122,6 +3314,25 @@ function bindEvents() {
     });
   }
 
+  const loansBody = $("loansBody");
+  if (loansBody) {
+    loansBody.addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-action='finalize-loan']");
+      if (!btn) return;
+      const loanId = btn.dataset.loanId || "";
+      if (!loanId) return;
+      if (!confirm("Finalize this internal loan now?")) return;
+      const msg = $("loansMsg");
+      if (msg) msg.textContent = "";
+      try {
+        await api.post(`/api/loans/${encodeURIComponent(loanId)}/finalize`, {});
+        await reloadAllPrimaryViews();
+      } catch (err) {
+        if (msg) msg.textContent = err.message || "Failed to finalize loan";
+      }
+    });
+  }
+
   $("txForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     $("txMsg").textContent = "";
@@ -3159,10 +3370,12 @@ function bindEvents() {
 
     try {
       let transactionId = body.transaction_id || null;
+      let txResponse = null;
       if (isEdit) {
-        await api.put(`/api/transactions/${body.transaction_id}`, body);
+        txResponse = await api.put(`/api/transactions/${body.transaction_id}`, body);
       } else {
         const created = await api.post("/api/transactions", body);
+        txResponse = created;
         transactionId = created?.transaction_id || null;
       }
 
@@ -3178,7 +3391,23 @@ function bindEvents() {
 
       closeModal();
       markSummaryStale();
+      markLoansStale();
       await reloadLedgerWithDefaultStale();
+
+      const needsLoan = !!txResponse?.needs_loan;
+      const shortfall = Number(txResponse?.shortfall || 0);
+      const borrowerAccountId = txResponse?.account_id || body.account_id || null;
+      if (needsLoan && shortfall > 0 && transactionId && borrowerAccountId) {
+        try {
+          await openLoanPromptModal({
+            transactionId,
+            borrowerAccountId,
+            shortfall,
+          });
+        } catch (loanErr) {
+          alert(loanErr?.message || "Transaction saved, but failed to open loan prompt.");
+        }
+      }
     } catch (err) {
       $("txMsg").textContent = err.message || "Failed";
     }

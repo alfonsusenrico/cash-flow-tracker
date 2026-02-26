@@ -82,6 +82,20 @@ CREATE TABLE IF NOT EXISTS transaction_receipts (
   UNIQUE (transaction_id)
 );
 
+CREATE TABLE IF NOT EXISTS internal_loans (
+  loan_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+  trigger_transaction_id UUID NOT NULL REFERENCES transactions(transaction_id) ON DELETE CASCADE,
+  disbursement_transfer_id UUID NOT NULL UNIQUE,
+  lender_account_id UUID NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+  borrower_account_id UUID NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+  principal_amount BIGINT NOT NULL CHECK (principal_amount > 0),
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'finalized')),
+  finalized_transfer_id UUID NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finalized_at TIMESTAMPTZ NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_accounts_username ON accounts(username);
 CREATE INDEX IF NOT EXISTS idx_tx_account_date ON transactions(account_id, date, transaction_id);
 CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date);
@@ -96,3 +110,8 @@ CREATE INDEX IF NOT EXISTS idx_tx_audit_username_time ON transaction_audit(usern
 CREATE INDEX IF NOT EXISTS idx_tx_audit_transaction_time ON transaction_audit(transaction_id, performed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_receipts_username ON transaction_receipts(username);
 CREATE INDEX IF NOT EXISTS idx_receipts_transaction ON transaction_receipts(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_internal_loans_username_status ON internal_loans(username, status);
+CREATE INDEX IF NOT EXISTS idx_internal_loans_trigger_tx ON internal_loans(trigger_transaction_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_internal_loans_trigger_open
+  ON internal_loans(trigger_transaction_id)
+  WHERE status = 'open';

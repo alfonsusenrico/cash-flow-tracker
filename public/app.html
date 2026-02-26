@@ -40,6 +40,7 @@
         <button class="tab-btn active" data-tab="summary" aria-selected="true">Summary</button>
         <button class="tab-btn" data-tab="analysis" aria-selected="false">Analysis</button>
         <button class="tab-btn" data-tab="ledger" aria-selected="false">Transactions</button>
+        <button class="tab-btn" data-tab="loans" aria-selected="false">Loans</button>
       </div>
       <div id="emptyAccountsBanner" class="banner warning" hidden>
         <div class="banner-text">
@@ -239,6 +240,32 @@
             <div class="analysis-list" id="analysisSwitchFlow"></div>
           </div>
         </div>
+      </section>
+
+      <section id="tab-loans" class="panel loans" hidden>
+        <div class="analysis-head">
+          <div>
+            <div class="analysis-title">Internal Loans</div>
+            <div class="analysis-range-text">Track deficit coverage and repayments</div>
+          </div>
+        </div>
+        <div class="table-wrap loans-table-wrap">
+          <table class="table" id="loansTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Borrower</th>
+                <th>Lender</th>
+                <th>Trigger</th>
+                <th class="num">Amount</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="loansBody"></tbody>
+          </table>
+        </div>
+        <div id="loansMsg" class="msg"></div>
       </section>
 
     </div>
@@ -489,6 +516,25 @@
           <button id="deleteTxBtn" class="btn danger grow" type="button" hidden>Delete</button>
         </div>
         <div id="txMsg" class="msg"></div>
+      </form>
+    </div>
+  </div>
+
+  <div id="loanPromptModal" class="modal" role="dialog" aria-modal="true" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>Balance Not Sufficient</h2>
+        <button id="closeLoanPromptModal" class="btn">✕</button>
+      </div>
+      <form id="loanPromptForm" class="form stack large-gap">
+        <p id="loanPromptText" class="hint">This transaction creates a deficit.</p>
+        <div class="field">
+          <label>Lender Account</label>
+          <select id="loanLenderSelect" required></select>
+        </div>
+        <button id="loanPromptConfirmBtn" class="btn primary full-width" type="submit">Create Internal Loan</button>
+        <button id="loanPromptSkipBtn" class="btn full-width" type="button">Skip for now</button>
+        <div id="loanPromptMsg" class="msg"></div>
       </form>
     </div>
   </div>

@@ -24,6 +24,7 @@ from app.services.ledger import (
     build_weekly_series,
     cache_get,
     cache_set,
+    compute_shortfall_at_transaction,
     compute_budget_shift_analysis,
     compute_budget_status,
     compute_export_range,
@@ -509,21 +510,6 @@ async def create_tx(req: Request):
     with db_conn() as conn, conn.cursor() as cur:
         lock_accounts_for_update(cur, username, [account_id])
 
-        temp_id = str(uuid.uuid4())
-        ensure_account_non_negative(
-            cur,
-            account_id,
-            dt,
-            [
-                {
-                    "transaction_id": temp_id,
-                    "date": dt,
-                    "transaction_type": tx_type,
-                    "amount": amount,
-                }
-            ],
-        )
-
         cur.execute(
             """
             INSERT INTO transactions (
@@ -541,10 +527,17 @@ async def create_tx(req: Request):
             (account_id, tx_type, is_cycle_topup, name, amount, dt),
         )
         tx_id = cur.fetchone()["transaction_id"]
+        shortfall = compute_shortfall_at_transaction(cur, account_id, dt, tx_id)
         conn.commit()
 
     invalidate_user_cache(username)
-    return {"ok": True, "transaction_id": tx_id}
+    return {
+        "ok": True,
+        "transaction_id": tx_id,
+        "needs_loan": shortfall > 0,
+        "shortfall": int(shortfall),
+        "account_id": account_id,
+    }
 
 
 @router.post("/switch")
@@ -924,6 +917,385 @@ def delete_switch(transfer_id: str, req: Request):
     return {"ok": True}
 
 
+@router.get("/loans")
+def list_internal_loans(req: Request, status: str | None = None):
+    username = require_session_user(req)
+    statuses = ["open", "finalized"]
+    raw_status = (status or "").strip().lower()
+    if raw_status and raw_status != "all":
+        statuses = [s.strip() for s in raw_status.split(",") if s.strip()]
+        if not statuses:
+            statuses = ["open", "finalized"]
+        invalid = [s for s in statuses if s not in ("open", "finalized")]
+        if invalid:
+            raise HTTPException(status_code=400, detail="Invalid status filter")
+        statuses = sorted(set(statuses))
+
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT l.loan_id::text AS loan_id,
+                   l.username,
+                   l.trigger_transaction_id::text AS trigger_transaction_id,
+                   l.disbursement_transfer_id::text AS disbursement_transfer_id,
+                   l.lender_account_id::text AS lender_account_id,
+                   lender.account_name AS lender_account_name,
+                   l.borrower_account_id::text AS borrower_account_id,
+                   borrower.account_name AS borrower_account_name,
+                   l.principal_amount,
+                   l.status,
+                   l.finalized_transfer_id::text AS finalized_transfer_id,
+                   l.created_at,
+                   l.finalized_at,
+                   t.transaction_name AS trigger_transaction_name,
+                   t.date AS trigger_transaction_date
+            FROM internal_loans l
+            JOIN accounts lender
+              ON lender.account_id=l.lender_account_id
+             AND lender.username=l.username
+            JOIN accounts borrower
+              ON borrower.account_id=l.borrower_account_id
+             AND borrower.username=l.username
+            JOIN transactions t ON t.transaction_id=l.trigger_transaction_id
+            JOIN accounts trigger_owner
+              ON trigger_owner.account_id=t.account_id
+             AND trigger_owner.username=l.username
+            WHERE l.username=%s
+              AND l.status = ANY(%s::text[])
+            ORDER BY l.created_at DESC, l.loan_id DESC
+            """,
+            (username, statuses),
+        )
+        rows = cur.fetchall()
+
+    return {
+        "loans": [
+            {
+                "loan_id": row["loan_id"],
+                "username": row["username"],
+                "trigger_transaction_id": row["trigger_transaction_id"],
+                "trigger_transaction_name": row["trigger_transaction_name"],
+                "trigger_transaction_date": row["trigger_transaction_date"]
+                .astimezone(timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
+                "disbursement_transfer_id": row["disbursement_transfer_id"],
+                "lender_account_id": row["lender_account_id"],
+                "lender_account_name": row["lender_account_name"],
+                "borrower_account_id": row["borrower_account_id"],
+                "borrower_account_name": row["borrower_account_name"],
+                "principal_amount": int(row.get("principal_amount") or 0),
+                "status": row["status"],
+                "finalized_transfer_id": row["finalized_transfer_id"],
+                "created_at": row["created_at"].astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "finalized_at": row["finalized_at"].astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+                if row.get("finalized_at")
+                else None,
+            }
+            for row in rows
+        ]
+    }
+
+
+@router.post("/loans/from-transaction")
+async def create_internal_loan_from_transaction(req: Request):
+    username = require_session_user(req)
+    data = await req.json()
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    trigger_transaction_id = parse_uuid_field(data.get("transaction_id"), "transaction_id")
+    lender_account_id = parse_uuid_field(data.get("lender_account_id"), "lender_account_id")
+
+    amount_raw = data.get("amount")
+    requested_amount: int | None = None
+    if amount_raw is not None and not (isinstance(amount_raw, str) and not amount_raw.strip()):
+        requested_amount = parse_int_field(amount_raw, "amount")
+        if requested_amount <= 0:
+            raise HTTPException(status_code=400, detail="amount must be > 0")
+
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT t.transaction_id::text AS transaction_id,
+                   t.account_id::text AS borrower_account_id,
+                   t.transaction_name,
+                   t.date,
+                   t.is_transfer
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE t.transaction_id=%s::uuid
+              AND a.username=%s
+              AND t.deleted_at IS NULL
+            """,
+            (trigger_transaction_id, username),
+        )
+        trigger_tx = cur.fetchone()
+        if not trigger_tx:
+            raise HTTPException(status_code=404, detail="Trigger transaction not found")
+        if trigger_tx.get("is_transfer"):
+            raise HTTPException(status_code=400, detail="Trigger transaction must be non-transfer")
+
+        borrower_account_id = trigger_tx["borrower_account_id"]
+        if lender_account_id == borrower_account_id:
+            raise HTTPException(status_code=400, detail="Lender account must differ from borrower account")
+
+        lock_accounts_for_update(cur, username, [lender_account_id, borrower_account_id])
+
+        cur.execute(
+            """
+            SELECT loan_id::text AS loan_id
+            FROM internal_loans
+            WHERE username=%s
+              AND trigger_transaction_id=%s::uuid
+              AND status='open'
+            LIMIT 1
+            """,
+            (username, trigger_transaction_id),
+        )
+        existing_open = cur.fetchone()
+        if existing_open:
+            raise HTTPException(status_code=400, detail="Open loan already exists for this transaction")
+
+        cur.execute(
+            """
+            SELECT disbursement_transfer_id::text AS transfer_id
+            FROM internal_loans
+            WHERE username=%s
+              AND trigger_transaction_id=%s::uuid
+            """,
+            (username, trigger_transaction_id),
+        )
+        excluded_transfer_ids = [row["transfer_id"] for row in cur.fetchall() if row.get("transfer_id")]
+
+        shortfall = compute_shortfall_at_transaction(
+            cur,
+            borrower_account_id,
+            trigger_tx["date"],
+            trigger_transaction_id,
+            exclude_transfer_ids=excluded_transfer_ids,
+        )
+        if shortfall <= 0:
+            raise HTTPException(status_code=400, detail="Trigger transaction has no shortfall")
+
+        amount = requested_amount if requested_amount is not None else shortfall
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="amount must be > 0")
+        if amount > shortfall:
+            raise HTTPException(status_code=400, detail="amount exceeds transaction shortfall")
+
+        temp_id = str(uuid.uuid4())
+        ensure_account_non_negative(
+            cur,
+            lender_account_id,
+            trigger_tx["date"],
+            [
+                {
+                    "transaction_id": temp_id,
+                    "date": trigger_tx["date"],
+                    "transaction_type": "credit",
+                    "amount": amount,
+                }
+            ],
+        )
+
+        cur.execute(
+            """
+            SELECT account_id::text AS account_id,
+                   account_name
+            FROM accounts
+            WHERE username=%s
+              AND account_id IN (%s::uuid, %s::uuid)
+            """,
+            (username, lender_account_id, borrower_account_id),
+        )
+        account_rows = cur.fetchall()
+        if len(account_rows) != 2:
+            raise HTTPException(status_code=404, detail="Account not found")
+        account_by_id = {row["account_id"]: row for row in account_rows}
+        lender_name = account_by_id[lender_account_id]["account_name"]
+        borrower_name = account_by_id[borrower_account_id]["account_name"]
+
+        transfer_id = str(uuid.uuid4())
+        cur.execute(
+            """
+            INSERT INTO transactions (
+                account_id,
+                transaction_type,
+                is_cycle_topup,
+                transaction_name,
+                amount,
+                date,
+                is_transfer,
+                transfer_id
+            )
+            VALUES
+              (%s::uuid, 'credit', false, %s, %s, %s, true, %s::uuid),
+              (%s::uuid, 'debit', false, %s, %s, %s, true, %s::uuid)
+            """,
+            (
+                lender_account_id,
+                f"Loan to {borrower_name}",
+                amount,
+                trigger_tx["date"],
+                transfer_id,
+                borrower_account_id,
+                f"Loan from {lender_name}",
+                amount,
+                trigger_tx["date"],
+                transfer_id,
+            ),
+        )
+
+        cur.execute(
+            """
+            INSERT INTO internal_loans (
+                username,
+                trigger_transaction_id,
+                disbursement_transfer_id,
+                lender_account_id,
+                borrower_account_id,
+                principal_amount
+            )
+            VALUES (%s, %s::uuid, %s::uuid, %s::uuid, %s::uuid, %s)
+            RETURNING loan_id::text AS loan_id
+            """,
+            (
+                username,
+                trigger_transaction_id,
+                transfer_id,
+                lender_account_id,
+                borrower_account_id,
+                amount,
+            ),
+        )
+        loan_id = cur.fetchone()["loan_id"]
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {
+        "ok": True,
+        "loan_id": loan_id,
+        "disbursement_transfer_id": transfer_id,
+        "principal_amount": int(amount),
+    }
+
+
+@router.post("/loans/{loan_id}/finalize")
+async def finalize_internal_loan(loan_id: str, req: Request):
+    username = require_session_user(req)
+    loan_id = parse_uuid_field(loan_id, "loan_id")
+    try:
+        data = await req.json()
+    except Exception:
+        data = {}
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="Invalid payload")
+
+    final_date = parse_tx_datetime(data.get("date"))
+
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT l.loan_id::text AS loan_id,
+                   l.status,
+                   l.principal_amount,
+                   l.lender_account_id::text AS lender_account_id,
+                   lender.account_name AS lender_account_name,
+                   l.borrower_account_id::text AS borrower_account_id,
+                   borrower.account_name AS borrower_account_name
+            FROM internal_loans l
+            JOIN accounts lender
+              ON lender.account_id=l.lender_account_id
+             AND lender.username=l.username
+            JOIN accounts borrower
+              ON borrower.account_id=l.borrower_account_id
+             AND borrower.username=l.username
+            WHERE l.loan_id=%s::uuid
+              AND l.username=%s
+            FOR UPDATE
+            """,
+            (loan_id, username),
+        )
+        loan_row = cur.fetchone()
+        if not loan_row:
+            raise HTTPException(status_code=404, detail="Loan not found")
+        if loan_row.get("status") != "open":
+            raise HTTPException(status_code=400, detail="Loan already finalized")
+
+        lender_account_id = loan_row["lender_account_id"]
+        borrower_account_id = loan_row["borrower_account_id"]
+        principal = int(loan_row.get("principal_amount") or 0)
+
+        lock_accounts_for_update(cur, username, [lender_account_id, borrower_account_id])
+
+        temp_id = str(uuid.uuid4())
+        ensure_account_non_negative(
+            cur,
+            borrower_account_id,
+            final_date,
+            [
+                {
+                    "transaction_id": temp_id,
+                    "date": final_date,
+                    "transaction_type": "credit",
+                    "amount": principal,
+                }
+            ],
+        )
+
+        transfer_id = str(uuid.uuid4())
+        cur.execute(
+            """
+            INSERT INTO transactions (
+                account_id,
+                transaction_type,
+                is_cycle_topup,
+                transaction_name,
+                amount,
+                date,
+                is_transfer,
+                transfer_id
+            )
+            VALUES
+              (%s::uuid, 'credit', false, %s, %s, %s, true, %s::uuid),
+              (%s::uuid, 'debit', false, %s, %s, %s, true, %s::uuid)
+            """,
+            (
+                borrower_account_id,
+                f"Loan repayment to {loan_row['lender_account_name']}",
+                principal,
+                final_date,
+                transfer_id,
+                lender_account_id,
+                f"Loan repayment from {loan_row['borrower_account_name']}",
+                principal,
+                final_date,
+                transfer_id,
+            ),
+        )
+
+        cur.execute(
+            """
+            UPDATE internal_loans
+            SET status='finalized',
+                finalized_transfer_id=%s::uuid,
+                finalized_at=%s
+            WHERE loan_id=%s::uuid
+              AND username=%s
+              AND status='open'
+            RETURNING loan_id::text AS loan_id
+            """,
+            (transfer_id, final_date, loan_id, username),
+        )
+        updated = cur.fetchone()
+        if not updated:
+            raise HTTPException(status_code=409, detail="Loan changed, please retry")
+        conn.commit()
+
+    invalidate_user_cache(username)
+    return {"ok": True, "loan_id": loan_id, "finalized_transfer_id": transfer_id}
+
+
 @router.put("/transactions/{transaction_id}")
 async def update_tx(transaction_id: str, req: Request):
     username = require_session_user(req)
@@ -983,49 +1355,8 @@ async def update_tx(transaction_id: str, req: Request):
             raise HTTPException(status_code=400, detail="Top-up/payroll can only be set on cash-in transactions")
 
         old_account_id = tx["account_id"]
-        old_date = tx["date"]
 
         lock_accounts_for_update(cur, username, [old_account_id, new_account_id])
-
-        balance_sensitive_changed = (
-            new_account_id != old_account_id
-            or new_type != tx["transaction_type"]
-            or int(new_amount) != int(tx["amount"])
-            or new_date != old_date
-        )
-
-        if balance_sensitive_changed:
-            if new_account_id != old_account_id:
-                ensure_account_non_negative(cur, old_account_id, old_date, [], exclude_tx_ids=[transaction_id])
-                ensure_account_non_negative(
-                    cur,
-                    new_account_id,
-                    new_date,
-                    [
-                        {
-                            "transaction_id": transaction_id,
-                            "date": new_date,
-                            "transaction_type": new_type,
-                            "amount": new_amount,
-                        }
-                    ],
-                )
-            else:
-                effective_from = min(old_date, new_date)
-                ensure_account_non_negative(
-                    cur,
-                    old_account_id,
-                    effective_from,
-                    [
-                        {
-                            "transaction_id": transaction_id,
-                            "date": new_date,
-                            "transaction_type": new_type,
-                            "amount": new_amount,
-                        }
-                    ],
-                    exclude_tx_ids=[transaction_id],
-                )
 
         cur.execute(
             """
@@ -1043,10 +1374,17 @@ async def update_tx(transaction_id: str, req: Request):
         )
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Transaction not found")
+        shortfall = compute_shortfall_at_transaction(cur, new_account_id, new_date, transaction_id)
         conn.commit()
 
     invalidate_user_cache(username)
-    return {"ok": True}
+    return {
+        "ok": True,
+        "transaction_id": transaction_id,
+        "needs_loan": shortfall > 0,
+        "shortfall": int(shortfall),
+        "account_id": new_account_id,
+    }
 
 
 @router.delete("/transactions/{transaction_id}")
