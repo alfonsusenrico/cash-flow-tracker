@@ -644,7 +644,14 @@ def compute_financial_safety_report(cur, username: str, lookback_hours: int = 24
         "loan_transfer_anomalies": len(loan_transfer_anomalies),
     }
 
-    risk_score = min(100, checks["negative_accounts"] * 5 + checks["transfer_anomalies"] * 20 + checks["loan_state_anomalies"] * 25 + checks["loan_transfer_anomalies"] * 25)
+    # Negative balances are allowed by design, so they are tracked as observation,
+    # not treated as hard integrity anomaly for risk scoring.
+    risk_score = min(
+        100,
+        checks["transfer_anomalies"] * 20
+        + checks["loan_state_anomalies"] * 25
+        + checks["loan_transfer_anomalies"] * 25,
+    )
 
     return {
         "generated_at": generated_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
