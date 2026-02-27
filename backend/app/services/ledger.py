@@ -483,6 +483,189 @@ def compute_shortfall_at_transaction(
     return max(0, -int(balance))
 
 
+def compute_financial_safety_report(cur, username: str, lookback_hours: int = 24) -> dict[str, Any]:
+    hours = max(1, min(168, int(lookback_hours or 24)))
+    generated_at = now_utc()
+    since = generated_at - timedelta(hours=hours)
+
+    cur.execute(
+        """
+        SELECT a.account_id::text AS account_id,
+               a.account_name,
+               a.opening_balance + COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS balance
+        FROM accounts a
+        LEFT JOIN transactions t ON t.account_id=a.account_id AND t.deleted_at IS NULL
+        WHERE a.username=%s
+        GROUP BY a.account_id, a.account_name, a.opening_balance
+        HAVING a.opening_balance + COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) < 0
+        ORDER BY balance ASC
+        LIMIT 50
+        """,
+        (username,),
+    )
+    negative_accounts = [
+        {
+            "account_id": row["account_id"],
+            "account_name": row["account_name"],
+            "balance": int(row.get("balance") or 0),
+        }
+        for row in cur.fetchall()
+    ]
+
+    cur.execute(
+        """
+        WITH grp AS (
+            SELECT t.transfer_id::text AS transfer_id,
+                   COUNT(*) AS row_count,
+                   COUNT(*) FILTER (WHERE t.transaction_type='debit') AS debit_count,
+                   COUNT(*) FILTER (WHERE t.transaction_type='credit') AS credit_count,
+                   COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS net_amount,
+                   MIN(t.amount) AS min_amount,
+                   MAX(t.amount) AS max_amount
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE a.username=%s
+              AND t.deleted_at IS NULL
+              AND t.transfer_id IS NOT NULL
+            GROUP BY t.transfer_id
+        )
+        SELECT transfer_id, row_count, debit_count, credit_count, net_amount, min_amount, max_amount
+        FROM grp
+        WHERE row_count <> 2
+           OR debit_count <> 1
+           OR credit_count <> 1
+           OR net_amount <> 0
+           OR min_amount <> max_amount
+        ORDER BY transfer_id
+        LIMIT 50
+        """,
+        (username,),
+    )
+    transfer_anomalies = [
+        {
+            "transfer_id": row["transfer_id"],
+            "row_count": int(row.get("row_count") or 0),
+            "debit_count": int(row.get("debit_count") or 0),
+            "credit_count": int(row.get("credit_count") or 0),
+            "net_amount": int(row.get("net_amount") or 0),
+            "min_amount": int(row.get("min_amount") or 0),
+            "max_amount": int(row.get("max_amount") or 0),
+        }
+        for row in cur.fetchall()
+    ]
+
+    cur.execute(
+        """
+        SELECT loan_id::text AS loan_id,
+               status,
+               disbursement_transfer_id::text AS disbursement_transfer_id,
+               finalized_transfer_id::text AS finalized_transfer_id,
+               finalized_at
+        FROM internal_loans
+        WHERE username=%s
+          AND (
+                (status='open' AND (finalized_transfer_id IS NOT NULL OR finalized_at IS NOT NULL))
+             OR (status='finalized' AND (finalized_transfer_id IS NULL OR finalized_at IS NULL))
+          )
+        ORDER BY created_at DESC
+        LIMIT 50
+        """,
+        (username,),
+    )
+    loan_state_anomalies = [
+        {
+            "loan_id": row["loan_id"],
+            "status": row.get("status"),
+            "disbursement_transfer_id": row.get("disbursement_transfer_id"),
+            "finalized_transfer_id": row.get("finalized_transfer_id"),
+            "finalized_at": row.get("finalized_at").astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+            if row.get("finalized_at")
+            else None,
+        }
+        for row in cur.fetchall()
+    ]
+
+    cur.execute(
+        """
+        SELECT l.loan_id::text AS loan_id,
+               l.principal_amount,
+               l.disbursement_transfer_id::text AS disbursement_transfer_id,
+               COALESCE(COUNT(t.transaction_id), 0) AS transfer_rows,
+               COALESCE(MIN(t.amount), 0) AS min_amount,
+               COALESCE(MAX(t.amount), 0) AS max_amount
+        FROM internal_loans l
+        LEFT JOIN transactions t
+          ON t.transfer_id=l.disbursement_transfer_id
+         AND t.deleted_at IS NULL
+        LEFT JOIN accounts a
+          ON a.account_id=t.account_id
+        WHERE l.username=%s
+          AND (a.username=%s OR a.username IS NULL)
+        GROUP BY l.loan_id, l.principal_amount, l.disbursement_transfer_id
+        HAVING COALESCE(COUNT(t.transaction_id), 0) <> 2
+           OR COALESCE(MIN(t.amount), 0) <> l.principal_amount
+           OR COALESCE(MAX(t.amount), 0) <> l.principal_amount
+        ORDER BY l.loan_id
+        LIMIT 50
+        """,
+        (username, username),
+    )
+    loan_transfer_anomalies = [
+        {
+            "loan_id": row["loan_id"],
+            "disbursement_transfer_id": row.get("disbursement_transfer_id"),
+            "principal_amount": int(row.get("principal_amount") or 0),
+            "transfer_rows": int(row.get("transfer_rows") or 0),
+            "min_amount": int(row.get("min_amount") or 0),
+            "max_amount": int(row.get("max_amount") or 0),
+        }
+        for row in cur.fetchall()
+    ]
+
+    cur.execute(
+        """
+        SELECT COUNT(*) AS total_transactions,
+               COALESCE(SUM(CASE WHEN t.transfer_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS transfer_rows,
+               COALESCE(SUM(CASE WHEN t.is_cycle_topup THEN 1 ELSE 0 END), 0) AS cycle_topup_rows
+        FROM transactions t
+        JOIN accounts a ON a.account_id=t.account_id
+        WHERE a.username=%s
+          AND t.deleted_at IS NULL
+          AND t.date >= %s
+        """,
+        (username, since),
+    )
+    activity_row = cur.fetchone() or {}
+
+    checks = {
+        "negative_accounts": len(negative_accounts),
+        "transfer_anomalies": len(transfer_anomalies),
+        "loan_state_anomalies": len(loan_state_anomalies),
+        "loan_transfer_anomalies": len(loan_transfer_anomalies),
+    }
+
+    risk_score = min(100, checks["negative_accounts"] * 5 + checks["transfer_anomalies"] * 20 + checks["loan_state_anomalies"] * 25 + checks["loan_transfer_anomalies"] * 25)
+
+    return {
+        "generated_at": generated_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "window_hours": hours,
+        "window_since": since.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "risk_score": risk_score,
+        "checks": checks,
+        "activity": {
+            "total_transactions": int(activity_row.get("total_transactions") or 0),
+            "transfer_rows": int(activity_row.get("transfer_rows") or 0),
+            "cycle_topup_rows": int(activity_row.get("cycle_topup_rows") or 0),
+        },
+        "findings": {
+            "negative_accounts": negative_accounts,
+            "transfer_anomalies": transfer_anomalies,
+            "loan_state_anomalies": loan_state_anomalies,
+            "loan_transfer_anomalies": loan_transfer_anomalies,
+        },
+    }
+
+
 def write_transaction_audit(
     cur,
     *,

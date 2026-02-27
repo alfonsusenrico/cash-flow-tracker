@@ -25,6 +25,7 @@ from app.services.ledger import (
     cache_get,
     cache_set,
     compute_shortfall_at_transaction,
+    compute_financial_safety_report,
     compute_budget_shift_analysis,
     compute_budget_status,
     compute_export_range,
@@ -1907,6 +1908,19 @@ def analysis_budget_shift(req: Request, month: str | None = None, mode: str = "n
         payload = compute_budget_shift_analysis(cur, username, month, from_dt, to_dt, strategy=mode)
 
     cache_set(cache_key, payload, settings.month_summary_ttl)
+    return payload
+
+
+@router.get("/safety-net/report")
+def safety_net_report(req: Request, hours: int = 24):
+    username = require_session_user(req)
+    try:
+        hours = max(1, min(int(hours or 24), 168))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid hours")
+
+    with db_conn() as conn, conn.cursor() as cur:
+        payload = compute_financial_safety_report(cur, username, lookback_hours=hours)
     return payload
 
 
