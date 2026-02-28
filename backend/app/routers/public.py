@@ -42,6 +42,7 @@ from app.services.ledger import (
     compute_budget_status,
     compute_export_range,
     compute_dynamic_month_range,
+    current_month_local,
     ensure_account_non_negative,
     export_ledger_file,
     get_account_balances,
@@ -103,7 +104,7 @@ def decode_cursor(token: str | None) -> dict[str, Any] | None:
 
 def resolve_period_month(month: str | None, year: str | None) -> str:
     if month is None and year is None:
-        return now_utc().strftime("%Y-%m")
+        return current_month_local()
     if month is None or year is None:
         raise HTTPException(status_code=400, detail="month and year must be provided together")
 
@@ -254,7 +255,7 @@ def public_create_account(req: Request, payload: AccountCreateRequest):
                     (account_id, "Top Up Balance", payload.initial_balance, now_utc()),
                 )
             if payload.monthly_limit is not None:
-                budget_month = now_utc().strftime("%Y-%m")
+                budget_month = current_month_local()
                 cur.execute(
                     """
                     INSERT INTO budgets (username, account_id, month, amount)
@@ -1059,7 +1060,7 @@ def public_upsert_budget(req: Request, payload: dict[str, Any]):
 def public_list_budgets(req: Request, month: str | None = None):
     username = require_public_user(req)
     if not month:
-        month = now_utc().strftime("%Y-%m")
+        month = current_month_local()
     parse_month(month)
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
@@ -1462,7 +1463,7 @@ def public_delete_switch(transfer_id: str, req: Request):
 def public_get_payday(req: Request, month: str | None = None):
     username = require_public_user(req)
     if not month:
-        month = now_utc().strftime("%Y-%m")
+        month = current_month_local()
     parse_month(month)
     with db_conn() as conn, conn.cursor() as cur:
         payday_day, payday_source, override_day = get_payday_day(cur, username, month)

@@ -357,7 +357,7 @@ const isoToLocalDisplay = (isoZ) => {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-const todayYMD = () => new Date().toISOString().slice(0, 10);
+const todayYMD = () => dateToYMD(new Date());
 
 const formatDisplayDate = (d) => {
   const pad = (n) => String(n).padStart(2, "0");
@@ -480,7 +480,7 @@ const escapeHtml = (value) =>
 const minusDaysYMD = (days) => {
   const d = new Date();
   d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  return dateToYMD(d);
 };
 
 const formatRangeText = (from, to) => {
@@ -566,7 +566,7 @@ function loadFxCache() {
     if (!raw) return;
     const data = JSON.parse(raw);
     if (!data?.rate || !data?.date) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayYMD();
     if (data.date === today) {
       state.fx_rate = Number(data.rate);
       state.fx_updated_at = data.date;
@@ -577,7 +577,7 @@ function loadFxCache() {
 }
 
 function saveFxCache(rate) {
-  const date = new Date().toISOString().slice(0, 10);
+  const date = todayYMD();
   state.fx_rate = Number(rate);
   state.fx_updated_at = date;
   localStorage.setItem(FX_STORAGE_KEY, JSON.stringify({ rate: state.fx_rate, date }));

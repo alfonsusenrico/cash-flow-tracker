@@ -3,8 +3,9 @@ import csv
 import io
 import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from fpdf import FPDF
@@ -27,6 +28,33 @@ def invalidate_user_cache(username: str) -> None:
 
 def now_utc() -> datetime:
     return datetime.now(timezone.utc)
+
+
+try:
+    APP_TZ = ZoneInfo(settings.tz)
+except Exception:
+    APP_TZ = timezone.utc
+
+
+def now_local() -> datetime:
+    return now_utc().astimezone(APP_TZ)
+
+
+def current_month_local() -> str:
+    return now_local().strftime("%Y-%m")
+
+
+def local_day_start_utc(day: date) -> datetime:
+    local_dt = datetime(day.year, day.month, day.day, tzinfo=APP_TZ)
+    return local_dt.astimezone(timezone.utc)
+
+
+def local_day_end_utc(day: date) -> datetime:
+    return (local_day_start_utc(day + timedelta(days=1)) - timedelta(milliseconds=1)).replace(microsecond=0)
+
+
+def local_date_iso(dt: datetime) -> str:
+    return dt.astimezone(APP_TZ).date().isoformat()
 
 
 def parse_date_utc(date_str: str, end_of_day: bool = False) -> datetime:
@@ -155,49 +183,58 @@ def compute_dynamic_month_range(
     else:
         next_month_start = datetime(year, month_num + 1, 1).date()
 
-    start_window_from = parse_date_utc((month_start - timedelta(days=7)).isoformat(), end_of_day=False)
-    start_window_to_exclusive = parse_date_utc((month_start + timedelta(days=8)).isoformat(), end_of_day=False)
+    start_window_from = local_day_start_utc(month_start - timedelta(days=7))
+    start_window_to_exclusive = local_day_start_utc(month_start + timedelta(days=8))
 
-    cur.execute(
-        """
-        SELECT t.date
-        FROM transactions t
-        JOIN accounts a ON a.account_id=t.account_id
-        WHERE a.username=%s
-          AND t.deleted_at IS NULL
-          AND t.is_cycle_topup = TRUE
-          AND t.transaction_type = 'debit'
-          AND t.date >= %s
-          AND t.date < %s
-        ORDER BY t.date DESC
-        LIMIT 1
-        """,
-        (username, start_window_from, start_window_to_exclusive),
-    )
-    row_start = cur.fetchone()
+    def pick_cycle_anchor(window_from: datetime, window_to: datetime, *, order: str) -> dict[str, Any] | None:
+        cur.execute(
+            f"""
+            SELECT t.date
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE a.username=%s
+              AND a.is_payroll_source = TRUE
+              AND t.deleted_at IS NULL
+              AND t.is_cycle_topup = TRUE
+              AND t.transaction_type = 'debit'
+              AND t.is_transfer = FALSE
+              AND t.date >= %s
+              AND t.date < %s
+            ORDER BY t.date {order}
+            LIMIT 1
+            """,
+            (username, window_from, window_to),
+        )
+        row = cur.fetchone()
+        if row:
+            return row
 
-    from_dt = row_start["date"] if row_start else parse_date_utc(default_start.isoformat(), end_of_day=False)
+        cur.execute(
+            f"""
+            SELECT t.date
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE a.username=%s
+              AND t.deleted_at IS NULL
+              AND t.is_cycle_topup = TRUE
+              AND t.transaction_type = 'debit'
+              AND t.is_transfer = FALSE
+              AND t.date >= %s
+              AND t.date < %s
+            ORDER BY t.date {order}
+            LIMIT 1
+            """,
+            (username, window_from, window_to),
+        )
+        return cur.fetchone()
 
-    end_window_from = parse_date_utc((next_month_start - timedelta(days=7)).isoformat(), end_of_day=False)
-    end_window_to_exclusive = parse_date_utc((next_month_start + timedelta(days=8)).isoformat(), end_of_day=False)
+    row_start = pick_cycle_anchor(start_window_from, start_window_to_exclusive, order="DESC")
+    from_dt = row_start["date"] if row_start else local_day_start_utc(default_start)
 
-    cur.execute(
-        """
-        SELECT t.date
-        FROM transactions t
-        JOIN accounts a ON a.account_id=t.account_id
-        WHERE a.username=%s
-          AND t.deleted_at IS NULL
-          AND t.is_cycle_topup = TRUE
-          AND t.transaction_type = 'debit'
-          AND t.date >= %s
-          AND t.date < %s
-        ORDER BY t.date ASC
-        LIMIT 1
-        """,
-        (username, end_window_from, end_window_to_exclusive),
-    )
-    row_end = cur.fetchone()
+    end_window_from = local_day_start_utc(next_month_start - timedelta(days=7))
+    end_window_to_exclusive = local_day_start_utc(next_month_start + timedelta(days=8))
+
+    row_end = pick_cycle_anchor(end_window_from, end_window_to_exclusive, order="ASC")
 
     if row_end:
         to_dt = row_end["date"] - timedelta(microseconds=1)
@@ -207,8 +244,8 @@ def compute_dynamic_month_range(
     if to_dt < from_dt:
         to_dt = from_dt
 
-    from_date = from_dt.date().isoformat()
-    to_date = to_dt.date().isoformat()
+    from_date = local_date_iso(from_dt)
+    to_date = local_date_iso(to_dt)
     return from_date, to_date, from_dt, to_dt
 
 
@@ -798,6 +835,13 @@ def compute_budget_shift_analysis(
           AND t.date >= %s
           AND t.date <= %s
           AND t.transfer_id IS NOT NULL
+          AND NOT EXISTS (
+                SELECT 1
+                FROM transactions tx
+                WHERE tx.transfer_id=t.transfer_id
+                  AND tx.deleted_at IS NULL
+                  AND tx.is_cycle_topup = TRUE
+          )
         GROUP BY t.account_id
         """,
         (username, from_dt, to_dt),
@@ -824,6 +868,13 @@ def compute_budget_shift_analysis(
           AND dst.username=%s
           AND t_out.date >= %s
           AND t_out.date <= %s
+          AND NOT EXISTS (
+                SELECT 1
+                FROM transactions tx
+                WHERE tx.transfer_id=t_out.transfer_id
+                  AND tx.deleted_at IS NULL
+                  AND tx.is_cycle_topup = TRUE
+          )
         GROUP BY src.account_id, src.account_name, dst.account_id, dst.account_name
         ORDER BY amount DESC, src.account_name ASC, dst.account_name ASC
         """,

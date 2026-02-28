@@ -30,6 +30,7 @@ from app.services.ledger import (
     compute_budget_status,
     compute_export_range,
     compute_dynamic_month_range,
+    current_month_local,
     ensure_account_non_negative,
     export_ledger_file,
     get_account_balances,
@@ -267,7 +268,7 @@ async def create_account(req: Request):
 def list_budgets(req: Request, month: str | None = None):
     username = require_session_user(req)
     if not month:
-        month = now_utc().strftime("%Y-%m")
+        month = current_month_local()
     parse_month(month)
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
@@ -1629,7 +1630,7 @@ def ledger(
 def summary(req: Request, month: str | None = None):
     username = require_session_user(req)
     if not month:
-        month = now_utc().strftime("%Y-%m")
+        month = current_month_local()
     parse_month(month)
     cache_key = f"{username}:summary:{month}"
     cached = cache_get(cache_key)
@@ -1755,7 +1756,7 @@ def summary(req: Request, month: str | None = None):
 def analysis(req: Request, month: str | None = None):
     username = require_session_user(req)
     if not month:
-        month = now_utc().strftime("%Y-%m")
+        month = current_month_local()
     parse_month(month)
     cache_key = f"{username}:analysis:{month}"
     cached = cache_get(cache_key)
@@ -1892,7 +1893,7 @@ def analysis(req: Request, month: str | None = None):
 def analysis_budget_shift(req: Request, month: str | None = None, mode: str = "normal"):
     username = require_session_user(req)
     if not month:
-        month = now_utc().strftime("%Y-%m")
+        month = current_month_local()
     parse_month(month)
 
     mode = str(mode or "normal").strip().lower()
@@ -1928,7 +1929,7 @@ def safety_net_report(req: Request, hours: int = 24):
 def get_payday(req: Request, month: str | None = None):
     username = require_session_user(req)
     if not month:
-        month = now_utc().strftime("%Y-%m")
+        month = current_month_local()
     parse_month(month)
     with db_conn() as conn, conn.cursor() as cur:
         payday_day, payday_source, override_day = get_payday_day(cur, username, month)
