@@ -161,7 +161,7 @@ class LedgerServiceTests(unittest.TestCase):
 
     def test_compute_dynamic_month_range_fallback_open_cycle_to_today(self):
         cur = DynamicRangeCursor(None, None)
-        with patch("app.services.ledger.now_utc", return_value=datetime(2026, 2, 27, 3, 0, tzinfo=timezone.utc)):
+        with patch("app.services.ledger.period.now_utc", return_value=datetime(2026, 2, 27, 3, 0, tzinfo=timezone.utc)):
             from_date, to_date, _, _ = compute_dynamic_month_range(cur, "alice", "2026-02", 25, 25)
 
         self.assertEqual(from_date, "2026-01-25")
@@ -170,7 +170,7 @@ class LedgerServiceTests(unittest.TestCase):
     def test_compute_dynamic_month_range_uses_local_date_for_range_labels(self):
         cur = DynamicRangeCursor(None, None)
         # 2026-02-28 17:30 UTC equals 2026-03-01 00:30 in Asia/Jakarta
-        with patch("app.services.ledger.now_utc", return_value=datetime(2026, 2, 28, 17, 30, tzinfo=timezone.utc)):
+        with patch("app.services.ledger.period.now_utc", return_value=datetime(2026, 2, 28, 17, 30, tzinfo=timezone.utc)):
             from_date, to_date, _, _ = compute_dynamic_month_range(cur, "alice", "2026-03", 25, 25)
 
         self.assertEqual(from_date, "2026-02-25")

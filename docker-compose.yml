@@ -65,6 +65,19 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # New Next.js frontend service.
+  # During cut-over, the old static SPA is still served by nginx at /legacy/.
+  # Once the new frontend is validated, remove the legacy volume mount.
+  frontend:
+    build: ./frontend
+    container_name: ledger_frontend
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://api:8000
+      NODE_ENV: production
+    depends_on:
+      - api
+
   migrate:
     image: flyway/flyway:10
     container_name: ledger_migrate
@@ -89,10 +102,10 @@ services:
     ports:
       - "127.0.0.1:8090:80"
     volumes:
-      - ./public:/usr/share/nginx/html:ro
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - api
+      - frontend
 
 volumes:
   db_data:

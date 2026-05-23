@@ -501,6 +501,15 @@ async def create_tx(req: Request):
     is_cycle_topup = parse_optional_bool(data.get("is_cycle_topup"), "is_cycle_topup")
     if is_cycle_topup is None:
         is_cycle_topup = False
+    category_id = (data.get("category_id") or "").strip() or None
+    notes = (data.get("notes") or "").strip() or None
+    currency = (data.get("currency") or "IDR").upper()
+    if currency not in ("IDR", "USD"):
+        currency = "IDR"
+    original_amount_raw = data.get("original_amount")
+    original_amount = int(original_amount_raw) if original_amount_raw is not None else None
+    fx_rate_raw = data.get("fx_rate")
+    fx_rate = float(fx_rate_raw) if fx_rate_raw is not None else None
 
     if not account_id or tx_type not in ("debit", "credit") or not name or amount <= 0 or not date_str:
         raise HTTPException(status_code=400, detail="Invalid transaction payload")
@@ -521,12 +530,18 @@ async def create_tx(req: Request):
                 transaction_name,
                 amount,
                 date,
-                is_transfer
+                is_transfer,
+                category_id,
+                notes,
+                currency,
+                original_amount,
+                fx_rate
             )
-            VALUES (%s::uuid, %s, %s, %s, %s, %s, false)
+            VALUES (%s::uuid, %s, %s, %s, %s, %s, false, %s::uuid, %s, %s, %s, %s)
             RETURNING transaction_id::text
             """,
-            (account_id, tx_type, is_cycle_topup, name, amount, dt),
+            (account_id, tx_type, is_cycle_topup, name, amount, dt,
+             category_id, notes, currency, original_amount, fx_rate),
         )
         tx_id = cur.fetchone()["transaction_id"]
         shortfall = compute_shortfall_at_transaction(cur, account_id, dt, tx_id)
@@ -1314,7 +1329,10 @@ async def update_tx(transaction_id: str, req: Request):
                    t.amount,
                    t.date,
                    t.is_transfer,
-                   t.is_cycle_topup
+                   t.is_cycle_topup,
+                   t.category_id::text AS category_id,
+                   t.notes,
+                   t.currency
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
             WHERE t.transaction_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
@@ -1368,11 +1386,22 @@ async def update_tx(transaction_id: str, req: Request):
                 is_cycle_topup=%s,
                 transaction_name=%s,
                 amount=%s,
-                date=%s
+                date=%s,
+                category_id=%s::uuid,
+                notes=%s,
+                currency=%s,
+                original_amount=%s,
+                fx_rate=%s
             WHERE transaction_id=%s::uuid AND deleted_at IS NULL
             RETURNING transaction_id
             """,
-            (new_account_id, new_type, is_cycle_topup, new_name, new_amount, new_date, transaction_id),
+            (new_account_id, new_type, is_cycle_topup, new_name, new_amount, new_date,
+             data.get("category_id") or tx.get("category_id") or None,
+             (data.get("notes") or "").strip() or tx.get("notes") or None,
+             (data.get("currency") or tx.get("currency") or "IDR").upper(),
+             int(data["original_amount"]) if data.get("original_amount") is not None else None,
+             float(data["fx_rate"]) if data.get("fx_rate") is not None else None,
+             transaction_id),
         )
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Transaction not found")
@@ -1789,7 +1818,7 @@ def analysis(req: Request, month: str | None = None):
 
         cur.execute(
             f"""
-            SELECT (t.date AT TIME ZONE 'UTC')::date AS day,
+            SELECT (t.date AT TIME ZONE %s)::date AS day,
                    COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
                    COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS total_out
             FROM transactions t
@@ -1799,7 +1828,7 @@ def analysis(req: Request, month: str | None = None):
             GROUP BY day
             ORDER BY day
             """,
-            params,
+            [settings.tz] + params,
         )
         daily_rows = cur.fetchall()
         daily_series = build_daily_series(from_date, to_date, daily_rows)

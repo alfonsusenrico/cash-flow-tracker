@@ -58,6 +58,12 @@ class TransactionUpsertRequest(BaseModel):
     transaction_name: str | None = None
     amount: int | None = Field(default=None, gt=0)
     date: str | None = None
+    # Phase 1 additions
+    category_id: str | None = None
+    notes: str | None = None
+    currency: Literal["IDR", "USD"] = "IDR"
+    original_amount: int | None = Field(default=None, gt=0)
+    fx_rate: float | None = Field(default=None, gt=0)
 
 
 class LedgerListRequest(BaseModel):
@@ -83,6 +89,9 @@ class PublicTransactionItem(BaseModel):
     balance: int
     is_transfer: bool = False
     transfer_id: str | None = None
+    category_id: str | None = None
+    notes: str | None = None
+    currency: str = "IDR"
 
 
 class CursorLedgerResponse(BaseModel):
@@ -95,3 +104,19 @@ class CursorLedgerResponse(BaseModel):
 class PeriodQuery(BaseModel):
     month: str | None = None
     year: str | None = None
+
+
+class CategoryCreateRequest(BaseModel):
+    name: str = Field(min_length=1)
+    kind: Literal["income", "expense", "transfer", "adjustment"] = "expense"
+    parent_category_id: str | None = None
+    color: str | None = None
+    icon: str | None = None
+
+
+class CategoryUpdateRequest(CategoryCreateRequest):
+    is_archived: bool = False
+
+
+class PeriodCloseRequest(BaseModel):
+    notes: str | None = None

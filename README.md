@@ -1,227 +1,169 @@
 # Cash Flow Tracker
 
-![Status](https://img.shields.io/badge/status-production-brightgreen)
+A self-hosted personal finance app. Track your daily spending, see where your money goes each month, and manage multiple accounts — all from your own server.
 
-## Summary
-Self-hosted personal cash flow tracker with monthly summaries, a transaction ledger, and analysis by day, week, and category.
+---
 
-## Success Criteria
-- Track monthly cash flow with clear totals and category budgets.
-- Filter transactions by date range, account, and search with export support.
-- Provide a mobile-friendly UI for daily and weekly analysis.
+## What you can do
 
-## Outcome and Demo
-**Outcome:** A production-ready personal cash flow tracker for a private home server.
+- Record cash in and cash out across multiple accounts (cash, bank, e-wallet, etc.)
+- See a monthly summary: balance per account, total in/out, and budget usage
+- Browse your full transaction history with search and date filters
+- Analyze spending by category and day
+- Transfer money between accounts (Switch)
+- Export your ledger to CSV or PDF
+- Attach receipts (image or PDF) to any transaction
+- Manage spending categories
+- Track monthly periods (open / closed)
 
-**Demo:** Private (personal use).
+---
 
-## Tech Stack
-- Frontend: HTML, CSS, Vanilla JS
-- Backend: FastAPI (Python)
-- Data: PostgreSQL
-- Infra: Docker Compose + Nginx
+## Requirements
 
-## Architecture
-Nginx serves static assets and proxies `/api` to the FastAPI backend. The backend reads/writes to PostgreSQL, handles auth with session cookies, and serves summary/ledger/analysis endpoints. Redis is used for shared cache and rate-limit state. The frontend is a static app that calls the API and renders the views.
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
 
-## Quickstart (Fresh Install)
-Copy-paste this to get the app running from scratch:
+That's it.
+
+---
+
+## Install and run
+
 ```bash
 git clone https://github.com/alfonsusenrico/cash-flow-tracker.git
 cd cash-flow-tracker
 
+# Copy the example config
 cp .env.example .env
 
+# Generate a secure session secret
 SESSION_SECRET=$(openssl rand -hex 32)
-sed -i.bak "s/^SESSION_SECRET=.*/SESSION_SECRET=${SESSION_SECRET}/" .env
-rm .env.bak
+sed -i.bak "s/^SESSION_SECRET=.*/SESSION_SECRET=${SESSION_SECRET}/" .env && rm .env.bak
 
+# Start the database and run migrations
 docker compose up -d db
 docker compose run --rm migrate
+
+# Start everything
 docker compose up -d
 ```
 
-Open: `http://localhost:8090/login.html`
+Open **http://localhost:8090** in your browser.
 
-After your first login, create an account via **Manage Accounts** to start recording transactions.
+---
 
-## Migrations
-Run migrations any time you update the codebase (safe to re-run):
+## First-time setup
+
+1. **Register** — click "First time? Register" on the login page. You need the invite code from your `.env` file (`INVITE_CODE`, default: `CASHFLOWTRACKER`).
+2. **Create your first account** — go to **Accounts** in the top nav and add an account (e.g. "Cash", "BCA", "GoPay"). Set an initial balance if you have one.
+3. **Record a transaction** — go to **Transactions**, click **+ Add Transaction**, fill in the amount and description, and save.
+4. **Check your summary** — the **Summary** page shows your balance, spending, and budget status for the current month.
+
+---
+
+## Daily use
+
+| What you want to do | Where to go |
+|---|---|
+| Record spending or income | Transactions → + Add Transaction |
+| Move money between accounts | Transactions → Switch Balance |
+| See this month's overview | Summary |
+| See spending by day / category | Analysis |
+| Browse all transactions | Transactions |
+| Manage accounts | Accounts (top nav) |
+| Manage categories | Categories |
+| View monthly periods | Periods |
+| Export to CSV or PDF | Transactions → Export |
+
+---
+
+## Set your payday
+
+The app groups your month from payday to payday, not calendar month. To set it:
+
+1. Go to **Summary**
+2. Click the month selector
+3. Set your payday day (e.g. 25 means your cycle runs from the 25th to the 24th of the next month)
+
+---
+
+## Set a budget
+
+1. Go to **Accounts**
+2. Edit an account
+3. Set a **Monthly Limit** — the Summary page will show how much of that budget you've used
+
+---
+
+## Update the app
+
 ```bash
-docker compose run --rm migrate
+git pull
+docker compose run --rm migrate   # apply any new database migrations
+docker compose up -d --build      # rebuild and restart
 ```
 
-## Testing
-Run backend unit tests:
+---
+
+## Stop the app
+
 ```bash
-cd backend
-python -m unittest discover -s tests -p "test_*.py" -v
+docker compose down
 ```
 
-## Environment Variables
-| Name | Required | Example | Notes |
-|------|----------|---------|-------|
-| SESSION_SECRET | yes | change-me | Session cookie signing secret |
-| COOKIE_SECURE | no | false | Set true when serving over HTTPS |
-| POSTGRES_DB | no | ledger | Database name |
-| POSTGRES_USER | no | ledger | Database user |
-| POSTGRES_PASSWORD | no | ledgerpass | Database password |
-| INVITE_CODE | yes | CASHFLOWTRACKER | Invite-only registration code |
-| TZ | no | Asia/Jakarta | Display timezone in UI |
-| SUMMARY_CACHE_TTL | no | 30 | Summary cache TTL (seconds) |
-| MONTH_SUMMARY_TTL | no | 60 | Monthly summary/analysis cache TTL (seconds) |
-| REDIS_URL | no | redis://redis:6379/0 | Redis URL for shared cache/rate limits |
-| REDIS_PREFIX | no | cashflow | Redis key prefix |
-| RECEIPTS_DIR | no | /app/storage/receipts | Filesystem directory for stored receipts |
-| RECEIPT_MAX_MB | no | 10 | Maximum upload size per receipt file |
-| RECEIPT_WEBP_QUALITY | no | 75 | WEBP quality used for uploaded image receipts |
+Your data is stored in a Docker volume (`db_data`) and is not deleted when you stop.
 
-## Public API (`/api/v1`)
-All endpoints require Bearer token auth unless stated otherwise:
+---
 
-```http
-Authorization: Bearer <API_KEY>
-```
+## Configuration
 
-Base URL example:
+Edit `.env` to change these settings:
 
-```text
-https://cash-flow-tracker.alfonsusenrico.com/api/v1
-```
+| Variable | Default | What it does |
+|---|---|---|
+| `SESSION_SECRET` | *(required)* | Signs session cookies — keep this secret |
+| `INVITE_CODE` | `CASHFLOWTRACKER` | Code required to register a new account |
+| `TZ` | `Asia/Jakarta` | Your timezone — affects how dates are displayed |
+| `COOKIE_SECURE` | `false` | Set to `true` when running behind HTTPS |
+| `POSTGRES_PASSWORD` | `ledgerpass` | Database password |
 
-### Core endpoints
-- Auth/key
-  - `POST /auth/register` (invite-based registration)
-  - `POST /api-key/info`
-  - `POST /api-key/reset`
-- Accounts
-  - `POST /accounts/list`
-  - `POST /accounts`
-  - `PUT /accounts/{account_id}`
-  - `DELETE /accounts/{account_id}`
-- Transactions
-  - `POST /transactions` (create, or update when `transaction_id` is provided)
-  - `PUT /transactions/{transaction_id}`
-  - `DELETE /transactions/{transaction_id}`
-- Receipts
-  - `POST /transactions/{transaction_id}/receipt`
-  - `GET /transactions/{transaction_id}/receipt`
-  - `GET /transactions/{transaction_id}/receipt/view`
-  - `DELETE /transactions/{transaction_id}/receipt`
-- Ledger/reporting
-  - `POST /ledger`
-  - `POST /summary`
-  - `POST /analysis`
-- Budgets
-  - `POST /budgets` (upsert by `account_id + month`)
-  - `GET /budgets?month=YYYY-MM`
-  - `PUT /budgets/{budget_id}`
-  - `DELETE /budgets/{budget_id}`
-- Switch transfer
-  - `POST /switch`
-  - `GET /switch/{transfer_id}`
-  - `PUT /switch/{transfer_id}`
-  - `DELETE /switch/{transfer_id}`
-- Payday/balances/audit/export
-  - `GET /payday?month=YYYY-MM`
-  - `PUT /payday`
-  - `POST /balances/recompute`
-  - `POST /transactions/audit`
-  - `POST /export/preview`
-  - `POST /export`
+---
 
-### Quick smoke test
+## API access
+
+Every account gets a Bearer API key for automation. Find it under **API Key** in the top nav.
+
 ```bash
-BASE_URL="https://cash-flow-tracker.alfonsusenrico.com/api/v1"
-API_KEY="<API_KEY>"
-
-curl -sS -X POST "$BASE_URL/accounts/list" \
-  -H "Authorization: Bearer $API_KEY" \
+curl -sS -X POST "http://localhost:8090/api/v1/accounts/list" \
+  -H "Authorization: Bearer <YOUR_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
 
-### Automation examples (curl)
+Full API reference: see the FastAPI docs at `http://localhost:8090/api/docs` (available when the backend is running).
+
+---
+
+## Troubleshooting
+
+**App won't start**
 ```bash
-BASE_URL="https://cash-flow-tracker.alfonsusenrico.com/api/v1"
-API_KEY="<API_KEY>"
-AUTH=(-H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json")
+docker compose logs api
+docker compose logs web
 ```
 
-1) Create account:
+**Database migration failed**
 ```bash
-curl -sS -X POST "$BASE_URL/accounts" "${AUTH[@]}" -d '{
-  "account_name": "Cash",
-  "initial_balance": 500000
-}'
+docker compose run --rm migrate
+```
+Migrations are safe to re-run.
+
+**Forgot your invite code**
+```bash
+grep INVITE_CODE .env
 ```
 
-2) Create transaction:
-```bash
-curl -sS -X POST "$BASE_URL/transactions" "${AUTH[@]}" -d '{
-  "account_id": "<ACCOUNT_ID>",
-  "transaction_type": "credit",
-  "transaction_name": "Makan siang",
-  "amount": 35000
-}'
-```
-
-3) Update and delete transaction:
-```bash
-curl -sS -X PUT "$BASE_URL/transactions/<TRANSACTION_ID>" "${AUTH[@]}" -d '{
-  "account_id": "<ACCOUNT_ID>",
-  "transaction_type": "credit",
-  "transaction_name": "Makan siang (revisi)",
-  "amount": 30000
-}'
-
-curl -sS -X DELETE "$BASE_URL/transactions/<TRANSACTION_ID>" -H "Authorization: Bearer $API_KEY"
-```
-
-4) Create switch transfer antar akun:
-```bash
-curl -sS -X POST "$BASE_URL/switch" "${AUTH[@]}" -d '{
-  "source_account_id": "<ACCOUNT_ID_SUMBER>",
-  "target_account_id": "<ACCOUNT_ID_TUJUAN>",
-  "amount": 100000
-}'
-```
-
-5) Upsert budget bulanan:
-```bash
-curl -sS -X POST "$BASE_URL/budgets" "${AUTH[@]}" -d '{
-  "account_id": "<ACCOUNT_ID>",
-  "month": "2026-02",
-  "amount": 2000000
-}'
-```
-
-6) Summary, analysis, dan export CSV:
-```bash
-curl -sS -X POST "$BASE_URL/summary" "${AUTH[@]}" -d '{"month":"02","year":"2026"}'
-curl -sS -X POST "$BASE_URL/analysis" "${AUTH[@]}" -d '{"month":"02","year":"2026"}'
-
-curl -sS -X POST "$BASE_URL/export" "${AUTH[@]}" -d '{
-  "day": 1,
-  "format": "csv",
-  "scope": "all"
-}' -o ledger-export.csv
-```
-
-## Usage
-```bash
-xdg-open http://localhost:8090/login.html
-docker compose logs -f --tail=200
-docker compose down
-```
-
-## Deployment
-Run with Docker Compose on your server and place it behind HTTPS. Set `COOKIE_SECURE=true` when served over TLS. Nginx serves static files and proxies `/api` to the backend; Postgres persists data in a Docker volume. If you are using a CDN, ensure static assets are not cached aggressively.
-
-## Roadmap / Next Steps
-- Recurring transactions and scheduled income/expense entries.
-- CSV import and category mapping for bulk data entry.
-- Trend charts for net cash flow and category breakdowns.
+---
 
 ## License
-All rights reserved
+
+All rights reserved.

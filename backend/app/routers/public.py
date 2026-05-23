@@ -387,11 +387,22 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
                     is_cycle_topup=%s,
                     transaction_name=%s,
                     amount=%s,
-                    date=%s
+                    date=%s,
+                    category_id=%s::uuid,
+                    notes=%s,
+                    currency=%s,
+                    original_amount=%s,
+                    fx_rate=%s
                 WHERE transaction_id=%s::uuid AND deleted_at IS NULL
                 RETURNING transaction_id::text
                 """,
-                (new_account_id, new_type, is_cycle_topup, new_name, new_amount, new_date, transaction_id),
+                (new_account_id, new_type, is_cycle_topup, new_name, new_amount, new_date,
+                 payload.category_id or None,
+                 (payload.notes or "").strip() or None,
+                 payload.currency or "IDR",
+                 payload.original_amount,
+                 payload.fx_rate,
+                 transaction_id),
             )
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Transaction not found")
@@ -445,12 +456,22 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
                 transaction_name,
                 amount,
                 date,
-                is_transfer
+                is_transfer,
+                category_id,
+                notes,
+                currency,
+                original_amount,
+                fx_rate
             )
-            VALUES (%s::uuid, %s, %s, %s, %s, %s, false)
+            VALUES (%s::uuid, %s, %s, %s, %s, %s, false, %s::uuid, %s, %s, %s, %s)
             RETURNING transaction_id::text
             """,
-            (account_id, tx_type, is_cycle_topup, name, int(amount), dt),
+            (account_id, tx_type, is_cycle_topup, name, int(amount), dt,
+             payload.category_id or None,
+             (payload.notes or "").strip() or None,
+             payload.currency or "IDR",
+             payload.original_amount,
+             payload.fx_rate),
         )
         tx_id = cur.fetchone()["transaction_id"]
         conn.commit()
@@ -813,7 +834,7 @@ def public_analysis(req: Request, payload: PeriodQuery):
 
         cur.execute(
             f"""
-            SELECT (t.date AT TIME ZONE 'UTC')::date AS day,
+            SELECT (t.date AT TIME ZONE %s)::date AS day,
                    COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
                    COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS total_out
             FROM transactions t
@@ -823,7 +844,7 @@ def public_analysis(req: Request, payload: PeriodQuery):
             GROUP BY day
             ORDER BY day
             """,
-            params,
+            [settings.tz] + params,
         )
         daily_rows = cur.fetchall()
         daily_series = build_daily_series(from_date, to_date, daily_rows)
