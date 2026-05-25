@@ -2,240 +2,207 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { fmtMoney } from "@/lib/utils";
+import { useAppCtx } from "@/components/layout/AppLayout";
+import { Card, SectionTitle } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Input";
 import { MoneyInput } from "@/components/ui/MoneyInput";
-import { fmtMoney } from "@/lib/utils";
-import type { Account, SummaryAccount } from "@/types/domain";
-
-interface AccountForm {
-  account_name: string;
-  initial_balance: number;
-  profile_type: Account["profile_type"];
-  is_payroll_source: boolean;
-  is_no_limit: boolean;
-  is_buffer: boolean;
-  fixed_limit_amount: number;
-  budget: number;
-}
-
-const EMPTY: AccountForm = {
-  account_name: "",
-  initial_balance: 0,
-  profile_type: "dynamic_spending",
-  is_payroll_source: false,
-  is_no_limit: false,
-  is_buffer: false,
-  fixed_limit_amount: 0,
-  budget: 0,
-};
+import type { Account } from "@/types/domain";
 
 export default function AccountsPage() {
   const qc = useQueryClient();
+  const { hideBalances } = useAppCtx();
+  const bal = (n: number) => hideBalances ? "Rp ••••" : fmtMoney(n);
+  const [selected, setSelected] = useState<Account | null>(null);
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
-  const [editing, setEditing] = useState<Account | null>(null);
-  const [form, setForm] = useState<AccountForm>(EMPTY);
+  const [form, setForm] = useState({ account_name: "", profile_type: "dynamic_spending", is_payroll_source: false, is_buffer: false, is_no_limit: false, fixed_limit_amount: 0, budget: 0, initial_balance: 0 });
   const [err, setErr] = useState("");
 
-  const { data: accountsData } = useQuery<{ accounts: Account[] }>({
-    queryKey: ["accounts"],
-    queryFn: () => api.get("/accounts"),
+  const { data } = useQuery<{ accounts: Account[] }>({ queryKey: ["accounts"], queryFn: () => api.get("/accounts") });
+  const { data: summaryData } = useQuery<any>({ queryKey: ["summary"], queryFn: () => api.get("/summary") });
+
+  const budgetByAcc: Record<string, { pct: number; status: string; amount: number }> = {};
+  summaryData?.accounts?.forEach((a: any) => {
+    if (a.budget != null) budgetByAcc[a.account_id] = { pct: a.budget_pct ?? 0, status: a.budget_status ?? "ok", amount: a.budget };
   });
 
-  // Get current month budgets from summary
-  const { data: summaryData } = useQuery<{ accounts: SummaryAccount[] }>({
-    queryKey: ["summary-accounts"],
-    queryFn: () => api.get("/summary"),
-    select: (d: any) => d,
-  });
+  const inv = () => { qc.invalidateQueries({ queryKey: ["accounts"] }); qc.invalidateQueries({ queryKey: ["summary"] }); };
 
-  const budgetByAccount: Record<string, number> = {};
-  (summaryData as any)?.accounts?.forEach((a: SummaryAccount) => {
-    if (a.budget != null) budgetByAccount[a.account_id] = a.budget;
-  });
-
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["accounts"] });
-    qc.invalidateQueries({ queryKey: ["summary"] });
-    qc.invalidateQueries({ queryKey: ["summary-accounts"] });
-  };
-
-  const createMut = useMutation({
-    mutationFn: (f: AccountForm) =>
-      api.post("/accounts", { account_name: f.account_name, initial_balance: f.initial_balance }),
-    onSuccess: async (res: any) => {
-      // set profile
-      await api.put(`/accounts/${res.account_id}/profile`, {
-        profile_type: form.profile_type,
-        is_payroll_source: form.is_payroll_source,
-        is_no_limit: form.is_no_limit,
-        is_buffer: form.is_buffer,
-        fixed_limit_amount: form.fixed_limit_amount || null,
-      });
-      // set budget if provided
-      if (form.budget > 0) {
-        const month = new Date().toISOString().slice(0, 7);
-        await api.post("/budgets", { account_id: res.account_id, month, amount: form.budget });
-      }
-      invalidate();
-      setModal(null);
-    },
-    onError: (e: Error) => setErr(e.message),
-  });
-
-  const editMut = useMutation({
-    mutationFn: async (f: AccountForm) => {
-      await api.put(`/accounts/${editing!.account_id}`, { account_name: f.account_name });
-      await api.put(`/accounts/${editing!.account_id}/profile`, {
-        profile_type: f.profile_type,
-        is_payroll_source: f.is_payroll_source,
-        is_no_limit: f.is_no_limit,
-        is_buffer: f.is_buffer,
-        fixed_limit_amount: f.fixed_limit_amount || null,
-      });
-      if (f.budget > 0) {
-        const month = new Date().toISOString().slice(0, 7);
-        await api.post("/budgets", { account_id: editing!.account_id, month, amount: f.budget });
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      if (modal === "create") {
+        const res: any = await api.post("/accounts", { account_name: form.account_name, initial_balance: form.initial_balance });
+        await api.put(`/accounts/${res.account_id}/profile`, { profile_type: form.profile_type, is_payroll_source: form.is_payroll_source, is_buffer: form.is_buffer, is_no_limit: form.is_no_limit, fixed_limit_amount: form.fixed_limit_amount || null });
+        if (form.budget > 0) await api.post("/budgets", { account_id: res.account_id, month: new Date().toISOString().slice(0, 7), amount: form.budget });
+      } else if (selected) {
+        await api.put(`/accounts/${selected.account_id}`, { account_name: form.account_name });
+        await api.put(`/accounts/${selected.account_id}/profile`, { profile_type: form.profile_type, is_payroll_source: form.is_payroll_source, is_buffer: form.is_buffer, is_no_limit: form.is_no_limit, fixed_limit_amount: form.fixed_limit_amount || null });
+        if (form.budget > 0) await api.post("/budgets", { account_id: selected.account_id, month: new Date().toISOString().slice(0, 7), amount: form.budget });
       }
     },
-    onSuccess: () => { invalidate(); setModal(null); },
+    onSuccess: () => { inv(); setModal(null); },
     onError: (e: Error) => setErr(e.message),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.del(`/accounts/${id}`),
-    onSuccess: () => invalidate(),
+    onSuccess: () => { inv(); setSelected(null); },
   });
 
+  const accounts = data?.accounts ?? [];
+  const totalBalance = accounts.reduce((s, a) => s + (summaryData?.accounts?.find((sa: any) => sa.account_id === a.account_id)?.current_balance ?? 0), 0);
+
   function openCreate() {
-    setForm(EMPTY);
-    setErr("");
-    setModal("create");
+    setForm({ account_name: "", profile_type: "dynamic_spending", is_payroll_source: false, is_buffer: false, is_no_limit: false, fixed_limit_amount: 0, budget: 0, initial_balance: 0 });
+    setErr(""); setModal("create");
   }
-
   function openEdit(acc: Account) {
-    setEditing(acc);
-    setForm({
-      account_name: acc.account_name,
-      initial_balance: 0,
-      profile_type: acc.profile_type,
-      is_payroll_source: acc.is_payroll_source,
-      is_no_limit: acc.is_no_limit,
-      is_buffer: acc.is_buffer,
-      fixed_limit_amount: acc.fixed_limit_amount ?? 0,
-      budget: budgetByAccount[acc.account_id] ?? 0,
-    });
-    setErr("");
-    setModal("edit");
+    setForm({ account_name: acc.account_name, profile_type: acc.profile_type, is_payroll_source: acc.is_payroll_source, is_buffer: acc.is_buffer, is_no_limit: acc.is_no_limit, fixed_limit_amount: acc.fixed_limit_amount ?? 0, budget: budgetByAcc[acc.account_id]?.amount ?? 0, initial_balance: 0 });
+    setErr(""); setModal("edit");
   }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (modal === "create") createMut.mutate(form);
-    else editMut.mutate(form);
-  }
-
-  const accounts = accountsData?.accounts ?? [];
-  const busy = createMut.isPending || editMut.isPending;
 
   return (
-    <div className="p-4 max-w-2xl mx-auto space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Accounts</h1>
-        <Button variant="primary" size="sm" onClick={openCreate}>+ New Account</Button>
-      </div>
-
-      <div className="space-y-2">
-        {accounts.length === 0 && (
-          <p className="text-[var(--muted)] text-sm text-center py-8">No accounts yet. Create one to get started.</p>
-        )}
-        {accounts.map((acc) => (
-          <div key={acc.account_id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-            <div>
-              <div className="font-medium">{acc.account_name}</div>
-              <div className="text-xs text-[var(--muted)] mt-0.5 flex gap-2">
-                <span>{acc.profile_type.replace("_", " ")}</span>
-                {acc.is_payroll_source && <span className="text-green-600">payroll</span>}
-                {acc.is_buffer && <span className="text-blue-500">buffer</span>}
-                {budgetByAccount[acc.account_id] != null && (
-                  <span>limit: {fmtMoney(budgetByAccount[acc.account_id])}</span>
-                )}
+    <div className="flex h-[calc(100vh-56px)]">
+      <div className="flex-1 p-5 overflow-auto">
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-3 mb-4">
+          {[
+            { label: "Total Accounts", value: accounts.length, sub: "Across institutions", icon: "🏦" },
+            { label: "Total Balance", value: null, money: totalBalance, sub: "All accounts", icon: "💰" },
+            { label: "Payroll Sources", value: accounts.filter((a) => a.is_payroll_source).length, sub: "Salary accounts", icon: "📋" },
+            { label: "With Buffer", value: accounts.filter((a) => a.is_buffer).length, sub: "Emergency ready", icon: "🛡️" },
+          ].map((s) => (
+            <Card key={s.label} padding="sm">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-lg">{s.icon}</span>
+                <p className="text-xs text-[var(--muted)]">{s.label}</p>
               </div>
+              <p className="text-xl font-bold">{s.money != null ? (hideBalances ? "Rp ••••" : fmtMoney(s.money)) : s.value}</p>
+              <p className="text-xs text-[var(--muted)]">{s.sub}</p>
+            </Card>
+          ))}
+        </div>
+
+        {/* Table */}
+        <Card padding="sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex gap-2">
+              <input placeholder="Search accounts" className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-xs bg-[var(--surface)] w-48" />
+              <select className="border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs bg-[var(--surface)]"><option>All Accounts</option></select>
             </div>
-            <div className="flex gap-2 shrink-0">
-              <Button size="sm" variant="ghost" onClick={() => openEdit(acc)}>Edit</Button>
-              <Button
-                size="sm"
-                variant="danger"
-                onClick={() => confirm(`Delete "${acc.account_name}"?`) && deleteMut.mutate(acc.account_id)}
-              >
-                Delete
-              </Button>
-            </div>
+            <Button size="sm" variant="primary" onClick={openCreate}>+ Add Account</Button>
           </div>
-        ))}
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-[var(--muted)] border-b border-[var(--border)]">
+                <th className="text-left pb-2 font-medium">Account</th>
+                <th className="text-left pb-2 font-medium">Profile Type</th>
+                <th className="text-right pb-2 font-medium">Balance</th>
+                <th className="text-right pb-2 font-medium">Budget Limit</th>
+                <th className="text-left pb-2 font-medium">Linked Usage</th>
+                <th className="text-center pb-2 font-medium">Payroll Source</th>
+                <th className="text-center pb-2 font-medium">Buffer</th>
+                <th className="text-right pb-2 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border)]">
+              {accounts.map((acc) => {
+                const budget = budgetByAcc[acc.account_id];
+                const currentBal = summaryData?.accounts?.find((sa: any) => sa.account_id === acc.account_id)?.current_balance ?? 0;
+                return (
+                  <tr key={acc.account_id} onClick={() => setSelected(acc)} className={`hover:bg-[var(--bg)] cursor-pointer transition-colors ${selected?.account_id === acc.account_id ? "bg-primary/5" : ""}`}>
+                    <td className="py-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-sm">🏦</div>
+                        <div>
+                          <p className="font-medium text-[var(--text)]">{acc.account_name}</p>
+                          <p className="text-[var(--muted)] capitalize">{acc.profile_type.replace("_", " ")}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2.5"><Badge variant="gray">{acc.profile_type.replace("_", " ")}</Badge></td>
+                    <td className="py-2.5 text-right tabular font-medium">{bal(currentBal)}</td>
+                    <td className="py-2.5 text-right tabular">{acc.fixed_limit_amount ? bal(acc.fixed_limit_amount) : budget ? bal(budget.amount) : <span className="text-[var(--muted)]">—</span>}</td>
+                    <td className="py-2.5 w-32">
+                      {budget ? <ProgressBar value={budget.pct} showLabel /> : <span className="text-[var(--muted)]">—</span>}
+                    </td>
+                    <td className="py-2.5 text-center">{acc.is_payroll_source ? <span className="text-primary">✓</span> : <span className="text-[var(--muted)]">—</span>}</td>
+                    <td className="py-2.5 text-center">{acc.is_buffer ? <span className="text-primary">✓</span> : <span className="text-[var(--muted)]">—</span>}</td>
+                    <td className="py-2.5 text-right">
+                      <div className="flex gap-1 justify-end">
+                        <button onClick={(e) => { e.stopPropagation(); openEdit(acc); }} className="p-1 rounded hover:bg-[var(--bg)] text-[var(--muted)]">✏️</button>
+                        <button onClick={(e) => { e.stopPropagation(); }} className="p-1 rounded hover:bg-[var(--bg)] text-[var(--muted)]">⋯</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr className="font-semibold border-t-2 border-[var(--border)]">
+                <td className="py-2.5">Total</td>
+                <td /><td className="py-2.5 text-right tabular">{bal(totalBalance)}</td>
+                <td /><td /><td /><td /><td />
+              </tr>
+            </tbody>
+          </table>
+          <p className="text-xs text-[var(--muted)] mt-3">Showing 1 to {accounts.length} of {accounts.length} accounts</p>
+        </Card>
       </div>
 
+      {/* Detail panel */}
+      {selected && (
+        <div className="w-72 border-l border-[var(--border)] bg-[var(--surface)] flex flex-col overflow-y-auto">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
+            <h3 className="font-semibold text-sm">{selected.account_name}</h3>
+            <button onClick={() => setSelected(null)} className="text-[var(--muted)]">✕</button>
+          </div>
+          <div className="p-4 space-y-3 text-xs flex-1">
+            <SectionTitle>Account Overview</SectionTitle>
+            {[
+              ["Profile Type", selected.profile_type.replace("_", " ")],
+              ["Current Balance", bal(summaryData?.accounts?.find((a: any) => a.account_id === selected.account_id)?.current_balance ?? 0)],
+              ["Budget Limit", budgetByAcc[selected.account_id] ? bal(budgetByAcc[selected.account_id].amount) : "—"],
+              ["Payroll Source", selected.is_payroll_source ? "Yes" : "No"],
+              ["Buffer Account", selected.is_buffer ? "Yes" : "No"],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between">
+                <span className="text-[var(--muted)]">{k}</span>
+                <span className="font-medium capitalize">{v}</span>
+              </div>
+            ))}
+          </div>
+          <div className="p-4 border-t border-[var(--border)] space-y-2">
+            <Button size="sm" variant="secondary" className="w-full" onClick={() => openEdit(selected)}>✏️ Edit Account</Button>
+            <Button size="sm" variant="danger" className="w-full" onClick={() => confirm(`Delete "${selected.account_name}"?`) && deleteMut.mutate(selected.account_id)}>🗑️ Delete Account</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal */}
       <Modal open={modal !== null} onClose={() => setModal(null)} title={modal === "create" ? "New Account" : "Edit Account"}>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Account Name"
-            value={form.account_name}
-            onChange={(e) => setForm({ ...form, account_name: e.target.value })}
-            required
-            placeholder="e.g. Cash, BCA, GoPay"
-          />
-          {modal === "create" && (
-            <MoneyInput
-              label="Initial Balance"
-              value={form.initial_balance}
-              onChange={(v) => setForm({ ...form, initial_balance: v })}
-            />
-          )}
-          <MoneyInput
-            label="Monthly Budget Limit"
-            value={form.budget}
-            onChange={(v) => setForm({ ...form, budget: v })}
-          />
-          <Select
-            label="Profile Type"
-            value={form.profile_type}
-            onChange={(e) => setForm({ ...form, profile_type: e.target.value as Account["profile_type"] })}
-          >
+        <form onSubmit={(e) => { e.preventDefault(); saveMut.mutate(); }} className="space-y-3">
+          <Input label="Account Name" value={form.account_name} onChange={(e) => setForm({ ...form, account_name: e.target.value })} required />
+          {modal === "create" && <MoneyInput label="Initial Balance" value={form.initial_balance} onChange={(v) => setForm({ ...form, initial_balance: v })} />}
+          <MoneyInput label="Monthly Budget Limit" value={form.budget} onChange={(v) => setForm({ ...form, budget: v })} />
+          <Select label="Profile Type" value={form.profile_type} onChange={(e) => setForm({ ...form, profile_type: e.target.value })}>
             <option value="dynamic_spending">Dynamic Spending</option>
             <option value="fixed_spending">Fixed Spending</option>
-            <option value="tabungan">Savings (Tabungan)</option>
+            <option value="tabungan">Savings</option>
           </Select>
-          {form.profile_type === "fixed_spending" && (
-            <MoneyInput
-              label="Fixed Limit Amount"
-              value={form.fixed_limit_amount}
-              onChange={(v) => setForm({ ...form, fixed_limit_amount: v })}
-            />
-          )}
-          <div className="flex flex-col gap-2">
-            {[
-              { key: "is_payroll_source", label: "Payroll source (income arrives here)" },
-              { key: "is_buffer", label: "Buffer account" },
-              { key: "is_no_limit", label: "No spending limit" },
-            ].map(({ key, label }) => (
-              <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form[key as keyof AccountForm] as boolean}
-                  onChange={(e) => setForm({ ...form, [key]: e.target.checked })}
-                  className="rounded"
-                />
-                {label}
+          <div className="space-y-2">
+            {[["is_payroll_source", "Payroll source"], ["is_buffer", "Buffer account"], ["is_no_limit", "No spending limit"]].map(([k, l]) => (
+              <label key={k} className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={form[k as keyof typeof form] as boolean} onChange={(e) => setForm({ ...form, [k]: e.target.checked })} />
+                {l}
               </label>
             ))}
           </div>
-          {err && <p className="text-sm text-[var(--danger)]">{err}</p>}
+          {err && <p className="text-xs text-danger">{err}</p>}
           <div className="flex gap-2 pt-1">
-            <Button type="submit" variant="primary" className="flex-1" disabled={busy}>
-              {busy ? "Saving…" : "Save"}
-            </Button>
+            <Button type="submit" variant="primary" className="flex-1" disabled={saveMut.isPending}>Save</Button>
             <Button type="button" variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
           </div>
         </form>

@@ -1,31 +1,50 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { fmtMoney } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
-import { TransactionModal } from "@/components/ui/TransactionModal";
-import { SwitchModal } from "@/components/ui/SwitchModal";
-import { ExportModal } from "@/components/ui/ExportModal";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import type { LedgerResponse, LedgerRow, Category } from "@/types/domain";
+import { Input, Select } from "@/components/ui/Input";
+import { MoneyInput } from "@/components/ui/MoneyInput";
+import type { LedgerRow, LedgerResponse, Category } from "@/types/domain";
+
+const CATEGORY_ICONS: Record<string, string> = {
+  income: "💵", salary: "💵", bonus: "🎁", freelance: "💻",
+  food: "🍽️", "food & dining": "🍽️", dining: "🍽️",
+  transport: "🚗", shopping: "🛍️", health: "❤️",
+  utilities: "💡", bills: "💡", housing: "🏠",
+  entertainment: "🎬", education: "📚", savings: "🏦",
+  investment: "📈", transfer: "⇄", "transfer in": "⇄", "transfer out": "⇄",
+};
+
+function getCategoryIcon(name: string) {
+  const key = name.toLowerCase();
+  return CATEGORY_ICONS[key] ?? "📋";
+}
 
 export default function LedgerPage() {
-  const { accounts, paydayDay, hideBalances } = useAppCtx();
+  const { accounts, hideBalances } = useAppCtx();
+  const qc = useQueryClient();
+  const bal = (n: number) => hideBalances ? "Rp ••••" : fmtMoney(n);
+
+  // Filters
   const [scope, setScope] = useState<"all" | "account">("all");
   const [accountId, setAccountId] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "transfer" | "payroll">("all");
   const [search, setSearch] = useState("");
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [rows, setRows] = useState<LedgerRow[]>([]);
-  const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [totalAsset, setTotalAsset] = useState(0);
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(10);
 
+  // Modals
   const [txModal, setTxModal] = useState(false);
   const [editingRow, setEditingRow] = useState<LedgerRow | null>(null);
+  const [selectedRow, setSelectedRow] = useState<LedgerRow | null>(null);
   const [switchModal, setSwitchModal] = useState(false);
-  const [exportModal, setExportModal] = useState(false);
 
   const { data: categoriesData } = useQuery<{ categories: Category[] }>({
     queryKey: ["categories"],
@@ -33,163 +52,368 @@ export default function LedgerPage() {
   });
   const categories = categoriesData?.categories ?? [];
 
-  const fetchPage = useCallback(async (reset = false) => {
-    if (loading) return;
-    setLoading(true);
-    try {
-      const body: Record<string, unknown> = {
-        scope,
-        account_id: accountId,
-        limit: 50,
-        order: "desc",
-        q: search || null,
-        cursor: reset ? null : cursor,
-        include_switch: true,
-      };
-      const data = await api.post<LedgerResponse>("/ledger", body);
-      setRows((prev) => (reset ? data.rows : [...prev, ...data.rows]));
-      setHasMore(data.paging.has_more);
-      setCursor(data.paging.next_cursor ?? null);
-      // total asset from summary is fetched separately; use first row balance as proxy
-    } finally {
-      setLoading(false);
-    }
-  }, [scope, accountId, search, cursor, loading]);
+  // Ledger data
+  const { data: ledgerData, isLoading } = useQuery<LedgerResponse>({
+    queryKey: ["ledger", scope, accountId, search, page, perPage],
+    queryFn: () => api.post("/ledger", {
+      scope, account_id: accountId, limit: perPage,
+      order: "desc", q: search || null, include_switch: true,
+      cursor: null,
+    }),
+  });
 
-  // Reset on filter change
-  useEffect(() => {
-    setCursor(null);
-    setRows([]);
-    setHasMore(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope, accountId, search]);
+  const rows = ledgerData?.rows ?? [];
+  const totalIn = rows.reduce((s, r) => s + r.debit, 0);
+  const totalOut = rows.reduce((s, r) => s + r.credit, 0);
 
-  useEffect(() => {
-    if (rows.length === 0 && !loading) fetchPage(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope, accountId, search]);
-
-  // Infinite scroll
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting && hasMore && !loading) fetchPage(); },
-      { threshold: 0.1 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [hasMore, loading, fetchPage]);
+  const filteredRows = rows.filter((r) => {
+    if (typeFilter === "income") return r.debit > 0 && !r.is_transfer;
+    if (typeFilter === "expense") return r.credit > 0 && !r.is_transfer;
+    if (typeFilter === "transfer") return r.is_transfer;
+    if (typeFilter === "payroll") return r.is_cycle_topup;
+    return true;
+  });
 
   function openEdit(row: LedgerRow) {
-    if (row.is_transfer) return; // transfers use switch endpoint
+    if (row.is_transfer) return;
     setEditingRow(row);
+    setSelectedRow(row);
     setTxModal(true);
   }
 
-  const bal = (n: number) => hideBalances ? "••••" : fmtMoney(n);
+  const TYPE_PILLS = [
+    { key: "all", label: "All" },
+    { key: "income", label: "Income" },
+    { key: "expense", label: "Expense" },
+    { key: "transfer", label: "Transfer" },
+    { key: "payroll", label: "★ Payroll" },
+  ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-49px)]">
-      {/* Toolbar */}
-      <div className="px-4 py-2 border-b border-[var(--border)] bg-[var(--surface)] flex flex-wrap gap-2 items-center">
-        <select
-          className="border border-[var(--border)] rounded px-2 py-1.5 text-sm bg-[var(--surface)] text-[var(--text)]"
-          value={scope === "all" ? "all" : accountId ?? "all"}
-          onChange={(e) => {
+    <div className="flex h-[calc(100vh-56px)]">
+      {/* Main content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Filter bar */}
+        <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--surface)] flex flex-wrap gap-2 items-center">
+          <Select value={scope === "all" ? "all" : accountId ?? "all"} onChange={(e) => {
             if (e.target.value === "all") { setScope("all"); setAccountId(null); }
             else { setScope("account"); setAccountId(e.target.value); }
-          }}
-        >
-          <option value="all">All Accounts</option>
-          {accounts.map((a) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
-        </select>
-        <input
-          type="search"
-          placeholder="Search…"
-          className="border border-[var(--border)] rounded px-2 py-1.5 text-sm flex-1 min-w-32 bg-[var(--surface)] text-[var(--text)]"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <div className="flex gap-1 ml-auto">
-          <Button size="sm" variant="secondary" onClick={() => setExportModal(true)}>Export</Button>
-          <Button size="sm" variant="secondary" onClick={() => setSwitchModal(true)}>Switch</Button>
-          <Button size="sm" variant="primary" onClick={() => { setEditingRow(null); setTxModal(true); }}>+ Add</Button>
+          }} className="text-xs py-1.5 w-40">
+            <option value="all">All accounts</option>
+            {accounts.map((a) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
+          </Select>
+          <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="text-xs py-1.5 w-36">
+            <option value="">All categories</option>
+            {categories.map((c) => <option key={c.category_id} value={c.category_id}>{c.name}</option>)}
+          </Select>
+          <div className="relative flex-1 min-w-48">
+            <input
+              type="search" placeholder="Search description, category, account..."
+              value={search} onChange={(e) => setSearch(e.target.value)}
+              className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-xs bg-[var(--surface)] text-[var(--text)] pr-8"
+            />
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] text-xs">🔍</span>
+          </div>
+          <div className="ml-auto flex gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setSwitchModal(true)}>⇄ Transfer</Button>
+            <Button size="sm" variant="primary" onClick={() => { setEditingRow(null); setTxModal(true); }}>+ Add Transaction</Button>
+          </div>
+        </div>
+
+        {/* Type pills */}
+        <div className="px-5 py-2 border-b border-[var(--border)] bg-[var(--surface)] flex gap-1.5 items-center">
+          {TYPE_PILLS.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => setTypeFilter(p.key as typeof typeFilter)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${typeFilter === p.key ? "bg-primary text-white" : "bg-[var(--bg)] text-[var(--muted)] hover:bg-[var(--border)]"}`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Stat cards */}
+        <div className="px-5 py-3 border-b border-[var(--border)] grid grid-cols-5 gap-3">
+          {[
+            { icon: "↑", label: "Total Cash In", value: totalIn, color: "text-primary" },
+            { icon: "↓", label: "Total Cash Out", value: totalOut, color: "text-danger" },
+            { icon: "~", label: "Net Cash Flow", value: totalIn - totalOut, color: totalIn - totalOut >= 0 ? "text-primary" : "text-danger" },
+            { icon: "≈", label: "Average Daily Flow", value: Math.round((totalIn - totalOut) / 30), color: "text-info" },
+            { icon: "#", label: "Transactions", value: null, count: filteredRows.length, color: "text-[var(--text)]" },
+          ].map((s) => (
+            <div key={s.label} className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-sm font-bold text-[var(--muted)]">{s.icon}</div>
+              <div>
+                <p className="text-xs text-[var(--muted)]">{s.label}</p>
+                <p className={`text-sm font-bold tabular ${s.color}`}>
+                  {s.count != null ? s.count : bal(s.value ?? 0)}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Table */}
+        <div className="flex-1 overflow-auto">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-[var(--surface)] border-b border-[var(--border)]">
+              <tr className="text-[var(--muted)]">
+                <th className="text-left px-4 py-2.5 font-medium">Date ↓</th>
+                <th className="text-left px-3 py-2.5 font-medium">Account</th>
+                <th className="text-left px-3 py-2.5 font-medium">Category</th>
+                <th className="text-left px-3 py-2.5 font-medium">Description</th>
+                <th className="text-right px-3 py-2.5 font-medium">Cash In</th>
+                <th className="text-right px-3 py-2.5 font-medium">Cash Out</th>
+                <th className="text-right px-3 py-2.5 font-medium">Running Balance</th>
+                <th className="px-3 py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border)]">
+              {isLoading && (
+                <tr><td colSpan={8} className="text-center py-8 text-[var(--muted)]">Loading…</td></tr>
+              )}
+              {filteredRows.map((row) => (
+                <tr
+                  key={row.transaction_id}
+                  onClick={() => { setSelectedRow(row); if (!row.is_transfer) { setEditingRow(row); setTxModal(true); } }}
+                  className={`hover:bg-[var(--bg)] cursor-pointer transition-colors ${row.is_transfer ? "opacity-60" : ""} ${selectedRow?.transaction_id === row.transaction_id ? "bg-primary/5" : ""}`}
+                >
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-1.5">
+                      {row.is_cycle_topup && <span className="text-warning text-xs">★</span>}
+                      <div>
+                        <p className="font-medium text-[var(--text)]">{new Date(row.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                        <p className="text-[var(--muted)]">{new Date(row.date).toLocaleDateString("en-GB", { weekday: "short" })}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {row.is_transfer ? (
+                      <div className="flex items-center gap-1 text-[var(--muted)]">
+                        <span className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs">⇄</span>
+                        <span className="truncate max-w-[80px]">{row.account_name}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-5 h-5 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-xs">🏦</div>
+                        <div>
+                          <p className="font-medium text-[var(--text)] truncate max-w-[80px]">{row.account_name}</p>
+                        </div>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm">{getCategoryIcon(row.transaction_name)}</span>
+                      <span className="text-[var(--muted)] truncate max-w-[80px]">{row.transaction_name.split(" ")[0]}</span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate max-w-[160px] text-[var(--text)]">{row.transaction_name}</span>
+                      {row.is_cycle_topup && <Badge variant="yellow">Payroll</Badge>}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular font-medium text-primary">
+                    {row.debit > 0 ? bal(row.debit) : "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular font-medium text-danger">
+                    {row.credit > 0 ? bal(row.credit) : "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular text-[var(--text)]">{bal(row.balance)}</td>
+                  <td className="px-3 py-2.5 text-[var(--muted)]">⋯</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="px-5 py-3 border-t border-[var(--border)] bg-[var(--surface)] flex items-center justify-between text-xs text-[var(--muted)]">
+          <span>Showing 1 to {filteredRows.length} of {filteredRows.length} transactions</span>
+          <div className="flex items-center gap-1">
+            <button className="px-2 py-1 rounded border border-[var(--border)] hover:bg-[var(--bg)]">‹</button>
+            <button className="px-2.5 py-1 rounded bg-primary text-white font-medium">1</button>
+            <button className="px-2 py-1 rounded border border-[var(--border)] hover:bg-[var(--bg)]">›</button>
+            <span className="ml-3">10 / page ▾</span>
+          </div>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-[var(--surface)] border-b border-[var(--border)] text-[var(--muted)] text-xs uppercase">
-            <tr>
-              <th className="px-3 py-2 text-left">Date</th>
-              {scope === "all" && <th className="px-3 py-2 text-left">Account</th>}
-              <th className="px-3 py-2 text-left">Description</th>
-              <th className="px-3 py-2 text-right">In</th>
-              <th className="px-3 py-2 text-right">Out</th>
-              <th className="px-3 py-2 text-right">Balance</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--border)]">
-            {rows.map((row) => (
-              <tr
-                key={row.transaction_id}
-                onClick={() => openEdit(row)}
-                className={`hover:bg-[var(--bg)] cursor-pointer transition-colors ${row.is_transfer ? "opacity-60" : ""}`}
-              >
-                <td className="px-3 py-2 whitespace-nowrap text-[var(--muted)] text-xs">
-                  {new Date(row.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
-                  <span className="ml-1 text-[10px]">{new Date(row.date).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</span>
-                </td>
-                {scope === "all" && (
-                  <td className="px-3 py-2 text-xs text-[var(--muted)] max-w-[80px] truncate">{row.account_name}</td>
-                )}
-                <td className="px-3 py-2 max-w-[200px] truncate">
-                  {row.is_transfer && <span className="text-[var(--muted)] mr-1 text-xs">⇄</span>}
-                  {row.is_cycle_topup && <span className="text-green-600 mr-1 text-xs">★</span>}
-                  {row.transaction_name}
-                </td>
-                <td className="px-3 py-2 text-right text-green-600 font-medium tabular-nums">
-                  {row.debit > 0 ? bal(row.debit) : ""}
-                </td>
-                <td className="px-3 py-2 text-right text-red-500 font-medium tabular-nums">
-                  {row.credit > 0 ? bal(row.credit) : ""}
-                </td>
-                <td className="px-3 py-2 text-right font-medium tabular-nums text-[var(--text)]">
-                  {bal(row.balance)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {loading && <div className="text-center py-4 text-sm text-[var(--muted)]">Loading…</div>}
-        {!loading && rows.length === 0 && (
-          <div className="text-center py-12 text-[var(--muted)] text-sm">No transactions found.</div>
-        )}
-        <div ref={sentinelRef} className="h-1" />
-      </div>
+      {/* Right detail panel */}
+      {selectedRow && !txModal && (
+        <div className="w-80 border-l border-[var(--border)] bg-[var(--surface)] flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
+            <h3 className="font-semibold text-sm">Transaction Details</h3>
+            <button onClick={() => setSelectedRow(null)} className="text-[var(--muted)] hover:text-[var(--text)]">✕</button>
+          </div>
+          <div className="flex gap-4 px-4 py-2 border-b border-[var(--border)]">
+            <button className="text-xs font-semibold text-primary border-b-2 border-primary pb-1">Details</button>
+            <button className="text-xs text-[var(--muted)]">History</button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className={`p-3 rounded-xl ${selectedRow.debit > 0 ? "bg-green-50 dark:bg-green-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
+              <Badge variant={selectedRow.debit > 0 ? "green" : "red"}>{selectedRow.debit > 0 ? "Income" : "Expense"}</Badge>
+              <p className={`text-2xl font-bold tabular mt-1 ${selectedRow.debit > 0 ? "text-primary" : "text-danger"}`}>
+                {bal(selectedRow.debit > 0 ? selectedRow.debit : selectedRow.credit)}
+              </p>
+              <p className="text-xs text-[var(--muted)] mt-0.5">{selectedRow.transaction_name}</p>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div><p className="text-xs text-[var(--muted)] mb-1">Date</p><p className="font-medium">{new Date(selectedRow.date).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</p></div>
+              <div><p className="text-xs text-[var(--muted)] mb-1">Account</p><p className="font-medium">{selectedRow.account_name}</p></div>
+              <div><p className="text-xs text-[var(--muted)] mb-1">Running Balance</p><p className="font-medium tabular">{bal(selectedRow.balance)}</p></div>
+            </div>
+          </div>
+          {!selectedRow.is_transfer && (
+            <div className="p-4 border-t border-[var(--border)] flex gap-2">
+              <Button size="sm" variant="danger" className="flex-1">Delete</Button>
+              <Button size="sm" variant="secondary" className="flex-1" onClick={() => setSelectedRow(null)}>Cancel</Button>
+              <Button size="sm" variant="primary" className="flex-1" onClick={() => { setEditingRow(selectedRow); setTxModal(true); }}>Edit</Button>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Modals */}
-      <TransactionModal
-        open={txModal}
-        onClose={() => { setTxModal(false); setEditingRow(null); setRows([]); fetchPage(true); }}
-        accounts={accounts}
-        categories={categories}
-        editing={editingRow}
-        defaultAccountId={accountId ?? accounts[0]?.account_id}
-      />
-      <SwitchModal
-        open={switchModal}
-        onClose={() => { setSwitchModal(false); setRows([]); fetchPage(true); }}
-        accounts={accounts}
-      />
-      <ExportModal
-        open={exportModal}
-        onClose={() => setExportModal(false)}
-        accounts={accounts}
-        paydayDay={paydayDay}
-      />
+      {/* Transaction modal */}
+      {txModal && (
+        <TxModal
+          open={txModal}
+          onClose={() => { setTxModal(false); setEditingRow(null); }}
+          accounts={accounts}
+          categories={categories}
+          editing={editingRow}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ["ledger"] }); qc.invalidateQueries({ queryKey: ["summary"] }); setTxModal(false); setEditingRow(null); }}
+        />
+      )}
+
+      {/* Switch modal */}
+      {switchModal && (
+        <SwitchModalInline
+          open={switchModal}
+          onClose={() => setSwitchModal(false)}
+          accounts={accounts}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ["ledger"] }); setSwitchModal(false); }}
+        />
+      )}
     </div>
+  );
+}
+
+// Inline transaction modal
+function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any) {
+  const [type, setType] = useState<"debit" | "credit">(editing?.debit > 0 ? "debit" : "credit");
+  const [accountId, setAccountId] = useState(editing?.account_id ?? accounts[0]?.account_id ?? "");
+  const [name, setName] = useState(editing?.transaction_name ?? "");
+  const [amount, setAmount] = useState(editing ? (editing.debit > 0 ? editing.debit : editing.credit) : 0);
+  const [date, setDate] = useState(editing?.date?.slice(0, 16) ?? new Date().toISOString().slice(0, 16));
+  const [categoryId, setCategoryId] = useState("");
+  const [notes, setNotes] = useState("");
+  const [isTopup, setIsTopup] = useState(editing?.is_cycle_topup ?? false);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const filteredCats = categories.filter((c: Category) => !c.is_archived && (type === "debit" ? c.kind === "income" : c.kind === "expense"));
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true); setErr("");
+    try {
+      const payload = { account_id: accountId, transaction_type: type, transaction_name: name, amount, date, is_cycle_topup: isTopup, category_id: categoryId || null, notes: notes || null };
+      if (editing) await api.put(`/transactions/${editing.transaction_id}`, payload);
+      else await api.post("/transactions", payload);
+      onSaved();
+    } catch (e: any) { setErr(e.message); }
+    finally { setLoading(false); }
+  }
+
+  async function handleDelete() {
+    if (!editing || !confirm("Delete this transaction?")) return;
+    setLoading(true);
+    try { await api.del(`/transactions/${editing.transaction_id}`); onSaved(); }
+    catch (e: any) { setErr(e.message); setLoading(false); }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={editing ? "Edit Transaction" : "Add Transaction"}>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="flex rounded-lg overflow-hidden border border-[var(--border)]">
+          {(["credit", "debit"] as const).map((t) => (
+            <button key={t} type="button" onClick={() => setType(t)}
+              className={`flex-1 py-2 text-sm font-medium transition-colors ${type === t ? (t === "debit" ? "bg-primary text-white" : "bg-danger text-white") : "bg-[var(--surface)] text-[var(--muted)]"}`}>
+              {t === "debit" ? "Cash In" : "Cash Out"}
+            </button>
+          ))}
+        </div>
+        <Select label="Account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+          {accounts.map((a: any) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
+        </Select>
+        <Input label="Description" value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Lunch, Salary" />
+        <MoneyInput label="Amount" value={amount} onChange={setAmount} required />
+        <Input label="Date & Time" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
+        {filteredCats.length > 0 && (
+          <Select label="Category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+            <option value="">— none —</option>
+            {filteredCats.map((c: any) => <option key={c.category_id} value={c.category_id}>{c.name}</option>)}
+          </Select>
+        )}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-[var(--muted)]">Notes</label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Optional note" className="w-full border border-[var(--border)] rounded px-3 py-2 text-sm bg-[var(--surface)] text-[var(--text)] resize-none" />
+          <p className="text-xs text-[var(--muted)] text-right">{notes.length}/250</p>
+        </div>
+        {type === "debit" && (
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={isTopup} onChange={(e) => setIsTopup(e.target.checked)} className="rounded" />
+            Mark as Payroll / Top-up
+          </label>
+        )}
+        {err && <p className="text-xs text-danger">{err}</p>}
+        <div className="flex gap-2 pt-1">
+          {editing && <Button type="button" variant="danger" size="sm" onClick={handleDelete} disabled={loading}>Delete</Button>}
+          <Button type="button" variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" size="sm" className="flex-1" disabled={loading}>{loading ? "Saving…" : "Save Changes"}</Button>
+        </div>
+        {editing && <p className="text-xs text-[var(--muted)] text-center">Created {new Date(editing.date).toLocaleString()}</p>}
+      </form>
+    </Modal>
+  );
+}
+
+function SwitchModalInline({ open, onClose, accounts, onSaved }: any) {
+  const [fromId, setFromId] = useState(accounts[0]?.account_id ?? "");
+  const [toId, setToId] = useState(accounts[1]?.account_id ?? "");
+  const [amount, setAmount] = useState(0);
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 16));
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (fromId === toId) return setErr("Source and target must differ");
+    setLoading(true); setErr("");
+    try { await api.post("/switch", { source_account_id: fromId, target_account_id: toId, amount, date }); onSaved(); }
+    catch (e: any) { setErr(e.message); setLoading(false); }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Transfer Between Accounts">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <Select label="From Account" value={fromId} onChange={(e) => setFromId(e.target.value)}>
+          {accounts.map((a: any) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
+        </Select>
+        <Select label="To Account" value={toId} onChange={(e) => setToId(e.target.value)}>
+          {accounts.map((a: any) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
+        </Select>
+        <MoneyInput label="Amount" value={amount} onChange={setAmount} required />
+        <Input label="Date & Time" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
+        {err && <p className="text-xs text-danger">{err}</p>}
+        <div className="flex gap-2 pt-1">
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" className="flex-1" disabled={loading}>{loading ? "Transferring…" : "Transfer"}</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
