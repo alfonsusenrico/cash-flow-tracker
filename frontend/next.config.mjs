@@ -1,10 +1,7 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   output: "standalone",
   async rewrites() {
-    // In development, proxy /api/* to the FastAPI backend.
-    // In production, nginx handles this routing — rewrites are not applied.
     if (process.env.NODE_ENV === "production") return [];
     return [
       {
