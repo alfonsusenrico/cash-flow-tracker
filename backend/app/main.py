@@ -10,12 +10,24 @@ from app.routers.public import router as public_router
 from app.routers.web import router as web_router
 from app.routers.resources.categories import router as categories_router
 from app.routers.resources.periods import router as periods_router
+from app.routers.resources.buckets import router as buckets_router
+from app.routers.resources.allocation import router as allocation_router
+from app.routers.resources.strategy import router as strategy_router
+from app.routers.resources.goals import router as goals_router
+from app.routers.resources.assets import router as assets_router
+from app.routers.resources.dashboard import router as dashboard_router
 from app.services.auth import (
     get_api_user_by_token,
     parse_bearer_token,
     require_session_user,
     enforce_public_rate_limit,
 )
+
+# Prefixes for all resource routers (mounted at both cookie and Bearer paths)
+_RESOURCE_PREFIXES = [
+    "/categories", "/periods", "/buckets", "/allocation-plans", "/strategy-rules",
+    "/goals", "/assets", "/dashboard",
+]
 
 
 @asynccontextmanager
@@ -39,33 +51,33 @@ app.add_middleware(
 app.include_router(web_router)
 app.include_router(public_router)
 
-# Resource routers mounted at both cookie (/prefix) and Bearer (/v1/prefix) paths.
-# Auth is resolved per-request in the middleware below before the handler runs.
-app.include_router(categories_router, prefix="/categories")
-app.include_router(categories_router, prefix="/v1/categories")
-app.include_router(periods_router, prefix="/periods")
-app.include_router(periods_router, prefix="/v1/periods")
+for _router, _prefix in [
+    (categories_router, "/categories"),
+    (periods_router, "/periods"),
+    (buckets_router, "/buckets"),
+    (allocation_router, "/allocation-plans"),
+    (strategy_router, "/strategy-rules"),
+    (goals_router, "/goals"),
+    (assets_router, "/assets"),
+    (dashboard_router, "/dashboard"),
+]:
+    app.include_router(_router, prefix=_prefix)
+    app.include_router(_router, prefix=f"/v1{_prefix}")
 
 
 @app.middleware("http")
 async def inject_username_middleware(request: Request, call_next):
-    """
-    Inject req.state.username for resource routers.
-    Raises 401 immediately if auth fails — never swallows errors silently.
-    """
     path = request.url.path
-
-    if path.startswith("/v1/categories") or path.startswith("/v1/periods"):
+    matched = next((p for p in _RESOURCE_PREFIXES if path.startswith(p) or path.startswith(f"/v1{p}")), None)
+    if matched:
+        is_api = path.startswith("/v1/")
         try:
-            token = parse_bearer_token(request)
-            enforce_public_rate_limit(request, token)
-            request.state.username = get_api_user_by_token(token)
-        except HTTPException as exc:
-            return JSONResponse(status_code=exc.status_code, content={"ok": False, "detail": exc.detail})
-
-    elif path.startswith("/categories") or path.startswith("/periods"):
-        try:
-            request.state.username = require_session_user(request)
+            if is_api:
+                token = parse_bearer_token(request)
+                enforce_public_rate_limit(request, token)
+                request.state.username = get_api_user_by_token(token)
+            else:
+                request.state.username = require_session_user(request)
         except HTTPException as exc:
             return JSONResponse(status_code=exc.status_code, content={"ok": False, "detail": exc.detail})
 

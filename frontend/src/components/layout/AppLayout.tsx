@@ -23,6 +23,12 @@ const NAV = [
   { href: "/ledger", label: "Transactions" },
   { href: "/analysis", label: "Analysis" },
   { href: "/accounts", label: "Accounts" },
+  { href: "/buckets", label: "Buckets" },
+  { href: "/allocation", label: "Allocation" },
+  { href: "/strategy", label: "Strategy" },
+  { href: "/goals", label: "Goals" },
+  { href: "/assets", label: "Assets" },
+  { href: "/net-worth", label: "Net Worth" },
   { href: "/categories", label: "Categories" },
 ];
 
