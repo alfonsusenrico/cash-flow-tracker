@@ -108,10 +108,10 @@ def create_api_key(cur, username: str, label: str = "default") -> str:
     )
     cur.execute(
         """
-        INSERT INTO api_keys (username, key_hash, key_prefix, key_masked, label)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO api_keys (user_id, username, key_hash, key_prefix, key_masked, label)
+        SELECT user_id, %s, %s, %s, %s, %s FROM users WHERE username=%s
         """,
-        (username, key_hash, plain[:12], key_masked, label),
+        (username, key_hash, plain[:12], key_masked, label, username),
     )
     return plain
 
