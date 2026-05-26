@@ -31,7 +31,8 @@ function getPriorityBadge(priority: number) {
   return { label: "Low priority", filter: "low", color: "gray" as const };
 }
 
-const EMPTY = { name: "", kind: "spending", target_amount: 0, linked_account_ids: [] as string[], priority: 50, notes: "" };
+const GOAL_BACKED_KINDS = new Set(["sinking", "emergency", "goal", "investment"]);
+const EMPTY = { name: "", kind: "spending", target_amount: 0, linked_account_ids: [] as string[], priority: 50, notes: "", create_linked_goal: true };
 
 export default function BucketsPage() {
   const qc = useQueryClient();
@@ -48,7 +49,10 @@ export default function BucketsPage() {
   const actionHandledRef = useRef(false);
 
   const { data } = useQuery<{ buckets: Bucket[] }>({ queryKey: ["buckets"], queryFn: () => api.get("/buckets") });
-  const inv = () => qc.invalidateQueries({ queryKey: ["buckets"] });
+  const inv = () => {
+    qc.invalidateQueries({ queryKey: ["buckets"] });
+    qc.invalidateQueries({ queryKey: ["goals"] });
+  };
 
   const saveMut = useMutation({
     mutationFn: () => {
@@ -57,6 +61,7 @@ export default function BucketsPage() {
         target_amount: form.target_amount || null,
         linked_account_ids: form.linked_account_ids,
         linked_account_id: form.linked_account_ids[0] ?? null,
+        create_linked_goal: GOAL_BACKED_KINDS.has(form.kind) && form.target_amount > 0 && form.create_linked_goal,
       };
       return editing ? api.put(`/buckets/${editing.bucket_id}`, payload) : api.post("/buckets", payload);
     },
@@ -107,9 +112,12 @@ export default function BucketsPage() {
       linked_account_ids: b.linked_account_ids?.length ? b.linked_account_ids : b.linked_account_id ? [b.linked_account_id] : [],
       priority: b.priority,
       notes: b.notes ?? "",
+      create_linked_goal: true,
     });
     setErr(""); setModal("edit");
   }
+
+  const canCreateLinkedGoal = GOAL_BACKED_KINDS.has(form.kind) && form.target_amount > 0;
 
   function toggleAccount(accountId: string) {
     setForm((prev) => ({
@@ -255,6 +263,26 @@ export default function BucketsPage() {
             {Object.entries(KIND_ICONS).map(([k, v]) => <option key={k} value={k}>{v} {k}</option>)}
           </Select>
           <MoneyInput label="Target Amount (optional)" value={form.target_amount} onChange={(v) => setForm({ ...form, target_amount: v })} />
+          {canCreateLinkedGoal && (
+            <div className="rounded border border-primary/30 bg-primary/5 px-3 py-2">
+              <label className="flex items-start gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.create_linked_goal}
+                  onChange={(e) => setForm({ ...form, create_linked_goal: e.target.checked })}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="block font-medium text-[var(--text)]">
+                    {editing ? "Sync matching goal" : "Create matching goal"}
+                  </span>
+                  <span className="block text-xs text-[var(--muted)]">
+                    This bucket will appear in Goals and its progress will follow the linked account balance.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
           <div className="flex flex-col gap-1">
             <p className="text-xs font-medium text-[var(--muted)]">Linked Accounts (optional)</p>
             <div className="max-h-44 overflow-auto rounded border border-[var(--border)] bg-[var(--surface)] p-2 space-y-1">

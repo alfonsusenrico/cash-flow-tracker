@@ -7,6 +7,7 @@ from app.services.ledger.balances import get_account_balances, parse_uuid_value
 from app.services.ledger.period import now_utc
 
 router = APIRouter(tags=["buckets"])
+GOAL_BACKED_BUCKET_KINDS = {"sinking", "emergency", "goal", "investment"}
 
 
 def _parse_target_amount(raw: Any) -> int | None:
@@ -16,6 +17,20 @@ def _parse_target_amount(raw: Any) -> int | None:
     if amount < 0:
         raise HTTPException(status_code=400, detail="target_amount must be >= 0")
     return amount
+
+
+def _parse_bool(raw: Any, default: bool = False) -> bool:
+    if raw is None:
+        return default
+    if isinstance(raw, bool):
+        return raw
+    return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _should_sync_linked_goal(data: dict[str, Any], kind: str, target_amount: int | None) -> bool:
+    if kind not in GOAL_BACKED_BUCKET_KINDS or not target_amount:
+        return False
+    return _parse_bool(data.get("create_linked_goal"), default=True)
 
 
 def _parse_account_ids(data: dict[str, Any]) -> list[str]:
@@ -60,6 +75,61 @@ def _replace_bucket_accounts(cur, bucket_id: str, account_ids: list[str]) -> Non
             "INSERT INTO bucket_accounts (bucket_id, account_id) VALUES (%s::uuid, %s::uuid)",
             [(bucket_id, account_id) for account_id in account_ids],
         )
+
+
+def _sync_linked_goal_for_bucket(
+    cur,
+    username: str,
+    *,
+    bucket_id: str,
+    name: str,
+    target_amount: int,
+    priority: int,
+    notes: str | None,
+    previous_name: str | None = None,
+) -> tuple[str, bool]:
+    cur.execute(
+        """
+        SELECT g.goal_id::text AS goal_id, g.name
+        FROM financial_goals g
+        JOIN users u ON u.user_id = g.user_id
+        WHERE u.username=%s
+          AND g.linked_bucket_id=%s::uuid
+          AND g.status IN ('active', 'paused')
+        ORDER BY g.created_at ASC
+        LIMIT 1
+        """,
+        (username, bucket_id),
+    )
+    existing = cur.fetchone()
+    if existing:
+        next_name = name if previous_name is None or existing["name"] == previous_name else existing["name"]
+        cur.execute(
+            """
+            UPDATE financial_goals
+            SET name=%s,
+                target_amount=%s,
+                priority=%s,
+                notes=COALESCE(notes, %s),
+                updated_at=now()
+            WHERE goal_id=%s::uuid
+            RETURNING goal_id::text AS goal_id
+            """,
+            (next_name, target_amount, priority, notes, existing["goal_id"]),
+        )
+        return cur.fetchone()["goal_id"], False
+
+    cur.execute(
+        """
+        INSERT INTO financial_goals (user_id, name, target_amount, linked_bucket_id, priority, notes)
+        SELECT user_id, %s, %s, %s::uuid, %s, %s
+        FROM users
+        WHERE username=%s
+        RETURNING goal_id::text AS goal_id
+        """,
+        (name, target_amount, bucket_id, priority, notes, username),
+    )
+    return cur.fetchone()["goal_id"], True
 
 
 @router.get("")
@@ -152,6 +222,7 @@ async def create_bucket(req: Request):
     linked_account_id = linked_account_ids[0] if linked_account_ids else None
     priority = int(data.get("priority") or 50)
     notes = (data.get("notes") or "").strip() or None
+    sync_goal = _should_sync_linked_goal(data, kind, target_amount)
 
     with db_conn() as conn, conn.cursor() as cur:
         try:
@@ -166,11 +237,28 @@ async def create_bucket(req: Request):
             )
             row = cur.fetchone()
             _replace_bucket_accounts(cur, row["bucket_id"], linked_account_ids)
+            linked_goal_id = None
+            linked_goal_created = False
+            if sync_goal and target_amount:
+                linked_goal_id, linked_goal_created = _sync_linked_goal_for_bucket(
+                    cur,
+                    username,
+                    bucket_id=row["bucket_id"],
+                    name=name,
+                    target_amount=target_amount,
+                    priority=priority,
+                    notes=notes,
+                )
             conn.commit()
         except UniqueViolation:
             conn.rollback()
             raise HTTPException(status_code=400, detail="Bucket name already exists")
-    return {"ok": True, "bucket_id": row["bucket_id"]}
+    return {
+        "ok": True,
+        "bucket_id": row["bucket_id"],
+        "linked_goal_id": linked_goal_id,
+        "linked_goal_created": linked_goal_created,
+    }
 
 
 @router.put("/{bucket_id}")
@@ -190,10 +278,23 @@ async def update_bucket(bucket_id: str, req: Request):
     priority = int(data.get("priority") or 50)
     notes = (data.get("notes") or "").strip() or None
     is_archived = bool(data.get("is_archived", False))
+    sync_goal = _should_sync_linked_goal(data, kind, target_amount)
 
     with db_conn() as conn, conn.cursor() as cur:
         try:
             _ensure_accounts(cur, username, linked_account_ids)
+            cur.execute(
+                """
+                SELECT name
+                FROM buckets
+                WHERE bucket_id=%s::uuid
+                  AND user_id=(SELECT user_id FROM users WHERE username=%s)
+                """,
+                (bucket_id, username),
+            )
+            previous = cur.fetchone()
+            if not previous:
+                raise HTTPException(status_code=404, detail="Bucket not found")
             cur.execute(
                 """
                 UPDATE buckets SET name=%s, kind=%s, target_amount=%s,
@@ -207,11 +308,24 @@ async def update_bucket(bucket_id: str, req: Request):
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Bucket not found")
             _replace_bucket_accounts(cur, bucket_id, linked_account_ids)
+            linked_goal_id = None
+            linked_goal_created = False
+            if sync_goal and target_amount and not is_archived:
+                linked_goal_id, linked_goal_created = _sync_linked_goal_for_bucket(
+                    cur,
+                    username,
+                    bucket_id=bucket_id,
+                    name=name,
+                    target_amount=target_amount,
+                    priority=priority,
+                    notes=notes,
+                    previous_name=previous["name"],
+                )
             conn.commit()
         except UniqueViolation:
             conn.rollback()
             raise HTTPException(status_code=400, detail="Bucket name already exists")
-    return {"ok": True}
+    return {"ok": True, "linked_goal_id": linked_goal_id, "linked_goal_created": linked_goal_created}
 
 
 @router.delete("/{bucket_id}")
