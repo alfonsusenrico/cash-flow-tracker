@@ -30,12 +30,13 @@ export default function AccountsPage() {
   const isBudgetedSpendingProfile = (profileType: string, isNoLimit = false) =>
     !isNoLimit && (profileType === "dynamic_spending" || profileType === "fixed_spending");
 
-  const budgetByAcc: Record<string, { budget_id?: string; pct: number; status: string; amount: number }> = {};
+  const budgetByAcc: Record<string, { budget_id?: string; pct: number; quotaPct: number; status: string; amount: number }> = {};
   summaryData?.accounts?.forEach((a: any) => {
     if (a.budget != null) {
       budgetByAcc[a.account_id] = {
         budget_id: a.budget_id,
         pct: a.budget_pct ?? 0,
+        quotaPct: Math.max(0, 100 - (a.budget_pct ?? 0)),
         status: a.budget_status ?? "ok",
         amount: a.budget,
       };
@@ -140,15 +141,25 @@ export default function AccountsPage() {
             </div>
             <Button size="sm" variant="primary" onClick={openCreate}>+ Add Account</Button>
           </div>
-          <table className="w-full text-xs">
+          <table className="w-full table-fixed text-xs">
+            <colgroup>
+              <col className="w-[23%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[13%]" />
+              <col className="w-[15%]" />
+              <col className="w-[9%]" />
+              <col className="w-[6%]" />
+              <col className="w-[6%]" />
+            </colgroup>
             <thead>
               <tr className="text-[var(--muted)] border-b border-[var(--border)]">
                 <th className="text-left pb-2 font-medium">Account</th>
-                <th className="text-left pb-2 font-medium">Profile Type</th>
+                <th className="text-left pb-2 font-medium">Profile</th>
                 <th className="text-right pb-2 font-medium">Balance</th>
-                <th className="text-right pb-2 font-medium">Monthly Spending Limit</th>
-                <th className="text-left pb-2 font-medium">Spend Used</th>
-                <th className="text-center pb-2 font-medium">Payroll Source</th>
+                <th className="text-right pb-2 pr-4 font-medium">Limit</th>
+                <th className="text-left pb-2 pl-4 font-medium">Quota</th>
+                <th className="text-center pb-2 font-medium">Payroll</th>
                 <th className="text-center pb-2 font-medium">Buffer</th>
                 <th className="text-right pb-2 font-medium">Actions</th>
               </tr>
@@ -174,9 +185,9 @@ export default function AccountsPage() {
                     </td>
                     <td className="py-2.5"><Badge variant="gray">{acc.profile_type.replace("_", " ")}</Badge></td>
                     <td className="py-2.5 text-right tabular font-medium">{bal(currentBal)}</td>
-                    <td className="py-2.5 text-right tabular">{spendingLimit ? bal(spendingLimit) : <span className="text-[var(--muted)]">—</span>}</td>
-                    <td className="py-2.5 w-32">
-                      {showsSpendingBudget && budget ? <ProgressBar value={budget.pct} showLabel /> : <span className="text-[var(--muted)]">—</span>}
+                    <td className="py-2.5 pr-4 text-right tabular">{spendingLimit ? bal(spendingLimit) : <span className="text-[var(--muted)]">—</span>}</td>
+                    <td className="py-2.5 pl-4">
+                      {showsSpendingBudget && budget ? <ProgressBar value={budget.quotaPct} intent="quota" showLabel /> : <span className="text-[var(--muted)]">—</span>}
                     </td>
                     <td className="py-2.5 text-center">{acc.is_payroll_source ? <span className="text-primary">✓</span> : <span className="text-[var(--muted)]">—</span>}</td>
                     <td className="py-2.5 text-center">{acc.is_buffer ? <span className="text-primary">✓</span> : <span className="text-[var(--muted)]">—</span>}</td>

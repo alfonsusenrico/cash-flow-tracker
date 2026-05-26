@@ -4,7 +4,7 @@ interface ProgressBarProps {
   value: number; // 0-100
   max?: number;
   color?: "green" | "yellow" | "red" | "blue" | "orange";
-  intent?: "usage" | "completion";
+  intent?: "usage" | "completion" | "quota";
   size?: "sm" | "md";
   className?: string;
   showLabel?: boolean;
@@ -20,8 +20,10 @@ const COLORS = {
 
 export function ProgressBar({ value, max = 100, color = "green", intent = "usage", size = "sm", className, showLabel }: ProgressBarProps) {
   const pct = Math.min(Math.max((value / max) * 100, 0), 100);
-  const autoColor = pct >= 80 ? "red" : pct >= 60 ? "yellow" : "green";
-  const barColor = COLORS[intent === "usage" && color === "green" && pct >= 60 ? autoColor : color];
+  const usageColor = pct >= 80 ? "red" : pct >= 60 ? "yellow" : "green";
+  const quotaColor = pct <= 20 ? "red" : pct <= 40 ? "yellow" : "green";
+  const autoColor = intent === "quota" ? quotaColor : usageColor;
+  const barColor = COLORS[(intent === "usage" || intent === "quota") && color === "green" ? autoColor : color];
   const h = size === "sm" ? "h-1.5" : "h-2";
 
   return (

@@ -191,7 +191,7 @@ export default function DashboardPage() {
                   <th className="text-right pb-2 font-medium">Current Balance</th>
                   <th className="text-right pb-2 font-medium">In</th>
                   <th className="text-right pb-2 font-medium">Out</th>
-                  <th className="text-right pb-2 font-medium">Budget Progress</th>
+                  <th className="text-right pb-2 font-medium">Quota Left</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
@@ -212,8 +212,8 @@ export default function DashboardPage() {
                     <td className="py-2 text-right">
                       {acc.budget_pct != null ? (
                         <div className="flex items-center gap-1.5 justify-end">
-                          <ProgressBar value={acc.budget_pct} size="sm" className="w-16" />
-                          <span className="tabular text-[var(--muted)]">{acc.budget_pct}%</span>
+                          <ProgressBar value={Math.max(0, 100 - acc.budget_pct)} intent="quota" size="sm" className="w-16" />
+                          <span className="tabular text-[var(--muted)]">{Math.max(0, 100 - acc.budget_pct)}%</span>
                         </div>
                       ) : <span className="text-[var(--muted)]">—</span>}
                     </td>
