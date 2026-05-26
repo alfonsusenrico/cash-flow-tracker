@@ -21,3 +21,12 @@ export function currentMonthYM(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
+
+export function clampNumber(value: number, min = 0, max = 100): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
+}
+
+export function parseClampedNumber(value: string, min = 0, max = 100): number {
+  return clampNumber(parseFloat(value) || 0, min, max);
+}

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { fmtMoney } from "@/lib/utils";
+import { clampNumber, fmtMoney, parseClampedNumber } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Card, SectionTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -77,8 +77,8 @@ export default function GoalsPage() {
         name: form.name,
         target_amount: form.target_amount,
         target_date: form.target_date || null,
-        inflation_rate: form.inflation_rate / 100,
-        expected_return: form.expected_return / 100,
+        inflation_rate: clampNumber(form.inflation_rate, 0, 50) / 100,
+        expected_return: clampNumber(form.expected_return, 0, 50) / 100,
         linked_bucket_id: form.progress_mode === "existing_bucket" ? form.linked_bucket_id : null,
         create_linked_bucket: form.progress_mode === "create_bucket",
         bucket_name: form.progress_mode === "create_bucket" ? form.name : null,
@@ -94,7 +94,7 @@ export default function GoalsPage() {
   const contributeMut = useMutation({ mutationFn: () => api.post(`/goals/${contributeGoal!.goal_id}/contribute`, { amount: contributeAmount }), onSuccess: () => { inv(); setContributeGoal(null); }, onError: (e: Error) => setErr(e.message) });
 
   function openCreate() { setEditing(null); setForm({ ...blankGoalForm }); setErr(""); setModal("create"); }
-  function openEdit(g: Goal) { setEditing(g); setForm({ name: g.name, target_amount: g.target_amount, target_date: g.target_date?.slice(0, 10) ?? "", inflation_rate: Math.round(g.inflation_rate * 100), expected_return: Math.round(g.expected_return * 100), linked_bucket_id: g.linked_bucket_id ?? "", progress_mode: g.linked_bucket_id ? "existing_bucket" : "manual", priority: g.priority, notes: g.notes ?? "", status: g.status }); setErr(""); setModal("edit"); }
+  function openEdit(g: Goal) { setEditing(g); setForm({ name: g.name, target_amount: g.target_amount, target_date: g.target_date?.slice(0, 10) ?? "", inflation_rate: clampNumber(Math.round(g.inflation_rate * 100), 0, 50), expected_return: clampNumber(Math.round(g.expected_return * 100), 0, 50), linked_bucket_id: g.linked_bucket_id ?? "", progress_mode: g.linked_bucket_id ? "existing_bucket" : "manual", priority: g.priority, notes: g.notes ?? "", status: g.status }); setErr(""); setModal("edit"); }
 
   const goals = data?.goals ?? [];
   const buckets = bucketsData?.buckets ?? [];
@@ -257,8 +257,8 @@ export default function GoalsPage() {
           <MoneyInput label="Target Amount" value={form.target_amount} onChange={(v) => setForm({ ...form, target_amount: v })} required />
           <Input label="Target Date (optional)" type="date" value={form.target_date} onChange={(e) => setForm({ ...form, target_date: e.target.value })} />
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Inflation Rate (%/year)" type="number" min={0} max={50} step={0.1} value={String(form.inflation_rate)} onChange={(e) => setForm({ ...form, inflation_rate: parseFloat(e.target.value) || 0 })} />
-            <Input label="Expected Return (%/year)" type="number" min={0} max={50} step={0.1} value={String(form.expected_return)} onChange={(e) => setForm({ ...form, expected_return: parseFloat(e.target.value) || 0 })} />
+            <Input label="Inflation Rate (%/year)" type="number" min={0} max={50} step={0.1} value={String(form.inflation_rate)} onChange={(e) => setForm({ ...form, inflation_rate: parseClampedNumber(e.target.value, 0, 50) })} />
+            <Input label="Expected Return (%/year)" type="number" min={0} max={50} step={0.1} value={String(form.expected_return)} onChange={(e) => setForm({ ...form, expected_return: parseClampedNumber(e.target.value, 0, 50) })} />
           </div>
           <Select
             label="Progress Tracking"

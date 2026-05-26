@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { fmtMoney, currentMonthYM } from "@/lib/utils";
+import { clampNumber, currentMonthYM, fmtMoney, parseClampedNumber } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Card, SectionTitle } from "@/components/ui/Card";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
@@ -22,20 +22,21 @@ export default function AllocationPage() {
   const [editingPlan, setEditingPlan] = useState(false);
   const [itemModal, setItemModal] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
-  const [fundModal, setFundModal] = useState<any>(null);
   const [strategyModal, setStrategyModal] = useState(false);
   const [strategyPreview, setStrategyPreview] = useState<any>(null);
-  const [fundAmount, setFundAmount] = useState(0);
-  const [planForm, setPlanForm] = useState({ month: currentMonthYM(), expected_income: 0, notes: "" });
-  const [itemForm, setItemForm] = useState({ label: "", mode: "percent", value: 0, bucket_id: "", priority: 50 });
+  const [planForm, setPlanForm] = useState({ month: currentMonthYM(), expected_income: 0, notes: "", funding_source_account_id: "", auto_fund_enabled: true });
+  const [itemForm, setItemForm] = useState({ label: "", mode: "percent", value: 0, bucket_id: "", target_account_id: "", include_in_emergency_base: true, priority: 50 });
   const [err, setErr] = useState("");
 
   const { data: plansData } = useQuery<{ plans: any[] }>({ queryKey: ["allocation-plans"], queryFn: () => api.get("/allocation-plans") });
   const { data: planDetail } = useQuery<any>({ queryKey: ["allocation-plan", selectedPlan], queryFn: () => api.get(`/allocation-plans/${selectedPlan}`), enabled: !!selectedPlan });
+  const { data: fundingStatus } = useQuery<any>({ queryKey: ["allocation-funding-status", selectedPlan], queryFn: () => api.get(`/allocation-plans/${selectedPlan}/funding-status`), enabled: !!selectedPlan });
   const { data: bucketsData } = useQuery<{ buckets: any[] }>({ queryKey: ["buckets"], queryFn: () => api.get("/buckets") });
+  const { data: accountsData } = useQuery<{ accounts: any[] }>({ queryKey: ["accounts"], queryFn: () => api.get("/accounts") });
 
   const inv = (planId = selectedPlan) => {
     qc.invalidateQueries({ queryKey: ["allocation-plans"] });
+    qc.invalidateQueries({ queryKey: ["allocation-funding-status", planId] });
     if (planId) qc.invalidateQueries({ queryKey: ["allocation-plan", planId] });
   };
 
@@ -53,13 +54,30 @@ export default function AllocationPage() {
   const activateMut = useMutation({ mutationFn: (id: string) => api.post(`/allocation-plans/${id}/activate`, {}), onSuccess: (_r, id) => inv(id) });
   const deletePlanMut = useMutation({ mutationFn: (id: string) => api.del(`/allocation-plans/${id}`), onSuccess: (_r, id) => { inv(id); setSelectedPlan(null); }, onError: (e: Error) => setErr(e.message) });
   const saveItemMut = useMutation({
-    mutationFn: () => editingItem
-      ? api.put(`/allocation-plans/${selectedPlan}/items/${editingItem.item_id}`, { ...itemForm, bucket_id: itemForm.bucket_id || null })
-      : api.post(`/allocation-plans/${selectedPlan}/items`, { ...itemForm, bucket_id: itemForm.bucket_id || null }),
+    mutationFn: () => {
+      const payload = {
+        ...itemForm,
+        value: itemForm.mode === "percent" ? clampNumber(itemForm.value) : itemForm.value,
+        bucket_id: itemForm.bucket_id || null,
+        target_account_id: itemForm.target_account_id || null,
+      };
+      return editingItem
+        ? api.put(`/allocation-plans/${selectedPlan}/items/${editingItem.item_id}`, payload)
+        : api.post(`/allocation-plans/${selectedPlan}/items`, payload);
+    },
     onSuccess: () => { inv(); setItemModal(false); }, onError: (e: Error) => setErr(e.message),
   });
   const deleteItemMut = useMutation({ mutationFn: (itemId: string) => api.del(`/allocation-plans/${selectedPlan}/items/${itemId}`), onSuccess: () => { inv(); setItemModal(false); setEditingItem(null); } });
-  const fundMut = useMutation({ mutationFn: () => api.post(`/allocation-plans/${selectedPlan}/items/${fundModal.item_id}/fund`, { amount: fundAmount }), onSuccess: () => { inv(); setFundModal(null); }, onError: (e: Error) => setErr(e.message) });
+  const allocateMut = useMutation({
+    mutationFn: () => api.post(`/allocation-plans/${selectedPlan}/allocate-funds`, { source_account_id: plan?.funding_source_account_id || fundingStatus?.source_account_id || null }),
+    onSuccess: () => {
+      inv();
+      qc.invalidateQueries({ queryKey: ["accounts-summary"] });
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+    },
+    onError: (e: Error) => setErr(e.message),
+  });
   const previewStrategyMut = useMutation({
     mutationFn: () => api.post<any>("/strategy-rules/from-allocation/preview", { plan_id: selectedPlan }),
     onSuccess: (r) => { setStrategyPreview(r); setStrategyModal(true); },
@@ -78,6 +96,8 @@ export default function AllocationPage() {
   const plan = planDetail;
   const plans = plansData?.plans ?? [];
   const buckets = bucketsData?.buckets ?? [];
+  const accounts = accountsData?.accounts ?? [];
+  const payrollAccounts = accounts.filter((a: any) => a.is_payroll_source);
 
   useEffect(() => {
     const planId = new URLSearchParams(window.location.search).get("plan");
@@ -101,9 +121,11 @@ export default function AllocationPage() {
   const unallocatedPct = expectedIncome > 0 ? Math.round((unallocatedIncome / expectedIncome) * 100) : 0;
   const stillToFund = Math.max(totalPlanned - totalFunded, 0);
   const plannedBarPct = Math.max(0, Math.min(plannedPct, 100));
-  const itemPercentAmount = Math.round(expectedIncome * (itemForm.value / 100));
-  const itemFixedPercent = expectedIncome > 0 ? Math.round((itemForm.value / expectedIncome) * 100) : 0;
+  const itemPercentValue = itemForm.mode === "percent" ? clampNumber(itemForm.value) : itemForm.value;
+  const itemPercentAmount = Math.round(expectedIncome * (itemPercentValue / 100));
+  const itemFixedPercent = expectedIncome > 0 ? clampNumber(Math.round((itemForm.value / expectedIncome) * 100)) : 0;
   const emergencyHealth = plan?.health?.emergency_fund;
+  const allocationBlocked = totalPlanned > expectedIncome;
 
   return (
     <div className="p-5 space-y-4">
@@ -140,7 +162,7 @@ export default function AllocationPage() {
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() => { setEditingPlan(true); setPlanForm({ month: plan.month, expected_income: plan.expected_income, notes: plan.notes ?? "" }); setErr(""); setPlanModal(true); }}
+                onClick={() => { setEditingPlan(true); setPlanForm({ month: plan.month, expected_income: plan.expected_income, notes: plan.notes ?? "", funding_source_account_id: plan.funding_source_account_id ?? "", auto_fund_enabled: plan.auto_fund_enabled ?? true }); setErr(""); setPlanModal(true); }}
                 disabled={plan.status !== "draft"}
                 title={plan.status !== "draft" ? "Only draft plans can be edited" : undefined}
               >
@@ -159,11 +181,27 @@ export default function AllocationPage() {
             )}
           </div>
           <div className="flex gap-2">
-            {plan?.status === "draft" && <Button variant="primary" onClick={() => activateMut.mutate(plan.plan_id)}>Activate Plan</Button>}
+            {plan?.status === "draft" && <Button variant="primary" onClick={() => activateMut.mutate(plan.plan_id)} disabled={allocationBlocked} title={allocationBlocked ? "Planned allocation exceeds expected income" : undefined}>Activate Plan</Button>}
+            {plan?.status === "active" && (
+              <Button
+                variant="primary"
+                onClick={() => { setErr(""); allocateMut.mutate(); }}
+                disabled={allocateMut.isPending || !fundingStatus?.can_allocate}
+                title={(fundingStatus?.reasons ?? []).join(" ") || undefined}
+              >
+                {allocateMut.isPending ? "Allocating..." : "Allocate Funds"}
+              </Button>
+            )}
             {canDeletePlan && <Button variant="danger" onClick={() => confirm(`Delete allocation plan ${plan.month}? This removes the plan and its items.`) && deletePlanMut.mutate(plan.plan_id)} disabled={deletePlanMut.isPending}>Delete Plan</Button>}
-            <Button variant="secondary" onClick={() => { setEditingPlan(false); setPlanForm({ month: currentMonthYM(), expected_income: 0, notes: "" }); setErr(""); setPlanModal(true); }}>+ New Plan</Button>
+            <Button variant="secondary" onClick={() => { setEditingPlan(false); setPlanForm({ month: currentMonthYM(), expected_income: 0, notes: "", funding_source_account_id: payrollAccounts.length === 1 ? payrollAccounts[0].account_id : "", auto_fund_enabled: true }); setErr(""); setPlanModal(true); }}>+ New Plan</Button>
           </div>
         </div>
+        {plan?.status === "active" && fundingStatus && !fundingStatus.can_allocate && (fundingStatus.reasons?.length ?? 0) > 0 && (
+          <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--muted)]">
+            <p className="font-semibold text-[var(--text)]">Allocate Funds is waiting</p>
+            <p>{fundingStatus.reasons.join(" ")}</p>
+          </div>
+        )}
         {plans.length > 0 && (
           <div className="mt-3 pt-3 border-t border-[var(--border)]">
             <Select value={selectedPlan ?? ""} onChange={(e) => setSelectedPlan(e.target.value || null)} className="text-xs w-48">
@@ -212,7 +250,7 @@ export default function AllocationPage() {
                   <Badge variant="gray">{plan.items?.length ?? 0} items</Badge>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="primary" onClick={() => { setEditingItem(null); setItemForm({ label: "", mode: "percent", value: 0, bucket_id: "", priority: 50 }); setErr(""); setItemModal(true); }}>+ Add Item</Button>
+                  <Button size="sm" variant="primary" onClick={() => { setEditingItem(null); setItemForm({ label: "", mode: "percent", value: 0, bucket_id: "", target_account_id: "", include_in_emergency_base: true, priority: 50 }); setErr(""); setItemModal(true); }}>+ Add Item</Button>
                 </div>
               </div>
               <table className="w-full text-xs">
@@ -221,6 +259,7 @@ export default function AllocationPage() {
                     <th className="text-left pb-2 font-medium w-6">#</th>
                     <th className="text-left pb-2 font-medium">Item</th>
                     <th className="text-left pb-2 font-medium">Linked Bucket</th>
+                    <th className="text-left pb-2 font-medium">Target Account</th>
                     <th className="text-left pb-2 font-medium">Mode</th>
                     <th className="text-right pb-2 font-medium">Planned</th>
                     <th className="text-right pb-2 font-medium">Funded</th>
@@ -241,6 +280,7 @@ export default function AllocationPage() {
                         {item.bucket_name ?? buckets.find((b) => b.bucket_id === item.bucket_id)?.name ?? "—"}
                         {item.group && <p className="text-[var(--muted)]">{item.group.replace(/_/g, " ")}</p>}
                       </td>
+                      <td className="py-2.5 text-[var(--muted)]">{item.target_account_name ?? "—"}</td>
                       <td className="py-2.5"><Badge variant="blue">{item.mode === "percent" ? `${item.value}%` : "Fixed"}</Badge></td>
                       <td className="py-2.5 text-right tabular">{bal(item.planned_amount)}</td>
                       <td className="py-2.5 text-right tabular">{bal(item.funded_amount)}</td>
@@ -250,14 +290,13 @@ export default function AllocationPage() {
                       <td className="py-2.5 text-center"><StatusBadge status={item.status} /></td>
                       <td className="py-2.5">
                         <div className="flex gap-1">
-                          <button onClick={() => { setFundAmount(item.planned_amount - item.funded_amount); setFundModal(item); }} className="text-xs text-primary hover:underline">Fund</button>
-                          <button onClick={() => { setEditingItem(item); setItemForm({ label: item.label, mode: item.mode, value: item.value, bucket_id: item.bucket_id ?? "", priority: item.priority }); setErr(""); setItemModal(true); }} className="text-xs text-[var(--muted)] hover:text-[var(--text)]">Edit</button>
+                          <button onClick={() => { setEditingItem(item); setItemForm({ label: item.label, mode: item.mode, value: item.mode === "percent" ? clampNumber(item.value) : item.value, bucket_id: item.bucket_id ?? "", target_account_id: item.target_account_id ?? "", include_in_emergency_base: item.include_in_emergency_base ?? true, priority: item.priority }); setErr(""); setItemModal(true); }} className="text-xs text-[var(--muted)] hover:text-[var(--text)]">Edit</button>
                         </div>
                       </td>
                     </tr>
                   ))}
                   <tr className="font-semibold border-t-2 border-[var(--border)]">
-                    <td className="py-2.5" colSpan={4}>Total</td>
+                    <td className="py-2.5" colSpan={5}>Total</td>
                     <td className="py-2.5 text-right tabular">{bal(totalPlanned)}</td>
                     <td className="py-2.5 text-right tabular">{bal(totalFunded)}</td>
                     <td className="py-2.5"><ProgressBar value={fundedPct} showLabel /></td>
@@ -354,6 +393,14 @@ export default function AllocationPage() {
             disabled={editingPlan}
           />
           <MoneyInput label="Expected Income" value={planForm.expected_income} onChange={(v) => setPlanForm({ ...planForm, expected_income: v })} />
+          <Select label="Payroll Source Account" value={planForm.funding_source_account_id} onChange={(e) => setPlanForm({ ...planForm, funding_source_account_id: e.target.value })}>
+            <option value="">— choose when funding —</option>
+            {accounts.map((a: any) => <option key={a.account_id} value={a.account_id}>{a.account_name}{a.is_payroll_source ? " · payroll" : ""}</option>)}
+          </Select>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={planForm.auto_fund_enabled} onChange={(e) => setPlanForm({ ...planForm, auto_fund_enabled: e.target.checked })} />
+            Automatically allocate funds on payroll date
+          </label>
           {err && <p className="text-xs text-danger">{err}</p>}
           <div className="flex gap-2 pt-1">
             <Button type="submit" variant="primary" className="flex-1" disabled={savePlanMut.isPending}>{editingPlan ? "Save" : "Create"}</Button>
@@ -365,19 +412,22 @@ export default function AllocationPage() {
       <Modal open={itemModal} onClose={() => setItemModal(false)} title={editingItem ? "Edit Item" : "Add Item"}>
         <form onSubmit={(e) => { e.preventDefault(); saveItemMut.mutate(); }} className="space-y-3">
           <Input label="Label" value={itemForm.label} onChange={(e) => setItemForm({ ...itemForm, label: e.target.value })} required />
-          <Select label="Mode" value={itemForm.mode} onChange={(e) => setItemForm({ ...itemForm, mode: e.target.value })}>
+          <Select label="Mode" value={itemForm.mode} onChange={(e) => {
+            const mode = e.target.value;
+            setItemForm({ ...itemForm, mode, value: mode === "percent" ? clampNumber(itemForm.value) : itemForm.value });
+          }}>
             <option value="percent">Percent of income (%)</option>
             <option value="fixed">Fixed amount (Rp)</option>
           </Select>
           {itemForm.mode === "percent"
-            ? <Input label="Percentage" type="number" min={0} max={100} step={0.1} value={String(itemForm.value)} onChange={(e) => setItemForm({ ...itemForm, value: parseFloat(e.target.value) || 0 })} />
+            ? <Input label="Percentage" type="number" min={0} max={100} step={0.1} value={String(itemForm.value)} onChange={(e) => setItemForm({ ...itemForm, value: parseClampedNumber(e.target.value) })} />
             : <MoneyInput label="Amount" value={itemForm.value} onChange={(v) => setItemForm({ ...itemForm, value: v })} />}
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
             <p className="text-[var(--muted)]">Conversion based on expected income</p>
             <p className="font-semibold tabular text-[var(--text)]">
               {expectedIncome > 0
                 ? itemForm.mode === "percent"
-                  ? `${itemForm.value || 0}% = ${bal(itemPercentAmount)}`
+                  ? `${itemPercentValue || 0}% = ${bal(itemPercentAmount)}`
                   : `${bal(itemForm.value)} = ${itemFixedPercent}%`
                 : "Set expected income on the plan to calculate this."}
             </p>
@@ -386,6 +436,18 @@ export default function AllocationPage() {
             <option value="">— none —</option>
             {buckets.map((b: any) => <option key={b.bucket_id} value={b.bucket_id}>{b.name}</option>)}
           </Select>
+          <Select label="Target Account" value={itemForm.target_account_id} onChange={(e) => setItemForm({ ...itemForm, target_account_id: e.target.value })}>
+            <option value="">— infer from bucket if one account is linked —</option>
+            {accounts.map((a: any) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
+          </Select>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={itemForm.include_in_emergency_base} onChange={(e) => setItemForm({ ...itemForm, include_in_emergency_base: e.target.checked })} />
+            Include this spending in emergency fund coverage
+          </label>
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
+            <p className="text-[var(--muted)]">Remaining unallocated balance</p>
+            <p className={`font-semibold tabular ${unallocatedIncome < 0 ? "text-danger" : "text-[var(--text)]"}`}>{bal(unallocatedIncome)}</p>
+          </div>
           {err && <p className="text-xs text-danger">{err}</p>}
           <div className="flex gap-2 pt-1">
             {editingItem && <Button type="button" variant="danger" onClick={() => confirm(`Delete "${editingItem.label}"?`) && deleteItemMut.mutate(editingItem.item_id)} disabled={deleteItemMut.isPending}>Delete</Button>}
@@ -393,18 +455,6 @@ export default function AllocationPage() {
             <Button type="button" variant="secondary" onClick={() => setItemModal(false)}>Cancel</Button>
           </div>
         </form>
-      </Modal>
-
-      <Modal open={!!fundModal} onClose={() => setFundModal(null)} title={`Fund: ${fundModal?.label}`}>
-        <div className="space-y-3">
-          <p className="text-sm text-[var(--muted)]">Planned: {bal(fundModal?.planned_amount ?? 0)} · Funded: {bal(fundModal?.funded_amount ?? 0)}</p>
-          <MoneyInput label="Amount to fund" value={fundAmount} onChange={setFundAmount} />
-          {err && <p className="text-xs text-danger">{err}</p>}
-          <div className="flex gap-2 pt-1">
-            <Button variant="primary" className="flex-1" disabled={fundMut.isPending} onClick={() => fundMut.mutate()}>Confirm</Button>
-            <Button variant="secondary" onClick={() => setFundModal(null)}>Cancel</Button>
-          </div>
-        </div>
       </Modal>
 
       <Modal open={strategyModal} onClose={() => setStrategyModal(false)} title="Review Strategy From Allocation">

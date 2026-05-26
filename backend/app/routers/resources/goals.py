@@ -20,6 +20,11 @@ def _parse_date(val: Any) -> date | None:
         raise HTTPException(status_code=400, detail="Invalid target_date, expected YYYY-MM-DD")
 
 
+def _validate_rate(value: float, field_name: str) -> None:
+    if value < 0 or value > 1:
+        raise HTTPException(status_code=400, detail=f"{field_name} must be between 0% and 100%")
+
+
 def _validate_bucket(cur, username: str, bucket_id: str | None) -> None:
     if not bucket_id:
         return
@@ -184,6 +189,8 @@ async def create_goal(req: Request):
     target_date = _parse_date(data.get("target_date"))
     inflation_rate = float(data.get("inflation_rate") or 0.05)
     expected_return = float(data.get("expected_return") or 0.06)
+    _validate_rate(inflation_rate, "inflation_rate")
+    _validate_rate(expected_return, "expected_return")
     linked_bucket_id = data.get("linked_bucket_id") or None
     if linked_bucket_id:
         linked_bucket_id = parse_uuid_value(linked_bucket_id, "linked_bucket_id")
@@ -247,6 +254,8 @@ async def update_goal(goal_id: str, req: Request):
     target_date = _parse_date(data.get("target_date"))
     inflation_rate = float(data.get("inflation_rate") or 0.05)
     expected_return = float(data.get("expected_return") or 0.06)
+    _validate_rate(inflation_rate, "inflation_rate")
+    _validate_rate(expected_return, "expected_return")
     linked_bucket_id = data.get("linked_bucket_id") or None
     if linked_bucket_id:
         linked_bucket_id = parse_uuid_value(linked_bucket_id, "linked_bucket_id")

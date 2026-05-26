@@ -11,7 +11,7 @@ from app.routers.web import router as web_router
 from app.routers.resources.categories import router as categories_router
 from app.routers.resources.periods import router as periods_router
 from app.routers.resources.buckets import router as buckets_router
-from app.routers.resources.allocation import router as allocation_router
+from app.routers.resources.allocation import router as allocation_router, start_allocation_scheduler
 from app.routers.resources.strategy import router as strategy_router
 from app.routers.resources.goals import router as goals_router
 from app.routers.resources.assets import router as assets_router
@@ -33,6 +33,7 @@ _RESOURCE_PREFIXES = [
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     open_db_pool()
+    start_allocation_scheduler()
     try:
         yield
     finally:

@@ -16,6 +16,13 @@ def _parse_optional_int(value: Any) -> int | None:
     return int(value)
 
 
+def _validate_rule_value(mode: str, value: float) -> None:
+    if value < 0:
+        raise HTTPException(status_code=400, detail="value must be >= 0")
+    if mode == "percent" and value > 100:
+        raise HTTPException(status_code=400, detail="percentage must be between 0 and 100")
+
+
 def _validate_target_bucket(cur, username: str, bucket_id: str | None) -> None:
     if not bucket_id:
         return
@@ -110,6 +117,32 @@ def _load_bucket_balances(cur, username: str) -> dict[str, dict[str, Any]]:
             "current_amount": current_amount,
         }
     return result
+
+
+def _default_bucket_account(cur, username: str, bucket_id: str | None) -> str | None:
+    if not bucket_id:
+        return None
+    cur.execute(
+        """
+        SELECT account_id::text AS account_id
+        FROM (
+            SELECT ba.account_id
+            FROM bucket_accounts ba
+            JOIN buckets b ON b.bucket_id = ba.bucket_id
+            JOIN users u ON u.user_id = b.user_id
+            WHERE u.username=%s AND b.bucket_id=%s::uuid
+            UNION
+            SELECT b.linked_account_id
+            FROM buckets b
+            JOIN users u ON u.user_id = b.user_id
+            WHERE u.username=%s AND b.bucket_id=%s::uuid AND b.linked_account_id IS NOT NULL
+        ) linked
+        LIMIT 2
+        """,
+        (username, bucket_id, username, bucket_id),
+    )
+    rows = cur.fetchall()
+    return rows[0]["account_id"] if len(rows) == 1 else None
 
 
 def _load_active_rules(cur, username: str) -> list[dict[str, Any]]:
@@ -273,6 +306,7 @@ async def create_rule(req: Request):
     if target_bucket_id:
         target_bucket_id = parse_uuid_value(target_bucket_id, "target_bucket_id")
     value = float(data.get("value") or 0)
+    _validate_rule_value(mode, value)
     cap = _parse_optional_int(data.get("cap"))
     floor = _parse_optional_int(data.get("floor"))
     priority = int(data.get("priority") or 50)
@@ -311,6 +345,7 @@ async def update_rule(rule_id: str, req: Request):
     if target_bucket_id:
         target_bucket_id = parse_uuid_value(target_bucket_id, "target_bucket_id")
     value = float(data.get("value") or 0)
+    _validate_rule_value(mode, value)
     cap = _parse_optional_int(data.get("cap"))
     floor = _parse_optional_int(data.get("floor"))
     priority = int(data.get("priority") or 50)
@@ -613,16 +648,18 @@ async def apply_strategy(req: Request):
                 item_mode = "percent" if item["mode"] == "percent" else "fixed"
                 item_value = item["value"] if item["mode"] == "percent" else item["amount"]
                 label = item["target_bucket_name"] or item["rule_name"]
+                target_account_id = _default_bucket_account(cur, username, item["target_bucket_id"])
                 cur.execute(
                     """
                     INSERT INTO allocation_items
-                      (plan_id, bucket_id, label, mode, value, priority, planned_amount)
-                    VALUES (%s::uuid, %s::uuid, %s, %s, %s, %s, %s)
+                      (plan_id, bucket_id, target_account_id, label, mode, value, priority, planned_amount)
+                    VALUES (%s::uuid, %s::uuid, %s::uuid, %s, %s, %s, %s, %s)
                     RETURNING item_id::text AS item_id
                     """,
                     (
                         plan_id,
                         item["target_bucket_id"],
+                        target_account_id,
                         label,
                         item_mode,
                         item_value,

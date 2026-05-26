@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { currentMonthYM, fmtMoney } from "@/lib/utils";
+import { clampNumber, currentMonthYM, fmtMoney, parseClampedNumber } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Card, SectionTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -58,7 +58,13 @@ export default function StrategyPage() {
   const inv = () => qc.invalidateQueries({ queryKey: ["strategy-rules"] });
   const saveMut = useMutation({
     mutationFn: () => {
-      const p = { ...form, target_bucket_id: form.target_bucket_id || null, cap: form.cap || null, floor: form.floor || null };
+      const p = {
+        ...form,
+        value: form.mode === "percent" ? clampNumber(form.value) : form.value,
+        target_bucket_id: form.target_bucket_id || null,
+        cap: form.cap || null,
+        floor: form.floor || null,
+      };
       return editing ? api.put(`/strategy-rules/${editing.rule_id}`, p) : api.post("/strategy-rules", p);
     },
     onSuccess: () => { inv(); setModal(null); }, onError: (e: Error) => setErr(e.message),
@@ -72,13 +78,30 @@ export default function StrategyPage() {
   });
 
   function openCreate() { setEditing(null); setForm(EMPTY); setErr(""); setModal("create"); }
-  function openEdit(r: Rule) { setEditing(r); setForm({ name: r.name, trigger: r.trigger, mode: r.mode, target_bucket_id: r.target_bucket_id ?? "", value: r.value, cap: r.cap ?? 0, floor: r.floor ?? 0, priority: r.priority, is_active: r.is_active, notes: r.notes ?? "" }); setErr(""); setModal("edit"); }
+  function openEdit(r: Rule) {
+    setEditing(r);
+    setForm({
+      name: r.name,
+      trigger: r.trigger,
+      mode: r.mode,
+      target_bucket_id: r.target_bucket_id ?? "",
+      value: r.mode === "percent" ? clampNumber(r.value) : r.value,
+      cap: r.cap ?? 0,
+      floor: r.floor ?? 0,
+      priority: r.priority,
+      is_active: r.is_active,
+      notes: r.notes ?? "",
+    });
+    setErr("");
+    setModal("edit");
+  }
 
   const rules = rulesData?.rules ?? [];
   const buckets = bucketsData?.buckets ?? [];
   const maxAlloc = Math.max(...(preview?.allocations.map((a) => a.amount) ?? [1]), 1);
-  const rulePercentAmount = Math.round(previewIncome * (form.value / 100));
-  const ruleFixedPercent = previewIncome > 0 ? Math.round((form.value / previewIncome) * 100) : 0;
+  const rulePercentValue = form.mode === "percent" ? clampNumber(form.value) : form.value;
+  const rulePercentAmount = Math.round(previewIncome * (rulePercentValue / 100));
+  const ruleFixedPercent = previewIncome > 0 ? clampNumber(Math.round((form.value / previewIncome) * 100)) : 0;
 
   return (
     <div className="p-5">
@@ -277,7 +300,10 @@ export default function StrategyPage() {
             <option value="manual">Manual</option>
             <option value="income_arrival">On Income Arrival</option>
           </Select>
-          <Select label="Mode" value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })}>
+          <Select label="Mode" value={form.mode} onChange={(e) => {
+            const mode = e.target.value;
+            setForm({ ...form, mode, value: mode === "percent" ? clampNumber(form.value) : form.value });
+          }}>
             <option value="percent">Percentage</option>
             <option value="fixed">Fixed Amount</option>
             <option value="target_balance">Target Balance</option>
@@ -285,7 +311,7 @@ export default function StrategyPage() {
           </Select>
           {form.mode !== "overflow" && (
             form.mode === "percent"
-              ? <Input label="Percentage (%)" type="number" min={0} max={100} step={0.1} value={String(form.value)} onChange={(e) => setForm({ ...form, value: parseFloat(e.target.value) || 0 })} />
+              ? <Input label="Percentage (%)" type="number" min={0} max={100} step={0.1} value={String(form.value)} onChange={(e) => setForm({ ...form, value: parseClampedNumber(e.target.value) })} />
               : <MoneyInput label="Amount" value={form.value} onChange={(v) => setForm({ ...form, value: v })} />
           )}
           {(form.mode === "percent" || form.mode === "fixed") && (
@@ -294,7 +320,7 @@ export default function StrategyPage() {
               <p className="font-semibold tabular text-[var(--text)]">
                 {previewIncome > 0
                   ? form.mode === "percent"
-                    ? `${form.value || 0}% = ${bal(rulePercentAmount)}`
+                    ? `${rulePercentValue || 0}% = ${bal(rulePercentAmount)}`
                     : `${bal(form.value)} = ${ruleFixedPercent}%`
                   : "Set preview income to calculate this."}
               </p>

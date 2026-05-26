@@ -293,7 +293,10 @@ def list_budgets(req: Request, month: str | None = None):
             SELECT b.budget_id::text AS budget_id,
                    b.account_id::text AS account_id,
                    b.month,
-                   b.amount
+                   b.amount,
+                   b.source,
+                   b.allocation_plan_id::text AS allocation_plan_id,
+                   b.allocation_run_id::text AS allocation_run_id
             FROM budgets b
             JOIN accounts a ON a.account_id=b.account_id
             WHERE b.username=%s AND b.month=%s
@@ -332,7 +335,10 @@ async def upsert_budget(req: Request):
             FROM users
             WHERE username=%s
             ON CONFLICT (username, account_id, month)
-            DO UPDATE SET amount=EXCLUDED.amount
+            DO UPDATE SET amount=EXCLUDED.amount,
+                          source='manual',
+                          allocation_plan_id=NULL,
+                          allocation_run_id=NULL
             RETURNING budget_id::text
             """,
             (account_id, month, amount, username),
@@ -357,7 +363,10 @@ async def update_budget(budget_id: str, req: Request):
         cur.execute(
             """
             UPDATE budgets b
-            SET amount=%s
+            SET amount=%s,
+                source='manual',
+                allocation_plan_id=NULL,
+                allocation_run_id=NULL
             FROM accounts a
             WHERE b.account_id=a.account_id
               AND b.budget_id=%s::uuid
@@ -1790,14 +1799,21 @@ def summary(req: Request, month: str | None = None):
             """
             SELECT budget_id::text AS budget_id,
                    account_id::text AS account_id,
-                   amount
+                   amount,
+                   source,
+                   allocation_plan_id::text AS allocation_plan_id
             FROM budgets
             WHERE username=%s AND month=%s
             """,
             (username, month),
         )
         budgets = {
-            r["account_id"]: {"amount": int(r["amount"] or 0), "budget_id": r["budget_id"]}
+            r["account_id"]: {
+                "amount": int(r["amount"] or 0),
+                "budget_id": r["budget_id"],
+                "source": r.get("source") or "manual",
+                "allocation_plan_id": r.get("allocation_plan_id"),
+            }
             for r in cur.fetchall()
         }
 
@@ -1815,6 +1831,7 @@ def summary(req: Request, month: str | None = None):
         budget_info = budgets.get(acc_id) if is_budgeted_spending else None
         budget_amount = budget_info["amount"] if budget_info else None
         budget_id = budget_info["budget_id"] if budget_info else None
+        budget_source = budget_info["source"] if budget_info else None
         budget_used = total_out if budget_amount is not None else None
         budget_pct, budget_status, budget_remaining = compute_budget_status(budget_amount, total_out)
         starting_balance = int(balances_start.get(acc_id, 0))
@@ -1830,6 +1847,8 @@ def summary(req: Request, month: str | None = None):
                 "total_in": total_in,
                 "total_out": total_out,
                 "budget_id": budget_id,
+                "budget_source": budget_source,
+                "budget_allocation_plan_id": budget_info.get("allocation_plan_id") if budget_info else None,
                 "budget": int(budget_amount) if budget_amount is not None else None,
                 "budget_used": int(budget_used) if budget_used is not None else None,
                 "budget_remaining": int(budget_remaining) if budget_remaining is not None else None,

@@ -30,7 +30,7 @@ export default function AccountsPage() {
   const isBudgetedSpendingProfile = (profileType: string, isNoLimit = false) =>
     !isNoLimit && (profileType === "dynamic_spending" || profileType === "fixed_spending");
 
-  const budgetByAcc: Record<string, { budget_id?: string; pct: number; quotaPct: number; status: string; amount: number }> = {};
+  const budgetByAcc: Record<string, { budget_id?: string; pct: number; quotaPct: number; status: string; amount: number; source?: string }> = {};
   summaryData?.accounts?.forEach((a: any) => {
     if (a.budget != null) {
       budgetByAcc[a.account_id] = {
@@ -39,6 +39,7 @@ export default function AccountsPage() {
         quotaPct: Math.max(0, 100 - (a.budget_pct ?? 0)),
         status: a.budget_status ?? "ok",
         amount: a.budget,
+        source: a.budget_source ?? "manual",
       };
     }
   });
@@ -187,7 +188,12 @@ export default function AccountsPage() {
                     <td className="py-2.5 text-right tabular font-medium">{bal(currentBal)}</td>
                     <td className="py-2.5 pr-4 text-right tabular">{spendingLimit ? bal(spendingLimit) : <span className="text-[var(--muted)]">—</span>}</td>
                     <td className="py-2.5 pl-4">
-                      {showsSpendingBudget && budget ? <ProgressBar value={budget.quotaPct} intent="quota" showLabel /> : <span className="text-[var(--muted)]">—</span>}
+                      {showsSpendingBudget && budget ? (
+                        <div className="space-y-1">
+                          <ProgressBar value={budget.quotaPct} intent="quota" showLabel />
+                          <p className="text-[10px] text-[var(--muted)]">{budget.source === "allocation" ? "Allocation reset" : "Manual limit"}</p>
+                        </div>
+                      ) : <span className="text-[var(--muted)]">—</span>}
                     </td>
                     <td className="py-2.5 text-center">{acc.is_payroll_source ? <span className="text-primary">✓</span> : <span className="text-[var(--muted)]">—</span>}</td>
                     <td className="py-2.5 text-center">{acc.is_buffer ? <span className="text-primary">✓</span> : <span className="text-[var(--muted)]">—</span>}</td>
@@ -223,6 +229,7 @@ export default function AccountsPage() {
               ["Profile Type", selected.profile_type.replace("_", " ")],
               ["Current Balance", bal(currentBalance(selected))],
               ["Monthly Spending Limit", isBudgetedSpendingProfile(selected.profile_type, selected.is_no_limit) && budgetByAcc[selected.account_id] ? bal(budgetByAcc[selected.account_id].amount) : "—"],
+              ["Limit Source", budgetByAcc[selected.account_id]?.source === "allocation" ? "Allocation" : budgetByAcc[selected.account_id] ? "Manual" : "—"],
               ["Payroll Source", selected.is_payroll_source ? "Yes" : "No"],
               ["Buffer Account", selected.is_buffer ? "Yes" : "No"],
               ["Institution", selected.institution ?? "—"],

@@ -26,6 +26,17 @@ def future_iso(minutes: int) -> str:
     return (datetime.now(timezone.utc) + timedelta(minutes=minutes)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def past_iso(minutes: int = 1) -> str:
+    return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def next_month_ym() -> str:
+    now = datetime.now()
+    year = now.year + (1 if now.month == 12 else 0)
+    month = 1 if now.month == 12 else now.month + 1
+    return f"{year:04d}-{month:02d}"
+
+
 def assert_ok(res):
     assert res.status_code == 200, res.text
     return res.json()
@@ -278,6 +289,85 @@ def test_resource_routers(auth_client: TestClient):
     assert_ok(auth_client.post(f"/allocation-plans/{plan_id}/items/{item_id}/fund", json={"amount": 10_000}))
     assert_ok(auth_client.delete(f"/allocation-plans/{plan_id}/items/{item_id}"))
     assert_ok(auth_client.delete(f"/allocation-plans/{plan_id}"))
+
+    payroll_id = create_account(auth_client, unique("payroll"), 0)
+    spending_id = create_account(auth_client, unique("spending"), 0)
+    assert_ok(
+        auth_client.put(
+            f"/accounts/{payroll_id}/profile",
+            json={
+                "profile_type": "dynamic_spending",
+                "is_payroll_source": True,
+                "is_no_limit": True,
+                "is_buffer": False,
+            },
+        )
+    )
+    assert_ok(
+        auth_client.put(
+            f"/accounts/{spending_id}/profile",
+            json={
+                "profile_type": "dynamic_spending",
+                "is_payroll_source": False,
+                "is_no_limit": False,
+                "is_buffer": False,
+            },
+        )
+    )
+    assert_ok(auth_client.put("/payday", json={"day": datetime.now().day}))
+    assert_ok(
+        auth_client.post(
+            "/transactions",
+            json={
+                "account_id": payroll_id,
+                "transaction_type": "debit",
+                "transaction_name": "Payroll",
+                "amount": 500_000,
+                "date": past_iso(),
+                "is_cycle_topup": True,
+                "is_reviewed": True,
+            },
+        )
+    )
+    funding_month = next_month_ym()
+    funding_plan_id = assert_ok(
+        auth_client.post(
+            "/allocation-plans",
+            json={
+                "month": funding_month,
+                "expected_income": 500_000,
+                "funding_source_account_id": payroll_id,
+                "auto_fund_enabled": True,
+            },
+        )
+    )["plan_id"]
+    assert_ok(
+        auth_client.post(
+            f"/allocation-plans/{funding_plan_id}/items",
+            json={
+                "label": "Monthly spending",
+                "mode": "fixed",
+                "value": 200_000,
+                "target_account_id": spending_id,
+            },
+        )
+    )
+    assert_ok(auth_client.post(f"/allocation-plans/{funding_plan_id}/activate"))
+    status = assert_ok(auth_client.get(f"/allocation-plans/{funding_plan_id}/funding-status"))
+    assert status["can_allocate"] is True
+    run = assert_ok(auth_client.post(f"/allocation-plans/{funding_plan_id}/allocate-funds", json={}))
+    assert run["status"] == "succeeded"
+    funded_plan = assert_ok(auth_client.get(f"/allocation-plans/{funding_plan_id}"))
+    assert funded_plan["items"][0]["status"] == "funded"
+    budgets = assert_ok(auth_client.get("/budgets", params={"month": funding_month}))["budgets"]
+    generated_budget = next(b for b in budgets if b["account_id"] == spending_id)
+    assert generated_budget["amount"] == 200_000
+    assert generated_budget["source"] == "allocation"
+    summary_accounts = assert_ok(auth_client.get("/summary", params={"month": funding_month}))["accounts"]
+    spending_summary = next(a for a in summary_accounts if a["account_id"] == spending_id)
+    assert spending_summary["budget"] == 200_000
+    assert spending_summary["budget_source"] == "allocation"
+    assert_ok(auth_client.delete(f"/allocation-plans/{funding_plan_id}"))
 
     past_plan_month = f"2000-{(int(uuid4().hex[:2], 16) % 12) + 1:02d}"
     past_plan_id = assert_ok(
