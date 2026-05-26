@@ -270,6 +270,16 @@ def test_resource_routers(auth_client: TestClient):
     assert plan_detail["items"][0]["bucket_name"]
     assert plan_detail["items"][0]["bucket_kind"] == "sinking"
     assert "emergency_fund" in plan_detail["health"]
+    assert plan_detail["items"][0]["include_in_emergency_base"] is False
+    assert plan_detail["health"]["emergency_fund"]["monthly_need"] == 0
+    assert_ok(
+        auth_client.put(
+            f"/allocation-plans/{plan_id}/items/{item_id}/emergency-base",
+            json={"include_in_emergency_base": True},
+        )
+    )
+    plan_detail = assert_ok(auth_client.get(f"/allocation-plans/{plan_id}"))
+    assert plan_detail["health"]["emergency_fund"]["monthly_need"] == 50_000
     assert_ok(auth_client.put(f"/allocation-plans/{plan_id}", json={"expected_income": 600_000}))
     assert_ok(
         auth_client.put(
@@ -350,6 +360,23 @@ def test_resource_routers(auth_client: TestClient):
                 "value": 200_000,
                 "target_account_id": spending_id,
             },
+        )
+    )
+    funding_detail = assert_ok(auth_client.get(f"/allocation-plans/{funding_plan_id}"))
+    assert funding_detail["items"][0]["include_in_emergency_base"] is True
+    assert funding_detail["health"]["emergency_fund"]["monthly_need"] == 200_000
+    assert_ok(
+        auth_client.put(
+            f"/allocation-plans/{funding_plan_id}/items/{funding_detail['items'][0]['item_id']}/emergency-base",
+            json={"include_in_emergency_base": False},
+        )
+    )
+    funding_detail = assert_ok(auth_client.get(f"/allocation-plans/{funding_plan_id}"))
+    assert funding_detail["health"]["emergency_fund"]["monthly_need"] == 0
+    assert_ok(
+        auth_client.put(
+            f"/allocation-plans/{funding_plan_id}/items/{funding_detail['items'][0]['item_id']}/emergency-base",
+            json={"include_in_emergency_base": True},
         )
     )
     assert_ok(auth_client.post(f"/allocation-plans/{funding_plan_id}/activate"))

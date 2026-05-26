@@ -88,11 +88,22 @@ def _emergency_bucket_balance(cur, username: str) -> int:
 
 
 def _allocation_health(cur, username: str, items: list[dict[str, Any]]) -> dict[str, Any]:
-    monthly_need = sum(
-        int(item.get("planned_amount") or 0)
+    emergency_base_items = [
+        {
+            "item_id": item.get("item_id"),
+            "label": item.get("label"),
+            "planned_amount": int(item.get("planned_amount") or 0),
+            "include_in_emergency_base": bool(item.get("include_in_emergency_base", False)),
+            "bucket_kind": item.get("bucket_kind"),
+            "bucket_name": item.get("bucket_name"),
+            "group": item.get("group") or _allocation_group(item.get("bucket_kind"), item.get("mode", "fixed")),
+        }
         for item in items
-        if item.get("include_in_emergency_base", True)
-        and (item.get("bucket_kind") in (None, "spending"))
+    ]
+    monthly_need = sum(
+        item["planned_amount"]
+        for item in emergency_base_items
+        if item["include_in_emergency_base"]
     )
     current_amount = _emergency_bucket_balance(cur, username)
     target_amount = monthly_need * TARGET_EMERGENCY_MONTHS
@@ -113,6 +124,7 @@ def _allocation_health(cur, username: str, items: list[dict[str, Any]]) -> dict[
             "gap": gap,
             "coverage_months": coverage_months,
             "status": status,
+            "baseline_items": emergency_base_items,
         }
     }
 
@@ -133,6 +145,26 @@ def _validate_bucket(cur, username: str, bucket_id: str | None) -> str | None:
     if not cur.fetchone():
         raise HTTPException(status_code=404, detail="Bucket not found")
     return bucket_id
+
+
+def _bucket_kind(cur, username: str, bucket_id: str | None) -> str | None:
+    if not bucket_id:
+        return None
+    cur.execute(
+        """
+        SELECT b.kind
+        FROM buckets b
+        JOIN users u ON u.user_id = b.user_id
+        WHERE u.username=%s AND b.bucket_id=%s::uuid AND b.is_archived=FALSE
+        """,
+        (username, bucket_id),
+    )
+    row = cur.fetchone()
+    return row["kind"] if row else None
+
+
+def _default_include_in_emergency_base(bucket_kind: str | None, mode: str) -> bool:
+    return _allocation_group(bucket_kind, mode) in {"fixed_spending", "dynamic_spending"}
 
 
 def _validate_account(cur, username: str, account_id: str | None, field_name: str) -> str | None:
@@ -818,7 +850,7 @@ async def add_item(plan_id: str, req: Request):
     _validate_allocation_value(mode, value)
     bucket_id = data.get("bucket_id") or None
     target_account_id = data.get("target_account_id") or None
-    include_in_emergency_base = bool(data.get("include_in_emergency_base", True))
+    include_override = data.get("include_in_emergency_base") if "include_in_emergency_base" in data else None
     priority = int(data.get("priority") or 50)
 
     with db_conn() as conn, conn.cursor() as cur:
@@ -830,6 +862,12 @@ async def add_item(plan_id: str, req: Request):
         if not plan:
             raise HTTPException(status_code=404, detail="Plan not found")
         bucket_id = _validate_bucket(cur, username, bucket_id)
+        bucket_kind = _bucket_kind(cur, username, bucket_id)
+        include_in_emergency_base = (
+            bool(include_override)
+            if include_override is not None
+            else _default_include_in_emergency_base(bucket_kind, mode)
+        )
         target_account_id = _validate_account(cur, username, target_account_id, "target_account_id")
         if not target_account_id:
             target_account_id = _default_bucket_account(cur, username, bucket_id)
@@ -873,7 +911,7 @@ async def update_item(plan_id: str, item_id: str, req: Request):
     _validate_allocation_value(mode, value)
     bucket_id = data.get("bucket_id") or None
     target_account_id = data.get("target_account_id") or None
-    include_in_emergency_base = bool(data.get("include_in_emergency_base", True))
+    include_override = data.get("include_in_emergency_base") if "include_in_emergency_base" in data else None
     priority = int(data.get("priority") or 50)
 
     with db_conn() as conn, conn.cursor() as cur:
@@ -885,6 +923,18 @@ async def update_item(plan_id: str, item_id: str, req: Request):
         if not plan:
             raise HTTPException(status_code=404, detail="Plan not found")
         bucket_id = _validate_bucket(cur, username, bucket_id)
+        bucket_kind = _bucket_kind(cur, username, bucket_id)
+        if include_override is None:
+            cur.execute(
+                "SELECT include_in_emergency_base FROM allocation_items WHERE item_id=%s::uuid AND plan_id=%s::uuid",
+                (item_id, plan_id),
+            )
+            existing_item = cur.fetchone()
+            if not existing_item:
+                raise HTTPException(status_code=404, detail="Item not found")
+            include_in_emergency_base = bool(existing_item["include_in_emergency_base"])
+        else:
+            include_in_emergency_base = bool(include_override)
         target_account_id = _validate_account(cur, username, target_account_id, "target_account_id")
         if not target_account_id:
             target_account_id = _default_bucket_account(cur, username, bucket_id)
@@ -898,6 +948,34 @@ async def update_item(plan_id: str, item_id: str, req: Request):
             RETURNING item_id
             """,
             (label, mode, value, bucket_id, target_account_id, include_in_emergency_base, priority, planned, item_id, plan_id),
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Item not found")
+        conn.commit()
+    return {"ok": True}
+
+
+@router.put("/{plan_id}/items/{item_id}/emergency-base")
+async def update_item_emergency_base(plan_id: str, item_id: str, req: Request):
+    username = req.state.username
+    plan_id = parse_uuid_value(plan_id, "plan_id")
+    item_id = parse_uuid_value(item_id, "item_id")
+    data: dict[str, Any] = await req.json()
+    include = bool(data.get("include_in_emergency_base", False))
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE allocation_items i
+            SET include_in_emergency_base=%s
+            FROM allocation_plans p
+            JOIN users u ON u.user_id=p.user_id
+            WHERE i.plan_id=p.plan_id
+              AND p.plan_id=%s::uuid
+              AND i.item_id=%s::uuid
+              AND u.username=%s
+            RETURNING i.item_id
+            """,
+            (include, plan_id, item_id, username),
         )
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Item not found")

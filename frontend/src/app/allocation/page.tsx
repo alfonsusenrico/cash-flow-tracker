@@ -68,6 +68,12 @@ export default function AllocationPage() {
     onSuccess: () => { inv(); setItemModal(false); }, onError: (e: Error) => setErr(e.message),
   });
   const deleteItemMut = useMutation({ mutationFn: (itemId: string) => api.del(`/allocation-plans/${selectedPlan}/items/${itemId}`), onSuccess: () => { inv(); setItemModal(false); setEditingItem(null); } });
+  const toggleEmergencyBaseMut = useMutation({
+    mutationFn: ({ itemId, include }: { itemId: string; include: boolean }) =>
+      api.put(`/allocation-plans/${selectedPlan}/items/${itemId}/emergency-base`, { include_in_emergency_base: include }),
+    onSuccess: () => inv(),
+    onError: (e: Error) => setErr(e.message),
+  });
   const allocateMut = useMutation({
     mutationFn: () => api.post(`/allocation-plans/${selectedPlan}/allocate-funds`, { source_account_id: plan?.funding_source_account_id || fundingStatus?.source_account_id || null }),
     onSuccess: () => {
@@ -98,6 +104,11 @@ export default function AllocationPage() {
   const buckets = bucketsData?.buckets ?? [];
   const accounts = accountsData?.accounts ?? [];
   const payrollAccounts = accounts.filter((a: any) => a.is_payroll_source);
+  const emergencyDefaultForBucket = (bucketId: string) => {
+    const kind = buckets.find((b: any) => b.bucket_id === bucketId)?.kind;
+    if (kind === "investment" || kind === "emergency" || kind === "goal" || kind === "sinking") return false;
+    return true;
+  };
 
   useEffect(() => {
     const planId = new URLSearchParams(window.location.search).get("plan");
@@ -331,6 +342,34 @@ export default function AllocationPage() {
                         <span className="text-[var(--muted)]">Current emergency buckets</span>
                         <span className="font-semibold tabular">{bal(emergencyHealth.current_amount)}</span>
                       </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-[var(--muted)]">Monthly baseline</span>
+                        <span className="font-semibold tabular">{bal(emergencyHealth.monthly_need)}</span>
+                      </div>
+                      <div className="pt-2 mt-2 border-t border-[var(--border)]">
+                        <p className="mb-1 font-semibold text-[var(--text)]">Baseline items</p>
+                        <div className="space-y-1.5 max-h-44 overflow-auto pr-1">
+                          {(emergencyHealth.baseline_items ?? []).map((item: any) => (
+                            <label key={item.item_id} className="flex items-start gap-2 rounded-md px-1 py-1 hover:bg-[var(--bg)]">
+                              <input
+                                type="checkbox"
+                                className="mt-0.5"
+                                checked={!!item.include_in_emergency_base}
+                                disabled={toggleEmergencyBaseMut.isPending}
+                                onChange={(e) => toggleEmergencyBaseMut.mutate({ itemId: item.item_id, include: e.target.checked })}
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-medium text-[var(--text)]">{item.label}</span>
+                                <span className="block text-[var(--muted)]">{item.group?.replace(/_/g, " ") ?? "allocation item"}</span>
+                              </span>
+                              <span className="tabular font-semibold">{bal(item.planned_amount)}</span>
+                            </label>
+                          ))}
+                          {(emergencyHealth.baseline_items?.length ?? 0) === 0 && (
+                            <p className="text-[var(--muted)]">Add allocation items to define the spending baseline.</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -432,7 +471,16 @@ export default function AllocationPage() {
                 : "Set expected income on the plan to calculate this."}
             </p>
           </div>
-          <Select label="Bucket (optional)" value={itemForm.bucket_id} onChange={(e) => setItemForm({ ...itemForm, bucket_id: e.target.value })}>
+          <Select label="Bucket (optional)" value={itemForm.bucket_id} onChange={(e) => {
+            const bucketId = e.target.value;
+            const linked = buckets.find((b: any) => b.bucket_id === bucketId)?.linked_account_ids;
+            setItemForm({
+              ...itemForm,
+              bucket_id: bucketId,
+              target_account_id: linked?.length === 1 ? linked[0] : itemForm.target_account_id,
+              include_in_emergency_base: emergencyDefaultForBucket(bucketId),
+            });
+          }}>
             <option value="">— none —</option>
             {buckets.map((b: any) => <option key={b.bucket_id} value={b.bucket_id}>{b.name}</option>)}
           </Select>
