@@ -1741,7 +1741,7 @@ def summary(req: Request, month: str | None = None):
 
         cur.execute(
             """
-            SELECT account_id::text, account_name
+            SELECT account_id::text, account_name, profile_type, is_no_limit
             FROM accounts
             WHERE username=%s
             """,
@@ -1808,7 +1808,11 @@ def summary(req: Request, month: str | None = None):
         total_row = totals.get(acc_id, {})
         total_in = int(total_row.get("total_in") or 0)
         total_out = int(total_row.get("total_out") or 0)
-        budget_info = budgets.get(acc_id)
+        is_budgeted_spending = (
+            not bool(acc.get("is_no_limit"))
+            and str(acc.get("profile_type")) in ("dynamic_spending", "fixed_spending")
+        )
+        budget_info = budgets.get(acc_id) if is_budgeted_spending else None
         budget_amount = budget_info["amount"] if budget_info else None
         budget_id = budget_info["budget_id"] if budget_info else None
         budget_used = total_out if budget_amount is not None else None
@@ -1819,6 +1823,8 @@ def summary(req: Request, month: str | None = None):
             {
                 "account_id": acc_id,
                 "account_name": acc["account_name"],
+                "profile_type": acc.get("profile_type"),
+                "is_no_limit": bool(acc.get("is_no_limit")),
                 "starting_balance": starting_balance,
                 "current_balance": current_balance,
                 "total_in": total_in,

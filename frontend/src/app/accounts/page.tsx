@@ -27,9 +27,19 @@ export default function AccountsPage() {
   const { data } = useQuery<{ accounts: Account[] }>({ queryKey: ["accounts"], queryFn: () => api.get("/accounts") });
   const { data: summaryData } = useQuery<any>({ queryKey: ["summary"], queryFn: () => api.get("/summary") });
 
-  const budgetByAcc: Record<string, { pct: number; status: string; amount: number }> = {};
+  const isBudgetedSpendingProfile = (profileType: string, isNoLimit = false) =>
+    !isNoLimit && (profileType === "dynamic_spending" || profileType === "fixed_spending");
+
+  const budgetByAcc: Record<string, { budget_id?: string; pct: number; status: string; amount: number }> = {};
   summaryData?.accounts?.forEach((a: any) => {
-    if (a.budget != null) budgetByAcc[a.account_id] = { pct: a.budget_pct ?? 0, status: a.budget_status ?? "ok", amount: a.budget };
+    if (a.budget != null) {
+      budgetByAcc[a.account_id] = {
+        budget_id: a.budget_id,
+        pct: a.budget_pct ?? 0,
+        status: a.budget_status ?? "ok",
+        amount: a.budget,
+      };
+    }
   });
   const summaryByAccount = new Map<string, any>((summaryData?.accounts ?? []).map((a: any) => [a.account_id, a]));
   const currentBalance = (account: Account) => account.balance ?? summaryByAccount.get(account.account_id)?.current_balance ?? 0;
@@ -41,11 +51,18 @@ export default function AccountsPage() {
       if (modal === "create") {
         const res: any = await api.post("/accounts", { account_name: form.account_name, initial_balance: form.initial_balance });
         await api.put(`/accounts/${res.account_id}/profile`, { profile_type: form.profile_type, is_payroll_source: form.is_payroll_source, is_buffer: form.is_buffer, is_no_limit: form.is_no_limit, fixed_limit_amount: form.fixed_limit_amount || null });
-        if (form.budget > 0) await api.post("/budgets", { account_id: res.account_id, month: new Date().toISOString().slice(0, 7), amount: form.budget });
+        if (isBudgetedSpendingProfile(form.profile_type, form.is_no_limit) && form.budget > 0) {
+          await api.post("/budgets", { account_id: res.account_id, month: new Date().toISOString().slice(0, 7), amount: form.budget });
+        }
         return null;
       } else if (selected) {
         const profileRes: any = await api.put(`/accounts/${selected.account_id}/profile`, { account_name: form.account_name, profile_type: form.profile_type, is_payroll_source: form.is_payroll_source, is_buffer: form.is_buffer, is_no_limit: form.is_no_limit, fixed_limit_amount: form.fixed_limit_amount || null });
-        if (form.budget > 0) await api.post("/budgets", { account_id: selected.account_id, month: new Date().toISOString().slice(0, 7), amount: form.budget });
+        const existingBudgetId = budgetByAcc[selected.account_id]?.budget_id;
+        if (isBudgetedSpendingProfile(form.profile_type, form.is_no_limit) && form.budget > 0) {
+          await api.post("/budgets", { account_id: selected.account_id, month: new Date().toISOString().slice(0, 7), amount: form.budget });
+        } else if (existingBudgetId) {
+          await api.del(`/budgets/${existingBudgetId}`);
+        }
         return profileRes.account ?? null;
       }
       throw new Error("Choose an account before saving changes.");
@@ -96,7 +113,7 @@ export default function AccountsPage() {
             { label: "Total Accounts", value: allAccounts.length, sub: "Across institutions", icon: "🏦" },
             { label: "Total Balance", value: null, money: totalBalance, sub: "All accounts", icon: "💰" },
             { label: "Payroll Sources", value: allAccounts.filter((a) => a.is_payroll_source).length, sub: "Salary accounts", icon: "📋" },
-            { label: "With Buffer", value: allAccounts.filter((a) => a.is_buffer).length, sub: "Emergency ready", icon: "🛡️" },
+            { label: "With Buffer", value: allAccounts.filter((a) => a.is_buffer).length, sub: "Flexible cushion", icon: "🛡️" },
           ].map((s) => (
             <Card key={s.label} padding="sm">
               <div className="flex items-center gap-2 mb-1">
@@ -129,8 +146,8 @@ export default function AccountsPage() {
                 <th className="text-left pb-2 font-medium">Account</th>
                 <th className="text-left pb-2 font-medium">Profile Type</th>
                 <th className="text-right pb-2 font-medium">Balance</th>
-                <th className="text-right pb-2 font-medium">Budget Limit</th>
-                <th className="text-left pb-2 font-medium">Linked Usage</th>
+                <th className="text-right pb-2 font-medium">Monthly Spending Limit</th>
+                <th className="text-left pb-2 font-medium">Spend Used</th>
                 <th className="text-center pb-2 font-medium">Payroll Source</th>
                 <th className="text-center pb-2 font-medium">Buffer</th>
                 <th className="text-right pb-2 font-medium">Actions</th>
@@ -140,6 +157,10 @@ export default function AccountsPage() {
               {accounts.map((acc) => {
                 const budget = budgetByAcc[acc.account_id];
                 const currentBal = currentBalance(acc);
+                const showsSpendingBudget = isBudgetedSpendingProfile(acc.profile_type, acc.is_no_limit);
+                const spendingLimit = showsSpendingBudget
+                  ? (acc.fixed_limit_amount ? acc.fixed_limit_amount : budget?.amount)
+                  : null;
                 return (
                   <tr key={acc.account_id} onClick={() => setSelected(acc)} className={`hover:bg-[var(--bg)] cursor-pointer transition-colors ${selected?.account_id === acc.account_id ? "bg-primary/5" : ""}`}>
                     <td className="py-2.5">
@@ -153,9 +174,9 @@ export default function AccountsPage() {
                     </td>
                     <td className="py-2.5"><Badge variant="gray">{acc.profile_type.replace("_", " ")}</Badge></td>
                     <td className="py-2.5 text-right tabular font-medium">{bal(currentBal)}</td>
-                    <td className="py-2.5 text-right tabular">{acc.fixed_limit_amount ? bal(acc.fixed_limit_amount) : budget ? bal(budget.amount) : <span className="text-[var(--muted)]">—</span>}</td>
+                    <td className="py-2.5 text-right tabular">{spendingLimit ? bal(spendingLimit) : <span className="text-[var(--muted)]">—</span>}</td>
                     <td className="py-2.5 w-32">
-                      {budget ? <ProgressBar value={budget.pct} showLabel /> : <span className="text-[var(--muted)]">—</span>}
+                      {showsSpendingBudget && budget ? <ProgressBar value={budget.pct} showLabel /> : <span className="text-[var(--muted)]">—</span>}
                     </td>
                     <td className="py-2.5 text-center">{acc.is_payroll_source ? <span className="text-primary">✓</span> : <span className="text-[var(--muted)]">—</span>}</td>
                     <td className="py-2.5 text-center">{acc.is_buffer ? <span className="text-primary">✓</span> : <span className="text-[var(--muted)]">—</span>}</td>
@@ -190,7 +211,7 @@ export default function AccountsPage() {
             {[
               ["Profile Type", selected.profile_type.replace("_", " ")],
               ["Current Balance", bal(currentBalance(selected))],
-              ["Budget Limit", budgetByAcc[selected.account_id] ? bal(budgetByAcc[selected.account_id].amount) : "—"],
+              ["Monthly Spending Limit", isBudgetedSpendingProfile(selected.profile_type, selected.is_no_limit) && budgetByAcc[selected.account_id] ? bal(budgetByAcc[selected.account_id].amount) : "—"],
               ["Payroll Source", selected.is_payroll_source ? "Yes" : "No"],
               ["Buffer Account", selected.is_buffer ? "Yes" : "No"],
               ["Institution", selected.institution ?? "—"],
@@ -214,12 +235,18 @@ export default function AccountsPage() {
         <form onSubmit={(e) => { e.preventDefault(); saveMut.mutate(); }} className="space-y-3">
           <Input label="Account Name" value={form.account_name} onChange={(e) => setForm({ ...form, account_name: e.target.value })} required />
           {modal === "create" && <MoneyInput label="Initial Balance" value={form.initial_balance} onChange={(v) => setForm({ ...form, initial_balance: v })} />}
-          <MoneyInput label="Monthly Budget Limit" value={form.budget} onChange={(v) => setForm({ ...form, budget: v })} />
           <Select label="Profile Type" value={form.profile_type} onChange={(e) => setForm({ ...form, profile_type: e.target.value })}>
             <option value="dynamic_spending">Dynamic Spending</option>
             <option value="fixed_spending">Fixed Spending</option>
             <option value="tabungan">Savings</option>
           </Select>
+          {isBudgetedSpendingProfile(form.profile_type, form.is_no_limit) ? (
+            <MoneyInput label="Monthly Spending Limit" value={form.budget} onChange={(v) => setForm({ ...form, budget: v })} />
+          ) : (
+            <p className="text-xs text-[var(--muted)]">
+              Savings accounts do not use monthly spending limits. Use Buckets or Goals to track savings targets.
+            </p>
+          )}
           <div className="space-y-2">
             {[["is_payroll_source", "Payroll source"], ["is_buffer", "Buffer account"], ["is_no_limit", "No spending limit"]].map(([k, l]) => (
               <label key={k} className="flex items-center gap-2 text-sm cursor-pointer">
