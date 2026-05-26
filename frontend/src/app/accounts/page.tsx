@@ -46,7 +46,13 @@ export default function AccountsPage() {
   const summaryByAccount = new Map<string, any>((summaryData?.accounts ?? []).map((a: any) => [a.account_id, a]));
   const currentBalance = (account: Account) => account.balance ?? summaryByAccount.get(account.account_id)?.current_balance ?? 0;
 
-  const inv = () => { qc.invalidateQueries({ queryKey: ["accounts"] }); qc.invalidateQueries({ queryKey: ["summary"] }); };
+  const inv = () => {
+    qc.invalidateQueries({ queryKey: ["accounts"] });
+    qc.invalidateQueries({ queryKey: ["summary"] });
+    qc.invalidateQueries({ queryKey: ["buckets"] });
+    qc.invalidateQueries({ queryKey: ["goals"] });
+    qc.invalidateQueries({ queryKey: ["allocation-plans"] });
+  };
 
   const saveMut = useMutation({
     mutationFn: async () => {

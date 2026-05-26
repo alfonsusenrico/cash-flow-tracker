@@ -49,6 +49,7 @@ export default function BucketsPage() {
   const actionHandledRef = useRef(false);
 
   const { data } = useQuery<{ buckets: Bucket[] }>({ queryKey: ["buckets"], queryFn: () => api.get("/buckets") });
+  const existingAccountIds = new Set(accounts.map((a) => a.account_id));
   const inv = () => {
     qc.invalidateQueries({ queryKey: ["buckets"] });
     qc.invalidateQueries({ queryKey: ["goals"] });
@@ -56,11 +57,12 @@ export default function BucketsPage() {
 
   const saveMut = useMutation({
     mutationFn: () => {
+      const linkedAccountIds = form.linked_account_ids.filter((id) => existingAccountIds.has(id));
       const payload = {
         ...form,
         target_amount: form.target_amount || null,
-        linked_account_ids: form.linked_account_ids,
-        linked_account_id: form.linked_account_ids[0] ?? null,
+        linked_account_ids: linkedAccountIds,
+        linked_account_id: linkedAccountIds[0] ?? null,
         create_linked_goal: GOAL_BACKED_KINDS.has(form.kind) && form.target_amount > 0 && form.create_linked_goal,
       };
       return editing ? api.put(`/buckets/${editing.bucket_id}`, payload) : api.post("/buckets", payload);
@@ -104,12 +106,13 @@ export default function BucketsPage() {
 
   function openCreate() { setEditing(null); setForm(EMPTY); setErr(""); setModal("create"); }
   function openEdit(b: Bucket) {
+    const linkedIds = b.linked_account_ids?.length ? b.linked_account_ids : b.linked_account_id ? [b.linked_account_id] : [];
     setEditing(b);
     setForm({
       name: b.name,
       kind: b.kind,
       target_amount: b.target_amount ?? 0,
-      linked_account_ids: b.linked_account_ids?.length ? b.linked_account_ids : b.linked_account_id ? [b.linked_account_id] : [],
+      linked_account_ids: linkedIds.filter((id) => existingAccountIds.has(id)),
       priority: b.priority,
       notes: b.notes ?? "",
       create_linked_goal: true,

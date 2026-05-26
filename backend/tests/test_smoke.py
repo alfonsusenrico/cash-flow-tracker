@@ -255,6 +255,35 @@ def test_resource_routers(auth_client: TestClient):
     assert bucket["linked_account_ids"] == [account_id]
     assert bucket["current_amount"] == 100_000
 
+    stale_account_id = create_account(auth_client, unique("stale-linked"), 10_000)
+    stale_bucket_id = assert_ok(
+        auth_client.post(
+            "/buckets",
+            json={
+                "name": unique("stale-bucket"),
+                "kind": "spending",
+                "linked_account_id": stale_account_id,
+                "priority": 30,
+            },
+        )
+    )["bucket_id"]
+    assert_ok(auth_client.delete(f"/accounts/{stale_account_id}"))
+    replacement_account_id = create_account(auth_client, unique("replacement-linked"), 20_000)
+    assert_ok(
+        auth_client.put(
+            f"/buckets/{stale_bucket_id}",
+            json={
+                "name": unique("stale-bucket-updated"),
+                "kind": "spending",
+                "linked_account_id": replacement_account_id,
+                "priority": 30,
+            },
+        )
+    )
+    stale_bucket = next(b for b in assert_ok(auth_client.get("/buckets"))["buckets"] if b["bucket_id"] == stale_bucket_id)
+    assert stale_bucket["linked_account_ids"] == [replacement_account_id]
+    assert stale_bucket["current_amount"] == 20_000
+
     plan_month = f"2099-{(int(uuid4().hex[:2], 16) % 12) + 1:02d}"
     plan_id = assert_ok(auth_client.post("/allocation-plans", json={"month": plan_month, "expected_income": 500_000}))[
         "plan_id"

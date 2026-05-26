@@ -526,6 +526,16 @@ def delete_account(account_id: str, req: Request):
         )
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Account not found")
+        cur.execute("DELETE FROM bucket_accounts WHERE account_id=%s::uuid", (account_id,))
+        cur.execute(
+            """
+            UPDATE buckets
+            SET linked_account_id=NULL
+            WHERE linked_account_id=%s::uuid
+              AND user_id=(SELECT user_id FROM users WHERE username=%s)
+            """,
+            (account_id, username),
+        )
         cur.execute(
             "DELETE FROM accounts WHERE username=%s AND account_id=%s::uuid",
             (username, account_id),

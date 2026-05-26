@@ -1106,6 +1106,16 @@ def public_delete_account(account_id: str, req: Request):
     username = require_public_user(req)
     account_id = parse_uuid_value(account_id, "account_id")
     with db_conn() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM bucket_accounts WHERE account_id=%s::uuid", (account_id,))
+        cur.execute(
+            """
+            UPDATE buckets
+            SET linked_account_id=NULL
+            WHERE linked_account_id=%s::uuid
+              AND user_id=(SELECT user_id FROM users WHERE username=%s)
+            """,
+            (account_id, username),
+        )
         cur.execute(
             "DELETE FROM accounts WHERE username=%s AND account_id=%s::uuid RETURNING account_id",
             (username, account_id),
