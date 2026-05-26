@@ -64,6 +64,9 @@ class TransactionUpsertRequest(BaseModel):
     currency: Literal["IDR", "USD"] = "IDR"
     original_amount: int | None = Field(default=None, gt=0)
     fx_rate: float | None = Field(default=None, gt=0)
+    # V25 additions. None means "not provided" for update requests.
+    tags: list[str] | None = None
+    is_reviewed: bool | None = None
 
 
 class LedgerListRequest(BaseModel):
@@ -92,6 +95,8 @@ class PublicTransactionItem(BaseModel):
     category_id: str | None = None
     notes: str | None = None
     currency: str = "IDR"
+    tags: list[str] = Field(default_factory=list)
+    is_reviewed: bool = False
 
 
 class CursorLedgerResponse(BaseModel):

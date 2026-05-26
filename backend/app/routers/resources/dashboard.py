@@ -17,6 +17,35 @@ from app.services.metrics import (
 router = APIRouter(tags=["dashboard"])
 
 
+def _emergency_bucket_balance(cur, username: str, balances: dict[str, int]) -> int:
+    cur.execute(
+        """
+        SELECT b.bucket_id::text AS bucket_id,
+               COALESCE(
+                 array_agg(a.account_id::text ORDER BY a.account_name)
+                   FILTER (WHERE a.account_id IS NOT NULL),
+                 ARRAY[]::text[]
+               ) AS linked_account_ids
+        FROM buckets b
+        JOIN users u ON u.user_id = b.user_id
+        LEFT JOIN LATERAL (
+            SELECT account_id FROM bucket_accounts WHERE bucket_id = b.bucket_id
+            UNION
+            SELECT b.linked_account_id WHERE b.linked_account_id IS NOT NULL
+        ) ba ON TRUE
+        LEFT JOIN accounts a ON a.account_id = ba.account_id AND a.username = u.username
+        WHERE u.username=%s AND b.kind='emergency' AND b.is_archived=FALSE
+        GROUP BY b.bucket_id
+        """,
+        (username,),
+    )
+    total = 0
+    for bucket in cur.fetchall():
+        for account_id in bucket.get("linked_account_ids") or []:
+            total += int(balances.get(account_id, 0))
+    return total
+
+
 @router.get("")
 def get_dashboard(req: Request):
     username = req.state.username
@@ -34,19 +63,7 @@ def get_dashboard(req: Request):
         liquid_total = sum(balances.values())
 
         # ── Emergency bucket balance ──────────────────────────────────────
-        cur.execute(
-            """
-            SELECT COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END), 0) AS balance
-            FROM buckets b
-            JOIN accounts a ON a.account_id = b.linked_account_id
-            JOIN transactions t ON t.account_id = a.account_id AND t.deleted_at IS NULL
-            JOIN users u ON u.user_id = b.user_id
-            WHERE u.username=%s AND b.kind='emergency' AND b.is_archived=FALSE
-            """,
-            (username,),
-        )
-        emergency_row = cur.fetchone()
-        emergency_balance = int(emergency_row["balance"] or 0) if emergency_row else 0
+        emergency_balance = _emergency_bucket_balance(cur, username, balances)
 
         # ── This month income + expense ───────────────────────────────────
         cur.execute(
@@ -59,6 +76,7 @@ def get_dashboard(req: Request):
             JOIN users u ON u.user_id=a.user_id
             WHERE u.username=%s AND t.deleted_at IS NULL
               AND t.transfer_id IS NULL
+              AND t.transaction_name <> 'Opening Balance'
               AND t.date >= %s AND t.date <= %s
             """,
             (username, from_dt, to_dt),

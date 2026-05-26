@@ -236,13 +236,14 @@ class LedgerServiceTests(unittest.TestCase):
 
         self.assertEqual(len(cur.calls), 1)
         _, params = cur.calls[0]
-        payload = json.loads(params[4])
+        payload = json.loads(params[5])
         self.assertEqual(payload["transaction_name"], "Top Up")
         self.assertTrue(payload["is_cycle_topup"])
         self.assertTrue(payload["date"].endswith("Z"))
         self.assertTrue(payload["deleted_at"].endswith("Z"))
         self.assertEqual(params[2], "alice")
-        self.assertEqual(params[3], "soft_delete")
+        self.assertEqual(params[3], "alice")
+        self.assertEqual(params[4], "soft_delete")
 
     def test_recompute_balances_report_detects_negative_account(self):
         cur = RecomputeCursor()

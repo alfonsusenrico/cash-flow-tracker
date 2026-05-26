@@ -105,10 +105,10 @@ def write_transaction_audit(cur, *, username: str, performed_by: str, action: st
     )
     cur.execute(
         """
-        INSERT INTO transaction_audit (transaction_id, account_id, username, action, payload, performed_by)
-        VALUES (%s::uuid, %s::uuid, %s, %s, %s::jsonb, %s)
+        INSERT INTO transaction_audit (transaction_id, account_id, user_id, username, action, payload, performed_by)
+        VALUES (%s::uuid, %s::uuid, (SELECT user_id FROM users WHERE username=%s), %s, %s, %s::jsonb, %s)
         """,
-        (tx_row.get("transaction_id"), tx_row.get("account_id"), username, action, payload, performed_by),
+        (tx_row.get("transaction_id"), tx_row.get("account_id"), username, username, action, payload, performed_by),
     )
 
 

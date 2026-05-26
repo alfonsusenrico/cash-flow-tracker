@@ -40,13 +40,6 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=settings.session_secret,
-    session_cookie="ledger_session",
-    same_site="strict",
-    https_only=settings.cookie_secure,
-)
 
 app.include_router(web_router)
 app.include_router(public_router)
@@ -82,6 +75,15 @@ async def inject_username_middleware(request: Request, call_next):
             return JSONResponse(status_code=exc.status_code, content={"ok": False, "detail": exc.detail})
 
     return await call_next(request)
+
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret,
+    session_cookie="ledger_session",
+    same_site="strict",
+    https_only=settings.cookie_secure,
+)
 
 
 @app.exception_handler(HTTPException)

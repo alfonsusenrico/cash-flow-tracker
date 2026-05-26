@@ -15,12 +15,40 @@ import { MoneyInput } from "@/components/ui/MoneyInput";
 
 interface Goal {
   goal_id: string; name: string; target_amount: number; target_date: string | null;
-  current_amount: number; inflation_rate: number; expected_return: number;
-  linked_bucket_name: string | null; priority: number; status: string; notes: string | null;
+  current_amount: number; stored_current_amount: number; progress_source: "linked_bucket" | "manual"; inflation_rate: number; expected_return: number;
+  linked_bucket_id: string | null; linked_bucket_name: string | null; priority: number; status: string; notes: string | null;
   projection: { inflation_adjusted_target: number; progress_pct: number; months_remaining: number | null; required_monthly: number | null; eta_months: number | null; feasible: boolean; shortfall_per_month: number };
 }
 
+type ProgressMode = "create_bucket" | "existing_bucket" | "manual";
+
+interface GoalForm {
+  name: string;
+  target_amount: number;
+  target_date: string;
+  inflation_rate: number;
+  expected_return: number;
+  linked_bucket_id: string;
+  progress_mode: ProgressMode;
+  priority: number;
+  notes: string;
+  status: string;
+}
+
 const GOAL_ICONS = ["🏠", "✈️", "🛡️", "📱", "🎓", "🚗", "💍", "🏖️", "💻", "🎯"];
+
+const blankGoalForm: GoalForm = {
+  name: "",
+  target_amount: 0,
+  target_date: "",
+  inflation_rate: 5,
+  expected_return: 6,
+  linked_bucket_id: "",
+  progress_mode: "create_bucket",
+  priority: 50,
+  notes: "",
+  status: "active",
+};
 
 export default function GoalsPage() {
   const qc = useQueryClient();
@@ -28,27 +56,45 @@ export default function GoalsPage() {
   const bal = (n: number) => hideBalances ? "Rp ••••" : fmtMoney(n);
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<Goal | null>(null);
-  const [form, setForm] = useState({ name: "", target_amount: 0, target_date: "", inflation_rate: 5, expected_return: 6, linked_bucket_id: "", priority: 50, notes: "", status: "active" });
+  const [form, setForm] = useState<GoalForm>(blankGoalForm);
   const [contributeGoal, setContributeGoal] = useState<Goal | null>(null);
   const [contributeAmount, setContributeAmount] = useState(0);
   const [err, setErr] = useState("");
 
   const { data } = useQuery<{ goals: Goal[] }>({ queryKey: ["goals"], queryFn: () => api.get("/goals") });
   const { data: bucketsData } = useQuery<{ buckets: any[] }>({ queryKey: ["buckets"], queryFn: () => api.get("/buckets") });
-  const inv = () => qc.invalidateQueries({ queryKey: ["goals"] });
+  const inv = () => {
+    qc.invalidateQueries({ queryKey: ["goals"] });
+    qc.invalidateQueries({ queryKey: ["buckets"] });
+  };
 
   const saveMut = useMutation({
     mutationFn: () => {
-      const p = { ...form, target_date: form.target_date || null, inflation_rate: form.inflation_rate / 100, expected_return: form.expected_return / 100, linked_bucket_id: form.linked_bucket_id || null };
+      if (form.progress_mode === "existing_bucket" && !form.linked_bucket_id) {
+        throw new Error("Choose a bucket or switch progress tracking to a new bucket.");
+      }
+      const p = {
+        name: form.name,
+        target_amount: form.target_amount,
+        target_date: form.target_date || null,
+        inflation_rate: form.inflation_rate / 100,
+        expected_return: form.expected_return / 100,
+        linked_bucket_id: form.progress_mode === "existing_bucket" ? form.linked_bucket_id : null,
+        create_linked_bucket: form.progress_mode === "create_bucket",
+        bucket_name: form.progress_mode === "create_bucket" ? form.name : null,
+        priority: form.priority,
+        notes: form.notes,
+        status: form.status,
+      };
       return editing ? api.put(`/goals/${editing.goal_id}`, p) : api.post("/goals", p);
     },
     onSuccess: () => { inv(); setModal(null); }, onError: (e: Error) => setErr(e.message),
   });
-  const deleteMut = useMutation({ mutationFn: (id: string) => api.del(`/goals/${id}`), onSuccess: inv });
+  const deleteMut = useMutation({ mutationFn: (id: string) => api.del(`/goals/${id}`), onSuccess: () => { inv(); setModal(null); } });
   const contributeMut = useMutation({ mutationFn: () => api.post(`/goals/${contributeGoal!.goal_id}/contribute`, { amount: contributeAmount }), onSuccess: () => { inv(); setContributeGoal(null); }, onError: (e: Error) => setErr(e.message) });
 
-  function openCreate() { setEditing(null); setForm({ name: "", target_amount: 0, target_date: "", inflation_rate: 5, expected_return: 6, linked_bucket_id: "", priority: 50, notes: "", status: "active" }); setErr(""); setModal("create"); }
-  function openEdit(g: Goal) { setEditing(g); setForm({ name: g.name, target_amount: g.target_amount, target_date: g.target_date?.slice(0, 10) ?? "", inflation_rate: Math.round(g.inflation_rate * 100), expected_return: Math.round(g.expected_return * 100), linked_bucket_id: "", priority: g.priority, notes: g.notes ?? "", status: g.status }); setErr(""); setModal("edit"); }
+  function openCreate() { setEditing(null); setForm({ ...blankGoalForm }); setErr(""); setModal("create"); }
+  function openEdit(g: Goal) { setEditing(g); setForm({ name: g.name, target_amount: g.target_amount, target_date: g.target_date?.slice(0, 10) ?? "", inflation_rate: Math.round(g.inflation_rate * 100), expected_return: Math.round(g.expected_return * 100), linked_bucket_id: g.linked_bucket_id ?? "", progress_mode: g.linked_bucket_id ? "existing_bucket" : "manual", priority: g.priority, notes: g.notes ?? "", status: g.status }); setErr(""); setModal("edit"); }
 
   const goals = data?.goals ?? [];
   const buckets = bucketsData?.buckets ?? [];
@@ -124,11 +170,15 @@ export default function GoalsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant={isShortfall ? "orange" : "green"} dot>{isShortfall ? "Shortfall" : "On Track"}</Badge>
-                        <button className="text-[var(--muted)]">⋯</button>
+                        <button onClick={() => openEdit(g)} className="text-[var(--muted)] hover:text-[var(--text)]" title="Edit goal">✏️</button>
+                        <button onClick={() => confirm(`Delete "${g.name}"?`) && deleteMut.mutate(g.goal_id)} className="text-danger hover:opacity-80" title="Delete goal">🗑️</button>
                       </div>
                     </div>
-                    {g.linked_bucket_name && <p className="text-xs text-[var(--muted)] mb-2">Bucket: <span className="text-primary">{g.linked_bucket_name}</span></p>}
-                    <ProgressBar value={p.progress_pct} color={isShortfall ? "orange" : "green"} size="md" className="mb-1" />
+                    {g.linked_bucket_name && <p className="text-xs text-[var(--muted)] mb-1">Bucket: <span className="text-primary">{g.linked_bucket_name}</span></p>}
+                    <p className="text-xs text-[var(--muted)] mb-2">
+                      Progress source: {g.progress_source === "linked_bucket" ? "linked bucket balance" : "manual contributions"}
+                    </p>
+                    <ProgressBar value={p.progress_pct} color={isShortfall ? "orange" : "green"} intent="completion" size="md" className="mb-1" />
                     <div className="flex justify-between text-xs text-[var(--muted)] mb-2">
                       <span>{p.progress_pct}%</span>
                       <span>{bal(p.inflation_adjusted_target - g.current_amount)} to go</span>
@@ -149,7 +199,15 @@ export default function GoalsPage() {
                       <p className="text-xs text-[var(--muted)]">ETA</p>
                       <p className="font-bold text-sm">{p.eta_months === 0 ? "Done!" : p.eta_months ? `${p.eta_months} months` : "—"}</p>
                     </div>
-                    <Button size="sm" variant="secondary" onClick={() => { setContributeAmount(p.required_monthly ?? 0); setContributeGoal(g); }}>+ Contribute</Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={g.progress_source === "linked_bucket"}
+                      title={g.progress_source === "linked_bucket" ? "This goal uses its linked bucket balance for progress" : undefined}
+                      onClick={() => { setContributeAmount(p.required_monthly ?? 0); setContributeGoal(g); }}
+                    >
+                      + Contribute
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -202,15 +260,35 @@ export default function GoalsPage() {
             <Input label="Inflation Rate (%/year)" type="number" min={0} max={50} step={0.1} value={String(form.inflation_rate)} onChange={(e) => setForm({ ...form, inflation_rate: parseFloat(e.target.value) || 0 })} />
             <Input label="Expected Return (%/year)" type="number" min={0} max={50} step={0.1} value={String(form.expected_return)} onChange={(e) => setForm({ ...form, expected_return: parseFloat(e.target.value) || 0 })} />
           </div>
-          <Select label="Linked Bucket (optional)" value={form.linked_bucket_id} onChange={(e) => setForm({ ...form, linked_bucket_id: e.target.value })}>
-            <option value="">— none —</option>
-            {buckets.map((b: any) => <option key={b.bucket_id} value={b.bucket_id}>{b.name}</option>)}
+          <Select
+            label="Progress Tracking"
+            value={form.progress_mode}
+            onChange={(e) => {
+              const progress_mode = e.target.value as ProgressMode;
+              setForm({ ...form, progress_mode, linked_bucket_id: progress_mode === "existing_bucket" ? form.linked_bucket_id : "" });
+            }}
+          >
+            <option value="create_bucket">Create matching bucket</option>
+            <option value="existing_bucket">Use existing bucket</option>
+            <option value="manual">Manual contributions only</option>
           </Select>
+          {form.progress_mode === "create_bucket" && (
+            <div className="rounded border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-[var(--muted)]">
+              A bucket named "{form.name || "this goal"}" will be created with the same target amount. Link accounts to that bucket later to let the goal progress follow the real account balance.
+            </div>
+          )}
+          {form.progress_mode === "existing_bucket" && (
+            <Select label="Linked Bucket" value={form.linked_bucket_id} onChange={(e) => setForm({ ...form, linked_bucket_id: e.target.value })} required>
+              <option value="">— choose bucket —</option>
+              {buckets.map((b: any) => <option key={b.bucket_id} value={b.bucket_id}>{b.name}</option>)}
+            </Select>
+          )}
           {editing && <Select label="Status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
             <option value="active">Active</option><option value="paused">Paused</option><option value="completed">Completed</option>
           </Select>}
           {err && <p className="text-xs text-danger">{err}</p>}
           <div className="flex gap-2 pt-1">
+            {editing && <Button type="button" variant="danger" onClick={() => confirm(`Delete "${editing.name}"?`) && deleteMut.mutate(editing.goal_id)} disabled={deleteMut.isPending}>Delete</Button>}
             <Button type="submit" variant="primary" className="flex-1" disabled={saveMut.isPending}>Save</Button>
             <Button type="button" variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
           </div>

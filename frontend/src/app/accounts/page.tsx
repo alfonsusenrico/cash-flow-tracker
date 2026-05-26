@@ -21,6 +21,8 @@ export default function AccountsPage() {
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
   const [form, setForm] = useState({ account_name: "", profile_type: "dynamic_spending", is_payroll_source: false, is_buffer: false, is_no_limit: false, fixed_limit_amount: 0, budget: 0, initial_balance: 0 });
   const [err, setErr] = useState("");
+  const [search, setSearch] = useState("");
+  const [profileFilter, setProfileFilter] = useState("all");
 
   const { data } = useQuery<{ accounts: Account[] }>({ queryKey: ["accounts"], queryFn: () => api.get("/accounts") });
   const { data: summaryData } = useQuery<any>({ queryKey: ["summary"], queryFn: () => api.get("/summary") });
@@ -29,6 +31,8 @@ export default function AccountsPage() {
   summaryData?.accounts?.forEach((a: any) => {
     if (a.budget != null) budgetByAcc[a.account_id] = { pct: a.budget_pct ?? 0, status: a.budget_status ?? "ok", amount: a.budget };
   });
+  const summaryByAccount = new Map<string, any>((summaryData?.accounts ?? []).map((a: any) => [a.account_id, a]));
+  const currentBalance = (account: Account) => account.balance ?? summaryByAccount.get(account.account_id)?.current_balance ?? 0;
 
   const inv = () => { qc.invalidateQueries({ queryKey: ["accounts"] }); qc.invalidateQueries({ queryKey: ["summary"] }); };
 
@@ -38,13 +42,24 @@ export default function AccountsPage() {
         const res: any = await api.post("/accounts", { account_name: form.account_name, initial_balance: form.initial_balance });
         await api.put(`/accounts/${res.account_id}/profile`, { profile_type: form.profile_type, is_payroll_source: form.is_payroll_source, is_buffer: form.is_buffer, is_no_limit: form.is_no_limit, fixed_limit_amount: form.fixed_limit_amount || null });
         if (form.budget > 0) await api.post("/budgets", { account_id: res.account_id, month: new Date().toISOString().slice(0, 7), amount: form.budget });
+        return null;
       } else if (selected) {
-        await api.put(`/accounts/${selected.account_id}`, { account_name: form.account_name });
-        await api.put(`/accounts/${selected.account_id}/profile`, { profile_type: form.profile_type, is_payroll_source: form.is_payroll_source, is_buffer: form.is_buffer, is_no_limit: form.is_no_limit, fixed_limit_amount: form.fixed_limit_amount || null });
+        const profileRes: any = await api.put(`/accounts/${selected.account_id}/profile`, { account_name: form.account_name, profile_type: form.profile_type, is_payroll_source: form.is_payroll_source, is_buffer: form.is_buffer, is_no_limit: form.is_no_limit, fixed_limit_amount: form.fixed_limit_amount || null });
         if (form.budget > 0) await api.post("/budgets", { account_id: selected.account_id, month: new Date().toISOString().slice(0, 7), amount: form.budget });
+        return profileRes.account ?? null;
       }
+      throw new Error("Choose an account before saving changes.");
     },
-    onSuccess: () => { inv(); setModal(null); },
+    onSuccess: (account) => {
+      if (account) {
+        qc.setQueryData<{ accounts: Account[] }>(["accounts"], (old) => old ? {
+          accounts: old.accounts.map((a) => a.account_id === account.account_id ? { ...a, ...account } : a),
+        } : old);
+        setSelected((prev) => prev?.account_id === account.account_id ? { ...prev, ...account } : account);
+      }
+      inv();
+      setModal(null);
+    },
     onError: (e: Error) => setErr(e.message),
   });
 
@@ -53,14 +68,21 @@ export default function AccountsPage() {
     onSuccess: () => { inv(); setSelected(null); },
   });
 
-  const accounts = data?.accounts ?? [];
-  const totalBalance = accounts.reduce((s, a) => s + (summaryData?.accounts?.find((sa: any) => sa.account_id === a.account_id)?.current_balance ?? 0), 0);
+  const allAccounts = data?.accounts ?? [];
+  const accounts = allAccounts.filter((a) => {
+    if (search && !a.account_name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (profileFilter !== "all" && a.profile_type !== profileFilter) return false;
+    return true;
+  });
+  const totalBalance = allAccounts.reduce((s, a) => s + currentBalance(a), 0);
+  const filteredBalance = accounts.reduce((s, a) => s + currentBalance(a), 0);
 
   function openCreate() {
     setForm({ account_name: "", profile_type: "dynamic_spending", is_payroll_source: false, is_buffer: false, is_no_limit: false, fixed_limit_amount: 0, budget: 0, initial_balance: 0 });
     setErr(""); setModal("create");
   }
   function openEdit(acc: Account) {
+    setSelected(acc);
     setForm({ account_name: acc.account_name, profile_type: acc.profile_type, is_payroll_source: acc.is_payroll_source, is_buffer: acc.is_buffer, is_no_limit: acc.is_no_limit, fixed_limit_amount: acc.fixed_limit_amount ?? 0, budget: budgetByAcc[acc.account_id]?.amount ?? 0, initial_balance: 0 });
     setErr(""); setModal("edit");
   }
@@ -71,10 +93,10 @@ export default function AccountsPage() {
         {/* Stats */}
         <div className="grid grid-cols-4 gap-3 mb-4">
           {[
-            { label: "Total Accounts", value: accounts.length, sub: "Across institutions", icon: "🏦" },
+            { label: "Total Accounts", value: allAccounts.length, sub: "Across institutions", icon: "🏦" },
             { label: "Total Balance", value: null, money: totalBalance, sub: "All accounts", icon: "💰" },
-            { label: "Payroll Sources", value: accounts.filter((a) => a.is_payroll_source).length, sub: "Salary accounts", icon: "📋" },
-            { label: "With Buffer", value: accounts.filter((a) => a.is_buffer).length, sub: "Emergency ready", icon: "🛡️" },
+            { label: "Payroll Sources", value: allAccounts.filter((a) => a.is_payroll_source).length, sub: "Salary accounts", icon: "📋" },
+            { label: "With Buffer", value: allAccounts.filter((a) => a.is_buffer).length, sub: "Emergency ready", icon: "🛡️" },
           ].map((s) => (
             <Card key={s.label} padding="sm">
               <div className="flex items-center gap-2 mb-1">
@@ -91,8 +113,13 @@ export default function AccountsPage() {
         <Card padding="sm">
           <div className="flex items-center justify-between mb-3">
             <div className="flex gap-2">
-              <input placeholder="Search accounts" className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-xs bg-[var(--surface)] w-48" />
-              <select className="border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs bg-[var(--surface)]"><option>All Accounts</option></select>
+              <input placeholder="Search accounts" value={search} onChange={(e) => setSearch(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-xs bg-[var(--surface)] w-48" />
+              <select value={profileFilter} onChange={(e) => setProfileFilter(e.target.value)} className="border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs bg-[var(--surface)]">
+                <option value="all">All Accounts</option>
+                <option value="dynamic_spending">Dynamic Spending</option>
+                <option value="fixed_spending">Fixed Spending</option>
+                <option value="tabungan">Savings</option>
+              </select>
             </div>
             <Button size="sm" variant="primary" onClick={openCreate}>+ Add Account</Button>
           </div>
@@ -112,7 +139,7 @@ export default function AccountsPage() {
             <tbody className="divide-y divide-[var(--border)]">
               {accounts.map((acc) => {
                 const budget = budgetByAcc[acc.account_id];
-                const currentBal = summaryData?.accounts?.find((sa: any) => sa.account_id === acc.account_id)?.current_balance ?? 0;
+                const currentBal = currentBalance(acc);
                 return (
                   <tr key={acc.account_id} onClick={() => setSelected(acc)} className={`hover:bg-[var(--bg)] cursor-pointer transition-colors ${selected?.account_id === acc.account_id ? "bg-primary/5" : ""}`}>
                     <td className="py-2.5">
@@ -135,7 +162,6 @@ export default function AccountsPage() {
                     <td className="py-2.5 text-right">
                       <div className="flex gap-1 justify-end">
                         <button onClick={(e) => { e.stopPropagation(); openEdit(acc); }} className="p-1 rounded hover:bg-[var(--bg)] text-[var(--muted)]">✏️</button>
-                        <button onClick={(e) => { e.stopPropagation(); }} className="p-1 rounded hover:bg-[var(--bg)] text-[var(--muted)]">⋯</button>
                       </div>
                     </td>
                   </tr>
@@ -143,7 +169,7 @@ export default function AccountsPage() {
               })}
               <tr className="font-semibold border-t-2 border-[var(--border)]">
                 <td className="py-2.5">Total</td>
-                <td /><td className="py-2.5 text-right tabular">{bal(totalBalance)}</td>
+                <td /><td className="py-2.5 text-right tabular">{bal(filteredBalance)}</td>
                 <td /><td /><td /><td /><td />
               </tr>
             </tbody>
@@ -163,10 +189,12 @@ export default function AccountsPage() {
             <SectionTitle>Account Overview</SectionTitle>
             {[
               ["Profile Type", selected.profile_type.replace("_", " ")],
-              ["Current Balance", bal(summaryData?.accounts?.find((a: any) => a.account_id === selected.account_id)?.current_balance ?? 0)],
+              ["Current Balance", bal(currentBalance(selected))],
               ["Budget Limit", budgetByAcc[selected.account_id] ? bal(budgetByAcc[selected.account_id].amount) : "—"],
               ["Payroll Source", selected.is_payroll_source ? "Yes" : "No"],
               ["Buffer Account", selected.is_buffer ? "Yes" : "No"],
+              ["Institution", selected.institution ?? "—"],
+              ["Account Number", selected.account_number ?? "—"],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between">
                 <span className="text-[var(--muted)]">{k}</span>

@@ -202,6 +202,7 @@ def public_reset_api_key(req: Request, _payload: EmptyBodyRequest):
 def public_accounts(req: Request, _payload: EmptyBodyRequest):
     username = require_public_user(req)
     with db_conn() as conn, conn.cursor() as cur:
+        balances = get_account_balances(cur, username, now_utc())
         cur.execute(
             """
             SELECT a.account_id::text,
@@ -217,7 +218,10 @@ def public_accounts(req: Request, _payload: EmptyBodyRequest):
             """,
             (username,),
         )
-        return {"accounts": cur.fetchall()}
+        accounts = cur.fetchall()
+        for account in accounts:
+            account["balance"] = int(balances.get(account["account_id"], 0))
+        return {"accounts": accounts}
 
 
 @router.post("/accounts")
@@ -231,11 +235,13 @@ def public_create_account(req: Request, payload: AccountCreateRequest):
         try:
             cur.execute(
                 """
-                INSERT INTO accounts (username, account_name)
-                VALUES (%s, %s)
+                INSERT INTO accounts (user_id, username, account_name)
+                SELECT user_id, username, %s
+                FROM users
+                WHERE username=%s
                 RETURNING account_id::text
                 """,
-                (username, account_name),
+                (account_name, username),
             )
             account_id = cur.fetchone()["account_id"]
             if payload.initial_balance > 0:
@@ -250,20 +256,22 @@ def public_create_account(req: Request, payload: AccountCreateRequest):
                         date,
                         is_transfer
                     )
-                    VALUES (%s::uuid, 'debit', true, %s, %s, %s, false)
+                    VALUES (%s::uuid, 'debit', false, %s, %s, %s, false)
                     """,
-                    (account_id, "Top Up Balance", payload.initial_balance, now_utc()),
+                    (account_id, "Opening Balance", payload.initial_balance, now_utc()),
                 )
             if payload.monthly_limit is not None:
                 budget_month = current_month_local()
                 cur.execute(
                     """
-                    INSERT INTO budgets (username, account_id, month, amount)
-                    VALUES (%s, %s::uuid, %s, %s)
+                    INSERT INTO budgets (user_id, username, account_id, month, amount)
+                    SELECT user_id, username, %s::uuid, %s, %s
+                    FROM users
+                    WHERE username=%s
                     ON CONFLICT (username, account_id, month)
                     DO UPDATE SET amount=EXCLUDED.amount
                     """,
-                    (username, account_id, budget_month, int(payload.monthly_limit)),
+                    (account_id, budget_month, int(payload.monthly_limit), username),
                 )
             conn.commit()
         except UniqueViolation:
@@ -291,7 +299,14 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
                        t.transaction_name,
                        t.amount,
                        t.date,
-                       t.is_transfer
+                       t.is_transfer,
+                       t.category_id::text AS category_id,
+                       t.notes,
+                       t.currency,
+                       t.original_amount,
+                       t.fx_rate,
+                       t.tags,
+                       t.is_reviewed
                 FROM transactions t
                 JOIN accounts a ON a.account_id=t.account_id
                 WHERE t.transaction_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
@@ -336,6 +351,22 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
 
             old_account_id = tx["account_id"]
             old_date = tx["date"]
+            fields_set = payload.model_fields_set
+            new_category_id = payload.category_id if "category_id" in fields_set else tx.get("category_id")
+            new_notes = ((payload.notes or "").strip() or None) if "notes" in fields_set else tx.get("notes")
+            new_currency = (payload.currency or "IDR") if "currency" in fields_set else (tx.get("currency") or "IDR")
+            new_original_amount = payload.original_amount if "original_amount" in fields_set else tx.get("original_amount")
+            new_fx_rate = payload.fx_rate if "fx_rate" in fields_set else tx.get("fx_rate")
+            new_tags = (
+                [str(t).strip() for t in (payload.tags or []) if str(t).strip()]
+                if "tags" in fields_set
+                else list(tx.get("tags") or [])
+            )
+            new_is_reviewed = (
+                bool(payload.is_reviewed)
+                if "is_reviewed" in fields_set and payload.is_reviewed is not None
+                else bool(tx.get("is_reviewed", False))
+            )
 
             lock_accounts_for_update(cur, username, [old_account_id, new_account_id])
 
@@ -392,16 +423,20 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
                     notes=%s,
                     currency=%s,
                     original_amount=%s,
-                    fx_rate=%s
+                    fx_rate=%s,
+                    tags=%s,
+                    is_reviewed=%s
                 WHERE transaction_id=%s::uuid AND deleted_at IS NULL
                 RETURNING transaction_id::text
                 """,
                 (new_account_id, new_type, is_cycle_topup, new_name, new_amount, new_date,
-                 payload.category_id or None,
-                 (payload.notes or "").strip() or None,
-                 payload.currency or "IDR",
-                 payload.original_amount,
-                 payload.fx_rate,
+                 new_category_id or None,
+                 new_notes,
+                 new_currency,
+                 new_original_amount,
+                 new_fx_rate,
+                 new_tags,
+                 new_is_reviewed,
                  transaction_id),
             )
             if not cur.fetchone():
@@ -461,9 +496,11 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
                 notes,
                 currency,
                 original_amount,
-                fx_rate
+                fx_rate,
+                tags,
+                is_reviewed
             )
-            VALUES (%s::uuid, %s, %s, %s, %s, %s, false, %s::uuid, %s, %s, %s, %s)
+            VALUES (%s::uuid, %s, %s, %s, %s, %s, false, %s::uuid, %s, %s, %s, %s, %s, %s)
             RETURNING transaction_id::text
             """,
             (account_id, tx_type, is_cycle_topup, name, int(amount), dt,
@@ -471,7 +508,9 @@ def public_upsert_transaction(req: Request, payload: TransactionUpsertRequest):
              (payload.notes or "").strip() or None,
              payload.currency or "IDR",
              payload.original_amount,
-             payload.fx_rate),
+             payload.fx_rate,
+             list(payload.tags) if payload.tags else [],
+             bool(payload.is_reviewed) if payload.is_reviewed is not None else False),
         )
         tx_id = cur.fetchone()["transaction_id"]
         conn.commit()
@@ -972,16 +1011,24 @@ def public_update_account(account_id: str, req: Request, payload: AccountCreateR
             raise HTTPException(status_code=404, detail="Account not found")
         try:
             cur.execute(
-                "UPDATE accounts SET account_name=%s WHERE username=%s AND account_id=%s::uuid",
+                """
+                UPDATE accounts
+                SET account_name=%s
+                WHERE username=%s AND account_id=%s::uuid
+                RETURNING account_id::text, account_name, profile_type, is_payroll_source, is_no_limit, is_buffer, fixed_limit_amount
+                """,
                 (account_name, username, account_id),
             )
+            row = cur.fetchone()
+            if row:
+                row["balance"] = int(get_account_balances(cur, username, now_utc()).get(account_id, 0))
             conn.commit()
         except UniqueViolation:
             conn.rollback()
             raise HTTPException(status_code=400, detail="Account name already exists")
 
     invalidate_user_cache(username)
-    return {"ok": True}
+    return {"ok": True, "account": row}
 
 
 @router.put("/accounts/{account_id}/profile")
@@ -989,6 +1036,11 @@ def public_update_account_profile(account_id: str, req: Request, payload: dict[s
     username = require_public_user(req)
     account_id = parse_uuid_value(account_id, "account_id")
 
+    account_name = None
+    if "account_name" in payload:
+        account_name = (payload.get("account_name") or "").strip()
+        if not account_name:
+            raise HTTPException(status_code=400, detail="account_name required")
     profile_type = parse_profile_type(payload.get("profile_type"))
     is_payroll_source = bool(parse_optional_bool(payload.get("is_payroll_source"), "is_payroll_source") or False)
     is_no_limit = bool(parse_optional_bool(payload.get("is_no_limit"), "is_no_limit") or False)
@@ -1002,22 +1054,28 @@ def public_update_account_profile(account_id: str, req: Request, payload: dict[s
             raise HTTPException(status_code=400, detail="fixed_limit_amount must be >= 0")
 
     with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            UPDATE accounts
-            SET profile_type=%s,
-                is_payroll_source=%s,
-                is_no_limit=%s,
-                is_buffer=%s,
-                fixed_limit_amount=%s
-            WHERE username=%s AND account_id=%s::uuid
-            RETURNING account_id::text, account_name, profile_type, is_payroll_source, is_no_limit, is_buffer, fixed_limit_amount
-            """,
-            (profile_type, is_payroll_source, is_no_limit, is_buffer, fixed_limit_amount, username, account_id),
-        )
+        try:
+            cur.execute(
+                """
+                UPDATE accounts
+                SET account_name=COALESCE(%s, account_name),
+                    profile_type=%s,
+                    is_payroll_source=%s,
+                    is_no_limit=%s,
+                    is_buffer=%s,
+                    fixed_limit_amount=%s
+                WHERE username=%s AND account_id=%s::uuid
+                RETURNING account_id::text, account_name, profile_type, is_payroll_source, is_no_limit, is_buffer, fixed_limit_amount
+                """,
+                (account_name, profile_type, is_payroll_source, is_no_limit, is_buffer, fixed_limit_amount, username, account_id),
+            )
+        except UniqueViolation:
+            conn.rollback()
+            raise HTTPException(status_code=400, detail="Account name already exists")
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Account not found")
+        row["balance"] = int(get_account_balances(cur, username, now_utc()).get(account_id, 0))
         conn.commit()
 
     invalidate_user_cache(username)
@@ -1062,13 +1120,15 @@ def public_upsert_budget(req: Request, payload: dict[str, Any]):
             raise HTTPException(status_code=404, detail="Account not found")
         cur.execute(
             """
-            INSERT INTO budgets (username, account_id, month, amount)
-            VALUES (%s, %s::uuid, %s, %s)
+            INSERT INTO budgets (user_id, username, account_id, month, amount)
+            SELECT user_id, username, %s::uuid, %s, %s
+            FROM users
+            WHERE username=%s
             ON CONFLICT (username, account_id, month)
             DO UPDATE SET amount=EXCLUDED.amount
             RETURNING budget_id::text
             """,
-            (username, account_id, month, amount),
+            (account_id, month, amount, username),
         )
         budget_id = cur.fetchone()["budget_id"]
         conn.commit()
@@ -1513,12 +1573,14 @@ def public_set_payday(req: Request, payload: dict[str, Any]):
             with db_conn() as conn, conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO payday_overrides (username, month, payday_day)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO payday_overrides (user_id, username, month, payday_day)
+                    SELECT user_id, username, %s, %s
+                    FROM users
+                    WHERE username=%s
                     ON CONFLICT (username, month)
                     DO UPDATE SET payday_day=EXCLUDED.payday_day
                     """,
-                    (username, month, day),
+                    (month, day, username),
                 )
                 conn.commit()
     else:

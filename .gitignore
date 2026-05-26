@@ -9,3 +9,6 @@ storage/*
 frontend/node_modules/
 frontend/.next/
 frontend/.env.local
+frontend/*.tsbuildinfo
+scripts/
+docs/

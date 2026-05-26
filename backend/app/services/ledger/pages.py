@@ -57,7 +57,11 @@ def build_ledger_data(
                t.date,
                t.is_transfer,
                t.is_cycle_topup,
-               t.transfer_id::text AS transfer_id
+               t.transfer_id::text AS transfer_id,
+               t.category_id::text AS category_id,
+               t.notes,
+               t.tags,
+               t.is_reviewed
         FROM transactions t
         JOIN accounts a ON a.account_id=t.account_id
         WHERE a.username=%s AND t.account_id = ANY(%s::uuid[])
@@ -88,6 +92,10 @@ def build_ledger_data(
             "is_transfer": bool(t.get("is_transfer")),
             "is_cycle_topup": bool(t.get("is_cycle_topup")),
             "transfer_id": t.get("transfer_id"),
+            "category_id": t.get("category_id"),
+            "notes": t.get("notes"),
+            "tags": list(t.get("tags") or []),
+            "is_reviewed": bool(t.get("is_reviewed")),
         })
 
     summary_accounts, total_asset = compute_summary(cur, username, acc_by_id, to_dt)
@@ -176,7 +184,11 @@ def build_ledger_page(
                        t.amount,
                        t.date,
                        t.is_cycle_topup,
-                       t.transfer_id::text AS transfer_id
+                       t.transfer_id::text AS transfer_id,
+                       t.category_id::text AS category_id,
+                       t.notes,
+                       t.tags,
+                       t.is_reviewed
                 FROM transactions t
                 JOIN accounts a ON a.account_id=t.account_id
                 WHERE a.username=%s AND t.deleted_at IS NULL AND t.date >= %s AND t.date <= %s
@@ -184,6 +196,7 @@ def build_ledger_page(
             non_transfer AS (
                 SELECT transaction_id AS event_id, account_id, account_name, transaction_name, amount, date,
                        false AS is_transfer, false AS is_cycle_topup, NULL::text AS transfer_id,
+                       category_id, notes, tags, is_reviewed,
                        CASE WHEN transaction_type='debit' THEN amount ELSE -amount END AS signed_delta,
                        CASE WHEN transaction_type='debit' THEN amount ELSE 0 END AS debit,
                        CASE WHEN transaction_type='credit' THEN amount ELSE 0 END AS credit
@@ -198,6 +211,7 @@ def build_ledger_page(
                        ) AS transaction_name,
                        COALESCE(MAX(CASE WHEN transaction_type='debit' THEN amount ELSE 0 END), 0) AS amount,
                        MAX(date) AS date, true AS is_transfer, BOOL_OR(is_cycle_topup) AS is_cycle_topup, transfer_id,
+                       NULL::text AS category_id, NULL::text AS notes, '{{}}'::text[] AS tags, true AS is_reviewed,
                        0::bigint AS signed_delta,
                        COALESCE(MAX(CASE WHEN transaction_type='debit' THEN amount ELSE 0 END), 0) AS debit,
                        COALESCE(MAX(CASE WHEN transaction_type='credit' THEN amount ELSE 0 END), 0) AS credit
@@ -208,7 +222,8 @@ def build_ledger_page(
                 SELECT *, SUM(signed_delta) OVER (ORDER BY date ASC, event_id ASC) AS running_delta FROM events
             )
             SELECT event_id, account_id, account_name, transaction_name, amount, date,
-                   is_transfer, is_cycle_topup, transfer_id, debit, credit, running_delta
+                   is_transfer, is_cycle_topup, transfer_id, category_id, notes, tags, is_reviewed,
+                   debit, credit, running_delta
             FROM events_running
             {search_sql}
             ORDER BY date {order_dir}, event_id {order_dir}
@@ -221,6 +236,10 @@ def build_ledger_page(
                 SELECT t.transaction_id::text AS event_id, t.account_id::text AS account_id, a.account_name,
                        t.transaction_name, t.amount, t.date, false AS is_transfer, t.is_cycle_topup,
                        NULL::text AS transfer_id,
+                       t.category_id::text AS category_id,
+                       t.notes,
+                       t.tags,
+                       t.is_reviewed,
                        CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END AS signed_delta,
                        CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END AS debit,
                        CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END AS credit
@@ -229,7 +248,8 @@ def build_ledger_page(
             ),
             events_running AS (SELECT *, SUM(signed_delta) OVER (ORDER BY date ASC, event_id ASC) AS running_delta FROM events)
             SELECT event_id, account_id, account_name, transaction_name, amount, date,
-                   is_transfer, is_cycle_topup, transfer_id, debit, credit, running_delta
+                   is_transfer, is_cycle_topup, transfer_id, category_id, notes, tags, is_reviewed,
+                   debit, credit, running_delta
             FROM events_running
             {search_sql}
             ORDER BY date {order_dir}, event_id {order_dir}
@@ -242,6 +262,10 @@ def build_ledger_page(
                 SELECT t.transaction_id::text AS transaction_id, t.account_id::text AS account_id, a.account_name,
                        t.transaction_type, t.transaction_name, t.amount, t.date, t.is_transfer, t.is_cycle_topup,
                        t.transfer_id::text AS transfer_id,
+                       t.category_id::text AS category_id,
+                       t.notes,
+                       t.tags,
+                       t.is_reviewed,
                        SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END)
                          OVER (ORDER BY t.date ASC, t.transaction_id ASC) AS running_delta
                 FROM transactions t JOIN accounts a ON a.account_id=t.account_id
@@ -249,6 +273,7 @@ def build_ledger_page(
             )
             SELECT transaction_id AS event_id, account_id, account_name, transaction_name, amount, date,
                    is_transfer, is_cycle_topup, transfer_id,
+                   category_id, notes, tags, is_reviewed,
                    CASE WHEN transaction_type='debit' THEN amount ELSE 0 END AS debit,
                    CASE WHEN transaction_type='credit' THEN amount ELSE 0 END AS credit,
                    running_delta
@@ -279,6 +304,10 @@ def build_ledger_page(
             "is_transfer": bool(r.get("is_transfer")),
             "is_cycle_topup": bool(r.get("is_cycle_topup")),
             "transfer_id": r.get("transfer_id"),
+            "category_id": r.get("category_id"),
+            "notes": r.get("notes"),
+            "tags": list(r.get("tags") or []),
+            "is_reviewed": bool(r.get("is_reviewed")),
         }
         for idx, r in enumerate(raw_rows, start=1)
     ]

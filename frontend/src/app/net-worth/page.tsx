@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { fmtMoney } from "@/lib/utils";
@@ -22,14 +24,31 @@ export default function NetWorthPage() {
   const qc = useQueryClient();
   const { hideBalances } = useAppCtx();
   const bal = (n: number) => hideBalances ? "Rp ••••" : fmtMoney(n);
+  const [period, setPeriod] = useState("90D");
+  const [showAllSnapshots, setShowAllSnapshots] = useState(false);
+  const actionHandledRef = useRef(false);
 
   const { data, isLoading } = useQuery<NWResponse>({ queryKey: ["net-worth"], queryFn: () => api.get("/assets/net-worth") });
   const snapshotMut = useMutation({ mutationFn: () => api.post("/assets/net-worth/snapshot", {}), onSuccess: () => qc.invalidateQueries({ queryKey: ["net-worth"] }) });
 
+  useEffect(() => {
+    if (actionHandledRef.current) return;
+    actionHandledRef.current = true;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("action") === "record") {
+      snapshotMut.mutate();
+      params.delete("action");
+      const nextUrl = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
+      window.history.replaceState(null, "", nextUrl);
+    }
+  }, [snapshotMut]);
+
   if (isLoading) return <div className="p-6 text-[var(--muted)]">Loading…</div>;
   if (!data) return null;
 
-  const history = [...(data.history ?? [])].reverse();
+  const allHistory = [...(data.history ?? [])].reverse();
+  const periodLimit: Record<string, number | null> = { "7D": 7, "30D": 30, "90D": 90, "1Y": 365, All: null };
+  const history = periodLimit[period] ? allHistory.slice(-periodLimit[period]!) : allHistory;
   const maxNW = Math.max(...history.map((h) => h.net_worth), 1);
   const minNW = Math.min(...history.map((h) => h.net_worth), 0);
   const range = maxNW - minNW || 1;
@@ -57,7 +76,7 @@ export default function NetWorthPage() {
         <Card green padding="md">
           <div className="flex items-center justify-between mb-2">
             <p className="text-white/80 text-xs">Current Net Worth <span className="text-white/50">ⓘ</span></p>
-            <button className="text-xs text-white/70 border border-white/30 px-2 py-0.5 rounded">All Accounts ▾</button>
+            <button type="button" disabled title="Account-level net worth filtering is coming soon" className="text-xs text-white/50 border border-white/20 px-2 py-0.5 rounded cursor-not-allowed">All Accounts</button>
           </div>
           <p className="text-3xl font-bold text-white tabular">{bal(data.net_worth)}</p>
           <p className="text-white/70 text-xs mt-1">Total Assets minus Total Liabilities</p>
@@ -72,7 +91,7 @@ export default function NetWorthPage() {
           {[
             { label: "Liquid Assets", value: data.liquid_assets, sub: `${liquidPct.toFixed(1)}% of total assets`, icon: "💵", color: "text-primary" },
             { label: "Invested Assets", value: data.invested_assets, sub: `${investedPct.toFixed(1)}% of total assets`, icon: "📈", color: "text-info" },
-            { label: "Liabilities", value: 0, sub: "0% of total assets", icon: "🏦", color: "text-danger" },
+            { label: "Liabilities", value: null, sub: "Not tracked yet", icon: "🏦", color: "text-[var(--muted)]" },
             { label: "Change vs Last Month", value: Math.abs(change), sub: `${changePct}% improvement`, icon: "📊", color: change >= 0 ? "text-primary" : "text-danger" },
           ].map((s) => (
             <Card key={s.label} padding="sm">
@@ -80,7 +99,9 @@ export default function NetWorthPage() {
                 <p className="text-xs text-[var(--muted)]">{s.label}</p>
                 <div className="w-7 h-7 rounded-lg bg-[var(--bg)] flex items-center justify-center text-sm">{s.icon}</div>
               </div>
-              <p className={`text-base font-bold tabular ${s.color}`}>{bal(s.value)}</p>
+              <p className={`text-base font-bold tabular ${s.color}`}>
+                {s.value != null ? bal(s.value) : <span className="text-xs font-normal text-[var(--muted)]">Coming soon</span>}
+              </p>
               <p className="text-xs text-[var(--muted)]">{s.sub}</p>
             </Card>
           ))}
@@ -95,7 +116,7 @@ export default function NetWorthPage() {
               <SectionTitle>Net Worth History <span className="text-[var(--muted)] text-xs font-normal">ⓘ</span></SectionTitle>
               <div className="flex gap-1">
                 {PERIODS.map((p) => (
-                  <button key={p} className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${p === "90D" ? "bg-primary text-white" : "border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--bg)]"}`}>{p}</button>
+                  <button key={p} type="button" onClick={() => setPeriod(p)} className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${p === period ? "bg-primary text-white" : "border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--bg)]"}`}>{p}</button>
                 ))}
               </div>
             </div>
@@ -140,7 +161,7 @@ export default function NetWorthPage() {
         <Card padding="md">
           <div className="flex items-center justify-between mb-3">
             <SectionTitle>Net Worth Composition <span className="text-[var(--muted)] text-xs font-normal">ⓘ</span></SectionTitle>
-            <button className="text-xs text-primary hover:underline">View details</button>
+            <Link href="/assets" prefetch={false} className="text-xs text-primary hover:underline">View details</Link>
           </div>
           <div className="flex flex-col items-center">
             <div className="relative w-28 h-28">
@@ -171,7 +192,7 @@ export default function NetWorthPage() {
               {[
                 { label: "Liquid Assets", value: data.liquid_assets, pct: liquidPct, color: "#16a34a" },
                 { label: "Invested Assets", value: data.invested_assets, pct: investedPct, color: "#3b82f6" },
-                { label: "Liabilities", value: 0, pct: 0, color: "#dc2626" },
+                { label: "Liabilities", value: null, pct: 0, color: "#dc2626" },
               ].map((s) => (
                 <div key={s.label} className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
@@ -179,8 +200,10 @@ export default function NetWorthPage() {
                     <span>{s.label}</span>
                   </div>
                   <div className="text-right">
-                    <span className="tabular font-medium">{bal(s.value)}</span>
-                    <span className="text-[var(--muted)] ml-1">({s.pct.toFixed(1)}%)</span>
+                    {s.value != null
+                      ? <><span className="tabular font-medium">{bal(s.value)}</span><span className="text-[var(--muted)] ml-1">({s.pct.toFixed(1)}%)</span></>
+                      : <span className="text-[var(--muted)] text-xs">Not tracked</span>
+                    }
                   </div>
                 </div>
               ))}
@@ -207,28 +230,34 @@ export default function NetWorthPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)]">
-            {history.slice(-5).reverse().map((h, i) => {
-              const prev = history[history.length - 2 - i];
+            {(showAllSnapshots ? allHistory : allHistory.slice(-5)).reverse().map((h) => {
+              const idx = allHistory.findIndex((candidate) => candidate.as_of_date === h.as_of_date);
+              const prev = idx > 0 ? allHistory[idx - 1] : undefined;
               const chg = prev ? h.net_worth - prev.net_worth : 0;
               const chgPct = prev && prev.net_worth > 0 ? ((chg / prev.net_worth) * 100).toFixed(2) : "—";
+              const changeClass = chgPct === "—" ? "text-[var(--muted)]" : chg >= 0 ? "text-primary" : "text-danger";
               const isToday = h.as_of_date === new Date().toISOString().slice(0, 10);
               return (
                 <tr key={h.as_of_date} className="hover:bg-[var(--bg)] transition-colors">
                   <td className="py-2.5 font-medium">{h.as_of_date}{isToday && <span className="ml-1 text-primary text-[10px]">(Today)</span>}</td>
                   <td className="py-2.5 text-right tabular font-medium">{bal(h.net_worth)}</td>
-                  <td className={`py-2.5 text-right tabular ${chg >= 0 ? "text-primary" : "text-danger"}`}>{chg !== 0 ? `${chg >= 0 ? "▲" : "▼"} ${bal(Math.abs(chg))}` : "—"}</td>
-                  <td className={`py-2.5 text-right tabular ${parseFloat(chgPct) >= 0 ? "text-primary" : "text-danger"}`}>{chgPct !== "—" ? `${chgPct}%` : "—"}</td>
+                  <td className={`py-2.5 text-right tabular ${changeClass}`}>{prev ? `${chg >= 0 ? "▲" : "▼"} ${bal(Math.abs(chg))}` : "—"}</td>
+                  <td className={`py-2.5 text-right tabular ${changeClass}`}>{chgPct !== "—" ? `${chgPct}%` : "—"}</td>
                   <td className="py-2.5 text-right tabular">{bal(h.liquid_assets + h.invested_assets)}</td>
                   <td className="py-2.5 text-right tabular text-danger">—</td>
                   <td className="py-2.5 text-[var(--muted)]">—</td>
-                  <td className="py-2.5 text-[var(--muted)]">⋯</td>
+                  <td />
                 </tr>
               );
             })}
             {history.length === 0 && <tr><td colSpan={8} className="text-center py-6 text-[var(--muted)]">No snapshots yet.</td></tr>}
           </tbody>
         </table>
-        {history.length > 5 && <button className="w-full text-xs text-primary hover:underline mt-3 py-1">View all snapshots</button>}
+        {allHistory.length > 5 && (
+          <button type="button" onClick={() => setShowAllSnapshots((v) => !v)} className="w-full text-xs text-primary hover:underline mt-3 py-1">
+            {showAllSnapshots ? "Show latest snapshots" : "View all snapshots"}
+          </button>
+        )}
       </Card>
     </div>
   );

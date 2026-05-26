@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, ApiError } from "@/lib/api";
 import { fmtMoney } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
@@ -12,30 +13,54 @@ import { Input, Select } from "@/components/ui/Input";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import type { LedgerRow, LedgerResponse, Category } from "@/types/domain";
 
-const CATEGORY_ICONS: Record<string, string> = {
-  income: "💵", salary: "💵", bonus: "🎁", freelance: "💻",
-  food: "🍽️", "food & dining": "🍽️", dining: "🍽️",
+// Fallback icon map keyed by category kind or well-known names
+const KIND_ICONS: Record<string, string> = {
+  income: "💵", expense: "🛍️", transfer: "⇄", adjustment: "⚙️",
+};
+const NAME_ICONS: Record<string, string> = {
+  salary: "💵", bonus: "🎁", freelance: "💻",
+  "food & dining": "🍽️", food: "🍽️", dining: "🍽️", groceries: "🛒",
   transport: "🚗", shopping: "🛍️", health: "❤️",
   utilities: "💡", bills: "💡", housing: "🏠",
   entertainment: "🎬", education: "📚", savings: "🏦",
-  investment: "📈", transfer: "⇄", "transfer in": "⇄", "transfer out": "⇄",
+  investment: "📈", "transfer in": "⇄", "transfer out": "⇄",
+  "interest income": "💰", giving: "❤️", church: "⛪",
 };
 
-function getCategoryIcon(name: string) {
-  const key = name.toLowerCase();
-  return CATEGORY_ICONS[key] ?? "📋";
+function getCategoryIcon(category: Category | undefined, fallbackName: string): string {
+  if (category?.icon) return category.icon;
+  const byName = NAME_ICONS[category?.name?.toLowerCase() ?? ""] ?? NAME_ICONS[fallbackName.toLowerCase()];
+  if (byName) return byName;
+  return KIND_ICONS[category?.kind ?? "expense"] ?? "📋";
 }
 
 export default function LedgerPage() {
+  return (
+    <Suspense fallback={<div className="p-5 text-sm text-[var(--muted)]">Loading ledger...</div>}>
+      <LedgerContent />
+    </Suspense>
+  );
+}
+
+function LedgerContent() {
   const { accounts, hideBalances } = useAppCtx();
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
   const bal = (n: number) => hideBalances ? "Rp ••••" : fmtMoney(n);
+
+  const { data: categoriesData } = useQuery<{ categories: Category[] }>({
+    queryKey: ["categories"],
+    queryFn: () => api.get("/categories"),
+  });
+  // Build a fast lookup map: category_id -> Category
+  const categoryById: Record<string, Category> = {};
+  (categoriesData?.categories ?? []).forEach((c) => { categoryById[c.category_id] = c; });
 
   // Filters
   const [scope, setScope] = useState<"all" | "account">("all");
   const [accountId, setAccountId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "transfer" | "payroll">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "transfer" | "payroll" | "unreviewed">("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage] = useState(10);
@@ -45,34 +70,64 @@ export default function LedgerPage() {
   const [editingRow, setEditingRow] = useState<LedgerRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<LedgerRow | null>(null);
   const [switchModal, setSwitchModal] = useState(false);
+  const [deleteErr, setDeleteErr] = useState("");
+  const [deletingDetail, setDeletingDetail] = useState(false);
+  const [receiptErr, setReceiptErr] = useState("");
+  const [receiptBusy, setReceiptBusy] = useState(false);
 
-  const { data: categoriesData } = useQuery<{ categories: Category[] }>({
-    queryKey: ["categories"],
-    queryFn: () => api.get("/categories"),
-  });
   const categories = categoriesData?.categories ?? [];
 
   // Ledger data
   const { data: ledgerData, isLoading } = useQuery<LedgerResponse>({
     queryKey: ["ledger", scope, accountId, search, page, perPage],
-    queryFn: () => api.post("/ledger", {
-      scope, account_id: accountId, limit: perPage,
-      order: "desc", q: search || null, include_switch: true,
-      cursor: null,
-    }),
+    queryFn: () => {
+      const params = new URLSearchParams({
+        scope,
+        limit: String(perPage),
+        order: "desc",
+        include_switch: "true",
+      });
+      if (accountId) params.set("account_id", accountId);
+      if (search) params.set("q", search);
+      return api.get(`/ledger?${params.toString()}`);
+    },
   });
 
   const rows = ledgerData?.rows ?? [];
   const totalIn = rows.reduce((s, r) => s + r.debit, 0);
   const totalOut = rows.reduce((s, r) => s + r.credit, 0);
+  const unreviewedCount = rows.filter((r) => !r.is_transfer && !r.is_reviewed).length;
 
   const filteredRows = rows.filter((r) => {
+    if (categoryFilter && r.category_id !== categoryFilter) return false;
     if (typeFilter === "income") return r.debit > 0 && !r.is_transfer;
     if (typeFilter === "expense") return r.credit > 0 && !r.is_transfer;
     if (typeFilter === "transfer") return r.is_transfer;
     if (typeFilter === "payroll") return r.is_cycle_topup;
+    if (typeFilter === "unreviewed") return !r.is_transfer && !r.is_reviewed;
     return true;
   });
+
+  const selectedTxId = selectedRow?.transaction_id;
+  const { data: receiptData } = useQuery<any | null>({
+    queryKey: ["transaction-receipt", selectedTxId],
+    enabled: !!selectedTxId && !selectedRow?.is_transfer,
+    queryFn: async () => {
+      try {
+        return await api.get(`/transactions/${selectedTxId}/receipt`);
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return null;
+        throw e;
+      }
+    },
+  });
+  const { data: auditData } = useQuery<{ audit: any[] }>({
+    queryKey: ["transaction-audit", selectedTxId],
+    enabled: !!selectedTxId && !selectedRow?.is_transfer,
+    queryFn: () => api.get(`/transactions/audit?transaction_id=${selectedTxId}`),
+  });
+  const auditRows = auditData?.audit ?? [];
+  const hasHistory = auditRows.length > 1;
 
   function openEdit(row: LedgerRow) {
     if (row.is_transfer) return;
@@ -81,12 +136,85 @@ export default function LedgerPage() {
     setTxModal(true);
   }
 
+  useEffect(() => {
+    const action = searchParams.get("action");
+    if (!action) return;
+    const params = new URLSearchParams(searchParams.toString());
+    if (action === "add") {
+      setEditingRow(null);
+      setTxModal(true);
+    } else if (action === "transfer") {
+      setSwitchModal(true);
+    }
+    if (action) {
+      params.delete("action");
+      const nextUrl = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
+      window.history.replaceState(null, "", nextUrl);
+    }
+  }, [searchParams]);
+
+  async function deleteSelectedRow() {
+    if (!selectedRow || selectedRow.is_transfer) return;
+    if (!confirm(`Delete "${selectedRow.transaction_name}"?`)) return;
+    setDeletingDetail(true);
+    setDeleteErr("");
+    try {
+      await api.del(`/transactions/${selectedRow.transaction_id}`);
+      setSelectedRow(null);
+      await qc.invalidateQueries({ queryKey: ["ledger"] });
+      await qc.invalidateQueries({ queryKey: ["summary"] });
+    } catch (e: any) {
+      setDeleteErr(e.message);
+    } finally {
+      setDeletingDetail(false);
+    }
+  }
+
+  async function uploadReceipt(file: File | null) {
+    if (!file || !selectedRow) return;
+    setReceiptBusy(true);
+    setReceiptErr("");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`/api/transactions/${selectedRow.transaction_id}/receipt`, {
+        method: "POST",
+        credentials: "include",
+        body: form,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail ?? "Upload failed");
+      }
+      await qc.invalidateQueries({ queryKey: ["transaction-receipt", selectedRow.transaction_id] });
+    } catch (e: any) {
+      setReceiptErr(e.message);
+    } finally {
+      setReceiptBusy(false);
+    }
+  }
+
+  async function deleteReceipt() {
+    if (!selectedRow || !confirm("Delete this receipt?")) return;
+    setReceiptBusy(true);
+    setReceiptErr("");
+    try {
+      await api.del(`/transactions/${selectedRow.transaction_id}/receipt`);
+      await qc.invalidateQueries({ queryKey: ["transaction-receipt", selectedRow.transaction_id] });
+    } catch (e: any) {
+      setReceiptErr(e.message);
+    } finally {
+      setReceiptBusy(false);
+    }
+  }
+
   const TYPE_PILLS = [
     { key: "all", label: "All" },
-    { key: "income", label: "Income" },
-    { key: "expense", label: "Expense" },
+    { key: "income", label: "Cash In" },
+    { key: "expense", label: "Cash Out" },
     { key: "transfer", label: "Transfer" },
     { key: "payroll", label: "★ Payroll" },
+    { key: "unreviewed", label: `Unreviewed${unreviewedCount ? ` ${unreviewedCount}` : ""}` },
   ];
 
   return (
@@ -176,7 +304,7 @@ export default function LedgerPage() {
               {filteredRows.map((row) => (
                 <tr
                   key={row.transaction_id}
-                  onClick={() => { setSelectedRow(row); if (!row.is_transfer) { setEditingRow(row); setTxModal(true); } }}
+                  onClick={() => { setSelectedRow(row); setEditingRow(null); }}
                   className={`hover:bg-[var(--bg)] cursor-pointer transition-colors ${row.is_transfer ? "opacity-60" : ""} ${selectedRow?.transaction_id === row.transaction_id ? "bg-primary/5" : ""}`}
                 >
                   <td className="px-4 py-2.5">
@@ -205,8 +333,8 @@ export default function LedgerPage() {
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm">{getCategoryIcon(row.transaction_name)}</span>
-                      <span className="text-[var(--muted)] truncate max-w-[80px]">{row.transaction_name.split(" ")[0]}</span>
+                      <span className="text-sm">{getCategoryIcon(categoryById[row.category_id ?? ""], row.transaction_name)}</span>
+                      <span className="text-[var(--muted)] truncate max-w-[80px]">{categoryById[row.category_id ?? ""]?.name ?? row.transaction_name.split(" ")[0]}</span>
                     </div>
                   </td>
                   <td className="px-3 py-2.5">
@@ -229,15 +357,10 @@ export default function LedgerPage() {
           </table>
         </div>
 
-        {/* Pagination */}
+        {/* Result count */}
         <div className="px-5 py-3 border-t border-[var(--border)] bg-[var(--surface)] flex items-center justify-between text-xs text-[var(--muted)]">
-          <span>Showing 1 to {filteredRows.length} of {filteredRows.length} transactions</span>
-          <div className="flex items-center gap-1">
-            <button className="px-2 py-1 rounded border border-[var(--border)] hover:bg-[var(--bg)]">‹</button>
-            <button className="px-2.5 py-1 rounded bg-primary text-white font-medium">1</button>
-            <button className="px-2 py-1 rounded border border-[var(--border)] hover:bg-[var(--bg)]">›</button>
-            <span className="ml-3">10 / page ▾</span>
-          </div>
+          <span>Showing latest {filteredRows.length} transactions</span>
+          <span>{ledgerData?.paging.has_more ? "More results available through filters" : "End of current results"}</span>
         </div>
       </div>
 
@@ -249,28 +372,91 @@ export default function LedgerPage() {
             <button onClick={() => setSelectedRow(null)} className="text-[var(--muted)] hover:text-[var(--text)]">✕</button>
           </div>
           <div className="flex gap-4 px-4 py-2 border-b border-[var(--border)]">
-            <button className="text-xs font-semibold text-primary border-b-2 border-primary pb-1">Details</button>
-            <button className="text-xs text-[var(--muted)]">History</button>
+            <button type="button" className="text-xs font-semibold text-primary border-b-2 border-primary pb-1">Details</button>
+            {hasHistory && <button type="button" disabled title="Audit history is available for this transaction" className="text-xs text-[var(--muted)] cursor-not-allowed">History</button>}
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             <div className={`p-3 rounded-xl ${selectedRow.debit > 0 ? "bg-green-50 dark:bg-green-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
-              <Badge variant={selectedRow.debit > 0 ? "green" : "red"}>{selectedRow.debit > 0 ? "Income" : "Expense"}</Badge>
+              <Badge variant={selectedRow.debit > 0 ? "green" : "red"}>{selectedRow.debit > 0 ? "Cash In" : "Cash Out"}</Badge>
               <p className={`text-2xl font-bold tabular mt-1 ${selectedRow.debit > 0 ? "text-primary" : "text-danger"}`}>
                 {bal(selectedRow.debit > 0 ? selectedRow.debit : selectedRow.credit)}
               </p>
               <p className="text-xs text-[var(--muted)] mt-0.5">{selectedRow.transaction_name}</p>
             </div>
+            {!selectedRow.is_transfer && (
+              <div className="rounded-xl border border-[var(--border)] p-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs text-[var(--muted)] mb-1">Transaction Media</p>
+                    <p className="font-medium">{receiptData?.receipt ? receiptData.receipt.original_filename : "No receipt attached"}</p>
+                  </div>
+                  {receiptData?.receipt && (
+                    <a
+                      href={`/api/transactions/${selectedRow.transaction_id}/receipt/view`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-semibold text-primary hover:underline"
+                    >
+                      View
+                    </a>
+                  )}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <label className="flex-1">
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*,application/pdf"
+                      disabled={receiptBusy}
+                      onChange={(e) => uploadReceipt(e.target.files?.[0] ?? null)}
+                    />
+                    <span className="block w-full text-center rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold cursor-pointer hover:bg-[var(--bg)]">
+                      {receiptData?.receipt ? "Replace" : "Upload"}
+                    </span>
+                  </label>
+                  {receiptData?.receipt && (
+                    <button
+                      type="button"
+                      onClick={deleteReceipt}
+                      disabled={receiptBusy}
+                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+                {receiptErr && <p className="mt-2 text-xs text-danger">{receiptErr}</p>}
+              </div>
+            )}
             <div className="space-y-3 text-sm">
               <div><p className="text-xs text-[var(--muted)] mb-1">Date</p><p className="font-medium">{new Date(selectedRow.date).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</p></div>
               <div><p className="text-xs text-[var(--muted)] mb-1">Account</p><p className="font-medium">{selectedRow.account_name}</p></div>
+              <div><p className="text-xs text-[var(--muted)] mb-1">Category</p><p className="font-medium">{categoryById[selectedRow.category_id ?? ""]?.name ?? "Uncategorized"}</p></div>
+              <div>
+                <p className="text-xs text-[var(--muted)] mb-1">Review Status</p>
+                <Badge variant={selectedRow.is_reviewed ? "green" : "yellow"}>{selectedRow.is_reviewed ? "Reviewed" : "Unreviewed"}</Badge>
+                <p className="mt-1 text-xs text-[var(--muted)]">Use this after checking account, category, amount, tags, and receipt.</p>
+              </div>
+              {(selectedRow.tags ?? []).length > 0 && (
+                <div>
+                  <p className="text-xs text-[var(--muted)] mb-1">Tags</p>
+                  <div className="flex flex-wrap gap-1">{(selectedRow.tags ?? []).map((tag) => <Badge key={tag} variant="blue">{tag}</Badge>)}</div>
+                </div>
+              )}
+              {selectedRow.notes && <div><p className="text-xs text-[var(--muted)] mb-1">Notes</p><p className="font-medium whitespace-pre-wrap">{selectedRow.notes}</p></div>}
               <div><p className="text-xs text-[var(--muted)] mb-1">Running Balance</p><p className="font-medium tabular">{bal(selectedRow.balance)}</p></div>
             </div>
           </div>
           {!selectedRow.is_transfer && (
-            <div className="p-4 border-t border-[var(--border)] flex gap-2">
-              <Button size="sm" variant="danger" className="flex-1">Delete</Button>
-              <Button size="sm" variant="secondary" className="flex-1" onClick={() => setSelectedRow(null)}>Cancel</Button>
-              <Button size="sm" variant="primary" className="flex-1" onClick={() => { setEditingRow(selectedRow); setTxModal(true); }}>Edit</Button>
+            <div className="p-4 border-t border-[var(--border)] space-y-2">
+              {deleteErr && <p className="text-xs text-danger">{deleteErr}</p>}
+              <div className="flex gap-2">
+                <Button size="sm" variant="danger" className="flex-1" onClick={deleteSelectedRow} disabled={deletingDetail}>
+                  {deletingDetail ? "Deleting..." : "Delete"}
+                </Button>
+                <Button size="sm" variant="secondary" className="flex-1" onClick={() => setSelectedRow(null)}>Cancel</Button>
+                <Button size="sm" variant="primary" className="flex-1" onClick={() => { setEditingRow(selectedRow); setTxModal(true); }}>Edit</Button>
+              </div>
             </div>
           )}
         </div>
@@ -284,7 +470,15 @@ export default function LedgerPage() {
           accounts={accounts}
           categories={categories}
           editing={editingRow}
-          onSaved={() => { qc.invalidateQueries({ queryKey: ["ledger"] }); qc.invalidateQueries({ queryKey: ["summary"] }); setTxModal(false); setEditingRow(null); }}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: ["ledger"] });
+            qc.invalidateQueries({ queryKey: ["summary"] });
+            qc.invalidateQueries({ queryKey: ["accounts"] });
+            qc.invalidateQueries({ queryKey: ["dashboard"] });
+            qc.invalidateQueries({ queryKey: ["buckets"] });
+            setTxModal(false);
+            setEditingRow(null);
+          }}
         />
       )}
 
@@ -294,7 +488,14 @@ export default function LedgerPage() {
           open={switchModal}
           onClose={() => setSwitchModal(false)}
           accounts={accounts}
-          onSaved={() => { qc.invalidateQueries({ queryKey: ["ledger"] }); setSwitchModal(false); }}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: ["ledger"] });
+            qc.invalidateQueries({ queryKey: ["summary"] });
+            qc.invalidateQueries({ queryKey: ["accounts"] });
+            qc.invalidateQueries({ queryKey: ["dashboard"] });
+            qc.invalidateQueries({ queryKey: ["buckets"] });
+            setSwitchModal(false);
+          }}
         />
       )}
     </div>
@@ -308,8 +509,10 @@ function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any)
   const [name, setName] = useState(editing?.transaction_name ?? "");
   const [amount, setAmount] = useState(editing ? (editing.debit > 0 ? editing.debit : editing.credit) : 0);
   const [date, setDate] = useState(editing?.date?.slice(0, 16) ?? new Date().toISOString().slice(0, 16));
-  const [categoryId, setCategoryId] = useState("");
-  const [notes, setNotes] = useState("");
+  const [categoryId, setCategoryId] = useState(editing?.category_id ?? "");
+  const [notes, setNotes] = useState(editing?.notes ?? "");
+  const [tagsText, setTagsText] = useState<string>((editing?.tags ?? []).join(", "));
+  const [isReviewed, setIsReviewed] = useState(editing?.is_reviewed ?? false);
   const [isTopup, setIsTopup] = useState(editing?.is_cycle_topup ?? false);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
@@ -320,7 +523,8 @@ function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any)
     e.preventDefault();
     setLoading(true); setErr("");
     try {
-      const payload = { account_id: accountId, transaction_type: type, transaction_name: name, amount, date, is_cycle_topup: isTopup, category_id: categoryId || null, notes: notes || null };
+      const tags = tagsText.split(",").map((tag) => tag.trim()).filter(Boolean);
+      const payload = { account_id: accountId, transaction_type: type, transaction_name: name, amount, date, is_cycle_topup: isTopup, category_id: categoryId || null, notes: notes || null, tags, is_reviewed: isReviewed };
       if (editing) await api.put(`/transactions/${editing.transaction_id}`, payload);
       else await api.post("/transactions", payload);
       onSaved();
@@ -363,6 +567,11 @@ function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any)
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Optional note" className="w-full border border-[var(--border)] rounded px-3 py-2 text-sm bg-[var(--surface)] text-[var(--text)] resize-none" />
           <p className="text-xs text-[var(--muted)] text-right">{notes.length}/250</p>
         </div>
+        <Input label="Tags" value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder="comma separated, e.g. reimbursable, recurring" />
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" checked={isReviewed} onChange={(e) => setIsReviewed(e.target.checked)} className="rounded" />
+          Mark as reviewed
+        </label>
         {type === "debit" && (
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={isTopup} onChange={(e) => setIsTopup(e.target.checked)} className="rounded" />

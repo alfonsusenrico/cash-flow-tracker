@@ -49,7 +49,7 @@ export default function CategoriesPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--muted)]">{items.length} categories</span>
-                <button className="text-[var(--muted)] text-xs">▲</button>
+                <button type="button" disabled title="Collapsible category groups are coming soon" className="text-[var(--muted)] text-xs cursor-not-allowed">▲</button>
               </div>
             </div>
             <table className="w-full text-xs">

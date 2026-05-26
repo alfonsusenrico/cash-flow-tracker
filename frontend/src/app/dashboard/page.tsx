@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { fmtMoney } from "@/lib/utils";
@@ -84,7 +85,7 @@ export default function DashboardPage() {
               <p className="text-xs text-yellow-700 dark:text-yellow-400">{w.label}</p>
             </div>
           </div>
-          <button className="text-xs font-semibold text-warning border border-warning/30 px-3 py-1.5 rounded-lg hover:bg-warning/10 transition-colors">Review now</button>
+          <Link href="/analysis" prefetch={false} className="text-xs font-semibold text-warning border border-warning/30 px-3 py-1.5 rounded-lg hover:bg-warning/10 transition-colors">Review now</Link>
         </div>
       ))}
 
@@ -98,7 +99,7 @@ export default function DashboardPage() {
             <p className="text-xs text-[var(--muted)] text-center mt-3 leading-relaxed">
               {score >= 70 ? "You're on track! Keep building your emergency fund and reducing expenses." : "Review your spending and savings to improve your score."}
             </p>
-            <button className="mt-3 text-xs text-primary border border-primary/30 px-4 py-1.5 rounded-lg hover:bg-primary/5 transition-colors">View full analysis</button>
+            <Link href="/analysis" prefetch={false} className="mt-3 text-xs text-primary border border-primary/30 px-4 py-1.5 rounded-lg hover:bg-primary/5 transition-colors">View full analysis</Link>
           </div>
         </Card>
 
@@ -106,7 +107,7 @@ export default function DashboardPage() {
         <Card green>
           <div className="flex items-center justify-between mb-2">
             <span className="text-white/80 text-sm font-medium">Safe to Spend <span className="text-white/50 text-xs">ⓘ</span></span>
-            <button className="text-xs text-white/80 border border-white/30 px-3 py-1 rounded-lg hover:bg-white/10 transition-colors">See breakdown →</button>
+            <Link href="/ledger" prefetch={false} className="text-xs text-white/80 border border-white/30 px-3 py-1 rounded-lg hover:bg-white/10 transition-colors">See breakdown →</Link>
           </div>
           <div className="py-3">
             <p className="text-3xl font-bold text-white tabular">{bal(dash?.metrics.safe_to_spend.value ?? 0)}</p>
@@ -129,7 +130,7 @@ export default function DashboardPage() {
         <Card>
           <div className="flex items-center justify-between mb-1">
             <SectionTitle>Net Worth <span className="text-[var(--muted)] text-xs font-normal">ⓘ</span></SectionTitle>
-            <button className="text-xs text-[var(--muted)] border border-[var(--border)] px-2 py-1 rounded-lg">All time ▾</button>
+            <button type="button" disabled title="Dashboard period selection is coming soon" className="text-xs text-[var(--muted)] border border-[var(--border)] px-2 py-1 rounded-lg opacity-60 cursor-not-allowed">All time</button>
           </div>
           <p className="text-2xl font-bold tabular">{bal(nwData?.net_worth ?? 0)}</p>
           <p className="text-xs text-[var(--muted)] mt-0.5">Total Assets minus Liabilities</p>
@@ -141,7 +142,7 @@ export default function DashboardPage() {
             {nwHistory.length > 1 && <Sparkline data={nwHistory} width={100} height={32} color="#16a34a" />}
           </div>
           <div className="mt-3 pt-3 border-t border-[var(--border)]">
-            <p className="text-xs text-[var(--muted)] mb-2">This Month ({summary?.range?.from} – {summary?.range?.to}) <span className="float-right"><button className="text-primary hover:underline">View details</button></span></p>
+            <p className="text-xs text-[var(--muted)] mb-2">This Month ({summary?.range?.from} – {summary?.range?.to}) <span className="float-right"><Link href="/analysis" prefetch={false} className="text-primary hover:underline">View details</Link></span></p>
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div><p className="text-[var(--muted)]">Income</p><p className="font-semibold text-primary tabular">{bal(dash?.total_in ?? 0)}</p></div>
               <div><p className="text-[var(--muted)]">Expenses</p><p className="font-semibold text-danger tabular">{bal(dash?.total_out ?? 0)}</p></div>
@@ -238,7 +239,7 @@ export default function DashboardPage() {
           <Card padding="sm">
             <SectionTitle>
               Goals Progress <span className="text-[var(--muted)] text-xs font-normal">ⓘ</span>
-              <button className="text-xs text-primary hover:underline ml-auto">View all</button>
+              <Link href="/goals" prefetch={false} className="text-xs text-primary hover:underline ml-auto">View all</Link>
             </SectionTitle>
             <div className="space-y-3">
               {dash?.goals?.slice(0, 3).map((g, i) => (

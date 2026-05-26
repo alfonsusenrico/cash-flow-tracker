@@ -4,6 +4,7 @@ interface ProgressBarProps {
   value: number; // 0-100
   max?: number;
   color?: "green" | "yellow" | "red" | "blue" | "orange";
+  intent?: "usage" | "completion";
   size?: "sm" | "md";
   className?: string;
   showLabel?: boolean;
@@ -17,10 +18,10 @@ const COLORS = {
   orange: "bg-orange-400",
 };
 
-export function ProgressBar({ value, max = 100, color = "green", size = "sm", className, showLabel }: ProgressBarProps) {
+export function ProgressBar({ value, max = 100, color = "green", intent = "usage", size = "sm", className, showLabel }: ProgressBarProps) {
   const pct = Math.min(Math.max((value / max) * 100, 0), 100);
   const autoColor = pct >= 80 ? "red" : pct >= 60 ? "yellow" : "green";
-  const barColor = COLORS[color === "green" && pct >= 80 ? autoColor : color];
+  const barColor = COLORS[intent === "usage" && color === "green" && pct >= 60 ? autoColor : color];
   const h = size === "sm" ? "h-1.5" : "h-2";
 
   return (

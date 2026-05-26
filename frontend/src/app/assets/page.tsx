@@ -30,36 +30,42 @@ export default function AssetsPage() {
   const [snapshotModal, setSnapshotModal] = useState<string | null>(null);
   const [snapshotForm, setSnapshotForm] = useState({ unit_price: 0, as_of_date: new Date().toISOString().slice(0, 10) });
   const [groupBy, setGroupBy] = useState("Asset Type");
+  const [search, setSearch] = useState("");
   const [err, setErr] = useState("");
 
   const { data } = useQuery<{ assets: Asset[] }>({ queryKey: ["assets"], queryFn: () => api.get("/assets") });
   const { data: nwData } = useQuery<any>({ queryKey: ["net-worth"], queryFn: () => api.get("/assets/net-worth") });
   const inv = () => qc.invalidateQueries({ queryKey: ["assets"] });
 
-  const saveAssetMut = useMutation({ mutationFn: () => editingAsset ? api.put(`/assets/${editingAsset.asset_id}`, assetForm) : api.post("/assets", assetForm), onSuccess: () => { inv(); setAssetModal(null); }, onError: (e: Error) => setErr(e.message) });
-  const deleteAssetMut = useMutation({ mutationFn: (id: string) => api.del(`/assets/${id}`), onSuccess: inv });
+  const saveAssetMut = useMutation({ mutationFn: () => editingAsset ? api.put(`/assets/${editingAsset.asset_id}`, assetForm) : api.post("/assets", assetForm), onSuccess: () => { inv(); setAssetModal(null); setEditingAsset(null); }, onError: (e: Error) => setErr(e.message) });
+  const deleteAssetMut = useMutation({ mutationFn: (id: string) => api.del(`/assets/${id}`), onSuccess: () => { inv(); setAssetModal(null); setEditingAsset(null); } });
   const addHoldingMut = useMutation({ mutationFn: () => api.post(`/assets/${holdingModal}/holdings`, { ...holdingForm, account_id: holdingForm.account_id || null }), onSuccess: () => { inv(); setHoldingModal(null); }, onError: (e: Error) => setErr(e.message) });
   const addSnapshotMut = useMutation({ mutationFn: () => api.post(`/assets/${snapshotModal}/snapshots`, snapshotForm), onSuccess: () => { inv(); setSnapshotModal(null); }, onError: (e: Error) => setErr(e.message) });
 
-  const assets = data?.assets ?? [];
-  const totalValue = assets.reduce((s, a) => s + a.current_value, 0);
-  const totalGain = assets.reduce((s, a) => s + a.unrealized_gain, 0);
-  const totalCost = assets.reduce((s, a) => s + a.total_cost_basis, 0);
+  const allAssets = data?.assets ?? [];
+  const assets = allAssets.filter((a) => !search || `${a.name} ${a.ticker ?? ""} ${a.class}`.toLowerCase().includes(search.toLowerCase()));
+  const totalValue = allAssets.reduce((s, a) => s + a.current_value, 0);
+  const totalGain = allAssets.reduce((s, a) => s + a.unrealized_gain, 0);
+  const totalCost = allAssets.reduce((s, a) => s + a.total_cost_basis, 0);
+  const filteredValue = assets.reduce((s, a) => s + a.current_value, 0);
+  const filteredGain = assets.reduce((s, a) => s + a.unrealized_gain, 0);
+  const filteredCost = assets.reduce((s, a) => s + a.total_cost_basis, 0);
+  const filteredGainPct = filteredCost > 0 ? ((filteredGain / filteredCost) * 100).toFixed(2) : "0.00";
   const gainPct = totalCost > 0 ? ((totalGain / totalCost) * 100).toFixed(2) : "0.00";
   const nwHistory = (nwData?.history ?? []).map((h: any) => h.net_worth).reverse();
 
   // Asset allocation by class
   const byClass: Record<string, number> = {};
-  assets.forEach((a) => { byClass[a.class] = (byClass[a.class] ?? 0) + a.current_value; });
+  allAssets.forEach((a) => { byClass[a.class] = (byClass[a.class] ?? 0) + a.current_value; });
   const allocEntries = Object.entries(byClass).sort((a, b) => b[1] - a[1]);
 
   return (
     <div className="p-5 space-y-4">
       {/* Header buttons */}
       <div className="flex items-center gap-2 justify-end -mt-1">
-        <Button variant="primary" onClick={() => { setHoldingModal(assets[0]?.asset_id ?? null); }}>+ Holding</Button>
-        <Button variant="secondary" onClick={() => { setSnapshotModal(assets[0]?.asset_id ?? null); }}>↻ Update Prices</Button>
-        <Button variant="secondary">⋯</Button>
+        <Button variant="primary" disabled title="Use the + button on a specific asset row to add a holding">+ Holding</Button>
+        <Button variant="secondary" disabled title="Use the price button on a specific asset row to update a price">↻ Update Prices</Button>
+        <Button variant="secondary" disabled title="More portfolio actions are coming soon">⋯</Button>
       </div>
 
       {/* Top 3 cards */}
@@ -68,7 +74,7 @@ export default function AssetsPage() {
         <Card green padding="md">
           <div className="flex items-center justify-between mb-2">
             <p className="text-white/80 text-xs">Total Portfolio Value</p>
-            <button className="text-xs text-white/70 border border-white/30 px-2 py-0.5 rounded">All Accounts ▾</button>
+            <button type="button" disabled title="Asset account filtering is coming soon" className="text-xs text-white/50 border border-white/20 px-2 py-0.5 rounded cursor-not-allowed">All Accounts</button>
           </div>
           <p className="text-3xl font-bold text-white tabular">{bal(totalValue)}</p>
           <p className="text-white/70 text-xs mt-1">Total unrealized gain</p>
@@ -115,7 +121,7 @@ export default function AssetsPage() {
                   <span className="tabular">{totalValue > 0 ? ((val / totalValue) * 100).toFixed(1) : 0}%</span>
                 </div>
               ))}
-              <button className="text-xs text-primary hover:underline">View full allocation</button>
+              <button type="button" disabled title="Allocation drilldown is coming soon" className="text-xs text-[var(--muted)] cursor-not-allowed">View full allocation</button>
             </div>
           </div>
         </Card>
@@ -130,10 +136,10 @@ export default function AssetsPage() {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--muted)]">Group by:</span>
                 <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)} className="text-xs border border-[var(--border)] rounded px-2 py-1 bg-[var(--surface)]">
-                  <option>Asset Type</option><option>Account</option>
+                  <option>Asset Type</option>
                 </select>
-                <input placeholder="Search holdings" className="border border-[var(--border)] rounded px-2 py-1 text-xs bg-[var(--surface)] w-32" />
-                <button className="text-[var(--muted)] text-sm">⊟</button>
+                <input placeholder="Search holdings" value={search} onChange={(e) => setSearch(e.target.value)} className="border border-[var(--border)] rounded px-2 py-1 text-xs bg-[var(--surface)] w-32" />
+                <button type="button" disabled title="Advanced holding filters are coming soon" className="text-[var(--muted)] text-sm opacity-50 cursor-not-allowed">⊟</button>
               </div>
             </div>
             <table className="w-full text-xs">
@@ -182,7 +188,8 @@ export default function AssetsPage() {
                         <div className="flex gap-1">
                           <button onClick={() => { setSnapshotForm({ unit_price: a.latest_price ?? 0, as_of_date: new Date().toISOString().slice(0, 10) }); setErr(""); setSnapshotModal(a.asset_id); }} className="text-[var(--muted)] hover:text-[var(--text)] text-xs">💲</button>
                           <button onClick={() => { setHoldingForm({ quantity: 0, cost_basis: 0, acquired_at: new Date().toISOString().slice(0, 10), account_id: "", notes: "" }); setErr(""); setHoldingModal(a.asset_id); }} className="text-[var(--muted)] hover:text-[var(--text)] text-xs">+</button>
-                          <button className="text-[var(--muted)] hover:text-[var(--text)] text-xs">⋯</button>
+                          <button onClick={() => { setEditingAsset(a); setAssetForm({ name: a.name, class: a.class, currency: a.currency, ticker: a.ticker ?? "", notes: "" }); setErr(""); setAssetModal("edit"); }} className="text-[var(--muted)] hover:text-[var(--text)] text-xs">✏️</button>
+                          <button onClick={() => confirm(`Delete "${a.name}"?`) && deleteAssetMut.mutate(a.asset_id)} className="text-danger hover:opacity-80 text-xs">🗑️</button>
                         </div>
                       </td>
                     </tr>
@@ -191,9 +198,9 @@ export default function AssetsPage() {
                 {assets.length > 0 && (
                   <tr className="font-semibold border-t-2 border-[var(--border)]">
                     <td className="py-2.5" colSpan={4}>Total</td>
-                    <td className="py-2.5 text-right tabular">{bal(totalValue)}</td>
-                    <td className={`py-2.5 text-right tabular ${totalGain >= 0 ? "text-primary" : "text-danger"}`}>{totalGain >= 0 ? "+" : ""}{bal(totalGain)}</td>
-                    <td className={`py-2.5 text-right tabular ${parseFloat(gainPct) >= 0 ? "text-primary" : "text-danger"}`}>{gainPct}%</td>
+                    <td className="py-2.5 text-right tabular">{bal(filteredValue)}</td>
+                    <td className={`py-2.5 text-right tabular ${filteredGain >= 0 ? "text-primary" : "text-danger"}`}>{filteredGain >= 0 ? "+" : ""}{bal(filteredGain)}</td>
+                    <td className={`py-2.5 text-right tabular ${parseFloat(filteredGainPct) >= 0 ? "text-primary" : "text-danger"}`}>{filteredGainPct}%</td>
                     <td />
                   </tr>
                 )}
@@ -202,7 +209,7 @@ export default function AssetsPage() {
             <div className="mt-3 p-2.5 rounded-lg bg-[var(--bg)] text-xs text-[var(--muted)] flex items-center gap-2">
               <span>ⓘ</span>
               <span>Prices are entered manually. Last updated: {new Date().toLocaleDateString()}</span>
-              <button className="ml-auto text-primary hover:underline">↻ Update Prices</button>
+              <button type="button" disabled title="Use the price button on a specific asset row to update a price" className="ml-auto text-[var(--muted)] cursor-not-allowed">↻ Update Prices</button>
             </div>
             <p className="text-xs text-[var(--muted)] text-center mt-2">This is not a trading platform. Prices are for reference only.</p>
           </Card>
@@ -213,17 +220,25 @@ export default function AssetsPage() {
           <Card padding="md">
             <div className="flex items-center justify-between mb-3">
               <SectionTitle>Watchlist</SectionTitle>
-              <button className="text-xs text-primary hover:underline">+ Add</button>
+              <button type="button" disabled title="Watchlist is coming soon" className="text-xs text-[var(--muted)] cursor-not-allowed">+ Add</button>
             </div>
-            <p className="text-xs text-[var(--muted)] text-center py-4">Add assets to your watchlist to track prices.</p>
+            <div className="text-center py-4 space-y-1">
+              <p className="text-2xl">👁️</p>
+              <p className="text-xs font-medium text-[var(--text)]">Watchlist coming soon</p>
+              <p className="text-xs text-[var(--muted)]">Track asset prices without holding them.</p>
+            </div>
           </Card>
 
           <Card padding="md">
             <div className="flex items-center justify-between mb-3">
               <SectionTitle>Notes</SectionTitle>
-              <button className="text-xs text-primary hover:underline">+ New Note</button>
+              <button type="button" disabled title="Investment notes are coming soon" className="text-xs text-[var(--muted)] cursor-not-allowed">+ New Note</button>
             </div>
-            <p className="text-xs text-[var(--muted)] text-center py-4">Add investment notes and research.</p>
+            <div className="text-center py-4 space-y-1">
+              <p className="text-2xl">📝</p>
+              <p className="text-xs font-medium text-[var(--text)]">Investment notes coming soon</p>
+              <p className="text-xs text-[var(--muted)]">Add research notes for each asset.</p>
+            </div>
           </Card>
 
           <Button variant="primary" className="w-full" onClick={() => { setEditingAsset(null); setAssetForm({ name: "", class: "stock", currency: "IDR", ticker: "", notes: "" }); setErr(""); setAssetModal("create"); }}>
@@ -242,6 +257,7 @@ export default function AssetsPage() {
           <Input label="Ticker (optional)" value={assetForm.ticker} onChange={(e) => setAssetForm({ ...assetForm, ticker: e.target.value })} placeholder="e.g. BBCA.JK" />
           {err && <p className="text-xs text-danger">{err}</p>}
           <div className="flex gap-2 pt-1">
+            {editingAsset && <Button type="button" variant="danger" onClick={() => confirm(`Delete "${editingAsset.name}"?`) && deleteAssetMut.mutate(editingAsset.asset_id)} disabled={deleteAssetMut.isPending}>Delete</Button>}
             <Button type="submit" variant="primary" className="flex-1" disabled={saveAssetMut.isPending}>Save</Button>
             <Button type="button" variant="secondary" onClick={() => setAssetModal(null)}>Cancel</Button>
           </div>

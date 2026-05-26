@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -26,6 +26,7 @@ const QUICK_ACTIONS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-[200px] flex flex-col z-50" style={{ background: "var(--sidebar)" }}>
@@ -43,6 +44,9 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch
+              onMouseEnter={() => router.prefetch(item.href)}
+              onFocus={() => router.prefetch(item.href)}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
                 active
@@ -65,6 +69,9 @@ export function Sidebar() {
             <Link
               key={a.href}
               href={a.href}
+              prefetch
+              onMouseEnter={() => router.prefetch(a.href)}
+              onFocus={() => router.prefetch(a.href)}
               className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-white transition-colors"
             >
               <span className="w-4 text-center">{a.icon}</span>

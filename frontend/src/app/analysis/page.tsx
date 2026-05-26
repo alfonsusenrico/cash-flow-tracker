@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -18,7 +19,6 @@ const CAT_COLORS = ["#dc2626","#f59e0b","#f97316","#16a34a","#3b82f6","#8b5cf6",
 
 export default function AnalysisPage() {
   const { hideBalances } = useAppCtx();
-  const [tab, setTab] = useState<"monthly" | "weekly" | "daily">("monthly");
   const [month, setMonth] = useState(currentMonthYM());
   const bal = (n: number) => hideBalances ? "Rp ••••" : fmtMoney(n);
 
@@ -58,16 +58,16 @@ export default function AnalysisPage() {
       <div className="flex items-center justify-between">
         <div className="flex gap-1 border-b border-[var(--border)]">
           {(["monthly", "weekly", "daily"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${tab === t ? "border-primary text-primary" : "border-transparent text-[var(--muted)] hover:text-[var(--text)]"}`}>
+            <button key={t} type="button" disabled={t !== "monthly"} title={t !== "monthly" ? "Weekly and daily review modes are coming soon" : undefined}
+              className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${t === "monthly" ? "border-primary text-primary" : "border-transparent text-[var(--muted)] opacity-50 cursor-not-allowed"}`}>
               {t === "monthly" ? "Monthly Review" : t === "weekly" ? "Weekly" : "Daily"}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <button className="px-3 py-1.5 rounded-lg border border-primary text-primary text-xs font-medium bg-primary/5">This Cycle</button>
-          <button className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] text-xs font-medium hover:bg-[var(--bg)]">vs Last Cycle</button>
-          <button className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] text-xs font-medium hover:bg-[var(--bg)]">⊟ Filters</button>
+          <button type="button" disabled className="px-3 py-1.5 rounded-lg border border-primary text-primary text-xs font-medium bg-primary/5">This Cycle</button>
+          <button type="button" disabled title="Cycle comparison is coming soon" className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] text-xs font-medium opacity-50 cursor-not-allowed">vs Last Cycle</button>
+          <button type="button" disabled title="Analysis filters are coming soon" className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] text-xs font-medium opacity-50 cursor-not-allowed">⊟ Filters</button>
         </div>
       </div>
 
@@ -171,7 +171,7 @@ export default function AnalysisPage() {
               <Card>
                 <SectionTitle>
                   Spending by Category <span className="text-[var(--muted)] text-xs font-normal">ⓘ</span>
-                  <button className="text-xs text-primary hover:underline ml-auto">View all</button>
+                  <Link href="/ledger" prefetch={false} className="text-xs text-primary hover:underline ml-auto">View all</Link>
                 </SectionTitle>
                 <div className="space-y-2.5">
                   {data.categories.slice(0, 8).map((cat, i) => (
@@ -203,7 +203,7 @@ export default function AnalysisPage() {
               <Card>
                 <SectionTitle>
                   Insights <span className="text-[var(--muted)] text-xs font-normal">ⓘ</span>
-                  <button className="text-xs text-primary hover:underline ml-auto">View all insights</button>
+                  <button type="button" disabled title="Expanded insights are coming soon" className="text-xs text-[var(--muted)] ml-auto cursor-not-allowed">View all insights</button>
                 </SectionTitle>
                 <div className="space-y-3">
                   {[

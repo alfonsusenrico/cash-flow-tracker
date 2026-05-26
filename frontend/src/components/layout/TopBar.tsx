@@ -1,7 +1,9 @@
 "use client";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAppCtx } from "@/components/layout/AppLayout";
+import { SettingsModal } from "@/components/ui/SettingsModal";
 
 interface TopBarProps {
   title: string;
@@ -10,7 +12,8 @@ interface TopBarProps {
 
 export function TopBar({ title, showDateRange = true }: TopBarProps) {
   const router = useRouter();
-  const { hideBalances, setHideBalances, theme, setTheme, paydayDay, summaryRange, user } = useAppCtx();
+  const { hideBalances, setHideBalances, theme, setTheme, paydayDay, paydaySource, summaryRange, user } = useAppCtx();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const initials = user?.full_name
     ? user.full_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
@@ -28,6 +31,19 @@ export function TopBar({ title, showDateRange = true }: TopBarProps) {
     localStorage.setItem("theme", next);
   }
 
+  function toggleHideBalances() {
+    const next = !hideBalances;
+    setHideBalances(next);
+    localStorage.setItem("hideBalances", next ? "1" : "0");
+  }
+
+  const paydayLabel = paydaySource === "override"
+    ? `Pay cycle override: day ${paydayDay}`
+    : "Set pay cycle";
+  const paydayTitle = paydaySource === "override"
+    ? "Open settings to change your payday cycle"
+    : "Open settings to set your payday cycle";
+
   return (
     <header
       className="fixed top-0 right-0 h-14 flex items-center justify-between px-6 z-40 border-b"
@@ -42,14 +58,17 @@ export function TopBar({ title, showDateRange = true }: TopBarProps) {
         <h1 className="text-lg font-bold text-[var(--text)]">{title}</h1>
         {showDateRange && summaryRange && (
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium hover:bg-[var(--bg)] transition-colors" style={{ borderColor: "var(--border)" }}>
+            <button type="button" disabled title="Date range selection is coming soon" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium opacity-80 cursor-not-allowed" style={{ borderColor: "var(--border)" }}>
               <span className="text-[var(--muted)]">📅</span>
               <span>{summaryRange.from} – {summaryRange.to}</span>
-              <span className="text-[var(--muted)]">▾</span>
             </button>
-            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-light text-primary border border-primary/20">
-              Payday in {paydayDay} days
-            </span>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-light text-primary border border-primary/20 hover:bg-primary/10 transition-colors"
+              title={paydayTitle}
+            >
+              {paydayLabel}
+            </button>
           </div>
         )}
       </div>
@@ -60,11 +79,7 @@ export function TopBar({ title, showDateRange = true }: TopBarProps) {
         <div className="flex items-center gap-2">
           <span className="text-sm text-[var(--muted)]">🙈 Hide balances</span>
           <button
-            onClick={() => {
-              const next = !hideBalances;
-              setHideBalances(next);
-              localStorage.setItem("hideBalances", next ? "1" : "0");
-            }}
+            onClick={toggleHideBalances}
             className={`relative w-10 h-5 rounded-full transition-colors ${hideBalances ? "bg-primary" : "bg-gray-300"}`}
           >
             <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${hideBalances ? "translate-x-5" : ""}`} />
@@ -72,15 +87,22 @@ export function TopBar({ title, showDateRange = true }: TopBarProps) {
         </div>
 
         {/* Theme */}
-        <button onClick={toggleTheme} className="p-1.5 rounded-lg hover:bg-[var(--bg)] text-[var(--muted)] transition-colors" title="Light mode">
-          ☀️
-        </button>
-        <button onClick={toggleTheme} className="p-1.5 rounded-lg hover:bg-[var(--bg)] text-[var(--muted)] transition-colors" title="Dark mode">
-          🌙
+        <button
+          onClick={toggleTheme}
+          className="p-1.5 rounded-lg hover:bg-[var(--bg)] text-[var(--muted)] transition-colors"
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? "☀️" : "🌙"}
         </button>
 
         {/* Settings */}
-        <button className="p-1.5 rounded-lg hover:bg-[var(--bg)] text-[var(--muted)] transition-colors">⚙️</button>
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="p-1.5 rounded-lg hover:bg-[var(--bg)] text-[var(--muted)] transition-colors"
+          title="Settings"
+        >
+          ⚙️
+        </button>
 
         {/* User avatar */}
         <button
@@ -91,6 +113,14 @@ export function TopBar({ title, showDateRange = true }: TopBarProps) {
           {initials}
         </button>
       </div>
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        paydayDay={paydayDay}
+        paydaySource={paydaySource}
+        hideBalances={hideBalances}
+        onHideBalancesToggle={toggleHideBalances}
+      />
     </header>
   );
 }

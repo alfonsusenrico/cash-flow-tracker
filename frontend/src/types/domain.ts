@@ -17,6 +17,9 @@ export interface Account {
   is_no_limit: boolean;
   is_buffer: boolean;
   fixed_limit_amount: number | null;
+  institution: string | null;
+  account_number: string | null;
+  balance?: number;
 }
 
 export interface Category {
@@ -44,6 +47,8 @@ export interface Transaction {
   category_id: string | null;
   notes: string | null;
   currency: "IDR" | "USD";
+  tags: string[];
+  is_reviewed: boolean;
 }
 
 export interface SummaryAccount {
@@ -92,6 +97,10 @@ export interface LedgerRow {
   is_transfer: boolean;
   is_cycle_topup: boolean;
   transfer_id: string | null;
+  notes: string | null;
+  category_id: string | null;
+  is_reviewed: boolean;
+  tags: string[];
 }
 
 export interface LedgerResponse {

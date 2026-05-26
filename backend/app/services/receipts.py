@@ -245,6 +245,7 @@ def upsert_receipt_row(
         """
         INSERT INTO transaction_receipts (
             transaction_id,
+            user_id,
             username,
             category,
             original_filename,
@@ -256,9 +257,10 @@ def upsert_receipt_row(
             original_size,
             stored_size
         )
-        VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s::uuid, (SELECT user_id FROM users WHERE username=%s), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (transaction_id)
         DO UPDATE SET
+            user_id=EXCLUDED.user_id,
             username=EXCLUDED.username,
             category=EXCLUDED.category,
             original_filename=EXCLUDED.original_filename,
@@ -287,6 +289,7 @@ def upsert_receipt_row(
         """,
         (
             transaction_id,
+            username,
             username,
             prepared.category,
             prepared.original_filename,

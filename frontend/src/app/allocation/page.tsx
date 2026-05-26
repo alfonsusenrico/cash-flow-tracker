@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { fmtMoney, currentMonthYM } from "@/lib/utils";
@@ -19,9 +19,12 @@ export default function AllocationPage() {
   const bal = (n: number) => hideBalances ? "Rp ••••" : fmtMoney(n);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [planModal, setPlanModal] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(false);
   const [itemModal, setItemModal] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [fundModal, setFundModal] = useState<any>(null);
+  const [strategyModal, setStrategyModal] = useState(false);
+  const [strategyPreview, setStrategyPreview] = useState<any>(null);
   const [fundAmount, setFundAmount] = useState(0);
   const [planForm, setPlanForm] = useState({ month: currentMonthYM(), expected_income: 0, notes: "" });
   const [itemForm, setItemForm] = useState({ label: "", mode: "percent", value: 0, bucket_id: "", priority: 50 });
@@ -31,55 +34,134 @@ export default function AllocationPage() {
   const { data: planDetail } = useQuery<any>({ queryKey: ["allocation-plan", selectedPlan], queryFn: () => api.get(`/allocation-plans/${selectedPlan}`), enabled: !!selectedPlan });
   const { data: bucketsData } = useQuery<{ buckets: any[] }>({ queryKey: ["buckets"], queryFn: () => api.get("/buckets") });
 
-  const inv = () => { qc.invalidateQueries({ queryKey: ["allocation-plans"] }); qc.invalidateQueries({ queryKey: ["allocation-plan", selectedPlan] }); };
+  const inv = (planId = selectedPlan) => {
+    qc.invalidateQueries({ queryKey: ["allocation-plans"] });
+    if (planId) qc.invalidateQueries({ queryKey: ["allocation-plan", planId] });
+  };
 
-  const createPlanMut = useMutation({ mutationFn: () => api.post("/allocation-plans", planForm), onSuccess: (r: any) => { inv(); setPlanModal(false); setSelectedPlan(r.plan_id); }, onError: (e: Error) => setErr(e.message) });
-  const activateMut = useMutation({ mutationFn: (id: string) => api.post(`/allocation-plans/${id}/activate`, {}), onSuccess: inv });
+  const savePlanMut = useMutation({
+    mutationFn: () => editingPlan && selectedPlan ? api.put(`/allocation-plans/${selectedPlan}`, planForm) : api.post("/allocation-plans", planForm),
+    onSuccess: (r: any) => {
+      const planId = r?.plan_id ?? selectedPlan;
+      inv(planId);
+      setPlanModal(false);
+      setEditingPlan(false);
+      if (r?.plan_id) setSelectedPlan(r.plan_id);
+    },
+    onError: (e: Error) => setErr(e.message),
+  });
+  const activateMut = useMutation({ mutationFn: (id: string) => api.post(`/allocation-plans/${id}/activate`, {}), onSuccess: (_r, id) => inv(id) });
+  const deletePlanMut = useMutation({ mutationFn: (id: string) => api.del(`/allocation-plans/${id}`), onSuccess: (_r, id) => { inv(id); setSelectedPlan(null); }, onError: (e: Error) => setErr(e.message) });
   const saveItemMut = useMutation({
     mutationFn: () => editingItem
       ? api.put(`/allocation-plans/${selectedPlan}/items/${editingItem.item_id}`, { ...itemForm, bucket_id: itemForm.bucket_id || null })
       : api.post(`/allocation-plans/${selectedPlan}/items`, { ...itemForm, bucket_id: itemForm.bucket_id || null }),
     onSuccess: () => { inv(); setItemModal(false); }, onError: (e: Error) => setErr(e.message),
   });
-  const deleteItemMut = useMutation({ mutationFn: (itemId: string) => api.del(`/allocation-plans/${selectedPlan}/items/${itemId}`), onSuccess: inv });
+  const deleteItemMut = useMutation({ mutationFn: (itemId: string) => api.del(`/allocation-plans/${selectedPlan}/items/${itemId}`), onSuccess: () => { inv(); setItemModal(false); setEditingItem(null); } });
   const fundMut = useMutation({ mutationFn: () => api.post(`/allocation-plans/${selectedPlan}/items/${fundModal.item_id}/fund`, { amount: fundAmount }), onSuccess: () => { inv(); setFundModal(null); }, onError: (e: Error) => setErr(e.message) });
+  const previewStrategyMut = useMutation({
+    mutationFn: () => api.post<any>("/strategy-rules/from-allocation/preview", { plan_id: selectedPlan }),
+    onSuccess: (r) => { setStrategyPreview(r); setStrategyModal(true); },
+    onError: (e: Error) => setErr(e.message),
+  });
+  const applyStrategyMut = useMutation({
+    mutationFn: () => api.post<any>("/strategy-rules/from-allocation/apply", { plan_id: selectedPlan }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["strategy-rules"] });
+      setStrategyModal(false);
+      setStrategyPreview(null);
+    },
+    onError: (e: Error) => setErr(e.message),
+  });
 
   const plan = planDetail;
   const plans = plansData?.plans ?? [];
   const buckets = bucketsData?.buckets ?? [];
+
+  useEffect(() => {
+    const planId = new URLSearchParams(window.location.search).get("plan");
+    if (!planId || selectedPlan || !plans.some((p) => p.plan_id === planId)) return;
+    setSelectedPlan(planId);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [plans, selectedPlan]);
+
+  useEffect(() => {
+    if (selectedPlan || plans.length === 0) return;
+    setSelectedPlan(plans[0].plan_id);
+  }, [plans, selectedPlan]);
+
+  const expectedIncome = plan?.expected_income ?? 0;
   const totalPlanned = plan?.items?.reduce((s: number, i: any) => s + i.planned_amount, 0) ?? 0;
   const totalFunded = plan?.items?.reduce((s: number, i: any) => s + i.funded_amount, 0) ?? 0;
+  const canDeletePlan = !!plan && (plan.status === "draft" || plan.month <= currentMonthYM());
   const fundedPct = totalPlanned > 0 ? Math.round((totalFunded / totalPlanned) * 100) : 0;
+  const plannedPct = expectedIncome > 0 ? Math.round((totalPlanned / expectedIncome) * 100) : 0;
+  const unallocatedIncome = expectedIncome - totalPlanned;
+  const unallocatedPct = expectedIncome > 0 ? Math.round((unallocatedIncome / expectedIncome) * 100) : 0;
+  const stillToFund = Math.max(totalPlanned - totalFunded, 0);
+  const plannedBarPct = Math.max(0, Math.min(plannedPct, 100));
+  const itemPercentAmount = Math.round(expectedIncome * (itemForm.value / 100));
+  const itemFixedPercent = expectedIncome > 0 ? Math.round((itemForm.value / expectedIncome) * 100) : 0;
+  const emergencyHealth = plan?.health?.emergency_fund;
 
   return (
     <div className="p-5 space-y-4">
-      {/* Warning banner placeholder */}
-      <div className="flex items-center justify-between px-4 py-3 rounded-xl border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20">
-        <div className="flex items-center gap-3">
-          <span className="text-warning">⚠️</span>
-          <div><p className="text-sm font-semibold text-yellow-800 dark:text-yellow-300">Attention needed</p><p className="text-xs text-yellow-700 dark:text-yellow-400">Your emergency fund coverage is below the recommended 3 months.</p></div>
+      {emergencyHealth && emergencyHealth.status !== "ok" && (
+        <div className="flex items-center justify-between px-4 py-3 rounded-xl border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20">
+          <div className="flex items-center gap-3">
+            <span className="text-warning">!</span>
+            <div>
+              <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-300">Emergency fund coverage needs attention</p>
+              <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                Current emergency buckets cover {emergencyHealth.coverage_months ?? 0} of {emergencyHealth.target_months} months.
+                Monthly need is {bal(emergencyHealth.monthly_need)} and the remaining gap is {bal(emergencyHealth.gap)}.
+              </p>
+            </div>
+          </div>
+          <a href="#allocation-items" className="text-xs font-semibold text-warning border border-warning/30 px-3 py-1.5 rounded-lg">Review items</a>
         </div>
-        <button className="text-xs font-semibold text-warning border border-warning/30 px-3 py-1.5 rounded-lg">Review now</button>
-      </div>
+      )}
 
       {/* Header */}
       <Card padding="md">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div>
-              <p className="text-xs text-[var(--muted)]">Pay Cycle</p>
+              <p className="text-xs text-[var(--muted)]">Pay Cycle Ending Month</p>
               <p className="font-bold">{plan?.month ?? currentMonthYM()}</p>
-              <p className="text-xs text-[var(--muted)]">3 days until payday</p>
+              <p className="text-xs text-[var(--muted)]">Funded from the previous payday</p>
             </div>
             <div>
               <p className="text-xs text-[var(--muted)]">Expected Income</p>
               <p className="text-2xl font-bold tabular">{bal(plan?.expected_income ?? 0)}</p>
             </div>
-            {plan && <Button size="sm" variant="secondary">Edit</Button>}
+            {plan && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => { setEditingPlan(true); setPlanForm({ month: plan.month, expected_income: plan.expected_income, notes: plan.notes ?? "" }); setErr(""); setPlanModal(true); }}
+                disabled={plan.status !== "draft"}
+                title={plan.status !== "draft" ? "Only draft plans can be edited" : undefined}
+              >
+                Edit
+              </Button>
+            )}
+            {plan && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => { setErr(""); setStrategyPreview(null); previewStrategyMut.mutate(); }}
+                disabled={previewStrategyMut.isPending || !selectedPlan || (plan.items?.length ?? 0) === 0}
+              >
+                {previewStrategyMut.isPending ? "Reviewing..." : "Review Strategy"}
+              </Button>
+            )}
           </div>
           <div className="flex gap-2">
             {plan?.status === "draft" && <Button variant="primary" onClick={() => activateMut.mutate(plan.plan_id)}>Activate Plan</Button>}
-            <Button variant="secondary" onClick={() => { setPlanForm({ month: currentMonthYM(), expected_income: 0, notes: "" }); setErr(""); setPlanModal(true); }}>+ New Plan</Button>
+            {canDeletePlan && <Button variant="danger" onClick={() => confirm(`Delete allocation plan ${plan.month}? This removes the plan and its items.`) && deletePlanMut.mutate(plan.plan_id)} disabled={deletePlanMut.isPending}>Delete Plan</Button>}
+            <Button variant="secondary" onClick={() => { setEditingPlan(false); setPlanForm({ month: currentMonthYM(), expected_income: 0, notes: "" }); setErr(""); setPlanModal(true); }}>+ New Plan</Button>
           </div>
         </div>
         {plans.length > 0 && (
@@ -100,9 +182,15 @@ export default function AllocationPage() {
               <SectionTitle className="text-white/80">Allocation Overview <span className="text-white/50 text-xs font-normal">ⓘ</span></SectionTitle>
               <div className="grid grid-cols-3 gap-4 mb-3">
                 {[
-                  { label: "Planned", value: totalPlanned, sub: "100% of income" },
+                  { label: "Planned", value: totalPlanned, sub: `${plannedPct}% of income` },
                   { label: "Funded", value: totalFunded, sub: `${fundedPct}% of plan` },
-                  { label: "Remaining", value: totalPlanned - totalFunded, sub: `${100 - fundedPct}% left to fund` },
+                  {
+                    label: "Unallocated",
+                    value: unallocatedIncome,
+                    sub: unallocatedIncome >= 0
+                      ? `${unallocatedPct}% income not assigned`
+                      : `${Math.abs(unallocatedPct)}% over income`,
+                  },
                 ].map((s) => (
                   <div key={s.label}>
                     <p className="text-white/70 text-xs">{s.label}</p>
@@ -112,12 +200,12 @@ export default function AllocationPage() {
                 ))}
               </div>
               <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-                <div className="h-full bg-white rounded-full transition-all" style={{ width: `${fundedPct}%` }} />
+                <div className="h-full bg-white rounded-full transition-all" style={{ width: `${plannedBarPct}%` }} />
               </div>
             </Card>
 
             {/* Items table */}
-            <Card padding="sm">
+            <Card padding="sm" id="allocation-items">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <SectionTitle>Allocation Items</SectionTitle>
@@ -149,7 +237,10 @@ export default function AllocationPage() {
                         <p className="font-medium">{item.label}</p>
                         <p className="text-[var(--muted)]">{item.mode === "percent" ? `${item.value}% of income` : fmtMoney(item.value)}</p>
                       </td>
-                      <td className="py-2.5 text-[var(--muted)]">{buckets.find((b) => b.bucket_id === item.bucket_id)?.name ?? "—"}</td>
+                      <td className="py-2.5 text-[var(--muted)]">
+                        {item.bucket_name ?? buckets.find((b) => b.bucket_id === item.bucket_id)?.name ?? "—"}
+                        {item.group && <p className="text-[var(--muted)]">{item.group.replace(/_/g, " ")}</p>}
+                      </td>
                       <td className="py-2.5"><Badge variant="blue">{item.mode === "percent" ? `${item.value}%` : "Fixed"}</Badge></td>
                       <td className="py-2.5 text-right tabular">{bal(item.planned_amount)}</td>
                       <td className="py-2.5 text-right tabular">{bal(item.funded_amount)}</td>
@@ -160,7 +251,7 @@ export default function AllocationPage() {
                       <td className="py-2.5">
                         <div className="flex gap-1">
                           <button onClick={() => { setFundAmount(item.planned_amount - item.funded_amount); setFundModal(item); }} className="text-xs text-primary hover:underline">Fund</button>
-                          <button onClick={() => { setEditingItem(item); setItemForm({ label: item.label, mode: item.mode, value: item.value, bucket_id: item.bucket_id ?? "", priority: item.priority }); setErr(""); setItemModal(true); }} className="text-[var(--muted)] hover:text-[var(--text)]">⋯</button>
+                          <button onClick={() => { setEditingItem(item); setItemForm({ label: item.label, mode: item.mode, value: item.value, bucket_id: item.bucket_id ?? "", priority: item.priority }); setErr(""); setItemModal(true); }} className="text-xs text-[var(--muted)] hover:text-[var(--text)]">Edit</button>
                         </div>
                       </td>
                     </tr>
@@ -187,6 +278,22 @@ export default function AllocationPage() {
                   <div className="flex items-center gap-2"><span className="text-primary">✓</span><span>On track. You're on track to fund this plan.</span></div>
                   <div className="flex items-center gap-2"><span className="text-primary">✓</span><span>{(plan.items ?? []).filter((i: any) => i.status === "funded").length} items fully funded</span></div>
                   <div className="flex items-center gap-2"><span className="text-warning">○</span><span>{(plan.items ?? []).filter((i: any) => i.status !== "funded").length} items need funding</span></div>
+                  {emergencyHealth && (
+                    <div className="pt-2 mt-2 border-t border-[var(--border)] space-y-1">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-[var(--muted)]">Emergency coverage</span>
+                        <span className="font-semibold tabular">{emergencyHealth.coverage_months ?? 0} months</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-[var(--muted)]">6-month target</span>
+                        <span className="font-semibold tabular">{bal(emergencyHealth.target_amount)}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-[var(--muted)]">Current emergency buckets</span>
+                        <span className="font-semibold tabular">{bal(emergencyHealth.current_amount)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
@@ -194,10 +301,16 @@ export default function AllocationPage() {
             <Card padding="md">
               <SectionTitle>Plan Summary</SectionTitle>
               <div className="space-y-2 text-xs">
-                {[["Expected Income", bal(plan.expected_income)], ["Total Planned", bal(totalPlanned)], ["Total Funded", bal(totalFunded)], ["Remaining", bal(totalPlanned - totalFunded)]].map(([k, v]) => (
+                {[
+                  ["Expected Income", bal(expectedIncome), ""],
+                  ["Total Planned", bal(totalPlanned), ""],
+                  ["Unallocated Income", bal(unallocatedIncome), unallocatedIncome < 0 ? "text-danger" : "text-primary"],
+                  ["Total Funded", bal(totalFunded), ""],
+                  ["Still to Fund", bal(stillToFund), stillToFund > 0 ? "text-warning" : "text-primary"],
+                ].map(([k, v, tone]) => (
                   <div key={k} className="flex justify-between">
                     <span className="text-[var(--muted)]">{k}</span>
-                    <span className={`font-semibold tabular ${k === "Remaining" ? "text-danger" : ""}`}>{v}</span>
+                    <span className={`font-semibold tabular ${tone}`}>{v}</span>
                   </div>
                 ))}
               </div>
@@ -230,14 +343,21 @@ export default function AllocationPage() {
       )}
 
       {/* Modals */}
-      <Modal open={planModal} onClose={() => setPlanModal(false)} title="New Allocation Plan">
-        <form onSubmit={(e) => { e.preventDefault(); createPlanMut.mutate(); }} className="space-y-3">
-          <Input label="Month (YYYY-MM)" value={planForm.month} onChange={(e) => setPlanForm({ ...planForm, month: e.target.value })} required />
+      <Modal open={planModal} onClose={() => setPlanModal(false)} title={editingPlan ? "Edit Allocation Plan" : "New Allocation Plan"}>
+        <form onSubmit={(e) => { e.preventDefault(); savePlanMut.mutate(); }} className="space-y-3">
+          <Input
+            label="Pay Cycle Ending Month"
+            type="month"
+            value={planForm.month}
+            onChange={(e) => setPlanForm({ ...planForm, month: e.target.value })}
+            required
+            disabled={editingPlan}
+          />
           <MoneyInput label="Expected Income" value={planForm.expected_income} onChange={(v) => setPlanForm({ ...planForm, expected_income: v })} />
           {err && <p className="text-xs text-danger">{err}</p>}
           <div className="flex gap-2 pt-1">
-            <Button type="submit" variant="primary" className="flex-1" disabled={createPlanMut.isPending}>Create</Button>
-            <Button type="button" variant="secondary" onClick={() => setPlanModal(false)}>Cancel</Button>
+            <Button type="submit" variant="primary" className="flex-1" disabled={savePlanMut.isPending}>{editingPlan ? "Save" : "Create"}</Button>
+            <Button type="button" variant="secondary" onClick={() => { setPlanModal(false); setEditingPlan(false); }}>Cancel</Button>
           </div>
         </form>
       </Modal>
@@ -252,12 +372,23 @@ export default function AllocationPage() {
           {itemForm.mode === "percent"
             ? <Input label="Percentage" type="number" min={0} max={100} step={0.1} value={String(itemForm.value)} onChange={(e) => setItemForm({ ...itemForm, value: parseFloat(e.target.value) || 0 })} />
             : <MoneyInput label="Amount" value={itemForm.value} onChange={(v) => setItemForm({ ...itemForm, value: v })} />}
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
+            <p className="text-[var(--muted)]">Conversion based on expected income</p>
+            <p className="font-semibold tabular text-[var(--text)]">
+              {expectedIncome > 0
+                ? itemForm.mode === "percent"
+                  ? `${itemForm.value || 0}% = ${bal(itemPercentAmount)}`
+                  : `${bal(itemForm.value)} = ${itemFixedPercent}%`
+                : "Set expected income on the plan to calculate this."}
+            </p>
+          </div>
           <Select label="Bucket (optional)" value={itemForm.bucket_id} onChange={(e) => setItemForm({ ...itemForm, bucket_id: e.target.value })}>
             <option value="">— none —</option>
             {buckets.map((b: any) => <option key={b.bucket_id} value={b.bucket_id}>{b.name}</option>)}
           </Select>
           {err && <p className="text-xs text-danger">{err}</p>}
           <div className="flex gap-2 pt-1">
+            {editingItem && <Button type="button" variant="danger" onClick={() => confirm(`Delete "${editingItem.label}"?`) && deleteItemMut.mutate(editingItem.item_id)} disabled={deleteItemMut.isPending}>Delete</Button>}
             <Button type="submit" variant="primary" className="flex-1" disabled={saveItemMut.isPending}>Save</Button>
             <Button type="button" variant="secondary" onClick={() => setItemModal(false)}>Cancel</Button>
           </div>
@@ -272,6 +403,60 @@ export default function AllocationPage() {
           <div className="flex gap-2 pt-1">
             <Button variant="primary" className="flex-1" disabled={fundMut.isPending} onClick={() => fundMut.mutate()}>Confirm</Button>
             <Button variant="secondary" onClick={() => setFundModal(null)}>Cancel</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={strategyModal} onClose={() => setStrategyModal(false)} title="Review Strategy From Allocation">
+        <div className="space-y-3">
+          <p className="text-sm text-[var(--muted)]">
+            This converts the selected monthly allocation into reusable percentage-based strategy rules.
+            It will update matching rules by bucket or name and create rules for new items.
+          </p>
+          {strategyPreview && (
+            <>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  ["Income", bal(strategyPreview.expected_income)],
+                  ["Month", strategyPreview.month],
+                  ["Suggestions", String(strategyPreview.suggestions?.length ?? 0)],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg bg-[var(--bg)] p-2 text-xs">
+                    <p className="text-[var(--muted)]">{label}</p>
+                    <p className="font-semibold tabular">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-2 max-h-80 overflow-auto pr-1">
+                {(strategyPreview.suggestions ?? []).map((s: any) => (
+                  <div key={`${s.name}-${s.target_bucket_id ?? ""}`} className="rounded-lg border border-[var(--border)] p-3 text-xs">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{s.name}</p>
+                        <p className="text-[var(--muted)]">{s.target_bucket_name ?? "No linked bucket"} · {s.group.replace(/_/g, " ")}</p>
+                      </div>
+                      <Badge variant={s.action === "create" ? "green" : s.action === "update" ? "blue" : "gray"}>{s.action}</Badge>
+                    </div>
+                    <div className="mt-2 flex justify-between gap-3">
+                      <span className="text-[var(--muted)]">Allocation amount</span>
+                      <span className="font-semibold tabular">{bal(s.source_amount)} = {s.value}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {err && <p className="text-xs text-danger">{err}</p>}
+          <div className="flex gap-2 pt-1">
+            <Button
+              variant="primary"
+              className="flex-1"
+              disabled={applyStrategyMut.isPending || !strategyPreview || (strategyPreview.suggestions?.length ?? 0) === 0}
+              onClick={() => { setErr(""); applyStrategyMut.mutate(); }}
+            >
+              {applyStrategyMut.isPending ? "Applying..." : "Apply to Strategy"}
+            </Button>
+            <Button variant="secondary" onClick={() => setStrategyModal(false)}>Cancel</Button>
           </div>
         </div>
       </Modal>

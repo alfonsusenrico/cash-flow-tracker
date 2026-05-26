@@ -88,6 +88,8 @@ def parse_int_field(value: Any, field_name: str, default: int | None = None) -> 
     if isinstance(value, bool):
         raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
     try:
+        if isinstance(value, str):
+            value = value.strip().replace(".", "").replace(",", "")
         return int(value)
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
@@ -195,6 +197,7 @@ def reset_api_key(req: Request):
 def list_accounts(req: Request):
     username = require_session_user(req)
     with db_conn() as conn, conn.cursor() as cur:
+        balances = get_account_balances(cur, username, now_utc())
         cur.execute(
             """
             SELECT a.account_id::text,
@@ -203,14 +206,19 @@ def list_accounts(req: Request):
                    a.is_payroll_source,
                    a.is_no_limit,
                    a.is_buffer,
-                   a.fixed_limit_amount
+                   a.fixed_limit_amount,
+                   a.institution,
+                   a.account_number
             FROM accounts a
             WHERE a.username=%s
             ORDER BY a.account_name
             """,
             (username,),
         )
-        return {"accounts": cur.fetchall()}
+        accounts = cur.fetchall()
+        for account in accounts:
+            account["balance"] = int(balances.get(account["account_id"], 0))
+        return {"accounts": accounts}
 
 
 @router.post("/accounts")
@@ -219,10 +227,7 @@ async def create_account(req: Request):
     data = await req.json()
     account_name = (data.get("account_name") or "").strip()
     initial_balance_raw = data.get("initial_balance", 0)
-    try:
-        initial_balance = int(initial_balance_raw or 0)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="Invalid initial balance")
+    initial_balance = parse_int_field(initial_balance_raw, "initial_balance", default=0)
     if not account_name:
         raise HTTPException(status_code=400, detail="account_name required")
     if initial_balance < 0:
@@ -232,11 +237,13 @@ async def create_account(req: Request):
         try:
             cur.execute(
                 """
-                INSERT INTO accounts (username, account_name)
-                VALUES (%s, %s)
+                INSERT INTO accounts (user_id, username, account_name)
+                SELECT user_id, username, %s
+                FROM users
+                WHERE username=%s
                 RETURNING account_id::text
                 """,
-                (username, account_name),
+                (account_name, username),
             )
             account_id = cur.fetchone()["account_id"]
             if initial_balance > 0:
@@ -251,9 +258,9 @@ async def create_account(req: Request):
                         date,
                         is_transfer
                     )
-                    VALUES (%s::uuid, 'debit', true, %s, %s, %s, false)
+                    VALUES (%s::uuid, 'debit', false, %s, %s, %s, false)
                     """,
-                    (account_id, "Top Up Balance", initial_balance, now_utc()),
+                    (account_id, "Opening Balance", initial_balance, now_utc()),
                 )
             conn.commit()
         except UniqueViolation:
@@ -310,13 +317,15 @@ async def upsert_budget(req: Request):
 
         cur.execute(
             """
-            INSERT INTO budgets (username, account_id, month, amount)
-            VALUES (%s, %s::uuid, %s, %s)
+            INSERT INTO budgets (user_id, username, account_id, month, amount)
+            SELECT user_id, username, %s::uuid, %s, %s
+            FROM users
+            WHERE username=%s
             ON CONFLICT (username, account_id, month)
             DO UPDATE SET amount=EXCLUDED.amount
             RETURNING budget_id::text
             """,
-            (username, account_id, month, amount),
+            (account_id, month, amount, username),
         )
         budget_id = cur.fetchone()["budget_id"]
         conn.commit()
@@ -414,16 +423,20 @@ async def update_account(account_id: str, req: Request):
                 UPDATE accounts
                 SET {", ".join(updates)}
                 WHERE username=%s AND account_id=%s::uuid
+                RETURNING account_id::text, account_name, profile_type, is_payroll_source, is_no_limit, is_buffer, fixed_limit_amount, institution, account_number
                 """,
                 params,
             )
+            row = cur.fetchone()
+            if row:
+                row["balance"] = int(get_account_balances(cur, username, now_utc()).get(account_id, 0))
             conn.commit()
         except UniqueViolation:
             conn.rollback()
             raise HTTPException(status_code=400, detail="Account name already exists")
 
     invalidate_user_cache(username)
-    return {"ok": True}
+    return {"ok": True, "account": row}
 
 
 @router.put("/accounts/{account_id}/profile")
@@ -432,6 +445,11 @@ async def update_account_profile(account_id: str, req: Request):
     account_id = parse_uuid_field(account_id, "account_id")
     data = await req.json()
 
+    account_name = None
+    if "account_name" in data:
+        account_name = (data.get("account_name") or "").strip()
+        if not account_name:
+            raise HTTPException(status_code=400, detail="account_name required")
     profile_type = parse_profile_type(data.get("profile_type"))
     is_payroll_source = bool(parse_optional_bool(data.get("is_payroll_source"), "is_payroll_source") or False)
     is_no_limit = bool(parse_optional_bool(data.get("is_no_limit"), "is_no_limit") or False)
@@ -444,23 +462,34 @@ async def update_account_profile(account_id: str, req: Request):
         if fixed_limit_amount < 0:
             raise HTTPException(status_code=400, detail="fixed_limit_amount must be >= 0")
 
+    institution = (data.get("institution") or "").strip() or None
+    account_number = (data.get("account_number") or "").strip() or None
+
     with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            UPDATE accounts
-            SET profile_type=%s,
-                is_payroll_source=%s,
-                is_no_limit=%s,
-                is_buffer=%s,
-                fixed_limit_amount=%s
-            WHERE username=%s AND account_id=%s::uuid
-            RETURNING account_id::text, account_name, profile_type, is_payroll_source, is_no_limit, is_buffer, fixed_limit_amount
-            """,
-            (profile_type, is_payroll_source, is_no_limit, is_buffer, fixed_limit_amount, username, account_id),
-        )
+        try:
+            cur.execute(
+                """
+                UPDATE accounts
+                SET account_name=COALESCE(%s, account_name),
+                    profile_type=%s,
+                    is_payroll_source=%s,
+                    is_no_limit=%s,
+                    is_buffer=%s,
+                    fixed_limit_amount=%s,
+                    institution=%s,
+                    account_number=%s
+                WHERE username=%s AND account_id=%s::uuid
+                RETURNING account_id::text, account_name, profile_type, is_payroll_source, is_no_limit, is_buffer, fixed_limit_amount, institution, account_number
+                """,
+                (account_name, profile_type, is_payroll_source, is_no_limit, is_buffer, fixed_limit_amount, institution, account_number, username, account_id),
+            )
+        except UniqueViolation:
+            conn.rollback()
+            raise HTTPException(status_code=400, detail="Account name already exists")
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Account not found")
+        row["balance"] = int(get_account_balances(cur, username, now_utc()).get(account_id, 0))
         conn.commit()
 
     invalidate_user_cache(username)
@@ -510,6 +539,8 @@ async def create_tx(req: Request):
     original_amount = int(original_amount_raw) if original_amount_raw is not None else None
     fx_rate_raw = data.get("fx_rate")
     fx_rate = float(fx_rate_raw) if fx_rate_raw is not None else None
+    tags = [str(t).strip() for t in (data.get("tags") or []) if str(t).strip()]
+    is_reviewed = bool(data.get("is_reviewed", False))
 
     if not account_id or tx_type not in ("debit", "credit") or not name or amount <= 0 or not date_str:
         raise HTTPException(status_code=400, detail="Invalid transaction payload")
@@ -535,13 +566,15 @@ async def create_tx(req: Request):
                 notes,
                 currency,
                 original_amount,
-                fx_rate
+                fx_rate,
+                tags,
+                is_reviewed
             )
-            VALUES (%s::uuid, %s, %s, %s, %s, %s, false, %s::uuid, %s, %s, %s, %s)
+            VALUES (%s::uuid, %s, %s, %s, %s, %s, false, %s::uuid, %s, %s, %s, %s, %s, %s)
             RETURNING transaction_id::text
             """,
             (account_id, tx_type, is_cycle_topup, name, amount, dt,
-             category_id, notes, currency, original_amount, fx_rate),
+             category_id, notes, currency, original_amount, fx_rate, tags, is_reviewed),
         )
         tx_id = cur.fetchone()["transaction_id"]
         shortfall = compute_shortfall_at_transaction(cur, account_id, dt, tx_id)
@@ -1166,6 +1199,7 @@ async def create_internal_loan_from_transaction(req: Request):
         cur.execute(
             """
             INSERT INTO internal_loans (
+                user_id,
                 username,
                 trigger_transaction_id,
                 disbursement_transfer_id,
@@ -1173,16 +1207,18 @@ async def create_internal_loan_from_transaction(req: Request):
                 borrower_account_id,
                 principal_amount
             )
-            VALUES (%s, %s::uuid, %s::uuid, %s::uuid, %s::uuid, %s)
+            SELECT user_id, username, %s::uuid, %s::uuid, %s::uuid, %s::uuid, %s
+            FROM users
+            WHERE username=%s
             RETURNING loan_id::text AS loan_id
             """,
             (
-                username,
                 trigger_transaction_id,
                 transfer_id,
                 lender_account_id,
                 borrower_account_id,
                 amount,
+                username,
             ),
         )
         loan_id = cur.fetchone()["loan_id"]
@@ -1332,7 +1368,11 @@ async def update_tx(transaction_id: str, req: Request):
                    t.is_cycle_topup,
                    t.category_id::text AS category_id,
                    t.notes,
-                   t.currency
+                   t.currency,
+                   t.original_amount,
+                   t.fx_rate,
+                   t.tags,
+                   t.is_reviewed
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
             WHERE t.transaction_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
@@ -1375,6 +1415,19 @@ async def update_tx(transaction_id: str, req: Request):
             raise HTTPException(status_code=400, detail="Top-up/payroll can only be set on cash-in transactions")
 
         old_account_id = tx["account_id"]
+        new_category_id = (data.get("category_id") or None) if "category_id" in data else (tx.get("category_id") or None)
+        new_notes = ((data.get("notes") or "").strip() or None) if "notes" in data else (tx.get("notes") or None)
+        new_currency = (data.get("currency") or tx.get("currency") or "IDR").upper()
+        if new_currency not in ("IDR", "USD"):
+            new_currency = "IDR"
+        new_original_amount = int(data["original_amount"]) if data.get("original_amount") is not None else (None if "original_amount" in data else tx.get("original_amount"))
+        new_fx_rate = float(data["fx_rate"]) if data.get("fx_rate") is not None else (None if "fx_rate" in data else tx.get("fx_rate"))
+        new_tags = (
+            [str(t).strip() for t in (data.get("tags") or []) if str(t).strip()]
+            if "tags" in data
+            else list(tx.get("tags") or [])
+        )
+        new_is_reviewed = bool(data["is_reviewed"]) if "is_reviewed" in data else bool(tx.get("is_reviewed", False))
 
         lock_accounts_for_update(cur, username, [old_account_id, new_account_id])
 
@@ -1391,16 +1444,20 @@ async def update_tx(transaction_id: str, req: Request):
                 notes=%s,
                 currency=%s,
                 original_amount=%s,
-                fx_rate=%s
+                fx_rate=%s,
+                tags=%s,
+                is_reviewed=%s
             WHERE transaction_id=%s::uuid AND deleted_at IS NULL
             RETURNING transaction_id
             """,
             (new_account_id, new_type, is_cycle_topup, new_name, new_amount, new_date,
-             data.get("category_id") or tx.get("category_id") or None,
-             (data.get("notes") or "").strip() or tx.get("notes") or None,
-             (data.get("currency") or tx.get("currency") or "IDR").upper(),
-             int(data["original_amount"]) if data.get("original_amount") is not None else None,
-             float(data["fx_rate"]) if data.get("fx_rate") is not None else None,
+             new_category_id,
+             new_notes,
+             new_currency,
+             new_original_amount,
+             new_fx_rate,
+             new_tags,
+             new_is_reviewed,
              transaction_id),
         )
         if not cur.fetchone():
@@ -2000,12 +2057,14 @@ async def set_payday(req: Request):
             with db_conn() as conn, conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO payday_overrides (username, month, payday_day)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO payday_overrides (user_id, username, month, payday_day)
+                    SELECT user_id, username, %s, %s
+                    FROM users
+                    WHERE username=%s
                     ON CONFLICT (username, month)
                     DO UPDATE SET payday_day=EXCLUDED.payday_day
                     """,
-                    (username, month, day),
+                    (month, day, username),
                 )
                 conn.commit()
     else:

@@ -13,6 +13,7 @@ interface AppCtxType {
   setTheme: (v: "light" | "dark") => void;
   accounts: Account[];
   paydayDay: number;
+  paydaySource: string | null;
   summaryRange: { from: string; to: string } | null;
   user: { username: string; full_name: string } | null;
 }
@@ -20,7 +21,7 @@ interface AppCtxType {
 const AppContext = createContext<AppCtxType>({
   hideBalances: false, setHideBalances: () => {},
   theme: "light", setTheme: () => {},
-  accounts: [], paydayDay: 25,
+  accounts: [], paydayDay: 25, paydaySource: null,
   summaryRange: null, user: null,
 });
 
@@ -60,14 +61,15 @@ export default function AppLayout({ children, title = "Cash Flow", showDateRange
   });
 
   const accounts = accountsData?.accounts ?? [];
-  const paydayDay = summaryData?.payday?.default_day ?? 25;
+  const paydayDay = summaryData?.payday?.day ?? summaryData?.payday?.default_day ?? 25;
+  const paydaySource = summaryData?.payday?.source ?? null;
   const summaryRange = summaryData?.range ?? null;
 
   return (
     <AppContext.Provider value={{
       hideBalances, setHideBalances,
       theme, setTheme,
-      accounts, paydayDay,
+      accounts, paydayDay, paydaySource,
       summaryRange,
       user: userData ?? null,
     }}>

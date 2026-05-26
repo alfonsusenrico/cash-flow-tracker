@@ -16,6 +16,7 @@ Usage:
 import os
 import subprocess
 import pathlib
+from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
@@ -61,6 +62,10 @@ def apply_migrations(db_url: str):
     Apply migrations only when a real Postgres is reachable.
     Skips silently for pure unit tests that don't need a DB.
     """
+    if os.getenv("SKIP_TEST_MIGRATIONS") == "1":
+        yield
+        return
+
     import socket
     # Quick TCP check — if Postgres isn't up, skip migration entirely.
     try:
@@ -79,36 +84,41 @@ def apply_migrations(db_url: str):
 @pytest.fixture(scope="session")
 def client(db_url: str, apply_migrations):
     os.environ["DATABASE_URL"] = db_url
-    os.environ.setdefault("SESSION_SECRET", "test-secret-for-pytest")
+    os.environ["SESSION_SECRET"] = "test-secret-for-pytest"
     os.environ.setdefault("INVITE_CODE", "TESTCODE")
-    os.environ.setdefault("REDIS_URL", "")  # disable Redis in tests
+    os.environ["COOKIE_SECURE"] = "false"
+    os.environ["REDIS_URL"] = ""  # disable Redis in tests
 
     # Import app after env is set so config loads correctly
     from app.main import app  # noqa: PLC0415
 
-    with TestClient(app, raise_server_exceptions=True) as c:
+    with TestClient(app, base_url="https://testserver", raise_server_exceptions=True) as c:
         yield c
 
 
 @pytest.fixture(scope="session")
 def auth_client(client: TestClient):
-    """TestClient with a valid session cookie for user 'testuser'."""
+    """TestClient with a valid session cookie for a unique smoke user."""
+    username = f"testuser_{uuid4().hex[:10]}"
+    password = "testpassword1"
     # Register
-    client.post(
+    res = client.post(
         "/auth/register",
         json={
-            "username": "testuser",
-            "password": "testpassword1",
+            "username": username,
+            "password": password,
             "full_name": "Test User",
-            "invite_code": "TESTCODE",
+            "invite_code": os.getenv("INVITE_CODE", "TESTCODE"),
         },
     )
+    assert res.status_code == 200, res.text
     # Login
     res = client.post(
         "/auth/login",
-        json={"username": "testuser", "password": "testpassword1"},
+        json={"username": username, "password": password},
     )
     assert res.status_code == 200, res.text
+    client._smoke_username = username
     return client
 
 

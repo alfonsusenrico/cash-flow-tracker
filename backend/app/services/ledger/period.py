@@ -183,7 +183,7 @@ def compute_dynamic_month_range(
         local_day_start_utc(next_month_start + timedelta(days=8)),
         order="ASC",
     )
-    to_dt = (row_end["date"] - timedelta(microseconds=1)) if row_end else now_utc().replace(microsecond=0)
+    to_dt = (row_end["date"] - timedelta(microseconds=1)) if row_end else now_utc()
     if to_dt < from_dt:
         to_dt = from_dt
 

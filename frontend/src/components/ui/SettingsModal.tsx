@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Modal } from "@/components/ui/Modal";
@@ -10,18 +10,24 @@ interface Props {
   open: boolean;
   onClose: () => void;
   paydayDay: number;
-  theme: "light" | "dark";
-  onThemeToggle: () => void;
+  paydaySource: string | null;
   hideBalances: boolean;
   onHideBalancesToggle: () => void;
 }
 
-export function SettingsModal({ open, onClose, paydayDay, theme, onThemeToggle, hideBalances, onHideBalancesToggle }: Props) {
+export function SettingsModal({ open, onClose, paydayDay, paydaySource, hideBalances, onHideBalancesToggle }: Props) {
   const qc = useQueryClient();
   const [day, setDay] = useState(String(paydayDay));
   const [apiKey, setApiKey] = useState("");
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setDay(String(paydayDay));
+    setErr("");
+    setMsg("");
+  }, [open, paydayDay]);
 
   const paydayMut = useMutation({
     mutationFn: () => api.put("/payday", { day: parseInt(day, 10) }),
@@ -44,7 +50,11 @@ export function SettingsModal({ open, onClose, paydayDay, theme, onThemeToggle, 
         {/* Payday */}
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">Payday</h3>
-          <p className="text-xs text-[var(--muted)]">Day of month your pay cycle starts (1–31).</p>
+          <p className="text-xs text-[var(--muted)]">
+            {paydaySource === "override"
+              ? "Day of month your pay cycle starts (1–31)."
+              : "No payday cycle is saved yet. Choose the day your pay cycle starts (1–31)."}
+          </p>
           <div className="flex gap-2">
             <Input
               type="number"
@@ -59,20 +69,6 @@ export function SettingsModal({ open, onClose, paydayDay, theme, onThemeToggle, 
             </Button>
           </div>
           {msg && <p className="text-xs text-green-600">{msg}</p>}
-        </section>
-
-        {/* Theme */}
-        <section className="space-y-2">
-          <h3 className="text-sm font-semibold">Theme</h3>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-[var(--muted)]">{theme === "dark" ? "Dark" : "Light"}</span>
-            <button
-              onClick={onThemeToggle}
-              className={`relative w-11 h-6 rounded-full transition-colors ${theme === "dark" ? "bg-[var(--primary)]" : "bg-[var(--border)]"}`}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${theme === "dark" ? "translate-x-5" : ""}`} />
-            </button>
-          </div>
         </section>
 
         {/* Hide balances */}
