@@ -77,6 +77,23 @@ def _replace_bucket_accounts(cur, bucket_id: str, account_ids: list[str]) -> Non
         )
 
 
+def _find_archived_bucket_by_name(cur, username: str, name: str) -> dict[str, Any] | None:
+    cur.execute(
+        """
+        SELECT b.bucket_id::text AS bucket_id, b.name
+        FROM buckets b
+        JOIN users u ON u.user_id = b.user_id
+        WHERE u.username=%s
+          AND lower(b.name)=lower(%s)
+          AND b.is_archived=TRUE
+        ORDER BY b.created_at DESC
+        LIMIT 1
+        """,
+        (username, name),
+    )
+    return cur.fetchone()
+
+
 def _sync_linked_goal_for_bucket(
     cur,
     username: str,
@@ -227,14 +244,33 @@ async def create_bucket(req: Request):
     with db_conn() as conn, conn.cursor() as cur:
         try:
             _ensure_accounts(cur, username, linked_account_ids)
-            cur.execute(
-                """
-                INSERT INTO buckets (user_id, name, kind, target_amount, linked_account_id, priority, notes)
-                SELECT user_id, %s, %s, %s, %s::uuid, %s, %s FROM users WHERE username=%s
-                RETURNING bucket_id::text AS bucket_id
-                """,
-                (name, kind, target_amount, linked_account_id, priority, notes, username),
-            )
+            archived = _find_archived_bucket_by_name(cur, username, name)
+            if archived:
+                cur.execute(
+                    """
+                    UPDATE buckets
+                    SET name=%s,
+                        kind=%s,
+                        target_amount=%s,
+                        linked_account_id=%s::uuid,
+                        priority=%s,
+                        notes=%s,
+                        is_archived=FALSE
+                    WHERE bucket_id=%s::uuid
+                      AND user_id=(SELECT user_id FROM users WHERE username=%s)
+                    RETURNING bucket_id::text AS bucket_id
+                    """,
+                    (name, kind, target_amount, linked_account_id, priority, notes, archived["bucket_id"], username),
+                )
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO buckets (user_id, name, kind, target_amount, linked_account_id, priority, notes)
+                    SELECT user_id, %s, %s, %s, %s::uuid, %s, %s FROM users WHERE username=%s
+                    RETURNING bucket_id::text AS bucket_id
+                    """,
+                    (name, kind, target_amount, linked_account_id, priority, notes, username),
+                )
             row = cur.fetchone()
             _replace_bucket_accounts(cur, row["bucket_id"], linked_account_ids)
             linked_goal_id = None
