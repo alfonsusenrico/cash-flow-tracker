@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -47,13 +47,15 @@ export default function StrategyPage() {
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<Rule | null>(null);
   const [form, setForm] = useState(EMPTY);
-  const [previewIncome, setPreviewIncome] = useState(10_000_000);
+  const [previewIncome, setPreviewIncome] = useState(0);
   const [planMonth, setPlanMonth] = useState(currentMonthYM());
+  const [syncedPlanId, setSyncedPlanId] = useState<string | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [err, setErr] = useState("");
 
   const { data: rulesData } = useQuery<{ rules: Rule[] }>({ queryKey: ["strategy-rules"], queryFn: () => api.get("/strategy-rules") });
   const { data: bucketsData } = useQuery<{ buckets: any[] }>({ queryKey: ["buckets"], queryFn: () => api.get("/buckets") });
+  const { data: plansData } = useQuery<{ plans: any[] }>({ queryKey: ["allocation-plans"], queryFn: () => api.get("/allocation-plans") });
 
   const inv = () => qc.invalidateQueries({ queryKey: ["strategy-rules"] });
   const saveMut = useMutation({
@@ -98,10 +100,20 @@ export default function StrategyPage() {
 
   const rules = rulesData?.rules ?? [];
   const buckets = bucketsData?.buckets ?? [];
+  const plans = plansData?.plans ?? [];
+  const latestContextPlan = plans.find((p: any) => p.status === "active") ?? plans[0] ?? null;
   const maxAlloc = Math.max(...(preview?.allocations.map((a) => a.amount) ?? [1]), 1);
   const rulePercentValue = form.mode === "percent" ? clampNumber(form.value) : form.value;
   const rulePercentAmount = Math.round(previewIncome * (rulePercentValue / 100));
   const ruleFixedPercent = previewIncome > 0 ? clampNumber(Math.round((form.value / previewIncome) * 100)) : 0;
+
+  useEffect(() => {
+    if (!latestContextPlan || syncedPlanId === latestContextPlan.plan_id) return;
+    setPreviewIncome(Number(latestContextPlan.expected_income) || 0);
+    setPlanMonth(latestContextPlan.month || currentMonthYM());
+    setPreview(null);
+    setSyncedPlanId(latestContextPlan.plan_id);
+  }, [latestContextPlan, syncedPlanId]);
 
   return (
     <div className="p-5">
@@ -186,6 +198,11 @@ export default function StrategyPage() {
             className="mb-3"
           />
           <p className="text-xs font-medium mb-1">Enter Income Amount</p>
+          {latestContextPlan && (
+            <p className="text-xs text-[var(--muted)] mb-2">
+              Using {latestContextPlan.status} allocation plan {latestContextPlan.month} as the strategy preview baseline.
+            </p>
+          )}
           <div className="flex items-center gap-2 mb-4">
             <div className="flex-1 border border-[var(--border)] rounded-lg px-3 py-2 flex items-center gap-2">
               <span className="text-sm text-[var(--muted)]">Rp</span>
@@ -195,7 +212,7 @@ export default function StrategyPage() {
             <button onClick={() => setPreviewIncome((v) => v + 1_000_000)} className="w-8 h-8 rounded-lg border border-[var(--border)] hover:bg-[var(--bg)] font-bold">+</button>
           </div>
           {err && <p className="text-xs text-danger mb-2">{err}</p>}
-          <Button variant="primary" className="w-full mb-4" onClick={() => { setErr(""); previewMut.mutate(); }} disabled={previewMut.isPending}>
+          <Button variant="primary" className="w-full mb-4" onClick={() => { setErr(""); previewMut.mutate(); }} disabled={previewMut.isPending || previewIncome <= 0}>
             {previewMut.isPending ? "Calculating…" : "Preview"}
           </Button>
 
