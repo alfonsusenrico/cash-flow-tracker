@@ -1,14 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  function getSafeRedirectTarget() {
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next");
+    return next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  }
+
+  useEffect(() => {
+    async function redirectIfAuthenticated() {
+      try {
+        await api.get("/me");
+        window.location.replace(getSafeRedirectTarget());
+      } catch {
+        // Staying on the login page is correct when there is no valid session.
+      }
+    }
+
+    redirectIfAuthenticated();
+    window.addEventListener("pageshow", redirectIfAuthenticated);
+    return () => window.removeEventListener("pageshow", redirectIfAuthenticated);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -22,7 +41,7 @@ export default function LoginPage() {
           username: fd.get("username"),
           password: fd.get("password"),
         });
-        router.push("/dashboard");
+        window.location.replace(getSafeRedirectTarget());
       } else {
         await api.post("/auth/register", {
           username: fd.get("username"),

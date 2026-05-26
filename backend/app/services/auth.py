@@ -186,6 +186,11 @@ def enforce_login_rate_limit(req: Request, username: str) -> None:
         raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
 
 
+def clear_login_rate_limit(req: Request, username: str) -> None:
+    client_ip = get_client_ip(req)
+    rate_limiter.reset(f"login:ip:{client_ip}", f"login:user:{username}")
+
+
 def enforce_public_rate_limit(req: Request, key: str) -> None:
     key_hash = hashlib.sha256(key.encode("utf-8")).hexdigest()[:24]
     client_ip = get_client_ip(req)

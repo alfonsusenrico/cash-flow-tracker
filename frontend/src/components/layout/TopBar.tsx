@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { SettingsModal } from "@/components/ui/SettingsModal";
@@ -11,9 +10,9 @@ interface TopBarProps {
 }
 
 export function TopBar({ title, showDateRange = true }: TopBarProps) {
-  const router = useRouter();
   const { hideBalances, setHideBalances, theme, setTheme, paydayDay, paydaySource, summaryRange, user } = useAppCtx();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const initials = user?.full_name
     ? user.full_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
@@ -21,7 +20,7 @@ export function TopBar({ title, showDateRange = true }: TopBarProps) {
 
   async function logout() {
     await api.post("/auth/logout");
-    router.push("/auth/login");
+    window.location.replace("/auth/login");
   }
 
   function toggleTheme() {
@@ -104,14 +103,42 @@ export function TopBar({ title, showDateRange = true }: TopBarProps) {
           ⚙️
         </button>
 
-        {/* User avatar */}
-        <button
-          onClick={logout}
-          className="w-8 h-8 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center hover:bg-primary-hover transition-colors"
-          title="Logout"
-        >
-          {initials}
-        </button>
+        {/* User menu */}
+        <div className="relative">
+          <button
+            onClick={() => setUserMenuOpen((open) => !open)}
+            className="w-8 h-8 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center hover:bg-primary-hover transition-colors"
+            title="Account menu"
+            aria-haspopup="menu"
+            aria-expanded={userMenuOpen}
+          >
+            {initials}
+          </button>
+          {userMenuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-10 w-56 rounded-lg border shadow-lg py-2 z-50"
+              style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+            >
+              <div className="px-3 pb-2 border-b" style={{ borderColor: "var(--border)" }}>
+                <p className="text-sm font-semibold text-[var(--text)] truncate">
+                  {user?.full_name || user?.username || "Account"}
+                </p>
+                {user?.full_name && user?.username && (
+                  <p className="text-xs text-[var(--muted)] truncate">{user.username}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={logout}
+                className="w-full text-left px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <SettingsModal
         open={settingsOpen}

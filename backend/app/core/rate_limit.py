@@ -50,6 +50,19 @@ return 0
     def _redis_key(self, key: str) -> str:
         return f"{self._key_prefix}:ratelimit:{key}"
 
+    def reset(self, *keys: str) -> None:
+        normalized = [key for key in keys if key]
+        if not normalized:
+            return
+        if self._redis is not None:
+            try:
+                self._redis.delete(*(self._redis_key(key) for key in normalized))
+            except RedisError:
+                pass
+        with self._lock:
+            for key in normalized:
+                self._events.pop(key, None)
+
     def _exceeded_redis(self, key: str, limit: int, window_seconds: int) -> bool | None:
         if self._redis is None:
             return None

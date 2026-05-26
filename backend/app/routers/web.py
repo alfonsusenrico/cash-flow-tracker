@@ -10,6 +10,7 @@ from psycopg.errors import UniqueViolation
 from app.core.config import settings
 from app.db.pool import db_conn
 from app.services.auth import (
+    clear_login_rate_limit,
     create_api_key,
     enforce_login_rate_limit,
     enforce_register_rate_limit,
@@ -145,15 +146,24 @@ async def login(req: Request):
         raise HTTPException(status_code=400, detail="Password too long (max 72 bytes)")
     if not username or not password:
         raise HTTPException(status_code=400, detail="username and password required")
-    enforce_login_rate_limit(req, username)
+    rate_limited = False
+    try:
+        enforce_login_rate_limit(req, username)
+    except HTTPException as exc:
+        if exc.status_code != 429:
+            raise
+        rate_limited = True
 
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute("SELECT username, password_hash, full_name FROM users WHERE username=%s", (username,))
         user = cur.fetchone()
 
     if not user or not bcrypt.verify(password, user["password_hash"]):
+        if rate_limited:
+            raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
+    clear_login_rate_limit(req, username)
     req.session["username"] = user["username"]
     req.session["full_name"] = user["full_name"]
     return {"ok": True, "username": user["username"], "full_name": user["full_name"]}
