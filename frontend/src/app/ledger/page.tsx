@@ -107,8 +107,9 @@ function LedgerContent() {
 
   const ledgerPages = ledgerData?.pages ?? [];
   const rows = ledgerPages.flatMap((pageData) => pageData.rows);
-  const totalIn = rows.reduce((s, r) => s + r.debit, 0);
-  const totalOut = rows.reduce((s, r) => s + r.credit, 0);
+  const cashFlowRows = rows.filter((r) => !r.is_transfer);
+  const totalIn = cashFlowRows.reduce((s, r) => s + r.debit, 0);
+  const totalOut = cashFlowRows.reduce((s, r) => s + r.credit, 0);
   const filteredRows = rows;
 
   const selectedTxId = selectedRow?.transaction_id;

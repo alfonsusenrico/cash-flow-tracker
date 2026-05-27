@@ -84,6 +84,7 @@ def get_dashboard(req: Request):
         cur.execute(
             """
             SELECT account_id::text AS account_id,
+                   account_name,
                    profile_type,
                    is_buffer,
                    is_no_limit
@@ -92,13 +93,23 @@ def get_dashboard(req: Request):
             """,
             (username,),
         )
-        account_profiles = {row["account_id"]: row for row in cur.fetchall()}
-        spendable_balance = sum(
-            int(balance)
-            for account_id, balance in balances.items()
-            if not account_profiles.get(account_id, {}).get("is_buffer")
-            and account_profiles.get(account_id, {}).get("profile_type") in ("fixed_spending", "dynamic_spending")
-        )
+        account_rows = cur.fetchall()
+        spendable_accounts = []
+        for account in account_rows:
+            account_id = account["account_id"]
+            if account.get("is_buffer") or account.get("profile_type") not in ("fixed_spending", "dynamic_spending"):
+                continue
+            spendable_accounts.append(
+                {
+                    "account_id": account_id,
+                    "account_name": account.get("account_name"),
+                    "profile_type": account.get("profile_type"),
+                    "is_no_limit": bool(account.get("is_no_limit")),
+                    "balance": int(balances.get(account_id, 0)),
+                }
+            )
+        spendable_accounts.sort(key=lambda row: (row.get("account_name") or "").lower())
+        spendable_balance = sum(account["balance"] for account in spendable_accounts)
 
         # ── Emergency bucket balance ──────────────────────────────────────
         emergency_balance = _emergency_bucket_balance(cur, username, balances)
@@ -148,17 +159,23 @@ def get_dashboard(req: Request):
         if plan_row:
             cur.execute(
                 """
-                SELECT i.planned_amount,
+                SELECT i.item_id::text AS item_id,
+                       i.label,
+                       i.planned_amount,
                        i.funded_amount,
                        i.status,
                        i.mode,
                        i.include_in_emergency_base,
-                       b.kind AS bucket_kind
+                       i.target_account_id::text AS target_account_id,
+                       ta.account_name AS target_account_name,
+                       b.kind AS bucket_kind,
+                       b.name AS bucket_name
                 FROM allocation_items i
                 LEFT JOIN buckets b ON b.bucket_id=i.bucket_id
+                LEFT JOIN accounts ta ON ta.account_id=i.target_account_id AND ta.username=%s
                 WHERE i.plan_id=%s::uuid
                 """,
-                (plan_row["plan_id"],),
+                (username, plan_row["plan_id"]),
             )
             allocation_items = cur.fetchall()
 
@@ -171,12 +188,13 @@ def get_dashboard(req: Request):
               COALESCE(SUM(outstanding_amount) FILTER (WHERE kind='receivable' AND status IN ('open','partial') AND due_date < CURRENT_DATE), 0) AS receivable_overdue,
               COALESCE(SUM(outstanding_amount) FILTER (WHERE kind='payable' AND status IN ('open','partial') AND due_date < CURRENT_DATE), 0) AS payable_overdue,
               COALESCE(SUM(outstanding_amount) FILTER (WHERE kind='payable' AND status IN ('open','partial') AND due_date IS NOT NULL AND due_date <= %s::date), 0) AS payable_due_this_cycle,
+              COUNT(*) FILTER (WHERE kind='payable' AND status IN ('open','partial') AND due_date IS NOT NULL AND due_date <= %s::date) AS payable_due_this_cycle_count,
               COALESCE(SUM(outstanding_amount) FILTER (WHERE status IN ('open','partial') AND due_date >= CURRENT_DATE AND due_date <= CURRENT_DATE + INTERVAL '30 days'), 0) AS due_soon,
               COUNT(*) FILTER (WHERE status IN ('open','partial')) AS open_count
             FROM obligations
             WHERE user_id=(SELECT user_id FROM users WHERE username=%s)
             """,
-            (to_date, username),
+            (to_date, to_date, username),
         )
         obligation_row = cur.fetchone() or {}
         obligations = {
@@ -185,21 +203,70 @@ def get_dashboard(req: Request):
             "receivable_overdue": int(obligation_row.get("receivable_overdue") or 0),
             "payable_overdue": int(obligation_row.get("payable_overdue") or 0),
             "payable_due_this_cycle": int(obligation_row.get("payable_due_this_cycle") or 0),
+            "payable_due_this_cycle_count": int(obligation_row.get("payable_due_this_cycle_count") or 0),
             "due_soon": int(obligation_row.get("due_soon") or 0),
             "open_count": int(obligation_row.get("open_count") or 0),
         }
         obligations["net_expected"] = obligations["receivable_outstanding"] - obligations["payable_outstanding"]
+
+        cur.execute(
+            """
+            SELECT o.obligation_id::text AS obligation_id,
+                   o.title,
+                   o.due_date,
+                   o.outstanding_amount,
+                   c.name AS counterparty_name
+            FROM obligations o
+            LEFT JOIN counterparties c ON c.counterparty_id=o.counterparty_id
+            WHERE o.user_id=(SELECT user_id FROM users WHERE username=%s)
+              AND o.kind='payable'
+              AND o.status IN ('open','partial')
+              AND o.due_date IS NOT NULL
+              AND o.due_date <= %s::date
+            ORDER BY o.due_date ASC, o.outstanding_amount DESC, o.title ASC
+            LIMIT 10
+            """,
+            (username, to_date),
+        )
+        payables_due = [
+            {
+                "obligation_id": row["obligation_id"],
+                "title": row.get("title"),
+                "due_date": row["due_date"].isoformat() if row.get("due_date") else None,
+                "outstanding_amount": int(row.get("outstanding_amount") or 0),
+                "counterparty_name": row.get("counterparty_name"),
+            }
+            for row in cur.fetchall()
+        ]
 
         planned_spend = 0
         planned_savings = 0
         planned_investment = 0
         emergency_base = 0
         committed = 0
+        spending_allocations = []
         for item in allocation_items:
             planned = int(item.get("planned_amount") or 0)
+            funded = int(item.get("funded_amount") or 0)
             group = _allocation_group(item.get("bucket_kind"), item.get("mode") or "fixed")
             if item.get("include_in_emergency_base") or group in ("fixed_spending", "dynamic_spending"):
                 planned_spend += planned
+                spending_allocations.append(
+                    {
+                        "item_id": item.get("item_id"),
+                        "label": item.get("label"),
+                        "group": group,
+                        "bucket_kind": item.get("bucket_kind"),
+                        "bucket_name": item.get("bucket_name"),
+                        "target_account_id": item.get("target_account_id"),
+                        "target_account_name": item.get("target_account_name"),
+                        "planned_amount": planned,
+                        "funded_amount": funded,
+                        "remaining_amount": max(0, planned - funded),
+                        "include_in_emergency_base": bool(item.get("include_in_emergency_base")),
+                        "status": item.get("status"),
+                    }
+                )
             if item.get("include_in_emergency_base"):
                 emergency_base += planned
             if group == "investment":
@@ -209,7 +276,7 @@ def get_dashboard(req: Request):
             if group == "cash_buffer":
                 planned_savings += planned
             if item.get("status") in ("pending", "partial"):
-                committed += max(0, planned - int(item.get("funded_amount") or 0))
+                committed += max(0, planned - funded)
 
         # ── Invested assets ───────────────────────────────────────────────
         cur.execute(
@@ -268,8 +335,8 @@ def get_dashboard(req: Request):
     available_monthly = max(0, monthly_income - total_out)
     remaining_spend_budget = max(0, planned_spend - total_out)
     payable_due_this_cycle = obligations["payable_due_this_cycle"]
-    safe_value = min(spendable_balance, remaining_spend_budget) if plan_row else max(0, liquid_total - committed)
-    safe_value = max(0, safe_value - payable_due_this_cycle)
+    capped_available = min(spendable_balance, remaining_spend_budget) if plan_row else max(0, liquid_total - committed)
+    safe_value = max(0, capped_available - payable_due_this_cycle)
     safe_metric = safe_to_spend(safe_value, 0, 0)
     if monthly_income > 0:
         safe_metric["pct"] = round(safe_value / monthly_income * 100, 1)
@@ -285,6 +352,12 @@ def get_dashboard(req: Request):
                 "remaining_spend_budget": remaining_spend_budget,
                 "committed_allocations": committed,
                 "payables_due_this_cycle": payable_due_this_cycle,
+                "payables_due_this_cycle_count": obligations["payable_due_this_cycle_count"],
+                "capped_available": capped_available,
+                "final_safe_to_spend": safe_value,
+                "spendable_accounts": spendable_accounts,
+                "spending_allocations": spending_allocations,
+                "payables_due": payables_due,
             },
         ),
         "emergency_fund": _with_source(

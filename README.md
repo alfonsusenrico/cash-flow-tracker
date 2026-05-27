@@ -100,6 +100,20 @@ The app groups your month from payday to payday, not calendar month. To set it:
 
 ---
 
+## Dashboard metric glossary
+
+| Metric | Formula / meaning |
+|---|---|
+| Health Score | Average of dashboard metric statuses: `ok = 100`, `warn = 50`, `critical = 0`. |
+| Safe to Spend | `min(spendable account balance, remaining spending plan) - payables due this cycle`. Switches are not counted as income or spending. |
+| Net Worth | Current liquid account balances plus invested asset value. |
+| Emergency Fund Coverage | Emergency bucket balance divided by the monthly emergency spending base from allocation items. |
+| Savings Rate | Allocation-based savings rate when a plan exists: planned savings divided by expected income. |
+| Cash Runway | Current liquid assets divided by the monthly emergency spending base, converted to days/months. |
+| Monthly Drift | Actual spending minus planned spending. Negative means spending is under plan. |
+
+---
+
 ## Update the app
 
 ```bash

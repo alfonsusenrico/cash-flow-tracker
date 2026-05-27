@@ -42,6 +42,14 @@ def assert_ok(res):
     return res.json()
 
 
+def summary_cash_totals(summary: dict) -> tuple[int, int]:
+    accounts = summary.get("accounts", [])
+    return (
+        sum(int(account.get("total_in") or 0) for account in accounts),
+        sum(int(account.get("total_out") or 0) for account in accounts),
+    )
+
+
 def create_account(client: TestClient, name: str | None = None, initial_balance: int = 0) -> str:
     body = {"account_name": name or unique("account"), "initial_balance": initial_balance}
     return assert_ok(client.post("/accounts", json=body))["account_id"]
@@ -179,6 +187,69 @@ def test_payables_and_receivables(auth_client: TestClient):
     reversed_detail = assert_ok(auth_client.get(f"/obligations/{receivable['obligation_id']}"))
     assert reversed_detail["obligation"]["outstanding_amount"] == 500_000
     assert reversed_detail["obligation"]["status"] == "open"
+
+
+def test_switches_are_ledger_rows_not_cash_flow_totals(auth_client: TestClient):
+    before_dashboard = assert_ok(auth_client.get("/dashboard"))
+    before_summary_in, before_summary_out = summary_cash_totals(assert_ok(auth_client.get("/summary")))
+    before_analysis = assert_ok(auth_client.get("/analysis"))["totals"]
+
+    source_id = create_account(auth_client, unique("switch-total-source"), 0)
+    target_id = create_account(auth_client, unique("switch-total-target"), 0)
+    income_id = assert_ok(
+        auth_client.post(
+            "/transactions",
+            json={
+                "account_id": source_id,
+                "transaction_type": "debit",
+                "transaction_name": "Switch total income",
+                "amount": 100_000,
+                "date": past_iso(3),
+            },
+        )
+    )["transaction_id"]
+    expense_id = assert_ok(
+        auth_client.post(
+            "/transactions",
+            json={
+                "account_id": source_id,
+                "transaction_type": "credit",
+                "transaction_name": "Switch total expense",
+                "amount": 10_000,
+                "date": past_iso(2),
+            },
+        )
+    )["transaction_id"]
+    transfer_id = assert_ok(
+        auth_client.post(
+            "/switch",
+            json={"source_account_id": source_id, "target_account_id": target_id, "amount": 25_000, "date": past_iso(1)},
+        )
+    )["transfer_id"]
+
+    after_dashboard = assert_ok(auth_client.get("/dashboard"))
+    assert after_dashboard["total_in"] - before_dashboard["total_in"] == 100_000
+    assert after_dashboard["total_out"] - before_dashboard["total_out"] == 10_000
+
+    after_summary_in, after_summary_out = summary_cash_totals(assert_ok(auth_client.get("/summary")))
+    assert after_summary_in - before_summary_in == 100_000
+    assert after_summary_out - before_summary_out == 10_000
+
+    after_analysis = assert_ok(auth_client.get("/analysis"))["totals"]
+    assert after_analysis["total_in"] - before_analysis["total_in"] == 100_000
+    assert after_analysis["total_out"] - before_analysis["total_out"] == 10_000
+
+    ledger_rows = assert_ok(auth_client.get("/ledger", params={"scope": "all", "include_switch": True, "limit": 100}))["rows"]
+    switch_row = next(row for row in ledger_rows if row.get("transfer_id") == transfer_id)
+    assert switch_row["is_transfer"] is True
+    assert switch_row["debit"] == 25_000
+    assert switch_row["credit"] == 25_000
+
+    assert_ok(auth_client.delete(f"/switch/{transfer_id}"))
+    assert_ok(auth_client.delete(f"/transactions/{expense_id}"))
+    assert_ok(auth_client.delete(f"/transactions/{income_id}"))
+    assert_ok(auth_client.delete(f"/accounts/{target_id}"))
+    assert_ok(auth_client.delete(f"/accounts/{source_id}"))
 
 
 def test_transactions_receipts_switches_loans_and_reports(auth_client: TestClient):
@@ -512,6 +583,16 @@ def test_resource_routers(auth_client: TestClient):
     assert dashboard["allocation_plan"]["expected_income"] == 500_000
     assert dashboard["metrics"]["safe_to_spend"]["source"] == "allocation"
     assert dashboard["metrics"]["safe_to_spend"]["value"] == 200_000
+    safe_breakdown = dashboard["metrics"]["safe_to_spend"]["breakdown"]
+    assert safe_breakdown["planned_spending"] == 200_000
+    assert safe_breakdown["remaining_spend_budget"] == 200_000
+    assert safe_breakdown["payables_due_this_cycle"] == 0
+    assert safe_breakdown["final_safe_to_spend"] == 200_000
+    assert any(account["account_id"] == spending_id and account["balance"] == 200_000 for account in safe_breakdown["spendable_accounts"])
+    monthly_spending = next(item for item in safe_breakdown["spending_allocations"] if item["label"] == "Monthly spending")
+    assert monthly_spending["target_account_id"] == spending_id
+    assert monthly_spending["planned_amount"] == 200_000
+    assert monthly_spending["remaining_amount"] == 0
     assert dashboard["metrics"]["emergency_fund"]["breakdown"]["monthly_spending_base"] == 200_000
     budgets = assert_ok(auth_client.get("/budgets", params={"month": funding_month}))["budgets"]
     generated_budget = next(b for b in budgets if b["account_id"] == spending_id)

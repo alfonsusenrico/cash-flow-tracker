@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -10,6 +11,52 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Sparkline } from "@/components/ui/Sparkline";
 import type { SummaryResponse } from "@/types/domain";
 
+interface SafeBreakdownAccount {
+  account_id: string;
+  account_name: string;
+  profile_type: string;
+  is_no_limit: boolean;
+  balance: number;
+}
+
+interface SafeBreakdownAllocation {
+  item_id: string;
+  label: string;
+  group: string;
+  bucket_kind: string | null;
+  bucket_name: string | null;
+  target_account_id: string | null;
+  target_account_name: string | null;
+  planned_amount: number;
+  funded_amount: number;
+  remaining_amount: number;
+  include_in_emergency_base: boolean;
+  status: string;
+}
+
+interface SafeBreakdownPayable {
+  obligation_id: string;
+  title: string;
+  due_date: string | null;
+  outstanding_amount: number;
+  counterparty_name: string | null;
+}
+
+interface SafeToSpendBreakdown {
+  spendable_balance: number;
+  planned_spending: number;
+  actual_spending: number;
+  remaining_spend_budget: number;
+  committed_allocations: number;
+  payables_due_this_cycle: number;
+  payables_due_this_cycle_count: number;
+  capped_available: number;
+  final_safe_to_spend: number;
+  spendable_accounts: SafeBreakdownAccount[];
+  spending_allocations: SafeBreakdownAllocation[];
+  payables_due: SafeBreakdownPayable[];
+}
+
 interface DashboardData {
   month: string;
   health_score: number;
@@ -19,7 +66,7 @@ interface DashboardData {
   total_in: number;
   total_out: number;
   metrics: {
-    safe_to_spend: { value: number; pct: number | null; status: string; label: string };
+    safe_to_spend: { value: number; pct: number | null; status: string; label: string; breakdown?: SafeToSpendBreakdown };
     emergency_fund: { value: number; months: number | null; status: string; label: string };
     savings_rate: { value: number; pct: number | null; status: string; label: string };
     investment_rate: { value: number; pct: number | null; status: string; label: string };
@@ -32,6 +79,7 @@ interface DashboardData {
     receivable_overdue: number;
     payable_overdue: number;
     payable_due_this_cycle: number;
+    payable_due_this_cycle_count: number;
     due_soon: number;
     open_count: number;
     net_expected: number;
@@ -55,8 +103,17 @@ const STATUS_VALUE_COLOR: Record<string, string> = {
   critical: "text-danger",
 };
 
+const METRIC_HELP: Record<string, string> = {
+  health_score: "Average of metric statuses: ok = 100, warn = 50, critical = 0.",
+  safe_to_spend: "Spendable balance capped by remaining spending plan, minus payables due this cycle.",
+  net_worth: "Current liquid account balances plus invested assets.",
+  cash_runway: "Liquid assets divided by the monthly emergency spending base, converted to days.",
+  monthly_drift: "Actual spending minus planned spending. Negative means under plan.",
+};
+
 export default function DashboardPage() {
   const { hideBalances } = useAppCtx();
+  const [safeBreakdownOpen, setSafeBreakdownOpen] = useState(false);
   const bal = (n: number) => hideBalances ? "Rp ••••••" : fmtMoney(n);
 
   const { data: dash, isLoading: dashLoading } = useQuery<DashboardData>({
@@ -80,6 +137,7 @@ export default function DashboardPage() {
   const scoreColor = score >= 70 ? "#16a34a" : score >= 40 ? "#f59e0b" : "#dc2626";
   const scoreLabel = score >= 70 ? "Good" : score >= 40 ? "Fair" : "Poor";
   const nwHistory = (nwData?.history ?? []).map((h) => h.net_worth).reverse();
+  const safeBreakdown = dash?.metrics.safe_to_spend.breakdown;
 
   const metricEntries = dash ? Object.entries(dash.metrics).filter(([, v]) => v !== null) as [string, any][] : [];
 
@@ -103,7 +161,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-3 gap-4">
         {/* Health Score */}
         <Card>
-          <SectionTitle>Health Score <span className="text-[var(--muted)] text-xs font-normal">ⓘ</span></SectionTitle>
+          <SectionTitle>Health Score <span className="text-[var(--muted)] text-xs font-normal" title={METRIC_HELP.health_score}>ⓘ</span></SectionTitle>
           <div className="flex flex-col items-center py-2">
             <DonutChart value={score} size={120} color={scoreColor} label={String(score)} sublabel={scoreLabel} />
             <p className="text-xs text-[var(--muted)] text-center mt-3 leading-relaxed">
@@ -116,8 +174,10 @@ export default function DashboardPage() {
         {/* Safe to Spend */}
         <Card green>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-white/80 text-sm font-medium">Safe to Spend <span className="text-white/50 text-xs">ⓘ</span></span>
-            <Link href="/ledger" prefetch={false} className="text-xs text-white/80 border border-white/30 px-3 py-1 rounded-lg hover:bg-white/10 transition-colors">See breakdown →</Link>
+            <span className="text-white/80 text-sm font-medium">Safe to Spend <span className="text-white/50 text-xs" title={METRIC_HELP.safe_to_spend}>ⓘ</span></span>
+            <button type="button" onClick={() => setSafeBreakdownOpen((open) => !open)} className="text-xs text-white/80 border border-white/30 px-3 py-1 rounded-lg hover:bg-white/10 transition-colors">
+              {safeBreakdownOpen ? "Hide breakdown" : "See breakdown →"}
+            </button>
           </div>
           <div className="py-3">
             <p className="text-3xl font-bold text-white tabular">{bal(dash?.metrics.safe_to_spend.value ?? 0)}</p>
@@ -139,11 +199,11 @@ export default function DashboardPage() {
         {/* Net Worth */}
         <Card>
           <div className="flex items-center justify-between mb-1">
-            <SectionTitle>Net Worth <span className="text-[var(--muted)] text-xs font-normal">ⓘ</span></SectionTitle>
+            <SectionTitle>Net Worth <span className="text-[var(--muted)] text-xs font-normal" title={METRIC_HELP.net_worth}>ⓘ</span></SectionTitle>
             <button type="button" disabled title="Dashboard period selection is coming soon" className="text-xs text-[var(--muted)] border border-[var(--border)] px-2 py-1 rounded-lg opacity-60 cursor-not-allowed">All time</button>
           </div>
           <p className="text-2xl font-bold tabular">{bal(nwData?.net_worth ?? 0)}</p>
-          <p className="text-xs text-[var(--muted)] mt-0.5">Total Assets minus Liabilities</p>
+          <p className="text-xs text-[var(--muted)] mt-0.5">Liquid balances plus invested assets</p>
           <div className="flex items-center justify-between mt-2">
             <div className="flex items-center gap-1 text-xs text-primary">
               <span>↑</span>
@@ -161,6 +221,92 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      {safeBreakdownOpen && safeBreakdown && (
+        <Card padding="sm">
+          <div className="flex items-start justify-between gap-4 mb-3">
+            <div>
+              <SectionTitle>Safe to Spend Breakdown</SectionTitle>
+              <p className="text-xs text-[var(--muted)]">
+                min(spendable balance, remaining plan) - payables due = {bal(safeBreakdown.final_safe_to_spend)}
+              </p>
+            </div>
+            <button type="button" onClick={() => setSafeBreakdownOpen(false)} className="text-xs text-[var(--muted)] hover:text-[var(--text)]">Close</button>
+          </div>
+
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            {[
+              { label: "Spendable Balance", value: safeBreakdown.spendable_balance, tone: "text-primary" },
+              { label: "Remaining Plan", value: safeBreakdown.remaining_spend_budget, tone: "text-info" },
+              { label: "Payables Due", value: safeBreakdown.payables_due_this_cycle, tone: "text-danger" },
+              { label: "Safe to Spend", value: safeBreakdown.final_safe_to_spend, tone: "text-primary" },
+            ].map((item) => (
+              <div key={item.label} className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
+                <p className="text-xs text-[var(--muted)]">{item.label}</p>
+                <p className={`text-sm font-bold tabular ${item.tone}`}>{bal(item.value)}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs font-semibold mb-2">Spendable Accounts</p>
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                {safeBreakdown.spendable_accounts.map((account) => (
+                  <div key={account.account_id} className="flex items-center justify-between gap-3 text-xs">
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{account.account_name}</p>
+                      <p className="text-[var(--muted)]">{account.profile_type.replace("_", " ")}{account.is_no_limit ? " · no limit" : ""}</p>
+                    </div>
+                    <span className="font-semibold tabular text-right">{bal(account.balance)}</span>
+                  </div>
+                ))}
+                {safeBreakdown.spendable_accounts.length === 0 && <p className="text-xs text-[var(--muted)]">No spendable accounts</p>}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold mb-2">Spending Allocations</p>
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                {safeBreakdown.spending_allocations.map((item) => (
+                  <div key={item.item_id} className="flex items-center justify-between gap-3 text-xs">
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{item.label}</p>
+                      <p className="text-[var(--muted)] truncate">{item.target_account_name ?? item.bucket_name ?? item.group.replace("_", " ")}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold tabular">{bal(item.planned_amount)}</p>
+                      <p className="text-[var(--muted)] tabular">{bal(item.remaining_amount)} left</p>
+                    </div>
+                  </div>
+                ))}
+                {safeBreakdown.spending_allocations.length === 0 && <p className="text-xs text-[var(--muted)]">No spending allocations</p>}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold mb-2">Payables Due This Cycle</p>
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                {safeBreakdown.payables_due.map((payable) => (
+                  <div key={payable.obligation_id} className="flex items-center justify-between gap-3 text-xs">
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{payable.title}</p>
+                      <p className="text-[var(--muted)] truncate">{payable.counterparty_name ?? "No counterparty"}{payable.due_date ? ` · due ${payable.due_date}` : ""}</p>
+                    </div>
+                    <span className="font-semibold tabular text-danger text-right">{bal(payable.outstanding_amount)}</span>
+                  </div>
+                ))}
+                {safeBreakdown.payables_due.length === 0 && <p className="text-xs text-[var(--muted)]">No due payables</p>}
+                {safeBreakdown.payables_due_this_cycle_count > safeBreakdown.payables_due.length && (
+                  <p className="text-xs text-[var(--muted)]">
+                    +{safeBreakdown.payables_due_this_cycle_count - safeBreakdown.payables_due.length} more payable item
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Row 1b: Payables and receivables */}
       {dash?.obligations && dash.obligations.open_count > 0 && (
@@ -199,7 +345,9 @@ export default function DashboardPage() {
           <Card key={key} padding="sm">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-base">{METRIC_ICONS[key] ?? "📊"}</div>
-              <p className="text-xs text-[var(--muted)] leading-tight">{m.label}</p>
+              <p className="text-xs text-[var(--muted)] leading-tight">
+                {m.label} {METRIC_HELP[key] && <span title={METRIC_HELP[key]}>ⓘ</span>}
+              </p>
             </div>
             <p className={`text-base font-bold tabular ${STATUS_VALUE_COLOR[m.status] ?? "text-[var(--text)]"}`}>
               {key === "savings_rate" || key === "investment_rate" ? `${m.pct ?? 0}%`
@@ -289,7 +437,7 @@ export default function DashboardPage() {
                     <span className="text-xs font-medium truncate">{g.goal}</span>
                     <span className="text-xs text-[var(--muted)] tabular ml-2">{g.progress_pct}%</span>
                   </div>
-                  <ProgressBar value={g.progress_pct} color={g.feasible ? "green" : "yellow"} />
+                  <ProgressBar value={g.progress_pct} color={g.feasible ? "green" : "yellow"} intent="completion" />
                 </div>
               ))}
               {(!dash?.goals || dash.goals.length === 0) && (
