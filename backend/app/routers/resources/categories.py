@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from psycopg.errors import UniqueViolation
 
 from app.db.pool import db_conn
+from app.services.categories import seed_default_categories
 from app.services.ledger.balances import parse_uuid_value
 
 router = APIRouter(tags=["categories"])
@@ -17,6 +18,7 @@ router = APIRouter(tags=["categories"])
 def list_categories(req: Request):
     username = req.state.username
     with db_conn() as conn, conn.cursor() as cur:
+        seed_default_categories(cur, username)
         cur.execute(
             """
             SELECT category_id::text AS category_id, name, kind,
@@ -28,7 +30,9 @@ def list_categories(req: Request):
             """,
             (username,),
         )
-        return {"categories": cur.fetchall()}
+        rows = cur.fetchall()
+        conn.commit()
+        return {"categories": rows}
 
 
 @router.post("")

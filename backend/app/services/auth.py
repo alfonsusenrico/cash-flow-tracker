@@ -10,6 +10,7 @@ from passlib.hash import bcrypt
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.services.categories import seed_default_categories
 from app.services.state import rate_limiter
 
 _TOUCH_QUEUE: Queue[str] = Queue(maxsize=10000)
@@ -236,5 +237,6 @@ def register_user(cur, data: dict[str, Any]) -> tuple[str, str, str]:
         "INSERT INTO users (username, password_hash, full_name) VALUES (%s, %s, %s)",
         (username, pw_hash, full_name),
     )
+    seed_default_categories(cur, username)
     api_key = create_api_key(cur, username, "initial")
     return username, full_name, api_key

@@ -23,7 +23,7 @@ interface DashboardData {
     emergency_fund: { value: number; months: number | null; status: string; label: string };
     savings_rate: { value: number; pct: number | null; status: string; label: string };
     investment_rate: { value: number; pct: number | null; status: string; label: string };
-    cash_runway: { value: number; months: number | null; status: string; label: string };
+    cash_runway: { value: number; months: number | null; days: number | null; status: string; label: string };
     monthly_drift: { value: number; pct: number | null; status: string; label: string } | null;
   };
   goals: { goal: string; required: number | null; available: number; feasible: boolean; status: string; progress_pct: number; eta_months: number | null }[];
@@ -163,7 +163,7 @@ export default function DashboardPage() {
             <p className={`text-base font-bold tabular ${STATUS_VALUE_COLOR[m.status] ?? "text-[var(--text)]"}`}>
               {key === "savings_rate" || key === "investment_rate" ? `${m.pct ?? 0}%`
                 : key === "emergency_fund" ? `${m.months ?? 0} months`
-                : key === "cash_runway" ? `${m.months ?? 0} days`
+                : key === "cash_runway" ? `${m.days ?? 0} days`
                 : key === "monthly_drift" ? (m.value >= 0 ? `+${bal(m.value)}` : bal(m.value))
                 : bal(m.value ?? 0)}
             </p>

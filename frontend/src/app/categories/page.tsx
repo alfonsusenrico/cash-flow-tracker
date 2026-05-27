@@ -1,9 +1,12 @@
 "use client";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { Input, Select } from "@/components/ui/Input";
 import type { Category } from "@/types/domain";
 
 const KIND_COLORS: Record<string, "green" | "red" | "blue" | "gray"> = {
@@ -15,12 +18,46 @@ const KIND_ICONS: Record<string, string> = {
 };
 
 export default function CategoriesPage() {
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [modal, setModal] = useState<"create" | "edit" | null>(null);
+  const [editing, setEditing] = useState<Category | null>(null);
+  const [form, setForm] = useState({ name: "", kind: "expense", icon: "", color: "" });
+  const [err, setErr] = useState("");
   const { data } = useQuery<{ categories: Category[] }>({ queryKey: ["categories"], queryFn: () => api.get("/categories") });
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["categories"] });
+  const saveMut = useMutation({
+    mutationFn: () => {
+      const payload = { name: form.name, kind: form.kind, icon: form.icon || null, color: form.color || null, is_archived: false };
+      return editing ? api.put(`/categories/${editing.category_id}`, payload) : api.post("/categories", payload);
+    },
+    onSuccess: () => { invalidate(); setModal(null); setEditing(null); },
+    onError: (e: Error) => setErr(e.message),
+  });
+  const archiveMut = useMutation({
+    mutationFn: (categoryId: string) => api.del(`/categories/${categoryId}`),
+    onSuccess: () => { invalidate(); setModal(null); setEditing(null); },
+    onError: (e: Error) => setErr(e.message),
+  });
 
   const categories = (data?.categories ?? []).filter((c) => !c.is_archived);
   const filtered = search ? categories.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())) : categories;
   const groups = ["income", "expense", "transfer", "adjustment"] as const;
+
+  function openCreate() {
+    setEditing(null);
+    setForm({ name: "", kind: "expense", icon: "", color: "" });
+    setErr("");
+    setModal("create");
+  }
+
+  function openEdit(category: Category) {
+    setEditing(category);
+    setForm({ name: category.name, kind: category.kind, icon: category.icon ?? "", color: category.color ?? "" });
+    setErr("");
+    setModal("edit");
+  }
 
   return (
     <div className="p-5 space-y-4">
@@ -34,6 +71,7 @@ export default function CategoriesPage() {
           <span>ⓘ</span>
           <span>Total Categories</span>
           <span className="font-bold text-[var(--text)]">{categories.length}</span>
+          <Button size="sm" variant="primary" onClick={openCreate}>+ Add Category</Button>
         </div>
       </div>
 
@@ -65,15 +103,18 @@ export default function CategoriesPage() {
                   <tr key={cat.category_id} className="hover:bg-[var(--bg)] transition-colors">
                     <td className="py-2">
                       <div className="flex items-center gap-2">
-                        <div className={`w-6 h-6 rounded-md flex items-center justify-center text-xs bg-${KIND_COLORS[kind] === "green" ? "green" : KIND_COLORS[kind] === "red" ? "red" : "blue"}-100`}>
-                          {KIND_ICONS[kind]}
+                        <div className="w-6 h-6 rounded-md flex items-center justify-center text-xs bg-[var(--bg)]">
+                          {cat.icon || KIND_ICONS[kind]}
                         </div>
                         <span className="font-medium text-[var(--text)]">{cat.name}</span>
                       </div>
                     </td>
-                    <td className="py-2 text-[var(--muted)]">—</td>
+                    <td className="py-2 text-[var(--muted)]">{cat.parent_category_id ? "Subcategory" : "Universal or custom category"}</td>
                     <td className="py-2 text-right">
-                      <Badge variant={KIND_COLORS[kind]}>{kind.charAt(0).toUpperCase() + kind.slice(1)}</Badge>
+                      <div className="flex items-center justify-end gap-2">
+                        <Badge variant={KIND_COLORS[kind]}>{kind.charAt(0).toUpperCase() + kind.slice(1)}</Badge>
+                        <button type="button" onClick={() => openEdit(cat)} className="text-[var(--muted)] hover:text-[var(--text)]" title="Edit category">✏️</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -84,8 +125,34 @@ export default function CategoriesPage() {
       })}
 
       <p className="text-xs text-[var(--muted)] text-center py-2">
-        ⓘ Categories are system-wide and read-only to maintain data consistency.
+        ⓘ Universal categories are starter categories. Add your own terms or archive ones you do not use.
       </p>
+
+      <Modal open={modal !== null} onClose={() => setModal(null)} title={editing ? "Edit Category" : "Add Category"}>
+        <form onSubmit={(e) => { e.preventDefault(); saveMut.mutate(); }} className="space-y-3">
+          <Input label="Category Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="e.g. Rent, Client Payment" />
+          <Select label="Type" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+            <option value="transfer">Transfer</option>
+            <option value="adjustment">Adjustment</option>
+          </Select>
+          <Input label="Icon (optional)" value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} placeholder="e.g. 🏠" />
+          <Input label="Color (optional)" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} placeholder="e.g. #16a34a" />
+          {err && <p className="text-xs text-danger">{err}</p>}
+          <div className="flex gap-2 pt-1">
+            {editing && (
+              <Button type="button" variant="danger" onClick={() => confirm(`Archive "${editing.name}"?`) && archiveMut.mutate(editing.category_id)} disabled={archiveMut.isPending}>
+                Archive
+              </Button>
+            )}
+            <Button type="button" variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
+            <Button type="submit" variant="primary" className="flex-1" disabled={saveMut.isPending}>
+              {saveMut.isPending ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

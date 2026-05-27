@@ -32,6 +32,7 @@ def safe_to_spend(
     value = max(0, liquid_balance - committed_allocations - upcoming_fixed_expenses)
     return {
         "value": value,
+        "pct": None,
         "status": "ok" if value > 0 else "critical",
         "label": "Safe to Spend",
     }
@@ -93,11 +94,13 @@ def cash_runway(liquid_balance: int, avg_monthly_expense: int) -> dict[str, Any]
     Target: >= 3 months. Warn: < 3. Critical: < 1.
     """
     if avg_monthly_expense <= 0:
-        return {"value": None, "months": None, "status": "ok", "label": "Cash Runway"}
+        return {"value": None, "months": None, "days": None, "status": "warn", "label": "Cash Runway"}
     months = round(liquid_balance / avg_monthly_expense, 1)
+    days = round(months * 30, 1)
     return {
         "value": liquid_balance,
         "months": months,
+        "days": days,
         "status": _status(months, 3.0, 1.0, higher_is_better=True),
         "label": "Cash Runway",
     }

@@ -55,6 +55,9 @@ def test_health(client: TestClient):
 def test_auth_and_api_key(auth_client: TestClient):
     body = assert_ok(auth_client.get("/me"))
     assert body["username"] == auth_client._smoke_username
+    categories = assert_ok(auth_client.get("/categories"))["categories"]
+    names = {category["name"] for category in categories}
+    assert {"Salary", "Food & Drink", "Transfer", "Opening Balance"}.issubset(names)
     assert_ok(auth_client.get("/api-key"))
     body = assert_ok(auth_client.post("/api-key/reset"))
     assert body["api_key"]
@@ -170,7 +173,19 @@ def test_transactions_receipts_switches_loans_and_reports(auth_client: TestClien
             json={"source_account_id": source_id, "target_account_id": target_id, "amount": 8_000, "date": now_iso()},
         )
     )
+    ledger_before_delete = assert_ok(
+        auth_client.get("/ledger", params={"scope": "all", "include_switch": True, "limit": 50})
+    )["rows"]
+    transfer_rows = [row for row in ledger_before_delete if row.get("transfer_id") == transfer_id]
+    assert len(transfer_rows) == 1
+    assert transfer_rows[0]["debit"] == 8_000
+    assert transfer_rows[0]["credit"] == 8_000
     assert_ok(auth_client.delete(f"/switch/{transfer_id}"))
+    assert auth_client.get(f"/switch/{transfer_id}").status_code == 404
+    ledger_after_delete = assert_ok(
+        auth_client.get("/ledger", params={"scope": "all", "include_switch": True, "limit": 50})
+    )["rows"]
+    assert [row for row in ledger_after_delete if row.get("transfer_id") == transfer_id] == []
 
     lender = create_account(auth_client, unique("lender"), 100_000)
     borrower = create_account(auth_client, unique("borrower"), 0)
@@ -415,6 +430,11 @@ def test_resource_routers(auth_client: TestClient):
     assert run["status"] == "succeeded"
     funded_plan = assert_ok(auth_client.get(f"/allocation-plans/{funding_plan_id}"))
     assert funded_plan["items"][0]["status"] == "funded"
+    dashboard = assert_ok(auth_client.get("/dashboard"))
+    assert dashboard["allocation_plan"]["expected_income"] == 500_000
+    assert dashboard["metrics"]["safe_to_spend"]["source"] == "allocation"
+    assert dashboard["metrics"]["safe_to_spend"]["value"] == 200_000
+    assert dashboard["metrics"]["emergency_fund"]["breakdown"]["monthly_spending_base"] == 200_000
     budgets = assert_ok(auth_client.get("/budgets", params={"month": funding_month}))["budgets"]
     generated_budget = next(b for b in budgets if b["account_id"] == spending_id)
     assert generated_budget["amount"] == 200_000
@@ -423,7 +443,8 @@ def test_resource_routers(auth_client: TestClient):
     spending_summary = next(a for a in summary_accounts if a["account_id"] == spending_id)
     assert spending_summary["budget"] == 200_000
     assert spending_summary["budget_source"] == "allocation"
-    assert_ok(auth_client.delete(f"/allocation-plans/{funding_plan_id}"))
+    protected_delete = auth_client.delete(f"/allocation-plans/{funding_plan_id}")
+    assert protected_delete.status_code == 404
 
     past_plan_month = f"2000-{(int(uuid4().hex[:2], 16) % 12) + 1:02d}"
     past_plan_id = assert_ok(
@@ -550,6 +571,9 @@ def test_resource_routers(auth_client: TestClient):
     linked_goal = assert_ok(auth_client.get(f"/goals/{linked_goal_id}"))
     assert linked_goal["progress_source"] == "linked_bucket"
     assert linked_goal["current_amount"] == 100_000
+    dashboard_with_goal = assert_ok(auth_client.get("/dashboard"))
+    linked_goal_dash = next(g for g in dashboard_with_goal["goals"] if g["goal"] == linked_goal["name"])
+    assert linked_goal_dash["progress_pct"] == 50
     linked_contribution = auth_client.post(f"/goals/{linked_goal_id}/contribute", json={"amount": 25_000})
     assert linked_contribution.status_code == 400
     assert_ok(auth_client.delete(f"/goals/{linked_goal_id}"))
