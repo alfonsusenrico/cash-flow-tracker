@@ -107,5 +107,5 @@ export interface LedgerResponse {
   scope: string;
   range: { from: string; to: string };
   rows: LedgerRow[];
-  paging: { limit: number; has_more: boolean; next_cursor: string | null };
+  paging: { limit: number; offset: number; has_more: boolean; next_offset: number };
 }

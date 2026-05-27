@@ -1,7 +1,7 @@
 "use client";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { fmtMoney } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
@@ -62,8 +62,8 @@ function LedgerContent() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "transfer" | "payroll">("all");
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [perPage] = useState(10);
+  const perPage = 10;
+  const loadMoreRef = useRef<HTMLTableRowElement | null>(null);
 
   // Modals
   const [txModal, setTxModal] = useState(false);
@@ -80,22 +80,33 @@ function LedgerContent() {
   const switchingCategory = categories.find((c) => c.name.toLowerCase() === "switching" && c.kind === "transfer");
 
   // Ledger data
-  const { data: ledgerData, isLoading } = useQuery<LedgerResponse>({
-    queryKey: ["ledger", scope, accountId, search, page, perPage],
-    queryFn: () => {
+  const {
+    data: ledgerData,
+    isLoading,
+    isFetchingNextPage,
+    fetchNextPage,
+    hasNextPage,
+  } = useInfiniteQuery<LedgerResponse>({
+    queryKey: ["ledger", scope, accountId, search, perPage],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({
         scope,
         limit: String(perPage),
+        offset: String(pageParam ?? 0),
         order: "desc",
         include_switch: "true",
+        include_summary: pageParam === 0 ? "true" : "false",
       });
       if (accountId) params.set("account_id", accountId);
       if (search) params.set("q", search);
       return api.get(`/ledger?${params.toString()}`);
     },
+    getNextPageParam: (lastPage) => lastPage.paging.has_more ? lastPage.paging.next_offset : undefined,
   });
 
-  const rows = ledgerData?.rows ?? [];
+  const ledgerPages = ledgerData?.pages ?? [];
+  const rows = ledgerPages.flatMap((pageData) => pageData.rows);
   const totalIn = rows.reduce((s, r) => s + r.debit, 0);
   const totalOut = rows.reduce((s, r) => s + r.credit, 0);
   const filteredRows = rows.filter((r) => {
@@ -142,13 +153,6 @@ function LedgerContent() {
   const switchSourceName = accounts.find((a: any) => a.account_id === switchDetail?.source_account_id)?.account_name ?? "Source account";
   const switchTargetName = accounts.find((a: any) => a.account_id === switchDetail?.target_account_id)?.account_name ?? "Target account";
 
-  function openEdit(row: LedgerRow) {
-    if (row.is_transfer) return;
-    setEditingRow(row);
-    setSelectedRow(row);
-    setTxModal(true);
-  }
-
   useEffect(() => {
     const action = searchParams.get("action");
     if (!action) return;
@@ -165,6 +169,19 @@ function LedgerContent() {
       window.history.replaceState(null, "", nextUrl);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !hasNextPage || isFetchingNextPage) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) fetchNextPage();
+      },
+      { root: null, rootMargin: "240px", threshold: 0.01 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, filteredRows.length]);
 
   async function deleteSelectedRow() {
     if (!selectedRow || selectedRow.is_transfer) return;
@@ -294,13 +311,12 @@ function LedgerContent() {
         </div>
 
         {/* Stat cards */}
-        <div className="px-5 py-3 border-b border-[var(--border)] grid grid-cols-5 gap-3">
+        <div className="px-5 py-3 border-b border-[var(--border)] grid grid-cols-4 gap-3">
           {[
             { icon: "↑", label: "Total Cash In", value: totalIn, color: "text-primary" },
             { icon: "↓", label: "Total Cash Out", value: totalOut, color: "text-danger" },
             { icon: "~", label: "Net Cash Flow", value: totalIn - totalOut, color: totalIn - totalOut >= 0 ? "text-primary" : "text-danger" },
-            { icon: "≈", label: "Average Daily Flow", value: Math.round((totalIn - totalOut) / 30), color: "text-info" },
-            { icon: "#", label: "Transactions", value: null, count: filteredRows.length, color: "text-[var(--text)]" },
+            { icon: "#", label: "Loaded Transactions", value: null, count: filteredRows.length, color: "text-[var(--text)]" },
           ].map((s) => (
             <div key={s.label} className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-sm font-bold text-[var(--muted)]">{s.icon}</div>
@@ -386,14 +402,27 @@ function LedgerContent() {
                   <td className="px-3 py-2.5 text-[var(--muted)]">⋯</td>
                 </tr>
               ))}
+              {!isLoading && filteredRows.length === 0 && (
+                <tr><td colSpan={8} className="text-center py-8 text-[var(--muted)]">No transactions found</td></tr>
+              )}
+              {(hasNextPage || isFetchingNextPage) && (
+                <tr ref={loadMoreRef}>
+                  <td colSpan={8} className="py-4 text-center text-[var(--muted)]">
+                    <span className="inline-flex items-center gap-2 text-xs">
+                      <span className="h-4 w-4 rounded-full border-2 border-[var(--border)] border-t-primary animate-spin" />
+                      {isFetchingNextPage ? "Loading more transactions..." : "Scroll to load more"}
+                    </span>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
         {/* Result count */}
         <div className="px-5 py-3 border-t border-[var(--border)] bg-[var(--surface)] flex items-center justify-between text-xs text-[var(--muted)]">
-          <span>Showing latest {filteredRows.length} transactions</span>
-          <span>{ledgerData?.paging.has_more ? "More results available through filters" : "End of current results"}</span>
+          <span>Showing latest {filteredRows.length} loaded transactions</span>
+          <span>{hasNextPage ? "More results available" : "End of current results"}</span>
         </div>
       </div>
 
@@ -493,21 +522,6 @@ function LedgerContent() {
               {selectedRow.notes && <div><p className="text-xs text-[var(--muted)] mb-1">Notes</p><p className="font-medium whitespace-pre-wrap">{selectedRow.notes}</p></div>}
               <div><p className="text-xs text-[var(--muted)] mb-1">Running Balance</p><p className="font-medium tabular">{bal(selectedRow.balance)}</p></div>
             </div>
-            {!selectedRow.is_transfer && (
-              <TransactionInlineEditor
-                row={selectedRow}
-                accounts={accounts}
-                categories={categories}
-                onSaved={async () => {
-                  await qc.invalidateQueries({ queryKey: ["ledger"] });
-                  await qc.invalidateQueries({ queryKey: ["summary"] });
-                  await qc.invalidateQueries({ queryKey: ["accounts"] });
-                  await qc.invalidateQueries({ queryKey: ["dashboard"] });
-                  await qc.invalidateQueries({ queryKey: ["buckets"] });
-                  setSelectedRow(null);
-                }}
-              />
-            )}
           </div>
           {!selectedRow.is_transfer && (
             <div className="p-4 border-t border-[var(--border)] space-y-2">
@@ -516,7 +530,8 @@ function LedgerContent() {
                 <Button size="sm" variant="danger" className="flex-1" onClick={deleteSelectedRow} disabled={deletingDetail}>
                   {deletingDetail ? "Deleting..." : "Delete"}
                 </Button>
-                <Button size="sm" variant="secondary" className="flex-1" onClick={() => setSelectedRow(null)}>Close</Button>
+                <Button size="sm" variant="secondary" className="flex-1" onClick={() => setSelectedRow(null)}>Cancel</Button>
+                <Button size="sm" variant="primary" className="flex-1" onClick={() => { setEditingRow(selectedRow); setTxModal(true); }}>Edit</Button>
               </div>
             </div>
           )}
@@ -589,109 +604,7 @@ function LedgerContent() {
   );
 }
 
-function TransactionInlineEditor({ row, accounts, categories, onSaved }: any) {
-  const [type, setType] = useState<"debit" | "credit">(row.debit > 0 ? "debit" : "credit");
-  const [accountId, setAccountId] = useState(row.account_id ?? accounts[0]?.account_id ?? "");
-  const [name, setName] = useState(row.transaction_name ?? "");
-  const [amount, setAmount] = useState(row.debit > 0 ? row.debit : row.credit);
-  const [date, setDate] = useState(toDatetimeLocal(row.date));
-  const [categoryId, setCategoryId] = useState(row.category_id ?? "");
-  const [notes, setNotes] = useState(row.notes ?? "");
-  const [tagsText, setTagsText] = useState<string>((row.tags ?? []).join(", "));
-  const [isTopup, setIsTopup] = useState(row.is_cycle_topup ?? false);
-  const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setType(row.debit > 0 ? "debit" : "credit");
-    setAccountId(row.account_id ?? accounts[0]?.account_id ?? "");
-    setName(row.transaction_name ?? "");
-    setAmount(row.debit > 0 ? row.debit : row.credit);
-    setDate(toDatetimeLocal(row.date));
-    setCategoryId(row.category_id ?? "");
-    setNotes(row.notes ?? "");
-    setTagsText((row.tags ?? []).join(", "));
-    setIsTopup(row.is_cycle_topup ?? false);
-    setErr("");
-    setLoading(false);
-  }, [row, accounts]);
-
-  const filteredCats = categories.filter((c: Category) => !c.is_archived && (type === "debit" ? c.kind === "income" : c.kind === "expense"));
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setErr("");
-    try {
-      const tags = tagsText.split(",").map((tag) => tag.trim()).filter(Boolean);
-      await api.put(`/transactions/${row.transaction_id}`, {
-        account_id: accountId,
-        transaction_type: type,
-        transaction_name: name,
-        amount,
-        date,
-        is_cycle_topup: type === "debit" ? isTopup : false,
-        category_id: categoryId || null,
-        notes: notes || null,
-        tags,
-        is_reviewed: true,
-      });
-      await onSaved();
-    } catch (e: any) {
-      setErr(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="rounded-xl border border-[var(--border)] p-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-[var(--text)]">Edit Transaction</p>
-        <Badge variant="blue">Inline</Badge>
-      </div>
-      <div className="flex rounded-lg overflow-hidden border border-[var(--border)]">
-        {(["credit", "debit"] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setType(t)}
-            className={`flex-1 py-2 text-xs font-medium transition-colors ${type === t ? (t === "debit" ? "bg-primary text-white" : "bg-danger text-white") : "bg-[var(--surface)] text-[var(--muted)]"}`}
-          >
-            {t === "debit" ? "Cash In" : "Cash Out"}
-          </button>
-        ))}
-      </div>
-      <Select label="Account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-        {accounts.map((a: any) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
-      </Select>
-      <Input label="Description" value={name} onChange={(e) => setName(e.target.value)} required />
-      <MoneyInput label="Amount" value={amount} onChange={setAmount} required />
-      <Input label="Date & Time" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
-      <Select label="Category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-        <option value="">— none —</option>
-        {filteredCats.map((c: any) => <option key={c.category_id} value={c.category_id}>{c.name}</option>)}
-      </Select>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-[var(--muted)]">Notes</label>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full border border-[var(--border)] rounded px-3 py-2 text-sm bg-[var(--surface)] text-[var(--text)] resize-none" />
-      </div>
-      <Input label="Tags" value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder="comma separated" />
-      {type === "debit" && (
-        <label className="flex items-center gap-2 text-xs cursor-pointer">
-          <input type="checkbox" checked={isTopup} onChange={(e) => setIsTopup(e.target.checked)} className="rounded" />
-          Mark as Payroll / Top-up
-        </label>
-      )}
-      {err && <p className="text-xs text-danger">{err}</p>}
-      <Button type="submit" variant="primary" size="sm" className="w-full" disabled={loading}>
-        {loading ? "Saving..." : "Save Changes"}
-      </Button>
-    </form>
-  );
-}
-
-// Inline transaction modal
+// Transaction modal
 function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any) {
   const [type, setType] = useState<"debit" | "credit">(editing?.debit > 0 ? "debit" : "credit");
   const [accountId, setAccountId] = useState(editing?.account_id ?? accounts[0]?.account_id ?? "");
