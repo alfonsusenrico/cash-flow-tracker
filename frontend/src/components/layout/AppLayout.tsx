@@ -1,9 +1,10 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import type { Account, SummaryResponse } from "@/types/domain";
 
 interface AppCtxType {
@@ -34,6 +35,7 @@ interface AppLayoutProps {
 }
 
 export default function AppLayout({ children, title = "Financial Manager", showDateRange = true }: AppLayoutProps) {
+  const pathname = usePathname();
   const [hideBalances, setHideBalances] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
@@ -45,25 +47,40 @@ export default function AppLayout({ children, title = "Financial Manager", showD
     setHideBalances(localStorage.getItem("hideBalances") === "1");
   }, []);
 
+  const { data: userData, error: userError, isLoading: userLoading } = useQuery<{ username: string; full_name: string }>({
+    queryKey: ["me"],
+    queryFn: () => api.get("/me"),
+  });
+
+  useEffect(() => {
+    if (!(userError instanceof ApiError) || userError.status !== 401) return;
+    const query = window.location.search.replace(/^\?/, "");
+    const next = `${pathname}${query ? `?${query}` : ""}`;
+    window.location.replace(`/auth/login?next=${encodeURIComponent(next)}`);
+  }, [pathname, userError]);
+
+  const isAuthenticated = !!userData;
+
   const { data: accountsData } = useQuery<{ accounts: Account[] }>({
     queryKey: ["accounts"],
     queryFn: () => api.get("/accounts"),
+    enabled: isAuthenticated,
   });
 
   const { data: summaryData } = useQuery<SummaryResponse>({
     queryKey: ["summary"],
     queryFn: () => api.get("/summary"),
-  });
-
-  const { data: userData } = useQuery<{ username: string; full_name: string }>({
-    queryKey: ["me"],
-    queryFn: () => api.get("/me"),
+    enabled: isAuthenticated,
   });
 
   const accounts = accountsData?.accounts ?? [];
   const paydayDay = summaryData?.payday?.day ?? summaryData?.payday?.default_day ?? 25;
   const paydaySource = summaryData?.payday?.source ?? null;
   const summaryRange = summaryData?.range ?? null;
+
+  if (userLoading || userError) {
+    return <div className="min-h-screen bg-[var(--bg)]" />;
+  }
 
   return (
     <AppContext.Provider value={{

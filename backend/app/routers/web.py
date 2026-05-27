@@ -3,7 +3,7 @@ from datetime import timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from passlib.hash import bcrypt
 from psycopg.errors import UniqueViolation
 
@@ -174,7 +174,9 @@ async def login(req: Request):
 @router.post("/auth/logout")
 def logout(req: Request):
     req.session.clear()
-    return {"ok": True}
+    response = JSONResponse({"ok": True})
+    response.delete_cookie("ledger_session", path="/")
+    return response
 
 
 @router.get("/me")

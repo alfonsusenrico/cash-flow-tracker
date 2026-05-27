@@ -19,8 +19,11 @@ export function TopBar({ title, showDateRange = true }: TopBarProps) {
     : user?.username?.slice(0, 2).toUpperCase() ?? "??";
 
   async function logout() {
-    await api.post("/auth/logout");
-    window.location.replace("/auth/login");
+    try {
+      await api.post("/auth/logout");
+    } finally {
+      window.location.replace("/auth/login");
+    }
   }
 
   function toggleTheme() {

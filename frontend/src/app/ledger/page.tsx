@@ -189,7 +189,7 @@ function LedgerContent() {
 
   async function deleteSelectedSwitch() {
     if (!selectedRow?.transfer_id) return;
-    if (!confirm("Delete this transfer? This removes both paired ledger entries.")) return;
+    if (!confirm("Delete this switch? This removes both paired ledger entries.")) return;
     setDeletingDetail(true);
     setDeleteErr("");
     try {
@@ -249,7 +249,7 @@ function LedgerContent() {
     { key: "all", label: "All" },
     { key: "income", label: "Cash In" },
     { key: "expense", label: "Cash Out" },
-    { key: "transfer", label: "Transfer" },
+    { key: "transfer", label: "Switch" },
     { key: "payroll", label: "★ Payroll" },
   ];
 
@@ -279,7 +279,7 @@ function LedgerContent() {
             <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] text-xs">🔍</span>
           </div>
           <div className="ml-auto flex gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setSwitchModal(true)}>⇄ Transfer</Button>
+            <Button size="sm" variant="secondary" onClick={() => setSwitchModal(true)}>⇄ Switch</Button>
             <Button size="sm" variant="primary" onClick={() => { setEditingRow(null); setTxModal(true); }}>+ Add Transaction</Button>
           </div>
         </div>
@@ -375,7 +375,7 @@ function LedgerContent() {
                   <td className="px-3 py-2.5">
                     <div className="flex items-start gap-1.5">
                       <span className="block max-w-[340px] whitespace-normal break-words text-[var(--text)]">{row.transaction_name}</span>
-                      {row.is_transfer && <Badge variant="blue">Transfer</Badge>}
+                      {row.is_transfer && <Badge variant="blue">Switch</Badge>}
                       {row.is_cycle_topup && <Badge variant="yellow">Payroll</Badge>}
                     </div>
                   </td>
@@ -426,14 +426,14 @@ function LedgerContent() {
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             <div className={`p-3 rounded-xl ${selectedRow.is_transfer ? "bg-blue-50 dark:bg-blue-900/20" : selectedRow.debit > 0 ? "bg-green-50 dark:bg-green-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
-              <Badge variant={selectedRow.is_transfer ? "blue" : selectedRow.debit > 0 ? "green" : "red"}>{selectedRow.is_transfer ? "Transfer" : selectedRow.debit > 0 ? "Cash In" : "Cash Out"}</Badge>
+              <Badge variant={selectedRow.is_transfer ? "blue" : selectedRow.debit > 0 ? "green" : "red"}>{selectedRow.is_transfer ? "Switch" : selectedRow.debit > 0 ? "Cash In" : "Cash Out"}</Badge>
               <p className={`text-2xl font-bold tabular mt-1 ${selectedRow.is_transfer ? "text-info" : selectedRow.debit > 0 ? "text-primary" : "text-danger"}`}>
                 {bal(selectedRow.debit > 0 ? selectedRow.debit : selectedRow.credit)}
               </p>
               <p className="text-xs text-[var(--muted)] mt-0.5">{selectedRow.transaction_name}</p>
               {selectedRow.is_transfer && (
                 <p className="text-xs text-[var(--muted)] mt-1">
-                  {switchDetail ? `${switchSourceName} -> ${switchTargetName}` : "Loading transfer pair..."}
+                  {switchDetail ? `${switchSourceName} -> ${switchTargetName}` : "Loading switch pair..."}
                 </p>
               )}
             </div>
@@ -490,8 +490,8 @@ function LedgerContent() {
                   <div><p className="text-xs text-[var(--muted)] mb-1">To Account</p><p className="font-medium">{switchTargetName}</p></div>
                   <div><p className="text-xs text-[var(--muted)] mb-1">Category</p><p className="font-medium">Switching</p></div>
                   <div>
-                    <p className="text-xs text-[var(--muted)] mb-1">Transfer Pair</p>
-                    <p className="text-xs text-[var(--muted)]">A transfer creates one cash-out entry from the source account and one cash-in entry to the target account.</p>
+                    <p className="text-xs text-[var(--muted)] mb-1">Switch Pair</p>
+                    <p className="text-xs text-[var(--muted)]">A switch creates one cash-out entry from the source account and one cash-in entry to the target account.</p>
                   </div>
                 </>
               ) : (
@@ -723,7 +723,7 @@ function SwitchModalInline({ open, onClose, accounts, onSaved, editing }: any) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? "Edit Transfer" : "Transfer Between Accounts"}>
+    <Modal open={open} onClose={onClose} title={editing ? "Edit Switch" : "Switch Between Accounts"}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <Select label="From Account" value={fromId} onChange={(e) => setFromId(e.target.value)}>
           {accounts.map((a: any) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
@@ -741,7 +741,7 @@ function SwitchModalInline({ open, onClose, accounts, onSaved, editing }: any) {
         <div className="flex gap-2 pt-1">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="primary" className="flex-1" disabled={loading}>
-            {loading ? (editing ? "Saving..." : "Transferring...") : (editing ? "Save Transfer" : "Transfer")}
+            {loading ? (editing ? "Saving..." : "Switching...") : (editing ? "Save Switch" : "Switch")}
           </Button>
         </div>
       </form>

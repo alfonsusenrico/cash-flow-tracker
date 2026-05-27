@@ -134,7 +134,7 @@ export default function CategoriesPage() {
           <Select label="Type" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
             <option value="income">Income</option>
             <option value="expense">Expense</option>
-            <option value="transfer">Transfer</option>
+            <option value="transfer">Switch</option>
             <option value="adjustment">Adjustment</option>
           </Select>
           <Input label="Icon (optional)" value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} placeholder="e.g. 🏠" />

@@ -11,12 +11,6 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith("/auth/login") && session) {
-    const next = request.nextUrl.searchParams.get("next");
-    const target = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
-    return NextResponse.redirect(new URL(target, request.url));
-  }
-
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }

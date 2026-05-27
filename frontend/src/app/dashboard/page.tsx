@@ -304,7 +304,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-3 gap-2">
               {[
                 { label: "Add Transaction", icon: "+", href: "/ledger?action=add", primary: true },
-                { label: "Transfer", icon: "⇄", href: "/ledger?action=transfer" },
+                { label: "Switch", icon: "⇄", href: "/ledger?action=transfer" },
                 { label: "Record Net Worth", icon: "📌", href: "/net-worth?action=record" },
               ].map((a) => (
                 <a key={a.label} href={a.href} className={`flex flex-col items-center gap-1.5 p-3 rounded-xl text-center transition-colors ${a.primary ? "bg-primary text-white hover:bg-primary-hover" : "bg-[var(--bg)] hover:bg-[var(--border)] text-[var(--text)]"}`}>

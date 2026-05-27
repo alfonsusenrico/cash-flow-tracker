@@ -19,7 +19,7 @@ const NAV = [
 
 const QUICK_ACTIONS = [
   { href: "/ledger?action=add", label: "Add Transaction", icon: "+" },
-  { href: "/ledger?action=transfer", label: "Transfer", icon: "⇄" },
+  { href: "/ledger?action=transfer", label: "Switch", icon: "⇄" },
   { href: "/net-worth?action=record", label: "Record Net Worth", icon: "📌" },
   { href: "/buckets?action=new", label: "New Bucket", icon: "🪣" },
 ];

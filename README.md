@@ -10,7 +10,7 @@ A self-hosted personal finance app. Track your daily spending, see where your mo
 - See a monthly summary: balance per account, total in/out, and budget usage
 - Browse your full transaction history with search and date filters
 - Analyze spending by category and day
-- Transfer money between accounts (Switch)
+- Switch money between accounts
 - Export your ledger to CSV or PDF
 - Attach receipts (image or PDF) to any transaction
 - Manage spending categories
@@ -71,7 +71,7 @@ Open **http://localhost:8090** in your browser.
 | What you want to do | Where to go |
 |---|---|
 | Record spending or income | Ledger → + Add Transaction |
-| Move money between accounts | Ledger → Transfer |
+| Move money between accounts | Ledger → Switch |
 | See this month's overview | Dashboard |
 | See spending by day / category | Analysis |
 | Browse all transactions | Ledger |
