@@ -12,7 +12,6 @@ const NAV = [
   { href: "/analysis", label: "Analysis", icon: "📈" },
   { href: "/strategy", label: "Strategy", icon: "⚡" },
   { href: "/goals", label: "Goals", icon: "🎯" },
-  { href: "/assets", label: "Assets", icon: "💼" },
   { href: "/net-worth", label: "Net Worth", icon: "💰" },
   { href: "/categories", label: "Categories", icon: "🏷" },
 ];
@@ -33,7 +32,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-4 py-5 flex items-center gap-2.5">
         <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-sm">$</div>
-        <span className="text-white font-bold text-base">Cash Flow</span>
+        <span className="text-white font-bold text-base">Financial Manager</span>
       </div>
 
       {/* Nav */}

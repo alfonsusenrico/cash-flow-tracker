@@ -12,7 +12,6 @@ const ROUTE_TITLES: Record<string, string> = {
   "/analysis": "Analysis",
   "/strategy": "Strategy Rules",
   "/goals": "Goals",
-  "/assets": "Assets",
   "/net-worth": "Net Worth",
   "/categories": "Categories",
   "/periods": "Periods",
@@ -22,7 +21,7 @@ function getTitle(pathname: string) {
   const match = Object.entries(ROUTE_TITLES)
     .sort((a, b) => b[0].length - a[0].length)
     .find(([route]) => pathname === route || pathname.startsWith(`${route}/`));
-  return match?.[1] ?? "Cash Flow";
+  return match?.[1] ?? "Financial Manager";
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {

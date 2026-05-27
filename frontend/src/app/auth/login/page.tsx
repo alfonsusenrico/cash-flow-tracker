@@ -62,7 +62,7 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
       <div className="w-full max-w-sm p-8 bg-white dark:bg-gray-800 rounded-xl shadow">
-        <h1 className="text-2xl font-bold mb-2 text-center">Cash Flow Tracker</h1>
+        <h1 className="text-2xl font-bold mb-2 text-center">Financial Manager</h1>
         <p className="text-center text-sm text-gray-500 mb-6">
           {mode === "login" ? "Sign in to your account" : "Create a new account"}
         </p>

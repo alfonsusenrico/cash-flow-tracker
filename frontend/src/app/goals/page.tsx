@@ -131,11 +131,11 @@ export default function GoalsPage() {
         </div>
 
         {/* Overall Goal Health */}
-        <Card padding="md">
+        <Card padding="sm">
           <SectionTitle>Overall Goal Health</SectionTitle>
-          <div className="flex flex-col items-center">
-            <DonutChart value={overallPct} size={100} label={`${overallPct}%`} sublabel="On Track" color={overallPct >= 70 ? "#16a34a" : "#f59e0b"} />
-            <div className="mt-3 space-y-1.5 w-full text-xs">
+          <div className="flex items-center gap-4">
+            <DonutChart value={overallPct} size={76} label={`${overallPct}%`} sublabel="On Track" color={overallPct >= 70 ? "#16a34a" : "#f59e0b"} />
+            <div className="space-y-1.5 flex-1 text-xs">
               <div className="flex justify-between"><span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary inline-block" /> On Track</span><span>{onTrack} goals · {overallPct}%</span></div>
               <div className="flex justify-between"><span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-warning inline-block" /> Needs Attention</span><span>{needsAttention} goal · {100 - overallPct}%</span></div>
               <div className="flex justify-between"><span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300 inline-block" /> Not Started</span><span>0 goals · 0%</span></div>

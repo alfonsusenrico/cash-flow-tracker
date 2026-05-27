@@ -4,7 +4,7 @@ import { Providers } from "./providers";
 import { AppShell } from "@/components/layout/AppShell";
 
 export const metadata: Metadata = {
-  title: "Cash Flow Tracker",
+  title: "Financial Manager",
   description: "Personal financial management",
   icons: {
     icon: "/favicon.svg",

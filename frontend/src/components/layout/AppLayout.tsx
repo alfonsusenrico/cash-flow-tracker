@@ -33,7 +33,7 @@ interface AppLayoutProps {
   showDateRange?: boolean;
 }
 
-export default function AppLayout({ children, title = "Cash Flow", showDateRange = true }: AppLayoutProps) {
+export default function AppLayout({ children, title = "Financial Manager", showDateRange = true }: AppLayoutProps) {
   const [hideBalances, setHideBalances] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 

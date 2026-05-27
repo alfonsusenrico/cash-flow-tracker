@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -158,10 +157,10 @@ export default function NetWorthPage() {
         </div>
 
         {/* Composition donut */}
-        <Card padding="md">
+        <Card padding="md" className="h-full">
           <div className="flex items-center justify-between mb-3">
             <SectionTitle>Net Worth Composition <span className="text-[var(--muted)] text-xs font-normal">ⓘ</span></SectionTitle>
-            <Link href="/assets" prefetch={false} className="text-xs text-primary hover:underline">View details</Link>
+            <span className="text-xs text-[var(--muted)]">Account balances</span>
           </div>
           <div className="flex flex-col items-center">
             <div className="relative w-28 h-28">
