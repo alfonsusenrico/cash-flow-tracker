@@ -211,7 +211,7 @@ def build_ledger_page(
                        ) AS transaction_name,
                        COALESCE(MAX(CASE WHEN transaction_type='debit' THEN amount ELSE 0 END), 0) AS amount,
                        MAX(date) AS date, true AS is_transfer, BOOL_OR(is_cycle_topup) AS is_cycle_topup, transfer_id,
-                       NULL::text AS category_id, NULL::text AS notes, '{{}}'::text[] AS tags, true AS is_reviewed,
+                       MAX(category_id) AS category_id, NULL::text AS notes, '{{}}'::text[] AS tags, true AS is_reviewed,
                        0::bigint AS signed_delta,
                        COALESCE(MAX(CASE WHEN transaction_type='debit' THEN amount ELSE 0 END), 0) AS debit,
                        COALESCE(MAX(CASE WHEN transaction_type='credit' THEN amount ELSE 0 END), 0) AS credit

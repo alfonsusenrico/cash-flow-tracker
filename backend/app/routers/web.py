@@ -18,6 +18,7 @@ from app.services.auth import (
     register_user,
     require_session_user,
 )
+from app.services.categories import ensure_switching_category
 from app.services.ledger import (
     build_daily_series,
     build_ledger_data,
@@ -676,6 +677,7 @@ async def switch_balance(req: Request):
 
         source_name = f"Switching to {target['account_name']}"
         target_name = f"Switching from {source['account_name']}"
+        category_id = ensure_switching_category(cur, username)
         transfer_id = str(uuid.uuid4())
         cur.execute(
             """
@@ -687,11 +689,12 @@ async def switch_balance(req: Request):
                 amount,
                 date,
                 is_transfer,
-                transfer_id
+                transfer_id,
+                category_id
             )
             VALUES
-              (%s::uuid, 'credit', false, %s, %s, %s, true, %s::uuid),
-              (%s::uuid, 'debit', %s, %s, %s, %s, true, %s::uuid)
+              (%s::uuid, 'credit', false, %s, %s, %s, true, %s::uuid, %s::uuid),
+              (%s::uuid, 'debit', %s, %s, %s, %s, true, %s::uuid, %s::uuid)
             RETURNING transaction_id::text
             """,
             (
@@ -700,12 +703,14 @@ async def switch_balance(req: Request):
                 amount,
                 dt,
                 transfer_id,
+                category_id,
                 target_account_id,
                 is_cycle_topup,
                 target_name,
                 amount,
                 dt,
                 transfer_id,
+                category_id,
             ),
         )
         conn.commit()
@@ -823,6 +828,7 @@ async def update_switch(transfer_id: str, req: Request):
         target_label = acc_map[target_account_id]["account_name"]
         source_name = f"Switching to {target_label}"
         target_name = f"Switching from {source_label}"
+        category_id = ensure_switching_category(cur, username)
 
         old_rows = [
             {
@@ -884,7 +890,8 @@ async def update_switch(transfer_id: str, req: Request):
                 transaction_name=%s,
                 amount=%s,
                 date=%s,
-                is_transfer=true
+                is_transfer=true,
+                category_id=%s::uuid
             WHERE transaction_id=%s::uuid AND transfer_id=%s::uuid AND deleted_at IS NULL
             """,
             (
@@ -892,6 +899,7 @@ async def update_switch(transfer_id: str, req: Request):
                 source_name,
                 amount,
                 new_date,
+                category_id,
                 source["transaction_id"],
                 transfer_id,
             ),
@@ -907,7 +915,8 @@ async def update_switch(transfer_id: str, req: Request):
                 transaction_name=%s,
                 amount=%s,
                 date=%s,
-                is_transfer=true
+                is_transfer=true,
+                category_id=%s::uuid
             WHERE transaction_id=%s::uuid AND transfer_id=%s::uuid AND deleted_at IS NULL
             """,
             (
@@ -916,6 +925,7 @@ async def update_switch(transfer_id: str, req: Request):
                 target_name,
                 amount,
                 new_date,
+                category_id,
                 target["transaction_id"],
                 transfer_id,
             ),

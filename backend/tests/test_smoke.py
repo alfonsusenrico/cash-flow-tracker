@@ -57,7 +57,7 @@ def test_auth_and_api_key(auth_client: TestClient):
     assert body["username"] == auth_client._smoke_username
     categories = assert_ok(auth_client.get("/categories"))["categories"]
     names = {category["name"] for category in categories}
-    assert {"Salary", "Food & Drink", "Transfer", "Opening Balance"}.issubset(names)
+    assert {"Salary", "Food & Drink", "Transfer", "Switching", "Opening Balance"}.issubset(names)
     assert_ok(auth_client.get("/api-key"))
     body = assert_ok(auth_client.post("/api-key/reset"))
     assert body["api_key"]
@@ -173,6 +173,8 @@ def test_transactions_receipts_switches_loans_and_reports(auth_client: TestClien
             json={"source_account_id": source_id, "target_account_id": target_id, "amount": 8_000, "date": now_iso()},
         )
     )
+    categories = assert_ok(auth_client.get("/categories"))["categories"]
+    switching_category = next(category for category in categories if category["name"] == "Switching")
     ledger_before_delete = assert_ok(
         auth_client.get("/ledger", params={"scope": "all", "include_switch": True, "limit": 50})
     )["rows"]
@@ -180,6 +182,7 @@ def test_transactions_receipts_switches_loans_and_reports(auth_client: TestClien
     assert len(transfer_rows) == 1
     assert transfer_rows[0]["debit"] == 8_000
     assert transfer_rows[0]["credit"] == 8_000
+    assert transfer_rows[0]["category_id"] == switching_category["category_id"]
     assert_ok(auth_client.delete(f"/switch/{transfer_id}"))
     assert auth_client.get(f"/switch/{transfer_id}").status_code == 404
     ledger_after_delete = assert_ok(

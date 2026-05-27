@@ -27,6 +27,7 @@ DEFAULT_CATEGORIES: tuple[tuple[str, str, str], ...] = (
     ("Tax", "expense", "🏛️"),
     ("Other Expense", "expense", "📋"),
     ("Transfer", "transfer", "⇄"),
+    ("Switching", "transfer", "⇄"),
     ("Opening Balance", "adjustment", "⚙️"),
     ("Correction", "adjustment", "✏️"),
 )
@@ -49,6 +50,24 @@ def seed_default_categories(cur, username: str) -> None:
         """,
         _flatten(DEFAULT_CATEGORIES) + [username],
     )
+
+
+def ensure_switching_category(cur, username: str) -> str:
+    """Return the user's canonical Switching category, creating it if needed."""
+    cur.execute(
+        """
+        INSERT INTO categories (user_id, name, kind, icon, is_archived)
+        SELECT user_id, 'Switching', 'transfer', '⇄', false
+        FROM users
+        WHERE username=%s
+        ON CONFLICT (user_id, name)
+        DO UPDATE SET kind='transfer', icon='⇄', is_archived=false
+        RETURNING category_id::text
+        """,
+        (username,),
+    )
+    row = cur.fetchone()
+    return row["category_id"]
 
 
 def _flatten(rows: Iterable[tuple[str, str, str]]) -> list[str]:

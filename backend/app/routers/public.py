@@ -22,6 +22,7 @@ from app.models.public import (
     PublicRegisterResponse,
     TransactionUpsertRequest,
 )
+from app.services.categories import ensure_switching_category
 from app.services.auth import (
     create_api_key,
     enforce_public_rate_limit,
@@ -1351,6 +1352,7 @@ def public_create_switch(req: Request, payload: dict[str, Any]):
         if len(accounts) != 2:
             raise HTTPException(status_code=404, detail="Account not found")
         acc_map = {a["account_id"]: a for a in accounts}
+        category_id = ensure_switching_category(cur, username)
         source = acc_map.get(source_account_id)
         target = acc_map.get(target_account_id)
 
@@ -1358,14 +1360,15 @@ def public_create_switch(req: Request, payload: dict[str, Any]):
         ensure_account_non_negative(cur, source_account_id, dt, [{"transaction_id": temp_id, "date": dt, "transaction_type": "credit", "amount": amount}])
 
         transfer_id = str(uuid.uuid4())
+        category_id = ensure_switching_category(cur, username)
         cur.execute(
             """
             INSERT INTO transactions (
-                account_id, transaction_type, is_cycle_topup, transaction_name, amount, date, is_transfer, transfer_id
+                account_id, transaction_type, is_cycle_topup, transaction_name, amount, date, is_transfer, transfer_id, category_id
             )
             VALUES
-              (%s::uuid, 'credit', false, %s, %s, %s, true, %s::uuid),
-              (%s::uuid, 'debit', %s, %s, %s, %s, true, %s::uuid)
+              (%s::uuid, 'credit', false, %s, %s, %s, true, %s::uuid, %s::uuid),
+              (%s::uuid, 'debit', %s, %s, %s, %s, true, %s::uuid, %s::uuid)
             """,
             (
                 source_account_id,
@@ -1373,12 +1376,14 @@ def public_create_switch(req: Request, payload: dict[str, Any]):
                 amount,
                 dt,
                 transfer_id,
+                category_id,
                 target_account_id,
                 is_cycle_topup,
                 f"Switching from {source['account_name']}",
                 amount,
                 dt,
                 transfer_id,
+                category_id,
             ),
         )
         conn.commit()
@@ -1501,18 +1506,18 @@ def public_update_switch(transfer_id: str, req: Request, payload: dict[str, Any]
         cur.execute(
             """
             UPDATE transactions
-            SET account_id=%s::uuid, transaction_type='credit', is_cycle_topup=false, transaction_name=%s, amount=%s, date=%s, is_transfer=true
+            SET account_id=%s::uuid, transaction_type='credit', is_cycle_topup=false, transaction_name=%s, amount=%s, date=%s, is_transfer=true, category_id=%s::uuid
             WHERE transaction_id=%s::uuid AND transfer_id=%s::uuid AND deleted_at IS NULL
             """,
-            (source_account_id, f"Switching to {acc_map[target_account_id]['account_name']}", amount, new_date, source["transaction_id"], transfer_id),
+            (source_account_id, f"Switching to {acc_map[target_account_id]['account_name']}", amount, new_date, category_id, source["transaction_id"], transfer_id),
         )
         cur.execute(
             """
             UPDATE transactions
-            SET account_id=%s::uuid, transaction_type='debit', is_cycle_topup=%s, transaction_name=%s, amount=%s, date=%s, is_transfer=true
+            SET account_id=%s::uuid, transaction_type='debit', is_cycle_topup=%s, transaction_name=%s, amount=%s, date=%s, is_transfer=true, category_id=%s::uuid
             WHERE transaction_id=%s::uuid AND transfer_id=%s::uuid AND deleted_at IS NULL
             """,
-            (target_account_id, parsed_topup, f"Switching from {acc_map[source_account_id]['account_name']}", amount, new_date, target["transaction_id"], transfer_id),
+            (target_account_id, parsed_topup, f"Switching from {acc_map[source_account_id]['account_name']}", amount, new_date, category_id, target["transaction_id"], transfer_id),
         )
         conn.commit()
 

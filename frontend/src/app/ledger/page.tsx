@@ -77,6 +77,7 @@ function LedgerContent() {
   const [receiptBusy, setReceiptBusy] = useState(false);
 
   const categories = categoriesData?.categories ?? [];
+  const switchingCategory = categories.find((c) => c.name.toLowerCase() === "switching" && c.kind === "transfer");
 
   // Ledger data
   const { data: ledgerData, isLoading } = useQuery<LedgerResponse>({
@@ -98,7 +99,13 @@ function LedgerContent() {
   const totalIn = rows.reduce((s, r) => s + r.debit, 0);
   const totalOut = rows.reduce((s, r) => s + r.credit, 0);
   const filteredRows = rows.filter((r) => {
-    if (categoryFilter && r.category_id !== categoryFilter) return false;
+    if (categoryFilter) {
+      if (r.is_transfer) {
+        if (r.category_id !== categoryFilter && switchingCategory?.category_id !== categoryFilter) return false;
+      } else if (r.category_id !== categoryFilter) {
+        return false;
+      }
+    }
     if (typeFilter === "income") return r.debit > 0 && !r.is_transfer;
     if (typeFilter === "expense") return r.credit > 0 && !r.is_transfer;
     if (typeFilter === "transfer") return r.is_transfer;
@@ -358,8 +365,8 @@ function LedgerContent() {
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm">{getCategoryIcon(categoryById[row.category_id ?? ""], row.transaction_name)}</span>
-                      <span className="text-[var(--muted)] whitespace-normal break-words">{categoryById[row.category_id ?? ""]?.name ?? "Uncategorized"}</span>
+                      <span className="text-sm">{row.is_transfer ? "⇄" : getCategoryIcon(categoryById[row.category_id ?? ""], row.transaction_name)}</span>
+                      <span className="text-[var(--muted)] whitespace-normal break-words">{row.is_transfer ? "Switching" : categoryById[row.category_id ?? ""]?.name ?? "Uncategorized"}</span>
                     </div>
                   </td>
                   <td className="px-3 py-2.5">
@@ -465,6 +472,7 @@ function LedgerContent() {
                 <>
                   <div><p className="text-xs text-[var(--muted)] mb-1">From Account</p><p className="font-medium">{switchSourceName}</p></div>
                   <div><p className="text-xs text-[var(--muted)] mb-1">To Account</p><p className="font-medium">{switchTargetName}</p></div>
+                  <div><p className="text-xs text-[var(--muted)] mb-1">Category</p><p className="font-medium">Switching</p></div>
                   <div>
                     <p className="text-xs text-[var(--muted)] mb-1">Transfer Pair</p>
                     <p className="text-xs text-[var(--muted)]">A transfer creates one cash-out entry from the source account and one cash-in entry to the target account.</p>
@@ -485,6 +493,21 @@ function LedgerContent() {
               {selectedRow.notes && <div><p className="text-xs text-[var(--muted)] mb-1">Notes</p><p className="font-medium whitespace-pre-wrap">{selectedRow.notes}</p></div>}
               <div><p className="text-xs text-[var(--muted)] mb-1">Running Balance</p><p className="font-medium tabular">{bal(selectedRow.balance)}</p></div>
             </div>
+            {!selectedRow.is_transfer && (
+              <TransactionInlineEditor
+                row={selectedRow}
+                accounts={accounts}
+                categories={categories}
+                onSaved={async () => {
+                  await qc.invalidateQueries({ queryKey: ["ledger"] });
+                  await qc.invalidateQueries({ queryKey: ["summary"] });
+                  await qc.invalidateQueries({ queryKey: ["accounts"] });
+                  await qc.invalidateQueries({ queryKey: ["dashboard"] });
+                  await qc.invalidateQueries({ queryKey: ["buckets"] });
+                  setSelectedRow(null);
+                }}
+              />
+            )}
           </div>
           {!selectedRow.is_transfer && (
             <div className="p-4 border-t border-[var(--border)] space-y-2">
@@ -493,8 +516,7 @@ function LedgerContent() {
                 <Button size="sm" variant="danger" className="flex-1" onClick={deleteSelectedRow} disabled={deletingDetail}>
                   {deletingDetail ? "Deleting..." : "Delete"}
                 </Button>
-                <Button size="sm" variant="secondary" className="flex-1" onClick={() => setSelectedRow(null)}>Cancel</Button>
-                <Button size="sm" variant="primary" className="flex-1" onClick={() => { setEditingRow(selectedRow); setTxModal(true); }}>Edit</Button>
+                <Button size="sm" variant="secondary" className="flex-1" onClick={() => setSelectedRow(null)}>Close</Button>
               </div>
             </div>
           )}
@@ -564,6 +586,108 @@ function LedgerContent() {
         />
       )}
     </div>
+  );
+}
+
+function TransactionInlineEditor({ row, accounts, categories, onSaved }: any) {
+  const [type, setType] = useState<"debit" | "credit">(row.debit > 0 ? "debit" : "credit");
+  const [accountId, setAccountId] = useState(row.account_id ?? accounts[0]?.account_id ?? "");
+  const [name, setName] = useState(row.transaction_name ?? "");
+  const [amount, setAmount] = useState(row.debit > 0 ? row.debit : row.credit);
+  const [date, setDate] = useState(toDatetimeLocal(row.date));
+  const [categoryId, setCategoryId] = useState(row.category_id ?? "");
+  const [notes, setNotes] = useState(row.notes ?? "");
+  const [tagsText, setTagsText] = useState<string>((row.tags ?? []).join(", "));
+  const [isTopup, setIsTopup] = useState(row.is_cycle_topup ?? false);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setType(row.debit > 0 ? "debit" : "credit");
+    setAccountId(row.account_id ?? accounts[0]?.account_id ?? "");
+    setName(row.transaction_name ?? "");
+    setAmount(row.debit > 0 ? row.debit : row.credit);
+    setDate(toDatetimeLocal(row.date));
+    setCategoryId(row.category_id ?? "");
+    setNotes(row.notes ?? "");
+    setTagsText((row.tags ?? []).join(", "));
+    setIsTopup(row.is_cycle_topup ?? false);
+    setErr("");
+    setLoading(false);
+  }, [row, accounts]);
+
+  const filteredCats = categories.filter((c: Category) => !c.is_archived && (type === "debit" ? c.kind === "income" : c.kind === "expense"));
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setErr("");
+    try {
+      const tags = tagsText.split(",").map((tag) => tag.trim()).filter(Boolean);
+      await api.put(`/transactions/${row.transaction_id}`, {
+        account_id: accountId,
+        transaction_type: type,
+        transaction_name: name,
+        amount,
+        date,
+        is_cycle_topup: type === "debit" ? isTopup : false,
+        category_id: categoryId || null,
+        notes: notes || null,
+        tags,
+        is_reviewed: true,
+      });
+      await onSaved();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="rounded-xl border border-[var(--border)] p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-[var(--text)]">Edit Transaction</p>
+        <Badge variant="blue">Inline</Badge>
+      </div>
+      <div className="flex rounded-lg overflow-hidden border border-[var(--border)]">
+        {(["credit", "debit"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setType(t)}
+            className={`flex-1 py-2 text-xs font-medium transition-colors ${type === t ? (t === "debit" ? "bg-primary text-white" : "bg-danger text-white") : "bg-[var(--surface)] text-[var(--muted)]"}`}
+          >
+            {t === "debit" ? "Cash In" : "Cash Out"}
+          </button>
+        ))}
+      </div>
+      <Select label="Account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+        {accounts.map((a: any) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
+      </Select>
+      <Input label="Description" value={name} onChange={(e) => setName(e.target.value)} required />
+      <MoneyInput label="Amount" value={amount} onChange={setAmount} required />
+      <Input label="Date & Time" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
+      <Select label="Category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+        <option value="">— none —</option>
+        {filteredCats.map((c: any) => <option key={c.category_id} value={c.category_id}>{c.name}</option>)}
+      </Select>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-[var(--muted)]">Notes</label>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full border border-[var(--border)] rounded px-3 py-2 text-sm bg-[var(--surface)] text-[var(--text)] resize-none" />
+      </div>
+      <Input label="Tags" value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder="comma separated" />
+      {type === "debit" && (
+        <label className="flex items-center gap-2 text-xs cursor-pointer">
+          <input type="checkbox" checked={isTopup} onChange={(e) => setIsTopup(e.target.checked)} className="rounded" />
+          Mark as Payroll / Top-up
+        </label>
+      )}
+      {err && <p className="text-xs text-danger">{err}</p>}
+      <Button type="submit" variant="primary" size="sm" className="w-full" disabled={loading}>
+        {loading ? "Saving..." : "Save Changes"}
+      </Button>
+    </form>
   );
 }
 
