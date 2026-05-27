@@ -60,7 +60,7 @@ function LedgerContent() {
   const [scope, setScope] = useState<"all" | "account">("all");
   const [accountId, setAccountId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "transfer" | "payroll" | "unreviewed">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "transfer" | "payroll">("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage] = useState(10);
@@ -70,6 +70,7 @@ function LedgerContent() {
   const [editingRow, setEditingRow] = useState<LedgerRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<LedgerRow | null>(null);
   const [switchModal, setSwitchModal] = useState(false);
+  const [editingSwitch, setEditingSwitch] = useState<any | null>(null);
   const [deleteErr, setDeleteErr] = useState("");
   const [deletingDetail, setDeletingDetail] = useState(false);
   const [receiptErr, setReceiptErr] = useState("");
@@ -96,15 +97,12 @@ function LedgerContent() {
   const rows = ledgerData?.rows ?? [];
   const totalIn = rows.reduce((s, r) => s + r.debit, 0);
   const totalOut = rows.reduce((s, r) => s + r.credit, 0);
-  const unreviewedCount = rows.filter((r) => !r.is_transfer && !r.is_reviewed).length;
-
   const filteredRows = rows.filter((r) => {
     if (categoryFilter && r.category_id !== categoryFilter) return false;
     if (typeFilter === "income") return r.debit > 0 && !r.is_transfer;
     if (typeFilter === "expense") return r.credit > 0 && !r.is_transfer;
     if (typeFilter === "transfer") return r.is_transfer;
     if (typeFilter === "payroll") return r.is_cycle_topup;
-    if (typeFilter === "unreviewed") return !r.is_transfer && !r.is_reviewed;
     return true;
   });
 
@@ -128,6 +126,14 @@ function LedgerContent() {
   });
   const auditRows = auditData?.audit ?? [];
   const hasHistory = auditRows.length > 1;
+  const selectedTransferId = selectedRow?.is_transfer ? selectedRow.transfer_id : null;
+  const { data: switchDetail } = useQuery<any | null>({
+    queryKey: ["switch", selectedTransferId],
+    enabled: !!selectedTransferId,
+    queryFn: () => api.get(`/switch/${selectedTransferId}`),
+  });
+  const switchSourceName = accounts.find((a: any) => a.account_id === switchDetail?.source_account_id)?.account_name ?? "Source account";
+  const switchTargetName = accounts.find((a: any) => a.account_id === switchDetail?.target_account_id)?.account_name ?? "Target account";
 
   function openEdit(row: LedgerRow) {
     if (row.is_transfer) return;
@@ -163,6 +169,26 @@ function LedgerContent() {
       setSelectedRow(null);
       await qc.invalidateQueries({ queryKey: ["ledger"] });
       await qc.invalidateQueries({ queryKey: ["summary"] });
+    } catch (e: any) {
+      setDeleteErr(e.message);
+    } finally {
+      setDeletingDetail(false);
+    }
+  }
+
+  async function deleteSelectedSwitch() {
+    if (!selectedRow?.transfer_id) return;
+    if (!confirm("Delete this transfer? This removes both paired ledger entries.")) return;
+    setDeletingDetail(true);
+    setDeleteErr("");
+    try {
+      await api.del(`/switch/${selectedRow.transfer_id}`);
+      setSelectedRow(null);
+      await qc.invalidateQueries({ queryKey: ["ledger"] });
+      await qc.invalidateQueries({ queryKey: ["summary"] });
+      await qc.invalidateQueries({ queryKey: ["accounts"] });
+      await qc.invalidateQueries({ queryKey: ["dashboard"] });
+      await qc.invalidateQueries({ queryKey: ["buckets"] });
     } catch (e: any) {
       setDeleteErr(e.message);
     } finally {
@@ -214,7 +240,6 @@ function LedgerContent() {
     { key: "expense", label: "Cash Out" },
     { key: "transfer", label: "Transfer" },
     { key: "payroll", label: "★ Payroll" },
-    { key: "unreviewed", label: `Unreviewed${unreviewedCount ? ` ${unreviewedCount}` : ""}` },
   ];
 
   return (
@@ -305,7 +330,7 @@ function LedgerContent() {
                 <tr
                   key={row.transaction_id}
                   onClick={() => { setSelectedRow(row); setEditingRow(null); }}
-                  className={`hover:bg-[var(--bg)] cursor-pointer transition-colors ${row.is_transfer ? "opacity-60" : ""} ${selectedRow?.transaction_id === row.transaction_id ? "bg-primary/5" : ""}`}
+                  className={`hover:bg-[var(--bg)] cursor-pointer transition-colors ${selectedRow?.transaction_id === row.transaction_id ? "bg-primary/5" : ""}`}
                 >
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1.5">
@@ -318,15 +343,15 @@ function LedgerContent() {
                   </td>
                   <td className="px-3 py-2.5">
                     {row.is_transfer ? (
-                      <div className="flex items-center gap-1 text-[var(--muted)]">
-                        <span className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs">⇄</span>
-                        <span className="truncate max-w-[80px]">{row.account_name}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded bg-blue-100 dark:bg-blue-900/30 text-primary flex items-center justify-center text-xs">⇄</span>
+                        <span className="font-medium text-[var(--text)] whitespace-normal break-words">{row.account_name}</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5">
                         <div className="w-5 h-5 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-xs">🏦</div>
                         <div>
-                          <p className="font-medium text-[var(--text)] truncate max-w-[80px]">{row.account_name}</p>
+                          <p className="font-medium text-[var(--text)] whitespace-normal break-words">{row.account_name}</p>
                         </div>
                       </div>
                     )}
@@ -334,12 +359,13 @@ function LedgerContent() {
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm">{getCategoryIcon(categoryById[row.category_id ?? ""], row.transaction_name)}</span>
-                      <span className="text-[var(--muted)] truncate max-w-[80px]">{categoryById[row.category_id ?? ""]?.name ?? row.transaction_name.split(" ")[0]}</span>
+                      <span className="text-[var(--muted)] whitespace-normal break-words">{categoryById[row.category_id ?? ""]?.name ?? "Uncategorized"}</span>
                     </div>
                   </td>
                   <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate max-w-[160px] text-[var(--text)]">{row.transaction_name}</span>
+                    <div className="flex items-start gap-1.5">
+                      <span className="block max-w-[340px] whitespace-normal break-words text-[var(--text)]">{row.transaction_name}</span>
+                      {row.is_transfer && <Badge variant="blue">Transfer</Badge>}
                       {row.is_cycle_topup && <Badge variant="yellow">Payroll</Badge>}
                     </div>
                   </td>
@@ -376,12 +402,17 @@ function LedgerContent() {
             {hasHistory && <button type="button" disabled title="Audit history is available for this transaction" className="text-xs text-[var(--muted)] cursor-not-allowed">History</button>}
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <div className={`p-3 rounded-xl ${selectedRow.debit > 0 ? "bg-green-50 dark:bg-green-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
-              <Badge variant={selectedRow.debit > 0 ? "green" : "red"}>{selectedRow.debit > 0 ? "Cash In" : "Cash Out"}</Badge>
-              <p className={`text-2xl font-bold tabular mt-1 ${selectedRow.debit > 0 ? "text-primary" : "text-danger"}`}>
+            <div className={`p-3 rounded-xl ${selectedRow.is_transfer ? "bg-blue-50 dark:bg-blue-900/20" : selectedRow.debit > 0 ? "bg-green-50 dark:bg-green-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
+              <Badge variant={selectedRow.is_transfer ? "blue" : selectedRow.debit > 0 ? "green" : "red"}>{selectedRow.is_transfer ? "Transfer" : selectedRow.debit > 0 ? "Cash In" : "Cash Out"}</Badge>
+              <p className={`text-2xl font-bold tabular mt-1 ${selectedRow.is_transfer ? "text-info" : selectedRow.debit > 0 ? "text-primary" : "text-danger"}`}>
                 {bal(selectedRow.debit > 0 ? selectedRow.debit : selectedRow.credit)}
               </p>
               <p className="text-xs text-[var(--muted)] mt-0.5">{selectedRow.transaction_name}</p>
+              {selectedRow.is_transfer && (
+                <p className="text-xs text-[var(--muted)] mt-1">
+                  {switchDetail ? `${switchSourceName} -> ${switchTargetName}` : "Loading transfer pair..."}
+                </p>
+              )}
             </div>
             {!selectedRow.is_transfer && (
               <div className="rounded-xl border border-[var(--border)] p-3 text-sm">
@@ -430,13 +461,21 @@ function LedgerContent() {
             )}
             <div className="space-y-3 text-sm">
               <div><p className="text-xs text-[var(--muted)] mb-1">Date</p><p className="font-medium">{new Date(selectedRow.date).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</p></div>
-              <div><p className="text-xs text-[var(--muted)] mb-1">Account</p><p className="font-medium">{selectedRow.account_name}</p></div>
-              <div><p className="text-xs text-[var(--muted)] mb-1">Category</p><p className="font-medium">{categoryById[selectedRow.category_id ?? ""]?.name ?? "Uncategorized"}</p></div>
-              <div>
-                <p className="text-xs text-[var(--muted)] mb-1">Review Status</p>
-                <Badge variant={selectedRow.is_reviewed ? "green" : "yellow"}>{selectedRow.is_reviewed ? "Reviewed" : "Unreviewed"}</Badge>
-                <p className="mt-1 text-xs text-[var(--muted)]">Use this after checking account, category, amount, tags, and receipt.</p>
-              </div>
+              {selectedRow.is_transfer && switchDetail ? (
+                <>
+                  <div><p className="text-xs text-[var(--muted)] mb-1">From Account</p><p className="font-medium">{switchSourceName}</p></div>
+                  <div><p className="text-xs text-[var(--muted)] mb-1">To Account</p><p className="font-medium">{switchTargetName}</p></div>
+                  <div>
+                    <p className="text-xs text-[var(--muted)] mb-1">Transfer Pair</p>
+                    <p className="text-xs text-[var(--muted)]">A transfer creates one cash-out entry from the source account and one cash-in entry to the target account.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div><p className="text-xs text-[var(--muted)] mb-1">Account</p><p className="font-medium">{selectedRow.account_name}</p></div>
+                  <div><p className="text-xs text-[var(--muted)] mb-1">Category</p><p className="font-medium">{categoryById[selectedRow.category_id ?? ""]?.name ?? "Uncategorized"}</p></div>
+                </>
+              )}
               {(selectedRow.tags ?? []).length > 0 && (
                 <div>
                   <p className="text-xs text-[var(--muted)] mb-1">Tags</p>
@@ -456,6 +495,26 @@ function LedgerContent() {
                 </Button>
                 <Button size="sm" variant="secondary" className="flex-1" onClick={() => setSelectedRow(null)}>Cancel</Button>
                 <Button size="sm" variant="primary" className="flex-1" onClick={() => { setEditingRow(selectedRow); setTxModal(true); }}>Edit</Button>
+              </div>
+            </div>
+          )}
+          {selectedRow.is_transfer && (
+            <div className="p-4 border-t border-[var(--border)] space-y-2">
+              {deleteErr && <p className="text-xs text-danger">{deleteErr}</p>}
+              <div className="flex gap-2">
+                <Button size="sm" variant="danger" className="flex-1" onClick={deleteSelectedSwitch} disabled={deletingDetail}>
+                  {deletingDetail ? "Deleting..." : "Delete"}
+                </Button>
+                <Button size="sm" variant="secondary" className="flex-1" onClick={() => setSelectedRow(null)}>Close</Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  className="flex-1"
+                  disabled={!switchDetail}
+                  onClick={() => { setEditingSwitch(switchDetail); setSwitchModal(true); }}
+                >
+                  Edit
+                </Button>
               </div>
             </div>
           )}
@@ -486,15 +545,21 @@ function LedgerContent() {
       {switchModal && (
         <SwitchModalInline
           open={switchModal}
-          onClose={() => setSwitchModal(false)}
+          onClose={() => { setSwitchModal(false); setEditingSwitch(null); }}
           accounts={accounts}
-          onSaved={() => {
-            qc.invalidateQueries({ queryKey: ["ledger"] });
-            qc.invalidateQueries({ queryKey: ["summary"] });
-            qc.invalidateQueries({ queryKey: ["accounts"] });
-            qc.invalidateQueries({ queryKey: ["dashboard"] });
-            qc.invalidateQueries({ queryKey: ["buckets"] });
+          editing={editingSwitch}
+          onSaved={async () => {
+            await qc.invalidateQueries({ queryKey: ["ledger"] });
+            await qc.invalidateQueries({ queryKey: ["summary"] });
+            await qc.invalidateQueries({ queryKey: ["accounts"] });
+            await qc.invalidateQueries({ queryKey: ["dashboard"] });
+            await qc.invalidateQueries({ queryKey: ["buckets"] });
+            if (editingSwitch?.transfer_id) {
+              await qc.invalidateQueries({ queryKey: ["switch", editingSwitch.transfer_id] });
+            }
             setSwitchModal(false);
+            setEditingSwitch(null);
+            setSelectedRow(null);
           }}
         />
       )}
@@ -512,7 +577,6 @@ function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any)
   const [categoryId, setCategoryId] = useState(editing?.category_id ?? "");
   const [notes, setNotes] = useState(editing?.notes ?? "");
   const [tagsText, setTagsText] = useState<string>((editing?.tags ?? []).join(", "));
-  const [isReviewed, setIsReviewed] = useState(editing?.is_reviewed ?? false);
   const [isTopup, setIsTopup] = useState(editing?.is_cycle_topup ?? false);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
@@ -524,7 +588,7 @@ function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any)
     setLoading(true); setErr("");
     try {
       const tags = tagsText.split(",").map((tag) => tag.trim()).filter(Boolean);
-      const payload = { account_id: accountId, transaction_type: type, transaction_name: name, amount, date, is_cycle_topup: isTopup, category_id: categoryId || null, notes: notes || null, tags, is_reviewed: isReviewed };
+      const payload = { account_id: accountId, transaction_type: type, transaction_name: name, amount, date, is_cycle_topup: isTopup, category_id: categoryId || null, notes: notes || null, tags, is_reviewed: true };
       if (editing) await api.put(`/transactions/${editing.transaction_id}`, payload);
       else await api.post("/transactions", payload);
       onSaved();
@@ -568,10 +632,6 @@ function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any)
           <p className="text-xs text-[var(--muted)] text-right">{notes.length}/250</p>
         </div>
         <Input label="Tags" value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder="comma separated, e.g. reimbursable, recurring" />
-        <label className="flex items-center gap-2 text-sm cursor-pointer">
-          <input type="checkbox" checked={isReviewed} onChange={(e) => setIsReviewed(e.target.checked)} className="rounded" />
-          Mark as reviewed
-        </label>
         {type === "debit" && (
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={isTopup} onChange={(e) => setIsTopup(e.target.checked)} className="rounded" />
@@ -590,24 +650,56 @@ function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any)
   );
 }
 
-function SwitchModalInline({ open, onClose, accounts, onSaved }: any) {
+function toDatetimeLocal(value?: string) {
+  const source = value ? new Date(value) : new Date();
+  const local = new Date(source.getTime() - source.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function SwitchModalInline({ open, onClose, accounts, onSaved, editing }: any) {
   const [fromId, setFromId] = useState(accounts[0]?.account_id ?? "");
   const [toId, setToId] = useState(accounts[1]?.account_id ?? "");
   const [amount, setAmount] = useState(0);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 16));
+  const [date, setDate] = useState(toDatetimeLocal());
+  const [isTopup, setIsTopup] = useState(false);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    if (editing) {
+      setFromId(editing.source_account_id ?? "");
+      setToId(editing.target_account_id ?? "");
+      setAmount(Number(editing.amount ?? 0));
+      setDate(toDatetimeLocal(editing.date));
+      setIsTopup(Boolean(editing.is_cycle_topup));
+    } else {
+      setFromId(accounts[0]?.account_id ?? "");
+      setToId(accounts[1]?.account_id ?? "");
+      setAmount(0);
+      setDate(toDatetimeLocal());
+      setIsTopup(false);
+    }
+    setErr("");
+    setLoading(false);
+  }, [open, editing, accounts]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (fromId === toId) return setErr("Source and target must differ");
+    if (!fromId || !toId) return setErr("Choose source and target accounts");
     setLoading(true); setErr("");
-    try { await api.post("/switch", { source_account_id: fromId, target_account_id: toId, amount, date }); onSaved(); }
+    const payload = { source_account_id: fromId, target_account_id: toId, amount, date, is_cycle_topup: isTopup };
+    try {
+      if (editing) await api.put(`/switch/${editing.transfer_id}`, payload);
+      else await api.post("/switch", payload);
+      await onSaved();
+    }
     catch (e: any) { setErr(e.message); setLoading(false); }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Transfer Between Accounts">
+    <Modal open={open} onClose={onClose} title={editing ? "Edit Transfer" : "Transfer Between Accounts"}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <Select label="From Account" value={fromId} onChange={(e) => setFromId(e.target.value)}>
           {accounts.map((a: any) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
@@ -617,10 +709,16 @@ function SwitchModalInline({ open, onClose, accounts, onSaved }: any) {
         </Select>
         <MoneyInput label="Amount" value={amount} onChange={setAmount} required />
         <Input label="Date & Time" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" checked={isTopup} onChange={(e) => setIsTopup(e.target.checked)} className="rounded" />
+          Mark target as Payroll / Top-up
+        </label>
         {err && <p className="text-xs text-danger">{err}</p>}
         <div className="flex gap-2 pt-1">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" className="flex-1" disabled={loading}>{loading ? "Transferring…" : "Transfer"}</Button>
+          <Button type="submit" variant="primary" className="flex-1" disabled={loading}>
+            {loading ? (editing ? "Saving..." : "Transferring...") : (editing ? "Save Transfer" : "Transfer")}
+          </Button>
         </div>
       </form>
     </Modal>
