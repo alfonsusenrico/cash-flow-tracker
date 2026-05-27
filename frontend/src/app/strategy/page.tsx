@@ -102,7 +102,6 @@ export default function StrategyPage() {
   const buckets = bucketsData?.buckets ?? [];
   const plans = plansData?.plans ?? [];
   const latestContextPlan = plans.find((p: any) => p.status === "active") ?? plans[0] ?? null;
-  const maxAlloc = Math.max(...(preview?.allocations.map((a) => a.amount) ?? [1]), 1);
   const rulePercentValue = form.mode === "percent" ? clampNumber(form.value) : form.value;
   const rulePercentAmount = Math.round(previewIncome * (rulePercentValue / 100));
   const ruleFixedPercent = previewIncome > 0 ? clampNumber(Math.round((form.value / previewIncome) * 100)) : 0;

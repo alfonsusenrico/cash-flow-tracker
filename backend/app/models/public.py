@@ -22,11 +22,6 @@ class EmptyBodyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class CreateApiKeyResponse(BaseModel):
-    ok: bool = True
-    api_key: str
-
-
 class ApiKeyMetadata(BaseModel):
     api_key_id: str
     key_masked: str
@@ -78,25 +73,9 @@ class LedgerListRequest(BaseModel):
     cursor: str | None = None
     order: Literal["asc", "desc"] = "desc"
     q: str | None = None
-    include_switch: bool = False
-
-
-class PublicTransactionItem(BaseModel):
-    transaction_id: str
-    account_id: str
-    account_name: str
-    date: datetime
-    transaction_name: str
-    debit: int
-    credit: int
-    balance: int
-    is_transfer: bool = False
-    transfer_id: str | None = None
     category_id: str | None = None
-    notes: str | None = None
-    currency: str = "IDR"
-    tags: list[str] = Field(default_factory=list)
-    is_reviewed: bool = False
+    kind: Literal["all", "income", "expense", "transfer", "payroll"] = "all"
+    include_switch: bool = False
 
 
 class CursorLedgerResponse(BaseModel):
@@ -121,7 +100,3 @@ class CategoryCreateRequest(BaseModel):
 
 class CategoryUpdateRequest(CategoryCreateRequest):
     is_archived: bool = False
-
-
-class PeriodCloseRequest(BaseModel):
-    notes: str | None = None

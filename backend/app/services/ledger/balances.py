@@ -144,44 +144,68 @@ def compute_shortfall_at_transaction(
 
 def recompute_balances_report(cur, username: str) -> dict[str, Any]:
     cur.execute(
-        "SELECT account_id::text AS account_id, account_name FROM accounts WHERE username=%s ORDER BY account_name",
+        """
+        WITH tx_running AS (
+            SELECT a.account_id::text AS account_id,
+                   a.account_name,
+                   t.transaction_id,
+                   t.date,
+                   SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END)
+                     OVER (
+                        PARTITION BY a.account_id
+                        ORDER BY t.date ASC, t.transaction_id ASC
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                     ) AS running_balance
+            FROM accounts a
+            LEFT JOIN transactions t ON t.account_id=a.account_id AND t.deleted_at IS NULL
+            WHERE a.username=%s
+        ),
+        account_stats AS (
+            SELECT account_id,
+                   account_name,
+                   COUNT(transaction_id) AS transactions_count,
+                   LEAST(0, COALESCE(MIN(running_balance), 0)) AS min_balance,
+                   MIN(date) FILTER (WHERE running_balance < 0) AS first_negative_at
+            FROM tx_running
+            GROUP BY account_id, account_name
+        ),
+        current_rows AS (
+            SELECT DISTINCT ON (account_id)
+                   account_id,
+                   running_balance AS current_balance
+            FROM tx_running
+            WHERE transaction_id IS NOT NULL
+            ORDER BY account_id, date DESC, transaction_id DESC
+        )
+        SELECT s.account_id,
+               s.account_name,
+               s.transactions_count,
+               COALESCE(c.current_balance, 0) AS current_balance,
+               s.min_balance,
+               s.first_negative_at
+        FROM account_stats s
+        LEFT JOIN current_rows c ON c.account_id=s.account_id
+        ORDER BY s.account_name
+        """,
         (username,),
     )
-    accounts = cur.fetchall()
     result_accounts: list[dict[str, Any]] = []
     has_negative = False
 
-    for account in accounts:
-        account_id = account["account_id"]
-        cur.execute(
-            """
-            SELECT transaction_id::text AS transaction_id, date, transaction_type, amount
-            FROM transactions
-            WHERE account_id=%s::uuid AND deleted_at IS NULL
-            ORDER BY date ASC, transaction_id ASC
-            """,
-            (account_id,),
-        )
-        rows = cur.fetchall()
-        balance = 0
-        min_balance = 0
-        first_negative_at = None
-        for row in rows:
-            signed = int(row["amount"]) if row["transaction_type"] == "debit" else -int(row["amount"])
-            balance += signed
-            if balance < min_balance:
-                min_balance = balance
-            if balance < 0 and first_negative_at is None:
-                first_negative_at = row["date"].astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-                has_negative = True
+    for account in cur.fetchall():
+        first_negative_at = account.get("first_negative_at")
+        first_negative_iso = None
+        if first_negative_at is not None:
+            first_negative_iso = first_negative_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+            has_negative = True
 
         result_accounts.append({
-            "account_id": account_id,
+            "account_id": account["account_id"],
             "account_name": account["account_name"],
-            "transactions_count": len(rows),
-            "current_balance": int(balance),
-            "min_balance": int(min_balance),
-            "first_negative_at": first_negative_at,
+            "transactions_count": int(account.get("transactions_count") or 0),
+            "current_balance": int(account.get("current_balance") or 0),
+            "min_balance": int(account.get("min_balance") or 0),
+            "first_negative_at": first_negative_iso,
         })
 
     total_asset = sum(int(r["current_balance"]) for r in result_accounts)

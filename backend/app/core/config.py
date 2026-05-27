@@ -30,6 +30,15 @@ class Settings:
     receipts_dir: str
     receipt_max_mb: int
     receipt_webp_quality: int
+    receipt_max_pixels: int
+    app_origins: tuple[str, ...]
+    trusted_proxy_cidrs: tuple[str, ...]
+    ledger_export_max_rows: int
+
+
+def _csv_env(name: str) -> tuple[str, ...]:
+    raw = os.getenv(name, "")
+    return tuple(part.strip().rstrip("/") for part in raw.split(",") if part.strip())
 
 
 def load_settings() -> Settings:
@@ -71,6 +80,10 @@ def load_settings() -> Settings:
         receipts_dir=(os.getenv("RECEIPTS_DIR") or "/app/storage/receipts").strip() or "/app/storage/receipts",
         receipt_max_mb=max(1, int(os.getenv("RECEIPT_MAX_MB", "10"))),
         receipt_webp_quality=max(1, min(100, int(os.getenv("RECEIPT_WEBP_QUALITY", "75")))),
+        receipt_max_pixels=max(1_000_000, int(os.getenv("RECEIPT_MAX_PIXELS", "50000000"))),
+        app_origins=_csv_env("APP_ORIGINS") or _csv_env("APP_ORIGIN"),
+        trusted_proxy_cidrs=_csv_env("TRUSTED_PROXY_CIDRS"),
+        ledger_export_max_rows=max(100, int(os.getenv("LEDGER_EXPORT_MAX_ROWS", "5000"))),
     )
 
 

@@ -34,6 +34,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ledger}:${POSTGRES_PASSWORD:-ledgerpass}@db:5432/${POSTGRES_DB:-ledger}
       SESSION_SECRET: ${SESSION_SECRET}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      APP_ORIGINS: ${APP_ORIGINS:-http://localhost:8090}
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.16.0.0/12,127.0.0.1/32,::1/128}
       INVITE_CODE: ${INVITE_CODE}
       TZ: ${TZ:-Asia/Jakarta}
       SUMMARY_CACHE_TTL: ${SUMMARY_CACHE_TTL:-30}
@@ -55,6 +57,8 @@ services:
       RECEIPTS_DIR: ${RECEIPTS_DIR:-/app/storage/receipts}
       RECEIPT_MAX_MB: ${RECEIPT_MAX_MB:-10}
       RECEIPT_WEBP_QUALITY: ${RECEIPT_WEBP_QUALITY:-75}
+      RECEIPT_MAX_PIXELS: ${RECEIPT_MAX_PIXELS:-50000000}
+      LEDGER_EXPORT_MAX_ROWS: ${LEDGER_EXPORT_MAX_ROWS:-5000}
     volumes:
       - ./storage:/app/storage
     depends_on:
@@ -65,9 +69,6 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  # New Next.js frontend service.
-  # During cut-over, the old static SPA is still served by nginx at /legacy/.
-  # Once the new frontend is validated, remove the legacy volume mount.
   frontend:
     build: ./frontend
     container_name: ledger_frontend

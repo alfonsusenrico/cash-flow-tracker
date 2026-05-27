@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -29,6 +30,45 @@ _RESOURCE_PREFIXES = [
     "/categories", "/periods", "/buckets", "/allocation-plans", "/strategy-rules",
     "/goals", "/assets", "/dashboard", "/obligations",
 ]
+_SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
+_CSRF_EXEMPT_PATHS = {"/auth/login", "/auth/register"}
+
+
+def _origin_from_value(value: str | None) -> str | None:
+    if not value:
+        return None
+    parsed = urlsplit(value.strip())
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}".rstrip("/")
+
+
+def _request_origin(request: Request) -> str | None:
+    origin = _origin_from_value(request.headers.get("origin"))
+    if origin:
+        return origin
+    return _origin_from_value(request.headers.get("referer"))
+
+
+def _allowed_origins(request: Request) -> set[str]:
+    configured = {origin for raw in settings.app_origins if (origin := _origin_from_value(raw))}
+    if configured:
+        return configured
+
+    host = request.headers.get("host", "").lower()
+    if not host:
+        return set()
+    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
+    return {f"{scheme.lower()}://{host}".rstrip("/")}
+
+
+def _requires_csrf_origin_check(request: Request) -> bool:
+    path = request.url.path
+    if request.method.upper() in _SAFE_METHODS:
+        return False
+    if path.startswith("/v1/") or path in _CSRF_EXEMPT_PATHS:
+        return False
+    return bool(request.cookies.get("ledger_session"))
 
 
 @asynccontextmanager
@@ -63,6 +103,11 @@ for _router, _prefix in [
 
 @app.middleware("http")
 async def inject_username_middleware(request: Request, call_next):
+    if _requires_csrf_origin_check(request):
+        origin = _request_origin(request)
+        if not origin or origin not in _allowed_origins(request):
+            return JSONResponse(status_code=403, content={"ok": False, "detail": "Invalid request origin"})
+
     path = request.url.path
     matched = next((p for p in _RESOURCE_PREFIXES if path.startswith(p) or path.startswith(f"/v1{p}")), None)
     if matched:

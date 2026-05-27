@@ -725,6 +725,13 @@ def test_public_v1_smoke(client: TestClient, api_key: str):
         )
     )
     assert profile_body["account"]["account_name"] == profile_renamed
+    target_account_id = assert_ok(
+        client.post(
+            "/v1/accounts",
+            json={"account_name": unique("public-target"), "initial_balance": 10_000},
+            headers=headers,
+        )
+    )["account_id"]
     assert_ok(client.get("/v1/periods", headers=headers))
     assert_ok(client.get("/v1/buckets", headers=headers))
     assert_ok(client.get("/v1/allocation-plans", headers=headers))
@@ -747,7 +754,32 @@ def test_public_v1_smoke(client: TestClient, api_key: str):
             headers=headers,
         )
     )["transaction_id"]
+    transfer_id = assert_ok(
+        client.post(
+            "/v1/switch",
+            json={
+                "source_account_id": account_id,
+                "target_account_id": target_account_id,
+                "amount": 1_000,
+                "date": now_iso(),
+            },
+            headers=headers,
+        )
+    )["transfer_id"]
+    switch_detail = assert_ok(client.get(f"/v1/switch/{transfer_id}", headers=headers))
+    assert switch_detail["amount"] == 1_000
+    assert_ok(
+        client.put(
+            f"/v1/switch/{transfer_id}",
+            json={"amount": 2_000, "is_cycle_topup": True},
+            headers=headers,
+        )
+    )
+    switch_detail = assert_ok(client.get(f"/v1/switch/{transfer_id}", headers=headers))
+    assert switch_detail["amount"] == 2_000
+    assert switch_detail["is_cycle_topup"] is True
     assert_ok(client.post("/v1/ledger", json={"scope": "all", "limit": 10}, headers=headers))
+    assert_ok(client.post("/v1/ledger", json={"scope": "all", "limit": 10, "kind": "expense", "q": "Public smoke"}, headers=headers))
     assert_ok(client.post("/v1/summary", json={}, headers=headers))
     assert_ok(client.post("/v1/analysis", json={}, headers=headers))
     assert_ok(client.post("/v1/analysis/budget-shift", json={}, headers=headers))
@@ -756,4 +788,5 @@ def test_public_v1_smoke(client: TestClient, api_key: str):
     assert_ok(client.post("/v1/transactions/audit", json={}, headers=headers))
     assert_ok(client.post("/v1/export/preview", json={"day": 1, "scope": "all"}, headers=headers))
     assert client.post("/v1/export", json={"day": 1, "scope": "all", "format": "csv"}, headers=headers).status_code == 200
+    assert_ok(client.delete(f"/v1/switch/{transfer_id}", headers=headers))
     assert_ok(client.delete(f"/v1/transactions/{tx_id}", headers=headers))

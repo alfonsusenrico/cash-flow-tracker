@@ -5,19 +5,15 @@ from typing import Any
 from fastapi import HTTPException
 
 from app.core.config import settings
-from app.services.ledger.balances import get_account_balances
+from app.services.ledger.balances import parse_uuid_value
 from app.services.ledger.cache import cache_get, cache_set
 from app.services.ledger.reports import build_search_pattern, compute_summary
 
 
-def build_ledger_data(
-    cur,
-    username: str,
-    scope: str,
-    account_id: str | None,
-    from_dt,
-    to_dt,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int]:
+_LEDGER_KINDS = {"all", "income", "expense", "transfer", "payroll"}
+
+
+def _resolve_ledger_accounts(cur, username: str, scope: str, account_id: str | None) -> tuple[dict[str, Any], list[str]]:
     cur.execute("SELECT account_id::text, account_name FROM accounts WHERE username=%s", (username,))
     accounts = cur.fetchall()
     acc_by_id = {a["account_id"]: a for a in accounts}
@@ -29,8 +25,98 @@ def build_ledger_data(
             raise HTTPException(status_code=400, detail="account_id required for scope=account")
         if account_id not in acc_by_id:
             raise HTTPException(status_code=404, detail="Account not found")
+        return acc_by_id, [account_id]
+    return acc_by_id, list(acc_by_id.keys())
 
-    acc_ids = list(acc_by_id.keys()) if scope == "all" else [account_id]
+
+def _ledger_event_filter_sql(
+    query: str | None,
+    category_id: str | None,
+    kind: str | None,
+) -> tuple[str, list[Any]]:
+    ledger_kind = str(kind or "all").strip().lower()
+    if ledger_kind not in _LEDGER_KINDS:
+        raise HTTPException(status_code=400, detail="Invalid ledger type filter")
+
+    clauses: list[str] = []
+    params: list[Any] = []
+    search_pattern = build_search_pattern(query)
+    if search_pattern:
+        clauses.append("(transaction_name ILIKE %s OR account_name ILIKE %s OR COALESCE(category_name, '') ILIKE %s)")
+        params.extend([search_pattern, search_pattern, search_pattern])
+
+    if category_id:
+        parsed_category_id = parse_uuid_value(category_id, "category_id")
+        clauses.append("category_id=%s")
+        params.append(parsed_category_id)
+
+    if ledger_kind == "income":
+        clauses.append("debit > 0 AND is_transfer = false")
+    elif ledger_kind == "expense":
+        clauses.append("credit > 0 AND is_transfer = false")
+    elif ledger_kind == "transfer":
+        clauses.append("is_transfer = true")
+    elif ledger_kind == "payroll":
+        clauses.append("is_cycle_topup = true")
+
+    if not clauses:
+        return "", []
+    return "WHERE " + " AND ".join(f"({clause})" for clause in clauses), params
+
+
+def build_ledger_export_summary(
+    cur,
+    username: str,
+    scope: str,
+    account_id: str | None,
+    from_dt,
+    to_dt,
+) -> dict[str, int]:
+    _, acc_ids = _resolve_ledger_accounts(cur, username, scope, account_id)
+    if not acc_ids:
+        return {"count": 0, "total_in": 0, "total_out": 0, "net": 0}
+
+    cur.execute(
+        """
+        SELECT COUNT(*) AS row_count,
+               COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS total_in,
+               COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS total_out
+        FROM transactions t
+        JOIN accounts a ON a.account_id=t.account_id
+        WHERE a.username=%s AND t.account_id = ANY(%s::uuid[])
+          AND t.deleted_at IS NULL AND t.date >= %s AND t.date <= %s
+        """,
+        (username, acc_ids, from_dt, to_dt),
+    )
+    row = cur.fetchone() or {}
+    total_in = int(row.get("total_in") or 0)
+    total_out = int(row.get("total_out") or 0)
+    return {
+        "count": int(row.get("row_count") or 0),
+        "total_in": total_in,
+        "total_out": total_out,
+        "net": int(total_in - total_out),
+    }
+
+
+def build_ledger_data(
+    cur,
+    username: str,
+    scope: str,
+    account_id: str | None,
+    from_dt,
+    to_dt,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int]:
+    acc_by_id, acc_ids = _resolve_ledger_accounts(cur, username, scope, account_id)
+    if not acc_ids:
+        return [], [], 0
+
+    export_summary = build_ledger_export_summary(cur, username, scope, account_id, from_dt, to_dt)
+    if export_summary["count"] > settings.ledger_export_max_rows:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Export too large. Narrow the date range or raise LEDGER_EXPORT_MAX_ROWS above {settings.ledger_export_max_rows}.",
+        )
 
     cur.execute(
         """
@@ -115,21 +201,12 @@ def build_ledger_page(
     query: str | None,
     include_summary: bool = True,
     include_switch: bool = True,
+    category_id: str | None = None,
+    kind: str = "all",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int, dict[str, int | bool]]:
-    cur.execute("SELECT account_id::text, account_name FROM accounts WHERE username=%s", (username,))
-    accounts = cur.fetchall()
-    if not accounts:
+    acc_by_id, acc_ids = _resolve_ledger_accounts(cur, username, scope, account_id)
+    if not acc_by_id:
         return [], [], 0, {"limit": limit, "offset": offset, "has_more": False, "next_offset": offset}
-
-    acc_by_id = {a["account_id"]: a for a in accounts}
-
-    if scope not in ("all", "account"):
-        raise HTTPException(status_code=400, detail="Invalid scope")
-    if scope == "account":
-        if not account_id:
-            raise HTTPException(status_code=400, detail="account_id required for scope=account")
-        if account_id not in acc_by_id:
-            raise HTTPException(status_code=404, detail="Account not found")
     if scope != "all":
         include_switch = True
 
@@ -158,7 +235,7 @@ def build_ledger_page(
             WHERE a.username=%s AND a.account_id = ANY(%s::uuid[])
             GROUP BY a.account_id
             """,
-            (from_dt, username, list(acc_by_id.keys())),
+            (from_dt, username, acc_ids),
         )
         start_rows = cur.fetchall()
         base_balance = sum(int(r["start_balance"] or 0) for r in start_rows)
@@ -169,9 +246,7 @@ def build_ledger_page(
         )
         base_balance = int(cur.fetchone()["start_balance"] or 0)
 
-    search_pattern = build_search_pattern(query)
-    search_sql = "WHERE transaction_name ILIKE %s" if search_pattern else ""
-    search_params: list[Any] = [search_pattern] if search_pattern else []
+    filter_sql, filter_params = _ledger_event_filter_sql(query, category_id, kind)
 
     if scope == "all" and include_switch:
         sql = f"""
@@ -186,17 +261,19 @@ def build_ledger_page(
                        t.is_cycle_topup,
                        t.transfer_id::text AS transfer_id,
                        t.category_id::text AS category_id,
+                       c.name AS category_name,
                        t.notes,
                        t.tags,
                        t.is_reviewed
                 FROM transactions t
                 JOIN accounts a ON a.account_id=t.account_id
+                LEFT JOIN categories c ON c.category_id=t.category_id
                 WHERE a.username=%s AND t.deleted_at IS NULL AND t.date >= %s AND t.date <= %s
             ),
             non_transfer AS (
                 SELECT transaction_id AS event_id, account_id, account_name, transaction_name, amount, date,
                        false AS is_transfer, false AS is_cycle_topup, NULL::text AS transfer_id,
-                       category_id, notes, tags, is_reviewed,
+                       category_id, category_name, notes, tags, is_reviewed,
                        CASE WHEN transaction_type='debit' THEN amount ELSE -amount END AS signed_delta,
                        CASE WHEN transaction_type='debit' THEN amount ELSE 0 END AS debit,
                        CASE WHEN transaction_type='credit' THEN amount ELSE 0 END AS credit
@@ -211,7 +288,7 @@ def build_ledger_page(
                        ) AS transaction_name,
                        COALESCE(MAX(CASE WHEN transaction_type='debit' THEN amount ELSE 0 END), 0) AS amount,
                        MAX(date) AS date, true AS is_transfer, BOOL_OR(is_cycle_topup) AS is_cycle_topup, transfer_id,
-                       MAX(category_id) AS category_id, NULL::text AS notes, '{{}}'::text[] AS tags, true AS is_reviewed,
+                       MAX(category_id) AS category_id, MAX(category_name) AS category_name, NULL::text AS notes, '{{}}'::text[] AS tags, true AS is_reviewed,
                        0::bigint AS signed_delta,
                        COALESCE(MAX(CASE WHEN transaction_type='debit' THEN amount ELSE 0 END), 0) AS debit,
                        COALESCE(MAX(CASE WHEN transaction_type='credit' THEN amount ELSE 0 END), 0) AS credit
@@ -225,11 +302,11 @@ def build_ledger_page(
                    is_transfer, is_cycle_topup, transfer_id, category_id, notes, tags, is_reviewed,
                    debit, credit, running_delta
             FROM events_running
-            {search_sql}
+            {filter_sql}
             ORDER BY date {order_dir}, event_id {order_dir}
             LIMIT %s OFFSET %s
         """
-        params: list[Any] = [username, from_dt, to_dt] + search_params + [limit + 1, offset]
+        params: list[Any] = [username, from_dt, to_dt] + filter_params + [limit + 1, offset]
     elif scope == "all":
         sql = f"""
             WITH events AS (
@@ -237,13 +314,16 @@ def build_ledger_page(
                        t.transaction_name, t.amount, t.date, false AS is_transfer, t.is_cycle_topup,
                        NULL::text AS transfer_id,
                        t.category_id::text AS category_id,
+                       c.name AS category_name,
                        t.notes,
                        t.tags,
                        t.is_reviewed,
                        CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END AS signed_delta,
                        CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END AS debit,
                        CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END AS credit
-                FROM transactions t JOIN accounts a ON a.account_id=t.account_id
+                FROM transactions t
+                JOIN accounts a ON a.account_id=t.account_id
+                LEFT JOIN categories c ON c.category_id=t.category_id
                 WHERE a.username=%s AND t.deleted_at IS NULL AND t.date >= %s AND t.date <= %s AND t.transfer_id IS NULL
             ),
             events_running AS (SELECT *, SUM(signed_delta) OVER (ORDER BY date ASC, event_id ASC) AS running_delta FROM events)
@@ -251,11 +331,11 @@ def build_ledger_page(
                    is_transfer, is_cycle_topup, transfer_id, category_id, notes, tags, is_reviewed,
                    debit, credit, running_delta
             FROM events_running
-            {search_sql}
+            {filter_sql}
             ORDER BY date {order_dir}, event_id {order_dir}
             LIMIT %s OFFSET %s
         """
-        params = [username, from_dt, to_dt] + search_params + [limit + 1, offset]
+        params = [username, from_dt, to_dt] + filter_params + [limit + 1, offset]
     else:
         sql = f"""
             WITH base AS (
@@ -263,12 +343,15 @@ def build_ledger_page(
                        t.transaction_type, t.transaction_name, t.amount, t.date, t.is_transfer, t.is_cycle_topup,
                        t.transfer_id::text AS transfer_id,
                        t.category_id::text AS category_id,
+                       c.name AS category_name,
                        t.notes,
                        t.tags,
                        t.is_reviewed,
                        SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE -t.amount END)
                          OVER (ORDER BY t.date ASC, t.transaction_id ASC) AS running_delta
-                FROM transactions t JOIN accounts a ON a.account_id=t.account_id
+                FROM transactions t
+                JOIN accounts a ON a.account_id=t.account_id
+                LEFT JOIN categories c ON c.category_id=t.category_id
                 WHERE a.username=%s AND t.deleted_at IS NULL AND t.date >= %s AND t.date <= %s AND t.account_id=%s::uuid
             )
             SELECT transaction_id AS event_id, account_id, account_name, transaction_name, amount, date,
@@ -278,11 +361,11 @@ def build_ledger_page(
                    CASE WHEN transaction_type='credit' THEN amount ELSE 0 END AS credit,
                    running_delta
             FROM base
-            {search_sql}
+            {filter_sql}
             ORDER BY date {order_dir}, event_id {order_dir}
             LIMIT %s OFFSET %s
         """
-        params = [username, from_dt, to_dt, account_id] + search_params + [limit + 1, offset]
+        params = [username, from_dt, to_dt, account_id] + filter_params + [limit + 1, offset]
 
     cur.execute(sql, params)
     raw_rows = cur.fetchall()

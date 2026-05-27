@@ -1,4 +1,5 @@
 import hashlib
+import ipaddress
 import secrets
 import threading
 from queue import Full, Queue
@@ -61,18 +62,43 @@ def queue_api_key_touch(token_hash: str) -> None:
 
 
 def get_client_ip(req: Request) -> str:
-    real_ip = req.headers.get("x-real-ip", "")
-    if real_ip:
-        return real_ip.strip()
-    forwarded = req.headers.get("x-forwarded-for", "")
-    if forwarded:
-        # Trust closest proxy hop when X-Forwarded-For contains multiple entries.
-        parts = [part.strip() for part in forwarded.split(",") if part.strip()]
-        if parts:
-            return parts[-1]
     if req.client:
+        if _is_trusted_proxy(req.client.host):
+            real_ip = _valid_ip_or_none(req.headers.get("x-real-ip"))
+            if real_ip:
+                return real_ip
+            forwarded = req.headers.get("x-forwarded-for", "")
+            if forwarded:
+                parts = [_valid_ip_or_none(part) for part in forwarded.split(",")]
+                valid_parts = [part for part in parts if part]
+                if valid_parts:
+                    return valid_parts[-1]
         return req.client.host
     return "unknown"
+
+
+def _valid_ip_or_none(value: str | None) -> str | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        return str(ipaddress.ip_address(raw))
+    except ValueError:
+        return None
+
+
+def _is_trusted_proxy(host: str) -> bool:
+    try:
+        client_ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    for cidr in settings.trusted_proxy_cidrs:
+        try:
+            if client_ip in ipaddress.ip_network(cidr, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 def require_session_user(req: Request) -> str:

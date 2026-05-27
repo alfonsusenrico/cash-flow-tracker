@@ -27,6 +27,18 @@ TEST_DB_URL = os.getenv(
 MIGRATIONS_DIR = pathlib.Path(__file__).resolve().parents[2] / "db" / "migrations"
 
 
+def _db_is_reachable(db_url: str) -> bool:
+    import socket
+
+    try:
+        host, port_str = db_url.split("@")[-1].split("/")[0].rsplit(":", 1)
+        port = int(port_str)
+        with socket.create_connection((host, port), timeout=2):
+            return True
+    except Exception:
+        return False
+
+
 def _run_migrations(db_url: str) -> None:
     """Apply all Flyway migrations using the flyway CLI or psql fallback."""
     # Try flyway first (available in CI via docker)
@@ -56,8 +68,13 @@ def db_url() -> str:
     return TEST_DB_URL
 
 
+@pytest.fixture(scope="session")
+def db_available(db_url: str) -> bool:
+    return _db_is_reachable(db_url)
+
+
 @pytest.fixture(scope="session", autouse=True)
-def apply_migrations(db_url: str):
+def apply_migrations(db_url: str, db_available: bool):
     """
     Apply migrations only when a real Postgres is reachable.
     Skips silently for pure unit tests that don't need a DB.
@@ -66,14 +83,7 @@ def apply_migrations(db_url: str):
         yield
         return
 
-    import socket
-    # Quick TCP check — if Postgres isn't up, skip migration entirely.
-    try:
-        host, port_str = db_url.split("@")[-1].split("/")[0].rsplit(":", 1)
-        port = int(port_str)
-        with socket.create_connection((host, port), timeout=2):
-            pass
-    except Exception:
+    if not db_available:
         yield  # No DB available — unit tests still run
         return
 
@@ -82,7 +92,10 @@ def apply_migrations(db_url: str):
 
 
 @pytest.fixture(scope="session")
-def client(db_url: str, apply_migrations):
+def client(db_url: str, apply_migrations, db_available: bool):
+    if not db_available:
+        pytest.skip(f"Postgres test database is not reachable: {db_url}")
+
     os.environ["DATABASE_URL"] = db_url
     os.environ["SESSION_SECRET"] = "test-secret-for-pytest"
     os.environ.setdefault("INVITE_CODE", "TESTCODE")
@@ -118,6 +131,7 @@ def auth_client(client: TestClient):
         json={"username": username, "password": password},
     )
     assert res.status_code == 200, res.text
+    client.headers.update({"Origin": "https://testserver"})
     client._smoke_username = username
     return client
 

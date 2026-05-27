@@ -1,6 +1,5 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { fmtMoney, currentMonthYM } from "@/lib/utils";
@@ -19,7 +18,7 @@ const CAT_COLORS = ["#dc2626","#f59e0b","#f97316","#16a34a","#3b82f6","#8b5cf6",
 
 export default function AnalysisPage() {
   const { hideBalances } = useAppCtx();
-  const [month, setMonth] = useState(currentMonthYM());
+  const month = currentMonthYM();
   const bal = (n: number) => hideBalances ? "Rp ••••" : fmtMoney(n);
 
   const { data, isLoading } = useQuery<AnalysisData>({

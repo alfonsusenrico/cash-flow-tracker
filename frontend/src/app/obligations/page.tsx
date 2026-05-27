@@ -66,7 +66,7 @@ export default function ObligationsPage() {
   });
 
   const accounts = accountsData?.accounts ?? [];
-  const obligations = data?.obligations ?? [];
+  const obligations = useMemo(() => data?.obligations ?? [], [data?.obligations]);
   const activeSummary = summary ?? {
     receivable_outstanding: 0,
     payable_outstanding: 0,

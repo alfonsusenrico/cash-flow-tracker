@@ -35,6 +35,7 @@ from app.services.auth import (
 from app.services.ledger import (
     build_daily_series,
     build_ledger_data,
+    build_ledger_export_summary,
     build_ledger_page,
     build_weekly_series,
     cache_get,
@@ -636,6 +637,8 @@ def public_ledger(req: Request, payload: LedgerListRequest):
     cursor = query.cursor
     order = query.order
     q = query.q
+    category_id = query.category_id
+    kind = query.kind
     include_switch = query.include_switch
 
     if not to_date:
@@ -669,6 +672,10 @@ def public_ledger(req: Request, payload: LedgerListRequest):
             raise HTTPException(status_code=400, detail="Cursor does not match order")
         if (decoded.get("q") or None) != q:
             raise HTTPException(status_code=400, detail="Cursor does not match query")
+        if (decoded.get("category_id") or None) != category_id:
+            raise HTTPException(status_code=400, detail="Cursor does not match category_id")
+        if decoded.get("kind") != kind:
+            raise HTTPException(status_code=400, detail="Cursor does not match kind")
         if bool(decoded.get("include_switch", False)) != bool(include_switch):
             raise HTTPException(status_code=400, detail="Cursor does not match include_switch")
 
@@ -686,6 +693,8 @@ def public_ledger(req: Request, payload: LedgerListRequest):
             q,
             True,
             include_switch,
+            category_id,
+            kind,
         )
 
     next_cursor = None
@@ -699,6 +708,8 @@ def public_ledger(req: Request, payload: LedgerListRequest):
                 "to_date": to_date,
                 "order": order,
                 "q": q,
+                "category_id": category_id,
+                "kind": kind,
                 "include_switch": bool(include_switch),
             }
         )
@@ -1352,7 +1363,6 @@ def public_create_switch(req: Request, payload: dict[str, Any]):
         if len(accounts) != 2:
             raise HTTPException(status_code=404, detail="Account not found")
         acc_map = {a["account_id"]: a for a in accounts}
-        category_id = ensure_switching_category(cur, username)
         source = acc_map.get(source_account_id)
         target = acc_map.get(target_account_id)
 
@@ -1417,6 +1427,8 @@ def public_get_switch(transfer_id: str, req: Request):
             raise HTTPException(status_code=404, detail="Switch not found")
         source = next((r for r in rows if r["transaction_type"] == "credit"), None)
         target = next((r for r in rows if r["transaction_type"] == "debit"), None)
+        if not source or not target:
+            raise HTTPException(status_code=400, detail="Invalid switch data")
     return {
         "transfer_id": transfer_id,
         "source_account_id": source["account_id"],
@@ -1458,6 +1470,8 @@ def public_update_switch(transfer_id: str, req: Request, payload: dict[str, Any]
             raise HTTPException(status_code=404, detail="Switch not found")
         source = next((r for r in rows if r["transaction_type"] == "credit"), None)
         target = next((r for r in rows if r["transaction_type"] == "debit"), None)
+        if not source or not target:
+            raise HTTPException(status_code=400, detail="Invalid switch data")
 
         source_account_id = parse_uuid_value(source_account_id or source["account_id"], "source_account_id")
         target_account_id = parse_uuid_value(target_account_id or target["account_id"], "target_account_id")
@@ -1480,6 +1494,7 @@ def public_update_switch(transfer_id: str, req: Request, payload: dict[str, Any]
         if len(accounts) != 2:
             raise HTTPException(status_code=404, detail="Account not found")
         acc_map = {a["account_id"]: a for a in accounts}
+        category_id = ensure_switching_category(cur, username)
 
         old_rows = [
             {"transaction_id": source["transaction_id"], "account_id": source["account_id"], "date": source["date"]},
@@ -1511,6 +1526,8 @@ def public_update_switch(transfer_id: str, req: Request, payload: dict[str, Any]
             """,
             (source_account_id, f"Switching to {acc_map[target_account_id]['account_name']}", amount, new_date, category_id, source["transaction_id"], transfer_id),
         )
+        if cur.rowcount != 1:
+            raise HTTPException(status_code=409, detail="Switch changed, please retry")
         cur.execute(
             """
             UPDATE transactions
@@ -1519,6 +1536,8 @@ def public_update_switch(transfer_id: str, req: Request, payload: dict[str, Any]
             """,
             (target_account_id, parsed_topup, f"Switching from {acc_map[source_account_id]['account_name']}", amount, new_date, category_id, target["transaction_id"], transfer_id),
         )
+        if cur.rowcount != 1:
+            raise HTTPException(status_code=409, detail="Switch changed, please retry")
         conn.commit()
 
     invalidate_user_cache(username)
@@ -1705,11 +1724,9 @@ def public_export_preview(req: Request, payload: dict[str, Any]):
     from_date, to_date, from_dt, to_dt = compute_export_range(day)
 
     with db_conn() as conn, conn.cursor() as cur:
-        rows, _, _ = build_ledger_data(cur, username, scope, account_id, from_dt, to_dt)
+        summary = build_ledger_export_summary(cur, username, scope, account_id, from_dt, to_dt)
 
-    total_in = sum(int(r.get("debit") or 0) for r in rows)
-    total_out = sum(int(r.get("credit") or 0) for r in rows)
-    return {"range": {"from": from_date, "to": to_date}, "summary": {"count": len(rows), "total_in": int(total_in), "total_out": int(total_out), "net": int(total_in - total_out)}}
+    return {"range": {"from": from_date, "to": to_date}, "summary": summary}
 
 
 @router.post("/export")

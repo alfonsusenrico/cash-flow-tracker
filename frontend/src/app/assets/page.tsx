@@ -5,7 +5,6 @@ import { api } from "@/lib/api";
 import { fmtMoney } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Card, SectionTitle } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -99,14 +98,14 @@ export default function AssetsPage() {
             <div className="relative w-20 h-20">
               <svg width="80" height="80" viewBox="0 0 80 80" className="donut-ring">
                 {(() => {
-                  let offset = 0;
                   const circ = 2 * Math.PI * 30;
                   return allocEntries.map(([cls, val], i) => {
                     const pct = totalValue > 0 ? val / totalValue : 0;
                     const dash = pct * circ;
-                    const el = <circle key={cls} cx="40" cy="40" r="30" fill="none" stroke={CLASS_COLORS[cls] ?? "#6b7280"} strokeWidth="12" strokeDasharray={`${dash} ${circ - dash}`} strokeDashoffset={-offset} />;
-                    offset += dash;
-                    return el;
+                    const offset = allocEntries
+                      .slice(0, i)
+                      .reduce((sum, [, previous]) => sum + (totalValue > 0 ? previous / totalValue : 0) * circ, 0);
+                    return <circle key={cls} cx="40" cy="40" r="30" fill="none" stroke={CLASS_COLORS[cls] ?? "#6b7280"} strokeWidth="12" strokeDasharray={`${dash} ${circ - dash}`} strokeDashoffset={-offset} />;
                   });
                 })()}
               </svg>

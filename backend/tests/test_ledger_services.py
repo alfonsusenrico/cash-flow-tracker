@@ -77,6 +77,25 @@ class RecomputeCursor:
         self.last_params = params
 
     def fetchall(self):
+        if "WITH tx_running" in self.last_sql:
+            return [
+                {
+                    "account_id": "acc-1",
+                    "account_name": "Cash",
+                    "transactions_count": 2,
+                    "current_balance": 700_000,
+                    "min_balance": 0,
+                    "first_negative_at": None,
+                },
+                {
+                    "account_id": "acc-2",
+                    "account_name": "Savings",
+                    "transactions_count": 1,
+                    "current_balance": -50_000,
+                    "min_balance": -50_000,
+                    "first_negative_at": datetime(2026, 2, 3, 10, 0, tzinfo=timezone.utc),
+                },
+            ]
         if "FROM accounts" in self.last_sql:
             return [
                 {"account_id": "acc-1", "account_name": "Cash"},

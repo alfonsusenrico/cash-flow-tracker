@@ -11,6 +11,8 @@ from PIL import Image, UnidentifiedImageError
 
 from app.core.config import settings
 
+Image.MAX_IMAGE_PIXELS = settings.receipt_max_pixels
+
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _JPEG_SIGNATURE = b"\xff\xd8"
 _PDF_SIGNATURE = b"%PDF-"
@@ -58,6 +60,8 @@ def _detect_kind(raw: bytes, filename: str | None, content_type: str | None) -> 
             return "png"
         if fmt == "JPEG":
             return "jpeg"
+    except Image.DecompressionBombError:
+        raise HTTPException(status_code=413, detail="Receipt image dimensions are too large")
     except Exception:
         pass
     raise HTTPException(status_code=400, detail="Unsupported receipt type. Allowed: pdf, png, jpg, jpeg")
@@ -67,6 +71,8 @@ def _compress_image_to_webp(raw: bytes, quality: int) -> bytes:
     try:
         image = Image.open(io.BytesIO(raw))
         image.load()
+    except Image.DecompressionBombError:
+        raise HTTPException(status_code=413, detail="Receipt image dimensions are too large")
     except (UnidentifiedImageError, OSError):
         raise HTTPException(status_code=400, detail="Invalid image file")
 

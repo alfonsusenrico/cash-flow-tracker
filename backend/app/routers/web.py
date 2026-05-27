@@ -22,6 +22,7 @@ from app.services.categories import ensure_switching_category
 from app.services.ledger import (
     build_daily_series,
     build_ledger_data,
+    build_ledger_export_summary,
     build_ledger_page,
     build_weekly_series,
     cache_get,
@@ -1696,6 +1697,8 @@ def ledger(
     offset: int = 0,
     order: str = "desc",
     q: str | None = None,
+    category_id: str | None = None,
+    kind: str = "all",
     include_summary: bool = True,
     include_switch: bool = False,
 ):
@@ -1737,6 +1740,8 @@ def ledger(
             q,
             include_summary,
             include_switch,
+            category_id,
+            kind,
         )
 
     return {
@@ -2209,18 +2214,11 @@ def export_preview(req: Request, day: int, scope: str = "all", account_id: str |
     from_date, to_date, from_dt, to_dt = compute_export_range(day)
 
     with db_conn() as conn, conn.cursor() as cur:
-        rows, _, _ = build_ledger_data(cur, username, scope, account_id, from_dt, to_dt)
+        summary = build_ledger_export_summary(cur, username, scope, account_id, from_dt, to_dt)
 
-    total_in = sum(int(r.get("debit") or 0) for r in rows)
-    total_out = sum(int(r.get("credit") or 0) for r in rows)
     return {
         "range": {"from": from_date, "to": to_date},
-        "summary": {
-            "count": len(rows),
-            "total_in": int(total_in),
-            "total_out": int(total_out),
-            "net": int(total_in - total_out),
-        },
+        "summary": summary,
     }
 
 

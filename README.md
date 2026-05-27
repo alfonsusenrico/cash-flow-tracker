@@ -39,6 +39,12 @@ cp .env.example .env
 SESSION_SECRET=$(openssl rand -hex 32)
 sed -i.bak "s/^SESSION_SECRET=.*/SESSION_SECRET=${SESSION_SECRET}/" .env && rm .env.bak
 
+# Generate a database password and invite code
+POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 32)
+INVITE_CODE=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24)
+sed -i.bak "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${POSTGRES_PASSWORD}/" .env && rm .env.bak
+sed -i.bak "s/^INVITE_CODE=.*/INVITE_CODE=${INVITE_CODE}/" .env && rm .env.bak
+
 # Start the database and run migrations
 docker compose up -d db
 docker compose run --rm migrate
@@ -53,10 +59,10 @@ Open **http://localhost:8090** in your browser.
 
 ## First-time setup
 
-1. **Register** — click "First time? Register" on the login page. You need the invite code from your `.env` file (`INVITE_CODE`, default: `CASHFLOWTRACKER`).
-2. **Create your first account** — go to **Accounts** in the top nav and add an account (e.g. "Cash", "BCA", "GoPay"). Set an initial balance if you have one.
-3. **Record a transaction** — go to **Transactions**, click **+ Add Transaction**, fill in the amount and description, and save.
-4. **Check your summary** — the **Summary** page shows your balance, spending, and budget status for the current month.
+1. **Register** — click "First time? Register" on the login page. Use the invite code from `INVITE_CODE` in your `.env` file.
+2. **Create your first account** — open **Accounts** and add an account such as "Cash", "BCA", or "GoPay". Set an initial balance if you have one.
+3. **Record a transaction** — open **Ledger**, click **+ Add Transaction**, fill in the amount and description, and save.
+4. **Check your summary** — open **Dashboard** to see balances, spending, and budget status.
 
 ---
 
@@ -64,15 +70,15 @@ Open **http://localhost:8090** in your browser.
 
 | What you want to do | Where to go |
 |---|---|
-| Record spending or income | Transactions → + Add Transaction |
-| Move money between accounts | Transactions → Switch Balance |
-| See this month's overview | Summary |
+| Record spending or income | Ledger → + Add Transaction |
+| Move money between accounts | Ledger → Transfer |
+| See this month's overview | Dashboard |
 | See spending by day / category | Analysis |
-| Browse all transactions | Transactions |
-| Manage accounts | Accounts (top nav) |
+| Browse all transactions | Ledger |
+| Manage accounts | Accounts |
 | Manage categories | Categories |
 | View monthly periods | Periods |
-| Export to CSV or PDF | Transactions → Export |
+| Export to CSV or PDF | Ledger → Export |
 
 ---
 
@@ -80,9 +86,9 @@ Open **http://localhost:8090** in your browser.
 
 The app groups your month from payday to payday, not calendar month. To set it:
 
-1. Go to **Summary**
-2. Click the month selector
-3. Set your payday day (e.g. 25 means your cycle runs from the 25th to the 24th of the next month)
+1. Open **Settings**
+2. Set your payday day
+3. Save the setting. A payday day of 25 means your cycle runs from the 25th to the 24th of the next month.
 
 ---
 
@@ -121,10 +127,27 @@ Edit `.env` to change these settings:
 | Variable | Default | What it does |
 |---|---|---|
 | `SESSION_SECRET` | *(required)* | Signs session cookies — keep this secret |
-| `INVITE_CODE` | `CASHFLOWTRACKER` | Code required to register a new account |
+| `INVITE_CODE` | *(required)* | Code required to register a new account |
 | `TZ` | `Asia/Jakarta` | Your timezone — affects how dates are displayed |
 | `COOKIE_SECURE` | `false` | Set to `true` when running behind HTTPS |
-| `POSTGRES_PASSWORD` | `ledgerpass` | Database password |
+| `APP_ORIGINS` | `http://localhost:8090` | Comma-separated browser origins allowed for cookie-auth writes |
+| `TRUSTED_PROXY_CIDRS` | Docker bridge + localhost | Proxy networks allowed to supply `X-Real-IP` / `X-Forwarded-For` |
+| `POSTGRES_PASSWORD` | *(required)* | Database password |
+| `RECEIPT_MAX_MB` | `10` | Maximum receipt upload size |
+| `RECEIPT_MAX_PIXELS` | `50000000` | Maximum decoded receipt image pixels |
+| `LEDGER_EXPORT_MAX_ROWS` | `5000` | Maximum rows allowed in one ledger export |
+
+## Production checklist
+
+Before exposing the app outside your machine:
+
+- Use HTTPS and set `COOKIE_SECURE=true`.
+- Set `APP_ORIGINS` to the exact public origin, for example `https://finance.example.com`.
+- Replace `SESSION_SECRET`, `POSTGRES_PASSWORD`, and `INVITE_CODE` with random values.
+- Keep the backend reachable only through nginx or another trusted reverse proxy.
+- Keep `TRUSTED_PROXY_CIDRS` limited to your reverse proxy network.
+- Run migrations before each app start after an update.
+- Keep regular database backups.
 
 ---
 
@@ -140,6 +163,45 @@ curl -sS -X POST "http://localhost:8090/api/v1/accounts/list" \
 ```
 
 Full API reference: see the FastAPI docs at `http://localhost:8090/api/docs` (available when the backend is running).
+
+---
+
+## Backup and restore
+
+Create a backup:
+
+```bash
+docker compose exec db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backup.sql
+```
+
+Restore into an empty database:
+
+```bash
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"' < backup.sql
+```
+
+---
+
+## Verification commands
+
+Frontend:
+
+```bash
+cd frontend
+npm run type-check
+npm run lint
+npm run build
+npm audit --omit=dev --audit-level=moderate
+```
+
+Backend:
+
+```bash
+python -m pip install -r backend/requirements-dev.txt
+python -m pytest backend/tests
+uvx pip-audit -r backend/requirements.txt
+docker compose config
+```
 
 ---
 

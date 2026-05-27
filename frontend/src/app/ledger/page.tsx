@@ -5,7 +5,6 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import { api, ApiError } from "@/lib/api";
 import { fmtMoney } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
-import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -77,7 +76,6 @@ function LedgerContent() {
   const [receiptBusy, setReceiptBusy] = useState(false);
 
   const categories = categoriesData?.categories ?? [];
-  const switchingCategory = categories.find((c) => c.name.toLowerCase() === "switching" && c.kind === "transfer");
 
   // Ledger data
   const {
@@ -87,7 +85,7 @@ function LedgerContent() {
     fetchNextPage,
     hasNextPage,
   } = useInfiniteQuery<LedgerResponse>({
-    queryKey: ["ledger", scope, accountId, search, perPage],
+    queryKey: ["ledger", scope, accountId, categoryFilter, typeFilter, search, perPage],
     initialPageParam: 0,
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({
@@ -99,6 +97,8 @@ function LedgerContent() {
         include_summary: pageParam === 0 ? "true" : "false",
       });
       if (accountId) params.set("account_id", accountId);
+      if (categoryFilter) params.set("category_id", categoryFilter);
+      if (typeFilter !== "all") params.set("kind", typeFilter);
       if (search) params.set("q", search);
       return api.get(`/ledger?${params.toString()}`);
     },
@@ -109,20 +109,7 @@ function LedgerContent() {
   const rows = ledgerPages.flatMap((pageData) => pageData.rows);
   const totalIn = rows.reduce((s, r) => s + r.debit, 0);
   const totalOut = rows.reduce((s, r) => s + r.credit, 0);
-  const filteredRows = rows.filter((r) => {
-    if (categoryFilter) {
-      if (r.is_transfer) {
-        if (r.category_id !== categoryFilter && switchingCategory?.category_id !== categoryFilter) return false;
-      } else if (r.category_id !== categoryFilter) {
-        return false;
-      }
-    }
-    if (typeFilter === "income") return r.debit > 0 && !r.is_transfer;
-    if (typeFilter === "expense") return r.credit > 0 && !r.is_transfer;
-    if (typeFilter === "transfer") return r.is_transfer;
-    if (typeFilter === "payroll") return r.is_cycle_topup;
-    return true;
-  });
+  const filteredRows = rows;
 
   const selectedTxId = selectedRow?.transaction_id;
   const { data: receiptData } = useQuery<any | null>({

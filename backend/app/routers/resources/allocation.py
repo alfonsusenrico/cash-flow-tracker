@@ -766,12 +766,14 @@ async def update_plan(plan_id: str, req: Request):
         )
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Plan not found or not in draft status")
-        # Recompute planned_amounts for percent items
-        cur.execute("SELECT item_id, mode, value FROM allocation_items WHERE plan_id=%s::uuid", (plan_id,))
-        for item in cur.fetchall():
-            if item["mode"] == "percent":
-                planned = _resolve_planned_amount("percent", float(item["value"]), expected_income)
-                cur.execute("UPDATE allocation_items SET planned_amount=%s WHERE item_id=%s::uuid", (planned, item["item_id"]))
+        cur.execute(
+            """
+            UPDATE allocation_items
+            SET planned_amount=ROUND(%s * value / 100.0)::bigint
+            WHERE plan_id=%s::uuid AND mode='percent'
+            """,
+            (expected_income, plan_id),
+        )
         conn.commit()
     return {"ok": True}
 
@@ -1197,6 +1199,7 @@ def run_due_auto_funding_once() -> int:
                     source_account_id=None,
                     trigger_type="automatic",
                 )
+                conn.commit()
                 processed += 1
             except HTTPException:
                 conn.rollback()
@@ -1204,7 +1207,6 @@ def run_due_auto_funding_once() -> int:
             except Exception:
                 conn.rollback()
                 continue
-        conn.commit()
     return processed
 
 
