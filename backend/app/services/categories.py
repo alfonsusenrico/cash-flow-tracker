@@ -10,6 +10,7 @@ DEFAULT_CATEGORIES: tuple[tuple[str, str, str], ...] = (
     ("Business Income", "income", "🏪"),
     ("Investment Income", "income", "📈"),
     ("Gift", "income", "🎁"),
+    ("Receivable Collection", "income", "↘"),
     ("Other Income", "income", "💰"),
     ("Food & Drink", "expense", "🍽️"),
     ("Groceries", "expense", "🛒"),
@@ -24,6 +25,7 @@ DEFAULT_CATEGORIES: tuple[tuple[str, str, str], ...] = (
     ("Shopping", "expense", "🛍️"),
     ("Giving", "expense", "🤲"),
     ("Debt Payment", "expense", "💳"),
+    ("Payable Payment", "expense", "↗"),
     ("Tax", "expense", "🏛️"),
     ("Other Expense", "expense", "📋"),
     ("Transfer", "transfer", "⇄"),
@@ -65,6 +67,26 @@ def ensure_switching_category(cur, username: str) -> str:
         RETURNING category_id::text
         """,
         (username,),
+    )
+    row = cur.fetchone()
+    return row["category_id"]
+
+
+def ensure_named_category(cur, username: str, *, name: str, kind: str, icon: str | None = None) -> str:
+    """Return a named category for a user, creating/restoring it if needed."""
+    cur.execute(
+        """
+        INSERT INTO categories (user_id, name, kind, icon, is_archived)
+        SELECT user_id, %s, %s, %s, false
+        FROM users
+        WHERE username=%s
+        ON CONFLICT (user_id, name)
+        DO UPDATE SET kind=EXCLUDED.kind,
+                      icon=COALESCE(categories.icon, EXCLUDED.icon),
+                      is_archived=false
+        RETURNING category_id::text
+        """,
+        (name, kind, icon, username),
     )
     row = cur.fetchone()
     return row["category_id"]

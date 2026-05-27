@@ -109,3 +109,57 @@ export interface LedgerResponse {
   rows: LedgerRow[];
   paging: { limit: number; offset: number; has_more: boolean; next_offset: number };
 }
+
+export interface Counterparty {
+  counterparty_id: string;
+  name: string;
+  type: "person" | "client" | "vendor" | "institution" | "other";
+  notes: string | null;
+}
+
+export interface Obligation {
+  obligation_id: string;
+  kind: "receivable" | "payable";
+  title: string;
+  description: string | null;
+  principal_amount: number;
+  outstanding_amount: number;
+  settled_amount: number;
+  currency: "IDR";
+  status: "open" | "partial" | "settled" | "cancelled" | "written_off";
+  issue_date: string;
+  due_date: string | null;
+  default_account_id: string | null;
+  default_account_name: string | null;
+  category_id: string | null;
+  category_name: string | null;
+  counterparty_id: string | null;
+  counterparty_name: string | null;
+  counterparty_type: Counterparty["type"] | null;
+  notes: string | null;
+  recurrence_frequency: "none" | "weekly" | "monthly" | "quarterly" | "yearly";
+  auto_post_enabled: boolean;
+  auto_post_day: number | null;
+}
+
+export interface ObligationSettlement {
+  settlement_id: string;
+  transaction_id: string | null;
+  account_id: string;
+  account_name: string;
+  amount: number;
+  settled_at: string;
+  notes: string | null;
+  reversed_at: string | null;
+  reversed_by: string | null;
+}
+
+export interface ObligationSummary {
+  receivable_outstanding: number;
+  payable_outstanding: number;
+  receivable_overdue: number;
+  payable_overdue: number;
+  due_soon: number;
+  open_count: number;
+  net_expected: number;
+}

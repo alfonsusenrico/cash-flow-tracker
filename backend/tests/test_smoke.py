@@ -106,6 +106,81 @@ def test_accounts_budgets_and_payday(auth_client: TestClient):
     assert_ok(auth_client.delete(f"/accounts/{account_id}"))
 
 
+def test_payables_and_receivables(auth_client: TestClient):
+    account_id = create_account(auth_client, unique("obligation-account"), 1_000_000)
+    today = datetime.now(timezone.utc).date().isoformat()
+
+    receivable = assert_ok(
+        auth_client.post(
+            "/obligations",
+            json={
+                "kind": "receivable",
+                "title": unique("freelance-invoice"),
+                "counterparty_name": "Smoke Client",
+                "counterparty_type": "client",
+                "principal_amount": 500_000,
+                "issue_date": today,
+                "due_date": today,
+                "default_account_id": account_id,
+            },
+        )
+    )
+    payable = assert_ok(
+        auth_client.post(
+            "/obligations",
+            json={
+                "kind": "payable",
+                "title": unique("vendor-bill"),
+                "counterparty_name": "Smoke Vendor",
+                "counterparty_type": "vendor",
+                "principal_amount": 300_000,
+                "issue_date": today,
+                "due_date": today,
+                "default_account_id": account_id,
+            },
+        )
+    )
+
+    listed = assert_ok(auth_client.get("/obligations", params={"status": "open,partial"}))["obligations"]
+    assert {receivable["obligation_id"], payable["obligation_id"]}.issubset({row["obligation_id"] for row in listed})
+
+    received = assert_ok(
+        auth_client.post(
+            f"/obligations/{receivable['obligation_id']}/settlements",
+            json={"amount": 200_000, "account_id": account_id, "settled_at": today, "notes": "partial collection"},
+        )
+    )
+    received_detail = assert_ok(auth_client.get(f"/obligations/{receivable['obligation_id']}"))
+    assert received_detail["obligation"]["outstanding_amount"] == 300_000
+    assert received_detail["obligation"]["status"] == "partial"
+    assert received["transaction_id"]
+
+    assert_ok(
+        auth_client.post(
+            f"/obligations/{payable['obligation_id']}/settlements",
+            json={"amount": 300_000, "account_id": account_id, "settled_at": today},
+        )
+    )
+    paid_detail = assert_ok(auth_client.get(f"/obligations/{payable['obligation_id']}"))
+    assert paid_detail["obligation"]["outstanding_amount"] == 0
+    assert paid_detail["obligation"]["status"] == "settled"
+
+    accounts = assert_ok(auth_client.get("/accounts"))["accounts"]
+    assert next(a for a in accounts if a["account_id"] == account_id)["balance"] == 900_000
+
+    summary = assert_ok(auth_client.get("/obligations/summary"))
+    assert summary["receivable_outstanding"] == 300_000
+    assert summary["payable_outstanding"] == 0
+    dashboard = assert_ok(auth_client.get("/dashboard"))
+    assert dashboard["obligations"]["receivable_outstanding"] >= 300_000
+
+    settlement_id = received_detail["settlements"][0]["settlement_id"]
+    assert_ok(auth_client.delete(f"/obligations/{receivable['obligation_id']}/settlements/{settlement_id}"))
+    reversed_detail = assert_ok(auth_client.get(f"/obligations/{receivable['obligation_id']}"))
+    assert reversed_detail["obligation"]["outstanding_amount"] == 500_000
+    assert reversed_detail["obligation"]["status"] == "open"
+
+
 def test_transactions_receipts_switches_loans_and_reports(auth_client: TestClient):
     source_id = create_account(auth_client, unique("source"), 500_000)
     target_id = create_account(auth_client, unique("target"), 0)

@@ -7,6 +7,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/dashboard": "Summary",
   "/ledger": "Transactions",
   "/accounts": "Accounts",
+  "/obligations": "Payables & Receivables",
   "/buckets": "Buckets",
   "/allocation": "Allocation Plans",
   "/analysis": "Analysis",

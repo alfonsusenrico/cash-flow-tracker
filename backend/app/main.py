@@ -16,6 +16,7 @@ from app.routers.resources.strategy import router as strategy_router
 from app.routers.resources.goals import router as goals_router
 from app.routers.resources.assets import router as assets_router
 from app.routers.resources.dashboard import router as dashboard_router
+from app.routers.resources.obligations import router as obligations_router
 from app.services.auth import (
     get_api_user_by_token,
     parse_bearer_token,
@@ -26,7 +27,7 @@ from app.services.auth import (
 # Prefixes for all resource routers (mounted at both cookie and Bearer paths)
 _RESOURCE_PREFIXES = [
     "/categories", "/periods", "/buckets", "/allocation-plans", "/strategy-rules",
-    "/goals", "/assets", "/dashboard",
+    "/goals", "/assets", "/dashboard", "/obligations",
 ]
 
 
@@ -54,6 +55,7 @@ for _router, _prefix in [
     (goals_router, "/goals"),
     (assets_router, "/assets"),
     (dashboard_router, "/dashboard"),
+    (obligations_router, "/obligations"),
 ]:
     app.include_router(_router, prefix=_prefix)
     app.include_router(_router, prefix=f"/v1{_prefix}")

@@ -162,6 +162,34 @@ def get_dashboard(req: Request):
             )
             allocation_items = cur.fetchall()
 
+        # ── External payables/receivables ────────────────────────────────
+        cur.execute(
+            """
+            SELECT
+              COALESCE(SUM(outstanding_amount) FILTER (WHERE kind='receivable' AND status IN ('open','partial')), 0) AS receivable_outstanding,
+              COALESCE(SUM(outstanding_amount) FILTER (WHERE kind='payable' AND status IN ('open','partial')), 0) AS payable_outstanding,
+              COALESCE(SUM(outstanding_amount) FILTER (WHERE kind='receivable' AND status IN ('open','partial') AND due_date < CURRENT_DATE), 0) AS receivable_overdue,
+              COALESCE(SUM(outstanding_amount) FILTER (WHERE kind='payable' AND status IN ('open','partial') AND due_date < CURRENT_DATE), 0) AS payable_overdue,
+              COALESCE(SUM(outstanding_amount) FILTER (WHERE kind='payable' AND status IN ('open','partial') AND due_date IS NOT NULL AND due_date <= %s::date), 0) AS payable_due_this_cycle,
+              COALESCE(SUM(outstanding_amount) FILTER (WHERE status IN ('open','partial') AND due_date >= CURRENT_DATE AND due_date <= CURRENT_DATE + INTERVAL '30 days'), 0) AS due_soon,
+              COUNT(*) FILTER (WHERE status IN ('open','partial')) AS open_count
+            FROM obligations
+            WHERE user_id=(SELECT user_id FROM users WHERE username=%s)
+            """,
+            (to_date, username),
+        )
+        obligation_row = cur.fetchone() or {}
+        obligations = {
+            "receivable_outstanding": int(obligation_row.get("receivable_outstanding") or 0),
+            "payable_outstanding": int(obligation_row.get("payable_outstanding") or 0),
+            "receivable_overdue": int(obligation_row.get("receivable_overdue") or 0),
+            "payable_overdue": int(obligation_row.get("payable_overdue") or 0),
+            "payable_due_this_cycle": int(obligation_row.get("payable_due_this_cycle") or 0),
+            "due_soon": int(obligation_row.get("due_soon") or 0),
+            "open_count": int(obligation_row.get("open_count") or 0),
+        }
+        obligations["net_expected"] = obligations["receivable_outstanding"] - obligations["payable_outstanding"]
+
         planned_spend = 0
         planned_savings = 0
         planned_investment = 0
@@ -239,7 +267,9 @@ def get_dashboard(req: Request):
     monthly_income = expected_income if expected_income > 0 else total_in
     available_monthly = max(0, monthly_income - total_out)
     remaining_spend_budget = max(0, planned_spend - total_out)
+    payable_due_this_cycle = obligations["payable_due_this_cycle"]
     safe_value = min(spendable_balance, remaining_spend_budget) if plan_row else max(0, liquid_total - committed)
+    safe_value = max(0, safe_value - payable_due_this_cycle)
     safe_metric = safe_to_spend(safe_value, 0, 0)
     if monthly_income > 0:
         safe_metric["pct"] = round(safe_value / monthly_income * 100, 1)
@@ -254,6 +284,7 @@ def get_dashboard(req: Request):
                 "actual_spending": total_out,
                 "remaining_spend_budget": remaining_spend_budget,
                 "committed_allocations": committed,
+                "payables_due_this_cycle": payable_due_this_cycle,
             },
         ),
         "emergency_fund": _with_source(
@@ -333,4 +364,5 @@ def get_dashboard(req: Request):
         "metrics": metrics,
         "goals": goal_metrics,
         "warnings": warnings,
+        "obligations": obligations,
     }

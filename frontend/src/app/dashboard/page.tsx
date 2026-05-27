@@ -26,6 +26,16 @@ interface DashboardData {
     cash_runway: { value: number; months: number | null; days: number | null; status: string; label: string };
     monthly_drift: { value: number; pct: number | null; status: string; label: string } | null;
   };
+  obligations: {
+    receivable_outstanding: number;
+    payable_outstanding: number;
+    receivable_overdue: number;
+    payable_overdue: number;
+    payable_due_this_cycle: number;
+    due_soon: number;
+    open_count: number;
+    net_expected: number;
+  };
   goals: { goal: string; required: number | null; available: number; feasible: boolean; status: string; progress_pct: number; eta_months: number | null }[];
   warnings: { key: string; label: string; severity: string }[];
 }
@@ -151,6 +161,37 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      {/* Row 1b: Payables and receivables */}
+      {dash?.obligations && dash.obligations.open_count > 0 && (
+        <div className="grid grid-cols-4 gap-3">
+          <Card padding="sm">
+            <p className="text-xs text-[var(--muted)]">Receivable</p>
+            <p className="text-lg font-bold tabular text-primary">{bal(dash.obligations.receivable_outstanding)}</p>
+            <p className="text-xs text-[var(--muted)]">Expected money in, not counted as cash yet</p>
+          </Card>
+          <Card padding="sm">
+            <p className="text-xs text-[var(--muted)]">Payable</p>
+            <p className="text-lg font-bold tabular text-danger">{bal(dash.obligations.payable_outstanding)}</p>
+            <p className="text-xs text-[var(--muted)]">{bal(dash.obligations.payable_due_this_cycle)} due this pay cycle</p>
+          </Card>
+          <Card padding="sm">
+            <p className="text-xs text-[var(--muted)]">Overdue</p>
+            <p className="text-lg font-bold tabular text-warning">{bal(dash.obligations.receivable_overdue + dash.obligations.payable_overdue)}</p>
+            <p className="text-xs text-[var(--muted)]">Receivable and payable past due</p>
+          </Card>
+          <Card padding="sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-[var(--muted)]">Net Expected</p>
+                <p className={`text-lg font-bold tabular ${dash.obligations.net_expected >= 0 ? "text-primary" : "text-danger"}`}>{bal(dash.obligations.net_expected)}</p>
+              </div>
+              <Link href="/obligations" prefetch={false} className="text-xs text-primary hover:underline">Manage</Link>
+            </div>
+            <p className="text-xs text-[var(--muted)]">{dash.obligations.open_count} open item{dash.obligations.open_count === 1 ? "" : "s"}</p>
+          </Card>
+        </div>
+      )}
 
       {/* Row 2: Metric cards */}
       <div className="grid grid-cols-6 gap-3">
