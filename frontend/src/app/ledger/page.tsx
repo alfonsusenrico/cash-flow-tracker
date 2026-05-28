@@ -13,6 +13,17 @@ import { MoneyInput } from "@/components/ui/MoneyInput";
 import { FilterBar } from "@/components/ui/FilterBar";
 import type { LedgerRow, LedgerResponse, Category } from "@/types/domain";
 
+const FINANCIAL_QUERY_KEYS = [
+  ["ledger"],
+  ["summary"],
+  ["accounts"],
+  ["dashboard"],
+  ["buckets"],
+  ["goals"],
+  ["allocation-plans"],
+  ["net-worth"],
+] as const;
+
 // Fallback icon map keyed by category kind or well-known names
 const KIND_ICONS: Record<string, string> = {
   income: "💵", expense: "🛍️", transfer: "⇄", adjustment: "⚙️",
@@ -47,6 +58,8 @@ function LedgerContent() {
   const qc = useQueryClient();
   const searchParams = useSearchParams();
   const bal = (n: number) => hideBalances ? "Rp ••••" : fmtMoney(n);
+  const invalidateFinancialQueries = () =>
+    Promise.all(FINANCIAL_QUERY_KEYS.map((queryKey) => qc.invalidateQueries({ queryKey })));
 
   const { data: categoriesData } = useQuery<{ categories: Category[] }>({
     queryKey: ["categories"],
@@ -184,8 +197,7 @@ function LedgerContent() {
     try {
       await api.del(`/transactions/${selectedRow.transaction_id}`);
       setSelectedRow(null);
-      await qc.invalidateQueries({ queryKey: ["ledger"] });
-      await qc.invalidateQueries({ queryKey: ["summary"] });
+      await invalidateFinancialQueries();
     } catch (e: any) {
       setDeleteErr(e.message);
     } finally {
@@ -201,11 +213,7 @@ function LedgerContent() {
     try {
       await api.del(`/account-movements/${selectedRow.transfer_id}`);
       setSelectedRow(null);
-      await qc.invalidateQueries({ queryKey: ["ledger"] });
-      await qc.invalidateQueries({ queryKey: ["summary"] });
-      await qc.invalidateQueries({ queryKey: ["accounts"] });
-      await qc.invalidateQueries({ queryKey: ["dashboard"] });
-      await qc.invalidateQueries({ queryKey: ["buckets"] });
+      await invalidateFinancialQueries();
     } catch (e: any) {
       setDeleteErr(e.message);
     } finally {
@@ -565,12 +573,8 @@ function LedgerContent() {
           accounts={accounts}
           categories={categories}
           editing={editingRow}
-          onSaved={() => {
-            qc.invalidateQueries({ queryKey: ["ledger"] });
-            qc.invalidateQueries({ queryKey: ["summary"] });
-            qc.invalidateQueries({ queryKey: ["accounts"] });
-            qc.invalidateQueries({ queryKey: ["dashboard"] });
-            qc.invalidateQueries({ queryKey: ["buckets"] });
+          onSaved={async () => {
+            await invalidateFinancialQueries();
             setTxModal(false);
             setEditingRow(null);
           }}
@@ -585,11 +589,7 @@ function LedgerContent() {
           accounts={accounts}
           editing={editingMovement}
           onSaved={async () => {
-            await qc.invalidateQueries({ queryKey: ["ledger"] });
-            await qc.invalidateQueries({ queryKey: ["summary"] });
-            await qc.invalidateQueries({ queryKey: ["accounts"] });
-            await qc.invalidateQueries({ queryKey: ["dashboard"] });
-            await qc.invalidateQueries({ queryKey: ["buckets"] });
+            await invalidateFinancialQueries();
             if (editingMovement?.transfer_id) {
               await qc.invalidateQueries({ queryKey: ["account-movement", editingMovement.transfer_id] });
             }
@@ -627,7 +627,7 @@ function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any)
       const payload = { account_id: accountId, transaction_type: type, transaction_name: name, amount, date, is_cycle_topup: isTopup, category_id: categoryId || null, notes: notes || null, tags, is_reviewed: true };
       if (editing) await api.put(`/transactions/${editing.transaction_id}`, payload);
       else await api.post("/transactions", payload);
-      onSaved();
+      await onSaved();
     } catch (e: any) { setErr(e.message); }
     finally { setLoading(false); }
   }
@@ -635,7 +635,7 @@ function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any)
   async function handleDelete() {
     if (!editing || !confirm("Delete this transaction?")) return;
     setLoading(true);
-    try { await api.del(`/transactions/${editing.transaction_id}`); onSaved(); }
+    try { await api.del(`/transactions/${editing.transaction_id}`); await onSaved(); }
     catch (e: any) { setErr(e.message); setLoading(false); }
   }
 

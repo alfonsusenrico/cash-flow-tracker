@@ -49,9 +49,11 @@ export default function AccountsPage() {
   const inv = () => {
     qc.invalidateQueries({ queryKey: ["accounts"] });
     qc.invalidateQueries({ queryKey: ["summary"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
     qc.invalidateQueries({ queryKey: ["buckets"] });
     qc.invalidateQueries({ queryKey: ["goals"] });
     qc.invalidateQueries({ queryKey: ["allocation-plans"] });
+    qc.invalidateQueries({ queryKey: ["net-worth"] });
   };
 
   const saveMut = useMutation({
