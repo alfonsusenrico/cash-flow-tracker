@@ -70,7 +70,7 @@ export default function NetWorthPage() {
       </div>
 
       {/* Top row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Current Net Worth */}
         <Card green padding="md">
           <div className="flex items-center justify-between mb-2">
@@ -107,7 +107,7 @@ export default function NetWorthPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* History chart */}
         <div className="col-span-2">
           <Card padding="md">

@@ -180,7 +180,7 @@ export default function BucketsPage() {
       </div>
 
       {/* Bucket cards grid */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {buckets.length === 0 && <p className="col-span-3 text-center text-[var(--muted)] py-8">No buckets yet. Create one to get started.</p>}
         {buckets.map((b) => {
           const pBadge = getPriorityBadge(b.priority);

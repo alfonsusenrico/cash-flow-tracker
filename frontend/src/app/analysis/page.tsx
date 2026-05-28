@@ -75,7 +75,7 @@ export default function AnalysisPage() {
       {data && (
         <>
           {/* Top 3 stat cards */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               { label: "Total Income", value: data.totals.total_in, color: "text-primary", sparkColor: "#16a34a" },
               { label: "Total Expenses", value: data.totals.total_out, color: "text-danger", sparkColor: "#dc2626" },
@@ -92,7 +92,7 @@ export default function AnalysisPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Daily calendar grid */}
             <div className="col-span-2">
               <Card>

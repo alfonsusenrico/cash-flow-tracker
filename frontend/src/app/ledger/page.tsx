@@ -435,7 +435,7 @@ function LedgerContent() {
 
       {/* Right detail panel */}
       {selectedRow && !txModal && (
-        <div className="w-80 border-l border-[var(--border)] bg-[var(--surface)] flex flex-col">
+        <div className="hidden lg:flex w-80 border-l border-[var(--border)] bg-[var(--surface)] flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
             <h3 className="font-semibold text-sm">Transaction Details</h3>
             <button onClick={() => setSelectedRow(null)} className="text-[var(--muted)] hover:text-[var(--text)]">✕</button>

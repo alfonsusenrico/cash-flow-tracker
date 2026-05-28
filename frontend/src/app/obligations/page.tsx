@@ -169,7 +169,7 @@ export default function ObligationsPage() {
 
   return (
     <div className="workbench-page space-y-4">
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card padding="sm">
           <p className="text-xs text-[var(--muted)]">Receivable</p>
           <p className="text-lg font-bold tabular text-primary">{fmtMoney(activeSummary.receivable_outstanding)}</p>

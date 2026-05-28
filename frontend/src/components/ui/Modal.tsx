@@ -30,7 +30,7 @@ export function Modal({ open, onClose, title, children, wide }: ModalProps) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/50 p-3 py-6 backdrop-blur-[2px] sm:items-center sm:p-6 sm:py-10"
+      className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/50 p-0 md:p-3 md:py-6 backdrop-blur-[2px] md:items-center"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
@@ -39,8 +39,9 @@ export function Modal({ open, onClose, title, children, wide }: ModalProps) {
         aria-modal="true"
         aria-labelledby="modal-title"
         className={cn(
-          "w-full max-h-[calc(100dvh-48px)] overflow-y-auto rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-md)]",
-          wide ? "max-w-2xl" : "max-w-md"
+          "w-full overflow-y-auto border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-md)]",
+          "min-h-[100dvh] rounded-none md:min-h-0 md:rounded-[var(--radius-md)] md:max-h-[calc(100dvh-48px)]",
+          wide ? "md:max-w-2xl" : "md:max-w-md"
         )}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { BottomNav } from "@/components/layout/BottomNav";
 import { api, ApiError } from "@/lib/api";
 import type { Account, SummaryResponse } from "@/types/domain";
 
@@ -94,10 +95,11 @@ export default function AppLayout({ children, title = "Financial Manager", showD
         <Sidebar />
         <div className="app-main flex flex-col">
           <TopBar title={title} showDateRange={showDateRange} />
-          <main className="app-content flex-1 overflow-auto">
+          <main className="app-content flex-1 overflow-auto pb-16 md:pb-0">
             {children}
           </main>
         </div>
+        <BottomNav />
       </div>
     </AppContext.Provider>
   );

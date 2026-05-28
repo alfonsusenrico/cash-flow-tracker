@@ -105,12 +105,12 @@ export default function GoalsPage() {
 
   return (
     <div className="workbench-page space-y-4">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Goals at a glance */}
         <div className="col-span-2">
           <Card padding="sm">
             <SectionTitle>Your Goals at a Glance</SectionTitle>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 { icon: "🏠", value: goals.length, label: "Total Goals" },
                 { icon: "✓", value: `${onTrack}`, sub: `${overallPct}%`, label: "On Track", color: "text-primary" },
@@ -144,7 +144,7 @@ export default function GoalsPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Goals list */}
         <div className="col-span-2 space-y-3">
           <div className="flex items-center justify-between">

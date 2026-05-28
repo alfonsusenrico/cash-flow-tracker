@@ -118,7 +118,7 @@ export default function AccountsPage() {
     <div className="flex h-[calc(100vh-var(--topbar-height))] min-w-0">
       <div className="flex-1 workbench-page overflow-auto">
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-3 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           {[
             { label: "Total Accounts", value: allAccounts.length, sub: "Across institutions", icon: "🏦" },
             { label: "Total Balance", value: null, money: totalBalance, sub: "All accounts", icon: "💰" },
