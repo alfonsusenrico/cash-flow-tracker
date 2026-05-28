@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { fmtMoney } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Card, SectionTitle } from "@/components/ui/Card";
+import { Modal } from "@/components/ui/Modal";
 import { DonutChart } from "@/components/ui/DonutChart";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Sparkline } from "@/components/ui/Sparkline";
@@ -227,17 +228,12 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {safeBreakdownOpen && safeBreakdown && (
-        <Card padding="sm">
-          <div className="flex items-start justify-between gap-4 mb-3">
-            <div>
-              <SectionTitle>Safe to Spend Breakdown</SectionTitle>
-              <p className="text-xs text-[var(--muted)]">
-                min(spendable balance, remaining plan) - payables due = {bal(safeBreakdown.final_safe_to_spend)}
-              </p>
-            </div>
-            <button type="button" onClick={() => setSafeBreakdownOpen(false)} className="text-xs text-[var(--muted)] hover:text-[var(--text)]">Close</button>
-          </div>
+      <Modal open={safeBreakdownOpen && !!safeBreakdown} onClose={() => setSafeBreakdownOpen(false)} title="Safe to Spend Breakdown" wide>
+        {safeBreakdown && (
+          <>
+          <p className="text-xs text-[var(--muted)] mb-4">
+            min(spendable balance, remaining plan) - payables due = {bal(safeBreakdown.final_safe_to_spend)}
+          </p>
 
           <div className="grid grid-cols-1 gap-3 mb-4 md:grid-cols-2 xl:grid-cols-4">
             {[
@@ -310,8 +306,9 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-        </Card>
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* Row 1b: Payables and receivables */}
       {dash?.obligations && dash.obligations.open_count > 0 && (
