@@ -3,7 +3,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
-import { fmtMoney } from "@/lib/utils";
+import { fmtMoney, cn } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -333,8 +333,8 @@ function LedgerContent() {
           ))}
         </div>
 
-        {/* Table */}
-        <div className="flex-1 overflow-auto">
+        {/* Table — desktop */}
+        <div className="flex-1 overflow-auto hidden md:block">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-[var(--surface)] border-b border-[var(--border)]">
               <tr className="text-[var(--muted)]">
@@ -424,6 +424,43 @@ function LedgerContent() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile card list — replaces table on small screens */}
+        <div className="flex-1 overflow-auto md:hidden px-3 py-2 space-y-2">
+          {isLoading && <p className="text-center py-8 text-[var(--muted)] text-sm">Loading…</p>}
+          {filteredRows.length === 0 && !isLoading && (
+            <p className="text-center py-8 text-[var(--muted)] text-sm">No transactions found.</p>
+          )}
+          {filteredRows.map((row) => (
+            <div
+              key={row.transaction_id}
+              onClick={() => { if (!row.is_transfer) { setEditingRow(row); setSelectedRow(row); } }}
+              className={cn(
+                "bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 active:bg-[var(--bg)] transition-colors",
+                row.is_transfer && "opacity-60"
+              )}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  {row.is_cycle_topup && <span className="text-yellow-500 text-xs">★</span>}
+                  {row.is_transfer && <span className="text-[var(--muted)] text-xs">⇄</span>}
+                  <span className="text-sm font-medium truncate">{row.transaction_name}</span>
+                </div>
+                <span className={cn("text-sm font-bold tabular whitespace-nowrap ml-2", row.debit > 0 ? "text-green-500" : "text-red-500")}>
+                  {row.debit > 0 ? `+${bal(row.debit)}` : `-${bal(row.credit)}`}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-[var(--muted)]">
+                <div className="flex items-center gap-2">
+                  <span>{new Date(row.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}</span>
+                  <span>·</span>
+                  <span className="truncate max-w-[100px]">{row.account_name}</span>
+                </div>
+                <span className="tabular">{bal(row.balance)}</span>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Result count */}

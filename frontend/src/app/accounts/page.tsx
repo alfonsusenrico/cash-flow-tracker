@@ -150,7 +150,7 @@ export default function AccountsPage() {
             </div>
             <Button size="sm" variant="primary" onClick={openCreate}>+ Add Account</Button>
           </div>
-          <table className="w-full table-fixed text-xs">
+          <table className="w-full table-fixed text-xs hidden md:table">
             <colgroup>
               <col className="w-[23%]" />
               <col className="w-[14%]" />
@@ -220,6 +220,28 @@ export default function AccountsPage() {
               </tr>
             </tbody>
           </table>
+
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-2">
+            {accounts.map((acc) => {
+              const currentBal = summaryData?.accounts?.find((sa: any) => sa.account_id === acc.account_id)?.current_balance ?? 0;
+              return (
+                <div key={acc.account_id} onClick={() => setSelected(acc)}
+                  className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 active:bg-[var(--bg)] transition-colors">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-sm">{acc.account_name}</span>
+                    <span className="text-sm font-bold tabular">{bal(currentBal)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                    <span className="capitalize">{acc.profile_type.replace("_", " ")}</span>
+                    {acc.is_payroll_source && <span className="text-green-500">Payroll</span>}
+                    {acc.is_buffer && <span className="text-blue-400">Buffer</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           <p className="text-xs text-[var(--muted)] mt-3">Showing 1 to {accounts.length} of {accounts.length} accounts</p>
         </Card>
       </div>

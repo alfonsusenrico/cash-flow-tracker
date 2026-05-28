@@ -81,11 +81,13 @@ export default function AnalysisPage() {
               { label: "Total Expenses", value: data.totals.total_out, color: "text-danger", sparkColor: "#dc2626" },
               { label: "Net (Income - Expenses)", value: data.totals.net, color: data.totals.net >= 0 ? "text-info" : "text-danger", sparkColor: "#3b82f6" },
             ].map((item) => (
-              <Card key={item.label}>
-                <p className="text-xs text-[var(--muted)] mb-1">{item.label} <span className="text-[var(--muted)] text-xs">ⓘ</span></p>
-                <div className="flex items-end justify-between">
-                  <p className={`text-2xl font-bold tabular ${item.color}`}>{bal(item.value)}</p>
-                  <Sparkline data={netHistory.slice(-15)} width={80} height={32} color={item.sparkColor} />
+              <Card key={item.label} className="min-w-0 overflow-hidden">
+                <p className="text-xs text-[var(--muted)] mb-1 truncate">{item.label}</p>
+                <div className="flex items-end justify-between gap-2">
+                  <p className={`text-lg md:text-2xl font-bold tabular truncate ${item.color}`}>{bal(item.value)}</p>
+                  <div className="hidden sm:block shrink-0">
+                    <Sparkline data={netHistory.slice(-15)} width={60} height={28} color={item.sparkColor} />
+                  </div>
                 </div>
                 <p className="text-xs text-[var(--muted)] mt-1">vs last cycle</p>
               </Card>
@@ -97,7 +99,7 @@ export default function AnalysisPage() {
             <div className="col-span-2">
               <Card>
                 <div className="flex items-center justify-between mb-3">
-                  <SectionTitle>Daily Net (Income - Expenses) <span className="text-[var(--muted)] text-xs font-normal">ⓘ</span></SectionTitle>
+                  <SectionTitle>Daily Net <span className="hidden sm:inline">(Income - Expenses)</span> <span className="text-[var(--muted)] text-xs font-normal">ⓘ</span></SectionTitle>
                   <select className="text-xs border border-[var(--border)] rounded px-2 py-1 bg-[var(--surface)]">
                     <option>Net (Rp)</option>
                   </select>
