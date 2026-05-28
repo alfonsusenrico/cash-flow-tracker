@@ -270,6 +270,10 @@ def build_ledger_page(
                 LEFT JOIN categories c ON c.category_id=t.category_id
                 WHERE a.username=%s AND t.deleted_at IS NULL AND t.date >= %s AND t.date <= %s
             ),
+            allocation_transfer AS (
+                SELECT DISTINCT unnest(transfer_ids)::text AS transfer_id
+                FROM allocation_funding_runs
+            ),
             non_transfer AS (
                 SELECT transaction_id AS event_id, account_id, account_name, transaction_name, amount, date,
                        false AS is_transfer, false AS is_cycle_topup, NULL::text AS transfer_id,
@@ -280,24 +284,23 @@ def build_ledger_page(
                 FROM tx WHERE transfer_id IS NULL
             ),
             transfer_group AS (
-                SELECT 'movement:' || transfer_id AS event_id, NULL::text AS account_id, ''::text AS account_name,
+                SELECT 'movement:' || tx.transfer_id AS event_id, NULL::text AS account_id, ''::text AS account_name,
                        CONCAT(
-                           CASE WHEN EXISTS (
-                               SELECT 1
-                               FROM allocation_funding_runs afr
-                               WHERE transfer_id = ANY(afr.transfer_ids)
-                           ) THEN 'Allocation Funding: ' ELSE 'Move: ' END,
-                           COALESCE(MAX(CASE WHEN transaction_type='credit' THEN account_name END), 'Unknown'),
+                           CASE WHEN BOOL_OR(allocation_transfer.transfer_id IS NOT NULL) THEN 'Allocation Funding: ' ELSE 'Move: ' END,
+                           COALESCE(MAX(CASE WHEN tx.transaction_type='credit' THEN tx.account_name END), 'Unknown'),
                            ' → ',
-                           COALESCE(MAX(CASE WHEN transaction_type='debit' THEN account_name END), 'Unknown')
+                           COALESCE(MAX(CASE WHEN tx.transaction_type='debit' THEN tx.account_name END), 'Unknown')
                        ) AS transaction_name,
-                       COALESCE(MAX(CASE WHEN transaction_type='debit' THEN amount ELSE 0 END), 0) AS amount,
-                       MAX(date) AS date, true AS is_transfer, BOOL_OR(is_cycle_topup) AS is_cycle_topup, transfer_id,
-                       MAX(category_id) AS category_id, MAX(category_name) AS category_name, NULL::text AS notes, '{{}}'::text[] AS tags, true AS is_reviewed,
+                       COALESCE(MAX(CASE WHEN tx.transaction_type='debit' THEN tx.amount ELSE 0 END), 0) AS amount,
+                       MAX(tx.date) AS date, true AS is_transfer, BOOL_OR(tx.is_cycle_topup) AS is_cycle_topup, tx.transfer_id,
+                       MAX(tx.category_id) AS category_id, MAX(tx.category_name) AS category_name, NULL::text AS notes, '{{}}'::text[] AS tags, true AS is_reviewed,
                        0::bigint AS signed_delta,
-                       COALESCE(MAX(CASE WHEN transaction_type='debit' THEN amount ELSE 0 END), 0) AS debit,
-                       COALESCE(MAX(CASE WHEN transaction_type='credit' THEN amount ELSE 0 END), 0) AS credit
-                FROM tx WHERE transfer_id IS NOT NULL GROUP BY transfer_id
+                       COALESCE(MAX(CASE WHEN tx.transaction_type='debit' THEN tx.amount ELSE 0 END), 0) AS debit,
+                       COALESCE(MAX(CASE WHEN tx.transaction_type='credit' THEN tx.amount ELSE 0 END), 0) AS credit
+                FROM tx
+                LEFT JOIN allocation_transfer ON allocation_transfer.transfer_id = tx.transfer_id
+                WHERE tx.transfer_id IS NOT NULL
+                GROUP BY tx.transfer_id
             ),
             events AS (SELECT * FROM non_transfer UNION ALL SELECT * FROM transfer_group),
             events_running AS (
