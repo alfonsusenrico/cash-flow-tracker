@@ -59,7 +59,7 @@ export default function AssetsPage() {
   const allocEntries = Object.entries(byClass).sort((a, b) => b[1] - a[1]);
 
   return (
-    <div className="p-5 space-y-4">
+    <div className="workbench-page space-y-4">
       {/* Header buttons */}
       <div className="flex items-center gap-2 justify-end -mt-1">
         <Button variant="primary" disabled title="Use the + button on a specific asset row to add a holding">+ Holding</Button>

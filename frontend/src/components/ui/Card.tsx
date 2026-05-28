@@ -12,7 +12,7 @@ export function Card({ children, className, green, padding = "md", ...props }: C
     <div
       {...props}
       className={cn(
-        "rounded-xl border",
+        "rounded-[var(--radius-md)] border shadow-[var(--shadow-sm)]",
         green ? "card-green border-transparent" : "bg-[var(--surface)] border-[var(--border)]",
         padCls,
         className
@@ -32,7 +32,7 @@ interface SectionTitleProps {
 export function SectionTitle({ children, action, className }: SectionTitleProps) {
   return (
     <div className={cn("flex items-center justify-between mb-3", className)}>
-      <h2 className="text-sm font-semibold text-[var(--text)]">{children}</h2>
+      <h2 className="text-sm font-semibold tracking-[-0.01em] text-[var(--text)]">{children}</h2>
       {action && <div>{action}</div>}
     </div>
   );

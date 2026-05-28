@@ -90,11 +90,11 @@ export default function AppLayout({ children, title = "Financial Manager", showD
       summaryRange,
       user: userData ?? null,
     }}>
-      <div className="flex min-h-screen">
+      <div className="app-shell">
         <Sidebar />
-        <div className="flex-1 flex flex-col" style={{ marginLeft: "200px" }}>
+        <div className="app-main flex flex-col">
           <TopBar title={title} showDateRange={showDateRange} />
-          <main className="flex-1 pt-14 overflow-auto">
+          <main className="app-content flex-1 overflow-auto">
             {children}
           </main>
         </div>

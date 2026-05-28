@@ -42,7 +42,7 @@ export default function NetWorthPage() {
     }
   }, [snapshotMut]);
 
-  if (isLoading) return <div className="p-6 text-[var(--muted)]">Loading…</div>;
+  if (isLoading) return <div className="workbench-page text-[var(--muted)]">Loading…</div>;
   if (!data) return null;
 
   const allHistory = [...(data.history ?? [])].reverse();
@@ -62,7 +62,7 @@ export default function NetWorthPage() {
   const changePct = prevNW > 0 ? ((change / prevNW) * 100).toFixed(2) : "0.00";
 
   return (
-    <div className="p-5 space-y-4">
+    <div className="workbench-page space-y-4">
       <div className="flex justify-end">
         <Button variant="primary" onClick={() => snapshotMut.mutate()} disabled={snapshotMut.isPending}>
           📌 {snapshotMut.isPending ? "Recording…" : "Record Today"}

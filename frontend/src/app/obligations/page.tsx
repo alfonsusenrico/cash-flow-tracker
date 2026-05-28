@@ -168,7 +168,7 @@ export default function ObligationsPage() {
   });
 
   return (
-    <div className="p-5 space-y-4">
+    <div className="workbench-page space-y-4">
       <div className="grid grid-cols-5 gap-3">
         <Card padding="sm">
           <p className="text-xs text-[var(--muted)]">Receivable</p>

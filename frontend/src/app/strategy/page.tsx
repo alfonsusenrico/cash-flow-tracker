@@ -115,7 +115,7 @@ export default function StrategyPage() {
   }, [latestContextPlan, syncedPlanId]);
 
   return (
-    <div className="p-5">
+    <div className="workbench-page">
       <p className="text-xs text-[var(--muted)] mb-4">Set reusable rules, preview them against income, then create an allocation plan from the result.</p>
       <div className="grid grid-cols-2 gap-5">
         {/* Left: Rules table */}

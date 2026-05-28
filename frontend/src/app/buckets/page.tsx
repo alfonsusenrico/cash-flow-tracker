@@ -132,7 +132,7 @@ export default function BucketsPage() {
   }
 
   return (
-    <div className="p-5 space-y-4">
+    <div className="workbench-page space-y-4">
       {/* Summary stats */}
       <Card padding="sm">
         <div className="flex items-center justify-between">
@@ -174,8 +174,8 @@ export default function BucketsPage() {
           <option value="target">Sort by: Target</option>
         </select>
         <div className="ml-auto flex gap-1">
-          <button type="button" disabled title="Grid/list switching is coming soon" className="p-1.5 rounded border border-[var(--border)] text-sm opacity-50 cursor-not-allowed">⊞</button>
-          <button type="button" disabled title="Grid/list switching is coming soon" className="p-1.5 rounded border border-[var(--border)] text-sm opacity-50 cursor-not-allowed">☰</button>
+          <button type="button" disabled title="Grid/list view controls are coming soon" className="p-1.5 rounded border border-[var(--border)] text-sm opacity-50 cursor-not-allowed">⊞</button>
+          <button type="button" disabled title="Grid/list view controls are coming soon" className="p-1.5 rounded border border-[var(--border)] text-sm opacity-50 cursor-not-allowed">☰</button>
         </div>
       </div>
 

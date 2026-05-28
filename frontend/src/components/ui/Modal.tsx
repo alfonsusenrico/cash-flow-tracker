@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 interface ModalProps {
@@ -16,30 +17,39 @@ export function Modal({ open, onClose, title, children, wide }: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handler);
+    };
   }, [open, onClose]);
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/50 p-3 py-6 backdrop-blur-[2px] sm:items-center sm:p-6 sm:py-10"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
         className={cn(
-          "bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl w-full max-h-[90vh] overflow-y-auto",
+          "w-full max-h-[calc(100dvh-48px)] overflow-y-auto rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-md)]",
           wide ? "max-w-2xl" : "max-w-md"
         )}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
-          <h2 className="font-semibold text-base">{title}</h2>
+          <h2 id="modal-title" className="font-semibold text-base">{title}</h2>
           <button onClick={onClose} className="text-[var(--muted)] hover:text-[var(--text)] text-xl leading-none">✕</button>
         </div>
         <div className="px-5 py-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

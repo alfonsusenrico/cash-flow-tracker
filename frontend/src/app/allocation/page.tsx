@@ -139,7 +139,7 @@ export default function AllocationPage() {
   const allocationBlocked = totalPlanned > expectedIncome;
 
   return (
-    <div className="p-5 space-y-4">
+    <div className="workbench-page space-y-4">
       {emergencyHealth && emergencyHealth.status !== "ok" && (
         <div className="flex items-center justify-between px-4 py-3 rounded-xl border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20">
           <div className="flex items-center gap-3">

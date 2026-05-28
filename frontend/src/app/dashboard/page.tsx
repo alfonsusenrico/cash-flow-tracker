@@ -9,6 +9,9 @@ import { Card, SectionTitle } from "@/components/ui/Card";
 import { DonutChart } from "@/components/ui/DonutChart";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Sparkline } from "@/components/ui/Sparkline";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { MetricTile } from "@/components/ui/MetricTile";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import type { SummaryResponse } from "@/types/domain";
 
 interface SafeBreakdownAccount {
@@ -88,21 +91,6 @@ interface DashboardData {
   warnings: { key: string; label: string; severity: string }[];
 }
 
-const METRIC_ICONS: Record<string, string> = {
-  safe_to_spend: "💳",
-  emergency_fund: "🛡️",
-  savings_rate: "💰",
-  investment_rate: "📈",
-  cash_runway: "⏱️",
-  monthly_drift: "📉",
-};
-
-const STATUS_VALUE_COLOR: Record<string, string> = {
-  ok: "text-primary",
-  warn: "text-warning",
-  critical: "text-danger",
-};
-
 const METRIC_HELP: Record<string, string> = {
   health_score: "Average of metric statuses: ok = 100, warn = 50, critical = 0.",
   safe_to_spend: "Spendable balance capped by remaining spending plan, minus payables due this cycle.",
@@ -110,6 +98,12 @@ const METRIC_HELP: Record<string, string> = {
   cash_runway: "Liquid assets divided by the monthly emergency spending base, converted to days.",
   monthly_drift: "Actual spending minus planned spending. Negative means under plan.",
 };
+
+const QUICK_ACTIONS: { label: string; icon: IconName; href: string; primary?: boolean }[] = [
+  { label: "Add Transaction", icon: "plus", href: "/ledger?action=add", primary: true },
+  { label: "Move Accounts", icon: "move", href: "/ledger?action=movement" },
+  { label: "Record Net Worth", icon: "netWorth", href: "/net-worth?action=record" },
+];
 
 export default function DashboardPage() {
   const { hideBalances } = useAppCtx();
@@ -131,18 +125,29 @@ export default function DashboardPage() {
     queryFn: () => api.get("/assets/net-worth"),
   });
 
-  if (dashLoading) return <div className="p-6 text-[var(--muted)]">Loading…</div>;
+  if (dashLoading) return <div className="workbench-page text-[var(--muted)]">Loading…</div>;
 
   const score = dash?.health_score ?? 0;
-  const scoreColor = score >= 70 ? "#16a34a" : score >= 40 ? "#f59e0b" : "#dc2626";
+  const scoreColor = score >= 70 ? "var(--primary)" : score >= 40 ? "var(--warning)" : "var(--danger)";
   const scoreLabel = score >= 70 ? "Good" : score >= 40 ? "Fair" : "Poor";
   const nwHistory = (nwData?.history ?? []).map((h) => h.net_worth).reverse();
   const safeBreakdown = dash?.metrics.safe_to_spend.breakdown;
 
   const metricEntries = dash ? Object.entries(dash.metrics).filter(([, v]) => v !== null) as [string, any][] : [];
+  const metricValue = (key: string, m: any) => (
+    key === "savings_rate" || key === "investment_rate" ? `${m.pct ?? 0}%`
+      : key === "emergency_fund" ? `${m.months ?? 0} months`
+      : key === "cash_runway" ? `${m.days ?? 0} days`
+      : key === "monthly_drift" ? (m.value >= 0 ? `+${bal(m.value)}` : bal(m.value))
+      : bal(m.value ?? 0)
+  );
 
   return (
-    <div className="p-5 space-y-4">
+    <div className="workbench-page space-y-4">
+      <PageHeader
+        title="Summary"
+        description="A compact view of spendable cash, plan drift, runway, and account movement for the active pay cycle."
+      />
       {/* Warning banner */}
       {dash?.warnings?.filter((w) => w.severity === "critical").map((w) => (
         <div key={w.key} className="flex items-center justify-between px-4 py-3 rounded-xl border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20 dark:border-yellow-800">
@@ -158,7 +163,7 @@ export default function DashboardPage() {
       ))}
 
       {/* Row 1: Health Score + Safe to Spend + Net Worth */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)_minmax(0,1fr)]">
         {/* Health Score */}
         <Card>
           <SectionTitle>Health Score <span className="text-[var(--muted)] text-xs font-normal" title={METRIC_HELP.health_score}>ⓘ</span></SectionTitle>
@@ -209,7 +214,7 @@ export default function DashboardPage() {
               <span>↑</span>
               <span className="font-medium">Growing</span>
             </div>
-            {nwHistory.length > 1 && <Sparkline data={nwHistory} width={100} height={32} color="#16a34a" />}
+            {nwHistory.length > 1 && <Sparkline data={nwHistory} width={100} height={32} color="var(--primary)" />}
           </div>
           <div className="mt-3 pt-3 border-t border-[var(--border)]">
             <p className="text-xs text-[var(--muted)] mb-2">This Month ({summary?.range?.from} – {summary?.range?.to}) <span className="float-right"><Link href="/analysis" prefetch={false} className="text-primary hover:underline">View details</Link></span></p>
@@ -234,7 +239,7 @@ export default function DashboardPage() {
             <button type="button" onClick={() => setSafeBreakdownOpen(false)} className="text-xs text-[var(--muted)] hover:text-[var(--text)]">Close</button>
           </div>
 
-          <div className="grid grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-1 gap-3 mb-4 md:grid-cols-2 xl:grid-cols-4">
             {[
               { label: "Spendable Balance", value: safeBreakdown.spendable_balance, tone: "text-primary" },
               { label: "Remaining Plan", value: safeBreakdown.remaining_spend_budget, tone: "text-info" },
@@ -248,7 +253,7 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div>
               <p className="text-xs font-semibold mb-2">Spendable Accounts</p>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
@@ -310,7 +315,7 @@ export default function DashboardPage() {
 
       {/* Row 1b: Payables and receivables */}
       {dash?.obligations && dash.obligations.open_count > 0 && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Card padding="sm">
             <p className="text-xs text-[var(--muted)]">Receivable</p>
             <p className="text-lg font-bold tabular text-primary">{bal(dash.obligations.receivable_outstanding)}</p>
@@ -340,39 +345,34 @@ export default function DashboardPage() {
       )}
 
       {/* Row 2: Metric cards */}
-      <div className="grid grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         {metricEntries.map(([key, m]) => (
-          <Card key={key} padding="sm">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-base">{METRIC_ICONS[key] ?? "📊"}</div>
-              <p className="text-xs text-[var(--muted)] leading-tight">
-                {m.label} {METRIC_HELP[key] && <span title={METRIC_HELP[key]}>ⓘ</span>}
-              </p>
-            </div>
-            <p className={`text-base font-bold tabular ${STATUS_VALUE_COLOR[m.status] ?? "text-[var(--text)]"}`}>
-              {key === "savings_rate" || key === "investment_rate" ? `${m.pct ?? 0}%`
-                : key === "emergency_fund" ? `${m.months ?? 0} months`
-                : key === "cash_runway" ? `${m.days ?? 0} days`
-                : key === "monthly_drift" ? (m.value >= 0 ? `+${bal(m.value)}` : bal(m.value))
-                : bal(m.value ?? 0)}
-            </p>
-            <p className="text-xs text-[var(--muted)] mt-0.5">
-              {key === "savings_rate" || key === "investment_rate" ? "of income"
+          <MetricTile
+            key={key}
+            label={m.label}
+            tone={m.status === "critical" ? "negative" : m.status === "warn" ? "warning" : "positive"}
+            value={metricValue(key, m)}
+            detail={
+              <>
+                {key === "savings_rate" || key === "investment_rate" ? "of income"
                 : key === "emergency_fund" || key === "cash_runway" ? "of expenses"
                 : key === "monthly_drift" ? "vs plan"
                 : `${m.pct ?? 0}% of income`}
-            </p>
-          </Card>
+                {METRIC_HELP[key] && <span title={METRIC_HELP[key]}> · info</span>}
+              </>
+            }
+          />
         ))}
       </div>
 
       {/* Row 3: Accounts Overview + Goals Progress */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,0.85fr)]">
         {/* Accounts Overview */}
-        <div className="col-span-2">
+        <div className="min-w-0">
           <Card padding="sm">
             <SectionTitle>Accounts Overview <span className="text-[var(--muted)] text-xs font-normal">ⓘ</span></SectionTitle>
-            <table className="w-full text-xs">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-xs">
               <thead>
                 <tr className="text-[var(--muted)] border-b border-[var(--border)]">
                   <th className="text-left pb-2 font-medium">Account</th>
@@ -388,7 +388,7 @@ export default function DashboardPage() {
                   <tr key={acc.account_id} className="hover:bg-[var(--bg)] transition-colors">
                     <td className="py-2">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-md bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-xs">🏦</div>
+                        <span className={`h-2 w-2 rounded-full ${acc.current_balance > 0 ? "bg-[var(--primary)]" : "bg-[var(--color-rule-strong)]"}`} />
                         <div>
                           <p className="font-medium text-[var(--text)]">{acc.account_name}</p>
                         </div>
@@ -420,6 +420,7 @@ export default function DashboardPage() {
                 )}
               </tbody>
             </table>
+            </div>
           </Card>
         </div>
 
@@ -449,14 +450,10 @@ export default function DashboardPage() {
           {/* Quick Actions */}
           <Card padding="sm">
             <SectionTitle>Quick Actions</SectionTitle>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: "Add Transaction", icon: "+", href: "/ledger?action=add", primary: true },
-                { label: "Switch", icon: "⇄", href: "/ledger?action=transfer" },
-                { label: "Record Net Worth", icon: "📌", href: "/net-worth?action=record" },
-              ].map((a) => (
-                <a key={a.label} href={a.href} className={`flex flex-col items-center gap-1.5 p-3 rounded-xl text-center transition-colors ${a.primary ? "bg-primary text-white hover:bg-primary-hover" : "bg-[var(--bg)] hover:bg-[var(--border)] text-[var(--text)]"}`}>
-                  <span className="text-lg">{a.icon}</span>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 xl:grid-cols-1">
+              {QUICK_ACTIONS.map((a) => (
+                <a key={a.label} href={a.href} className={`flex items-center gap-2 rounded-[var(--radius-md)] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${a.primary ? "bg-primary text-white hover:bg-primary-hover" : "bg-[var(--bg)] hover:bg-[var(--border)] text-[var(--text)]"}`}>
+                  <Icon name={a.icon} className="h-4 w-4 shrink-0" />
                   <span className="text-xs font-medium leading-tight">{a.label}</span>
                 </a>
               ))}

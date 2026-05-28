@@ -11,11 +11,11 @@ interface ProgressBarProps {
 }
 
 const COLORS = {
-  green: "bg-green-500",
-  yellow: "bg-yellow-400",
-  red: "bg-red-500",
-  blue: "bg-blue-500",
-  orange: "bg-orange-400",
+  green: "bg-[var(--primary)]",
+  yellow: "bg-[var(--warning)]",
+  red: "bg-[var(--danger)]",
+  blue: "bg-[var(--info)]",
+  orange: "bg-[var(--warning)]",
 };
 
 export function ProgressBar({ value, max = 100, color = "green", intent = "usage", size = "sm", className, showLabel }: ProgressBarProps) {
@@ -28,7 +28,7 @@ export function ProgressBar({ value, max = 100, color = "green", intent = "usage
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <div className={cn("flex-1 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden", h)}>
+      <div className={cn("flex-1 bg-[var(--color-paper-3)] rounded-full overflow-hidden", h)}>
         <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${pct}%` }} />
       </div>
       {showLabel && <span className="text-xs text-[var(--muted)] tabular w-8 text-right">{Math.round(pct)}%</span>}

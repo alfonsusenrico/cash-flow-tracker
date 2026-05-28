@@ -52,7 +52,7 @@ export default function AnalysisPage() {
   const netHistory = data?.daily.map((d) => d.net) ?? [];
 
   return (
-    <div className="p-5 space-y-4">
+    <div className="workbench-page space-y-4">
       {/* Tabs + period toggle */}
       <div className="flex items-center justify-between">
         <div className="flex gap-1 border-b border-[var(--border)]">

@@ -113,8 +113,8 @@ export default function AccountsPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-56px)]">
-      <div className="flex-1 p-5 overflow-auto">
+    <div className="flex h-[calc(100vh-var(--topbar-height))] min-w-0">
+      <div className="flex-1 workbench-page overflow-auto">
         {/* Stats */}
         <div className="grid grid-cols-4 gap-3 mb-4">
           {[

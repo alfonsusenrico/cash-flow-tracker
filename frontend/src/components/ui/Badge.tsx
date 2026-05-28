@@ -3,13 +3,13 @@ import { cn } from "@/lib/utils";
 type BadgeVariant = "green" | "red" | "yellow" | "blue" | "gray" | "purple" | "orange";
 
 const VARIANTS: Record<BadgeVariant, string> = {
-  green: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-  red: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  yellow: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-  blue: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  gray: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-  purple: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-  orange: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  green: "bg-[var(--primary-light)] text-[var(--primary)]",
+  red: "bg-[var(--danger-light)] text-[var(--danger)]",
+  yellow: "bg-[var(--warning-light)] text-[var(--warning)]",
+  blue: "bg-[var(--info-light)] text-[var(--info)]",
+  gray: "bg-[var(--color-paper-2)] text-[var(--muted)]",
+  purple: "bg-[var(--info-light)] text-[var(--info)]",
+  orange: "bg-[var(--warning-light)] text-[var(--warning)]",
 };
 
 interface BadgeProps {
@@ -21,7 +21,7 @@ interface BadgeProps {
 
 export function Badge({ children, variant = "gray", className, dot }: BadgeProps) {
   return (
-    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium", VARIANTS[variant], className)}>
+    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-[var(--radius-pill)] text-xs font-medium", VARIANTS[variant], className)}>
       {dot && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
       {children}
     </span>

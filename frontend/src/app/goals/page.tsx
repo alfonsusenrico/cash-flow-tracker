@@ -71,7 +71,7 @@ export default function GoalsPage() {
   const saveMut = useMutation({
     mutationFn: () => {
       if (form.progress_mode === "existing_bucket" && !form.linked_bucket_id) {
-        throw new Error("Choose a bucket or switch progress tracking to a new bucket.");
+        throw new Error("Choose a bucket or change progress tracking to a new bucket.");
       }
       const p = {
         name: form.name,
@@ -104,7 +104,7 @@ export default function GoalsPage() {
   const overallPct = goals.length > 0 ? Math.round((onTrack / goals.length) * 100) : 0;
 
   return (
-    <div className="p-5 space-y-4">
+    <div className="workbench-page space-y-4">
       <div className="grid grid-cols-3 gap-4">
         {/* Goals at a glance */}
         <div className="col-span-2">

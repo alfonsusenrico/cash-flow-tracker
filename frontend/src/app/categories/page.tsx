@@ -44,6 +44,7 @@ export default function CategoriesPage() {
   const categories = (data?.categories ?? []).filter((c) => !c.is_archived);
   const filtered = search ? categories.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())) : categories;
   const groups = ["income", "expense", "transfer", "adjustment"] as const;
+  const groupLabel = (kind: string) => kind === "transfer" ? "Movement" : kind.charAt(0).toUpperCase() + kind.slice(1);
 
   function openCreate() {
     setEditing(null);
@@ -60,7 +61,7 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className="p-5 space-y-4">
+    <div className="workbench-page space-y-4">
       <div className="flex items-center justify-between">
         <div className="relative flex-1 max-w-sm">
           <input placeholder="Search categories" value={search} onChange={(e) => setSearch(e.target.value)}
@@ -83,7 +84,7 @@ export default function CategoriesPage() {
             <div className="flex items-center justify-between mb-3 pb-2 border-b border-[var(--border)]">
               <div className="flex items-center gap-2">
                 <span className="text-base">{KIND_ICONS[kind]}</span>
-                <span className="font-semibold capitalize text-sm">{kind}</span>
+                <span className="font-semibold text-sm">{groupLabel(kind)}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--muted)]">{items.length} categories</span>
@@ -112,7 +113,7 @@ export default function CategoriesPage() {
                     <td className="py-2 text-[var(--muted)]">{cat.parent_category_id ? "Subcategory" : "Universal or custom category"}</td>
                     <td className="py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Badge variant={KIND_COLORS[kind]}>{kind.charAt(0).toUpperCase() + kind.slice(1)}</Badge>
+                        <Badge variant={KIND_COLORS[kind]}>{groupLabel(kind)}</Badge>
                         <button type="button" onClick={() => openEdit(cat)} className="text-[var(--muted)] hover:text-[var(--text)]" title="Edit category">✏️</button>
                       </div>
                     </td>
@@ -134,7 +135,7 @@ export default function CategoriesPage() {
           <Select label="Type" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
             <option value="income">Income</option>
             <option value="expense">Expense</option>
-            <option value="transfer">Switch</option>
+            <option value="transfer">Movement</option>
             <option value="adjustment">Adjustment</option>
           </Select>
           <Input label="Icon (optional)" value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} placeholder="e.g. 🏠" />
