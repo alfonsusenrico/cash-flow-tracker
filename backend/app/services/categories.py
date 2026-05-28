@@ -28,8 +28,7 @@ DEFAULT_CATEGORIES: tuple[tuple[str, str, str], ...] = (
     ("Payable Payment", "expense", "↗"),
     ("Tax", "expense", "🏛️"),
     ("Other Expense", "expense", "📋"),
-    ("Transfer", "transfer", "⇄"),
-    ("Switching", "transfer", "⇄"),
+    ("Internal Movement", "transfer", "⇄"),
     ("Opening Balance", "adjustment", "⚙️"),
     ("Correction", "adjustment", "✏️"),
 )
@@ -54,12 +53,12 @@ def seed_default_categories(cur, username: str) -> None:
     )
 
 
-def ensure_switching_category(cur, username: str) -> str:
-    """Return the user's canonical Switching category, creating it if needed."""
+def ensure_internal_movement_category(cur, username: str) -> str:
+    """Return the user's canonical internal movement category, creating it if needed."""
     cur.execute(
         """
         INSERT INTO categories (user_id, name, kind, icon, is_archived)
-        SELECT user_id, 'Switching', 'transfer', '⇄', false
+        SELECT user_id, 'Internal Movement', 'transfer', '⇄', false
         FROM users
         WHERE username=%s
         ON CONFLICT (user_id, name)
@@ -70,6 +69,11 @@ def ensure_switching_category(cur, username: str) -> str:
     )
     row = cur.fetchone()
     return row["category_id"]
+
+
+def ensure_switching_category(cur, username: str) -> str:
+    """Compatibility wrapper for older code paths."""
+    return ensure_internal_movement_category(cur, username)
 
 
 def ensure_named_category(cur, username: str, *, name: str, kind: str, icon: str | None = None) -> str:

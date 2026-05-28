@@ -84,7 +84,7 @@ def build_ledger_export_summary(
         FROM transactions t
         JOIN accounts a ON a.account_id=t.account_id
         WHERE a.username=%s AND t.account_id = ANY(%s::uuid[])
-          AND t.deleted_at IS NULL AND t.date >= %s AND t.date <= %s
+          AND t.deleted_at IS NULL AND t.transfer_id IS NULL AND t.date >= %s AND t.date <= %s
         """,
         (username, acc_ids, from_dt, to_dt),
     )
@@ -280,8 +280,13 @@ def build_ledger_page(
                 FROM tx WHERE transfer_id IS NULL
             ),
             transfer_group AS (
-                SELECT 'switch:' || transfer_id AS event_id, NULL::text AS account_id, ''::text AS account_name,
-                       CONCAT('Switch: ',
+                SELECT 'movement:' || transfer_id AS event_id, NULL::text AS account_id, ''::text AS account_name,
+                       CONCAT(
+                           CASE WHEN EXISTS (
+                               SELECT 1
+                               FROM allocation_funding_runs afr
+                               WHERE transfer_id = ANY(afr.transfer_ids)
+                           ) THEN 'Allocation Funding: ' ELSE 'Move: ' END,
                            COALESCE(MAX(CASE WHEN transaction_type='credit' THEN account_name END), 'Unknown'),
                            ' → ',
                            COALESCE(MAX(CASE WHEN transaction_type='debit' THEN account_name END), 'Unknown')

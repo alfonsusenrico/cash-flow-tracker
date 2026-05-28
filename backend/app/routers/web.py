@@ -18,7 +18,7 @@ from app.services.auth import (
     register_user,
     require_session_user,
 )
-from app.services.categories import ensure_switching_category
+from app.services.categories import ensure_internal_movement_category
 from app.services.ledger import (
     build_daily_series,
     build_ledger_data,
@@ -623,8 +623,9 @@ async def create_tx(req: Request):
     }
 
 
+@router.post("/account-movements")
 @router.post("/switch")
-async def switch_balance(req: Request):
+async def create_account_movement(req: Request):
     username = require_session_user(req)
     data = await req.json()
     source_account_id = data.get("source_account_id")
@@ -634,9 +635,11 @@ async def switch_balance(req: Request):
     is_cycle_topup = parse_optional_bool(data.get("is_cycle_topup"), "is_cycle_topup")
     if is_cycle_topup is None:
         is_cycle_topup = False
+    if "/account-movements" in str(req.url.path):
+        is_cycle_topup = False
 
     if not source_account_id or not target_account_id or amount <= 0:
-        raise HTTPException(status_code=400, detail="Invalid switch payload")
+        raise HTTPException(status_code=400, detail="Invalid account movement payload")
     if source_account_id == target_account_id:
         raise HTTPException(status_code=400, detail="Source and target must differ")
 
@@ -678,9 +681,9 @@ async def switch_balance(req: Request):
             ],
         )
 
-        source_name = f"Switching to {target['account_name']}"
-        target_name = f"Switching from {source['account_name']}"
-        category_id = ensure_switching_category(cur, username)
+        source_name = f"Move to {target['account_name']}"
+        target_name = f"Move from {source['account_name']}"
+        category_id = ensure_internal_movement_category(cur, username)
         transfer_id = str(uuid.uuid4())
         cur.execute(
             """
@@ -719,11 +722,12 @@ async def switch_balance(req: Request):
         conn.commit()
 
     invalidate_user_cache(username)
-    return {"ok": True, "transfer_id": transfer_id}
+    return {"ok": True, "movement_id": transfer_id, "transfer_id": transfer_id}
 
 
+@router.get("/account-movements/{transfer_id}")
 @router.get("/switch/{transfer_id}")
-def get_switch(transfer_id: str, req: Request):
+def get_account_movement(transfer_id: str, req: Request):
     username = require_session_user(req)
     transfer_id = parse_uuid_field(transfer_id, "transfer_id")
     with db_conn() as conn, conn.cursor() as cur:
@@ -735,7 +739,12 @@ def get_switch(transfer_id: str, req: Request):
                    t.amount,
                    t.date,
                    t.is_cycle_topup,
-                   a.account_name
+                   a.account_name,
+                   EXISTS (
+                     SELECT 1
+                     FROM allocation_funding_runs afr
+                     WHERE t.transfer_id = ANY(afr.transfer_ids)
+                   ) AS is_allocation_funding
             FROM transactions t
             JOIN accounts a ON a.account_id=t.account_id
             WHERE t.transfer_id=%s::uuid AND a.username=%s AND t.deleted_at IS NULL
@@ -744,23 +753,26 @@ def get_switch(transfer_id: str, req: Request):
         )
         rows = cur.fetchall()
         if len(rows) != 2:
-            raise HTTPException(status_code=404, detail="Switch not found")
+            raise HTTPException(status_code=404, detail="Account movement not found")
         source = next((r for r in rows if r["transaction_type"] == "credit"), None)
         target = next((r for r in rows if r["transaction_type"] == "debit"), None)
         if not source or not target:
-            raise HTTPException(status_code=400, detail="Invalid switch data")
+            raise HTTPException(status_code=400, detail="Invalid account movement data")
     return {
+        "movement_id": transfer_id,
         "transfer_id": transfer_id,
         "source_account_id": source["account_id"],
         "target_account_id": target["account_id"],
         "amount": int(source["amount"]),
         "date": source["date"].astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
         "is_cycle_topup": bool(target.get("is_cycle_topup")),
+        "movement_type": "allocation_funding" if bool(source.get("is_allocation_funding")) else "manual",
     }
 
 
+@router.put("/account-movements/{transfer_id}")
 @router.put("/switch/{transfer_id}")
-async def update_switch(transfer_id: str, req: Request):
+async def update_account_movement(transfer_id: str, req: Request):
     username = require_session_user(req)
     transfer_id = parse_uuid_field(transfer_id, "transfer_id")
     data = await req.json()
@@ -782,12 +794,12 @@ async def update_switch(transfer_id: str, req: Request):
         )
         rows = cur.fetchall()
         if len(rows) != 2:
-            raise HTTPException(status_code=404, detail="Switch not found")
+            raise HTTPException(status_code=404, detail="Account movement not found")
 
         source = next((r for r in rows if r["transaction_type"] == "credit"), None)
         target = next((r for r in rows if r["transaction_type"] == "debit"), None)
         if not source or not target:
-            raise HTTPException(status_code=400, detail="Invalid switch data")
+            raise HTTPException(status_code=400, detail="Invalid account movement data")
 
         source_account_id = data.get("source_account_id") or source["account_id"]
         target_account_id = data.get("target_account_id") or target["account_id"]
@@ -808,6 +820,8 @@ async def update_switch(transfer_id: str, req: Request):
         is_cycle_topup = parse_optional_bool(data.get("is_cycle_topup"), "is_cycle_topup")
         if is_cycle_topup is None:
             is_cycle_topup = bool(target.get("is_cycle_topup"))
+        if "/account-movements" in str(req.url.path):
+            is_cycle_topup = False
 
         lock_accounts_for_update(
             cur,
@@ -829,9 +843,9 @@ async def update_switch(transfer_id: str, req: Request):
         acc_map = {a["account_id"]: a for a in accounts}
         source_label = acc_map[source_account_id]["account_name"]
         target_label = acc_map[target_account_id]["account_name"]
-        source_name = f"Switching to {target_label}"
-        target_name = f"Switching from {source_label}"
-        category_id = ensure_switching_category(cur, username)
+        source_name = f"Move to {target_label}"
+        target_name = f"Move from {source_label}"
+        category_id = ensure_internal_movement_category(cur, username)
 
         old_rows = [
             {
@@ -908,7 +922,7 @@ async def update_switch(transfer_id: str, req: Request):
             ),
         )
         if cur.rowcount != 1:
-            raise HTTPException(status_code=409, detail="Switch changed, please retry")
+            raise HTTPException(status_code=409, detail="Account movement changed, please retry")
         cur.execute(
             """
             UPDATE transactions
@@ -934,15 +948,16 @@ async def update_switch(transfer_id: str, req: Request):
             ),
         )
         if cur.rowcount != 1:
-            raise HTTPException(status_code=409, detail="Switch changed, please retry")
+            raise HTTPException(status_code=409, detail="Account movement changed, please retry")
         conn.commit()
 
     invalidate_user_cache(username)
     return {"ok": True}
 
 
+@router.delete("/account-movements/{transfer_id}")
 @router.delete("/switch/{transfer_id}")
-def delete_switch(transfer_id: str, req: Request):
+def delete_account_movement(transfer_id: str, req: Request):
     username = require_session_user(req)
     transfer_id = parse_uuid_field(transfer_id, "transfer_id")
     with db_conn() as conn, conn.cursor() as cur:
@@ -965,7 +980,7 @@ def delete_switch(transfer_id: str, req: Request):
         )
         rows = cur.fetchall()
         if len(rows) != 2:
-            raise HTTPException(status_code=404, detail="Switch not found")
+            raise HTTPException(status_code=404, detail="Account movement not found")
 
         lock_accounts_for_update(cur, username, [row["account_id"] for row in rows])
         deleted_at = now_utc()
@@ -994,7 +1009,7 @@ def delete_switch(transfer_id: str, req: Request):
         )
         deleted_rows = cur.fetchall()
         if len(deleted_rows) != 2:
-            raise HTTPException(status_code=409, detail="Switch changed, please retry")
+            raise HTTPException(status_code=409, detail="Account movement changed, please retry")
         for row in deleted_rows:
             write_transaction_audit(
                 cur,
@@ -1425,7 +1440,7 @@ async def update_tx(transaction_id: str, req: Request):
         if not tx:
             raise HTTPException(status_code=404, detail="Transaction not found")
         if tx.get("is_transfer"):
-            raise HTTPException(status_code=400, detail="Use switch endpoints to edit transfers")
+            raise HTTPException(status_code=400, detail="Use account movement endpoints to edit internal movements")
 
         new_account_id = data.get("account_id") or tx["account_id"]
         new_type = data.get("transaction_type") or tx["transaction_type"]
@@ -1543,7 +1558,7 @@ def delete_tx(transaction_id: str, req: Request):
         if not tx:
             raise HTTPException(status_code=404, detail="Transaction not found")
         if tx.get("is_transfer"):
-            raise HTTPException(status_code=400, detail="Use switch endpoints to delete transfers")
+            raise HTTPException(status_code=400, detail="Use account movement endpoints to delete internal movements")
 
         lock_accounts_for_update(cur, username, [tx["account_id"]])
 

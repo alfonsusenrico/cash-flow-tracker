@@ -217,8 +217,6 @@ def compute_budget_shift_analysis(
     strategy_normalized = str(strategy or "normal").strip().lower()
     if strategy_normalized not in ("conservative", "normal", "aggressive"):
         strategy_normalized = "normal"
-    cfg = {"conservative": (0.5, 0.3), "normal": (0.8, 0.5), "aggressive": (1.0, 0.8)}
-    receiver_weight, donor_weight = cfg[strategy_normalized]
 
     cur.execute("SELECT account_id::text AS account_id, amount FROM budgets WHERE username=%s AND month=%s", (username, month))
     budgets = {r["account_id"]: int(r.get("amount") or 0) for r in cur.fetchall()}
@@ -236,48 +234,11 @@ def compute_budget_shift_analysis(
     )
     real_by_acc = {r["account_id"]: r for r in cur.fetchall()}
 
-    cur.execute(
-        """
-        SELECT t.account_id::text AS account_id,
-               COALESCE(SUM(CASE WHEN t.transaction_type='debit' THEN t.amount ELSE 0 END), 0) AS switch_in,
-               COALESCE(SUM(CASE WHEN t.transaction_type='credit' THEN t.amount ELSE 0 END), 0) AS switch_out
-        FROM transactions t JOIN accounts a ON a.account_id=t.account_id
-        WHERE a.username=%s AND t.deleted_at IS NULL AND t.date >= %s AND t.date <= %s
-          AND t.transfer_id IS NOT NULL
-          AND NOT EXISTS (
-            SELECT 1 FROM transactions tx
-            WHERE tx.transfer_id=t.transfer_id AND tx.deleted_at IS NULL AND tx.is_cycle_topup = TRUE
-          )
-        GROUP BY t.account_id
-        """,
-        (username, from_dt, to_dt),
-    )
-    switch_by_acc = {r["account_id"]: r for r in cur.fetchall()}
-
-    cur.execute(
-        """
-        SELECT src.account_id::text AS source_account_id, src.account_name AS source_account_name,
-               dst.account_id::text AS target_account_id, dst.account_name AS target_account_name,
-               COALESCE(SUM(t_out.amount), 0) AS amount
-        FROM transactions t_out
-        JOIN transactions t_in ON t_in.transfer_id=t_out.transfer_id AND t_in.deleted_at IS NULL AND t_in.transaction_type='debit'
-        JOIN accounts src ON src.account_id=t_out.account_id
-        JOIN accounts dst ON dst.account_id=t_in.account_id
-        WHERE t_out.deleted_at IS NULL AND t_out.transaction_type='credit'
-          AND src.username=%s AND dst.username=%s AND t_out.date >= %s AND t_out.date <= %s
-          AND NOT EXISTS (
-            SELECT 1 FROM transactions tx
-            WHERE tx.transfer_id=t_out.transfer_id AND tx.deleted_at IS NULL AND tx.is_cycle_topup = TRUE
-          )
-        GROUP BY src.account_id, src.account_name, dst.account_id, dst.account_name
-        ORDER BY amount DESC
-        """,
-        (username, username, from_dt, to_dt),
-    )
-    edge_rows = cur.fetchall()
+    movement_by_acc: dict[str, Any] = {}
+    edge_rows: list[dict[str, Any]] = []
 
     items: list[dict[str, Any]] = []
-    total_budget = total_spend = total_switch_in = total_switch_out = 0
+    total_budget = total_spend = total_movement_in = total_movement_out = 0
 
     for account_id, ar in account_map.items():
         fixed_limit = ar.get("fixed_limit_amount")
@@ -285,9 +246,9 @@ def compute_budget_shift_analysis(
         effective_budget = int(fixed_limit) if fixed_limit is not None else budget
         real_spend = int(real_by_acc.get(account_id, {}).get("real_spend") or 0)
         real_income = int(real_by_acc.get(account_id, {}).get("real_income") or 0)
-        switch_in = int(switch_by_acc.get(account_id, {}).get("switch_in") or 0)
-        switch_out = int(switch_by_acc.get(account_id, {}).get("switch_out") or 0)
-        net_switch = switch_in - switch_out
+        movement_in = int(movement_by_acc.get(account_id, {}).get("movement_in") or 0)
+        movement_out = int(movement_by_acc.get(account_id, {}).get("movement_out") or 0)
+        net_movement = movement_in - movement_out
 
         if bool(ar.get("is_no_limit")):
             status, reason, budget_gap, stress_ratio = "no_limit", "No-limit account", None, None
@@ -299,26 +260,17 @@ def compute_budget_shift_analysis(
             budget_gap = real_spend - effective_budget
             stress_ratio = (real_spend / effective_budget) if effective_budget > 0 else (1.0 if real_spend == 0 else 999.0)
             suggested_budget = max(real_spend, effective_budget)
-            if net_switch > 0:
-                suggested_budget = max(suggested_budget, effective_budget + int(round(net_switch * receiver_weight)))
-            if switch_out > 0 and real_spend < effective_budget:
-                cut = int(round(min(switch_out, effective_budget - real_spend) * donor_weight))
-                suggested_budget = max(real_spend, effective_budget - cut)
             if str(ar.get("profile_type")) == "fixed_spending" and fixed_limit is not None:
                 suggested_budget = int(fixed_limit)
-            if budget_gap > 0 and net_switch > 0:
-                status, reason = "under_allocated", "Over budget and receives switch-in"
-            elif budget_gap > 0:
+            if budget_gap > 0:
                 status, reason = "overspend", "Over budget"
-            elif net_switch < 0 and real_spend < effective_budget:
-                status, reason = "donor_capacity", "Consistent switch-out while spend is below budget"
             else:
                 status, reason = "balanced", "Within planned budget"
 
         total_budget += int(effective_budget or 0)
         total_spend += real_spend
-        total_switch_in += switch_in
-        total_switch_out += switch_out
+        total_movement_in += movement_in
+        total_movement_out += movement_out
 
         items.append({
             "account_id": account_id,
@@ -331,9 +283,12 @@ def compute_budget_shift_analysis(
             "planned_budget": int(effective_budget) if effective_budget is not None else None,
             "actual_spend": real_spend,
             "actual_income": real_income,
-            "switch_in": switch_in,
-            "switch_out": switch_out,
-            "net_switch": net_switch,
+            "movement_in": movement_in,
+            "movement_out": movement_out,
+            "net_movement": net_movement,
+            "switch_in": movement_in,
+            "switch_out": movement_out,
+            "net_switch": net_movement,
             "budget_gap": budget_gap,
             "stress_ratio": round(stress_ratio, 4) if stress_ratio is not None else None,
             "suggested_budget": int(suggested_budget),
@@ -342,7 +297,7 @@ def compute_budget_shift_analysis(
             "reason": reason,
         })
 
-    items.sort(key=lambda r: (0 if r.get("status") == "under_allocated" else 1, -(r.get("budget_gap") or 0), -abs(r.get("net_switch") or 0), r.get("account_name") or ""))
+    items.sort(key=lambda r: (0 if r.get("status") == "overspend" else 1, -(r.get("budget_gap") or 0), r.get("account_name") or ""))
 
     return {
         "month": month,
@@ -352,10 +307,14 @@ def compute_budget_shift_analysis(
             "planned_budget": total_budget,
             "actual_spend": total_spend,
             "budget_gap": total_spend - total_budget,
-            "switch_in": total_switch_in,
-            "switch_out": total_switch_out,
-            "net_switch": total_switch_in - total_switch_out,
+            "movement_in": total_movement_in,
+            "movement_out": total_movement_out,
+            "net_movement": total_movement_in - total_movement_out,
+            "switch_in": total_movement_in,
+            "switch_out": total_movement_out,
+            "net_switch": total_movement_in - total_movement_out,
         },
+        "movement_edges": [],
         "accounts": items,
         "switch_edges": [
             {

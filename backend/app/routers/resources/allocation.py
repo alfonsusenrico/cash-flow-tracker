@@ -566,7 +566,7 @@ def _fund_plan(cur, username: str, plan_id: str, *, source_account_id: str | Non
                     transfer_id,
                     f"Allocation plan {plan['month']} · {item['label']}",
                     target_account_id,
-                    f"Allocation from payroll",
+                    "Allocation funding",
                     amount,
                     now_utc(),
                     transfer_id,

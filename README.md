@@ -10,7 +10,7 @@ A self-hosted personal finance app. Track your daily spending, see where your mo
 - See a monthly summary: balance per account, total in/out, and budget usage
 - Browse your full transaction history with search and date filters
 - Analyze spending by category and day
-- Switch money between accounts
+- Move money between owned accounts without counting it as income or spending
 - Export your ledger to CSV or PDF
 - Attach receipts (image or PDF) to any transaction
 - Manage spending categories
@@ -71,7 +71,7 @@ Open **http://localhost:8090** in your browser.
 | What you want to do | Where to go |
 |---|---|
 | Record spending or income | Ledger → + Add Transaction |
-| Move money between accounts | Ledger → Switch |
+| Move money between owned accounts | Ledger → Move Accounts |
 | See this month's overview | Dashboard |
 | See spending by day / category | Analysis |
 | Browse all transactions | Ledger |
@@ -105,12 +105,21 @@ The app groups your month from payday to payday, not calendar month. To set it:
 | Metric | Formula / meaning |
 |---|---|
 | Health Score | Average of dashboard metric statuses: `ok = 100`, `warn = 50`, `critical = 0`. |
-| Safe to Spend | `min(spendable account balance, remaining spending plan) - payables due this cycle`. Switches are not counted as income or spending. |
+| Safe to Spend | `min(spendable account balance, remaining spending plan) - payables due this cycle`. Account movements are not counted as income or spending. |
 | Net Worth | Current liquid account balances plus invested asset value. |
 | Emergency Fund Coverage | Emergency bucket balance divided by the monthly emergency spending base from allocation items. |
 | Savings Rate | Allocation-based savings rate when a plan exists: planned savings divided by expected income. |
 | Cash Runway | Current liquid assets divided by the monthly emergency spending base, converted to days/months. |
 | Monthly Drift | Actual spending minus planned spending. Negative means spending is under plan. |
+
+## Cashflow model
+
+- **Cash In** is new money entering your finances, such as salary, a gift, refund, or interest.
+- **Cash Out** is money leaving your finances, such as food, bills, shopping, or giving.
+- **Move Between Accounts** is the same owned money moved between tracked accounts, such as BCA to Jago. It changes account balances only.
+- **Allocation Funding** moves planned monthly allocation amounts from the funding source to target accounts. It updates allocation funding progress and may create internal movement rows when the target account differs from the source.
+
+Example: if family sends money to BCA and you save it in Jago, record the gift as Cash In once, then use Move Accounts to move it from BCA to Jago. Reports count the gift as income once and exclude the BCA-to-Jago movement from spending, income, and savings-rate calculations.
 
 ---
 
