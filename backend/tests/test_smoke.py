@@ -518,7 +518,7 @@ def test_resource_routers(auth_client: TestClient):
         )
     )
     assert_ok(auth_client.put("/payday", json={"day": datetime.now().day}))
-    assert_ok(
+    payroll_tx_id = assert_ok(
         auth_client.post(
             "/transactions",
             json={
@@ -531,7 +531,18 @@ def test_resource_routers(auth_client: TestClient):
                 "is_reviewed": True,
             },
         )
-    )
+    )["transaction_id"]
+    # The transfer-aware ledger query must preserve is_cycle_topup on plain
+    # cash-in transactions so the UI renders the Payroll badge and the edit
+    # modal initializes the "Mark as Payroll" checkbox.
+    payroll_rows = assert_ok(
+        auth_client.get(
+            "/ledger",
+            params={"scope": "all", "include_switch": True, "limit": 100},
+        )
+    )["rows"]
+    payroll_row = next(r for r in payroll_rows if r["transaction_id"] == payroll_tx_id)
+    assert payroll_row["is_cycle_topup"] is True
     funding_month = next_month_ym()
     funding_plan_id = assert_ok(
         auth_client.post(

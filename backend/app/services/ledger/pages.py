@@ -276,7 +276,7 @@ def build_ledger_page(
             ),
             non_transfer AS (
                 SELECT transaction_id AS event_id, account_id, account_name, transaction_name, amount, date,
-                       false AS is_transfer, false AS is_cycle_topup, NULL::text AS transfer_id,
+                       false AS is_transfer, is_cycle_topup, NULL::text AS transfer_id,
                        category_id, category_name, notes, tags, is_reviewed,
                        CASE WHEN transaction_type='debit' THEN amount ELSE -amount END AS signed_delta,
                        CASE WHEN transaction_type='debit' THEN amount ELSE 0 END AS debit,
