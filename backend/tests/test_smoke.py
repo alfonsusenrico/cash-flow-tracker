@@ -455,7 +455,8 @@ def test_resource_routers(auth_client: TestClient):
     item_id = assert_ok(
         auth_client.post(
             f"/allocation-plans/{plan_id}/items",
-            json={"bucket_id": bucket_id, "label": "Smoke item", "mode": "fixed", "value": 50_000},
+            json={"bucket_id": bucket_id, "label": "Smoke item", "mode": "fixed", "value": 50_000,
+                  "importance": "mandatory", "notes": "test note"},
         )
     )["item_id"]
     assert_ok(auth_client.get("/allocation-plans"))
@@ -465,6 +466,15 @@ def test_resource_routers(auth_client: TestClient):
     assert "emergency_fund" in plan_detail["health"]
     assert plan_detail["items"][0]["include_in_emergency_base"] is False
     assert plan_detail["health"]["emergency_fund"]["monthly_need"] == 0
+    # MVP-2: importance and notes
+    assert plan_detail["items"][0]["importance"] == "mandatory"
+    assert plan_detail["items"][0]["item_notes"] == "test note"
+    # MVP-1: actuals fields present
+    assert "actual_amount" in plan_detail["items"][0]
+    assert "drift_amount" in plan_detail["items"][0]
+    # MVP-3: plan state present
+    assert "plan_state" in plan_detail
+    assert plan_detail["plan_state"] == "draft"
     assert_ok(
         auth_client.put(
             f"/allocation-plans/{plan_id}/items/{item_id}/emergency-base",
@@ -477,9 +487,13 @@ def test_resource_routers(auth_client: TestClient):
     assert_ok(
         auth_client.put(
             f"/allocation-plans/{plan_id}/items/{item_id}",
-            json={"bucket_id": bucket_id, "label": "Updated item", "mode": "fixed", "value": 60_000},
+            json={"bucket_id": bucket_id, "label": "Updated item", "mode": "fixed", "value": 60_000,
+                  "importance": "standard"},
         )
     )
+    # MVP-4: history endpoint returns audit entries
+    history = assert_ok(auth_client.get(f"/allocation-plans/{plan_id}/history"))
+    assert len(history["history"]) >= 2  # created + updated
     strategy_suggestions = assert_ok(
         auth_client.post("/strategy-rules/from-allocation/preview", json={"plan_id": plan_id})
     )
@@ -590,6 +604,16 @@ def test_resource_routers(auth_client: TestClient):
     assert run["status"] == "succeeded"
     funded_plan = assert_ok(auth_client.get(f"/allocation-plans/{funding_plan_id}"))
     assert funded_plan["items"][0]["status"] == "funded"
+    # MVP-3: plan state should be complete after all items funded
+    assert funded_plan["plan_state"] == "complete"
+    # MVP-5: closing report endpoint
+    closing = assert_ok(auth_client.get(f"/allocation-plans/{funding_plan_id}/closing-report"))
+    assert closing["income"]["expected"] == 500_000
+    assert closing["spending"]["funded"] == 200_000
+    assert "items" in closing
+    # MVP-4: history has funded action
+    hist = assert_ok(auth_client.get(f"/allocation-plans/{funding_plan_id}/history"))
+    assert any(e["action"] == "funded" for e in hist["history"])
     dashboard = assert_ok(auth_client.get("/dashboard"))
     assert dashboard["allocation_plan"]["expected_income"] == 500_000
     assert dashboard["metrics"]["safe_to_spend"]["source"] == "allocation"

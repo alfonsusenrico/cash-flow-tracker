@@ -1,4 +1,5 @@
 """Allocation Plans + Items CRUD — /allocation-plans and /v1/allocation-plans"""
+import json
 import uuid
 import threading
 import time
@@ -23,6 +24,230 @@ from app.services.ledger.period import (
 
 router = APIRouter(tags=["allocation"])
 _scheduler_started = False
+
+
+# ---------------------------------------------------------------------------
+# Audit helpers
+# ---------------------------------------------------------------------------
+
+def _write_plan_audit(
+    cur,
+    *,
+    plan_id: str,
+    user_id: str,
+    performed_by: str,
+    action: str,
+    before: dict | None = None,
+    after: dict | None = None,
+    reason: str | None = None,
+) -> None:
+    cur.execute(
+        """
+        INSERT INTO allocation_plan_audit
+          (plan_id, user_id, performed_by, action, before_state, after_state, reason)
+        VALUES (%s::uuid, %s::uuid, %s, %s, %s::jsonb, %s::jsonb, %s)
+        """,
+        (
+            plan_id, user_id, performed_by, action,
+            json.dumps(before) if before is not None else None,
+            json.dumps(after) if after is not None else None,
+            reason,
+        ),
+    )
+
+
+def _write_item_audit(
+    cur,
+    *,
+    item_id: str,
+    plan_id: str,
+    user_id: str,
+    performed_by: str,
+    action: str,
+    before: dict | None = None,
+    after: dict | None = None,
+) -> None:
+    cur.execute(
+        """
+        INSERT INTO allocation_item_audit
+          (item_id, plan_id, user_id, performed_by, action, before_state, after_state)
+        VALUES (%s::uuid, %s::uuid, %s::uuid, %s, %s, %s::jsonb, %s::jsonb)
+        """,
+        (
+            item_id, plan_id, user_id, performed_by, action,
+            json.dumps(before) if before is not None else None,
+            json.dumps(after) if after is not None else None,
+        ),
+    )
+
+
+def _plan_snapshot(cur, plan_id: str) -> dict:
+    cur.execute(
+        """
+        SELECT plan_id::text, month, expected_income, status, notes,
+               funding_source_account_id::text, auto_fund_enabled
+        FROM allocation_plans WHERE plan_id=%s::uuid
+        """,
+        (plan_id,),
+    )
+    row = cur.fetchone()
+    return dict(row) if row else {}
+
+
+def _item_snapshot(cur, item_id: str) -> dict:
+    cur.execute(
+        """
+        SELECT item_id::text, label, mode, value, planned_amount, funded_amount,
+               status, priority, importance, bucket_id::text, target_account_id::text,
+               category_id::text, include_in_emergency_base, notes
+        FROM allocation_items WHERE item_id=%s::uuid
+        """,
+        (item_id,),
+    )
+    row = cur.fetchone()
+    return dict(row) if row else {}
+
+
+# ---------------------------------------------------------------------------
+# Category validation
+# ---------------------------------------------------------------------------
+
+def _validate_category(cur, username: str, category_id: str | None) -> str | None:
+    if not category_id:
+        return None
+    category_id = parse_uuid_value(category_id, "category_id")
+    cur.execute(
+        """
+        SELECT 1 FROM categories c JOIN users u ON u.user_id=c.user_id
+        WHERE u.username=%s AND c.category_id=%s::uuid AND c.is_archived=FALSE
+        """,
+        (username, category_id),
+    )
+    if not cur.fetchone():
+        raise HTTPException(status_code=404, detail="Category not found")
+    return category_id
+
+
+# ---------------------------------------------------------------------------
+# Item-level actuals (MVP-1)
+# ---------------------------------------------------------------------------
+
+def _compute_item_actuals(
+    cur,
+    username: str,
+    items: list[dict],
+    from_dt: datetime,
+    to_dt: datetime,
+) -> None:
+    """Mutates each item dict in-place, adding actual_amount and drift_amount."""
+    for item in items:
+        actual = 0
+        category_id = item.get("category_id")
+        target_account_id = item.get("target_account_id")
+        if category_id:
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(t.amount), 0)::bigint AS actual
+                FROM transactions t
+                JOIN accounts a ON a.account_id = t.account_id
+                WHERE a.username=%s
+                  AND t.category_id=%s::uuid
+                  AND t.transaction_type='credit'
+                  AND t.is_transfer=FALSE
+                  AND t.deleted_at IS NULL
+                  AND t.date >= %s AND t.date <= %s
+                """,
+                (username, category_id, from_dt, to_dt),
+            )
+            actual = int((cur.fetchone() or {}).get("actual") or 0)
+        elif target_account_id:
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(t.amount), 0)::bigint AS actual
+                FROM transactions t
+                WHERE t.account_id=%s::uuid
+                  AND t.transaction_type='credit'
+                  AND t.is_transfer=FALSE
+                  AND t.deleted_at IS NULL
+                  AND t.date >= %s AND t.date <= %s
+                """,
+                (target_account_id, from_dt, to_dt),
+            )
+            actual = int((cur.fetchone() or {}).get("actual") or 0)
+        item["actual_amount"] = actual
+        item["drift_amount"] = actual - int(item.get("planned_amount") or 0)
+
+
+# ---------------------------------------------------------------------------
+# Plan state machine (MVP-3)
+# ---------------------------------------------------------------------------
+
+def allocation_plan_state(
+    plan_status: str,
+    payroll_received: bool,
+    items: list[dict],
+    has_successful_run: bool,
+) -> str:
+    """
+    Derive a human-readable plan state from existing data.
+    States: draft | ready_for_payday | needs_funding | in_progress |
+            mandatory_funded | complete | closed
+    """
+    if plan_status == "closed":
+        return "closed"
+    if plan_status == "draft":
+        return "draft"
+    # active
+    if not payroll_received:
+        return "ready_for_payday"
+    if not has_successful_run and all(
+        int(i.get("funded_amount") or 0) == 0 for i in items
+    ):
+        return "needs_funding"
+    if all(
+        i.get("status") in ("funded", "overflowed") for i in items
+    ):
+        return "complete"
+    mandatory = [i for i in items if i.get("importance") == "mandatory"]
+    if mandatory and all(
+        i.get("status") in ("funded", "overflowed") for i in mandatory
+    ):
+        return "mandatory_funded"
+    return "in_progress"
+
+
+_STATE_DESCRIPTIONS = {
+    "draft": "Plan is being edited. Activate it when ready.",
+    "ready_for_payday": "Plan is active and waiting for payroll to arrive.",
+    "needs_funding": "Payroll received — click Allocate Funds to distribute.",
+    "in_progress": "Funding in progress. Some items still need funding.",
+    "mandatory_funded": "All mandatory items funded. Optional items pending.",
+    "complete": "All items funded. Plan is complete.",
+    "closed": "This period is closed.",
+}
+
+
+def _next_recommended_action(state: str, items: list[dict]) -> str | None:
+    if state == "needs_funding":
+        return "Click Allocate Funds to distribute income to all items."
+    if state in ("in_progress", "mandatory_funded"):
+        pending = [
+            i for i in items
+            if i.get("status") not in ("funded", "overflowed")
+        ]
+        pending.sort(key=lambda i: (
+            0 if i.get("importance") == "mandatory" else
+            1 if i.get("importance") == "standard" else 2,
+            int(i.get("priority") or 50),
+        ))
+        if pending:
+            nxt = pending[0]
+            remaining = int(nxt.get("planned_amount") or 0) - int(nxt.get("funded_amount") or 0)
+            from app.services.ledger.period import now_utc as _now  # local import to avoid circular
+            return f"Next: fund {nxt['label']} — Rp {remaining:,}"
+    if state == "complete":
+        return "All items funded. Consider closing the period."
+    return None
 
 
 def _resolve_planned_amount(mode: str, value: float, expected_income: int) -> int:
@@ -335,7 +560,10 @@ def _create_next_active_plan(cur, username: str, plan_id: str) -> str | None:
             priority,
             planned_amount,
             funded_amount,
-            status
+            status,
+            importance,
+            category_id,
+            notes
         )
         SELECT %s::uuid,
                bucket_id,
@@ -347,7 +575,10 @@ def _create_next_active_plan(cur, username: str, plan_id: str) -> str | None:
                priority,
                planned_amount,
                0,
-               'pending'
+               'pending',
+               importance,
+               category_id,
+               notes
         FROM allocation_items
         WHERE plan_id=%s::uuid
         ORDER BY priority, label
@@ -602,6 +833,14 @@ def _fund_plan(cur, username: str, plan_id: str, *, source_account_id: str | Non
         "UPDATE allocation_plans SET funding_source_account_id=%s::uuid, updated_at=now() WHERE plan_id=%s::uuid",
         (source_account_id, plan_id),
     )
+    _write_plan_audit(
+        cur,
+        plan_id=plan_id,
+        user_id=plan["user_id"],
+        performed_by=username,
+        action="funded",
+        after={"run_id": run_id, "amount": amount_to_mark, "trigger_type": trigger_type},
+    )
     return {"ok": True, "run_id": run_id, "status": "succeeded", "amount": amount_to_mark, "transfer_ids": transfer_ids}
 
 
@@ -657,10 +896,15 @@ def get_plan(plan_id: str, req: Request):
                    ta.account_name AS target_account_name,
                    i.include_in_emergency_base,
                    i.label, i.mode, i.value, i.priority,
-                   i.planned_amount, i.funded_amount, i.status
+                   i.planned_amount, i.funded_amount, i.status,
+                   i.importance,
+                   i.category_id::text AS category_id,
+                   cat.name AS category_name,
+                   i.notes AS item_notes
             FROM allocation_items i
             LEFT JOIN buckets b ON b.bucket_id = i.bucket_id
             LEFT JOIN accounts ta ON ta.account_id = i.target_account_id
+            LEFT JOIN categories cat ON cat.category_id = i.category_id
             WHERE i.plan_id=%s::uuid
             ORDER BY i.priority ASC, i.label ASC
             """,
@@ -669,17 +913,20 @@ def get_plan(plan_id: str, req: Request):
         items = cur.fetchall()
         for item in items:
             item["group"] = _allocation_group(item.get("bucket_kind"), item["mode"])
+
+        # Compute actuals for the cycle window
+        from_dt, to_dt = _funding_window_for_plan(cur, username, plan["month"])
+        # Extend to_dt to now so actuals include spending after payday
+        to_dt = max(to_dt, now_utc())
+        _compute_item_actuals(cur, username, items, from_dt, to_dt)
+
         cur.execute(
             """
             SELECT run_id::text AS run_id,
                    source_account_id::text AS source_account_id,
-                   trigger_type,
-                   status,
-                   amount,
-                   failure_reason,
+                   trigger_type, status, amount, failure_reason,
                    transfer_ids::text[] AS transfer_ids,
-                   created_at,
-                   completed_at
+                   created_at, completed_at
             FROM allocation_funding_runs
             WHERE plan_id=%s::uuid
             ORDER BY created_at DESC
@@ -687,7 +934,27 @@ def get_plan(plan_id: str, req: Request):
             """,
             (plan_id,),
         )
-        return {**plan, "items": items, "health": _allocation_health(cur, username, items), "funding_runs": cur.fetchall()}
+        funding_runs = cur.fetchall()
+
+        # Derive payroll_received for state machine
+        source_id = plan.get("funding_source_account_id")
+        payroll_received = bool(
+            source_id and _has_payroll_received(cur, username, source_id, plan["month"])
+        )
+        has_successful_run = any(r["status"] == "succeeded" for r in funding_runs)
+        state = allocation_plan_state(
+            plan["status"], payroll_received, items, has_successful_run
+        )
+
+        return {
+            **plan,
+            "items": items,
+            "health": _allocation_health(cur, username, items),
+            "funding_runs": funding_runs,
+            "plan_state": state,
+            "plan_state_description": _STATE_DESCRIPTIONS.get(state, ""),
+            "next_recommended_action": _next_recommended_action(state, items),
+        }
 
 
 @router.post("")
@@ -723,11 +990,19 @@ async def create_plan(req: Request):
                     auto_fund_enabled
                 )
                 SELECT user_id, %s::uuid, %s, %s, %s, %s::uuid, %s FROM users WHERE username=%s
-                RETURNING plan_id::text AS plan_id
+                RETURNING plan_id::text AS plan_id, user_id::text AS user_id
                 """,
                 (period_id, month, expected_income, notes, funding_source_account_id, auto_fund_enabled, username),
             )
             row = cur.fetchone()
+            _write_plan_audit(
+                cur,
+                plan_id=row["plan_id"],
+                user_id=row["user_id"],
+                performed_by=username,
+                action="created",
+                after={"month": month, "expected_income": expected_income, "notes": notes},
+            )
             conn.commit()
         except Exception as e:
             conn.rollback()
@@ -750,6 +1025,7 @@ async def update_plan(plan_id: str, req: Request):
     with db_conn() as conn, conn.cursor() as cur:
         funding_source_account_id = _validate_account(cur, username, funding_source_account_id, "funding_source_account_id")
         # Allow updates on draft and active plans; closed plans remain immutable.
+        before = _plan_snapshot(cur, plan_id)
         cur.execute(
             """
             UPDATE allocation_plans
@@ -760,14 +1036,13 @@ async def update_plan(plan_id: str, req: Request):
                 updated_at=now()
             WHERE plan_id=%s::uuid AND user_id=(SELECT user_id FROM users WHERE username=%s)
               AND status<>'closed'
-            RETURNING plan_id
+            RETURNING plan_id, user_id::text AS user_id
             """,
             (expected_income, notes, funding_source_account_id, auto_fund_enabled, plan_id, username),
         )
-        if not cur.fetchone():
+        row = cur.fetchone()
+        if not row:
             raise HTTPException(status_code=404, detail="Plan not found or already closed")
-        # Recompute planned_amount for percent items and reconcile per-item status
-        # in case funded_amount no longer matches the new planned_amount.
         cur.execute(
             """
             UPDATE allocation_items
@@ -784,6 +1059,16 @@ async def update_plan(plan_id: str, req: Request):
             """,
             (expected_income, expected_income, expected_income, expected_income, expected_income, plan_id),
         )
+        after = _plan_snapshot(cur, plan_id)
+        _write_plan_audit(
+            cur,
+            plan_id=plan_id,
+            user_id=row["user_id"],
+            performed_by=username,
+            action="updated",
+            before=before,
+            after=after,
+        )
         conn.commit()
     invalidate_user_cache(username)
     return {"ok": True}
@@ -796,7 +1081,7 @@ def activate_plan(plan_id: str, req: Request):
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT expected_income
+            SELECT plan_id::text, user_id::text AS user_id, expected_income
             FROM allocation_plans
             WHERE plan_id=%s::uuid AND user_id=(SELECT user_id FROM users WHERE username=%s)
               AND status='draft'
@@ -820,6 +1105,10 @@ def activate_plan(plan_id: str, req: Request):
         )
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Plan not found or already active/closed")
+        _write_plan_audit(
+            cur, plan_id=plan_id, user_id=plan["user_id"],
+            performed_by=username, action="activated",
+        )
         next_plan_id = _create_next_active_plan(cur, username, plan_id)
         conn.commit()
     return {"ok": True, "next_plan_id": next_plan_id}
@@ -830,31 +1119,25 @@ def delete_plan(plan_id: str, req: Request):
     username = req.state.username
     plan_id = parse_uuid_value(plan_id, "plan_id")
     with db_conn() as conn, conn.cursor() as cur:
-        # Confirm ownership and that the plan is not closed (closed plans stay
-        # immutable for reporting integrity). Active plans can be deleted —
-        # already-funded transfers stay in place because they are real money
-        # movements; deletion only removes the plan/items/runs records.
         cur.execute(
             """
-            SELECT p.plan_id::text AS plan_id
+            SELECT p.plan_id::text AS plan_id, p.user_id::text AS user_id
             FROM allocation_plans p
             JOIN users u ON u.user_id = p.user_id
             WHERE p.plan_id=%s::uuid AND u.username=%s AND p.status<>'closed'
             """,
             (plan_id, username),
         )
-        if not cur.fetchone():
+        row = cur.fetchone()
+        if not row:
             raise HTTPException(status_code=404, detail="Plan not found or already closed")
-        # Remove allocation-derived budgets explicitly so we don't leave
-        # orphaned 'allocation' rows once the FK SET NULL fires on delete.
-        cur.execute(
-            "DELETE FROM budgets WHERE allocation_plan_id=%s::uuid",
-            (plan_id,),
+        _write_plan_audit(
+            cur, plan_id=plan_id, user_id=row["user_id"],
+            performed_by=username, action="deleted",
+            before=_plan_snapshot(cur, plan_id),
         )
-        cur.execute(
-            "DELETE FROM allocation_plans WHERE plan_id=%s::uuid",
-            (plan_id,),
-        )
+        cur.execute("DELETE FROM budgets WHERE allocation_plan_id=%s::uuid", (plan_id,))
+        cur.execute("DELETE FROM allocation_plans WHERE plan_id=%s::uuid", (plan_id,))
         conn.commit()
     invalidate_user_cache(username)
     return {"ok": True}
@@ -879,10 +1162,19 @@ async def add_item(plan_id: str, req: Request):
     target_account_id = data.get("target_account_id") or None
     include_override = data.get("include_in_emergency_base") if "include_in_emergency_base" in data else None
     priority = int(data.get("priority") or 50)
+    importance = str(data.get("importance") or "standard").strip().lower()
+    if importance not in ("mandatory", "standard", "flexible"):
+        importance = "standard"
+    category_id = data.get("category_id") or None
+    item_notes = (data.get("notes") or "").strip() or None
 
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT expected_income FROM allocation_plans p JOIN users u ON u.user_id=p.user_id WHERE p.plan_id=%s::uuid AND u.username=%s",
+            """
+            SELECT p.plan_id::text, p.expected_income, u.user_id::text AS user_id
+            FROM allocation_plans p JOIN users u ON u.user_id=p.user_id
+            WHERE p.plan_id=%s::uuid AND u.username=%s
+            """,
             (plan_id, username),
         )
         plan = cur.fetchone()
@@ -898,26 +1190,27 @@ async def add_item(plan_id: str, req: Request):
         target_account_id = _validate_account(cur, username, target_account_id, "target_account_id")
         if not target_account_id:
             target_account_id = _default_bucket_account(cur, username, bucket_id)
+        category_id = _validate_category(cur, username, category_id)
         planned = _resolve_planned_amount(mode, value, int(plan["expected_income"]))
         cur.execute(
             """
             INSERT INTO allocation_items (
-                plan_id,
-                bucket_id,
-                target_account_id,
-                include_in_emergency_base,
-                label,
-                mode,
-                value,
-                priority,
-                planned_amount
+                plan_id, bucket_id, target_account_id, include_in_emergency_base,
+                label, mode, value, priority, planned_amount,
+                importance, category_id, notes
             )
-            VALUES (%s::uuid, %s::uuid, %s::uuid, %s, %s, %s, %s, %s, %s)
+            VALUES (%s::uuid, %s::uuid, %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s::uuid, %s)
             RETURNING item_id::text AS item_id
             """,
-            (plan_id, bucket_id, target_account_id, include_in_emergency_base, label, mode, value, priority, planned),
+            (plan_id, bucket_id, target_account_id, include_in_emergency_base,
+             label, mode, value, priority, planned, importance, category_id, item_notes),
         )
         row = cur.fetchone()
+        _write_item_audit(
+            cur, item_id=row["item_id"], plan_id=plan_id,
+            user_id=plan["user_id"], performed_by=username,
+            action="created", after=_item_snapshot(cur, row["item_id"]),
+        )
         conn.commit()
     return {"ok": True, "item_id": row["item_id"]}
 
@@ -940,10 +1233,19 @@ async def update_item(plan_id: str, item_id: str, req: Request):
     target_account_id = data.get("target_account_id") or None
     include_override = data.get("include_in_emergency_base") if "include_in_emergency_base" in data else None
     priority = int(data.get("priority") or 50)
+    importance = str(data.get("importance") or "standard").strip().lower()
+    if importance not in ("mandatory", "standard", "flexible"):
+        importance = "standard"
+    category_id = data.get("category_id") or None
+    item_notes = (data.get("notes") or "").strip() or None
 
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT expected_income FROM allocation_plans p JOIN users u ON u.user_id=p.user_id WHERE p.plan_id=%s::uuid AND u.username=%s",
+            """
+            SELECT p.expected_income, u.user_id::text AS user_id
+            FROM allocation_plans p JOIN users u ON u.user_id=p.user_id
+            WHERE p.plan_id=%s::uuid AND u.username=%s
+            """,
             (plan_id, username),
         )
         plan = cur.fetchone()
@@ -965,19 +1267,30 @@ async def update_item(plan_id: str, item_id: str, req: Request):
         target_account_id = _validate_account(cur, username, target_account_id, "target_account_id")
         if not target_account_id:
             target_account_id = _default_bucket_account(cur, username, bucket_id)
+        category_id = _validate_category(cur, username, category_id)
         planned = _resolve_planned_amount(mode, value, int(plan["expected_income"]))
+        before = _item_snapshot(cur, item_id)
         cur.execute(
             """
-            UPDATE allocation_items SET label=%s, mode=%s, value=%s, bucket_id=%s::uuid,
-              target_account_id=%s::uuid, include_in_emergency_base=%s,
-              priority=%s, planned_amount=%s
+            UPDATE allocation_items
+            SET label=%s, mode=%s, value=%s, bucket_id=%s::uuid,
+                target_account_id=%s::uuid, include_in_emergency_base=%s,
+                priority=%s, planned_amount=%s, importance=%s,
+                category_id=%s::uuid, notes=%s
             WHERE item_id=%s::uuid AND plan_id=%s::uuid
             RETURNING item_id
             """,
-            (label, mode, value, bucket_id, target_account_id, include_in_emergency_base, priority, planned, item_id, plan_id),
+            (label, mode, value, bucket_id, target_account_id, include_in_emergency_base,
+             priority, planned, importance, category_id, item_notes, item_id, plan_id),
         )
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Item not found")
+        after = _item_snapshot(cur, item_id)
+        _write_item_audit(
+            cur, item_id=item_id, plan_id=plan_id,
+            user_id=plan["user_id"], performed_by=username,
+            action="updated", before=before, after=after,
+        )
         conn.commit()
     return {"ok": True}
 
@@ -1016,16 +1329,29 @@ def delete_item(plan_id: str, item_id: str, req: Request):
     plan_id = parse_uuid_value(plan_id, "plan_id")
     item_id = parse_uuid_value(item_id, "item_id")
     with db_conn() as conn, conn.cursor() as cur:
-        # Verify plan belongs to user
         cur.execute(
-            "SELECT 1 FROM allocation_plans p JOIN users u ON u.user_id=p.user_id WHERE p.plan_id=%s::uuid AND u.username=%s",
+            """
+            SELECT u.user_id::text AS user_id
+            FROM allocation_plans p JOIN users u ON u.user_id=p.user_id
+            WHERE p.plan_id=%s::uuid AND u.username=%s
+            """,
             (plan_id, username),
         )
-        if not cur.fetchone():
+        plan_row = cur.fetchone()
+        if not plan_row:
             raise HTTPException(status_code=404, detail="Plan not found")
-        cur.execute("DELETE FROM allocation_items WHERE item_id=%s::uuid AND plan_id=%s::uuid RETURNING item_id", (item_id, plan_id))
+        before = _item_snapshot(cur, item_id)
+        cur.execute(
+            "DELETE FROM allocation_items WHERE item_id=%s::uuid AND plan_id=%s::uuid RETURNING item_id",
+            (item_id, plan_id),
+        )
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Item not found")
+        _write_item_audit(
+            cur, item_id=item_id, plan_id=plan_id,
+            user_id=plan_row["user_id"], performed_by=username,
+            action="deleted", before=before,
+        )
         conn.commit()
     return {"ok": True}
 
@@ -1168,11 +1494,17 @@ async def fund_item(plan_id: str, item_id: str, req: Request):
 
     with db_conn() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT 1 FROM allocation_plans p JOIN users u ON u.user_id=p.user_id WHERE p.plan_id=%s::uuid AND u.username=%s",
+            """
+            SELECT u.user_id::text AS user_id
+            FROM allocation_plans p JOIN users u ON u.user_id=p.user_id
+            WHERE p.plan_id=%s::uuid AND u.username=%s
+            """,
             (plan_id, username),
         )
-        if not cur.fetchone():
+        plan_row = cur.fetchone()
+        if not plan_row:
             raise HTTPException(status_code=404, detail="Plan not found")
+        before = _item_snapshot(cur, item_id)
         cur.execute(
             """
             UPDATE allocation_items
@@ -1190,8 +1522,182 @@ async def fund_item(plan_id: str, item_id: str, req: Request):
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Item not found")
+        _write_item_audit(
+            cur, item_id=item_id, plan_id=plan_id,
+            user_id=plan_row["user_id"], performed_by=username,
+            action="funded",
+            before=before,
+            after={"funded_amount": int(row["funded_amount"]), "status": row["status"]},
+        )
         conn.commit()
     return {"ok": True, "funded_amount": row["funded_amount"], "status": row["status"]}
+
+
+@router.get("/{plan_id}/history")
+def get_plan_history(plan_id: str, req: Request, limit: int = 50, offset: int = 0):
+    """Return merged plan + item audit entries for a plan, newest first."""
+    username = req.state.username
+    plan_id = parse_uuid_value(plan_id, "plan_id")
+    with db_conn() as conn, conn.cursor() as cur:
+        # Verify ownership (plan may be deleted; check audit table directly)
+        cur.execute(
+            """
+            SELECT 1 FROM allocation_plans p JOIN users u ON u.user_id=p.user_id
+            WHERE p.plan_id=%s::uuid AND u.username=%s
+            UNION ALL
+            SELECT 1 FROM allocation_plan_audit a JOIN users u ON u.user_id=a.user_id
+            WHERE a.plan_id=%s::uuid AND u.username=%s
+            LIMIT 1
+            """,
+            (plan_id, username, plan_id, username),
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Plan not found")
+        cur.execute(
+            """
+            SELECT audit_id::text, 'plan' AS kind, NULL::text AS item_id,
+                   performed_by, action, before_state, after_state, reason, created_at
+            FROM allocation_plan_audit
+            WHERE plan_id=%s::uuid
+            UNION ALL
+            SELECT audit_id::text, 'item' AS kind, item_id::text,
+                   performed_by, action, before_state, after_state, NULL AS reason, created_at
+            FROM allocation_item_audit
+            WHERE plan_id=%s::uuid
+            ORDER BY created_at DESC
+            LIMIT %s OFFSET %s
+            """,
+            (plan_id, plan_id, limit, offset),
+        )
+        return {"history": cur.fetchall()}
+
+
+@router.get("/{plan_id}/closing-report")
+def get_closing_report(plan_id: str, req: Request):
+    """Build a month-closing report for the given allocation plan."""
+    username = req.state.username
+    plan_id = parse_uuid_value(plan_id, "plan_id")
+    with db_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT p.plan_id::text, p.month, p.expected_income, p.status,
+                   p.notes, p.created_at, p.activated_at,
+                   p.period_id::text AS period_id,
+                   u.user_id::text AS user_id
+            FROM allocation_plans p JOIN users u ON u.user_id=p.user_id
+            WHERE p.plan_id=%s::uuid AND u.username=%s
+            """,
+            (plan_id, username),
+        )
+        plan = cur.fetchone()
+        if not plan:
+            raise HTTPException(status_code=404, detail="Plan not found")
+
+        from_dt, to_dt = _funding_window_for_plan(cur, username, plan["month"])
+        to_dt = max(to_dt, now_utc())
+
+        # Items with actuals
+        cur.execute(
+            """
+            SELECT i.item_id::text, i.label, i.importance,
+                   i.planned_amount, i.funded_amount, i.status,
+                   i.category_id::text, i.target_account_id::text,
+                   i.mode, i.bucket_id::text,
+                   b.kind AS bucket_kind
+            FROM allocation_items i
+            LEFT JOIN buckets b ON b.bucket_id=i.bucket_id
+            WHERE i.plan_id=%s::uuid
+            ORDER BY i.priority, i.label
+            """,
+            (plan_id,),
+        )
+        items = cur.fetchall()
+        _compute_item_actuals(cur, username, items, from_dt, to_dt)
+
+        total_planned = sum(int(i["planned_amount"] or 0) for i in items)
+        total_funded = sum(int(i["funded_amount"] or 0) for i in items)
+        total_actual = sum(int(i.get("actual_amount") or 0) for i in items)
+        total_drift = total_actual - total_planned
+        overspent = [i for i in items if int(i.get("drift_amount") or 0) > 0]
+
+        # Actual income = sum of cycle_topup debits in window
+        cur.execute(
+            """
+            SELECT COALESCE(SUM(t.amount), 0)::bigint AS actual_income
+            FROM transactions t
+            JOIN accounts a ON a.account_id=t.account_id
+            WHERE a.username=%s
+              AND t.is_cycle_topup=TRUE
+              AND t.transaction_type='debit'
+              AND t.is_transfer=FALSE
+              AND t.deleted_at IS NULL
+              AND t.date >= %s AND t.date <= %s
+            """,
+            (username, from_dt, to_dt),
+        )
+        actual_income = int((cur.fetchone() or {}).get("actual_income") or 0)
+        income_variance = actual_income - int(plan["expected_income"] or 0)
+
+        # Emergency fund at end of period
+        emergency_balance_end = _emergency_bucket_balance(cur, username)
+        monthly_need = sum(
+            int(i["planned_amount"] or 0) for i in items
+            if i.get("include_in_emergency_base")
+        )
+        coverage_end = round(emergency_balance_end / monthly_need, 1) if monthly_need > 0 else None
+
+        # Audit summary
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM allocation_plan_audit WHERE plan_id=%s::uuid AND action='updated'",
+            (plan_id,),
+        )
+        plan_edits = int((cur.fetchone() or {}).get("n") or 0)
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM allocation_item_audit WHERE plan_id=%s::uuid AND action='updated'",
+            (plan_id,),
+        )
+        item_edits = int((cur.fetchone() or {}).get("n") or 0)
+
+        return {
+            "plan_id": plan_id,
+            "month": plan["month"],
+            "period_id": plan.get("period_id"),
+            "income": {
+                "expected": int(plan["expected_income"] or 0),
+                "actual": actual_income,
+                "variance": income_variance,
+            },
+            "spending": {
+                "planned": total_planned,
+                "funded": total_funded,
+                "actual": total_actual,
+                "drift": total_drift,
+            },
+            "items": [
+                {
+                    "item_id": i["item_id"],
+                    "label": i["label"],
+                    "importance": i.get("importance", "standard"),
+                    "planned": int(i["planned_amount"] or 0),
+                    "funded": int(i["funded_amount"] or 0),
+                    "actual": int(i.get("actual_amount") or 0),
+                    "drift": int(i.get("drift_amount") or 0),
+                    "leftover": max(0, int(i["funded_amount"] or 0) - int(i.get("actual_amount") or 0)),
+                    "status": i["status"],
+                }
+                for i in items
+            ],
+            "overspent_items": [
+                {"label": i["label"], "drift": int(i.get("drift_amount") or 0)}
+                for i in overspent
+            ],
+            "emergency": {
+                "balance_end": emergency_balance_end,
+                "coverage_months_end": coverage_end,
+                "monthly_need": monthly_need,
+            },
+            "audit_summary": {"plan_edits": plan_edits, "item_edits": item_edits},
+        }
 
 
 def run_due_auto_funding_once() -> int:

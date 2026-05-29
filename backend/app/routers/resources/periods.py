@@ -77,12 +77,21 @@ async def close_period(period_id: str, req: Request):
             FROM users u
             WHERE p.period_id=%s::uuid AND p.user_id=u.user_id AND u.username=%s
               AND p.status='open'
-            RETURNING p.period_id
+            RETURNING p.period_id, p.month
             """,
             (notes, period_id, username),
         )
-        if not cur.fetchone():
+        row = cur.fetchone()
+        if not row:
             raise HTTPException(status_code=404, detail="Period not found or already closed")
+        # Also close the linked allocation plan if it is still active
+        cur.execute(
+            """
+            UPDATE allocation_plans SET status='closed', updated_at=now()
+            WHERE period_id=%s::uuid AND status IN ('draft','active')
+            """,
+            (period_id,),
+        )
         conn.commit()
     return {"ok": True}
 

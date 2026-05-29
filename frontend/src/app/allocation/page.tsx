@@ -13,6 +13,12 @@ import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Input";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 
+const IMPORTANCE_COLORS: Record<string, "red" | "blue" | "gray"> = { mandatory: "red", standard: "blue", flexible: "gray" };
+const STATE_ICONS: Record<string, string> = {
+  draft: "✏️", ready_for_payday: "⏳", needs_funding: "💸",
+  in_progress: "🔄", mandatory_funded: "✅", complete: "🎉", closed: "🔒",
+};
+
 export default function AllocationPage() {
   const qc = useQueryClient();
   const { hideBalances } = useAppCtx();
@@ -22,10 +28,12 @@ export default function AllocationPage() {
   const [editingPlan, setEditingPlan] = useState(false);
   const [itemModal, setItemModal] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [historyDrawer, setHistoryDrawer] = useState(false);
+  const [closingReportModal, setClosingReportModal] = useState(false);
   const [strategyModal, setStrategyModal] = useState(false);
   const [strategyPreview, setStrategyPreview] = useState<any>(null);
   const [planForm, setPlanForm] = useState({ month: currentMonthYM(), expected_income: 0, notes: "", funding_source_account_id: "", auto_fund_enabled: true });
-  const [itemForm, setItemForm] = useState({ label: "", mode: "percent", value: 0, bucket_id: "", target_account_id: "", include_in_emergency_base: true, priority: 50 });
+  const [itemForm, setItemForm] = useState({ label: "", mode: "percent", value: 0, bucket_id: "", target_account_id: "", include_in_emergency_base: true, priority: 50, importance: "standard", category_id: "", notes: "" });
   const [err, setErr] = useState("");
 
   const { data: plansData } = useQuery<{ plans: any[] }>({ queryKey: ["allocation-plans"], queryFn: () => api.get("/allocation-plans") });
@@ -33,6 +41,9 @@ export default function AllocationPage() {
   const { data: fundingStatus } = useQuery<any>({ queryKey: ["allocation-funding-status", selectedPlan], queryFn: () => api.get(`/allocation-plans/${selectedPlan}/funding-status`), enabled: !!selectedPlan });
   const { data: bucketsData } = useQuery<{ buckets: any[] }>({ queryKey: ["buckets"], queryFn: () => api.get("/buckets") });
   const { data: accountsData } = useQuery<{ accounts: any[] }>({ queryKey: ["accounts"], queryFn: () => api.get("/accounts") });
+  const { data: categoriesData } = useQuery<{ categories: any[] }>({ queryKey: ["categories"], queryFn: () => api.get("/categories") });
+  const { data: historyData } = useQuery<{ history: any[] }>({ queryKey: ["allocation-history", selectedPlan], queryFn: () => api.get(`/allocation-plans/${selectedPlan}/history?limit=50`), enabled: !!selectedPlan && historyDrawer });
+  const { data: closingReport } = useQuery<any>({ queryKey: ["allocation-closing-report", selectedPlan], queryFn: () => api.get(`/allocation-plans/${selectedPlan}/closing-report`), enabled: !!selectedPlan && closingReportModal });
 
   const inv = (planId = selectedPlan) => {
     qc.invalidateQueries({ queryKey: ["allocation-plans"] });
@@ -74,6 +85,8 @@ export default function AllocationPage() {
         value: itemForm.mode === "percent" ? clampNumber(itemForm.value) : itemForm.value,
         bucket_id: itemForm.bucket_id || null,
         target_account_id: itemForm.target_account_id || null,
+        category_id: itemForm.category_id || null,
+        notes: itemForm.notes || null,
       };
       return editingItem
         ? api.put(`/allocation-plans/${selectedPlan}/items/${editingItem.item_id}`, payload)
@@ -117,7 +130,12 @@ export default function AllocationPage() {
   const plans = useMemo(() => plansData?.plans ?? [], [plansData?.plans]);
   const buckets = bucketsData?.buckets ?? [];
   const accounts = accountsData?.accounts ?? [];
+  const categories = categoriesData?.categories ?? [];
+  const expenseCategories = categories.filter((c: any) => c.kind === "expense" && !c.is_archived);
   const payrollAccounts = accounts.filter((a: any) => a.is_payroll_source);
+  const planState: string = plan?.plan_state ?? "";
+  const planStateDesc: string = plan?.plan_state_description ?? "";
+  const nextAction: string | null = plan?.next_recommended_action ?? null;
   const emergencyDefaultForBucket = (bucketId: string) => {
     const kind = buckets.find((b: any) => b.bucket_id === bucketId)?.kind;
     if (kind === "investment" || kind === "emergency" || kind === "goal" || kind === "sinking") return false;
@@ -256,6 +274,10 @@ export default function AllocationPage() {
                 Delete Plan
               </Button>
             )}
+            {plan && <Button variant="secondary" onClick={() => setHistoryDrawer(true)}>History</Button>}
+            {plan && planState === "complete" && (
+              <Button variant="secondary" onClick={() => setClosingReportModal(true)}>Close Month</Button>
+            )}
             <Button variant="secondary" onClick={() => { setEditingPlan(false); setPlanForm({ month: currentMonthYM(), expected_income: 0, notes: "", funding_source_account_id: payrollAccounts.length === 1 ? payrollAccounts[0].account_id : "", auto_fund_enabled: true }); setErr(""); setPlanModal(true); }}>+ New Plan</Button>
           </div>
         </div>
@@ -313,7 +335,7 @@ export default function AllocationPage() {
                   <Badge variant="gray">{plan.items?.length ?? 0} items</Badge>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="primary" onClick={() => { setEditingItem(null); setItemForm({ label: "", mode: "percent", value: 0, bucket_id: "", target_account_id: "", include_in_emergency_base: true, priority: 50 }); setErr(""); setItemModal(true); }}>+ Add Item</Button>
+                  <Button size="sm" variant="primary" onClick={() => { setEditingItem(null); setItemForm({ label: "", mode: "percent", value: 0, bucket_id: "", target_account_id: "", include_in_emergency_base: true, priority: 50, importance: "standard", category_id: "", notes: "" }); setErr(""); setItemModal(true); }}>+ Add Item</Button>
                 </div>
               </div>
               <table className="w-full text-xs">
@@ -321,11 +343,15 @@ export default function AllocationPage() {
                   <tr className="text-[var(--muted)] border-b border-[var(--border)]">
                     <th className="text-left pb-2 font-medium w-6">#</th>
                     <th className="text-left pb-2 font-medium">Item</th>
-                    <th className="text-left pb-2 font-medium">Linked Bucket</th>
+                    <th className="text-left pb-2 font-medium">Bucket</th>
+                    <th className="text-left pb-2 font-medium">Type</th>
                     <th className="text-left pb-2 font-medium">Target Account</th>
                     <th className="text-left pb-2 font-medium">Mode</th>
+                    <th className="text-left pb-2 font-medium">Importance</th>
                     <th className="text-right pb-2 font-medium">Planned</th>
                     <th className="text-right pb-2 font-medium">Funded</th>
+                    <th className="text-right pb-2 font-medium">Actual</th>
+                    <th className="text-right pb-2 font-medium">Drift</th>
                     <th className="text-left pb-2 font-medium w-24">Progress</th>
                     <th className="text-center pb-2 font-medium">Status</th>
                     <th className="pb-2"></th>
@@ -338,30 +364,34 @@ export default function AllocationPage() {
                       <td className="py-2.5">
                         <p className="font-medium">{item.label}</p>
                         <p className="text-[var(--muted)]">{item.mode === "percent" ? `${item.value}% of income` : fmtMoney(item.value)}</p>
+                        {item.item_notes && <p className="text-[var(--muted)] text-xs italic">{item.item_notes}</p>}
                       </td>
-                      <td className="py-2.5 text-[var(--muted)]">
-                        {item.bucket_name ?? buckets.find((b) => b.bucket_id === item.bucket_id)?.name ?? "—"}
-                        {item.group && <p className="text-[var(--muted)]">{item.group.replace(/_/g, " ")}</p>}
-                      </td>
+                      <td className="py-2.5 text-[var(--muted)]">{item.bucket_name ?? "—"}</td>
+                      <td className="py-2.5"><Badge variant="gray">{(item.group ?? "").replace(/_/g, " ")}</Badge></td>
                       <td className="py-2.5 text-[var(--muted)]">{item.target_account_name ?? "—"}</td>
                       <td className="py-2.5"><Badge variant="blue">{item.mode === "percent" ? `${item.value}%` : "Fixed"}</Badge></td>
+                      <td className="py-2.5"><Badge variant={IMPORTANCE_COLORS[item.importance ?? "standard"] ?? "gray"}>{item.importance ?? "standard"}</Badge></td>
                       <td className="py-2.5 text-right tabular">{bal(item.planned_amount)}</td>
                       <td className="py-2.5 text-right tabular">{bal(item.funded_amount)}</td>
+                      <td className="py-2.5 text-right tabular">{bal(item.actual_amount ?? 0)}</td>
+                      <td className={`py-2.5 text-right tabular ${(item.drift_amount ?? 0) > 0 ? "text-danger" : (item.drift_amount ?? 0) < 0 ? "text-primary" : ""}`}>{(item.drift_amount ?? 0) > 0 ? "+" : ""}{bal(item.drift_amount ?? 0)}</td>
                       <td className="py-2.5">
                         <ProgressBar value={item.planned_amount > 0 ? (item.funded_amount / item.planned_amount) * 100 : 0} showLabel />
                       </td>
                       <td className="py-2.5 text-center"><StatusBadge status={item.status} /></td>
                       <td className="py-2.5">
                         <div className="flex gap-1">
-                          <button onClick={() => { setEditingItem(item); setItemForm({ label: item.label, mode: item.mode, value: item.mode === "percent" ? clampNumber(item.value) : item.value, bucket_id: item.bucket_id ?? "", target_account_id: item.target_account_id ?? "", include_in_emergency_base: item.include_in_emergency_base ?? true, priority: item.priority }); setErr(""); setItemModal(true); }} className="text-xs text-[var(--muted)] hover:text-[var(--text)]">Edit</button>
+                          <button onClick={() => { setEditingItem(item); setItemForm({ label: item.label, mode: item.mode, value: item.mode === "percent" ? clampNumber(item.value) : item.value, bucket_id: item.bucket_id ?? "", target_account_id: item.target_account_id ?? "", include_in_emergency_base: item.include_in_emergency_base ?? true, priority: item.priority, importance: item.importance ?? "standard", category_id: item.category_id ?? "", notes: item.item_notes ?? "" }); setErr(""); setItemModal(true); }} className="text-xs text-[var(--muted)] hover:text-[var(--text)]">Edit</button>
                         </div>
                       </td>
                     </tr>
                   ))}
                   <tr className="font-semibold border-t-2 border-[var(--border)]">
-                    <td className="py-2.5" colSpan={5}>Total</td>
+                    <td className="py-2.5" colSpan={7}>Total</td>
                     <td className="py-2.5 text-right tabular">{bal(totalPlanned)}</td>
                     <td className="py-2.5 text-right tabular">{bal(totalFunded)}</td>
+                    <td className="py-2.5 text-right tabular">{bal(plan?.items?.reduce((s: number, i: any) => s + (i.actual_amount ?? 0), 0) ?? 0)}</td>
+                    <td className="py-2.5 text-right tabular">{bal(plan?.items?.reduce((s: number, i: any) => s + (i.drift_amount ?? 0), 0) ?? 0)}</td>
                     <td className="py-2.5"><ProgressBar value={fundedPct} showLabel /></td>
                     <td /><td />
                   </tr>
@@ -376,8 +406,24 @@ export default function AllocationPage() {
               <SectionTitle>Plan Health</SectionTitle>
               <div className="flex flex-col items-center py-2">
                 <DonutChart value={fundedPct} size={100} label={`${fundedPct}%`} sublabel="Funded" color={fundedPct >= 80 ? "#16a34a" : "#f59e0b"} />
+                {/* Mandatory funded donut */}
+                {(() => {
+                  const mandatoryItems = (plan.items ?? []).filter((i: any) => i.importance === "mandatory");
+                  const mandatoryPlanned = mandatoryItems.reduce((s: number, i: any) => s + i.planned_amount, 0);
+                  const mandatoryFunded = mandatoryItems.reduce((s: number, i: any) => s + i.funded_amount, 0);
+                  const mandatoryPct = mandatoryPlanned > 0 ? Math.round((mandatoryFunded / mandatoryPlanned) * 100) : 0;
+                  if (mandatoryItems.length === 0) return null;
+                  return (
+                    <div className="mt-2 flex flex-col items-center">
+                      <DonutChart value={mandatoryPct} size={64} label={`${mandatoryPct}%`} sublabel="Mandatory" color={mandatoryPct >= 100 ? "#16a34a" : "#ef4444"} />
+                    </div>
+                  );
+                })()}
                 <div className="mt-3 space-y-1.5 w-full text-xs">
-                  <div className="flex items-center gap-2"><span className="text-primary">✓</span><span>On track. You're on track to fund this plan.</span></div>
+                  <div className="flex items-center gap-2">
+                    <span>{STATE_ICONS[planState] ?? "○"}</span>
+                    <span className="font-semibold">{planStateDesc || planState}</span>
+                  </div>
                   <div className="flex items-center gap-2"><span className="text-primary">✓</span><span>{(plan.items ?? []).filter((i: any) => i.status === "funded").length} items fully funded</span></div>
                   <div className="flex items-center gap-2"><span className="text-warning">○</span><span>{(plan.items ?? []).filter((i: any) => i.status !== "funded").length} items need funding</span></div>
                   {emergencyHealth && (
@@ -428,6 +474,13 @@ export default function AllocationPage() {
               </div>
             </Card>
 
+            {nextAction && (
+              <Card padding="md">
+                <SectionTitle>Next Recommended Action</SectionTitle>
+                <p className="text-xs text-[var(--text)] mt-1">{nextAction}</p>
+              </Card>
+            )}
+
             <Card padding="md">
               <SectionTitle>Plan Summary</SectionTitle>
               <div className="space-y-2 text-xs">
@@ -449,23 +502,35 @@ export default function AllocationPage() {
             <Card padding="md">
               <SectionTitle>Funding Timeline</SectionTitle>
               <div className="space-y-3 text-xs">
-                {[
-                  { label: "Plan created", done: true, sub: "Allocation plan saved" },
-                  { label: "Plan reviewed", done: true, sub: "All items reviewed and confirmed" },
-                  { label: "Payday", done: false, sub: `Income expected: ${bal(plan.expected_income)}`, active: true },
-                  { label: "Fund items", done: false, sub: "Distribute income to all items" },
-                  { label: "Review & adjust", done: false, sub: "Review progress and adjust plan" },
-                ].map((step, i) => (
-                  <div key={i} className="flex gap-3">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 mt-0.5 ${step.done ? "bg-primary text-white" : step.active ? "border-2 border-primary bg-white" : "border-2 border-[var(--border)] bg-white"}`}>
-                      {step.done ? "✓" : ""}
+                {(() => {
+                  const items = plan.items ?? [];
+                  const mandatoryItems = items.filter((i: any) => i.importance === "mandatory");
+                  const strategicItems = items.filter((i: any) => i.importance === "standard");
+                  const flexibleItems = items.filter((i: any) => i.importance === "flexible");
+                  const allFunded = (arr: any[]) => arr.length > 0 && arr.every((i: any) => i.status === "funded" || i.status === "overflowed");
+                  const payrollReceived = fundingStatus?.payroll_received ?? false;
+                  const steps = [
+                    { label: "Plan created", done: !!plan.created_at, sub: plan.created_at ? new Date(plan.created_at).toLocaleDateString() : "" },
+                    { label: "Plan reviewed", done: plan.status !== "draft", sub: plan.activated_at ? `Activated ${new Date(plan.activated_at).toLocaleDateString()}` : "Activate to mark reviewed" },
+                    { label: "Payroll received", done: payrollReceived, sub: payrollReceived ? "Income confirmed" : `Expected: ${bal(plan.expected_income)}` },
+                    { label: "Mandatory items funded", done: allFunded(mandatoryItems), sub: mandatoryItems.length === 0 ? "No mandatory items" : `${mandatoryItems.filter((i: any) => i.status === "funded").length}/${mandatoryItems.length} funded` },
+                    { label: "Standard items funded", done: allFunded(strategicItems), sub: `${strategicItems.filter((i: any) => i.status === "funded").length}/${strategicItems.length} funded` },
+                    { label: "Flexible items funded", done: allFunded(flexibleItems), sub: `${flexibleItems.filter((i: any) => i.status === "funded").length}/${flexibleItems.length} funded` },
+                    { label: "Month reviewed", done: plan.status === "closed", sub: "Review spending vs plan" },
+                    { label: "Period closed", done: plan.status === "closed", sub: plan.status === "closed" ? "Closed" : "Close period when done" },
+                  ];
+                  return steps.map((step, i) => (
+                    <div key={i} className="flex gap-3">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 mt-0.5 ${step.done ? "bg-primary text-white" : "border-2 border-[var(--border)] bg-white"}`}>
+                        {step.done ? "✓" : ""}
+                      </div>
+                      <div>
+                        <p className="font-medium">{step.label}</p>
+                        <p className="text-[var(--muted)]">{step.sub}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">{step.label}</p>
-                      <p className="text-[var(--muted)]">{step.sub}</p>
-                    </div>
-                  </div>
-                ))}
+                  ));
+                })()}
               </div>
             </Card>
           </div>
@@ -523,6 +588,18 @@ export default function AllocationPage() {
                 : "Set expected income on the plan to calculate this."}
             </p>
           </div>
+          {/* Importance */}
+          <div>
+            <p className="text-xs font-medium text-[var(--muted)] mb-1">Importance</p>
+            <div className="flex rounded-lg overflow-hidden border border-[var(--border)]">
+              {(["mandatory", "standard", "flexible"] as const).map((imp) => (
+                <button key={imp} type="button" onClick={() => setItemForm({ ...itemForm, importance: imp })}
+                  className={`flex-1 py-1.5 text-xs font-medium transition-colors capitalize ${itemForm.importance === imp ? (imp === "mandatory" ? "bg-danger text-white" : imp === "standard" ? "bg-primary text-white" : "bg-[var(--muted)] text-white") : "bg-[var(--surface)] text-[var(--muted)]"}`}>
+                  {imp}
+                </button>
+              ))}
+            </div>
+          </div>
           <Select label="Bucket (optional)" value={itemForm.bucket_id} onChange={(e) => {
             const bucketId = e.target.value;
             const linked = buckets.find((b: any) => b.bucket_id === bucketId)?.linked_account_ids;
@@ -540,10 +617,15 @@ export default function AllocationPage() {
             <option value="">— infer from bucket if one account is linked —</option>
             {accounts.map((a: any) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
           </Select>
+          <Select label="Spending Category (for actuals)" value={itemForm.category_id} onChange={(e) => setItemForm({ ...itemForm, category_id: e.target.value })}>
+            <option value="">— none (use target account) —</option>
+            {expenseCategories.map((c: any) => <option key={c.category_id} value={c.category_id}>{c.name}</option>)}
+          </Select>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={itemForm.include_in_emergency_base} onChange={(e) => setItemForm({ ...itemForm, include_in_emergency_base: e.target.checked })} />
             Include this spending in emergency fund coverage
           </label>
+          <Input label="Notes (optional)" value={itemForm.notes} onChange={(e) => setItemForm({ ...itemForm, notes: e.target.value })} placeholder="e.g. Fixed until 2027-03" />
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
             <p className="text-[var(--muted)]">Remaining unallocated balance</p>
             <div className="flex items-center justify-between gap-2">
@@ -552,11 +634,7 @@ export default function AllocationPage() {
                 type="button"
                 onClick={applyUseAll}
                 disabled={!canUseAll}
-                title={canUseAll
-                  ? `Add ${bal(unallocatedIncome)} to this item`
-                  : (unallocatedIncome <= 0
-                      ? "No remaining income to add"
-                      : "Set expected income on the plan first")}
+                title={canUseAll ? `Add ${bal(unallocatedIncome)} to this item` : (unallocatedIncome <= 0 ? "No remaining income to add" : "Set expected income on the plan first")}
                 className="text-xs font-semibold text-primary hover:underline disabled:text-[var(--muted)] disabled:no-underline disabled:cursor-not-allowed"
               >
                 Use all
@@ -623,6 +701,97 @@ export default function AllocationPage() {
             </Button>
             <Button variant="secondary" onClick={() => setStrategyModal(false)}>Cancel</Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* History drawer */}
+      <Modal open={historyDrawer} onClose={() => setHistoryDrawer(false)} title="Plan History">
+        <div className="space-y-2 max-h-[70vh] overflow-auto pr-1">
+          {(historyData?.history ?? []).length === 0 && <p className="text-xs text-[var(--muted)]">No history yet.</p>}
+          {(historyData?.history ?? []).map((entry: any) => (
+            <div key={entry.audit_id} className="rounded-lg border border-[var(--border)] p-3 text-xs">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="font-semibold capitalize">{entry.kind === "item" ? `Item · ${entry.action}` : `Plan · ${entry.action}`}</span>
+                <span className="text-[var(--muted)]">{new Date(entry.created_at).toLocaleString()}</span>
+              </div>
+              {entry.kind === "item" && entry.before_state && (
+                <p className="text-[var(--muted)]">
+                  {entry.before_state.label ?? entry.item_id}
+                  {entry.before_state.planned_amount !== entry.after_state?.planned_amount
+                    ? ` · planned ${fmtMoney(entry.before_state.planned_amount)} → ${fmtMoney(entry.after_state?.planned_amount ?? 0)}`
+                    : ""}
+                </p>
+              )}
+              {entry.kind === "plan" && entry.before_state && entry.after_state && (
+                <p className="text-[var(--muted)]">
+                  {entry.before_state.expected_income !== entry.after_state.expected_income
+                    ? `income ${fmtMoney(entry.before_state.expected_income)} → ${fmtMoney(entry.after_state.expected_income)}`
+                    : entry.action}
+                </p>
+              )}
+              {entry.reason && <p className="text-[var(--muted)] italic">{entry.reason}</p>}
+            </div>
+          ))}
+        </div>
+        <div className="pt-2">
+          <Button variant="secondary" onClick={() => setHistoryDrawer(false)}>Close</Button>
+        </div>
+      </Modal>
+
+      {/* Closing Report modal */}
+      <Modal open={closingReportModal} onClose={() => setClosingReportModal(false)} title={`Closing Report · ${plan?.month ?? ""}`}>
+        {closingReport ? (
+          <div className="space-y-4 max-h-[75vh] overflow-auto pr-1">
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              {[
+                ["Expected Income", fmtMoney(closingReport.income?.expected ?? 0)],
+                ["Actual Income", fmtMoney(closingReport.income?.actual ?? 0)],
+                ["Income Variance", fmtMoney(closingReport.income?.variance ?? 0)],
+                ["Total Planned", fmtMoney(closingReport.spending?.planned ?? 0)],
+                ["Total Funded", fmtMoney(closingReport.spending?.funded ?? 0)],
+                ["Total Actual Spent", fmtMoney(closingReport.spending?.actual ?? 0)],
+                ["Total Drift", fmtMoney(closingReport.spending?.drift ?? 0)],
+                ["Emergency Coverage", `${closingReport.emergency?.coverage_months_end ?? "—"} months`],
+              ].map(([k, v]) => (
+                <div key={k} className="rounded-lg bg-[var(--bg)] p-2">
+                  <p className="text-[var(--muted)]">{k}</p>
+                  <p className="font-semibold tabular">{v}</p>
+                </div>
+              ))}
+            </div>
+            <div>
+              <p className="text-xs font-semibold mb-2">Items</p>
+              <div className="space-y-1">
+                {(closingReport.items ?? []).map((item: any) => (
+                  <div key={item.item_id} className="flex items-center justify-between text-xs border-b border-[var(--border)] py-1.5">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={IMPORTANCE_COLORS[item.importance ?? "standard"] ?? "gray"}>{item.importance}</Badge>
+                      <span>{item.label}</span>
+                    </div>
+                    <div className="flex gap-3 tabular text-right">
+                      <span className="text-[var(--muted)]">{fmtMoney(item.planned)}</span>
+                      <span>{fmtMoney(item.actual)}</span>
+                      <span className={item.drift > 0 ? "text-danger" : item.drift < 0 ? "text-primary" : ""}>{item.drift > 0 ? "+" : ""}{fmtMoney(item.drift)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {(closingReport.overspent_items ?? []).length > 0 && (
+              <div className="rounded-lg border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20 p-3 text-xs">
+                <p className="font-semibold text-yellow-800 dark:text-yellow-300 mb-1">Overspent items</p>
+                {closingReport.overspent_items.map((i: any) => (
+                  <p key={i.label} className="text-yellow-700 dark:text-yellow-400">{i.label}: +{fmtMoney(i.drift)}</p>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-[var(--muted)]">Plan edits this cycle: {closingReport.audit_summary?.plan_edits ?? 0} · Item edits: {closingReport.audit_summary?.item_edits ?? 0}</p>
+          </div>
+        ) : (
+          <p className="text-xs text-[var(--muted)]">Loading report…</p>
+        )}
+        <div className="flex gap-2 pt-2">
+          <Button variant="secondary" onClick={() => setClosingReportModal(false)}>Close</Button>
         </div>
       </Modal>
     </div>
