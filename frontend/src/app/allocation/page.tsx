@@ -152,6 +152,23 @@ export default function AllocationPage() {
   const emergencyHealth = plan?.health?.emergency_fund;
   const allocationBlocked = totalPlanned > expectedIncome;
 
+  // Target absolute amount (in IDR) for the "Use all" button — absorbs the
+  // remaining unallocated income on top of whatever this item is already
+  // contributing in the saved plan. For a new item the saved planned amount
+  // is 0, so the target equals unallocatedIncome.
+  const editingItemPlanned = Number(editingItem?.planned_amount ?? 0);
+  const useAllTargetPlanned = Math.max(0, unallocatedIncome + editingItemPlanned);
+  const canUseAll = unallocatedIncome > 0 && expectedIncome > 0;
+  const applyUseAll = () => {
+    if (!canUseAll) return;
+    if (itemForm.mode === "percent") {
+      const targetPercent = clampNumber((useAllTargetPlanned / expectedIncome) * 100);
+      setItemForm({ ...itemForm, value: targetPercent });
+    } else {
+      setItemForm({ ...itemForm, value: useAllTargetPlanned });
+    }
+  };
+
   return (
     <div className="workbench-page space-y-4">
       {emergencyHealth && emergencyHealth.status !== "ok" && (
@@ -529,7 +546,22 @@ export default function AllocationPage() {
           </label>
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
             <p className="text-[var(--muted)]">Remaining unallocated balance</p>
-            <p className={`font-semibold tabular ${unallocatedIncome < 0 ? "text-danger" : "text-[var(--text)]"}`}>{bal(unallocatedIncome)}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className={`font-semibold tabular ${unallocatedIncome < 0 ? "text-danger" : "text-[var(--text)]"}`}>{bal(unallocatedIncome)}</p>
+              <button
+                type="button"
+                onClick={applyUseAll}
+                disabled={!canUseAll}
+                title={canUseAll
+                  ? `Add ${bal(unallocatedIncome)} to this item`
+                  : (unallocatedIncome <= 0
+                      ? "No remaining income to add"
+                      : "Set expected income on the plan first")}
+                className="text-xs font-semibold text-primary hover:underline disabled:text-[var(--muted)] disabled:no-underline disabled:cursor-not-allowed"
+              >
+                Use all
+              </button>
+            </div>
           </div>
           {err && <p className="text-xs text-danger">{err}</p>}
           <div className="flex gap-2 pt-1">
