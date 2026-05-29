@@ -749,7 +749,7 @@ async def update_plan(plan_id: str, req: Request):
 
     with db_conn() as conn, conn.cursor() as cur:
         funding_source_account_id = _validate_account(cur, username, funding_source_account_id, "funding_source_account_id")
-        # Recompute all item planned_amounts when income changes
+        # Allow updates on draft and active plans; closed plans remain immutable.
         cur.execute(
             """
             UPDATE allocation_plans
@@ -759,22 +759,33 @@ async def update_plan(plan_id: str, req: Request):
                 auto_fund_enabled=%s,
                 updated_at=now()
             WHERE plan_id=%s::uuid AND user_id=(SELECT user_id FROM users WHERE username=%s)
-              AND status='draft'
+              AND status<>'closed'
             RETURNING plan_id
             """,
             (expected_income, notes, funding_source_account_id, auto_fund_enabled, plan_id, username),
         )
         if not cur.fetchone():
-            raise HTTPException(status_code=404, detail="Plan not found or not in draft status")
+            raise HTTPException(status_code=404, detail="Plan not found or already closed")
+        # Recompute planned_amount for percent items and reconcile per-item status
+        # in case funded_amount no longer matches the new planned_amount.
         cur.execute(
             """
             UPDATE allocation_items
-            SET planned_amount=ROUND(%s * value / 100.0)::bigint
+            SET planned_amount = ROUND(%s * value / 100.0)::bigint,
+                status = CASE
+                  WHEN ROUND(%s * value / 100.0)::bigint = 0 AND funded_amount > 0 THEN 'overflowed'
+                  WHEN ROUND(%s * value / 100.0)::bigint = 0 THEN 'pending'
+                  WHEN funded_amount = 0 THEN 'pending'
+                  WHEN funded_amount > ROUND(%s * value / 100.0)::bigint THEN 'overflowed'
+                  WHEN funded_amount = ROUND(%s * value / 100.0)::bigint THEN 'funded'
+                  ELSE 'partial'
+                END
             WHERE plan_id=%s::uuid AND mode='percent'
             """,
-            (expected_income, plan_id),
+            (expected_income, expected_income, expected_income, expected_income, expected_income, plan_id),
         )
         conn.commit()
+    invalidate_user_cache(username)
     return {"ok": True}
 
 
@@ -818,20 +829,34 @@ def activate_plan(plan_id: str, req: Request):
 def delete_plan(plan_id: str, req: Request):
     username = req.state.username
     plan_id = parse_uuid_value(plan_id, "plan_id")
-    current_month = current_month_local()
     with db_conn() as conn, conn.cursor() as cur:
+        # Confirm ownership and that the plan is not closed (closed plans stay
+        # immutable for reporting integrity). Active plans can be deleted —
+        # already-funded transfers stay in place because they are real money
+        # movements; deletion only removes the plan/items/runs records.
         cur.execute(
             """
-            DELETE FROM allocation_plans
-            WHERE plan_id=%s::uuid AND user_id=(SELECT user_id FROM users WHERE username=%s)
-              AND (status='draft' OR month <= %s)
-            RETURNING plan_id, month, status
+            SELECT p.plan_id::text AS plan_id
+            FROM allocation_plans p
+            JOIN users u ON u.user_id = p.user_id
+            WHERE p.plan_id=%s::uuid AND u.username=%s AND p.status<>'closed'
             """,
-            (plan_id, username, current_month),
+            (plan_id, username),
         )
         if not cur.fetchone():
-            raise HTTPException(status_code=404, detail="Plan not found or not deletable (only drafts and current/past plans can be deleted)")
+            raise HTTPException(status_code=404, detail="Plan not found or already closed")
+        # Remove allocation-derived budgets explicitly so we don't leave
+        # orphaned 'allocation' rows once the FK SET NULL fires on delete.
+        cur.execute(
+            "DELETE FROM budgets WHERE allocation_plan_id=%s::uuid",
+            (plan_id,),
+        )
+        cur.execute(
+            "DELETE FROM allocation_plans WHERE plan_id=%s::uuid",
+            (plan_id,),
+        )
         conn.commit()
+    invalidate_user_cache(username)
     return {"ok": True}
 
 

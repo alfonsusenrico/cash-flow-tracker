@@ -45,6 +45,9 @@ export default function AllocationPage() {
     onSuccess: (r: any) => {
       const planId = r?.plan_id ?? selectedPlan;
       inv(planId);
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+      qc.invalidateQueries({ queryKey: ["accounts-summary"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
       setPlanModal(false);
       setEditingPlan(false);
       if (r?.plan_id) setSelectedPlan(r.plan_id);
@@ -52,7 +55,18 @@ export default function AllocationPage() {
     onError: (e: Error) => setErr(e.message),
   });
   const activateMut = useMutation({ mutationFn: (id: string) => api.post(`/allocation-plans/${id}/activate`, {}), onSuccess: (_r, id) => inv(id) });
-  const deletePlanMut = useMutation({ mutationFn: (id: string) => api.del(`/allocation-plans/${id}`), onSuccess: (_r, id) => { inv(id); setSelectedPlan(null); }, onError: (e: Error) => setErr(e.message) });
+  const deletePlanMut = useMutation({
+    mutationFn: (id: string) => api.del(`/allocation-plans/${id}`),
+    onSuccess: (_r, id) => {
+      inv(id);
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["accounts-summary"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      setSelectedPlan(null);
+    },
+    onError: (e: Error) => setErr(e.message),
+  });
   const saveItemMut = useMutation({
     mutationFn: () => {
       const payload = {
@@ -125,7 +139,7 @@ export default function AllocationPage() {
   const expectedIncome = plan?.expected_income ?? 0;
   const totalPlanned = plan?.items?.reduce((s: number, i: any) => s + i.planned_amount, 0) ?? 0;
   const totalFunded = plan?.items?.reduce((s: number, i: any) => s + i.funded_amount, 0) ?? 0;
-  const canDeletePlan = !!plan && (plan.status === "draft" || plan.month <= currentMonthYM());
+  const canDeletePlan = !!plan && plan.status !== "closed";
   const fundedPct = totalPlanned > 0 ? Math.round((totalFunded / totalPlanned) * 100) : 0;
   const plannedPct = expectedIncome > 0 ? Math.round((totalPlanned / expectedIncome) * 100) : 0;
   const unallocatedIncome = expectedIncome - totalPlanned;
@@ -174,8 +188,8 @@ export default function AllocationPage() {
                 size="sm"
                 variant="secondary"
                 onClick={() => { setEditingPlan(true); setPlanForm({ month: plan.month, expected_income: plan.expected_income, notes: plan.notes ?? "", funding_source_account_id: plan.funding_source_account_id ?? "", auto_fund_enabled: plan.auto_fund_enabled ?? true }); setErr(""); setPlanModal(true); }}
-                disabled={plan.status !== "draft"}
-                title={plan.status !== "draft" ? "Only draft plans can be edited" : undefined}
+                disabled={plan.status === "closed"}
+                title={plan.status === "closed" ? "Closed plans can no longer be edited" : undefined}
               >
                 Edit
               </Button>
@@ -203,7 +217,28 @@ export default function AllocationPage() {
                 {allocateMut.isPending ? "Allocating..." : "Allocate Funds"}
               </Button>
             )}
-            {canDeletePlan && <Button variant="danger" onClick={() => confirm(`Delete allocation plan ${plan.month}? This removes the plan and its items.`) && deletePlanMut.mutate(plan.plan_id)} disabled={deletePlanMut.isPending}>Delete Plan</Button>}
+            {canDeletePlan && (
+              <Button
+                variant="danger"
+                onClick={() => {
+                  const isActive = plan.status === "active";
+                  const hasFunded = totalFunded > 0;
+                  const lines = [`Delete allocation plan ${plan.month}?`];
+                  if (isActive) {
+                    lines.push("This plan is active. Items, funding runs, and any auto-generated budgets will be removed.");
+                  } else {
+                    lines.push("This removes the plan and its items.");
+                  }
+                  if (hasFunded) {
+                    lines.push("Already-funded transfers (totaling " + fmtMoney(totalFunded) + ") will stay in your ledger and will not be reversed.");
+                  }
+                  if (confirm(lines.join("\n\n"))) deletePlanMut.mutate(plan.plan_id);
+                }}
+                disabled={deletePlanMut.isPending}
+              >
+                Delete Plan
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => { setEditingPlan(false); setPlanForm({ month: currentMonthYM(), expected_income: 0, notes: "", funding_source_account_id: payrollAccounts.length === 1 ? payrollAccounts[0].account_id : "", auto_fund_enabled: true }); setErr(""); setPlanModal(true); }}>+ New Plan</Button>
           </div>
         </div>
