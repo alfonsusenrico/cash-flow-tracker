@@ -6,6 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Input";
 import { MoneyInput } from "@/components/ui/MoneyInput";
+import { toDatetimeLocal, fromDatetimeLocal } from "@/lib/utils";
 import type { Account, Category, LedgerRow } from "@/types/domain";
 
 interface Props {
@@ -25,7 +26,7 @@ export function TransactionModal({ open, onClose, accounts, categories, editing,
   const [accountId, setAccountId] = useState(defaultAccountId ?? accounts[0]?.account_id ?? "");
   const [name, setName] = useState("");
   const [amount, setAmount] = useState(0);
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 16));
+  const [date, setDate] = useState(() => toDatetimeLocal());
   const [categoryId, setCategoryId] = useState("");
   const [notes, setNotes] = useState("");
   const [isTopup, setIsTopup] = useState(false);
@@ -38,7 +39,7 @@ export function TransactionModal({ open, onClose, accounts, categories, editing,
       setAccountId(editing.account_id ?? "");
       setName(editing.transaction_name);
       setAmount(editing.debit > 0 ? editing.debit : editing.credit);
-      setDate(editing.date.slice(0, 16));
+      setDate(toDatetimeLocal(editing.date));
       setIsTopup(editing.is_cycle_topup);
       setCategoryId("");
       setNotes("");
@@ -47,7 +48,7 @@ export function TransactionModal({ open, onClose, accounts, categories, editing,
       setAccountId(defaultAccountId ?? accounts[0]?.account_id ?? "");
       setName("");
       setAmount(0);
-      setDate(new Date().toISOString().slice(0, 16));
+      setDate(toDatetimeLocal());
       setIsTopup(false);
       setCategoryId("");
       setNotes("");
@@ -86,7 +87,7 @@ export function TransactionModal({ open, onClose, accounts, categories, editing,
       transaction_type: type,
       transaction_name: name,
       amount,
-      date,
+      date: fromDatetimeLocal(date),
       is_cycle_topup: isTopup,
       category_id: categoryId || null,
       notes: notes || null,

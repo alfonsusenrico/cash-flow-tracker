@@ -3,7 +3,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
-import { fmtMoney, cn } from "@/lib/utils";
+import { fmtMoney, cn, toDatetimeLocal, fromDatetimeLocal } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -646,7 +646,7 @@ function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any)
   const [accountId, setAccountId] = useState(editing?.account_id ?? accounts[0]?.account_id ?? "");
   const [name, setName] = useState(editing?.transaction_name ?? "");
   const [amount, setAmount] = useState(editing ? (editing.debit > 0 ? editing.debit : editing.credit) : 0);
-  const [date, setDate] = useState(editing?.date?.slice(0, 16) ?? new Date().toISOString().slice(0, 16));
+  const [date, setDate] = useState(toDatetimeLocal(editing?.date));
   const [categoryId, setCategoryId] = useState(editing?.category_id ?? "");
   const [notes, setNotes] = useState(editing?.notes ?? "");
   const [tagsText, setTagsText] = useState<string>((editing?.tags ?? []).join(", "));
@@ -661,7 +661,7 @@ function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any)
     setLoading(true); setErr("");
     try {
       const tags = tagsText.split(",").map((tag) => tag.trim()).filter(Boolean);
-      const payload = { account_id: accountId, transaction_type: type, transaction_name: name, amount, date, is_cycle_topup: isTopup, category_id: categoryId || null, notes: notes || null, tags, is_reviewed: true };
+      const payload = { account_id: accountId, transaction_type: type, transaction_name: name, amount, date: fromDatetimeLocal(date), is_cycle_topup: isTopup, category_id: categoryId || null, notes: notes || null, tags, is_reviewed: true };
       if (editing) await api.put(`/transactions/${editing.transaction_id}`, payload);
       else await api.post("/transactions", payload);
       await onSaved();
@@ -723,12 +723,6 @@ function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any)
   );
 }
 
-function toDatetimeLocal(value?: string) {
-  const source = value ? new Date(value) : new Date();
-  const local = new Date(source.getTime() - source.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
-}
-
 function AccountMovementModal({ open, onClose, accounts, onSaved, editing }: any) {
   const [fromId, setFromId] = useState(accounts[0]?.account_id ?? "");
   const [toId, setToId] = useState(accounts[1]?.account_id ?? "");
@@ -760,7 +754,7 @@ function AccountMovementModal({ open, onClose, accounts, onSaved, editing }: any
     if (!fromId || !toId) return setErr("Choose source and target accounts");
     if (!amount || amount <= 0) return setErr("Amount must be greater than zero");
     setLoading(true); setErr("");
-    const payload = { source_account_id: fromId, target_account_id: toId, amount, date };
+    const payload = { source_account_id: fromId, target_account_id: toId, amount, date: fromDatetimeLocal(date) };
     try {
       if (editing) await api.put(`/account-movements/${editing.transfer_id}`, payload);
       else await api.post("/account-movements", payload);
