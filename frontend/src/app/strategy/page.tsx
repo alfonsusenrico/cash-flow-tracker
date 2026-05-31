@@ -75,7 +75,11 @@ export default function StrategyPage() {
   const previewMut = useMutation({ mutationFn: () => api.post<Preview>("/strategy-rules/preview", { income: previewIncome }), onSuccess: (r) => setPreview(r), onError: (e: Error) => setErr(e.message) });
   const applyMut = useMutation({
     mutationFn: () => api.post<ApplyResponse>("/strategy-rules/apply", { month: planMonth, expected_income: previewIncome }),
-    onSuccess: (r) => router.push(`/allocation?plan=${r.plan_id}`),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["allocation-plans"] });
+      qc.invalidateQueries({ queryKey: ["allocation-plan", r.plan_id] });
+      router.push(`/allocation?plan=${r.plan_id}`);
+    },
     onError: (e: Error) => setErr(e.message),
   });
 

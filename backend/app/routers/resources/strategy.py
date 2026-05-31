@@ -634,16 +634,40 @@ async def apply_strategy(req: Request):
         period_row = cur.fetchone()
         period_id = period_row["period_id"] if period_row else None
 
+        # Overwrite an existing plan for this month when it is safe to do so.
+        cur.execute(
+            """
+            SELECT p.plan_id::text AS plan_id, p.status,
+                   COALESCE((SELECT SUM(funded_amount) FROM allocation_items WHERE plan_id=p.plan_id), 0) AS funded
+            FROM allocation_plans p JOIN users u ON u.user_id=p.user_id
+            WHERE u.username=%s AND p.month=%s
+            """,
+            (username, month),
+        )
+        existing = cur.fetchone()
         try:
-            cur.execute(
-                """
-                INSERT INTO allocation_plans (user_id, period_id, month, expected_income, notes)
-                SELECT user_id, %s::uuid, %s, %s, %s FROM users WHERE username=%s
-                RETURNING plan_id::text AS plan_id
-                """,
-                (period_id, month, expected_income, notes, username),
-            )
-            plan_id = cur.fetchone()["plan_id"]
+            if existing:
+                if existing["status"] == "closed":
+                    raise HTTPException(status_code=400, detail="Allocation plan for this month is closed")
+                if int(existing["funded"] or 0) > 0:
+                    raise HTTPException(status_code=400, detail="Plan already has funded items; delete it before regenerating from strategy")
+                plan_id = existing["plan_id"]
+                # Replace the plan's items and refresh its expected income / notes.
+                cur.execute("DELETE FROM allocation_items WHERE plan_id=%s::uuid", (plan_id,))
+                cur.execute(
+                    "UPDATE allocation_plans SET expected_income=%s, notes=%s, updated_at=now() WHERE plan_id=%s::uuid",
+                    (expected_income, notes, plan_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO allocation_plans (user_id, period_id, month, expected_income, notes)
+                    SELECT user_id, %s::uuid, %s, %s, %s FROM users WHERE username=%s
+                    RETURNING plan_id::text AS plan_id
+                    """,
+                    (period_id, month, expected_income, notes, username),
+                )
+                plan_id = cur.fetchone()["plan_id"]
             for item in generated_items:
                 item_mode = "percent" if item["mode"] == "percent" else "fixed"
                 item_value = item["value"] if item["mode"] == "percent" else item["amount"]
@@ -669,6 +693,9 @@ async def apply_strategy(req: Request):
                 )
                 item["item_id"] = cur.fetchone()["item_id"]
             conn.commit()
+        except HTTPException:
+            conn.rollback()
+            raise
         except UniqueViolation:
             conn.rollback()
             raise HTTPException(status_code=400, detail="Allocation plan for this month already exists")
@@ -681,4 +708,5 @@ async def apply_strategy(req: Request):
         "items": generated_items,
         "remaining": preview["remaining"],
         "total_allocated": preview["total_allocated"],
+        "overwritten": bool(existing),
     }

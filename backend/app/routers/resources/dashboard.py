@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Request
 from app.db.pool import db_conn
 from app.services.ledger.balances import get_account_balances
-from app.services.ledger.period import now_utc, current_month_local, get_payday_day, prev_month_str, compute_dynamic_month_range
+from app.services.ledger.period import now_utc, current_cycle_month, get_payday_day, prev_month_str, compute_dynamic_month_range
 from app.services.projection import goal_projection
 from app.services.metrics import (
     safe_to_spend,
@@ -69,9 +69,9 @@ def _emergency_bucket_balance(cur, username: str, balances: dict[str, int]) -> i
 def get_dashboard(req: Request):
     username = req.state.username
     now = now_utc()
-    month = current_month_local()
 
     with db_conn() as conn, conn.cursor() as cur:
+        month = current_cycle_month(cur, username)
         # ── Period range ──────────────────────────────────────────────────
         payday_day, _, _ = get_payday_day(cur, username, month)
         prev_day, _, _ = get_payday_day(cur, username, prev_month_str(month))

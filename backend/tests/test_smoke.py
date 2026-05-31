@@ -744,10 +744,17 @@ def test_resource_routers(auth_client: TestClient):
         auth_client.post("/strategy-rules/apply", json={"month": strategy_month, "expected_income": 200_000})
     )
     assert applied["total_allocated"] == 200_000
+    assert applied.get("overwritten") is False
     applied_plan = assert_ok(auth_client.get(f"/allocation-plans/{applied['plan_id']}"))
     assert len(applied_plan["items"]) == 4
-    duplicate = auth_client.post("/strategy-rules/apply", json={"month": strategy_month, "expected_income": 200_000})
-    assert duplicate.status_code == 400
+    # Re-applying for the same month overwrites the existing unfunded plan.
+    overwrite = assert_ok(
+        auth_client.post("/strategy-rules/apply", json={"month": strategy_month, "expected_income": 300_000})
+    )
+    assert overwrite["overwritten"] is True
+    assert overwrite["plan_id"] == applied["plan_id"]
+    overwritten_plan = assert_ok(auth_client.get(f"/allocation-plans/{applied['plan_id']}"))
+    assert overwritten_plan["expected_income"] == 300_000
     assert_ok(auth_client.delete(f"/allocation-plans/{applied['plan_id']}"))
 
     for rid in [fixed_rule_id, target_rule_id, met_rule_id, percent_rule_id, overflow_rule_id]:

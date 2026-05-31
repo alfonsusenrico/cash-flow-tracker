@@ -81,6 +81,25 @@ def get_default_payday_day(cur, username: str) -> int:
         return 25
 
 
+def current_cycle_month(cur, username: str) -> str:
+    """Payday-aware current cycle month as 'YYYY-MM'.
+
+    The cycle labelled month M runs from payday(M-1) to payday(M)-1. Once the
+    local date reaches the payday day, we have entered next month's cycle, so
+    the label must roll forward (calendar month is not sufficient).
+    """
+    day = get_default_payday_day(cur, username)
+    today = now_local().date()
+    payday = clamp_day(today.year, today.month, day)
+    year, month = today.year, today.month
+    if today.day >= payday:
+        month += 1
+        if month == 13:
+            month = 1
+            year += 1
+    return f"{year:04d}-{month:02d}"
+
+
 def get_payday_day(cur, username: str, month: str) -> tuple[int, str, int | None]:
     cur.execute(
         "SELECT payday_day FROM payday_overrides WHERE username=%s AND month=%s",
