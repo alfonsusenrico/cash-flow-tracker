@@ -7,12 +7,15 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from openai import AsyncOpenAI
 
 _PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "system_prompt.md"
+
+logger = logging.getLogger(__name__)
 
 
 class LLMPlanner:
@@ -62,14 +65,88 @@ class LLMPlanner:
                 {"role": "user", "content": content},
             ],
         )
+
+        # Extract token usage and cache info
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        cached_tokens = 0
+
+        usage = getattr(resp, "usage", None)
+        if usage:
+            prompt_tokens = getattr(usage, "prompt_tokens", 0)
+            completion_tokens = getattr(usage, "completion_tokens", 0)
+            total_tokens = getattr(usage, "total_tokens", 0)
+            
+            prompt_details = getattr(usage, "prompt_tokens_details", None)
+            if prompt_details:
+                cached_tokens = getattr(prompt_details, "cached_tokens", 0)
+            else:
+                if isinstance(prompt_details, dict):
+                    cached_tokens = prompt_details.get("cached_tokens", 0)
+
+        # Estimate costs (per 1M tokens) based on model name
+        model_lower = (self._model or "").lower()
+        if "deepseek-chat" in model_lower or "deepseek-v3" in model_lower:
+            input_rate = 0.14
+            output_rate = 0.28
+            cached_rate = 0.07
+        elif "flash" in model_lower or "v4-flash" in model_lower:
+            input_rate = 0.08
+            output_rate = 0.16
+            cached_rate = 0.04
+        else:
+            # General fallback rate
+            input_rate = 0.15
+            output_rate = 0.30
+            cached_rate = 0.075
+
+        # Calculate total cost in USD
+        non_cached_input = max(0, prompt_tokens - cached_tokens)
+        cost = (
+            (cached_tokens * (cached_rate / 1_000_000))
+            + (non_cached_input * (input_rate / 1_000_000))
+            + (completion_tokens * (output_rate / 1_000_000))
+        )
+
         raw = resp.choices[0].message.content or "{}"
+        intent = "unknown"
+        confidence = 0.0
+        missing_fields = []
+        ambiguities = []
+
         try:
-            return json.loads(raw)
+            parsed = json.loads(raw)
+            intent = parsed.get("intent", "none")
+            confidence = parsed.get("confidence", 0.0)
+            missing_fields = parsed.get("missing_fields", [])
+            ambiguities = parsed.get("ambiguities", [])
         except json.JSONDecodeError:
-            return {
+            parsed = {
                 "intent": "none",
                 "confidence": 0.0,
                 "missing_fields": [],
                 "ambiguities": [],
                 "assistant_message": "Maaf, saya tidak bisa memproses pesan itu. Coba tulis ulang.",
             }
+
+        # Log LLM execution details per request
+        logger.info(
+            f"\n"
+            f"=================== LLM PROCESS LOG ===================\n"
+            f"API Endpoint / Router : {self._client.base_url}\n"
+            f"Model Used            : {self._model}\n"
+            f"Request Stats:\n"
+            f"  - Input Tokens      : {prompt_tokens} (cached: {cached_tokens}, non-cached: {non_cached_input})\n"
+            f"  - Output Tokens     : {completion_tokens}\n"
+            f"  - Total Tokens      : {total_tokens}\n"
+            f"  - Estimated Cost    : ${cost:.6f} USD\n"
+            f"Tool Call Info (Proposed Action):\n"
+            f"  - Intent            : {intent}\n"
+            f"  - Confidence        : {confidence:.2f}\n"
+            f"  - Missing Fields    : {missing_fields}\n"
+            f"  - Ambiguities       : {len(ambiguities)} found\n"
+            f"======================================================="
+        )
+
+        return parsed

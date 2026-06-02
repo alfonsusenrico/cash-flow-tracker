@@ -33,6 +33,34 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class TypingContext:
+    """Async context manager to keep showing 'typing' status in Telegram during long operations."""
+    def __init__(self, bot: Any, chat_id: int | str) -> None:
+        self.bot = bot
+        self.chat_id = chat_id
+        self._task: asyncio.Task | None = None
+
+    async def __aenter__(self) -> TypingContext:
+        async def send_typing_loop() -> None:
+            while True:
+                try:
+                    await self.bot.send_chat_action(chat_id=self.chat_id, action="typing")
+                except Exception:
+                    pass
+                await asyncio.sleep(4.5)
+
+        self._task = asyncio.create_task(send_typing_loop())
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+
+
 class BotApp:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -124,24 +152,25 @@ class BotApp:
             image_mime = "image/jpeg"
 
         try:
-            # Fetch context
-            accounts = await self.finance.list_accounts(api_key)
-            categories = await self.finance.list_categories(api_key)
-            
-            # Get timezone from user (default to Asia/Jakarta)
-            tz = "Asia/Jakarta"
-            now_iso = datetime.now(timezone.utc).isoformat()
+            async with TypingContext(context.bot, chat_id):
+                # Fetch context
+                accounts = await self.finance.list_accounts(api_key)
+                categories = await self.finance.list_categories(api_key)
+                
+                # Get timezone from user (default to Asia/Jakarta)
+                tz = "Asia/Jakarta"
+                now_iso = datetime.now(timezone.utc).isoformat()
 
-            # Call LLM to propose action
-            proposal = await self.llm.propose(
-                message_text=message_text,
-                now_iso=now_iso,
-                timezone=tz,
-                accounts=accounts,
-                categories=categories,
-                image_bytes=image_bytes,
-                image_mime=image_mime,
-            )
+                # Call LLM to propose action
+                proposal = await self.llm.propose(
+                    message_text=message_text,
+                    now_iso=now_iso,
+                    timezone=tz,
+                    accounts=accounts,
+                    categories=categories,
+                    image_bytes=image_bytes,
+                    image_mime=image_mime,
+                )
 
             # Resolve proposal to action
             action = resolve(
