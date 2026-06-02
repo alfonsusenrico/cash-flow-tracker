@@ -218,6 +218,12 @@ class BotApp:
         data = query.data or ""
 
         if data.startswith("cancel:"):
+            # Cancel action - just acknowledge
+            await query.edit_message_text("❌ Dibatalkan.")
+            return
+
+        # TODO: Handle other callback data (confirmations, etc.)
+        await query.edit_message_text("✅ Selesai.")
 
     async def _handle_query(
         self,
