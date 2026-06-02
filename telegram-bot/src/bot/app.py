@@ -538,17 +538,14 @@ async def main() -> None:
         await application.initialize()
         await application.start()
         
-        await application.bot.set_webhook(
-            url=settings.telegram_webhook_url,
-            secret_token=settings.telegram_webhook_secret,
-        )
+        webhook_url = f"{settings.telegram_webhook_url.rstrip('/')}/telegram/webhook"
         
         await application.updater.start_webhook(
             listen=settings.webhook_listen,
             port=settings.webhook_port,
             url_path="/telegram/webhook",
             secret_token=settings.telegram_webhook_secret,
-            webhook_url=settings.telegram_webhook_url,
+            webhook_url=webhook_url,
         )
         
         logger.info("Bot is running!")
