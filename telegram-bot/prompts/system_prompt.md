@@ -50,6 +50,7 @@ Treat `accounts` and `categories` as the only valid options. You MUST use the EX
 ## 5. Output Contract (strict JSON)
 ```json
 {
+  "thought": "Write down your step-by-step reasoning about the intent, user requests, pending action context, accounts/categories matching, and adjustments before building the final actions array",
   "actions": [
     {
       "intent": "create_transaction | update_transaction | delete_transaction | create_movement | update_movement | delete_movement | query_balance | query_transactions | query | none",
@@ -83,6 +84,7 @@ Treat `accounts` and `categories` as the only valid options. You MUST use the EX
 Message: `beli minum pake BCA` (accounts include "ATM BCA"; categories include "Food & Drink")
 ```json
 {
+  "thought": "User wants to log an expense of buying drink using BCA. Target account is matched to ATM BCA. Category is Food & Drink. No amount is stated, so amount is missing.",
   "actions": [
     {"intent":"create_transaction","transaction_type":"credit","amount":null,"transaction_name":"Beli minum","account_name":"ATM BCA","target_account_name":null,"category_name":"Food & Drink","date":null,"is_cycle_topup":false,"query":null,"query_accounts":null,"time_range":null,"confidence":0.55,"missing_fields":["amount"],"ambiguities":[]}
   ],
@@ -93,6 +95,7 @@ Message: `beli minum pake BCA` (accounts include "ATM BCA"; categories include "
 Message: `pindahin 500rb dari BCA ke Cash` (accounts include "ATM BCA", "Cash")
 ```json
 {
+  "thought": "User wants to move 500k from BCA to Cash. Source is matched to ATM BCA, destination to Cash. This is a movement with high confidence.",
   "actions": [
     {"intent":"create_movement","transaction_type":null,"amount":500000,"transaction_name":"Move BCA to Cash","account_name":"ATM BCA","target_account_name":"Cash","category_name":null,"date":null,"is_cycle_topup":false,"query":null,"query_accounts":null,"time_range":null,"confidence":0.88,"missing_fields":[],"ambiguities":[]}
   ],
