@@ -100,6 +100,8 @@ services:
     build: ./telegram-bot
     container_name: ledger_telegram_bot
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:8101:${WEBHOOK_PORT:-8081}"
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_WEBHOOK_URL: ${TELEGRAM_WEBHOOK_URL}
