@@ -130,23 +130,13 @@ class LLMPlanner:
                 "assistant_message": "Maaf, saya tidak bisa memproses pesan itu. Coba tulis ulang.",
             }
 
-        # Log LLM execution details per request
+        # Log LLM execution details per request as a single clean line
         logger.info(
-            f"\n"
-            f"=================== LLM PROCESS LOG ===================\n"
-            f"API Endpoint / Router : {self._client.base_url}\n"
-            f"Model Used            : {self._model}\n"
-            f"Request Stats:\n"
-            f"  - Input Tokens      : {prompt_tokens} (cached: {cached_tokens}, non-cached: {non_cached_input})\n"
-            f"  - Output Tokens     : {completion_tokens}\n"
-            f"  - Total Tokens      : {total_tokens}\n"
-            f"  - Estimated Cost    : ${cost:.6f} USD\n"
-            f"Tool Call Info (Proposed Action):\n"
-            f"  - Intent            : {intent}\n"
-            f"  - Confidence        : {confidence:.2f}\n"
-            f"  - Missing Fields    : {missing_fields}\n"
-            f"  - Ambiguities       : {len(ambiguities)} found\n"
-            f"======================================================="
+            f"LLM Request | Model: {self._model} | Router: {self._client.base_url} | "
+            f"Intent: {intent} (conf: {confidence:.2f}) | "
+            f"Tokens: In={prompt_tokens} (cached={cached_tokens}), Out={completion_tokens}, Total={total_tokens} | "
+            f"Cost: ${cost:.6f} USD | "
+            f"Missing: {missing_fields} | Ambiguities: {len(ambiguities)}"
         )
 
         return parsed
