@@ -370,27 +370,6 @@ class BotApp:
         
         await update.message.reply_text("\n".join(lines))
 
-
-            pending_id = data.split(":", 1)[1]
-            await self.store.take_pending(pending_id, telegram_user_id)
-            await query.edit_message_text("❌ Dibatalkan.")
-            return
-
-        if data.startswith("confirm:"):
-            pending_id = data.split(":", 1)[1]
-            action = await self.store.take_pending(pending_id, telegram_user_id)
-            
-            if not action:
-                await query.edit_message_text("❌ Konfirmasi kadaluarsa atau sudah digunakan.")
-                return
-
-            api_key = await self.store.get_api_key(telegram_user_id)
-            if not api_key:
-                await query.edit_message_text("❌ Akun tidak terhubung.")
-                return
-
-            await self._execute_action(update, context, action, api_key, pending_id, is_callback=True)
-
     async def _execute_action(
         self,
         update: Update,
