@@ -273,7 +273,7 @@ class BotApp:
             # Generic query - use search
             query_text = action["fields"].get("query", "")
             result = await self.finance.search_ledger(api_key, {"query": query_text})
-            entries = result.get("entries", [])
+            entries = result.get("rows", [])
             if not entries:
                 await update.message.reply_text("Tidak ada hasil ditemukan.")
             else:
@@ -281,9 +281,11 @@ class BotApp:
                 for entry in entries[:10]:
                     date = entry.get("date", "")
                     name = entry.get("transaction_name", "")
-                    amount = entry.get("amount", 0)
+                    debit = int(entry.get("debit") or 0)
+                    credit = int(entry.get("credit") or 0)
                     acc = entry.get("account_name", "")
-                    lines.append(f"• {date} - {name}: Rp{amount:,} ({acc})")
+                    amount_str = f"+Rp{debit:,}" if debit > 0 else f"-Rp{credit:,}"
+                    lines.append(f"• {date[:10]} - {name}: {amount_str} ({acc})")
                 await update.message.reply_text("\n".join(lines))
 
     async def _handle_balance_query(
@@ -381,15 +383,15 @@ class BotApp:
         for row in rows[:display_limit]:
             date = row.get("date", "")
             name = row.get("transaction_name", "")
-            amount = int(row.get("amount", 0))
-            tx_type = row.get("transaction_type", "")
+            debit = int(row.get("debit") or 0)
+            credit = int(row.get("credit") or 0)
             acc_name = row.get("account_name", "")
             
             # Format amount with direction
-            if tx_type == "debit":
-                amount_str = f"+Rp{amount:,}"
+            if debit > 0:
+                amount_str = f"+Rp{debit:,}"
             else:
-                amount_str = f"-Rp{amount:,}"
+                amount_str = f"-Rp{credit:,}"
             
             lines.append(f"• {date[:10]} | {name}")
             lines.append(f"  {amount_str} ({acc_name})")
