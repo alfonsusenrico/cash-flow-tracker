@@ -133,6 +133,7 @@ services:
     depends_on:
       - api
       - frontend
+      - telegram-bot
 
 volumes:
   db_data:
