@@ -522,14 +522,28 @@ class BotApp:
             elif intent == "delete_transaction":
                 prefix = f"{idx}. " if is_batch else ""
                 query_text = fields.get("query", "")
-                if not query_text:
-                    return f"❌ {prefix}Tidak ada target pencarian untuk dihapus."
                 
-                # Search for the transaction to delete
-                result = await self.finance.search_ledger(api_key, {"query": query_text})
-                entries = result.get("rows", [])
+                # Search with target query first, skipping if it's a generic 'latest' keyword
+                entries = []
+                if query_text and query_text.lower() not in ("terakhir", "latest", "last"):
+                    result = await self.finance.search_ledger(api_key, {"query": query_text})
+                    entries = result.get("rows", [])
+                
+                # Fallback: if no entries found or query is generic, search entire ledger
                 if not entries:
-                    return f"❌ {prefix}Tidak ada transaksi ditemukan untuk dihapus dengan kata kunci '{query_text}'."
+                    result = await self.finance.search_ledger(api_key, {})
+                    entries = result.get("rows", [])
+                
+                # Filter by account if resolved
+                target_account_id = fields.get("account_id")
+                if target_account_id:
+                    entries = [e for e in entries if e.get("account_id") == target_account_id]
+                
+                if not entries:
+                    if query_text:
+                        return f"❌ {prefix}Tidak ada transaksi ditemukan untuk dihapus dengan kata kunci '{query_text}'."
+                    else:
+                        return f"❌ {prefix}Tidak ada transaksi ditemukan untuk dihapus."
                 
                 # Take the most recent entry
                 target_entry = entries[0]
