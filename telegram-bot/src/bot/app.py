@@ -157,9 +157,11 @@ class BotApp:
             history = await self.store.get_chat_history(telegram_user_id, limit=10)
 
             async with TypingContext(context.bot, chat_id):
-                # Fetch context
-                accounts = await self.finance.list_accounts(api_key)
-                categories = await self.finance.list_categories(api_key)
+                # Fetch context in parallel
+                accounts, categories = await asyncio.gather(
+                    self.finance.list_accounts(api_key),
+                    self.finance.list_categories(api_key),
+                )
                 
                 # Get timezone from user (default to Asia/Jakarta)
                 tz = "Asia/Jakarta"
@@ -175,6 +177,7 @@ class BotApp:
                     image_bytes=image_bytes,
                     image_mime=image_mime,
                     history=history,
+                    timeout=self.settings.llm_timeout,
                 )
 
             # Save the user message and assistant JSON response to chat history
@@ -475,10 +478,98 @@ class BotApp:
             else:
                 amount_str = f"-Rp{credit:,}"
             
+            lines.append(f"• {date[:10]} | {name}: {amount_str} ({acc_name})")
+            
         if len(rows) > display_limit:
             lines.append(f"\n... dan {len(rows) - display_limit} transaksi lainnya")
         
         await update.message.reply_text("\n".join(lines))
+
+    async def _execute_single(
+        self,
+        act: dict[str, Any],
+        api_key: str,
+        context: ContextTypes.DEFAULT_TYPE,
+        update: Update,
+        idx: int,
+        is_batch: bool,
+        is_callback: bool,
+    ) -> str:
+        """Execute a single action and return a result message string."""
+        intent = act.get("intent")
+        fields = act.get("fields", {})
+        
+        try:
+            if intent == "create_transaction":
+                payload = {
+                    "transaction_type": fields.get("transaction_type"),
+                    "amount": fields.get("amount"),
+                    "transaction_name": fields.get("transaction_name"),
+                    "account_id": fields.get("account_id"),
+                    "category_id": fields.get("category_id"),
+                    "is_cycle_topup": fields.get("is_cycle_topup", False),
+                }
+                if fields.get("date"):
+                    payload["date"] = fields["date"]
+                
+                result = await self.finance.upsert_transaction(api_key, payload)
+                tx_id = result.get("transaction_id")
+                
+                prefix = f"{idx}. " if is_batch else ""
+                msg_item = f"✅ {prefix}[Transaksi] {fields.get('transaction_name')}: Rp{fields.get('amount'):,} ({fields.get('account_name')})"
+                
+                # Upload receipt if there was an image (only for first transaction or if photo exists)
+                if not is_callback and update.message and update.message.photo and idx == 1:
+                    photo = update.message.photo[-1]
+                    file = await context.bot.get_file(photo.file_id)
+                    image_bytes = await file.download_as_bytearray()
+                    await self.finance.upload_receipt(
+                        api_key, tx_id, bytes(image_bytes), "receipt.jpg", "image/jpeg"
+                    )
+                    msg_item += " 📎 Struk diunggah"
+                
+                return msg_item
+
+            elif intent == "create_movement":
+                payload = {
+                    "amount": fields.get("amount"),
+                    "from_account_id": fields.get("account_id"),
+                    "to_account_id": fields.get("target_account_id"),
+                }
+                if fields.get("date"):
+                    payload["date"] = fields["date"]
+                
+                result = await self.finance.create_movement(api_key, payload)
+                
+                prefix = f"{idx}. " if is_batch else ""
+                return f"✅ {prefix}[Transfer] Rp{fields.get('amount'):,}: {fields.get('account_name')} → {fields.get('target_account_name')}"
+
+            elif intent == "update_transaction":
+                prefix = f"{idx}. " if is_batch else ""
+                return f"⚠️ {prefix}Update transaksi belum diimplementasikan sepenuhnya."
+
+            elif intent == "delete_transaction":
+                prefix = f"{idx}. " if is_batch else ""
+                return f"⚠️ {prefix}Hapus transaksi belum diimplementasikan sepenuhnya."
+
+            elif intent == "update_movement":
+                prefix = f"{idx}. " if is_batch else ""
+                return f"⚠️ {prefix}Update transfer belum diimplementasikan sepenuhnya."
+
+            elif intent == "delete_movement":
+                prefix = f"{idx}. " if is_batch else ""
+                return f"⚠️ {prefix}Hapus transfer belum diimplementasikan sepenuhnya."
+
+            else:
+                prefix = f"{idx}. " if is_batch else ""
+                return f"❌ {prefix}Intent tidak dikenali."
+
+        except FinanceError as e:
+            prefix = f"{idx}. " if is_batch else ""
+            return f"❌ {prefix}Gagal: {e.detail}"
+        except Exception as e:
+            prefix = f"{idx}. " if is_batch else ""
+            return f"❌ {prefix}Error: {str(e)}"
 
     async def _execute_action(
         self,
@@ -493,88 +584,18 @@ class BotApp:
         is_batch = action.get("is_batch", False)
         actions_list = action.get("actions", []) if is_batch else [action]
         
-        # Collect results for all executions
-        results = []
-        has_error = False
-
         try:
-            for idx, act in enumerate(actions_list, start=1):
-                intent = act.get("intent")
-                fields = act.get("fields", {})
-                
-                try:
-                    if intent == "create_transaction":
-                        payload = {
-                            "transaction_type": fields.get("transaction_type"),
-                            "amount": fields.get("amount"),
-                            "transaction_name": fields.get("transaction_name"),
-                            "account_id": fields.get("account_id"),
-                            "category_id": fields.get("category_id"),
-                            "is_cycle_topup": fields.get("is_cycle_topup", False),
-                        }
-                        if fields.get("date"):
-                            payload["date"] = fields["date"]
-                        
-                        result = await self.finance.upsert_transaction(api_key, payload)
-                        tx_id = result.get("transaction_id")
-                        
-                        prefix = f"{idx}. " if is_batch else ""
-                        msg_item = f"✅ {prefix}[Transaksi] {fields.get('transaction_name')}: Rp{fields.get('amount'):,} ({fields.get('account_name')})"
-                        
-                        # Upload receipt if there was an image (only for first transaction or if photo exists)
-                        if not is_callback and update.message and update.message.photo and idx == 1:
-                            photo = update.message.photo[-1]
-                            file = await context.bot.get_file(photo.file_id)
-                            image_bytes = await file.download_as_bytearray()
-                            await self.finance.upload_receipt(
-                                api_key, tx_id, bytes(image_bytes), "receipt.jpg", "image/jpeg"
-                            )
-                            msg_item += " 📎 Struk diunggah"
-                        
-                        results.append(msg_item)
-
-                    elif intent == "create_movement":
-                        payload = {
-                            "amount": fields.get("amount"),
-                            "from_account_id": fields.get("account_id"),
-                            "to_account_id": fields.get("target_account_id"),
-                        }
-                        if fields.get("date"):
-                            payload["date"] = fields["date"]
-                        
-                        result = await self.finance.create_movement(api_key, payload)
-                        
-                        prefix = f"{idx}. " if is_batch else ""
-                        results.append(f"✅ {prefix}[Transfer] Rp{fields.get('amount'):,}: {fields.get('account_name')} → {fields.get('target_account_name')}")
-
-                    elif intent == "update_transaction":
-                        prefix = f"{idx}. " if is_batch else ""
-                        results.append(f"⚠️ {prefix}Update transaksi belum diimplementasikan sepenuhnya.")
-
-                    elif intent == "delete_transaction":
-                        prefix = f"{idx}. " if is_batch else ""
-                        results.append(f"⚠️ {prefix}Hapus transaksi belum diimplementasikan sepenuhnya.")
-
-                    elif intent == "update_movement":
-                        prefix = f"{idx}. " if is_batch else ""
-                        results.append(f"⚠️ {prefix}Update transfer belum diimplementasikan sepenuhnya.")
-
-                    elif intent == "delete_movement":
-                        prefix = f"{idx}. " if is_batch else ""
-                        results.append(f"⚠️ {prefix}Hapus transfer belum diimplementasikan sepenuhnya.")
-
-                    else:
-                        prefix = f"{idx}. " if is_batch else ""
-                        results.append(f"❌ {prefix}Intent tidak dikenali.")
-
-                except FinanceError as e:
-                    has_error = True
-                    prefix = f"{idx}. " if is_batch else ""
-                    results.append(f"❌ {prefix}Gagal: {e.detail}")
-                except Exception as e:
-                    has_error = True
-                    prefix = f"{idx}. " if is_batch else ""
-                    results.append(f"❌ {prefix}Error: {str(e)}")
+            if is_batch:
+                # Execute all actions in parallel!
+                tasks = [
+                    self._execute_single(act, api_key, context, update, idx, True, is_callback)
+                    for idx, act in enumerate(actions_list, start=1)
+                ]
+                results = await asyncio.gather(*tasks)
+            else:
+                # Single action execution
+                res = await self._execute_single(actions_list[0], api_key, context, update, 1, False, is_callback)
+                results = [res]
 
             # Generate consolidated response message
             if is_batch:
@@ -583,7 +604,9 @@ class BotApp:
             else:
                 msg = results[0] if results else "❌ Tidak ada aksi yang dieksekusi."
 
-            # Fetch and display final balances for all referenced accounts if not batch
+            has_error = any(res.startswith("❌") for res in results)
+
+            # Fetch and display final balances for all referenced accounts if not batch and no errors
             if not is_batch and not has_error and len(actions_list) == 1:
                 fields = actions_list[0].get("fields", {})
                 account_id = fields.get("account_id")
@@ -601,11 +624,11 @@ class BotApp:
 
         except Exception as e:
             logger.exception("Action execution failed")
-            error_msg = f"❌ Terjadi kesalahan: {str(e)}"
+            msg = f"❌ Terjadi kesalahan saat mengeksekusi aksi: {e}"
             if is_callback:
-                await update.callback_query.edit_message_text(error_msg)
+                await update.callback_query.edit_message_text(msg)
             else:
-                await update.message.reply_text(error_msg)
+                await update.message.reply_text(msg)
 
     def _format_action_summary(self, action: dict[str, Any]) -> str:
         """Format action for confirmation message."""

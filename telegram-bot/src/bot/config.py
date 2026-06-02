@@ -26,6 +26,7 @@ class Settings:
     bot_database_url: str
     bot_secret: str
     confidence_threshold: float
+    llm_timeout: int
 
 
 def load_settings() -> Settings:
@@ -42,4 +43,5 @@ def load_settings() -> Settings:
         bot_database_url=_req("BOT_DATABASE_URL"),
         bot_secret=_req("BOT_SECRET"),
         confidence_threshold=float(os.environ.get("CONFIDENCE_THRESHOLD", "0.75")),
+        llm_timeout=int(os.environ.get("LLM_TIMEOUT", "120")),
     )

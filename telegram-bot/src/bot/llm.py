@@ -5,6 +5,7 @@ startup. JSON parsing is pure/sync.
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -35,6 +36,7 @@ class LLMPlanner:
         image_bytes: bytes | None = None,
         image_mime: str = "image/jpeg",
         history: list[dict[str, str]] | None = None,
+        timeout: int = 120,
     ) -> dict[str, Any]:
         context = {
             "now": now_iso,
@@ -65,12 +67,29 @@ class LLMPlanner:
                 messages.append({"role": turn["role"], "content": turn["content"]})
         messages.append({"role": "user", "content": content})
 
-        resp = await self._client.chat.completions.create(
-            model=self._model,
-            temperature=0,
-            response_format={"type": "json_object"},
-            messages=messages,
-        )
+        try:
+            resp = await asyncio.wait_for(
+                self._client.chat.completions.create(
+                    model=self._model,
+                    temperature=0,
+                    response_format={"type": "json_object"},
+                    messages=messages,
+                ),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"LLM Request Timed Out | Timeout={timeout}s | Message preview: {message_text[:100]}...")
+            return {
+                "actions": [
+                    {
+                        "intent": "none",
+                        "confidence": 0.0,
+                        "missing_fields": [],
+                        "ambiguities": ["AI request timed out. Silakan coba lagi."],
+                    }
+                ],
+                "assistant_message": "Maaf, permintaan ke AI kehabisan waktu (timeout). Silakan coba lagi.",
+            }
 
         # Extract token usage and cache info
         prompt_tokens = 0
