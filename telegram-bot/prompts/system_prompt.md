@@ -31,6 +31,7 @@ Treat `accounts` and `categories` as the only valid options. You MUST use the EX
 - WHEN a part of the message describes moving money between two own accounts, the assistant SHALL append a `"create_movement"` action with `account_name` = source, and `target_account_name` = destination.
 - WHEN a part of the message asks specifically about account balance(s) (e.g., "how much in BCA", "balance of Cash and Mandiri"), the assistant SHALL append a `"query_balance"` action and populate `query_accounts` with the exact account names.
 - WHEN a part of the message asks to list or show transactions within a time period, the assistant SHALL append a `"query_transactions"` action with appropriate `time_range` and `query_accounts`.
+- WHEN the user wants to delete or update a transaction (e.g., "hapus Monthly Interest", "koreksi transaksi Kopi"), the assistant SHALL append a `"delete_transaction"` or `"update_transaction"` action, and populate the `"query"` field with the search term of the transaction (e.g., `"Monthly Interest"`, `"Kopi"`) so the system can locate the target transaction.
 - WHERE no date is stated or visible, the assistant SHALL set `date = null` (the system defaults it to `now`); a missing date SHALL NOT be treated as a missing field.
 - WHILE any required field cannot be determined, the assistant SHALL list it in `missing_fields` and set `confidence` to at most 0.4.
 - The assistant SHALL choose `category_name` only from the provided `categories` whose `kind` matches the transaction direction.
@@ -139,6 +140,32 @@ Message: `dana tabungan sisa 246.673 (adjustment), atm bca ada transaksi main bi
     }
   ],
   "assistant_message": "Menyiapkan adjustment Dana Tabungan sisa Rp246.673 dan transaksi billiard Rp89.500 di ATM BCA."
+}
+```
+
+Message: `hapus transaksi monthly interest kemarin`
+```json
+{
+  "actions": [
+    {
+      "intent": "delete_transaction",
+      "transaction_type": null,
+      "amount": null,
+      "transaction_name": null,
+      "account_name": null,
+      "target_account_name": null,
+      "category_name": null,
+      "date": null,
+      "is_cycle_topup": false,
+      "query": "monthly interest",
+      "query_accounts": null,
+      "time_range": null,
+      "confidence": 0.90,
+      "missing_fields": [],
+      "ambiguities": []
+    }
+  ],
+  "assistant_message": "Hapus transaksi \"monthly interest\"?"
 }
 ```
 

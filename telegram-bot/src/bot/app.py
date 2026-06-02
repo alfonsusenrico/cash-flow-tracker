@@ -521,7 +521,28 @@ class BotApp:
 
             elif intent == "delete_transaction":
                 prefix = f"{idx}. " if is_batch else ""
-                return f"⚠️ {prefix}Hapus transaksi belum diimplementasikan sepenuhnya."
+                query_text = fields.get("query", "")
+                if not query_text:
+                    return f"❌ {prefix}Tidak ada target pencarian untuk dihapus."
+                
+                # Search for the transaction to delete
+                result = await self.finance.search_ledger(api_key, {"query": query_text})
+                entries = result.get("rows", [])
+                if not entries:
+                    return f"❌ {prefix}Tidak ada transaksi ditemukan untuk dihapus dengan kata kunci '{query_text}'."
+                
+                # Take the most recent entry
+                target_entry = entries[0]
+                tx_id = target_entry.get("transaction_id")
+                tx_name = target_entry.get("transaction_name")
+                debit = int(target_entry.get("debit") or 0)
+                credit = int(target_entry.get("credit") or 0)
+                amount = debit if debit > 0 else credit
+                acc_name = target_entry.get("account_name")
+                
+                # Call finance client to delete it
+                await self.finance.delete_transaction(api_key, tx_id)
+                return f"✅ {prefix}[Hapus Transaksi] {tx_name}: Rp{amount:,} ({acc_name})"
 
             elif intent == "update_movement":
                 prefix = f"{idx}. " if is_batch else ""
