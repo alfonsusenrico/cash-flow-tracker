@@ -652,6 +652,15 @@ class BotApp:
             to_acc = fields.get("target_account_name", "")
             return f"Transfer: Rp{amount:,}\n└ Dari: {from_acc} → Ke: {to_acc}"
         
+        elif intent == "delete_transaction":
+            query = fields.get("query", "")
+            account = fields.get("account_name", "")
+            return f"Hapus Transaksi: '{query}' ({account or 'Semua Akun'})"
+        
+        elif intent == "delete_movement":
+            query = fields.get("query", "")
+            return f"Hapus Transfer: '{query}'"
+        
         return str(action)
 
 

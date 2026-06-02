@@ -126,7 +126,7 @@ def resolve(
 
     if questions:
         decision = "ask"
-    elif intent in _ALWAYS_CONFIRM:
+    elif intent in _ALWAYS_CONFIRM and confidence < 1.0:
         decision = "confirm"
     elif confidence >= threshold:
         decision = "execute"
