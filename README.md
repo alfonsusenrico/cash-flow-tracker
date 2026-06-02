@@ -189,6 +189,104 @@ Full API reference: see the FastAPI docs at `http://localhost:8090/api/docs` (av
 
 ---
 
+## Telegram Bot (Optional)
+
+Manage your finances through natural language conversations on Telegram. The bot uses AI (DeepSeek) to understand your messages and automatically record transactions, check balances, and query transaction history.
+
+### Features
+
+- 💬 **Natural language**: "beli makan 50rb pake BCA" or "transfer 500k from BCA to Cash"
+- 📸 **Receipt OCR**: Send photos of receipts to extract transaction details
+- 💰 **Balance queries**: "berapa saldo BCA?" or "cek saldo semua akun"
+- 📊 **Transaction history**: "tampilkan transaksi hari ini" or "list spending minggu ini"
+- ✅ **Smart confirmations**: High-confidence transactions execute automatically
+- 🔐 **Secure**: API keys encrypted at rest
+
+### Setup
+
+1. **Get a Telegram bot token** from [@BotFather](https://t.me/botfather)
+2. **Get a DeepSeek API key** from [OpenRouter](https://openrouter.ai/) or [DeepSeek Platform](https://platform.deepseek.com)
+3. **Generate security secrets**:
+
+```bash
+# Generate webhook secret (validates requests from Telegram)
+TELEGRAM_WEBHOOK_SECRET=$(openssl rand -hex 16)
+echo "TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}"
+
+# Generate bot secret (encrypts API keys in database - MUST be Fernet format)
+BOT_SECRET=$(openssl rand -base64 32)
+echo "BOT_SECRET=${BOT_SECRET}"
+```
+
+**Note:** The bot secret is a Fernet-compatible key (32 random bytes, base64-encoded = 44 characters).
+
+4. **Configure environment variables** in `.env`:
+
+```bash
+# Telegram Bot Configuration
+TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
+TELEGRAM_WEBHOOK_URL=https://your-domain.com/telegram/webhook
+TELEGRAM_WEBHOOK_SECRET=<generated_webhook_secret>
+
+# DeepSeek LLM Configuration
+DEEPSEEK_API_KEY=your_deepseek_api_key
+DEEPSEEK_BASE_URL=https://openrouter.ai/api/v1
+DEEPSEEK_MODEL=deepseek/deepseek-chat
+
+# Security
+BOT_SECRET=<generated_fernet_key>
+
+# Optional
+CONFIDENCE_THRESHOLD=0.75
+```
+
+**Important:** 
+- `TELEGRAM_WEBHOOK_SECRET`: Random string that validates webhook requests from Telegram
+- `BOT_SECRET`: Fernet encryption key (44 chars, base64) that encrypts API keys in database
+
+4. **Start the bot**:
+
+```bash
+docker compose up -d telegram-bot
+```
+
+5. **Link your account**:
+   - Start a chat with your bot on Telegram
+   - Send `/start`
+   - Get your API key from the web app (top nav → API Key)
+   - Send `/link YOUR_API_KEY`
+
+### Usage Examples
+
+**Record transactions:**
+- "beli makan 50rb pake BCA"
+- "gaji masuk 7jt ke BCA"
+- "bayar listrik 200rb dari Cash"
+
+**Transfer between accounts:**
+- "pindahin 500rb dari BCA ke Cash"
+- "transfer 1jt BCA ke Mandiri"
+
+**Check balances:**
+- "berapa saldo BCA?"
+- "cek saldo Cash dan Mandiri"
+- "tampilkan semua saldo"
+
+**Query transactions:**
+- "transaksi hari ini"
+- "list spending BCA minggu ini"
+- "show transactions last friday"
+- "transaksi 2 jam terakhir"
+
+**With receipt photo:**
+Just send a photo of your receipt with optional caption. The bot will extract amount, name, and date.
+
+For detailed documentation, see [telegram-bot/README.md](telegram-bot/README.md).
+
+---
+
+---
+
 ## Backup and restore
 
 Create a backup:

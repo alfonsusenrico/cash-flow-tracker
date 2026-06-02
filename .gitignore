@@ -12,3 +12,7 @@ frontend/.env.local
 frontend/*.tsbuildinfo
 scripts/
 docs/
+.bob/
+telegram-bot/.pytest_cache/
+telegram-bot/src/bot/__pycache__/
+telegram-bot/tests/__pycache__/
