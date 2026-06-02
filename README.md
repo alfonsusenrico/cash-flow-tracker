@@ -225,7 +225,7 @@ echo "BOT_SECRET=${BOT_SECRET}"
 ```bash
 # Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
-TELEGRAM_WEBHOOK_URL=https://your-domain.com/telegram/webhook
+TELEGRAM_WEBHOOK_URL=https://telegram-webhook.your-domain.com
 TELEGRAM_WEBHOOK_SECRET=<generated_webhook_secret>
 
 # DeepSeek LLM Configuration
