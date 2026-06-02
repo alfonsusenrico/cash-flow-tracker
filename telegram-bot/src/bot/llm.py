@@ -37,6 +37,7 @@ class LLMPlanner:
         image_mime: str = "image/jpeg",
         history: list[dict[str, str]] | None = None,
         timeout: int = 120,
+        pending_action: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         context = {
             "now": now_iso,
@@ -48,6 +49,8 @@ class LLMPlanner:
             "categories": [{"name": c.get("name"), "kind": c.get("kind")} for c in categories],
             "message": message_text or "",
         }
+        if pending_action:
+            context["pending_action"] = pending_action
         text_part = {"type": "text", "text": json.dumps(context, ensure_ascii=False)}
         content: Any
         if image_bytes:

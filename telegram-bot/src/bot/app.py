@@ -156,6 +156,9 @@ class BotApp:
             # Load chronological chat history from store (limit to last 10 messages)
             history = await self.store.get_chat_history(telegram_user_id, limit=10)
 
+            # Retrieve and atomically delete latest pending action for the user
+            pending_action = await self.store.take_latest_pending(telegram_user_id)
+
             async with TypingContext(context.bot, chat_id):
                 # Fetch context in parallel
                 accounts, categories = await asyncio.gather(
@@ -178,6 +181,7 @@ class BotApp:
                     image_mime=image_mime,
                     history=history,
                     timeout=self.settings.llm_timeout,
+                    pending_action=pending_action,
                 )
 
             # Save the user message and assistant JSON response to chat history
@@ -289,18 +293,9 @@ class BotApp:
                     await self._execute_action(update, context, action, api_key, pending_id)
                 else:
                     # Ask for confirmation
-                    keyboard = [
-                        [
-                            InlineKeyboardButton("✅ Ya", callback_data=f"confirm:{pending_id}"),
-                            InlineKeyboardButton("❌ Batal", callback_data=f"cancel:{pending_id}"),
-                        ]
-                    ]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    
                     summary = self._format_action_summary(action)
                     await update.message.reply_text(
-                        f"{assistant_msg}\n\n{summary}\n\nLanjutkan?",
-                        reply_markup=reply_markup,
+                        f"{assistant_msg}\n\n{summary}\n\nLanjutkan?"
                     )
 
         except FinanceError as e:
@@ -310,34 +305,10 @@ class BotApp:
             await update.message.reply_text(f"❌ Terjadi kesalahan: {str(e)}")
 
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle callback queries (confirmations)."""
+        """Handle callback queries (confirmations) gracefully for legacy buttons."""
         query = update.callback_query
         await query.answer()
-
-        telegram_user_id = update.effective_user.id
-        data = query.data or ""
-
-        if data.startswith("cancel:"):
-            # Cancel action - just acknowledge
-            await query.edit_message_text("❌ Dibatalkan.")
-            return
-
-        if data.startswith("confirm:"):
-            pending_id = data.split(":", 1)[1]
-            api_key = await self.store.get_api_key(telegram_user_id)
-            if not api_key:
-                await query.edit_message_text("❌ Akun belum terhubung.")
-                return
-
-            action = await self.store.take_pending(pending_id, telegram_user_id)
-            if not action:
-                await query.edit_message_text("❌ Aksi kedaluwarsa atau tidak ditemukan.")
-                return
-
-            await self._execute_action(update, context, action, api_key, pending_id, is_callback=True)
-            return
-
-        await query.edit_message_text("✅ Selesai.")
+        await query.edit_message_text("❌ Silakan gunakan chat langsung untuk berkomunikasi.")
 
     async def _handle_query(
         self,

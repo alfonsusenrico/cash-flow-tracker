@@ -89,6 +89,26 @@ class Store:
             row = await cur.fetchone()
             return row["action_json"] if row else None
 
+    async def take_latest_pending(self, telegram_user_id: int) -> dict[str, Any] | None:
+        """Fetch and delete the latest non-expired pending action for the user."""
+        async with db_conn() as conn:
+            cur = await conn.execute(
+                """
+                DELETE FROM bot_pending_actions
+                WHERE pending_id = (
+                    SELECT pending_id
+                    FROM bot_pending_actions
+                    WHERE telegram_user_id=%s AND expires_at > now()
+                    ORDER BY expires_at DESC
+                    LIMIT 1
+                )
+                RETURNING action_json
+                """,
+                (telegram_user_id,),
+            )
+            row = await cur.fetchone()
+            return row["action_json"] if row else None
+
     async def add_chat_history(self, telegram_user_id: int, role: str, content: str) -> None:
         async with db_conn() as conn:
             await conn.execute(
