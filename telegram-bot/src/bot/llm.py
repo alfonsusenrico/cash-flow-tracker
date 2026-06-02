@@ -34,6 +34,7 @@ class LLMPlanner:
         categories: list[dict[str, Any]],
         image_bytes: bytes | None = None,
         image_mime: str = "image/jpeg",
+        history: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
         context = {
             "now": now_iso,
@@ -56,14 +57,19 @@ class LLMPlanner:
         else:
             content = [text_part]
 
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": self._system_prompt}
+        ]
+        if history:
+            for turn in history:
+                messages.append({"role": turn["role"], "content": turn["content"]})
+        messages.append({"role": "user", "content": content})
+
         resp = await self._client.chat.completions.create(
             model=self._model,
             temperature=0,
             response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": self._system_prompt},
-                {"role": "user", "content": content},
-            ],
+            messages=messages,
         )
 
         # Extract token usage and cache info
@@ -117,16 +123,29 @@ class LLMPlanner:
 
         try:
             parsed = json.loads(raw)
-            intent = parsed.get("intent", "none")
-            confidence = parsed.get("confidence", 0.0)
-            missing_fields = parsed.get("missing_fields", [])
-            ambiguities = parsed.get("ambiguities", [])
-        except json.JSONDecodeError:
+            actions_list = parsed.get("actions", [])
+            if actions_list:
+                # For logging, print the first action or a summary
+                first_action = actions_list[0]
+                intent = first_action.get("intent", "none")
+                confidence = first_action.get("confidence", 0.0)
+                missing_fields = first_action.get("missing_fields", [])
+                ambiguities = first_action.get("ambiguities", [])
+                
+                if len(actions_list) > 1:
+                    intent = f"batch({len(actions_list)} actions: {', '.join(a.get('intent', 'none') for a in actions_list)})"
+            else:
+                intent = "none"
+        except Exception:
             parsed = {
-                "intent": "none",
-                "confidence": 0.0,
-                "missing_fields": [],
-                "ambiguities": [],
+                "actions": [
+                    {
+                        "intent": "none",
+                        "confidence": 0.0,
+                        "missing_fields": [],
+                        "ambiguities": [],
+                    }
+                ],
                 "assistant_message": "Maaf, saya tidak bisa memproses pesan itu. Coba tulis ulang.",
             }
 

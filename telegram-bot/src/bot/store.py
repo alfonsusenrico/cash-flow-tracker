@@ -88,3 +88,35 @@ class Store:
             )
             row = await cur.fetchone()
             return row["action_json"] if row else None
+
+    async def add_chat_history(self, telegram_user_id: int, role: str, content: str) -> None:
+        async with db_conn() as conn:
+            await conn.execute(
+                """
+                INSERT INTO bot_chat_history (telegram_user_id, role, content)
+                VALUES (%s, %s, %s)
+                """,
+                (telegram_user_id, role, content),
+            )
+
+    async def get_chat_history(self, telegram_user_id: int, limit: int = 10) -> list[dict[str, str]]:
+        async with db_conn() as conn:
+            cur = await conn.execute(
+                """
+                SELECT role, content
+                FROM bot_chat_history
+                WHERE telegram_user_id=%s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (telegram_user_id, limit),
+            )
+            rows = await cur.fetchall()
+            return [{"role": r["role"], "content": r["content"]} for r in reversed(rows)]
+
+    async def clear_chat_history(self, telegram_user_id: int) -> None:
+        async with db_conn() as conn:
+            await conn.execute(
+                "DELETE FROM bot_chat_history WHERE telegram_user_id=%s",
+                (telegram_user_id,),
+            )

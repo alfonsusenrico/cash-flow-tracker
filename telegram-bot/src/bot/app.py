@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -152,6 +153,9 @@ class BotApp:
             image_mime = "image/jpeg"
 
         try:
+            # Load chronological chat history from store (limit to last 10 messages)
+            history = await self.store.get_chat_history(telegram_user_id, limit=10)
+
             async with TypingContext(context.bot, chat_id):
                 # Fetch context
                 accounts = await self.finance.list_accounts(api_key)
@@ -170,15 +174,71 @@ class BotApp:
                     categories=categories,
                     image_bytes=image_bytes,
                     image_mime=image_mime,
+                    history=history,
                 )
 
-            # Resolve proposal to action
-            action = resolve(
-                proposal,
-                accounts,
-                categories,
-                self.settings.confidence_threshold,
+            # Save the user message and assistant JSON response to chat history
+            await self.store.add_chat_history(telegram_user_id, "user", message_text or "[Photo receipt]")
+            await self.store.add_chat_history(
+                telegram_user_id, "assistant", json.dumps(proposal, ensure_ascii=False)
             )
+
+            # Resolve actions from proposal
+            actions_list = proposal.get("actions", [])
+            assistant_msg = proposal.get("assistant_message", "")
+
+            if not actions_list:
+                action = {
+                    "intent": "none",
+                    "decision": "clarify",
+                    "fields": {},
+                    "questions": [],
+                    "confidence": 0.0,
+                    "assistant_message": assistant_msg or "Maaf, bisa diperjelas kembali?",
+                }
+            else:
+                resolved_actions = []
+                for act_proposal in actions_list:
+                    res_act = resolve(
+                        act_proposal,
+                        accounts,
+                        categories,
+                        self.settings.confidence_threshold,
+                    )
+                    resolved_actions.append(res_act)
+
+                # Determine overall decision
+                decisions = [a.get("decision") for a in resolved_actions]
+                if "clarify" in decisions:
+                    overall_decision = "clarify"
+                elif "ask" in decisions:
+                    overall_decision = "ask"
+                elif "confirm" in decisions:
+                    overall_decision = "confirm"
+                elif "query" in decisions:
+                    overall_decision = "query"
+                else:
+                    overall_decision = "execute"
+
+                # Consolidate into a single action proposal for downstream processing
+                if len(resolved_actions) == 1:
+                    action = resolved_actions[0]
+                    action["decision"] = overall_decision
+                    action["assistant_message"] = assistant_msg or action.get("assistant_message", "")
+                else:
+                    # Merge all questions
+                    questions = []
+                    for a in resolved_actions:
+                        questions.extend(a.get("questions", []))
+                    
+                    action = {
+                        "is_batch": True,
+                        "actions": resolved_actions,
+                        "intent": "batch",
+                        "decision": overall_decision,
+                        "questions": questions,
+                        "assistant_message": assistant_msg,
+                    }
 
             # Handle based on decision
             decision = action.get("decision")
@@ -190,15 +250,23 @@ class BotApp:
                 return
 
             if decision == "query":
-                await self._handle_query(update, action, api_key, accounts)
+                if action.get("is_batch"):
+                    first_act = action.get("actions", [])[0]
+                    await self._handle_query(update, first_act, api_key, accounts)
+                else:
+                    await self._handle_query(update, action, api_key, accounts)
                 return
 
             if decision == "ask":
                 # Ask for missing/ambiguous fields
                 questions = action.get("questions", [])
                 msg_lines = [assistant_msg or "Perlu informasi tambahan:"]
+                seen_fields = set()
                 for q in questions:
                     field = q.get("field", "")
+                    if field in seen_fields:
+                        continue
+                    seen_fields.add(field)
                     candidates = q.get("candidates", [])
                     if candidates:
                         msg_lines.append(f"\n{field.title()}: {', '.join(candidates)}")
@@ -251,7 +319,21 @@ class BotApp:
             await query.edit_message_text("❌ Dibatalkan.")
             return
 
-        # TODO: Handle other callback data (confirmations, etc.)
+        if data.startswith("confirm:"):
+            pending_id = data.split(":", 1)[1]
+            api_key = await self.store.get_api_key(telegram_user_id)
+            if not api_key:
+                await query.edit_message_text("❌ Akun belum terhubung.")
+                return
+
+            action = await self.store.take_pending(pending_id, telegram_user_id)
+            if not action:
+                await query.edit_message_text("❌ Aksi kedaluwarsa atau tidak ditemukan.")
+                return
+
+            await self._execute_action(update, context, action, api_key, pending_id, is_callback=True)
+            return
+
         await query.edit_message_text("✅ Selesai.")
 
     async def _handle_query(
@@ -393,9 +475,6 @@ class BotApp:
             else:
                 amount_str = f"-Rp{credit:,}"
             
-            lines.append(f"• {date[:10]} | {name}")
-            lines.append(f"  {amount_str} ({acc_name})")
-        
         if len(rows) > display_limit:
             lines.append(f"\n... dan {len(rows) - display_limit} transaksi lainnya")
         
@@ -410,103 +489,116 @@ class BotApp:
         pending_id: str,
         is_callback: bool = False,
     ) -> None:
-        """Execute the resolved action."""
-        intent = action.get("intent")
-        fields = action.get("fields", {})
+        """Execute the resolved action or a batch of resolved actions."""
+        is_batch = action.get("is_batch", False)
+        actions_list = action.get("actions", []) if is_batch else [action]
+        
+        # Collect results for all executions
+        results = []
+        has_error = False
 
         try:
-            if intent == "create_transaction":
-                payload = {
-                    "transaction_type": fields.get("transaction_type"),
-                    "amount": fields.get("amount"),
-                    "transaction_name": fields.get("transaction_name"),
-                    "account_id": fields.get("account_id"),
-                    "category_id": fields.get("category_id"),
-                    "is_cycle_topup": fields.get("is_cycle_topup", False),
-                }
-                if fields.get("date"):
-                    payload["date"] = fields["date"]
+            for idx, act in enumerate(actions_list, start=1):
+                intent = act.get("intent")
+                fields = act.get("fields", {})
                 
-                result = await self.finance.upsert_transaction(api_key, payload)
-                tx_id = result.get("transaction_id")
-                
-                # Get updated balance
-                account_id = fields.get("account_id")
-                accounts = await self.finance.list_accounts(api_key)
-                account = next((a for a in accounts if a["account_id"] == account_id), None)
-                balance = int(account["balance"]) if account else 0
-                
-                msg = f"✅ Transaksi berhasil dicatat!\nID: {tx_id}\n\n💰 Saldo {account['account_name'] if account else 'akun'}: Rp{balance:,}"
-                
-                # Upload receipt if there was an image
-                if update.message and update.message.photo:
-                    photo = update.message.photo[-1]
-                    file = await context.bot.get_file(photo.file_id)
-                    image_bytes = await file.download_as_bytearray()
-                    await self.finance.upload_receipt(
-                        api_key, tx_id, bytes(image_bytes), "receipt.jpg", "image/jpeg"
-                    )
-                    msg += "\n📎 Struk berhasil diunggah."
+                try:
+                    if intent == "create_transaction":
+                        payload = {
+                            "transaction_type": fields.get("transaction_type"),
+                            "amount": fields.get("amount"),
+                            "transaction_name": fields.get("transaction_name"),
+                            "account_id": fields.get("account_id"),
+                            "category_id": fields.get("category_id"),
+                            "is_cycle_topup": fields.get("is_cycle_topup", False),
+                        }
+                        if fields.get("date"):
+                            payload["date"] = fields["date"]
+                        
+                        result = await self.finance.upsert_transaction(api_key, payload)
+                        tx_id = result.get("transaction_id")
+                        
+                        prefix = f"{idx}. " if is_batch else ""
+                        msg_item = f"✅ {prefix}[Transaksi] {fields.get('transaction_name')}: Rp{fields.get('amount'):,} ({fields.get('account_name')})"
+                        
+                        # Upload receipt if there was an image (only for first transaction or if photo exists)
+                        if not is_callback and update.message and update.message.photo and idx == 1:
+                            photo = update.message.photo[-1]
+                            file = await context.bot.get_file(photo.file_id)
+                            image_bytes = await file.download_as_bytearray()
+                            await self.finance.upload_receipt(
+                                api_key, tx_id, bytes(image_bytes), "receipt.jpg", "image/jpeg"
+                            )
+                            msg_item += " 📎 Struk diunggah"
+                        
+                        results.append(msg_item)
 
-            elif intent == "create_movement":
-                payload = {
-                    "amount": fields.get("amount"),
-                    "from_account_id": fields.get("account_id"),
-                    "to_account_id": fields.get("target_account_id"),
-                }
-                if fields.get("date"):
-                    payload["date"] = fields["date"]
-                
-                result = await self.finance.create_movement(api_key, payload)
-                
-                # Get updated balances for both accounts
-                from_account_id = fields.get("account_id")
-                to_account_id = fields.get("target_account_id")
-                accounts = await self.finance.list_accounts(api_key)
-                
-                from_account = next((a for a in accounts if a["account_id"] == from_account_id), None)
-                to_account = next((a for a in accounts if a["account_id"] == to_account_id), None)
-                
-                from_balance = int(from_account["balance"]) if from_account else 0
-                to_balance = int(to_account["balance"]) if to_account else 0
-                
-                msg = f"✅ Transfer berhasil dicatat!\nID: {result.get('transfer_id')}\n\n"
-                msg += f"💰 Saldo {from_account['account_name'] if from_account else 'sumber'}: Rp{from_balance:,}\n"
-                msg += f"💰 Saldo {to_account['account_name'] if to_account else 'tujuan'}: Rp{to_balance:,}"
+                    elif intent == "create_movement":
+                        payload = {
+                            "amount": fields.get("amount"),
+                            "from_account_id": fields.get("account_id"),
+                            "to_account_id": fields.get("target_account_id"),
+                        }
+                        if fields.get("date"):
+                            payload["date"] = fields["date"]
+                        
+                        result = await self.finance.create_movement(api_key, payload)
+                        
+                        prefix = f"{idx}. " if is_batch else ""
+                        results.append(f"✅ {prefix}[Transfer] Rp{fields.get('amount'):,}: {fields.get('account_name')} → {fields.get('target_account_name')}")
 
-            elif intent == "update_transaction":
-                # For updates, we need to search first
-                msg = "⚠️ Update transaksi belum diimplementasikan sepenuhnya."
-                # TODO: After implementation, add balance display like create_transaction
+                    elif intent == "update_transaction":
+                        prefix = f"{idx}. " if is_batch else ""
+                        results.append(f"⚠️ {prefix}Update transaksi belum diimplementasikan sepenuhnya.")
 
-            elif intent == "delete_transaction":
-                # For deletes, we need to search first
-                # Get account_id from query result, then show balance after deletion
-                msg = "⚠️ Hapus transaksi belum diimplementasikan sepenuhnya."
-                # TODO: After implementation, add balance display like create_transaction
+                    elif intent == "delete_transaction":
+                        prefix = f"{idx}. " if is_batch else ""
+                        results.append(f"⚠️ {prefix}Hapus transaksi belum diimplementasikan sepenuhnya.")
 
-            elif intent == "update_movement":
-                msg = "⚠️ Update transfer belum diimplementasikan sepenuhnya."
-                # TODO: After implementation, add balance display like create_movement
+                    elif intent == "update_movement":
+                        prefix = f"{idx}. " if is_batch else ""
+                        results.append(f"⚠️ {prefix}Update transfer belum diimplementasikan sepenuhnya.")
 
-            elif intent == "delete_movement":
-                msg = "⚠️ Hapus transfer belum diimplementasikan sepenuhnya."
-                # TODO: After implementation, add balance display like create_movement
+                    elif intent == "delete_movement":
+                        prefix = f"{idx}. " if is_batch else ""
+                        results.append(f"⚠️ {prefix}Hapus transfer belum diimplementasikan sepenuhnya.")
 
+                    else:
+                        prefix = f"{idx}. " if is_batch else ""
+                        results.append(f"❌ {prefix}Intent tidak dikenali.")
+
+                except FinanceError as e:
+                    has_error = True
+                    prefix = f"{idx}. " if is_batch else ""
+                    results.append(f"❌ {prefix}Gagal: {e.detail}")
+                except Exception as e:
+                    has_error = True
+                    prefix = f"{idx}. " if is_batch else ""
+                    results.append(f"❌ {prefix}Error: {str(e)}")
+
+            # Generate consolidated response message
+            if is_batch:
+                header = "📊 **Hasil Batch Eksekusi:**\n\n"
+                msg = header + "\n".join(results)
             else:
-                msg = "❌ Intent tidak dikenali."
+                msg = results[0] if results else "❌ Tidak ada aksi yang dieksekusi."
+
+            # Fetch and display final balances for all referenced accounts if not batch
+            if not is_batch and not has_error and len(actions_list) == 1:
+                fields = actions_list[0].get("fields", {})
+                account_id = fields.get("account_id")
+                if account_id:
+                    accounts = await self.finance.list_accounts(api_key)
+                    account = next((a for a in accounts if a["account_id"] == account_id), None)
+                    if account:
+                        balance = int(account["balance"])
+                        msg += f"\n\n💰 Saldo {account['account_name']}: Rp{balance:,}"
 
             if is_callback:
                 await update.callback_query.edit_message_text(msg)
             else:
                 await update.message.reply_text(msg)
 
-        except FinanceError as e:
-            error_msg = f"❌ Gagal: {e.detail}"
-            if is_callback:
-                await update.callback_query.edit_message_text(error_msg)
-            else:
-                await update.message.reply_text(error_msg)
         except Exception as e:
             logger.exception("Action execution failed")
             error_msg = f"❌ Terjadi kesalahan: {str(e)}"
@@ -517,6 +609,17 @@ class BotApp:
 
     def _format_action_summary(self, action: dict[str, Any]) -> str:
         """Format action for confirmation message."""
+        is_batch = action.get("is_batch", False)
+        if is_batch:
+            summaries = []
+            for idx, act in enumerate(action.get("actions", []), start=1):
+                summaries.append(f"{idx}. {self._format_single_action_summary(act)}")
+            return "\n\n".join(summaries)
+        else:
+            return self._format_single_action_summary(action)
+
+    def _format_single_action_summary(self, action: dict[str, Any]) -> str:
+        """Format a single action for confirmation message."""
         intent = action.get("intent")
         fields = action.get("fields", {})
         
@@ -526,13 +629,13 @@ class BotApp:
             name = fields.get("transaction_name", "")
             account = fields.get("account_name", "")
             category = fields.get("category_name", "")
-            return f"{tx_type}: Rp{amount:,}\n{name}\nAkun: {account}\nKategori: {category}"
+            return f"{tx_type}: Rp{amount:,}\n└ {name} ({account}) [{category or 'Tanpa Kategori'}]"
         
         elif intent == "create_movement":
             amount = fields.get("amount", 0)
             from_acc = fields.get("account_name", "")
             to_acc = fields.get("target_account_name", "")
-            return f"Transfer: Rp{amount:,}\nDari: {from_acc}\nKe: {to_acc}"
+            return f"Transfer: Rp{amount:,}\n└ Dari: {from_acc} → Ke: {to_acc}"
         
         return str(action)
 
