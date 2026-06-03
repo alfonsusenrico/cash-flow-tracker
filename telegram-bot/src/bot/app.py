@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import Update
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -165,12 +165,98 @@ class BotApp:
                     self.finance.list_accounts(api_key),
                     self.finance.list_categories(api_key),
                 )
-                
+
                 # Get timezone from user (default to Asia/Jakarta)
                 tz = "Asia/Jakarta"
                 now_iso = datetime.now(timezone.utc).isoformat()
 
-                # Call LLM to propose action
+                # ----------------------------------------------------------
+                # Build tool executors — async closures the LLM can invoke
+                # to retrieve real-time data (balances, transactions).
+                # ----------------------------------------------------------
+                async def _tool_get_account_balance(account_name: str) -> str:
+                    """Return the current balance for the named account as JSON."""
+                    fresh = await self.finance.list_accounts(api_key)
+                    match = next(
+                        (
+                            a for a in fresh
+                            if (a.get("account_name") or "").lower()
+                            == account_name.lower()
+                        ),
+                        None,
+                    )
+                    if match:
+                        return json.dumps(
+                            {
+                                "account_name": match["account_name"],
+                                "balance": match.get("balance"),
+                                "profile_type": match.get("profile_type"),
+                            },
+                            ensure_ascii=False,
+                        )
+                    return json.dumps(
+                        {"error": f"Account '{account_name}' not found"},
+                        ensure_ascii=False,
+                    )
+
+                async def _tool_get_all_balances() -> str:
+                    """Return all account balances as JSON."""
+                    fresh = await self.finance.list_accounts(api_key)
+                    return json.dumps(
+                        {
+                            "accounts": [
+                                {
+                                    "account_name": a["account_name"],
+                                    "balance": a.get("balance"),
+                                    "profile_type": a.get("profile_type"),
+                                }
+                                for a in fresh
+                            ]
+                        },
+                        ensure_ascii=False,
+                    )
+
+                async def _tool_search_transactions(
+                    query: str,
+                    account_name: str | None = None,
+                    limit: int = 5,
+                ) -> str:
+                    """Search transactions by keyword, optionally filtered by account."""
+                    result = await self.finance.search_ledger(
+                        api_key, {"query": query}
+                    )
+                    rows = result.get("rows", [])
+                    if account_name:
+                        rows = [
+                            r for r in rows
+                            if account_name.lower()
+                            in (r.get("account_name") or "").lower()
+                        ]
+                    rows = rows[:max(1, limit)]
+                    return json.dumps(
+                        {
+                            "transactions": [
+                                {
+                                    "transaction_id": r.get("transaction_id"),
+                                    "transaction_name": r.get("transaction_name"),
+                                    "account_name": r.get("account_name"),
+                                    "date": r.get("date"),
+                                    "debit": r.get("debit"),
+                                    "credit": r.get("credit"),
+                                }
+                                for r in rows
+                            ]
+                        },
+                        ensure_ascii=False,
+                    )
+
+                tool_executors = {
+                    "get_account_balance": _tool_get_account_balance,
+                    "get_all_balances": _tool_get_all_balances,
+                    "search_transactions": _tool_search_transactions,
+                }
+
+                # Call LLM to propose action (agentic loop)
                 proposal = await self.llm.propose(
                     message_text=message_text,
                     now_iso=now_iso,
@@ -182,6 +268,7 @@ class BotApp:
                     history=history,
                     timeout=self.settings.llm_timeout,
                     pending_action=pending_action,
+                    tool_executors=tool_executors,
                 )
 
             # Save the user message and assistant JSON response to chat history
