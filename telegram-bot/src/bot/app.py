@@ -643,6 +643,10 @@ class BotApp:
 
             # Save the user message and assistant natural text response to chat history
             await self.store.add_chat_history(telegram_user_id, "user", message_text or "[Photo receipt]")
+            
+            if not response_text.strip():
+                response_text = "Tugas selesai dijalankan."
+                
             await self.store.add_chat_history(telegram_user_id, "assistant", response_text)
 
             # Clean up double asterisks to single asterisks just in case
