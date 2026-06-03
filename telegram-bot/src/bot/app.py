@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import httpx
@@ -23,9 +23,7 @@ from .crypto import Crypto
 from .db import close_pool, init_pool, open_pool
 from .finance_client import FinanceClient, FinanceError
 from .llm import LLMPlanner
-from .resolver import resolve
 from .store import Store
-from .time_utils import parse_time_range, format_date_range
 
 logging.basicConfig(
     level=logging.INFO,
@@ -156,9 +154,6 @@ class BotApp:
             # Load chronological chat history from store (limit to last 10 messages)
             history = await self.store.get_chat_history(telegram_user_id, limit=10)
 
-            # Retrieve and atomically delete latest pending action for the user
-            pending_action = await self.store.take_latest_pending(telegram_user_id)
-
             async with TypingContext(context.bot, chat_id):
                 # Fetch context in parallel
                 accounts, categories = await asyncio.gather(
@@ -170,9 +165,10 @@ class BotApp:
                 tz = "Asia/Jakarta"
                 now_iso = datetime.now(timezone.utc).isoformat()
 
+                uploaded_receipt = False
+
                 # ----------------------------------------------------------
-                # Build tool executors — async closures the LLM can invoke
-                # to retrieve real-time data (balances, transactions).
+                # Tool executors (closured with user's api_key, accounts, and categories)
                 # ----------------------------------------------------------
                 async def _tool_get_account_balance(account_name: str) -> str:
                     """Return the current balance for the named account as JSON."""
@@ -180,8 +176,7 @@ class BotApp:
                     match = next(
                         (
                             a for a in fresh
-                            if (a.get("account_name") or "").lower()
-                            == account_name.lower()
+                            if (a.get("account_name") or "").lower() == account_name.lower()
                         ),
                         None,
                     )
@@ -217,22 +212,72 @@ class BotApp:
                     )
 
                 async def _tool_search_transactions(
-                    query: str,
+                    query: str | None = None,
                     account_name: str | None = None,
-                    limit: int = 5,
+                    category_name: str | None = None,
+                    time_range: str | None = None,
+                    limit: int = 50,
                 ) -> str:
-                    """Search transactions by keyword, optionally filtered by account."""
-                    result = await self.finance.search_ledger(
-                        api_key, {"query": query}
-                    )
+                    """Search transactions with query keywords, time ranges, and account/category filters."""
+                    from_dt = None
+                    to_dt = datetime.now(timezone.utc)
+                    
+                    if time_range == "today":
+                        from_dt = to_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+                    elif time_range == "yesterday":
+                        yesterday = to_dt - timedelta(days=1)
+                        from_dt = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+                        to_dt = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
+                    elif time_range == "this_week":
+                        from_dt = (to_dt - timedelta(days=to_dt.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+                    elif time_range == "last_week":
+                        start_of_this_week = to_dt - timedelta(days=to_dt.weekday())
+                        from_dt = (start_of_this_week - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+                        to_dt = (start_of_this_week - timedelta(microseconds=1))
+                    elif time_range == "this_month":
+                        from_dt = to_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    elif time_range == "last_month":
+                        first_of_this_month = to_dt.replace(day=1)
+                        last_of_last_month = first_of_this_month - timedelta(days=1)
+                        from_dt = last_of_last_month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                        to_dt = last_of_last_month.replace(hour=23, minute=59, second=59, microsecond=999999)
+                    elif time_range == "this_year":
+                        from_dt = to_dt.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                    elif time_range and "_" in time_range and time_range.split("_")[0].isdigit():
+                        parts = time_range.split("_")
+                        days = int(parts[0])
+                        from_dt = to_dt - timedelta(days=days)
+                    else:
+                        # default: 30 days
+                        from_dt = to_dt - timedelta(days=30)
+                        
+                    payload: dict[str, Any] = {
+                        "scope": "all",
+                        "limit": 100,
+                        "order": "desc",
+                    }
+                    if query:
+                        payload["query"] = query
+                    if from_dt:
+                        payload["from_date"] = from_dt.strftime("%Y-%m-%d")
+                    if to_dt:
+                        payload["to_date"] = to_dt.strftime("%Y-%m-%d")
+                        
+                    result = await self.finance.search_ledger(api_key, payload)
                     rows = result.get("rows", [])
+                    
                     if account_name:
                         rows = [
                             r for r in rows
-                            if account_name.lower()
-                            in (r.get("account_name") or "").lower()
+                            if account_name.lower() in (r.get("account_name") or "").lower()
                         ]
-                    rows = rows[:max(1, limit)]
+                    if category_name:
+                        rows = [
+                            r for r in rows
+                            if category_name.lower() in (r.get("category_name") or "").lower()
+                        ]
+                        
+                    rows = rows[:limit]
                     return json.dumps(
                         {
                             "transactions": [
@@ -240,6 +285,7 @@ class BotApp:
                                     "transaction_id": r.get("transaction_id"),
                                     "transaction_name": r.get("transaction_name"),
                                     "account_name": r.get("account_name"),
+                                    "category_name": r.get("category_name"),
                                     "date": r.get("date"),
                                     "debit": r.get("debit"),
                                     "credit": r.get("credit"),
@@ -250,14 +296,189 @@ class BotApp:
                         ensure_ascii=False,
                     )
 
+                async def _tool_record_transaction(
+                    type: str,
+                    amount: int,
+                    name: str,
+                    account_name: str,
+                    category_name: str | None = None,
+                    date: str | None = None,
+                ) -> str:
+                    nonlocal image_bytes, uploaded_receipt
+                    fresh_accounts, fresh_categories = await asyncio.gather(
+                        self.finance.list_accounts(api_key),
+                        self.finance.list_categories(api_key),
+                    )
+                    
+                    account = next(
+                        (a for a in fresh_accounts if (a.get("account_name") or "").lower() == account_name.lower()),
+                        None
+                    )
+                    if not account:
+                        return json.dumps({
+                            "error": f"Account '{account_name}' not found. Valid accounts: {[a['account_name'] for a in fresh_accounts]}"
+                        })
+                    
+                    category_id = None
+                    if category_name:
+                        category = next(
+                            (c for c in fresh_categories if (c.get("name") or "").lower() == category_name.lower()),
+                            None
+                        )
+                        if category:
+                            category_id = category["category_id"]
+                        else:
+                            return json.dumps({
+                                "error": f"Category '{category_name}' not found. Valid categories: {[c['name'] for c in fresh_categories]}"
+                            })
+                    
+                    payload = {
+                        "transaction_type": "debit" if type == "income" else "credit",
+                        "amount": amount,
+                        "transaction_name": name,
+                        "account_id": account["account_id"],
+                        "category_id": category_id,
+                        "is_cycle_topup": False,
+                    }
+                    if date:
+                        payload["date"] = date
+                        
+                    res = await self.finance.upsert_transaction(api_key, payload)
+                    tx_id = res.get("transaction_id")
+                    
+                    msg_suffix = ""
+                    if image_bytes and not uploaded_receipt and tx_id:
+                        try:
+                            await self.finance.upload_receipt(
+                                api_key, tx_id, image_bytes, "receipt.jpg", "image/jpeg"
+                            )
+                            uploaded_receipt = True
+                            msg_suffix = " with receipt image uploaded"
+                        except Exception as e:
+                            logger.exception("Failed to upload receipt")
+                            msg_suffix = f" (failed to upload receipt: {e})"
+                            
+                    return json.dumps({
+                        "success": True,
+                        "transaction_id": tx_id,
+                        "message": f"Successfully recorded {type} of Rp{amount:,} for '{name}' in account '{account['account_name']}'{msg_suffix}."
+                    })
+
+                async def _tool_record_movement(
+                    amount: int,
+                    source_account_name: str,
+                    target_account_name: str,
+                    date: str | None = None,
+                ) -> str:
+                    fresh_accounts = await self.finance.list_accounts(api_key)
+                    src_acc = next(
+                        (a for a in fresh_accounts if (a.get("account_name") or "").lower() == source_account_name.lower()),
+                        None
+                    )
+                    if not src_acc:
+                        return json.dumps({
+                            "error": f"Source account '{source_account_name}' not found. Valid accounts: {[a['account_name'] for a in fresh_accounts]}"
+                        })
+                        
+                    tgt_acc = next(
+                        (a for a in fresh_accounts if (a.get("account_name") or "").lower() == target_account_name.lower()),
+                        None
+                    )
+                    if not tgt_acc:
+                        return json.dumps({
+                            "error": f"Target account '{target_account_name}' not found. Valid accounts: {[a['account_name'] for a in fresh_accounts]}"
+                        })
+                        
+                    payload = {
+                        "amount": amount,
+                        "from_account_id": src_acc["account_id"],
+                        "to_account_id": tgt_acc["account_id"],
+                    }
+                    if date:
+                        payload["date"] = date
+                        
+                    res = await self.finance.create_movement(api_key, payload)
+                    transfer_id = res.get("transfer_id")
+                    
+                    return json.dumps({
+                        "success": True,
+                        "transfer_id": transfer_id,
+                        "message": f"Successfully transferred Rp{amount:,} from '{src_acc['account_name']}' to '{tgt_acc['account_name']}'."
+                    })
+
+                async def _tool_delete_transaction(transaction_id: str) -> str:
+                    await self.finance.delete_transaction(api_key, transaction_id)
+                    return json.dumps({
+                        "success": True,
+                        "message": f"Successfully deleted transaction {transaction_id}."
+                    })
+
+                async def _tool_update_transaction(
+                    transaction_id: str,
+                    type: str | None = None,
+                    amount: int | None = None,
+                    name: str | None = None,
+                    account_name: str | None = None,
+                    category_name: str | None = None,
+                    date: str | None = None,
+                ) -> str:
+                    fresh_accounts, fresh_categories = await asyncio.gather(
+                        self.finance.list_accounts(api_key),
+                        self.finance.list_categories(api_key),
+                    )
+                    
+                    payload: dict[str, Any] = {
+                        "transaction_id": transaction_id,
+                    }
+                    
+                    if type:
+                        payload["transaction_type"] = "debit" if type == "income" else "credit"
+                    if amount is not None:
+                        payload["amount"] = amount
+                    if name is not None:
+                        payload["transaction_name"] = name
+                    if account_name:
+                        account = next(
+                            (a for a in fresh_accounts if (a.get("account_name") or "").lower() == account_name.lower()),
+                            None
+                        )
+                        if not account:
+                            return json.dumps({
+                                "error": f"Account '{account_name}' not found. Valid accounts: {[a['account_name'] for a in fresh_accounts]}"
+                            })
+                        payload["account_id"] = account["account_id"]
+                    if category_name:
+                        category = next(
+                            (c for c in fresh_categories if (c.get("name") or "").lower() == category_name.lower()),
+                            None
+                        )
+                        if not category:
+                            return json.dumps({
+                                "error": f"Category '{category_name}' not found. Valid categories: {[c['name'] for c in fresh_categories]}"
+                            })
+                        payload["category_id"] = category["category_id"]
+                    if date:
+                        payload["date"] = date
+                        
+                    res = await self.finance.upsert_transaction(api_key, payload)
+                    return json.dumps({
+                        "success": True,
+                        "message": f"Successfully updated transaction {transaction_id}.",
+                        "result": res
+                    })
+
                 tool_executors = {
                     "get_account_balance": _tool_get_account_balance,
                     "get_all_balances": _tool_get_all_balances,
                     "search_transactions": _tool_search_transactions,
+                    "record_transaction": _tool_record_transaction,
+                    "record_movement": _tool_record_movement,
+                    "delete_transaction": _tool_delete_transaction,
+                    "update_transaction": _tool_update_transaction,
                 }
 
                 # Call LLM to propose action (agentic loop)
-                proposal = await self.llm.propose(
+                response_text = await self.llm.propose(
                     message_text=message_text,
                     now_iso=now_iso,
                     timezone=tz,
@@ -267,123 +488,15 @@ class BotApp:
                     image_mime=image_mime,
                     history=history,
                     timeout=self.settings.llm_timeout,
-                    pending_action=pending_action,
                     tool_executors=tool_executors,
                 )
 
-            # Save the user message and assistant JSON response to chat history
+            # Save the user message and assistant natural text response to chat history
             await self.store.add_chat_history(telegram_user_id, "user", message_text or "[Photo receipt]")
-            await self.store.add_chat_history(
-                telegram_user_id, "assistant", json.dumps(proposal, ensure_ascii=False)
-            )
+            await self.store.add_chat_history(telegram_user_id, "assistant", response_text)
 
-            # Resolve actions from proposal
-            actions_list = proposal.get("actions", [])
-            assistant_msg = proposal.get("assistant_message", "")
-
-            if not actions_list:
-                action = {
-                    "intent": "none",
-                    "decision": "clarify",
-                    "fields": {},
-                    "questions": [],
-                    "confidence": 0.0,
-                    "assistant_message": assistant_msg or "Maaf, bisa diperjelas kembali?",
-                }
-            else:
-                resolved_actions = []
-                for act_proposal in actions_list:
-                    res_act = resolve(
-                        act_proposal,
-                        accounts,
-                        categories,
-                        self.settings.confidence_threshold,
-                    )
-                    resolved_actions.append(res_act)
-
-                # Determine overall decision
-                decisions = [a.get("decision") for a in resolved_actions]
-                if "clarify" in decisions:
-                    overall_decision = "clarify"
-                elif "ask" in decisions:
-                    overall_decision = "ask"
-                elif "confirm" in decisions:
-                    overall_decision = "confirm"
-                elif "query" in decisions:
-                    overall_decision = "query"
-                else:
-                    overall_decision = "execute"
-
-                # Consolidate into a single action proposal for downstream processing
-                if len(resolved_actions) == 1:
-                    action = resolved_actions[0]
-                    action["decision"] = overall_decision
-                    action["assistant_message"] = assistant_msg or action.get("assistant_message", "")
-                else:
-                    # Merge all questions
-                    questions = []
-                    for a in resolved_actions:
-                        questions.extend(a.get("questions", []))
-                    
-                    action = {
-                        "is_batch": True,
-                        "actions": resolved_actions,
-                        "intent": "batch",
-                        "decision": overall_decision,
-                        "questions": questions,
-                        "assistant_message": assistant_msg,
-                    }
-
-            # Handle based on decision
-            decision = action.get("decision")
-            intent = action.get("intent")
-            assistant_msg = action.get("assistant_message", "")
-
-            if decision == "clarify":
-                await update.message.reply_text(assistant_msg or "Maaf, saya tidak mengerti.")
-                return
-
-            if decision == "query":
-                if action.get("is_batch"):
-                    first_act = action.get("actions", [])[0]
-                    await self._handle_query(update, first_act, api_key, accounts)
-                else:
-                    await self._handle_query(update, action, api_key, accounts)
-                return
-
-            if decision == "ask":
-                # Ask for missing/ambiguous fields
-                questions = action.get("questions", [])
-                msg_lines = [assistant_msg or "Perlu informasi tambahan:"]
-                seen_fields = set()
-                for q in questions:
-                    field = q.get("field", "")
-                    if field in seen_fields:
-                        continue
-                    seen_fields.add(field)
-                    candidates = q.get("candidates", [])
-                    if candidates:
-                        msg_lines.append(f"\n{field.title()}: {', '.join(candidates)}")
-                    else:
-                        msg_lines.append(f"\n{field.title()}: (belum diisi)")
-                await update.message.reply_text("\n".join(msg_lines))
-                return
-
-            if decision in ("execute", "confirm"):
-                # Store pending action
-                pending_id = await self.store.create_pending(
-                    telegram_user_id, chat_id, action, ttl_seconds=900
-                )
-
-                if decision == "execute":
-                    # Auto-execute high-confidence creates
-                    await self._execute_action(update, context, action, api_key, pending_id)
-                else:
-                    # Ask for confirmation
-                    summary = self._format_action_summary(action)
-                    await update.message.reply_text(
-                        f"{assistant_msg}\n\n{summary}\n\nLanjutkan?"
-                    )
+            # Reply to user
+            await update.message.reply_text(response_text)
 
         except FinanceError as e:
             await update.message.reply_text(f"❌ API error: {e.detail}")
@@ -396,373 +509,6 @@ class BotApp:
         query = update.callback_query
         await query.answer()
         await query.edit_message_text("❌ Silakan gunakan chat langsung untuk berkomunikasi.")
-
-    async def _handle_query(
-        self,
-        update: Update,
-        action: dict[str, Any],
-        api_key: str,
-        accounts: list[dict[str, Any]],
-    ) -> None:
-        """Handle all query intents (query, query_balance, query_transactions)."""
-        intent = action.get("intent")
-        assistant_msg = action.get("assistant_message", "")
-        
-        if intent == "query_balance":
-            await self._handle_balance_query(update, action, api_key, accounts)
-        elif intent == "query_transactions":
-            await self._handle_transaction_query(update, action, api_key, accounts)
-        else:
-            # Generic query - use search
-            query_text = action["fields"].get("query", "")
-            result = await self.finance.search_ledger(api_key, {"query": query_text})
-            entries = result.get("rows", [])
-            if not entries:
-                await update.message.reply_text("Tidak ada hasil ditemukan.")
-            else:
-                lines = [f"📊 Hasil pencarian ({len(entries)} entri):"]
-                for entry in entries[:10]:
-                    date = entry.get("date", "")
-                    name = entry.get("transaction_name", "")
-                    debit = int(entry.get("debit") or 0)
-                    credit = int(entry.get("credit") or 0)
-                    acc = entry.get("account_name", "")
-                    amount_str = f"+Rp{debit:,}" if debit > 0 else f"-Rp{credit:,}"
-                    lines.append(f"• {date[:10]} - {name}: {amount_str} ({acc})")
-                await update.message.reply_text("\n".join(lines))
-
-    async def _handle_balance_query(
-        self,
-        update: Update,
-        action: dict[str, Any],
-        api_key: str,
-        accounts: list[dict[str, Any]],
-    ) -> None:
-        """Handle query_balance intent."""
-        query_accounts = action.get("query_accounts", [])
-        assistant_msg = action.get("assistant_message", "")
-        
-        # Filter accounts based on query
-        if query_accounts:
-            # Map account names to IDs
-            account_map = {acc["account_name"]: acc for acc in accounts}
-            filtered_accounts = [account_map[name] for name in query_accounts if name in account_map]
-        else:
-            # All accounts
-            filtered_accounts = accounts
-        
-        if not filtered_accounts:
-            await update.message.reply_text("❌ Akun tidak ditemukan.")
-            return
-        
-        # Format balance response
-        lines = ["💰 Saldo Akun:"]
-        total = 0
-        for acc in filtered_accounts:
-            balance = int(acc.get("balance", 0))
-            total += balance
-            lines.append(f"• {acc['account_name']}: Rp{balance:,}")
-        
-        if len(filtered_accounts) > 1:
-            lines.append(f"\n📊 Total: Rp{total:,}")
-        
-        await update.message.reply_text("\n".join(lines))
-
-    async def _handle_transaction_query(
-        self,
-        update: Update,
-        action: dict[str, Any],
-        api_key: str,
-        accounts: list[dict[str, Any]],
-    ) -> None:
-        """Handle query_transactions intent."""
-        query_accounts = action.get("query_accounts", [])
-        time_range = action.get("time_range")
-        assistant_msg = action.get("assistant_message", "")
-        
-        # Parse time range
-        try:
-            from_dt, to_dt = parse_time_range(time_range)
-            from_date = from_dt.strftime("%Y-%m-%d")
-            to_date = to_dt.strftime("%Y-%m-%d")
-        except Exception as e:
-            logger.exception("Failed to parse time range")
-            await update.message.reply_text("❌ Gagal memproses rentang waktu.")
-            return
-        
-        # Get account IDs if specific accounts requested
-        account_ids = None
-        if query_accounts:
-            account_map = {acc["account_name"]: acc["account_id"] for acc in accounts}
-            account_ids = [account_map[name] for name in query_accounts if name in account_map]
-        
-        # Query transactions
-        try:
-            result = await self.finance.query_transactions(
-                api_key,
-                from_date=from_date,
-                to_date=to_date,
-                account_ids=account_ids,
-                limit=50,
-            )
-        except Exception as e:
-            logger.exception("Failed to query transactions")
-            await update.message.reply_text("❌ Gagal mengambil data transaksi.")
-            return
-        
-        rows = result.get("rows", [])
-        
-        if not rows:
-            await update.message.reply_text(f"Tidak ada transaksi ditemukan.\n📅 {format_date_range(from_dt, to_dt)}")
-            return
-        
-        # Format response
-        lines = [f"📋 Transaksi ({len(rows)} entri)"]
-        lines.append(f"📅 {format_date_range(from_dt, to_dt)}")
-        lines.append("")
-        
-        # Show first 20 transactions
-        display_limit = 20
-        for row in rows[:display_limit]:
-            date = row.get("date", "")
-            name = row.get("transaction_name", "")
-            debit = int(row.get("debit") or 0)
-            credit = int(row.get("credit") or 0)
-            acc_name = row.get("account_name", "")
-            
-            # Format amount with direction
-            if debit > 0:
-                amount_str = f"+Rp{debit:,}"
-            else:
-                amount_str = f"-Rp{credit:,}"
-            
-            lines.append(f"• {date[:10]} | {name}: {amount_str} ({acc_name})")
-            
-        if len(rows) > display_limit:
-            lines.append(f"\n... dan {len(rows) - display_limit} transaksi lainnya")
-        
-        await update.message.reply_text("\n".join(lines))
-
-    async def _execute_single(
-        self,
-        act: dict[str, Any],
-        api_key: str,
-        context: ContextTypes.DEFAULT_TYPE,
-        update: Update,
-        idx: int,
-        is_batch: bool,
-        is_callback: bool,
-    ) -> str:
-        """Execute a single action and return a result message string."""
-        intent = act.get("intent")
-        fields = act.get("fields", {})
-        
-        try:
-            if intent == "create_transaction":
-                payload = {
-                    "transaction_type": fields.get("transaction_type"),
-                    "amount": fields.get("amount"),
-                    "transaction_name": fields.get("transaction_name"),
-                    "account_id": fields.get("account_id"),
-                    "category_id": fields.get("category_id"),
-                    "is_cycle_topup": fields.get("is_cycle_topup", False),
-                }
-                if fields.get("date"):
-                    payload["date"] = fields["date"]
-                
-                result = await self.finance.upsert_transaction(api_key, payload)
-                tx_id = result.get("transaction_id")
-                
-                prefix = f"{idx}. " if is_batch else ""
-                msg_item = f"✅ {prefix}[Transaksi] {fields.get('transaction_name')}: Rp{fields.get('amount'):,} ({fields.get('account_name')})"
-                
-                # Upload receipt if there was an image (only for first transaction or if photo exists)
-                if not is_callback and update.message and update.message.photo and idx == 1:
-                    photo = update.message.photo[-1]
-                    file = await context.bot.get_file(photo.file_id)
-                    image_bytes = await file.download_as_bytearray()
-                    await self.finance.upload_receipt(
-                        api_key, tx_id, bytes(image_bytes), "receipt.jpg", "image/jpeg"
-                    )
-                    msg_item += " 📎 Struk diunggah"
-                
-                return msg_item
-
-            elif intent == "create_movement":
-                payload = {
-                    "amount": fields.get("amount"),
-                    "from_account_id": fields.get("account_id"),
-                    "to_account_id": fields.get("target_account_id"),
-                }
-                if fields.get("date"):
-                    payload["date"] = fields["date"]
-                
-                result = await self.finance.create_movement(api_key, payload)
-                
-                prefix = f"{idx}. " if is_batch else ""
-                return f"✅ {prefix}[Transfer] Rp{fields.get('amount'):,}: {fields.get('account_name')} → {fields.get('target_account_name')}"
-
-            elif intent == "update_transaction":
-                prefix = f"{idx}. " if is_batch else ""
-                return f"⚠️ {prefix}Update transaksi belum diimplementasikan sepenuhnya."
-
-            elif intent == "delete_transaction":
-                prefix = f"{idx}. " if is_batch else ""
-                query_text = fields.get("query", "")
-                
-                # Search with target query first, skipping if it's a generic 'latest' keyword
-                entries = []
-                if query_text and query_text.lower() not in ("terakhir", "latest", "last"):
-                    result = await self.finance.search_ledger(api_key, {"query": query_text})
-                    entries = result.get("rows", [])
-                
-                # Fallback: if no entries found or query is generic, search entire ledger
-                if not entries:
-                    result = await self.finance.search_ledger(api_key, {})
-                    entries = result.get("rows", [])
-                
-                # Filter by account if resolved
-                target_account_id = fields.get("account_id")
-                if target_account_id:
-                    entries = [e for e in entries if e.get("account_id") == target_account_id]
-                
-                if not entries:
-                    if query_text:
-                        return f"❌ {prefix}Tidak ada transaksi ditemukan untuk dihapus dengan kata kunci '{query_text}'."
-                    else:
-                        return f"❌ {prefix}Tidak ada transaksi ditemukan untuk dihapus."
-                
-                # Take the most recent entry
-                target_entry = entries[0]
-                tx_id = target_entry.get("transaction_id")
-                tx_name = target_entry.get("transaction_name")
-                debit = int(target_entry.get("debit") or 0)
-                credit = int(target_entry.get("credit") or 0)
-                amount = debit if debit > 0 else credit
-                acc_name = target_entry.get("account_name")
-                
-                # Call finance client to delete it
-                await self.finance.delete_transaction(api_key, tx_id)
-                return f"✅ {prefix}[Hapus Transaksi] {tx_name}: Rp{amount:,} ({acc_name})"
-
-            elif intent == "update_movement":
-                prefix = f"{idx}. " if is_batch else ""
-                return f"⚠️ {prefix}Update transfer belum diimplementasikan sepenuhnya."
-
-            elif intent == "delete_movement":
-                prefix = f"{idx}. " if is_batch else ""
-                return f"⚠️ {prefix}Hapus transfer belum diimplementasikan sepenuhnya."
-
-            else:
-                prefix = f"{idx}. " if is_batch else ""
-                return f"❌ {prefix}Intent tidak dikenali."
-
-        except FinanceError as e:
-            prefix = f"{idx}. " if is_batch else ""
-            return f"❌ {prefix}Gagal: {e.detail}"
-        except Exception as e:
-            prefix = f"{idx}. " if is_batch else ""
-            return f"❌ {prefix}Error: {str(e)}"
-
-    async def _execute_action(
-        self,
-        update: Update,
-        context: ContextTypes.DEFAULT_TYPE,
-        action: dict[str, Any],
-        api_key: str,
-        pending_id: str,
-        is_callback: bool = False,
-    ) -> None:
-        """Execute the resolved action or a batch of resolved actions."""
-        is_batch = action.get("is_batch", False)
-        actions_list = action.get("actions", []) if is_batch else [action]
-        
-        try:
-            if is_batch:
-                # Execute all actions in parallel!
-                tasks = [
-                    self._execute_single(act, api_key, context, update, idx, True, is_callback)
-                    for idx, act in enumerate(actions_list, start=1)
-                ]
-                results = await asyncio.gather(*tasks)
-            else:
-                # Single action execution
-                res = await self._execute_single(actions_list[0], api_key, context, update, 1, False, is_callback)
-                results = [res]
-
-            # Generate consolidated response message
-            if is_batch:
-                header = "📊 **Hasil Batch Eksekusi:**\n\n"
-                msg = header + "\n".join(results)
-            else:
-                msg = results[0] if results else "❌ Tidak ada aksi yang dieksekusi."
-
-            has_error = any(res.startswith("❌") for res in results)
-
-            # Fetch and display final balances for all referenced accounts if not batch and no errors
-            if not is_batch and not has_error and len(actions_list) == 1:
-                fields = actions_list[0].get("fields", {})
-                account_id = fields.get("account_id")
-                if account_id:
-                    accounts = await self.finance.list_accounts(api_key)
-                    account = next((a for a in accounts if a["account_id"] == account_id), None)
-                    if account:
-                        balance = int(account["balance"])
-                        msg += f"\n\n💰 Saldo {account['account_name']}: Rp{balance:,}"
-
-            if is_callback:
-                await update.callback_query.edit_message_text(msg)
-            else:
-                await update.message.reply_text(msg)
-
-        except Exception as e:
-            logger.exception("Action execution failed")
-            msg = f"❌ Terjadi kesalahan saat mengeksekusi aksi: {e}"
-            if is_callback:
-                await update.callback_query.edit_message_text(msg)
-            else:
-                await update.message.reply_text(msg)
-
-    def _format_action_summary(self, action: dict[str, Any]) -> str:
-        """Format action for confirmation message."""
-        is_batch = action.get("is_batch", False)
-        if is_batch:
-            summaries = []
-            for idx, act in enumerate(action.get("actions", []), start=1):
-                summaries.append(f"{idx}. {self._format_single_action_summary(act)}")
-            return "\n\n".join(summaries)
-        else:
-            return self._format_single_action_summary(action)
-
-    def _format_single_action_summary(self, action: dict[str, Any]) -> str:
-        """Format a single action for confirmation message."""
-        intent = action.get("intent")
-        fields = action.get("fields", {})
-        
-        if intent == "create_transaction":
-            tx_type = "Cash in" if fields.get("transaction_type") == "debit" else "Cash out"
-            amount = fields.get("amount", 0)
-            name = fields.get("transaction_name", "")
-            account = fields.get("account_name", "")
-            category = fields.get("category_name", "")
-            return f"{tx_type}: Rp{amount:,}\n└ {name} ({account}) [{category or 'Tanpa Kategori'}]"
-        
-        elif intent == "create_movement":
-            amount = fields.get("amount", 0)
-            from_acc = fields.get("account_name", "")
-            to_acc = fields.get("target_account_name", "")
-            return f"Transfer: Rp{amount:,}\n└ Dari: {from_acc} → Ke: {to_acc}"
-        
-        elif intent == "delete_transaction":
-            query = fields.get("query", "")
-            account = fields.get("account_name", "")
-            return f"Hapus Transaksi: '{query}' ({account or 'Semua Akun'})"
-        
-        elif intent == "delete_movement":
-            query = fields.get("query", "")
-            return f"Hapus Transfer: '{query}'"
-        
-        return str(action)
 
 
 async def main() -> None:
