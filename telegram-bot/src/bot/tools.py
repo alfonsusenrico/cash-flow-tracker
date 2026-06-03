@@ -55,28 +55,177 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "search_transactions",
             "description": (
-                "Search recent transactions by keyword and/or account name. "
-                "Use when you need to locate a specific transaction for deletion or "
-                "update (e.g. user says 'hapus monthly interest' — search first to "
-                "confirm it exists and retrieve its details)."
+                "Search transactions. Supports filtering by query/keyword, "
+                "account name, category name, and/or time range. "
+                "Use when the user asks queries like 'kapanlalu beli kopi latte itu harga brp ya' "
+                "or 'liat dong seminggu ini keluar uang buat makan aja berapa'."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Search keyword (transaction name or description).",
+                        "description": "Optional search keyword (transaction name or description).",
                     },
                     "account_name": {
                         "type": "string",
                         "description": "Optional: filter results to this account name.",
                     },
+                    "category_name": {
+                        "type": "string",
+                        "description": "Optional: filter results to this category name.",
+                    },
+                    "time_range": {
+                        "type": "string",
+                        "description": (
+                            "Optional: time range for transactions (e.g., 'today', 'yesterday', "
+                            "'this_week', 'last_week', 'this_month', 'last_month', 'this_year', "
+                            "or specific range like '7_days', '30_days'). Default is last 30 days if not specified."
+                        ),
+                    },
                     "limit": {
                         "type": "integer",
-                        "description": "Maximum number of results to return (default: 5).",
+                        "description": "Maximum number of results to return (default: 50).",
                     },
                 },
-                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "record_transaction",
+            "description": (
+                "Create a new transaction (income or expense) in an account."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": ["income", "expense"],
+                        "description": "Whether the transaction is income or an expense.",
+                    },
+                    "amount": {
+                        "type": "integer",
+                        "description": "The amount in IDR.",
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Description / name of the transaction (e.g., 'Kopi Latte', 'Gaji').",
+                    },
+                    "account_name": {
+                        "type": "string",
+                        "description": "The name of the account to record the transaction in.",
+                    },
+                    "category_name": {
+                        "type": "string",
+                        "description": "Optional: The name of the category (e.g., 'Makan & Minum', 'Gaji').",
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Optional: date of transaction in YYYY-MM-DD format. Default is today.",
+                    },
+                },
+                "required": ["type", "amount", "name", "account_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "record_movement",
+            "description": (
+                "Transfer money/balance from one account to another."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "amount": {
+                        "type": "integer",
+                        "description": "The amount to transfer.",
+                    },
+                    "source_account_name": {
+                        "type": "string",
+                        "description": "The account from which money is taken.",
+                    },
+                    "target_account_name": {
+                        "type": "string",
+                        "description": "The account to which money is transferred.",
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Optional: date of transfer in YYYY-MM-DD format. Default is today.",
+                    },
+                },
+                "required": ["amount", "source_account_name", "target_account_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_transaction",
+            "description": (
+                "Delete an existing transaction by its transaction ID. "
+                "Always search for the transaction first using search_transactions to get the exact ID, "
+                "and ask the user for confirmation before calling this tool."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "description": "The ID of the transaction to delete.",
+                    }
+                },
+                "required": ["transaction_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_transaction",
+            "description": (
+                "Update/modify fields of an existing transaction. "
+                "Always search for the transaction first using search_transactions to get the exact ID, "
+                "and ask the user for confirmation before calling this tool."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "description": "The ID of the transaction to update.",
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": ["income", "expense"],
+                        "description": "Updated type.",
+                    },
+                    "amount": {
+                        "type": "integer",
+                        "description": "Updated amount in IDR.",
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Updated transaction description / name.",
+                    },
+                    "account_name": {
+                        "type": "string",
+                        "description": "Updated account name.",
+                    },
+                    "category_name": {
+                        "type": "string",
+                        "description": "Updated category name.",
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Updated date in YYYY-MM-DD format.",
+                    },
+                },
+                "required": ["transaction_id"],
             },
         },
     },
