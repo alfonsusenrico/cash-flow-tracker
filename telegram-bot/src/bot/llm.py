@@ -110,6 +110,7 @@ class LLMPlanner:
             {"role": "system", "content": system_prompt}
         ]
         if history:
+            logger.info(f"LLM history: {json.dumps(history, ensure_ascii=False)}")
             for turn in history:
                 messages.append({"role": turn["role"], "content": turn["content"]})
         messages.append({"role": "user", "content": user_content})
