@@ -502,8 +502,16 @@ class BotApp:
             await self.store.add_chat_history(telegram_user_id, "user", message_text or "[Photo receipt]")
             await self.store.add_chat_history(telegram_user_id, "assistant", response_text)
 
-            # Reply to user
-            await update.message.reply_text(response_text)
+            # Clean up double asterisks to single asterisks just in case
+            formatted_text = response_text.replace("**", "*")
+            
+            # Reply to user with Markdown parsing and robust fallback
+            try:
+                await update.message.reply_text(formatted_text, parse_mode="Markdown")
+            except Exception as e:
+                logger.warning(f"Failed to send message with Markdown formatting: {e}")
+                # Fallback to plain text response
+                await update.message.reply_text(response_text)
 
         except FinanceError as e:
             await update.message.reply_text(f"❌ API error: {e.detail}")
