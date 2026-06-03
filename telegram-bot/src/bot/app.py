@@ -72,6 +72,9 @@ class BotApp:
             settings.deepseek_base_url,
             settings.deepseek_model,
         )
+        # Create user preferences directory on initialization
+        import os
+        os.makedirs("/app/storage/user_preferences", exist_ok=True)
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /start command."""
@@ -160,6 +163,17 @@ class BotApp:
         try:
             # Load chronological chat history from store (limit to last 10 messages)
             history = await self.store.get_chat_history(telegram_user_id, limit=10)
+
+            # Load user preferences if they exist
+            user_prefs = None
+            import os
+            prefs_path = f"/app/storage/user_preferences/user_{telegram_user_id}.md"
+            if os.path.exists(prefs_path):
+                try:
+                    with open(prefs_path, "r", encoding="utf-8") as f:
+                        user_prefs = f.read()
+                except Exception as e:
+                    logger.warning(f"Failed to read user preferences: {e}")
 
             async with TypingContext(context.bot, chat_id):
                 # Fetch context in parallel
@@ -474,6 +488,24 @@ class BotApp:
                         "result": res
                     })
 
+                async def _tool_update_user_preferences(preferences_content: str) -> str:
+                    import os
+                    prefs_dir = "/app/storage/user_preferences"
+                    os.makedirs(prefs_dir, exist_ok=True)
+                    prefs_path = f"{prefs_dir}/user_{telegram_user_id}.md"
+                    try:
+                        with open(prefs_path, "w", encoding="utf-8") as f:
+                            f.write(preferences_content)
+                        return json.dumps({
+                            "success": True,
+                            "message": "User preferences updated successfully."
+                        })
+                    except Exception as e:
+                        logger.exception("Failed to write user preferences")
+                        return json.dumps({
+                            "error": f"Failed to save preferences: {str(e)}"
+                        })
+
                 tool_executors = {
                     "get_account_balance": _tool_get_account_balance,
                     "get_all_balances": _tool_get_all_balances,
@@ -482,6 +514,7 @@ class BotApp:
                     "record_movement": _tool_record_movement,
                     "delete_transaction": _tool_delete_transaction,
                     "update_transaction": _tool_update_transaction,
+                    "update_user_preferences": _tool_update_user_preferences,
                 }
 
                 # Call LLM to propose action (agentic loop)
@@ -496,6 +529,7 @@ class BotApp:
                     history=history,
                     timeout=self.settings.llm_timeout,
                     tool_executors=tool_executors,
+                    user_preferences=user_prefs,
                 )
 
             # Save the user message and assistant natural text response to chat history
