@@ -412,8 +412,8 @@ class BotApp:
                         
                     payload = {
                         "amount": amount,
-                        "from_account_id": src_acc["account_id"],
-                        "to_account_id": tgt_acc["account_id"],
+                        "source_account_id": src_acc["account_id"],
+                        "target_account_id": tgt_acc["account_id"],
                     }
                     if date:
                         payload["date"] = date
