@@ -546,23 +546,58 @@ async def main() -> None:
         )
         application.add_handler(CallbackQueryHandler(app_instance.handle_callback))
 
-        # Start webhook
-        logger.info(f"Starting webhook on {settings.webhook_listen}:{settings.webhook_port}")
-        await application.initialize()
-        await application.start()
-        
-        webhook_url = f"{settings.telegram_webhook_url.rstrip('/')}/telegram/webhook"
-        
-        await application.updater.start_webhook(
-            listen=settings.webhook_listen,
-            port=settings.webhook_port,
-            url_path="/telegram/webhook",
-            secret_token=settings.telegram_webhook_secret,
-            webhook_url=webhook_url,
-        )
-        
-        logger.info("Bot is running!")
-        
+        # Start webhook with fallback to polling
+        if settings.telegram_webhook_url:
+            try:
+                logger.info(f"Starting webhook on {settings.webhook_listen}:{settings.webhook_port}")
+                await application.initialize()
+                await application.start()
+                
+                webhook_url = f"{settings.telegram_webhook_url.rstrip('/')}/telegram/webhook"
+                
+                await application.updater.start_webhook(
+                    listen=settings.webhook_listen,
+                    port=settings.webhook_port,
+                    url_path="/telegram/webhook",
+                    secret_token=settings.telegram_webhook_secret,
+                    webhook_url=webhook_url,
+                )
+                logger.info("Bot is running with webhook!")
+            except Exception as e:
+                logger.warning(f"Failed to start webhook, falling back to polling: {e}")
+                try:
+                    await application.stop()
+                    await application.shutdown()
+                except Exception:
+                    pass
+                
+                # Re-create application for polling
+                application = (
+                    Application.builder()
+                    .token(settings.telegram_bot_token)
+                    .build()
+                )
+                application.add_handler(CommandHandler("start", app_instance.start_command))
+                application.add_handler(CommandHandler("link", app_instance.link_command))
+                application.add_handler(CommandHandler("unlink", app_instance.unlink_command))
+                application.add_handler(CommandHandler("clear", app_instance.clear_command))
+                application.add_handler(
+                    MessageHandler(filters.TEXT | filters.PHOTO, app_instance.handle_message)
+                )
+                application.add_handler(CallbackQueryHandler(app_instance.handle_callback))
+                
+                logger.info("Starting polling...")
+                await application.initialize()
+                await application.start()
+                await application.updater.start_polling()
+                logger.info("Bot is running with polling!")
+        else:
+            logger.info("Starting polling...")
+            await application.initialize()
+            await application.start()
+            await application.updater.start_polling()
+            logger.info("Bot is running with polling!")
+            
         # Keep running
         await asyncio.Event().wait()
         
