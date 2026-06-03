@@ -56,7 +56,7 @@ class LLMPlanner:
         timeout: int = 120,
         tool_executors: dict[str, ToolFunc] | None = None,
         user_preferences: str | None = None,
-    ) -> str:
+    ) -> tuple[str, list[str]]:
         """Run the agentic propose loop.
 
         The LLM may call tools (get_account_balance, search_transactions, etc.)
@@ -120,6 +120,7 @@ class LLMPlanner:
         total_completion_tokens = 0
         total_cached_tokens = 0
         iterations_used = 0
+        executed_tools_summary: list[str] = []
 
         # ----------------------------------------------------------------
         # Agentic loop
@@ -162,7 +163,7 @@ class LLMPlanner:
                     f"LLM timeout at iteration {iteration + 1} | "
                     f"Message preview: {message_text[:100]}"
                 )
-                return self._timeout_response()
+                return self._timeout_response(), []
 
             # Accumulate token usage
             usage = getattr(resp, "usage", None)
@@ -189,7 +190,7 @@ class LLMPlanner:
                     total_cached_tokens,
                     iterations_used,
                 )
-                return raw
+                return raw, executed_tools_summary
 
             # ---- Tool calls: execute each and feed results back -------
             tool_call_details = [
@@ -229,14 +230,17 @@ class LLMPlanner:
                 if tool_executors and func_name in tool_executors:
                     try:
                         result_str = await tool_executors[func_name](**func_args)
+                        executed_tools_summary.append(f"✓ {func_name}({tc.function.arguments})")
                     except Exception as exc:
                         result_str = json.dumps(
                             {"error": f"Tool '{func_name}' failed: {exc}"}
                         )
+                        executed_tools_summary.append(f"❌ {func_name}({tc.function.arguments}) -> ERROR: {exc}")
                 else:
                     result_str = json.dumps(
                         {"error": f"Unknown tool: {func_name}"}
                     )
+                    executed_tools_summary.append(f"❌ {func_name}({tc.function.arguments}) -> UNKNOWN TOOL")
 
                 messages.append(
                     {
@@ -255,7 +259,7 @@ class LLMPlanner:
             f"Agent loop exhausted {self.MAX_ITERATIONS} iterations without "
             "producing a final response."
         )
-        return self._fallback_response()
+        return self._fallback_response(), executed_tools_summary
 
     # ------------------------------------------------------------------
     # Helpers

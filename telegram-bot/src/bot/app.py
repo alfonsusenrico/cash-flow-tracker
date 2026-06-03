@@ -797,7 +797,7 @@ class BotApp:
                 }
 
                 # Call LLM to propose action (agentic loop)
-                response_text = await self.llm.propose(
+                response_text, executed_tools_summary = await self.llm.propose(
                     message_text=message_text,
                     now_iso=now_iso,
                     timezone=tz,
@@ -817,7 +817,11 @@ class BotApp:
             if not response_text.strip():
                 response_text = "Tugas selesai dijalankan."
                 
-            await self.store.add_chat_history(telegram_user_id, "assistant", response_text)
+            db_response_text = response_text
+            if executed_tools_summary:
+                db_response_text += "\n\n[SYSTEM LOG: I have executed the following tools to fulfill this request:\n" + "\n".join(executed_tools_summary) + "]"
+                
+            await self.store.add_chat_history(telegram_user_id, "assistant", db_response_text)
 
             # Clean up double asterisks to single asterisks just in case
             formatted_text = response_text.replace("**", "*")
