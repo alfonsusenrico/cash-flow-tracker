@@ -229,4 +229,27 @@ TOOL_DEFINITIONS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_user_preferences",
+            "description": (
+                "Save or update user-specific preferences, rules, or recurring instructions. "
+                "Use this when the user explicitly asks you to remember a preference, "
+                "or when you learn/deduce a preference from their input (e.g., they instruct you "
+                "to treat a specific transaction as a movement next time). "
+                "Always provide the complete, updated markdown content representing the full preferences list."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "preferences_content": {
+                        "type": "string",
+                        "description": "The complete, updated markdown content representing the user's preferences list.",
+                    }
+                },
+                "required": ["preferences_content"],
+            },
+        },
+    },
 ]
