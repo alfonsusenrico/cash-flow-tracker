@@ -506,6 +506,105 @@ class BotApp:
                             "error": f"Failed to save preferences: {str(e)}"
                         })
 
+                async def _tool_create_account(account_name: str, initial_balance: int = 0) -> str:
+                    try:
+                        res = await self.finance.create_account(api_key, {
+                            "account_name": account_name,
+                            "initial_balance": initial_balance,
+                        })
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_update_account_name(account_name: str, new_account_name: str) -> str:
+                    try:
+                        fresh_accounts = await self.finance.list_accounts(api_key)
+                        acc = next((a for a in fresh_accounts if (a.get("account_name") or "").lower() == account_name.lower()), None)
+                        if not acc: return json.dumps({"error": f"Account '{account_name}' not found."})
+                        res = await self.finance.update_account(api_key, acc["account_id"], {"account_name": new_account_name})
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_update_account_profile(account_name: str, **kwargs) -> str:
+                    try:
+                        fresh_accounts = await self.finance.list_accounts(api_key)
+                        acc = next((a for a in fresh_accounts if (a.get("account_name") or "").lower() == account_name.lower()), None)
+                        if not acc: return json.dumps({"error": f"Account '{account_name}' not found."})
+                        res = await self.finance.update_account_profile(api_key, acc["account_id"], kwargs)
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_delete_account(account_name: str) -> str:
+                    try:
+                        fresh_accounts = await self.finance.list_accounts(api_key)
+                        acc = next((a for a in fresh_accounts if (a.get("account_name") or "").lower() == account_name.lower()), None)
+                        if not acc: return json.dumps({"error": f"Account '{account_name}' not found."})
+                        res = await self.finance.delete_account(api_key, acc["account_id"])
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_update_movement(transfer_id: str, amount: int | None = None, source_account_name: str | None = None, target_account_name: str | None = None, date: str | None = None) -> str:
+                    try:
+                        payload = {}
+                        if amount is not None: payload["amount"] = amount
+                        if date: payload["date"] = date
+                        
+                        if source_account_name or target_account_name:
+                            fresh_accounts = await self.finance.list_accounts(api_key)
+                            if source_account_name:
+                                src = next((a for a in fresh_accounts if (a.get("account_name") or "").lower() == source_account_name.lower()), None)
+                                if not src: return json.dumps({"error": f"Source '{source_account_name}' not found."})
+                                payload["source_account_id"] = src["account_id"]
+                            if target_account_name:
+                                tgt = next((a for a in fresh_accounts if (a.get("account_name") or "").lower() == target_account_name.lower()), None)
+                                if not tgt: return json.dumps({"error": f"Target '{target_account_name}' not found."})
+                                payload["target_account_id"] = tgt["account_id"]
+                                
+                        res = await self.finance.update_movement(api_key, transfer_id, payload)
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_delete_movement(transfer_id: str) -> str:
+                    try:
+                        res = await self.finance.delete_movement(api_key, transfer_id)
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_audit_transactions(transaction_id: str | None = None, limit: int = 50) -> str:
+                    try:
+                        payload = {"limit": limit}
+                        if transaction_id: payload["transaction_id"] = transaction_id
+                        res = await self.finance.audit_transactions(api_key, payload)
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_get_summary(month: int, year: int) -> str:
+                    try:
+                        res = await self.finance.get_summary(api_key, {"month": month, "year": year})
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_get_analysis(month: int, year: int) -> str:
+                    try:
+                        res = await self.finance.get_analysis(api_key, {"month": month, "year": year})
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_get_budget_shift(month: int, year: int, mode: str = "normal") -> str:
+                    try:
+                        res = await self.finance.get_budget_shift(api_key, {"month": month, "year": year, "mode": mode})
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
                 tool_executors = {
                     "get_account_balance": _tool_get_account_balance,
                     "get_all_balances": _tool_get_all_balances,
@@ -515,6 +614,16 @@ class BotApp:
                     "delete_transaction": _tool_delete_transaction,
                     "update_transaction": _tool_update_transaction,
                     "update_user_preferences": _tool_update_user_preferences,
+                    "create_account": _tool_create_account,
+                    "update_account_name": _tool_update_account_name,
+                    "update_account_profile": _tool_update_account_profile,
+                    "delete_account": _tool_delete_account,
+                    "update_movement": _tool_update_movement,
+                    "delete_movement": _tool_delete_movement,
+                    "audit_transactions": _tool_audit_transactions,
+                    "get_summary": _tool_get_summary,
+                    "get_analysis": _tool_get_analysis,
+                    "get_budget_shift": _tool_get_budget_shift,
                 }
 
                 # Call LLM to propose action (agentic loop)

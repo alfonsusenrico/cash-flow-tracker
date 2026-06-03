@@ -44,6 +44,18 @@ class FinanceClient:
     async def api_key_info(self, api_key: str) -> dict[str, Any]:
         return await self._request("POST", "/v1/api-key/info", api_key, json={})
 
+    async def create_account(self, api_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", "/v1/accounts", api_key, json=payload)
+
+    async def update_account(self, api_key: str, account_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("PUT", f"/v1/accounts/{account_id}", api_key, json=payload)
+
+    async def update_account_profile(self, api_key: str, account_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("PUT", f"/v1/accounts/{account_id}/profile", api_key, json=payload)
+
+    async def delete_account(self, api_key: str, account_id: str) -> dict[str, Any]:
+        return await self._request("DELETE", f"/v1/accounts/{account_id}", api_key)
+
     async def list_accounts(self, api_key: str) -> list[dict[str, Any]]:
         data = await self._request("POST", "/v1/accounts/list", api_key, json={})
         return data.get("accounts", [])
@@ -58,6 +70,9 @@ class FinanceClient:
 
     async def delete_transaction(self, api_key: str, tx_id: str) -> dict[str, Any]:
         return await self._request("DELETE", f"/v1/transactions/{tx_id}", api_key)
+
+    async def audit_transactions(self, api_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", "/v1/transactions/audit", api_key, json=payload)
 
     async def upload_receipt(
         self, api_key: str, tx_id: str, content: bytes, filename: str, content_type: str
@@ -80,6 +95,15 @@ class FinanceClient:
     # --- read ---
     async def search_ledger(self, api_key: str, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._request("POST", "/v1/ledger", api_key, json=payload)
+
+    async def get_summary(self, api_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", "/v1/summary", api_key, json=payload)
+
+    async def get_analysis(self, api_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", "/v1/analysis", api_key, json=payload)
+
+    async def get_budget_shift(self, api_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", "/v1/analysis/budget-shift", api_key, json=payload)
 
     async def get_account_balances(self, api_key: str, account_ids: list[str] | None = None) -> dict[str, Any]:
         """Get current balances for accounts. Returns all accounts if account_ids is None."""

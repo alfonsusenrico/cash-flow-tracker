@@ -252,4 +252,240 @@ TOOL_DEFINITIONS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_account",
+            "description": "Create a new financial account.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "account_name": {
+                        "type": "string",
+                        "description": "The name of the new account.",
+                    },
+                    "initial_balance": {
+                        "type": "integer",
+                        "description": "The starting balance for the account (default: 0).",
+                    }
+                },
+                "required": ["account_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_account_name",
+            "description": "Rename an existing financial account.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "account_name": {
+                        "type": "string",
+                        "description": "The current name of the account to rename.",
+                    },
+                    "new_account_name": {
+                        "type": "string",
+                        "description": "The new name for the account.",
+                    }
+                },
+                "required": ["account_name", "new_account_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_account_profile",
+            "description": "Update the profile settings of an account (e.g., set as payroll source, update limits, change type).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "account_name": {
+                        "type": "string",
+                        "description": "The name of the account to update.",
+                    },
+                    "profile_type": {
+                        "type": "string",
+                        "enum": ["cash", "credit_card", "saving", "investment", "ewallet", "loan"],
+                        "description": "The type of the account.",
+                    },
+                    "is_payroll_source": {
+                        "type": "boolean",
+                        "description": "True if this account receives the primary paycheck.",
+                    },
+                    "is_no_limit": {
+                        "type": "boolean",
+                        "description": "True if this account should not be restricted by budgets.",
+                    },
+                    "is_buffer": {
+                        "type": "boolean",
+                        "description": "True if this is a buffer/emergency fund account.",
+                    },
+                    "fixed_limit_amount": {
+                        "type": "integer",
+                        "description": "Optional fixed spending limit for this account.",
+                    }
+                },
+                "required": ["account_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_account",
+            "description": "Delete a financial account.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "account_name": {
+                        "type": "string",
+                        "description": "The name of the account to delete.",
+                    }
+                },
+                "required": ["account_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_movement",
+            "description": "Update an existing account movement / transfer.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "transfer_id": {
+                        "type": "string",
+                        "description": "The ID of the transfer to update.",
+                    },
+                    "amount": {
+                        "type": "integer",
+                        "description": "The updated amount.",
+                    },
+                    "source_account_name": {
+                        "type": "string",
+                        "description": "The updated source account name.",
+                    },
+                    "target_account_name": {
+                        "type": "string",
+                        "description": "The updated target account name.",
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "The updated date (YYYY-MM-DD).",
+                    }
+                },
+                "required": ["transfer_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_movement",
+            "description": "Delete an existing account movement / transfer.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "transfer_id": {
+                        "type": "string",
+                        "description": "The ID of the transfer to delete.",
+                    }
+                },
+                "required": ["transfer_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "audit_transactions",
+            "description": "Audit the history of changes made to a transaction or to the ledger generally.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "description": "Optional: Specific transaction ID to audit.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max results to return (default: 50).",
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_summary",
+            "description": "Get high-level financial summary for a specific month (total income, expenses, savings).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "month": {
+                        "type": "integer",
+                        "description": "Month number (1-12).",
+                    },
+                    "year": {
+                        "type": "integer",
+                        "description": "Year (e.g. 2026).",
+                    }
+                },
+                "required": ["month", "year"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_analysis",
+            "description": "Get deep financial analysis, top spending categories, and breakdown for a month.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "month": {
+                        "type": "integer",
+                        "description": "Month number (1-12).",
+                    },
+                    "year": {
+                        "type": "integer",
+                        "description": "Year (e.g. 2026).",
+                    }
+                },
+                "required": ["month", "year"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_budget_shift",
+            "description": "Analyze shifts and deviations in budget allocation for a specific month.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "month": {
+                        "type": "integer",
+                        "description": "Month number (1-12).",
+                    },
+                    "year": {
+                        "type": "integer",
+                        "description": "Year (e.g. 2026).",
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["normal", "strict"],
+                        "description": "Analysis mode (default: normal).",
+                    }
+                },
+                "required": ["month", "year"]
+            }
+        }
+    }
 ]

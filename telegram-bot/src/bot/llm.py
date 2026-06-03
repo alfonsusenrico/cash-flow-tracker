@@ -78,6 +78,7 @@ class LLMPlanner:
                 {"name": c.get("name"), "kind": c.get("kind")} for c in categories
             ],
             "message": message_text or "",
+            "has_media_attached": bool(image_bytes),
         }
 
         # Build the user content (text + optional image)
