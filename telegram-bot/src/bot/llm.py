@@ -31,7 +31,7 @@ ToolFunc = Callable[..., Awaitable[str]]
 
 
 class LLMPlanner:
-    MAX_ITERATIONS = 5
+    MAX_ITERATIONS = 10
 
     def __init__(self, api_key: str, base_url: str, model: str) -> None:
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
@@ -54,14 +54,13 @@ class LLMPlanner:
         image_mime: str = "image/jpeg",
         history: list[dict[str, str]] | None = None,
         timeout: int = 120,
-        pending_action: dict[str, Any] | None = None,
         tool_executors: dict[str, ToolFunc] | None = None,
-    ) -> dict[str, Any]:
+    ) -> str:
         """Run the agentic propose loop.
 
         The LLM may call tools (get_account_balance, search_transactions, etc.)
-        before producing its final structured action proposal.  Each iteration
-        injects an awareness hint so the model can self-regulate.
+        before producing its final response. Each iteration injects an
+        awareness hint so the model can self-regulate.
         """
         context: dict[str, Any] = {
             "now": now_iso,
@@ -79,8 +78,6 @@ class LLMPlanner:
             ],
             "message": message_text or "",
         }
-        if pending_action:
-            context["pending_action"] = pending_action
 
         # Build the user content (text + optional image)
         text_part: dict[str, Any] = {
@@ -127,7 +124,7 @@ class LLMPlanner:
                     hint = (
                         f"⚠️ IMPORTANT: This is your LAST step "
                         f"({iteration + 1}/{self.MAX_ITERATIONS}). "
-                        "You MUST produce your final JSON response NOW. "
+                        "You MUST produce your final text response NOW. "
                         "Do NOT call any more tools."
                     )
                 elif remaining == 2:
@@ -180,18 +177,17 @@ class LLMPlanner:
 
             msg = resp.choices[0].message
 
-            # ---- No tool calls: model is done, parse final answer ----
+            # ---- No tool calls: model is done, return final answer ----
             if not msg.tool_calls:
-                raw = msg.content or "{}"
-                parsed = self._parse_json(raw)
+                raw = msg.content or ""
                 self._log_result(
-                    parsed,
+                    raw,
                     total_prompt_tokens,
                     total_completion_tokens,
                     total_cached_tokens,
                     iterations_used,
                 )
-                return parsed
+                return raw
 
             # ---- Tool calls: execute each and feed results back -------
             logger.info(
@@ -260,27 +256,9 @@ class LLMPlanner:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _parse_json(self, raw: str) -> dict[str, Any]:
-        """Parse LLM text output as JSON, with a safe fallback."""
-        try:
-            return json.loads(raw)
-        except (json.JSONDecodeError, ValueError):
-            logger.warning(f"Failed to parse LLM output as JSON: {raw[:200]}")
-            return {
-                "actions": [
-                    {
-                        "intent": "none",
-                        "confidence": 0.0,
-                        "missing_fields": [],
-                        "ambiguities": [],
-                    }
-                ],
-                "assistant_message": "Maaf, saya tidak bisa memproses pesan itu. Coba tulis ulang.",
-            }
-
     def _log_result(
         self,
-        parsed: dict[str, Any],
+        raw_response: str,
         prompt_tokens: int,
         completion_tokens: int,
         cached_tokens: int,
@@ -305,54 +283,16 @@ class LLMPlanner:
             + completion_tokens * (output_rate / 1_000_000)
         )
 
-        actions_list = parsed.get("actions", [])
-        if actions_list:
-            first = actions_list[0]
-            intent = first.get("intent", "none")
-            confidence = float(first.get("confidence") or 0.0)
-            missing = first.get("missing_fields", [])
-            ambiguities = first.get("ambiguities", [])
-            if len(actions_list) > 1:
-                intent = f"batch({len(actions_list)}: {', '.join(a.get('intent','none') for a in actions_list)})"
-        else:
-            intent, confidence, missing, ambiguities = "none", 0.0, [], []
-
         logger.info(
             f"LLM Done | Model: {self._model} | Iterations: {iterations}/{self.MAX_ITERATIONS} | "
-            f"Intent: {intent} (conf: {confidence:.2f}) | "
             f"Tokens: In={prompt_tokens} (cached={cached_tokens}), Out={completion_tokens}, Total={total_tokens} | "
-            f"Cost: ${cost:.6f} USD | "
-            f"Missing: {missing} | Ambiguities: {len(ambiguities)}"
+            f"Cost: ${cost:.6f} USD | Response Length: {len(raw_response)}"
         )
 
     @staticmethod
-    def _timeout_response() -> dict[str, Any]:
-        return {
-            "actions": [
-                {
-                    "intent": "none",
-                    "confidence": 0.0,
-                    "missing_fields": [],
-                    "ambiguities": ["AI request timed out. Silakan coba lagi."],
-                }
-            ],
-            "assistant_message": (
-                "Maaf, permintaan ke AI kehabisan waktu (timeout). Silakan coba lagi."
-            ),
-        }
+    def _timeout_response() -> str:
+        return "Maaf, permintaan ke AI kehabisan waktu (timeout). Silakan coba lagi."
 
     @staticmethod
-    def _fallback_response() -> dict[str, Any]:
-        return {
-            "actions": [
-                {
-                    "intent": "none",
-                    "confidence": 0.0,
-                    "missing_fields": [],
-                    "ambiguities": [],
-                }
-            ],
-            "assistant_message": (
-                "Maaf, terlalu banyak langkah pemrosesan. Silakan coba lagi."
-            ),
-        }
+    def _fallback_response() -> str:
+        return "Maaf, terlalu banyak langkah pemrosesan. Silakan coba lagi."
