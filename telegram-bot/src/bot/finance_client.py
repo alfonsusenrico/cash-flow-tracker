@@ -144,3 +144,34 @@ class FinanceClient:
             result["rows"] = filtered_rows
         
         return result
+
+    # --- goals ---
+    async def list_goals(self, api_key: str) -> list[dict[str, Any]]:
+        data = await self._request("GET", "/v1/goals", api_key)
+        return data.get("goals", [])
+
+    async def create_goal(self, api_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", "/v1/goals", api_key, json=payload)
+
+    async def update_goal(self, api_key: str, goal_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("PUT", f"/v1/goals/{goal_id}", api_key, json=payload)
+
+    async def delete_goal(self, api_key: str, goal_id: str) -> dict[str, Any]:
+        return await self._request("DELETE", f"/v1/goals/{goal_id}", api_key)
+
+    async def contribute_goal(self, api_key: str, goal_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", f"/v1/goals/{goal_id}/contribute", api_key, json=payload)
+
+    # --- obligations ---
+    async def list_obligations(self, api_key: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        data = await self._request("GET", "/v1/obligations", api_key, params=params)
+        return data.get("obligations", [])
+
+    async def create_obligation(self, api_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", "/v1/obligations", api_key, json=payload)
+
+    async def update_obligation(self, api_key: str, obligation_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("PUT", f"/v1/obligations/{obligation_id}", api_key, json=payload)
+
+    async def settle_obligation(self, api_key: str, obligation_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", f"/v1/obligations/{obligation_id}/settlements", api_key, json=payload)

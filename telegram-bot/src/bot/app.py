@@ -605,6 +605,167 @@ class BotApp:
                     except Exception as e:
                         return json.dumps({"error": str(e)})
 
+                async def _tool_list_goals() -> str:
+                    try:
+                        res = await self.finance.list_goals(api_key)
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_create_goal(name: str, target_amount: int, target_date: str | None = None, notes: str | None = None) -> str:
+                    try:
+                        payload = {
+                            "name": name,
+                            "target_amount": target_amount,
+                        }
+                        if target_date: payload["target_date"] = target_date
+                        if notes: payload["notes"] = notes
+                        res = await self.finance.create_goal(api_key, payload)
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_update_goal(name: str, **kwargs) -> str:
+                    try:
+                        goals = await self.finance.list_goals(api_key)
+                        goal = next((g for g in goals if g["name"].lower() == name.lower()), None)
+                        if not goal:
+                            return json.dumps({"error": f"Goal '{name}' not found."})
+                        payload = {
+                            "name": kwargs.get("new_name") or goal["name"],
+                            "target_amount": kwargs.get("target_amount") or goal["target_amount"],
+                            "target_date": kwargs.get("target_date") if "target_date" in kwargs else goal["target_date"],
+                            "notes": kwargs.get("notes") if "notes" in kwargs else goal["notes"],
+                            "status": kwargs.get("status") or goal["status"],
+                        }
+                        res = await self.finance.update_goal(api_key, goal["goal_id"], payload)
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_delete_goal(name: str) -> str:
+                    try:
+                        goals = await self.finance.list_goals(api_key)
+                        goal = next((g for g in goals if g["name"].lower() == name.lower()), None)
+                        if not goal:
+                            return json.dumps({"error": f"Goal '{name}' not found."})
+                        res = await self.finance.delete_goal(api_key, goal["goal_id"])
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_contribute_goal(name: str, amount: int, source_account_name: str | None = None, notes: str | None = None) -> str:
+                    try:
+                        goals = await self.finance.list_goals(api_key)
+                        goal = next((g for g in goals if g["name"].lower() == name.lower()), None)
+                        if not goal:
+                            return json.dumps({"error": f"Goal '{name}' not found."})
+                        
+                        payload_notes = notes
+                        if source_account_name:
+                            payload_notes = f"{notes} (from {source_account_name})" if notes else f"From {source_account_name}"
+                        
+                        payload = {
+                            "amount": amount,
+                            "source": "manual",
+                        }
+                        if payload_notes:
+                            payload["notes"] = payload_notes
+                            
+                        res = await self.finance.contribute_goal(api_key, goal["goal_id"], payload)
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_list_obligations(kind: str | None = None, status: str | None = None) -> str:
+                    try:
+                        params = {}
+                        if kind and kind != "all": params["kind"] = kind
+                        if status and status != "all": params["status"] = status
+                        res = await self.finance.list_obligations(api_key, params)
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_create_obligation(kind: str, title: str, principal_amount: int, counterparty_name: str, **kwargs) -> str:
+                    try:
+                        payload = {
+                            "kind": kind,
+                            "title": title,
+                            "principal_amount": principal_amount,
+                            "counterparty_name": counterparty_name,
+                        }
+                        if kwargs.get("due_date"): payload["due_date"] = kwargs["due_date"]
+                        if kwargs.get("notes"): payload["notes"] = kwargs["notes"]
+                        
+                        if kwargs.get("default_account_name"):
+                            account_name = kwargs["default_account_name"]
+                            fresh_accounts = await self.finance.list_accounts(api_key)
+                            acc = next((a for a in fresh_accounts if (a.get("account_name") or "").lower() == account_name.lower()), None)
+                            if not acc:
+                                return json.dumps({"error": f"Account '{account_name}' not found."})
+                            payload["default_account_id"] = acc["account_id"]
+                            
+                        res = await self.finance.create_obligation(api_key, payload)
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_update_obligation(title: str, **kwargs) -> str:
+                    try:
+                        obligations = await self.finance.list_obligations(api_key, {"status": "all"})
+                        ob = next((o for o in obligations if o["title"].lower() == title.lower()), None)
+                        if not ob:
+                            return json.dumps({"error": f"Obligation '{title}' not found."})
+                        
+                        payload = {}
+                        if "new_title" in kwargs and kwargs["new_title"]: payload["title"] = kwargs["new_title"]
+                        if "kind" in kwargs and kwargs["kind"]: payload["kind"] = kwargs["kind"]
+                        if "principal_amount" in kwargs and kwargs["principal_amount"] is not None: payload["principal_amount"] = kwargs["principal_amount"]
+                        if "counterparty_name" in kwargs and kwargs["counterparty_name"]: payload["counterparty_name"] = kwargs["counterparty_name"]
+                        if "due_date" in kwargs: payload["due_date"] = kwargs["due_date"]
+                        if "notes" in kwargs: payload["notes"] = kwargs["notes"]
+                        
+                        if "default_account_name" in kwargs:
+                            account_name = kwargs["default_account_name"]
+                            if account_name:
+                                fresh_accounts = await self.finance.list_accounts(api_key)
+                                acc = next((a for a in fresh_accounts if (a.get("account_name") or "").lower() == account_name.lower()), None)
+                                if not acc:
+                                    return json.dumps({"error": f"Account '{account_name}' not found."})
+                                payload["default_account_id"] = acc["account_id"]
+                            else:
+                                payload["default_account_id"] = None
+                                
+                        res = await self.finance.update_obligation(api_key, ob["obligation_id"], payload)
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
+                async def _tool_settle_obligation(title: str, amount: int, source_account_name: str, date: str | None = None, notes: str | None = None) -> str:
+                    try:
+                        obligations = await self.finance.list_obligations(api_key, {"status": "all"})
+                        ob = next((o for o in obligations if o["title"].lower() == title.lower()), None)
+                        if not ob:
+                            return json.dumps({"error": f"Obligation '{title}' not found."})
+                        
+                        fresh_accounts = await self.finance.list_accounts(api_key)
+                        acc = next((a for a in fresh_accounts if (a.get("account_name") or "").lower() == source_account_name.lower()), None)
+                        if not acc:
+                            return json.dumps({"error": f"Account '{source_account_name}' not found."})
+                        
+                        payload = {
+                            "amount": amount,
+                            "account_id": acc["account_id"],
+                        }
+                        if date: payload["settled_at"] = date
+                        if notes: payload["notes"] = notes
+                        
+                        res = await self.finance.settle_obligation(api_key, ob["obligation_id"], payload)
+                        return json.dumps({"success": True, "result": res})
+                    except Exception as e:
+                        return json.dumps({"error": str(e)})
+
                 tool_executors = {
                     "get_account_balance": _tool_get_account_balance,
                     "get_all_balances": _tool_get_all_balances,
@@ -624,6 +785,15 @@ class BotApp:
                     "get_summary": _tool_get_summary,
                     "get_analysis": _tool_get_analysis,
                     "get_budget_shift": _tool_get_budget_shift,
+                    "list_goals": _tool_list_goals,
+                    "create_goal": _tool_create_goal,
+                    "update_goal": _tool_update_goal,
+                    "delete_goal": _tool_delete_goal,
+                    "contribute_goal": _tool_contribute_goal,
+                    "list_obligations": _tool_list_obligations,
+                    "create_obligation": _tool_create_obligation,
+                    "update_obligation": _tool_update_obligation,
+                    "settle_obligation": _tool_settle_obligation,
                 }
 
                 # Call LLM to propose action (agentic loop)

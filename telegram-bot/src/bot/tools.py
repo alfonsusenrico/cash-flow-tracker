@@ -487,5 +487,274 @@ TOOL_DEFINITIONS: list[dict] = [
                 "required": ["month", "year"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_goals",
+            "description": "List all financial goals and their progress.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_goal",
+            "description": "Create a new financial goal.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The unique name/title of the goal (e.g. 'Tabungan Laptop')."
+                    },
+                    "target_amount": {
+                        "type": "integer",
+                        "description": "The target savings amount in IDR (e.g. 15000000)."
+                    },
+                    "target_date": {
+                        "type": "string",
+                        "description": "Optional: The target deadline date in YYYY-MM-DD format."
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Optional: Description or additional notes for the goal."
+                    }
+                },
+                "required": ["name", "target_amount"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_goal",
+            "description": "Update details of an existing goal by its current name.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The current exact name of the goal to update."
+                    },
+                    "new_name": {
+                        "type": "string",
+                        "description": "Optional: A new name to rename the goal to."
+                    },
+                    "target_amount": {
+                        "type": "integer",
+                        "description": "Optional: New target savings amount in IDR."
+                    },
+                    "target_date": {
+                        "type": "string",
+                        "description": "Optional: New target deadline date in YYYY-MM-DD format."
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Optional: New notes."
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["active", "paused", "completed", "cancelled"],
+                        "description": "Optional: New status of the goal."
+                    }
+                },
+                "required": ["name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_goal",
+            "description": "Cancel or delete a goal by name.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the goal to cancel/delete."
+                    }
+                },
+                "required": ["name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "contribute_goal",
+            "description": "Contribute/save money towards a goal from a source account. Note: Only for manual (non-bucket) goals.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the goal."
+                    },
+                    "amount": {
+                        "type": "integer",
+                        "description": "Amount to contribute in IDR (e.g. 500000)."
+                    },
+                    "source_account_name": {
+                        "type": "string",
+                        "description": "Optional: The account name the funds are coming from (e.g. 'ATM BCA')."
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Optional: Notes for this contribution."
+                    }
+                },
+                "required": ["name", "amount"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_obligations",
+            "description": "List obligations/debts (utang/piutang) and their balances.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": ["receivable", "payable", "all"],
+                        "description": "Filter by kind: 'payable' for money you owe others (utang), 'receivable' for money others owe you (piutang), or 'all' (default: all)."
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["open", "settled", "all"],
+                        "description": "Filter by status: 'open' (unsettled/partial), 'settled' (fully paid), or 'all' (default: open)."
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_obligation",
+            "description": "Create a new obligation (debt/loan).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": ["receivable", "payable"],
+                        "description": "Kind of obligation: 'payable' if you borrow money from others, 'receivable' if you lend money to others."
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "A unique title to identify this debt/loan (e.g., 'Pinjaman Laptop Budi')."
+                    },
+                    "principal_amount": {
+                        "type": "integer",
+                        "description": "The principal amount of the loan in IDR."
+                    },
+                    "counterparty_name": {
+                        "type": "string",
+                        "description": "The name of the counterparty (person/institution lending or borrowing)."
+                    },
+                    "due_date": {
+                        "type": "string",
+                        "description": "Optional: Due date for settlement in YYYY-MM-DD format."
+                    },
+                    "default_account_name": {
+                        "type": "string",
+                        "description": "Optional: The default ledger account associated with payments/payouts for this obligation."
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Optional: Any extra details or description."
+                    }
+                },
+                "required": ["kind", "title", "principal_amount", "counterparty_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_obligation",
+            "description": "Update details of an existing obligation by its current title.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "The current exact title of the obligation to update."
+                    },
+                    "new_title": {
+                        "type": "string",
+                        "description": "Optional: A new title to rename the obligation to."
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": ["receivable", "payable"],
+                        "description": "Optional: Kind of obligation."
+                    },
+                    "principal_amount": {
+                        "type": "integer",
+                        "description": "Optional: New principal amount in IDR."
+                    },
+                    "counterparty_name": {
+                        "type": "string",
+                        "description": "Optional: New counterparty name."
+                    },
+                    "due_date": {
+                        "type": "string",
+                        "description": "Optional: New due date in YYYY-MM-DD format."
+                    },
+                    "default_account_name": {
+                        "type": "string",
+                        "description": "Optional: New default account name."
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Optional: New notes."
+                    }
+                },
+                "required": ["title"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "settle_obligation",
+            "description": "Record a settlement/payment towards an obligation. This will automatically record a corresponding ledger transaction.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "The title of the obligation."
+                    },
+                    "amount": {
+                        "type": "integer",
+                        "description": "The settlement payment amount in IDR."
+                    },
+                    "source_account_name": {
+                        "type": "string",
+                        "description": "The ledger account name from which the payment is made/received (e.g. 'ATM BCA')."
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Optional: Date of the payment in YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS format (defaults to current time)."
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Optional: Notes for the settlement."
+                    }
+                },
+                "required": ["title", "amount", "source_account_name"]
+            }
+        }
     }
 ]
