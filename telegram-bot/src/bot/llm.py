@@ -63,6 +63,9 @@ class LLMPlanner:
         before producing its final response. Each iteration injects an
         awareness hint so the model can self-regulate.
         """
+        capped_msg = (message_text[:200] + "...") if message_text and len(message_text) > 200 else message_text
+        logger.info(f"LLM propose started. User message (capped): {capped_msg!r}")
+
         context: dict[str, Any] = {
             "now": now_iso,
             "timezone": timezone,
@@ -188,9 +191,12 @@ class LLMPlanner:
                 return raw
 
             # ---- Tool calls: execute each and feed results back -------
+            tool_call_details = [
+                f"{tc.function.name}({tc.function.arguments})" for tc in msg.tool_calls
+            ]
             logger.info(
                 f"LLM iteration {iteration + 1}/{self.MAX_ITERATIONS} — "
-                f"tool calls: {[tc.function.name for tc in msg.tool_calls]}"
+                f"tool calls: {tool_call_details}"
             )
 
             # Serialize the assistant message (tool_calls must be preserved)
@@ -284,7 +290,8 @@ class LLMPlanner:
         logger.info(
             f"LLM Done | Model: {self._model} | Iterations: {iterations}/{self.MAX_ITERATIONS} | "
             f"Tokens: In={prompt_tokens} (cached={cached_tokens}), Out={completion_tokens}, Total={total_tokens} | "
-            f"Cost: ${cost:.6f} USD | Response Length: {len(raw_response)}"
+            f"Cost: ${cost:.6f} USD | Response Length: {len(raw_response)}\n"
+            f"Response (capped): {raw_response[:500]!r}"
         )
 
     @staticmethod
