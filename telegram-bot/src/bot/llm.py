@@ -55,6 +55,7 @@ class LLMPlanner:
         history: list[dict[str, str]] | None = None,
         timeout: int = 120,
         tool_executors: dict[str, ToolFunc] | None = None,
+        user_preferences: str | None = None,
     ) -> str:
         """Run the agentic propose loop.
 
@@ -97,8 +98,12 @@ class LLMPlanner:
             user_content = [text_part]
 
         # Seed the message list
+        system_prompt = self._system_prompt
+        if user_preferences:
+            system_prompt += f"\n\n## User Preferences\nFollow these custom rules and preferences specified by the user:\n{user_preferences}"
+
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": self._system_prompt}
+            {"role": "system", "content": system_prompt}
         ]
         if history:
             for turn in history:
