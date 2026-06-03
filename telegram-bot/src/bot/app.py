@@ -125,6 +125,13 @@ class BotApp:
         else:
             await update.message.reply_text("❌ Tidak ada akun yang terhubung.")
 
+    async def clear_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle /clear command."""
+        telegram_user_id = update.effective_user.id
+        await self.store.clear_chat_history(telegram_user_id)
+        await update.message.reply_text("🧹 Riwayat percakapan Anda telah dibersihkan. Silakan mulai percakapan baru!")
+        logger.info(f"User {telegram_user_id} cleared their chat history")
+
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle text/photo messages."""
         telegram_user_id = update.effective_user.id
@@ -533,6 +540,7 @@ async def main() -> None:
         application.add_handler(CommandHandler("start", app_instance.start_command))
         application.add_handler(CommandHandler("link", app_instance.link_command))
         application.add_handler(CommandHandler("unlink", app_instance.unlink_command))
+        application.add_handler(CommandHandler("clear", app_instance.clear_command))
         application.add_handler(
             MessageHandler(filters.TEXT | filters.PHOTO, app_instance.handle_message)
         )
