@@ -187,6 +187,7 @@ def _obligation_select(where: str) -> str:
                o.created_at,
                o.updated_at,
                o.settled_at,
+               o.initial_transaction_id::text AS initial_transaction_id,
                COALESCE(SUM(s.amount) FILTER (WHERE s.reversed_at IS NULL), 0) AS settled_amount
         FROM obligations o
         JOIN users u ON u.user_id=o.user_id
@@ -360,16 +361,74 @@ async def create_obligation(req: Request):
                 kind="income" if kind == "receivable" else "expense",
                 icon="in" if kind == "receivable" else "out",
             )
+
+        initial_tx_id = None
+        if default_account_id:
+            lock_accounts_for_update(cur, username, [default_account_id])
+            if issue_date == now_local().date():
+                tx_date = now_utc()
+            else:
+                tx_date = parse_date_utc(issue_date.isoformat(), end_of_day=True)
+            tx_type = "credit" if kind == "receivable" else "debit"
+
+            if tx_type == "credit":
+                ensure_account_non_negative(
+                    cur,
+                    default_account_id,
+                    tx_date,
+                    [{
+                        "transaction_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+                        "date": tx_date,
+                        "transaction_type": "credit",
+                        "amount": amount,
+                    }]
+                )
+
+            cp_name = "counterparty"
+            if counterparty_id:
+                cur.execute("SELECT name FROM counterparties WHERE counterparty_id=%s::uuid", (counterparty_id,))
+                row = cur.fetchone()
+                if row:
+                    cp_name = row["name"]
+
+            tx_name = (
+                f"Lent to {cp_name}: {title}"
+                if kind == "receivable"
+                else f"Borrowed from {cp_name}: {title}"
+            )
+
+            initial_cat_id = ensure_named_category(
+                cur,
+                username,
+                name="Receivable Disbursement" if kind == "receivable" else "Payable Receipt",
+                kind="expense" if kind == "receivable" else "income",
+                icon="out" if kind == "receivable" else "in",
+            )
+
+            cur.execute(
+                """
+                INSERT INTO transactions (
+                    account_id, transaction_type, is_cycle_topup, transaction_name,
+                    amount, date, is_transfer, category_id, notes, currency, is_reviewed
+                )
+                VALUES (%s::uuid, %s, false, %s, %s, %s, false, %s::uuid, %s, 'IDR', true)
+                RETURNING transaction_id::text AS transaction_id
+                """,
+                (default_account_id, tx_type, tx_name, amount, tx_date, initial_cat_id, notes),
+            )
+            initial_tx_id = cur.fetchone()["transaction_id"]
+
         cur.execute(
             """
             INSERT INTO obligations (
                 user_id, kind, counterparty_id, title, description,
                 principal_amount, outstanding_amount, currency, issue_date,
                 due_date, default_account_id, category_id, notes,
-                recurrence_frequency, auto_post_enabled, auto_post_day
+                recurrence_frequency, auto_post_enabled, auto_post_day,
+                initial_transaction_id
             )
             SELECT user_id, %s, %s::uuid, %s, %s, %s, %s, 'IDR', %s,
-                   %s, %s::uuid, %s::uuid, %s, %s, %s, %s
+                   %s, %s::uuid, %s::uuid, %s, %s, %s, %s, %s::uuid
             FROM users
             WHERE username=%s
             RETURNING obligation_id::text AS obligation_id
@@ -389,6 +448,7 @@ async def create_obligation(req: Request):
                 recurrence,
                 auto_post,
                 auto_day,
+                initial_tx_id,
                 username,
             ),
         )
@@ -463,6 +523,203 @@ async def update_obligation(obligation_id: str, req: Request):
         auto_day = _parse_int(auto_day_raw, "auto_post_day", default=0) if auto_day_raw not in (None, "") else None
         if auto_day is not None and (auto_day < 1 or auto_day > 31):
             raise HTTPException(status_code=400, detail="auto_post_day must be between 1 and 31")
+
+        # Initial transaction management
+        initial_tx_id = current.get("initial_transaction_id")
+
+        if initial_tx_id:
+            if not default_account_id:
+                old_acc_id = current["default_account_id"]
+                if old_acc_id:
+                    lock_accounts_for_update(cur, username, [old_acc_id])
+                    if current["kind"] == "payable":
+                        ensure_account_non_negative(
+                            cur,
+                            old_acc_id,
+                            parse_tx_datetime(current["issue_date"]),
+                            exclude_tx_ids=[initial_tx_id]
+                        )
+
+                cur.execute(
+                    """
+                    UPDATE transactions
+                    SET deleted_at=%s,
+                        deleted_by=%s,
+                        delete_reason=%s
+                    WHERE transaction_id=%s::uuid AND deleted_at IS NULL
+                    RETURNING transaction_id::text AS transaction_id,
+                              account_id::text AS account_id,
+                              transaction_type,
+                              transaction_name,
+                              amount,
+                              date,
+                              is_transfer,
+                              is_cycle_topup,
+                              transfer_id::text AS transfer_id,
+                              deleted_at,
+                              deleted_by,
+                              delete_reason
+                    """,
+                    (now_utc(), username, "obligation_initial_tx_removed", initial_tx_id),
+                )
+                tx_row = cur.fetchone()
+                if tx_row:
+                    write_transaction_audit(cur, username=username, performed_by=username, action="soft_delete", tx_row=tx_row)
+
+                initial_tx_id = None
+            else:
+                old_acc_id = current["default_account_id"]
+                lock_accounts_for_update(cur, username, [old_acc_id, default_account_id])
+
+                if issue_date == now_local().date():
+                    tx_date = now_utc()
+                else:
+                    tx_date = parse_date_utc(issue_date.isoformat(), end_of_day=True)
+                tx_type = "credit" if kind == "receivable" else "debit"
+
+                cp_name = "counterparty"
+                if counterparty_id:
+                    cur.execute("SELECT name FROM counterparties WHERE counterparty_id=%s::uuid", (counterparty_id,))
+                    row = cur.fetchone()
+                    if row:
+                        cp_name = row["name"]
+
+                tx_name = (
+                    f"Lent to {cp_name}: {title}"
+                    if kind == "receivable"
+                    else f"Borrowed from {cp_name}: {title}"
+                )
+
+                initial_cat_id = ensure_named_category(
+                    cur,
+                    username,
+                    name="Receivable Disbursement" if kind == "receivable" else "Payable Receipt",
+                    kind="expense" if kind == "receivable" else "income",
+                    icon="out" if kind == "receivable" else "in",
+                )
+
+                if old_acc_id != default_account_id:
+                    if old_acc_id and current["kind"] == "payable":
+                        ensure_account_non_negative(
+                            cur,
+                            old_acc_id,
+                            parse_tx_datetime(current["issue_date"]),
+                            exclude_tx_ids=[initial_tx_id]
+                        )
+                    if tx_type == "credit":
+                        ensure_account_non_negative(
+                            cur,
+                            default_account_id,
+                            tx_date,
+                            new_rows=[{
+                                "transaction_id": initial_tx_id,
+                                "date": tx_date,
+                                "transaction_type": tx_type,
+                                "amount": principal,
+                            }],
+                            exclude_tx_ids=[initial_tx_id]
+                        )
+                else:
+                    ensure_account_non_negative(
+                        cur,
+                        default_account_id,
+                        min(parse_tx_datetime(current["issue_date"]), tx_date),
+                        new_rows=[{
+                            "transaction_id": initial_tx_id,
+                            "date": tx_date,
+                            "transaction_type": tx_type,
+                            "amount": principal,
+                        }],
+                        exclude_tx_ids=[initial_tx_id]
+                    )
+
+                cur.execute(
+                    """
+                    UPDATE transactions
+                    SET account_id=%s::uuid,
+                        transaction_type=%s,
+                        transaction_name=%s,
+                        amount=%s,
+                        date=%s,
+                        category_id=%s::uuid,
+                        notes=%s,
+                        updated_at=now()
+                    WHERE transaction_id=%s::uuid
+                    """,
+                    (
+                        default_account_id,
+                        tx_type,
+                        tx_name,
+                        principal,
+                        tx_date,
+                        initial_cat_id,
+                        (data.get("notes", current["notes"]) or "").strip() or None,
+                        initial_tx_id,
+                    ),
+                )
+        elif default_account_id:
+            lock_accounts_for_update(cur, username, [default_account_id])
+            if issue_date == now_local().date():
+                tx_date = now_utc()
+            else:
+                tx_date = parse_date_utc(issue_date.isoformat(), end_of_day=True)
+            tx_type = "credit" if kind == "receivable" else "debit"
+
+            if tx_type == "credit":
+                ensure_account_non_negative(
+                    cur,
+                    default_account_id,
+                    tx_date,
+                    [{
+                        "transaction_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+                        "date": tx_date,
+                        "transaction_type": "credit",
+                        "amount": principal,
+                    }]
+                )
+
+            cp_name = "counterparty"
+            if counterparty_id:
+                cur.execute("SELECT name FROM counterparties WHERE counterparty_id=%s::uuid", (counterparty_id,))
+                row = cur.fetchone()
+                if row:
+                    cp_name = row["name"]
+
+            tx_name = (
+                f"Lent to {cp_name}: {title}"
+                if kind == "receivable"
+                else f"Borrowed from {cp_name}: {title}"
+            )
+
+            initial_cat_id = ensure_named_category(
+                cur,
+                username,
+                name="Receivable Disbursement" if kind == "receivable" else "Payable Receipt",
+                kind="expense" if kind == "receivable" else "income",
+                icon="out" if kind == "receivable" else "in",
+            )
+
+            cur.execute(
+                """
+                INSERT INTO transactions (
+                    account_id, transaction_type, is_cycle_topup, transaction_name,
+                    amount, date, is_transfer, category_id, notes, currency, is_reviewed
+                )
+                VALUES (%s::uuid, %s, false, %s, %s, %s, false, %s::uuid, %s, 'IDR', true)
+                RETURNING transaction_id::text AS transaction_id
+                """,
+                (
+                    default_account_id,
+                    tx_type,
+                    tx_name,
+                    principal,
+                    tx_date,
+                    initial_cat_id,
+                    (data.get("notes", current["notes"]) or "").strip() or None,
+                ),
+            )
+            initial_tx_id = cur.fetchone()["transaction_id"]
+
         cur.execute(
             """
             UPDATE obligations
@@ -482,6 +739,7 @@ async def update_obligation(obligation_id: str, req: Request):
                 auto_post_enabled=%s,
                 auto_post_day=%s,
                 settled_at=CASE WHEN %s='settled' THEN COALESCE(settled_at, now()) ELSE NULL END,
+                initial_transaction_id=%s::uuid,
                 updated_at=now()
             WHERE obligation_id=%s::uuid
             """,
@@ -502,6 +760,7 @@ async def update_obligation(obligation_id: str, req: Request):
                 auto_post,
                 auto_day,
                 status_value,
+                initial_tx_id,
                 obligation_id,
             ),
         )

@@ -162,6 +162,7 @@ def test_payables_and_receivables(auth_client: TestClient):
     assert received_detail["obligation"]["outstanding_amount"] == 300_000
     assert received_detail["obligation"]["status"] == "partial"
     assert received["transaction_id"]
+    assert received_detail["obligation"]["initial_transaction_id"] is not None
 
     assert_ok(
         auth_client.post(
@@ -172,15 +173,66 @@ def test_payables_and_receivables(auth_client: TestClient):
     paid_detail = assert_ok(auth_client.get(f"/obligations/{payable['obligation_id']}"))
     assert paid_detail["obligation"]["outstanding_amount"] == 0
     assert paid_detail["obligation"]["status"] == "settled"
+    assert paid_detail["obligation"]["initial_transaction_id"] is not None
 
     accounts = assert_ok(auth_client.get("/accounts"))["accounts"]
-    assert next(a for a in accounts if a["account_id"] == account_id)["balance"] == 900_000
+    assert next(a for a in accounts if a["account_id"] == account_id)["balance"] == 700_000
+
+    # Test updating receivable: remove default_account_id -> should soft-delete initial transaction
+    assert_ok(
+        auth_client.put(
+            f"/obligations/{receivable['obligation_id']}",
+            json={
+                "kind": "receivable",
+                "title": received_detail["obligation"]["title"],
+                "principal_amount": 500_000,
+                "issue_date": today,
+                "default_account_id": None,
+            },
+        )
+    )
+    updated_receivable_detail = assert_ok(auth_client.get(f"/obligations/{receivable['obligation_id']}"))
+    assert updated_receivable_detail["obligation"]["initial_transaction_id"] is None
+
+    # Test creating obligation without account, then adding it later
+    other_receivable = assert_ok(
+        auth_client.post(
+            "/obligations",
+            json={
+                "kind": "receivable",
+                "title": unique("other-invoice"),
+                "counterparty_name": "Smoke Client",
+                "counterparty_type": "client",
+                "principal_amount": 200_000,
+                "issue_date": today,
+                "due_date": today,
+            },
+        )
+    )
+    other_detail = assert_ok(auth_client.get(f"/obligations/{other_receivable['obligation_id']}"))
+    assert other_detail["obligation"]["initial_transaction_id"] is None
+
+    # Update it to have a default account ID -> should create the initial transaction
+    assert_ok(
+        auth_client.put(
+            f"/obligations/{other_receivable['obligation_id']}",
+            json={
+                "kind": "receivable",
+                "title": other_detail["obligation"]["title"],
+                "principal_amount": 200_000,
+                "issue_date": today,
+                "default_account_id": account_id,
+            },
+        )
+    )
+    other_detail_updated = assert_ok(auth_client.get(f"/obligations/{other_receivable['obligation_id']}"))
+    assert other_detail_updated["obligation"]["initial_transaction_id"] is not None
 
     summary = assert_ok(auth_client.get("/obligations/summary"))
-    assert summary["receivable_outstanding"] == 300_000
+    assert summary["receivable_outstanding"] == 500_000 # 300k partial + 200k other
     assert summary["payable_outstanding"] == 0
     dashboard = assert_ok(auth_client.get("/dashboard"))
-    assert dashboard["obligations"]["receivable_outstanding"] >= 300_000
+    assert dashboard["obligations"]["receivable_outstanding"] >= 500_000
 
     settlement_id = received_detail["settlements"][0]["settlement_id"]
     assert_ok(auth_client.delete(f"/obligations/{receivable['obligation_id']}/settlements/{settlement_id}"))
