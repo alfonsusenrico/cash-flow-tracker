@@ -121,6 +121,8 @@ services:
         condition: service_completed_successfully
       api:
         condition: service_started
+    volumes:
+      - bot_storage:/app/storage
 
   web:
     image: nginx:alpine
@@ -137,3 +139,4 @@ services:
 
 volumes:
   db_data:
+  bot_storage:
