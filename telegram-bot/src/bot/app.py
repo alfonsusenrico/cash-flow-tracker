@@ -547,11 +547,95 @@ class BotApp:
                 # Fallback to plain text response
                 await update.message.reply_text(response_text)
 
+            # Trigger background task for history summarization to manage token size
+            asyncio.create_task(self._summarize_history_if_needed(telegram_user_id))
+
         except FinanceError as e:
             await update.message.reply_text(f"❌ API error: {e.detail}")
         except Exception as e:
             logger.exception("Message handling failed")
             await update.message.reply_text(f"❌ Terjadi kesalahan: {str(e)}")
+
+    async def _summarize_history_if_needed(self, telegram_user_id: int) -> None:
+        """
+        Check if the user's chat history exceeds the token limit.
+        If it does, summarize the oldest half, replace it in the database,
+        and keep the last message of the summarized chunk for context continuity (+1).
+        """
+        MAX_HISTORY_TOKENS = 128000  # Based on deepseek-v4-flash context handling
+        try:
+            full_history = await self.store.get_full_chat_history(telegram_user_id, limit=5000)
+            if not full_history:
+                return
+
+            # Estimate total tokens (rough heuristic: 1 token ~= 4 chars)
+            total_chars = sum(len(msg.get("content", "")) for msg in full_history)
+            total_tokens = total_chars / 4
+
+            if total_tokens <= MAX_HISTORY_TOKENS:
+                return
+
+            logger.info(f"User {telegram_user_id} exceeded max history tokens ({total_tokens} > {MAX_HISTORY_TOKENS}). Starting summarization...")
+
+            # We want to summarize until the token count drops below half
+            target_tokens_to_summarize = total_tokens / 2
+            
+            chars_accum = 0
+            chunk_end_idx = 0
+            for i, msg in enumerate(full_history):
+                chars_accum += len(msg.get("content", ""))
+                if (chars_accum / 4) >= target_tokens_to_summarize:
+                    chunk_end_idx = i
+                    break
+            
+            # Ensure we summarize at least something if logic falls through
+            if chunk_end_idx == 0:
+                chunk_end_idx = len(full_history) // 2
+
+            # The chunk to summarize
+            chunk_to_summarize = full_history[:chunk_end_idx + 1]
+            if len(chunk_to_summarize) < 3:
+                return  # Not enough messages to bother summarizing
+            
+            # Format the chunk for the LLM
+            lines = []
+            for m in chunk_to_summarize:
+                lines.append(f"{m['role'].upper()}: {m['content']}")
+            raw_text_to_summarize = "\\n".join(lines)
+
+            summary_prompt = (
+                "Summarize the following chat history concisely. "
+                "Focus on the user's financial state, important context, and any rules/preferences they established. "
+                "Do NOT include conversational filler.\\n\\n"
+                f"{raw_text_to_summarize}"
+            )
+
+            # Call LLM directly for summarization (no tools)
+            messages = [{"role": "system", "content": summary_prompt}]
+            resp = await self.llm._client.chat.completions.create(
+                model=self.llm._model,
+                temperature=0.3,
+                messages=messages,
+            )
+            summary_content = resp.choices[0].message.content or "Summary failed."
+
+            # We replace messages [0 ... chunk_end_idx - 1]
+            # We keep chunk_to_summarize[-1] (the message at chunk_end_idx) intact for context continuity (+1).
+            ids_to_delete = [m["history_id"] for m in chunk_to_summarize[:-1]]
+            anchor_timestamp = chunk_to_summarize[-1]["created_at"]
+            
+            # A tiny offset so the summary always sorts right before the anchor message
+            anchor_timestamp = anchor_timestamp - timedelta(milliseconds=1)
+
+            final_summary = f"[SYSTEM MEMORY] Previous context summary:\\n{summary_content}"
+
+            await self.store.replace_chat_history(
+                telegram_user_id, ids_to_delete, final_summary, anchor_timestamp
+            )
+            logger.info(f"Successfully summarized {len(ids_to_delete)} messages for user {telegram_user_id}.")
+
+        except Exception as e:
+            logger.exception(f"Error during history summarization for {telegram_user_id}: {e}")
 
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle callback queries (confirmations) gracefully for legacy buttons."""

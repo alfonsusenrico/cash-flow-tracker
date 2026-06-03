@@ -31,7 +31,7 @@ ToolFunc = Callable[..., Awaitable[str]]
 
 
 class LLMPlanner:
-    MAX_ITERATIONS = 10
+    MAX_ITERATIONS = 30
 
     def __init__(self, api_key: str, base_url: str, model: str) -> None:
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
@@ -124,24 +124,16 @@ class LLMPlanner:
 
             # Inject iteration-awareness hint from iteration 2 onward
             if iteration > 0:
-                remaining = self.MAX_ITERATIONS - iteration
-                if remaining <= 1:
+                if iteration >= 10:
                     hint = (
-                        f"⚠️ IMPORTANT: This is your LAST step "
-                        f"({iteration + 1}/{self.MAX_ITERATIONS}). "
-                        "You MUST produce your final text response NOW. "
-                        "Do NOT call any more tools."
-                    )
-                elif remaining == 2:
-                    hint = (
-                        f"Step {iteration + 1}/{self.MAX_ITERATIONS}. "
-                        f"You have {remaining} steps left. "
-                        "Prioritize producing your final response soon."
+                        f"You have been processing for {iteration + 1} steps. "
+                        "Please reflect on whether this extended looping is intended to gather more complete information, "
+                        "or if you are stuck in a faulty loop (e.g., repeatedly failing tools). "
+                        "If it is faulty, you must stop the loop, summarize what happened, and ask the user for clarification."
                     )
                 else:
                     hint = (
                         f"Step {iteration + 1}/{self.MAX_ITERATIONS}. "
-                        f"You have {remaining} steps remaining."
                     )
                 messages.append({"role": "system", "content": hint})
 
