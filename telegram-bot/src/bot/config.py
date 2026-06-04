@@ -45,5 +45,5 @@ def load_settings() -> Settings:
         bot_secret=_req("BOT_SECRET"),
         confidence_threshold=float(os.environ.get("CONFIDENCE_THRESHOLD", "0.75")),
         llm_timeout=int(os.environ.get("LLM_TIMEOUT", "120")),
-        vision_model=os.environ.get("VISION_MODEL", "google/gemma-4-31b-it:free"),
+        vision_model=os.environ.get("VISION_MODEL", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"),
     )
