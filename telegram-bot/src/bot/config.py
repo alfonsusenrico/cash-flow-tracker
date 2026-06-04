@@ -28,6 +28,7 @@ class Settings:
     confidence_threshold: float
     llm_timeout: int
     vision_model: str
+    use_two_step_vision: bool
 
 
 def load_settings() -> Settings:
@@ -46,4 +47,5 @@ def load_settings() -> Settings:
         confidence_threshold=float(os.environ.get("CONFIDENCE_THRESHOLD", "0.75")),
         llm_timeout=int(os.environ.get("LLM_TIMEOUT", "120")),
         vision_model=os.environ.get("VISION_MODEL", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"),
+        use_two_step_vision=os.environ.get("USE_TWO_STEP_VISION", "true").lower() in ("true", "1", "yes"),
     )

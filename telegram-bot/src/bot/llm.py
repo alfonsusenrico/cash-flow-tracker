@@ -33,10 +33,18 @@ ToolFunc = Callable[..., Awaitable[str]]
 class LLMPlanner:
     MAX_ITERATIONS = 30
 
-    def __init__(self, api_key: str, base_url: str, model: str, vision_model: str) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        model: str,
+        vision_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        use_two_step_vision: bool = True,
+    ) -> None:
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         self._model = model
         self._vision_model = vision_model
+        self._use_two_step_vision = use_two_step_vision
         self._system_prompt = _PROMPT_PATH.read_text(encoding="utf-8")
 
     # ------------------------------------------------------------------
@@ -67,6 +75,15 @@ class LLMPlanner:
         capped_msg = (message_text[:200] + "...") if message_text and len(message_text) > 200 else message_text
         logger.info(f"LLM propose started. User message (capped): {capped_msg!r}")
 
+        has_media = bool(image_bytes)
+        if image_bytes and self._use_two_step_vision:
+            extracted_text = await self._extract_vision(image_bytes, image_mime, timeout=timeout)
+            if message_text:
+                message_text = f"{message_text}\n\n[Extracted from attached image:\n{extracted_text}]"
+            else:
+                message_text = f"[Extracted from attached image:\n{extracted_text}]"
+            image_bytes = None
+
         context: dict[str, Any] = {
             "now": now_iso,
             "timezone": timezone,
@@ -82,7 +99,7 @@ class LLMPlanner:
                 {"name": c.get("name"), "kind": c.get("kind")} for c in categories
             ],
             "message": message_text or "",
-            "has_media_attached": bool(image_bytes),
+            "has_media_attached": has_media,
         }
 
         # Build the user content (text + optional image)
@@ -312,3 +329,54 @@ class LLMPlanner:
     @staticmethod
     def _fallback_response() -> str:
         return "Maaf, terlalu banyak langkah pemrosesan. Silakan coba lagi."
+
+    async def _extract_vision(
+        self,
+        image_bytes: bytes,
+        image_mime: str,
+        timeout: int = 120,
+    ) -> str:
+        """Call the vision model with the image to extract transaction details and text.
+
+        This call is explicitly made without tools/tool_choice to ensure compatibility
+        with models that don't support tool calling.
+        """
+        logger.info("Running vision extraction step...")
+        b64 = base64.b64encode(image_bytes).decode()
+
+        prompt = (
+            "You are a receipt/invoice parser. Extract all relevant details from this image "
+            "as plain text. Include store name, date, items, prices, total amount, taxes, "
+            "and any other visible text. Do not summarize or omit numbers; write down "
+            "everything clearly."
+        )
+
+        user_content = [
+            {"type": "text", "text": prompt},
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{image_mime};base64,{b64}"},
+            },
+        ]
+
+        try:
+            resp = await asyncio.wait_for(
+                self._client.chat.completions.create(
+                    model=self._vision_model,
+                    temperature=0,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant that extracts text from images.",
+                        },
+                        {"role": "user", "content": user_content},
+                    ],
+                ),
+                timeout=timeout,
+            )
+            extracted_text = resp.choices[0].message.content or ""
+            logger.info(f"Vision extraction finished. Extracted text length: {len(extracted_text)}")
+            return extracted_text
+        except Exception as exc:
+            logger.error(f"Vision extraction failed: {exc}", exc_info=True)
+            return f"[Error extracting text from image: {exc}]"

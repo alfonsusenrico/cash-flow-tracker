@@ -72,6 +72,7 @@ class BotApp:
             settings.deepseek_base_url,
             settings.deepseek_model,
             settings.vision_model,
+            use_two_step_vision=settings.use_two_step_vision,
         )
         # Create user preferences directory on initialization
         import os
