@@ -115,6 +115,7 @@ services:
       BOT_DATABASE_URL: postgresql://${POSTGRES_USER:-ledger}:${POSTGRES_PASSWORD:-ledgerpass}@db:5432/${POSTGRES_DB:-ledger}
       BOT_SECRET: ${BOT_SECRET}
       CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-0.75}
+      LLM_TIMEOUT: ${LLM_TIMEOUT:-300}
       TZ: ${TZ:-Asia/Jakarta}
     depends_on:
       db:
