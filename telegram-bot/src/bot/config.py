@@ -27,6 +27,7 @@ class Settings:
     bot_secret: str
     confidence_threshold: float
     llm_timeout: int
+    vision_model: str
 
 
 def load_settings() -> Settings:
@@ -44,4 +45,5 @@ def load_settings() -> Settings:
         bot_secret=_req("BOT_SECRET"),
         confidence_threshold=float(os.environ.get("CONFIDENCE_THRESHOLD", "0.75")),
         llm_timeout=int(os.environ.get("LLM_TIMEOUT", "120")),
+        vision_model=os.environ.get("VISION_MODEL", "meta-llama/llama-3.2-11b-vision-instruct:free"),
     )

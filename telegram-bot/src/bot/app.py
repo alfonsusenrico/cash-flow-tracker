@@ -71,6 +71,7 @@ class BotApp:
             settings.deepseek_api_key,
             settings.deepseek_base_url,
             settings.deepseek_model,
+            settings.vision_model,
         )
         # Create user preferences directory on initialization
         import os

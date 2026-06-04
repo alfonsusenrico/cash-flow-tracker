@@ -33,9 +33,10 @@ ToolFunc = Callable[..., Awaitable[str]]
 class LLMPlanner:
     MAX_ITERATIONS = 30
 
-    def __init__(self, api_key: str, base_url: str, model: str) -> None:
+    def __init__(self, api_key: str, base_url: str, model: str, vision_model: str) -> None:
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         self._model = model
+        self._vision_model = vision_model
         self._system_prompt = _PROMPT_PATH.read_text(encoding="utf-8")
 
     # ------------------------------------------------------------------
@@ -147,10 +148,13 @@ class LLMPlanner:
             is_last = iteration >= self.MAX_ITERATIONS - 1
             tool_choice: Any = "none" if is_last else "auto"
 
+            # Use vision model if image is present
+            model_to_use = self._vision_model if image_bytes else self._model
+
             try:
                 resp = await asyncio.wait_for(
                     self._client.chat.completions.create(
-                        model=self._model,
+                        model=model_to_use,
                         temperature=0,
                         messages=messages,
                         tools=TOOL_DEFINITIONS if tool_executors else None,
@@ -189,6 +193,7 @@ class LLMPlanner:
                     total_completion_tokens,
                     total_cached_tokens,
                     iterations_used,
+                    model_to_use,
                 )
                 return raw, executed_tools_summary
 
@@ -272,12 +277,13 @@ class LLMPlanner:
         completion_tokens: int,
         cached_tokens: int,
         iterations: int,
+        model_name: str,
     ) -> None:
         """Log a single clean line summarising the agentic call."""
         total_tokens = prompt_tokens + completion_tokens
 
         # Estimate cost
-        model_lower = (self._model or "").lower()
+        model_lower = model_name.lower()
         if "deepseek-chat" in model_lower or "deepseek-v3" in model_lower:
             input_rate, output_rate, cached_rate = 0.14, 0.28, 0.07
         elif "flash" in model_lower or "v4-flash" in model_lower:
@@ -293,7 +299,7 @@ class LLMPlanner:
         )
 
         logger.info(
-            f"LLM Done | Model: {self._model} | Iterations: {iterations}/{self.MAX_ITERATIONS} | "
+            f"LLM Done | Model: {model_name} | Iterations: {iterations}/{self.MAX_ITERATIONS} | "
             f"Tokens: In={prompt_tokens} (cached={cached_tokens}), Out={completion_tokens}, Total={total_tokens} | "
             f"Cost: ${cost:.6f} USD | Response Length: {len(raw_response)}\n"
             f"Response (capped): {raw_response[:500]!r}"
