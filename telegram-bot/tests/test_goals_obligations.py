@@ -19,7 +19,10 @@ def mock_app():
         webhook_listen="0.0.0.0",
         webhook_port=8080,
         telegram_webhook_url="https://fake.webhook",
-        telegram_webhook_secret="fake-secret"
+        telegram_webhook_secret="fake-secret",
+        vision_model="fake-vision-model",
+        vision_base_url="http://fake.vision",
+        use_two_step_vision=True
     )
     with patch("bot.app.Store") as MockStore, \
          patch("bot.app.FinanceClient") as MockFinance, \

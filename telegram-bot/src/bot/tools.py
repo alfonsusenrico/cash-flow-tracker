@@ -756,5 +756,26 @@ TOOL_DEFINITIONS: list[dict] = [
                 "required": ["title", "amount", "source_account_name"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "upload_receipt_to_transaction",
+            "description": (
+                "Upload/attach a receipt image (from the current user message payload) "
+                "to an existing transaction. Always search for the transaction first "
+                "using search_transactions to get the exact ID."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "description": "The exact transaction ID to attach the receipt to."
+                    }
+                },
+                "required": ["transaction_id"]
+            }
+        }
     }
 ]

@@ -20,7 +20,10 @@ def mock_app():
         webhook_listen="0.0.0.0",
         webhook_port=8080,
         telegram_webhook_url="https://fake.webhook",
-        telegram_webhook_secret="fake-secret"
+        telegram_webhook_secret="fake-secret",
+        vision_model="fake-vision-model",
+        vision_base_url="http://fake.vision",
+        use_two_step_vision=True
     )
     with patch("bot.app.Store") as MockStore, \
          patch("bot.app.FinanceClient") as MockFinance, \
@@ -148,3 +151,64 @@ async def test_handle_message_update_preferences_tool(mock_app):
             "/app/storage/user_preferences/user_12345.md", "w", encoding="utf-8"
         )
         mock_open_write().write.assert_called_once_with("- Always format as list")
+
+
+@pytest.mark.asyncio
+async def test_handle_message_upload_receipt_to_transaction_tool(mock_app):
+    # Setup mock update with photo
+    mock_update = MagicMock()
+    mock_update.effective_user = MagicMock(id=12345)
+    mock_update.effective_chat = MagicMock(id=67890)
+    mock_update.message = MagicMock()
+    mock_update.message.text = "Attach receipt to last transaction"
+    
+    mock_photo = MagicMock()
+    mock_photo.file_id = "photo_123"
+    mock_update.message.photo = [mock_photo]
+    mock_update.message.reply_text = AsyncMock()
+
+    mock_file = AsyncMock()
+    mock_file.download_as_bytearray = AsyncMock(return_value=b"fake-image-bytes")
+    
+    mock_context = MagicMock()
+    mock_context.bot.get_file = AsyncMock(return_value=mock_file)
+
+    # Mock store and client methods
+    mock_app.store.get_api_key = AsyncMock(return_value="fake-api-key")
+    mock_app.store.get_chat_history = AsyncMock(return_value=[])
+    mock_app.store.add_chat_history = AsyncMock()
+    mock_app.finance.list_accounts = AsyncMock(return_value=[])
+    mock_app.finance.list_categories = AsyncMock(return_value=[])
+    mock_app.finance.upload_receipt = AsyncMock(return_value={"success": True})
+
+    # Capture the tool executor dictionary passed to propose
+    tool_executors_captured = None
+    async def capture_propose(*args, **kwargs):
+        nonlocal tool_executors_captured
+        tool_executors_captured = kwargs.get("tool_executors")
+        return "Receipt processed"
+    
+    mock_app.llm.propose.side_effect = capture_propose
+
+    # Run handle_message
+    with patch("os.path.exists", return_value=False):
+        await mock_app.handle_message(mock_update, mock_context)
+
+    # Assert that propose was called and we captured tool_executors
+    assert tool_executors_captured is not None
+    assert "upload_receipt_to_transaction" in tool_executors_captured
+
+    # Execute the upload_receipt_to_transaction executor
+    executor = tool_executors_captured["upload_receipt_to_transaction"]
+    res = await executor(transaction_id="tx_12345")
+    
+    # Verify success
+    res_json = json.loads(res)
+    assert res_json.get("success") is True
+    assert res_json.get("transaction_id") == "tx_12345"
+
+    # Verify that upload_receipt was called with the correct parameters
+    mock_app.finance.upload_receipt.assert_called_once_with(
+        "fake-api-key", "tx_12345", b"fake-image-bytes", "receipt.jpg", "image/jpeg"
+    )
+

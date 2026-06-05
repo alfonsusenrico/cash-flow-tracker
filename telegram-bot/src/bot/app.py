@@ -77,7 +77,13 @@ class BotApp:
         )
         # Create user preferences directory on initialization
         import os
-        os.makedirs("/app/storage/user_preferences", exist_ok=True)
+        try:
+            os.makedirs("/app/storage/user_preferences", exist_ok=True)
+        except OSError:
+            try:
+                os.makedirs("./storage/user_preferences", exist_ok=True)
+            except OSError:
+                pass
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /start command."""
@@ -770,6 +776,32 @@ class BotApp:
                     except Exception as e:
                         return json.dumps({"error": str(e)})
 
+                async def _tool_upload_receipt_to_transaction(transaction_id: str) -> str:
+                    nonlocal image_bytes, uploaded_receipt
+                    if not image_bytes:
+                        return json.dumps({
+                            "error": "No image/receipt found in the current message payload. Please upload a receipt photo with this request."
+                        })
+                    if uploaded_receipt:
+                        return json.dumps({
+                            "error": "The receipt image from the current message payload has already been uploaded."
+                        })
+                    try:
+                        await self.finance.upload_receipt(
+                            api_key, transaction_id, image_bytes, "receipt.jpg", "image/jpeg"
+                        )
+                        uploaded_receipt = True
+                        return json.dumps({
+                            "success": True,
+                            "transaction_id": transaction_id,
+                            "message": f"Successfully uploaded receipt to transaction {transaction_id}."
+                        })
+                    except Exception as e:
+                        logger.exception("Failed to upload receipt")
+                        return json.dumps({
+                            "error": f"Failed to upload receipt: {str(e)}"
+                        })
+
                 tool_executors = {
                     "get_account_balance": _tool_get_account_balance,
                     "get_all_balances": _tool_get_all_balances,
@@ -798,6 +830,7 @@ class BotApp:
                     "create_obligation": _tool_create_obligation,
                     "update_obligation": _tool_update_obligation,
                     "settle_obligation": _tool_settle_obligation,
+                    "upload_receipt_to_transaction": _tool_upload_receipt_to_transaction,
                 }
 
                 # Call LLM to propose action (agentic loop)
