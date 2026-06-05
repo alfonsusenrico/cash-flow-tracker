@@ -945,7 +945,50 @@ def cancel_obligation(obligation_id: str, req: Request):
     username = req.state.username
     obligation_id = parse_uuid_value(obligation_id, "obligation_id")
     with db_conn() as conn, conn.cursor() as cur:
-        _fetch_obligation(cur, username, obligation_id)
+        current = _fetch_obligation(cur, username, obligation_id)
+        
+        # Soft delete the initial transaction so the balance is refunded
+        initial_tx_id = current.get("initial_transaction_id")
+        if initial_tx_id:
+            old_acc_id = current.get("default_account_id")
+            if old_acc_id:
+                lock_accounts_for_update(cur, username, [old_acc_id])
+                # If it's a payable, deleting the initial transaction removes the income,
+                # so we must ensure the account doesn't go negative
+                if current["kind"] == "payable":
+                    ensure_account_non_negative(
+                        cur,
+                        old_acc_id,
+                        parse_tx_datetime(current["issue_date"]),
+                        exclude_tx_ids=[initial_tx_id]
+                    )
+            
+            cur.execute(
+                """
+                UPDATE transactions
+                SET deleted_at=%s,
+                    deleted_by=%s,
+                    delete_reason=%s
+                WHERE transaction_id=%s::uuid AND deleted_at IS NULL
+                RETURNING transaction_id::text AS transaction_id,
+                          account_id::text AS account_id,
+                          transaction_type,
+                          transaction_name,
+                          amount,
+                          date,
+                          is_transfer,
+                          is_cycle_topup,
+                          transfer_id::text AS transfer_id,
+                          deleted_at,
+                          deleted_by,
+                          delete_reason
+                """,
+                (now_utc(), username, "obligation_cancelled", initial_tx_id),
+            )
+            tx_row = cur.fetchone()
+            if tx_row:
+                write_transaction_audit(cur, username=username, performed_by=username, action="soft_delete", tx_row=tx_row)
+
         cur.execute(
             """
             UPDATE obligations
