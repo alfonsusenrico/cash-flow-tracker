@@ -194,6 +194,7 @@ class LLMPlanner:
                         messages=messages,
                         tools=TOOL_DEFINITIONS if tool_executors else None,
                         tool_choice=tool_choice if tool_executors else None,
+                        extra_body={"include_reasoning": True},
                     ),
                     timeout=timeout,
                 )
