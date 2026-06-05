@@ -867,17 +867,27 @@ class BotApp:
             
             # Reply to user with Markdown parsing and robust fallback
             try:
-                await update.message.reply_text(formatted_text, parse_mode="Markdown")
+                await update.message.reply_text(
+                    formatted_text, 
+                    parse_mode="Markdown",
+                    reply_to_message_id=update.message.message_id
+                )
             except Exception as e:
                 logger.warning(f"Failed to send message with Markdown formatting: {e}")
                 # Fallback to plain text response
-                await update.message.reply_text(response_text)
+                await update.message.reply_text(
+                    response_text,
+                    reply_to_message_id=update.message.message_id
+                )
 
             # Trigger background task for history summarization to manage token size
             asyncio.create_task(self._summarize_history_if_needed(telegram_user_id))
 
         except FinanceError as e:
-            await update.message.reply_text(f"❌ API error: {e.detail}")
+            await update.message.reply_text(
+                f"❌ API error: {e.detail}",
+                reply_to_message_id=update.message.message_id
+            )
             if not history_saved:
                 try:
                     await self.store.add_chat_history(telegram_user_id, "user", message_text or "[Photo receipt]")
