@@ -5,7 +5,6 @@ from bot.llm import LLMPlanner
 
 @pytest.mark.asyncio
 async def test_llm_planner_agentic_loop():
-    # Mock OpenRouter/OpenAI client
     mock_client = MagicMock()
     mock_completions = AsyncMock()
     mock_client.chat = MagicMock()
@@ -13,7 +12,6 @@ async def test_llm_planner_agentic_loop():
     mock_client.chat.completions.create = mock_completions
 
     # Setup mock responses
-    # Turn 1: LLM decides to call get_account_balance
     mock_tc = MagicMock()
     mock_tc.id = "call_abc123"
     mock_tc.function = MagicMock()
@@ -45,12 +43,19 @@ async def test_llm_planner_agentic_loop():
     mock_resp2.usage = MagicMock(prompt_tokens=150, completion_tokens=15)
     mock_resp2.usage.prompt_tokens_details = None
 
-    # Make the mock completions call return first response, then second response
     mock_completions.side_effect = [mock_resp1, mock_resp2]
 
     # Initialize LLMPlanner with mock client patch
-    with patch("bot.llm.AsyncOpenAI", return_value=mock_client):
-        planner = LLMPlanner(api_key="fake-key", base_url="https://fake.url", model="fake-model")
+    mock_vision_client = MagicMock()
+    with patch("bot.llm.AsyncOpenAI", side_effect=[mock_client, mock_vision_client]) as mock_aoi:
+        planner = LLMPlanner(
+            api_key="fake-key",
+            base_url="https://text.api",
+            vision_base_url="https://vision.api",
+            model="fake-model"
+        )
+        assert mock_aoi.call_args_list[0].kwargs["base_url"] == "https://text.api"
+        assert mock_aoi.call_args_list[1].kwargs["base_url"] == "https://vision.api"
 
     # Define a tool executor
     tool_executed = False
@@ -64,7 +69,7 @@ async def test_llm_planner_agentic_loop():
     }
 
     # Run proposal
-    result = await planner.propose(
+    result, tool_summary = await planner.propose(
         message_text="Berapa saldo BCA?",
         now_iso="2026-06-01T10:00:00+07:00",
         timezone="Asia/Jakarta",
@@ -81,7 +86,6 @@ async def test_llm_planner_agentic_loop():
 
 @pytest.mark.asyncio
 async def test_llm_planner_user_preferences():
-    # Mock OpenRouter/OpenAI client
     mock_client = MagicMock()
     mock_completions = AsyncMock()
     mock_client.chat = MagicMock()
@@ -89,7 +93,6 @@ async def test_llm_planner_user_preferences():
     mock_client.chat.completions.create = mock_completions
 
     # Setup mock responses
-    # Turn 1: LLM decides to call update_user_preferences
     mock_tc = MagicMock()
     mock_tc.id = "call_pref123"
     mock_tc.function = MagicMock()
@@ -121,11 +124,11 @@ async def test_llm_planner_user_preferences():
     mock_resp2.usage = MagicMock(prompt_tokens=150, completion_tokens=15)
     mock_resp2.usage.prompt_tokens_details = None
 
-    # Make the mock completions call return first response, then second response
     mock_completions.side_effect = [mock_resp1, mock_resp2]
 
     # Initialize LLMPlanner with mock client patch
-    with patch("bot.llm.AsyncOpenAI", return_value=mock_client):
+    mock_vision_client = MagicMock()
+    with patch("bot.llm.AsyncOpenAI", side_effect=[mock_client, mock_vision_client]):
         planner = LLMPlanner(api_key="fake-key", base_url="https://fake.url", model="fake-model")
 
     # Define a tool executor for update_user_preferences
@@ -141,7 +144,7 @@ async def test_llm_planner_user_preferences():
 
     # Run proposal with user_preferences
     test_prefs = "- Treat all coffee as Food category"
-    result = await planner.propose(
+    result, tool_summary = await planner.propose(
         message_text="Mulai sekarang kopi catat sebagai Makan & Minum",
         now_iso="2026-06-01T10:00:00+07:00",
         timezone="Asia/Jakarta",
@@ -161,19 +164,26 @@ async def test_llm_planner_user_preferences():
     called_kwargs = call_args.kwargs
     system_message = called_kwargs["messages"][0]
     assert system_message["role"] == "system"
-    assert "User Preferences" in system_message["content"]
+    assert "User Preferences (MANDATORY" in system_message["content"]
     assert test_prefs in system_message["content"]
 
 
 @pytest.mark.asyncio
 async def test_llm_planner_two_step_vision_enabled():
-    mock_client = MagicMock()
-    mock_completions = AsyncMock()
-    mock_client.chat = MagicMock()
-    mock_client.chat.completions = MagicMock()
-    mock_client.chat.completions.create = mock_completions
+    mock_text_client = MagicMock()
+    mock_vision_client = MagicMock()
+    
+    mock_text_completions = AsyncMock()
+    mock_text_client.chat = MagicMock()
+    mock_text_client.chat.completions = MagicMock()
+    mock_text_client.chat.completions.create = mock_text_completions
 
-    # First call: Vision extraction (no tools)
+    mock_vision_completions = AsyncMock()
+    mock_vision_client.chat = MagicMock()
+    mock_vision_client.chat.completions = MagicMock()
+    mock_vision_client.chat.completions.create = mock_vision_completions
+
+    # First call: Vision extraction (no tools) on mock_vision_client
     mock_vision_msg = MagicMock()
     mock_vision_msg.content = "Bakso Rp30,000"
     mock_vision_msg.tool_calls = None
@@ -181,7 +191,9 @@ async def test_llm_planner_two_step_vision_enabled():
     mock_vision_resp.choices = [MagicMock(message=mock_vision_msg)]
     mock_vision_resp.usage = None
 
-    # Second call: Text model agentic step (final response)
+    mock_vision_completions.side_effect = [mock_vision_resp]
+
+    # Second call: Text model agentic step on mock_text_client (final response)
     mock_text_msg = MagicMock()
     mock_text_msg.content = "Mencatat bakso 30rb."
     mock_text_msg.tool_calls = None
@@ -190,12 +202,13 @@ async def test_llm_planner_two_step_vision_enabled():
     mock_text_resp.usage = MagicMock(prompt_tokens=100, completion_tokens=20)
     mock_text_resp.usage.prompt_tokens_details = None
 
-    mock_completions.side_effect = [mock_vision_resp, mock_text_resp]
+    mock_text_completions.side_effect = [mock_text_resp]
 
-    with patch("bot.llm.AsyncOpenAI", return_value=mock_client):
+    with patch("bot.llm.AsyncOpenAI", side_effect=[mock_text_client, mock_vision_client]):
         planner = LLMPlanner(
             api_key="fake-key",
-            base_url="https://fake.url",
+            base_url="https://fake-text.url",
+            vision_base_url="https://fake-vision.url",
             model="text-model",
             vision_model="vision-model",
             use_two_step_vision=True
@@ -211,16 +224,15 @@ async def test_llm_planner_two_step_vision_enabled():
     )
 
     assert result == "Mencatat bakso 30rb."
-    assert mock_completions.call_count == 2
+    assert mock_vision_completions.call_count == 1
+    assert mock_text_completions.call_count == 1
 
     # Assert model parameter for the two calls
-    # Call 1 (vision): model="vision-model", tools=None, tool_choice=None
-    call1_args = mock_completions.call_args_list[0]
+    call1_args = mock_vision_completions.call_args_list[0]
     assert call1_args.kwargs["model"] == "vision-model"
     assert "tools" not in call1_args.kwargs or call1_args.kwargs["tools"] is None
 
-    # Call 2 (text agentic loop): model="text-model"
-    call2_args = mock_completions.call_args_list[1]
+    call2_args = mock_text_completions.call_args_list[0]
     assert call2_args.kwargs["model"] == "text-model"
     
     # Verify that the extracted text was injected into messages of the second call
@@ -230,14 +242,82 @@ async def test_llm_planner_two_step_vision_enabled():
 
 
 @pytest.mark.asyncio
-async def test_llm_planner_two_step_vision_disabled():
-    mock_client = MagicMock()
-    mock_completions = AsyncMock()
-    mock_client.chat = MagicMock()
-    mock_client.chat.completions = MagicMock()
-    mock_client.chat.completions.create = mock_completions
+async def test_llm_planner_two_step_vision_failure():
+    mock_text_client = MagicMock()
+    mock_vision_client = MagicMock()
+    
+    mock_text_completions = AsyncMock()
+    mock_text_client.chat = MagicMock()
+    mock_text_client.chat.completions = MagicMock()
+    mock_text_client.chat.completions.create = mock_text_completions
 
-    # Vision model handles the loop directly (legacy behavior)
+    mock_vision_completions = AsyncMock()
+    mock_vision_client.chat = MagicMock()
+    mock_vision_client.chat.completions = MagicMock()
+    mock_vision_client.chat.completions.create = mock_vision_completions
+
+    # First call: Vision extraction fails with an exception
+    mock_vision_completions.side_effect = Exception("API connection timed out")
+
+    # Second call: Text model agentic step gets standard proposal text
+    mock_text_msg = MagicMock()
+    mock_text_msg.content = "Failed to parse the receipt. Please try typing the details."
+    mock_text_msg.tool_calls = None
+    mock_text_resp = MagicMock()
+    mock_text_resp.choices = [MagicMock(message=mock_text_msg)]
+    mock_text_resp.usage = MagicMock(prompt_tokens=100, completion_tokens=20)
+    mock_text_resp.usage.prompt_tokens_details = None
+
+    mock_text_completions.side_effect = [mock_text_resp]
+
+    with patch("bot.llm.AsyncOpenAI", side_effect=[mock_text_client, mock_vision_client]):
+        planner = LLMPlanner(
+            api_key="fake-key",
+            base_url="https://fake-text.url",
+            vision_base_url="https://fake-vision.url",
+            model="text-model",
+            vision_model="vision-model",
+            use_two_step_vision=True
+        )
+
+    result, tool_summary = await planner.propose(
+        message_text="Simpan struk ini",
+        now_iso="2026-06-01T10:00:00+07:00",
+        timezone="Asia/Jakarta",
+        accounts=[],
+        categories=[],
+        image_bytes=b"fake-image-bytes",
+    )
+
+    assert result == "Failed to parse the receipt. Please try typing the details."
+    assert mock_vision_completions.call_count == 1
+    assert mock_text_completions.call_count == 1
+
+    # Verify that vision failure was communicated to the text model in the user context message
+    call2_args = mock_text_completions.call_args_list[0]
+    user_message = call2_args.kwargs["messages"][-1]
+    assert user_message["role"] == "user"
+    user_text_part = user_message["content"][0]["text"]
+    assert "vision system failed to extract text" in user_text_part
+    assert "Simpan struk ini" in user_text_part
+
+
+@pytest.mark.asyncio
+async def test_llm_planner_two_step_vision_disabled():
+    mock_text_client = MagicMock()
+    mock_vision_client = MagicMock()
+    
+    mock_text_completions = AsyncMock()
+    mock_text_client.chat = MagicMock()
+    mock_text_client.chat.completions = MagicMock()
+    mock_text_client.chat.completions.create = mock_text_completions
+
+    mock_vision_completions = AsyncMock()
+    mock_vision_client.chat = MagicMock()
+    mock_vision_client.chat.completions = MagicMock()
+    mock_vision_client.chat.completions.create = mock_vision_completions
+
+    # Legacy: Vision client handles the loop directly when image is present
     mock_msg = MagicMock()
     mock_msg.content = "Mencatat bakso 30rb via vision model."
     mock_msg.tool_calls = None
@@ -246,12 +326,13 @@ async def test_llm_planner_two_step_vision_disabled():
     mock_resp.usage = MagicMock(prompt_tokens=100, completion_tokens=20)
     mock_resp.usage.prompt_tokens_details = None
 
-    mock_completions.side_effect = [mock_resp]
+    mock_vision_completions.side_effect = [mock_resp]
 
-    with patch("bot.llm.AsyncOpenAI", return_value=mock_client):
+    with patch("bot.llm.AsyncOpenAI", side_effect=[mock_text_client, mock_vision_client]):
         planner = LLMPlanner(
             api_key="fake-key",
-            base_url="https://fake.url",
+            base_url="https://fake-text.url",
+            vision_base_url="https://fake-vision.url",
             model="text-model",
             vision_model="vision-model",
             use_two_step_vision=False
@@ -267,9 +348,9 @@ async def test_llm_planner_two_step_vision_disabled():
     )
 
     assert result == "Mencatat bakso 30rb via vision model."
-    assert mock_completions.call_count == 1
+    assert mock_vision_completions.call_count == 1
+    assert mock_text_completions.call_count == 0
 
-    # Assert vision model was used for the main loop call
-    call_args = mock_completions.call_args_list[0]
+    # Assert vision model and vision client were used for the loop call
+    call_args = mock_vision_completions.call_args_list[0]
     assert call_args.kwargs["model"] == "vision-model"
-

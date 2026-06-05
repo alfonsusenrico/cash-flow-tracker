@@ -71,7 +71,8 @@ class BotApp:
             settings.deepseek_api_key,
             settings.deepseek_base_url,
             settings.deepseek_model,
-            settings.vision_model,
+            vision_model=settings.vision_model,
+            vision_base_url=settings.vision_base_url,
             use_two_step_vision=settings.use_two_step_vision,
         )
         # Create user preferences directory on initialization
@@ -163,6 +164,7 @@ class BotApp:
             image_mime = "image/jpeg"
 
         try:
+            history_saved = False
             # Load chronological chat history from store (limit to last 10 messages)
             history = await self.store.get_chat_history(telegram_user_id, limit=10)
 
@@ -819,11 +821,13 @@ class BotApp:
             if not response_text.strip():
                 response_text = "Tugas selesai dijalankan."
                 
-            db_response_text = response_text
+            await self.store.add_chat_history(telegram_user_id, "assistant", response_text)
+            
             if executed_tools_summary:
-                db_response_text += "\n\n[SYSTEM LOG: I have executed the following tools to fulfill this request:\n" + "\n".join(executed_tools_summary) + "]"
+                tool_log_content = "[Tool log: " + ", ".join(executed_tools_summary) + "]"
+                await self.store.add_chat_history(telegram_user_id, "system", tool_log_content)
                 
-            await self.store.add_chat_history(telegram_user_id, "assistant", db_response_text)
+            history_saved = True
 
             # Clean up double asterisks to single asterisks just in case
             formatted_text = response_text.replace("**", "*")
@@ -841,9 +845,29 @@ class BotApp:
 
         except FinanceError as e:
             await update.message.reply_text(f"❌ API error: {e.detail}")
+            if not history_saved:
+                try:
+                    await self.store.add_chat_history(telegram_user_id, "user", message_text or "[Photo receipt]")
+                    await self.store.add_chat_history(
+                        telegram_user_id,
+                        "assistant",
+                        f"[System: Request failed with error — API error: {e.detail}. User may retry.]"
+                    )
+                except Exception as hist_err:
+                    logger.error(f"Failed to save error chat history: {hist_err}")
         except Exception as e:
             logger.exception("Message handling failed")
             await update.message.reply_text(f"❌ Terjadi kesalahan: {str(e)}")
+            if not history_saved:
+                try:
+                    await self.store.add_chat_history(telegram_user_id, "user", message_text or "[Photo receipt]")
+                    await self.store.add_chat_history(
+                        telegram_user_id,
+                        "assistant",
+                        f"[System: Request failed with error — {str(e)}. User may retry.]"
+                    )
+                except Exception as hist_err:
+                    logger.error(f"Failed to save error chat history: {hist_err}")
 
     async def _summarize_history_if_needed(self, telegram_user_id: int) -> None:
         """

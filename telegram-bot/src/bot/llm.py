@@ -39,9 +39,11 @@ class LLMPlanner:
         base_url: str,
         model: str,
         vision_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        vision_base_url: str = "https://openrouter.ai/api/v1",
         use_two_step_vision: bool = True,
     ) -> None:
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self._vision_client = AsyncOpenAI(api_key=api_key, base_url=vision_base_url)
         self._model = model
         self._vision_model = vision_model
         self._use_two_step_vision = use_two_step_vision
@@ -77,11 +79,21 @@ class LLMPlanner:
 
         has_media = bool(image_bytes)
         if image_bytes and self._use_two_step_vision:
-            extracted_text = await self._extract_vision(image_bytes, image_mime, timeout=timeout)
-            if message_text:
-                message_text = f"{message_text}\n\n[Extracted from attached image:\n{extracted_text}]"
+            extracted_text, vision_success = await self._extract_vision(image_bytes, image_mime, timeout=timeout)
+            if vision_success:
+                if message_text:
+                    message_text = f"{message_text}\n\n[Extracted from attached image:\n{extracted_text}]"
+                else:
+                    message_text = f"[Extracted from attached image:\n{extracted_text}]"
             else:
-                message_text = f"[Extracted from attached image:\n{extracted_text}]"
+                failure_note = (
+                    "[The user attached a receipt/invoice image, but the vision system failed to extract text from it. "
+                    "Please inform the user that the image could not be processed and ask them to try again or type the details manually.]"
+                )
+                if message_text:
+                    message_text = f"{message_text}\n\n{failure_note}"
+                else:
+                    message_text = failure_note
             image_bytes = None
 
         context: dict[str, Any] = {
@@ -122,7 +134,12 @@ class LLMPlanner:
         # Seed the message list
         system_prompt = self._system_prompt
         if user_preferences:
-            system_prompt += f"\n\n## User Preferences\nFollow these custom rules and preferences specified by the user:\n{user_preferences}"
+            system_prompt += (
+                "\n\n## User Preferences (MANDATORY — OVERRIDE defaults)\n"
+                "The following are the user's personal rules and preferences. "
+                "These MUST be followed and take precedence over any conflicting default behavior:\n"
+                f"{user_preferences}"
+            )
 
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt}
@@ -167,10 +184,11 @@ class LLMPlanner:
 
             # Use vision model if image is present
             model_to_use = self._vision_model if image_bytes else self._model
+            client_to_use = self._vision_client if image_bytes else self._client
 
             try:
                 resp = await asyncio.wait_for(
-                    self._client.chat.completions.create(
+                    client_to_use.chat.completions.create(
                         model=model_to_use,
                         temperature=0,
                         messages=messages,
@@ -335,7 +353,7 @@ class LLMPlanner:
         image_bytes: bytes,
         image_mime: str,
         timeout: int = 120,
-    ) -> str:
+    ) -> tuple[str, bool]:
         """Call the vision model with the image to extract transaction details and text.
 
         This call is explicitly made without tools/tool_choice to ensure compatibility
@@ -361,7 +379,7 @@ class LLMPlanner:
 
         try:
             resp = await asyncio.wait_for(
-                self._client.chat.completions.create(
+                self._vision_client.chat.completions.create(
                     model=self._vision_model,
                     temperature=0,
                     messages=[
@@ -376,7 +394,7 @@ class LLMPlanner:
             )
             extracted_text = resp.choices[0].message.content or ""
             logger.info(f"Vision extraction finished. Extracted text length: {len(extracted_text)}")
-            return extracted_text
+            return extracted_text, True
         except Exception as exc:
             logger.error(f"Vision extraction failed: {exc}", exc_info=True)
-            return f"[Error extracting text from image: {exc}]"
+            return f"[Error extracting text from image: {exc}]", False
