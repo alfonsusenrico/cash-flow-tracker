@@ -652,8 +652,7 @@ async def update_obligation(obligation_id: str, req: Request):
                         amount=%s,
                         date=%s,
                         category_id=%s::uuid,
-                        notes=%s,
-                        updated_at=now()
+                        notes=%s
                     WHERE transaction_id=%s::uuid
                     """,
                     (
