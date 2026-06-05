@@ -381,7 +381,7 @@ class BotApp:
                     if image_bytes and not uploaded_receipt and tx_id:
                         try:
                             await self.finance.upload_receipt(
-                                api_key, tx_id, image_bytes, "receipt.jpg", "image/jpeg"
+                                api_key, tx_id, bytes(image_bytes), "receipt.jpg", "image/jpeg"
                             )
                             uploaded_receipt = True
                             msg_suffix = " with receipt image uploaded"
@@ -788,7 +788,7 @@ class BotApp:
                         })
                     try:
                         await self.finance.upload_receipt(
-                            api_key, transaction_id, image_bytes, "receipt.jpg", "image/jpeg"
+                            api_key, transaction_id, bytes(image_bytes), "receipt.jpg", "image/jpeg"
                         )
                         uploaded_receipt = True
                         return json.dumps({
