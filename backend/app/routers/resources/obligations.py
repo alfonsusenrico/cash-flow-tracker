@@ -526,6 +526,13 @@ async def update_obligation(obligation_id: str, req: Request):
 
         # Initial transaction management
         initial_tx_id = current.get("initial_transaction_id")
+        
+        original_tx_date = None
+        if initial_tx_id:
+            cur.execute("SELECT date FROM transactions WHERE transaction_id=%s::uuid", (initial_tx_id,))
+            row = cur.fetchone()
+            if row:
+                original_tx_date = row["date"]
 
         if initial_tx_id:
             if not default_account_id:
@@ -536,7 +543,7 @@ async def update_obligation(obligation_id: str, req: Request):
                         ensure_account_non_negative(
                             cur,
                             old_acc_id,
-                            parse_tx_datetime(current["issue_date"]),
+                            original_tx_date or parse_tx_datetime(current["issue_date"]),
                             exclude_tx_ids=[initial_tx_id]
                         )
 
@@ -571,10 +578,13 @@ async def update_obligation(obligation_id: str, req: Request):
                 old_acc_id = current["default_account_id"]
                 lock_accounts_for_update(cur, username, [old_acc_id, default_account_id])
 
-                if issue_date == now_local().date():
+                if issue_date == current["issue_date"] and original_tx_date:
+                    tx_date = original_tx_date
+                elif issue_date == now_local().date():
                     tx_date = now_utc()
                 else:
                     tx_date = parse_date_utc(issue_date.isoformat(), end_of_day=True)
+                    
                 tx_type = "credit" if kind == "receivable" else "debit"
 
                 cp_name = "counterparty"
@@ -603,7 +613,7 @@ async def update_obligation(obligation_id: str, req: Request):
                         ensure_account_non_negative(
                             cur,
                             old_acc_id,
-                            parse_tx_datetime(current["issue_date"]),
+                            original_tx_date or parse_tx_datetime(current["issue_date"]),
                             exclude_tx_ids=[initial_tx_id]
                         )
                     if tx_type == "credit":
@@ -623,7 +633,7 @@ async def update_obligation(obligation_id: str, req: Request):
                     ensure_account_non_negative(
                         cur,
                         default_account_id,
-                        min(parse_tx_datetime(current["issue_date"]), tx_date),
+                        min(original_tx_date or parse_tx_datetime(current["issue_date"]), tx_date),
                         new_rows=[{
                             "transaction_id": initial_tx_id,
                             "date": tx_date,
