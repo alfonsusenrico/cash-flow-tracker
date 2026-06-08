@@ -834,6 +834,29 @@ class BotApp:
                     "settle_obligation": _tool_settle_obligation,
                     "upload_receipt_to_transaction": _tool_upload_receipt_to_transaction,
                 }
+                intermediate_msg = None
+
+                async def _on_intermediate_text(text: str) -> None:
+                    nonlocal intermediate_msg
+                    display_text = f"⏳ *Mikir dulu...*\n\n{text}"
+                    display_text = display_text.replace("**", "*")
+                    if len(display_text) > 4000:
+                        display_text = display_text[:4000] + "..."
+                        
+                    try:
+                        if not intermediate_msg:
+                            intermediate_msg = await update.message.reply_text(
+                                display_text,
+                                parse_mode="Markdown",
+                                reply_to_message_id=update.message.message_id
+                            )
+                        else:
+                            await intermediate_msg.edit_text(
+                                display_text,
+                                parse_mode="Markdown",
+                            )
+                    except Exception as e:
+                        logger.warning(f"Failed to update intermediate text: {e}")
 
                 # Call LLM to propose action (agentic loop)
                 response_text, executed_tools_summary = await self.llm.propose(
@@ -848,6 +871,7 @@ class BotApp:
                     timeout=self.settings.llm_timeout,
                     tool_executors=tool_executors,
                     user_preferences=user_prefs,
+                    on_intermediate_text=_on_intermediate_text,
                 )
 
             # Save the user message and assistant natural text response to chat history
@@ -869,18 +893,27 @@ class BotApp:
             
             # Reply to user with Markdown parsing and robust fallback
             try:
-                await update.message.reply_text(
-                    formatted_text, 
-                    parse_mode="Markdown",
-                    reply_to_message_id=update.message.message_id
-                )
+                if intermediate_msg:
+                    await intermediate_msg.edit_text(
+                        formatted_text,
+                        parse_mode="Markdown",
+                    )
+                else:
+                    await update.message.reply_text(
+                        formatted_text, 
+                        parse_mode="Markdown",
+                        reply_to_message_id=update.message.message_id
+                    )
             except Exception as e:
                 logger.warning(f"Failed to send message with Markdown formatting: {e}")
                 # Fallback to plain text response
-                await update.message.reply_text(
-                    response_text,
-                    reply_to_message_id=update.message.message_id
-                )
+                if intermediate_msg:
+                    await intermediate_msg.edit_text(formatted_text)
+                else:
+                    await update.message.reply_text(
+                        formatted_text,
+                        reply_to_message_id=update.message.message_id
+                    )
 
             # Trigger background task for history summarization to manage token size
             asyncio.create_task(self._summarize_history_if_needed(telegram_user_id))

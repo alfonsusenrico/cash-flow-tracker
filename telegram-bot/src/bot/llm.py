@@ -67,6 +67,7 @@ class LLMPlanner:
         timeout: int = 120,
         tool_executors: dict[str, ToolFunc] | None = None,
         user_preferences: str | None = None,
+        on_intermediate_text: Callable[[str], Awaitable[None]] | None = None,
     ) -> tuple[str, list[str]]:
         """Run the agentic propose loop.
 
@@ -234,6 +235,14 @@ class LLMPlanner:
                 return raw, executed_tools_summary
 
             # ---- Tool calls: execute each and feed results back -------
+            if on_intermediate_text and msg.content:
+                text_content = msg.content.strip()
+                if text_content:
+                    try:
+                        await on_intermediate_text(text_content)
+                    except Exception as exc:
+                        logger.warning(f"Failed to call on_intermediate_text: {exc}")
+                        
             tool_call_details = [
                 f"{tc.function.name}({tc.function.arguments})" for tc in msg.tool_calls
             ]
