@@ -161,6 +161,12 @@ class BotApp:
 
         # Extract message text and image
         message_text = update.message.text or update.message.caption or ""
+        
+        # If the user is using the Telegram reply feature, include the quoted text
+        if update.message.reply_to_message:
+            replied_text = update.message.reply_to_message.text or update.message.reply_to_message.caption or ""
+            if replied_text:
+                message_text = f'[Replying to message: "{replied_text}"]\n\n{message_text}'
         image_bytes: bytes | None = None
         image_mime = "image/jpeg"
 
