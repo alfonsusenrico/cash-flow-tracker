@@ -4,10 +4,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import httpx
+from aiohttp import web
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -1029,6 +1031,9 @@ async def main() -> None:
         application.add_handler(CallbackQueryHandler(app_instance.handle_callback))
 
         # Start webhook with fallback to polling
+        webhook_url: str | None = None
+        watchdog_task: asyncio.Task | None = None
+
         if settings.telegram_webhook_url:
             try:
                 logger.info(f"Starting webhook on {settings.webhook_listen}:{settings.webhook_port}")
@@ -1045,6 +1050,17 @@ async def main() -> None:
                     webhook_url=webhook_url,
                 )
                 logger.info("Bot is running with webhook!")
+
+                # Start webhook watchdog
+                watchdog_task = asyncio.create_task(
+                    _webhook_watchdog(
+                        bot=application.bot,
+                        expected_url=webhook_url,
+                        secret_token=settings.telegram_webhook_secret,
+                    )
+                )
+                logger.info("Webhook watchdog started (interval=300s)")
+
             except Exception as e:
                 logger.warning(f"Failed to start webhook, falling back to polling: {e}")
                 try:
@@ -1079,13 +1095,103 @@ async def main() -> None:
             await application.start()
             await application.updater.start_polling()
             logger.info("Bot is running with polling!")
-            
+
+        # Start health endpoint for Docker healthcheck
+        health_state = {"webhook_url": webhook_url, "started_at": time.time(), "watchdog_ok": True}
+        health_runner = await _start_health_server(health_state)
+
         # Keep running
         await asyncio.Event().wait()
         
     finally:
+        if watchdog_task:
+            watchdog_task.cancel()
+        if health_runner:
+            await health_runner.cleanup()
         await close_pool()
         await app_instance.http.aclose()
+
+
+async def _webhook_watchdog(
+    bot,
+    expected_url: str,
+    secret_token: str,
+    interval: int = 300,
+) -> None:
+    """Periodically verify the Telegram webhook is still registered.
+
+    If the webhook URL is empty or different from expected, re-register it.
+    Runs every `interval` seconds (default 5 minutes).
+    """
+    logger.info(f"Webhook watchdog: expecting URL={expected_url}")
+    consecutive_failures = 0
+
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            info = await bot.get_webhook_info()
+            current_url = info.url or ""
+
+            if current_url == expected_url:
+                consecutive_failures = 0
+                logger.debug("Webhook watchdog: OK")
+                continue
+
+            # Webhook is missing or wrong!
+            logger.warning(
+                f"Webhook watchdog: URL mismatch! "
+                f"expected={expected_url!r}, got={current_url!r}. "
+                f"Re-registering webhook..."
+            )
+            await bot.set_webhook(
+                url=expected_url,
+                secret_token=secret_token,
+            )
+
+            # Verify it took effect
+            verify = await bot.get_webhook_info()
+            if (verify.url or "") == expected_url:
+                logger.info("Webhook watchdog: re-registered successfully ✓")
+                consecutive_failures = 0
+            else:
+                consecutive_failures += 1
+                logger.error(
+                    f"Webhook watchdog: re-registration FAILED "
+                    f"(attempt {consecutive_failures}). "
+                    f"URL is still {verify.url!r}"
+                )
+
+        except asyncio.CancelledError:
+            logger.info("Webhook watchdog: stopped")
+            raise
+        except Exception:
+            consecutive_failures += 1
+            logger.exception(
+                f"Webhook watchdog: error checking webhook "
+                f"(consecutive failures: {consecutive_failures})"
+            )
+
+
+async def _start_health_server(state: dict, port: int = 8082) -> web.AppRunner:
+    """Start a tiny HTTP server on `port` for Docker healthcheck.
+
+    GET /healthz returns 200 if the bot process is alive.
+    """
+    async def healthz(request: web.Request) -> web.Response:
+        uptime = int(time.time() - state["started_at"])
+        return web.json_response(
+            {"status": "ok", "uptime_seconds": uptime, "webhook_url": state.get("webhook_url", "")},
+            status=200,
+        )
+
+    app = web.Application()
+    app.router.add_get("/healthz", healthz)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logger.info(f"Health endpoint listening on 0.0.0.0:{port}/healthz")
+    return runner
 
 
 if __name__ == "__main__":
