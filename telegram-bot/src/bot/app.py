@@ -919,8 +919,7 @@ class BotApp:
                         if not intermediate_msg:
                             intermediate_msg = await update.message.reply_text(
                                 display_text,
-                                parse_mode="Markdown",
-                                reply_to_message_id=update.message.message_id
+                                parse_mode="Markdown"
                             )
                         else:
                             await intermediate_msg.edit_text(
@@ -973,8 +972,7 @@ class BotApp:
                 else:
                     await update.message.reply_text(
                         formatted_text, 
-                        parse_mode="Markdown",
-                        reply_to_message_id=update.message.message_id
+                        parse_mode="Markdown"
                     )
             except Exception as e:
                 logger.warning(f"Failed to send message with Markdown formatting: {e}")
@@ -983,8 +981,7 @@ class BotApp:
                     await intermediate_msg.edit_text(formatted_text)
                 else:
                     await update.message.reply_text(
-                        formatted_text,
-                        reply_to_message_id=update.message.message_id
+                        formatted_text
                     )
 
             # Trigger background task for history summarization to manage token size
@@ -992,8 +989,7 @@ class BotApp:
 
         except FinanceError as e:
             await update.message.reply_text(
-                f"❌ API error: {e.detail}",
-                reply_to_message_id=update.message.message_id
+                f"❌ API error: {e.detail}"
             )
             if not history_saved:
                 try:
