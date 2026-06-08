@@ -87,6 +87,9 @@ class BotApp:
             except OSError:
                 pass
 
+        self._message_buffers: dict[int, list[dict]] = {}
+        self._message_timers: dict[int, asyncio.Task] = {}
+
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /start command."""
         await update.message.reply_text(
@@ -147,7 +150,7 @@ class BotApp:
         logger.info(f"User {telegram_user_id} cleared their chat history")
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle text/photo messages."""
+        """Handle text/photo messages with a debounce buffer to merge rapid inputs."""
         telegram_user_id = update.effective_user.id
         chat_id = update.effective_chat.id
 
@@ -177,6 +180,69 @@ class BotApp:
             image_bytes = await file.download_as_bytearray()
             image_mime = "image/jpeg"
 
+        # Buffer the message parts
+        if telegram_user_id not in self._message_buffers:
+            self._message_buffers[telegram_user_id] = []
+            
+        self._message_buffers[telegram_user_id].append({
+            "text": message_text,
+            "image_bytes": image_bytes,
+            "image_mime": image_mime,
+            "update": update
+        })
+
+        # Cancel existing timer if any
+        if telegram_user_id in self._message_timers:
+            self._message_timers[telegram_user_id].cancel()
+            
+        # Start a new 2.5-second debounce timer
+        self._message_timers[telegram_user_id] = asyncio.create_task(
+            self._process_buffered_messages(telegram_user_id, chat_id, api_key, context)
+        )
+
+    async def _process_buffered_messages(self, telegram_user_id: int, chat_id: int, api_key: str, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Wait for debounce period, then merge all buffered messages and process."""
+        try:
+            await asyncio.sleep(2.5)
+        except asyncio.CancelledError:
+            # Cancelled because another message arrived, wait for that one to finish debouncing
+            return
+            
+        # Time's up! Grab the buffer
+        buffer = self._message_buffers.pop(telegram_user_id, [])
+        if telegram_user_id in self._message_timers:
+            del self._message_timers[telegram_user_id]
+            
+        if not buffer:
+            return
+            
+        # Merge texts (exclude empty)
+        texts = [b["text"] for b in buffer if b["text"]]
+        merged_text = "\n\n".join(texts)
+        
+        # Take the last image uploaded in the buffer sequence
+        last_image_bytes = next((b["image_bytes"] for b in reversed(buffer) if b["image_bytes"]), None)
+        last_image_mime = next((b["image_mime"] for b in reversed(buffer) if b["image_bytes"]), "image/jpeg")
+        
+        # Reply to the very last update
+        last_update = buffer[-1]["update"]
+        
+        await self._process_merged_message(
+            telegram_user_id, chat_id, api_key, merged_text, last_image_bytes, last_image_mime, last_update, context
+        )
+
+    async def _process_merged_message(
+        self, 
+        telegram_user_id: int, 
+        chat_id: int, 
+        api_key: str, 
+        message_text: str, 
+        image_bytes: bytes | None, 
+        image_mime: str, 
+        update: Update, 
+        context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """Original handle_message logic applied to merged input."""
         try:
             history_saved = False
             # Load chronological chat history from store (limit to last 10 messages)
