@@ -43,7 +43,7 @@ Required variables:
 ```env
 # Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
-TELEGRAM_WEBHOOK_URL=https://your-domain.com/telegram/webhook
+TELEGRAM_WEBHOOK_URL=https://telegram-webhook.your-domain.com/cash-flow-tracker
 TELEGRAM_WEBHOOK_SECRET=random_secret_string
 
 # DeepSeek LLM Configuration
@@ -96,16 +96,17 @@ python main.py
 
 ### 5. Set Up Webhook
 
-The bot uses webhooks for receiving updates. Ensure your `TELEGRAM_WEBHOOK_URL` is:
+The bot appends `/telegram/webhook` to `TELEGRAM_WEBHOOK_URL`. Ensure the configured base URL is:
 - Publicly accessible via HTTPS
-- Points to `/telegram/webhook` endpoint
-- Configured in nginx (already done in `nginx/default.conf`)
+- Unique to this project, such as `https://telegram-webhook.your-domain.com/cash-flow-tracker`
+- Routed by Cloudflare to the web service
+- Configured in nginx to forward `/cash-flow-tracker/telegram/webhook` to the bot's internal `/telegram/webhook` endpoint
 
 For local development with ngrok:
 
 ```bash
 ngrok http 8090
-# Use the HTTPS URL: https://xxxxx.ngrok.io/telegram/webhook
+# Use TELEGRAM_WEBHOOK_URL=https://xxxxx.ngrok.io/cash-flow-tracker
 ```
 
 ## Usage

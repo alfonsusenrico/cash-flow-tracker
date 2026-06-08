@@ -225,7 +225,7 @@ echo "BOT_SECRET=${BOT_SECRET}"
 ```bash
 # Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
-TELEGRAM_WEBHOOK_URL=https://telegram-webhook.your-domain.com
+TELEGRAM_WEBHOOK_URL=https://telegram-webhook.your-domain.com/cash-flow-tracker
 TELEGRAM_WEBHOOK_SECRET=<generated_webhook_secret>
 
 # DeepSeek LLM Configuration
@@ -241,6 +241,7 @@ CONFIDENCE_THRESHOLD=0.75
 ```
 
 **Important:** 
+- `TELEGRAM_WEBHOOK_URL`: Public base URL for this project. The bot appends `/telegram/webhook`, producing `/cash-flow-tracker/telegram/webhook`.
 - `TELEGRAM_WEBHOOK_SECRET`: Random string that validates webhook requests from Telegram
 - `BOT_SECRET`: Fernet encryption key (44 chars, base64) that encrypts API keys in database
 
@@ -248,6 +249,22 @@ CONFIDENCE_THRESHOLD=0.75
 
 ```bash
 docker compose up -d telegram-bot
+```
+
+When changing the webhook hostname or path, recreate both the bot and web
+services so Telegram registration and Nginx routing change together:
+
+```bash
+docker compose up -d --build telegram-bot web
+```
+
+For the shared production webhook hostname, route only this project's path to
+the cash-flow-tracker web service:
+
+```yaml
+- hostname: telegram-webhook.alfonsusenrico.com
+  path: ^/cash-flow-tracker/telegram/webhook$
+  service: http://127.0.0.1:8090
 ```
 
 5. **Link your account**:
