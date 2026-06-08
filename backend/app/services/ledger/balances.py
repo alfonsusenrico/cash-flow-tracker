@@ -86,8 +86,13 @@ def ensure_account_non_negative(
     cur.execute(sql, params)
     rows = list(cur.fetchall())
     if new_rows:
+        for nr in new_rows:
+            nr["_is_new"] = True
         rows.extend(new_rows)
-    rows.sort(key=lambda r: (r["date"], str(r["transaction_id"])))
+    # Sort by (date, is_new, transaction_id). New rows sort after existing
+    # rows on the same date so that existing income is counted before a new
+    # withdrawal — prevents false "Insufficient balance" rejections.
+    rows.sort(key=lambda r: (r["date"], r.get("_is_new", False), str(r["transaction_id"])))
     balance = start_balance
     for row in rows:
         signed = int(row.get("amount") or 0)
