@@ -124,7 +124,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "date": {
                         "type": "string",
-                        "description": "Optional: date of transaction in YYYY-MM-DD format. Default is today.",
+                        "description": "Optional: date/time of transaction in ISO 8601 format WITH timezone offset (e.g., '2026-06-08T17:30:00+07:00'). You MUST include the timezone offset based on the user's context. Default is right now.",
                     },
                 },
                 "required": ["type", "amount", "name", "account_name"],
@@ -155,7 +155,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "date": {
                         "type": "string",
-                        "description": "Optional: date of transfer in YYYY-MM-DD format. Default is today.",
+                        "description": "Optional: date/time of transfer in ISO 8601 format WITH timezone offset (e.g., '2026-06-08T17:30:00+07:00'). You MUST include the timezone offset based on the user's context. Default is right now.",
                     },
                 },
                 "required": ["amount", "source_account_name", "target_account_name"],
@@ -222,7 +222,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "date": {
                         "type": "string",
-                        "description": "Updated date in YYYY-MM-DD format.",
+                        "description": "Updated date/time in ISO 8601 format WITH timezone offset (e.g., '2026-06-08T17:30:00+07:00').",
                     },
                 },
                 "required": ["transaction_id"],
@@ -375,7 +375,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "date": {
                         "type": "string",
-                        "description": "The updated date (YYYY-MM-DD).",
+                        "description": "The updated date/time in ISO 8601 format WITH timezone offset (e.g., '2026-06-08T17:30:00+07:00').",
                     }
                 },
                 "required": ["transfer_id"]
@@ -746,7 +746,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "date": {
                         "type": "string",
-                        "description": "Optional: Date of the payment in YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS format (defaults to current time)."
+                        "description": "Optional: Date of the payment in ISO 8601 format WITH timezone offset (e.g., '2026-06-08T17:30:00+07:00'). Defaults to right now.",
                     },
                     "notes": {
                         "type": "string",
