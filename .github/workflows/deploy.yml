@@ -1,0 +1,102 @@
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Build & Test Preflight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Backend Dependencies & Run Pytest
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt pytest httpx
+          cd backend && python -m pytest tests/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Frontend Dependencies & Run Quality Checks
+        run: |
+          cd frontend
+          npm ci
+          npm run type-check
+          npm run lint
+          npm run build
+
+      - name: Validate Docker Compose Configuration
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+
+  deploy:
+    name: Deploy to Production Server
+    needs: [preflight]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Connect to Tailscale Network
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/deploy_key
+
+      - name: Materialize Runtime Environment
+        run: |
+          python3 scripts/materialize_runtime_env.py --output runtime.env
+        env:
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          INVITE_CODE: ${{ secrets.INVITE_CODE }}
+          COOKIE_SECURE: "true"
+          APP_ORIGINS: ${{ secrets.APP_ORIGINS || 'https://finance.alfonsusenrico.com,http://localhost:8090,http://127.0.0.1:8090' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          BOT_SECRET: ${{ secrets.BOT_SECRET }}
+
+      - name: Package Commit Archive
+        run: |
+          git archive --format=tar.gz --output="cash-flow-tracker-${{ github.sha }}.tar.gz" "${{ github.sha }}"
+
+      - name: Execute Remote Deployment
+        run: |
+          ./scripts/deploy_remote_release.sh
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || '100.85.113.31' }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'enr1c0' }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || 22 }}
+          DEPLOY_ROOT: ${{ secrets.DEPLOY_ROOT || '/opt/cash-flow-tracker' }}
+          CI_COMMIT_SHA: ${{ github.sha }}
+          RUNTIME_ENV_FILE: runtime.env
+          RELEASE_SOURCE_ARCHIVE: cash-flow-tracker-${{ github.sha }}.tar.gz

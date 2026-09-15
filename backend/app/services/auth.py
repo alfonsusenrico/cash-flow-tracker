@@ -1,268 +1,168 @@
 import hashlib
 import ipaddress
 import secrets
-import threading
-from queue import Full, Queue
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
 from passlib.hash import bcrypt
 
 from app.core.config import settings
+from app.db.init_db import seed_user_defaults
 from app.db.pool import db_conn
-from app.services.categories import seed_default_categories
-from app.services.state import rate_limiter
-
-_TOUCH_QUEUE: Queue[str] = Queue(maxsize=10000)
-_TOUCH_WORKER_STARTED = False
-_TOUCH_WORKER_LOCK = threading.Lock()
 
 
-def _touch_api_key_last_used(token_hash: str) -> None:
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            "UPDATE api_keys SET last_used_at=%s WHERE key_hash=%s",
-            (datetime.now(timezone.utc), token_hash),
-        )
-        conn.commit()
+def hash_token(plain: str) -> str:
+    return hashlib.sha256(plain.encode("utf-8")).hexdigest()
 
 
-def _touch_worker() -> None:
-    while True:
-        token_hash = _TOUCH_QUEUE.get()
-        try:
-            _touch_api_key_last_used(token_hash)
-        except Exception:
-            # Ignore touch failures; auth validity has already been checked.
-            pass
-        finally:
-            _TOUCH_QUEUE.task_done()
-
-
-def _ensure_touch_worker() -> None:
-    global _TOUCH_WORKER_STARTED
-    if _TOUCH_WORKER_STARTED:
-        return
-    with _TOUCH_WORKER_LOCK:
-        if _TOUCH_WORKER_STARTED:
-            return
-        worker = threading.Thread(target=_touch_worker, name="api-key-last-used-touch", daemon=True)
-        worker.start()
-        _TOUCH_WORKER_STARTED = True
-
-
-def queue_api_key_touch(token_hash: str) -> None:
-    _ensure_touch_worker()
-    try:
-        _TOUCH_QUEUE.put_nowait(token_hash)
-    except Full:
-        # Avoid blocking request thread if queue is full.
-        pass
+def generate_api_key() -> tuple[str, str, str]:
+    """Returns (plain_token, key_hash, key_prefix)"""
+    plain = f"cfk_{secrets.token_urlsafe(32)}"
+    key_hash = hash_token(plain)
+    key_prefix = plain[:8]
+    return plain, key_hash, key_prefix
 
 
 def get_client_ip(req: Request) -> str:
     if req.client:
-        if _is_trusted_proxy(req.client.host):
-            real_ip = _valid_ip_or_none(req.headers.get("x-real-ip"))
-            if real_ip:
-                return real_ip
-            forwarded = req.headers.get("x-forwarded-for", "")
-            if forwarded:
-                parts = [_valid_ip_or_none(part) for part in forwarded.split(",")]
-                valid_parts = [part for part in parts if part]
-                if valid_parts:
-                    return valid_parts[-1]
         return req.client.host
     return "unknown"
 
 
-def _valid_ip_or_none(value: str | None) -> str | None:
-    raw = (value or "").strip()
-    if not raw:
-        return None
-    try:
-        return str(ipaddress.ip_address(raw))
-    except ValueError:
-        return None
-
-
-def _is_trusted_proxy(host: str) -> bool:
-    try:
-        client_ip = ipaddress.ip_address(host)
-    except ValueError:
-        return False
-    for cidr in settings.trusted_proxy_cidrs:
-        try:
-            if client_ip in ipaddress.ip_network(cidr, strict=False):
-                return True
-        except ValueError:
-            continue
-    return False
-
-
-def require_session_user(req: Request) -> str:
-    username = (req.session or {}).get("username")
+def register_user(username: str, password: str, invite_code: str) -> dict[str, Any]:
+    username = username.strip().lower()
     if not username:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return username
-
-
-def _new_api_key() -> tuple[str, str]:
-    plain = f"cfk_{secrets.token_urlsafe(32)}"
-    key_hash = hashlib.sha256(plain.encode("utf-8")).hexdigest()
-    return plain, key_hash
-
-
-def mask_api_key(plain: str) -> str:
-    visible = max(6, len(plain) // 2)
-    if visible >= len(plain):
-        visible = max(1, len(plain) - 1)
-    return plain[:visible] + ("*" * (len(plain) - visible))
-
-
-def create_api_key(cur, username: str, label: str = "default") -> str:
-    plain, key_hash = _new_api_key()
-    key_masked = mask_api_key(plain)
-    # Keep single-key policy: revoke current active key before creating a new one.
-    cur.execute(
-        """
-        UPDATE api_keys
-        SET revoked_at=%s
-        WHERE username=%s AND revoked_at IS NULL
-        """,
-        (datetime.now(timezone.utc), username),
-    )
-    cur.execute(
-        """
-        INSERT INTO api_keys (user_id, username, key_hash, key_prefix, key_masked, label)
-        SELECT user_id, %s, %s, %s, %s, %s FROM users WHERE username=%s
-        """,
-        (username, key_hash, plain[:12], key_masked, label, username),
-    )
-    return plain
-
-
-def get_active_api_key(cur, username: str) -> dict[str, Any] | None:
-    cur.execute(
-        """
-        SELECT api_key_id::text AS api_key_id,
-               key_masked,
-               created_at,
-               last_used_at
-        FROM api_keys
-        WHERE username=%s AND revoked_at IS NULL
-        ORDER BY created_at DESC
-        LIMIT 1
-        """,
-        (username,),
-    )
-    return cur.fetchone()
-
-
-def parse_bearer_token(req: Request) -> str:
-    header = req.headers.get("authorization", "")
-    parts = header.split(" ", 1)
-    if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1].strip():
-        raise HTTPException(status_code=401, detail="Missing API key")
-    return parts[1].strip()
-
-
-def get_api_user_by_token(token: str) -> str:
-    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT k.username
-            FROM api_keys k
-            WHERE k.key_hash=%s AND k.revoked_at IS NULL
-            """,
-            (token_hash,),
-        )
-        row = cur.fetchone()
-        if not row:
-            raise HTTPException(status_code=401, detail="Invalid API key")
-    queue_api_key_touch(token_hash)
-    return row["username"]
-
-
-def require_api_user(req: Request) -> str:
-    token = parse_bearer_token(req)
-    return get_api_user_by_token(token)
-
-
-def enforce_register_rate_limit(req: Request) -> None:
-    client_ip = get_client_ip(req)
-    if rate_limiter.exceeded(
-        f"register:ip:{client_ip}",
-        settings.register_rate_limit,
-        settings.register_rate_window,
-    ):
-        raise HTTPException(status_code=429, detail="Too many registration attempts. Try again later.")
-
-
-def enforce_login_rate_limit(req: Request, username: str) -> None:
-    client_ip = get_client_ip(req)
-    if rate_limiter.exceeded(f"login:ip:{client_ip}", settings.login_rate_limit, settings.login_rate_window):
-        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
-    if rate_limiter.exceeded(
-        f"login:user:{username}",
-        settings.login_user_rate_limit,
-        settings.login_rate_window,
-    ):
-        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
-
-
-def clear_login_rate_limit(req: Request, username: str) -> None:
-    client_ip = get_client_ip(req)
-    rate_limiter.reset(f"login:ip:{client_ip}", f"login:user:{username}")
-
-
-def enforce_public_rate_limit(req: Request, key: str) -> None:
-    key_hash = hashlib.sha256(key.encode("utf-8")).hexdigest()[:24]
-    client_ip = get_client_ip(req)
-    if rate_limiter.exceeded(
-        f"public:key:{key_hash}",
-        settings.public_rate_limit,
-        settings.public_rate_window,
-    ):
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    if rate_limiter.exceeded(
-        f"public:ip:{client_ip}",
-        settings.public_rate_limit,
-        settings.public_rate_window,
-    ):
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-
-
-def register_user(cur, data: dict[str, Any]) -> tuple[str, str, str]:
-    invite_code = (data.get("invite_code") or "").strip()
-    if not settings.invite_code:
-        raise HTTPException(status_code=403, detail="Registration disabled")
-    if invite_code != settings.invite_code:
-        raise HTTPException(status_code=403, detail="Invalid invite code")
-
-    username = (data.get("username") or "").strip()
-    password = (data.get("password") or "").strip()
-    if not username or not password:
-        raise HTTPException(status_code=400, detail="username and password required")
-    if not settings.username_re.fullmatch(username):
+        raise HTTPException(status_code=400, detail="Username is required")
+    if len(password) < settings.password_min_len:
         raise HTTPException(
             status_code=400,
-            detail="Invalid username. Use 3-32 chars: letters, numbers, dot, underscore, or hyphen.",
+            detail=f"Password must be at least {settings.password_min_len} characters",
         )
-    if len(password) < settings.password_min_len:
-        raise HTTPException(status_code=400, detail=f"Password too short (min {settings.password_min_len})")
-    if len(password.encode("utf-8")) > 72:
-        raise HTTPException(status_code=400, detail="Password too long (max 72 bytes)")
+    if invite_code != settings.invite_code:
+        raise HTTPException(status_code=400, detail="Invalid invite code")
 
-    full_name = (data.get("full_name") or "").strip() or username
-    pw_hash = bcrypt.hash(password)
+    password_hash = bcrypt.hash(password)
+    plain_key, key_hash, key_prefix = generate_api_key()
 
-    cur.execute(
-        "INSERT INTO users (username, password_hash, full_name) VALUES (%s, %s, %s)",
-        (username, pw_hash, full_name),
-    )
-    seed_default_categories(cur, username)
-    api_key = create_api_key(cur, username, "initial")
-    return username, full_name, api_key
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            # Check unique username
+            cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+            if cur.fetchone():
+                raise HTTPException(status_code=409, detail="Username already exists")
+
+            cur.execute(
+                """
+                INSERT INTO users (username, password_hash, invite_code)
+                VALUES (%s, %s, %s)
+                RETURNING id, username, payday_day, currency, created_at
+                """,
+                (username, password_hash, invite_code),
+            )
+            user = cur.fetchone()
+            user_id = str(user["id"])
+
+            # Create default API key
+            cur.execute(
+                """
+                INSERT INTO api_keys (user_id, key_hash, key_prefix)
+                VALUES (%s, %s, %s)
+                """,
+                (user_id, key_hash, key_prefix),
+            )
+            conn.commit()
+
+    # Seed starter categories and default accounts
+    seed_user_defaults(user_id)
+
+    return {
+        "id": user_id,
+        "username": user["username"],
+        "payday_day": user["payday_day"],
+        "currency": user["currency"],
+        "api_key": plain_key,
+    }
+
+
+def authenticate_user(username: str, password: str) -> dict[str, Any]:
+    username = username.strip().lower()
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, username, password_hash, payday_day, currency FROM users WHERE username = %s",
+                (username,),
+            )
+            user = cur.fetchone()
+
+    if not user or not bcrypt.verify(password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    return {
+        "id": str(user["id"]),
+        "username": user["username"],
+        "payday_day": user["payday_day"],
+        "currency": user["currency"],
+    }
+
+
+def get_current_user(request: Request) -> dict[str, Any]:
+    """Unified auth dependency supporting Session Cookie and Bearer API Token."""
+    # 1. Try session cookie
+    session = getattr(request, "session", None)
+    if session and "user_id" in session:
+        user_id = session["user_id"]
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, username, name, payday_day, currency, emergency_fund_multiplier, monthly_spending_budget FROM users WHERE id = %s",
+                    (user_id,),
+                )
+                user = cur.fetchone()
+                if user:
+                    return {
+                        "id": str(user["id"]),
+                        "username": user["username"],
+                        "name": user.get("name") or user["username"],
+                        "payday_day": user["payday_day"],
+                        "currency": user["currency"],
+                        "emergency_fund_multiplier": user.get("emergency_fund_multiplier", 6),
+                        "monthly_spending_budget": user.get("monthly_spending_budget"),
+                    }
+
+    # 2. Try Bearer API Token
+    auth_header = request.headers.get("Authorization", "").strip()
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+        if token:
+            token_hash = hash_token(token)
+            with db_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT u.id, u.username, u.name, u.payday_day, u.currency, u.emergency_fund_multiplier, u.monthly_spending_budget, k.id AS key_id
+                        FROM api_keys k
+                        JOIN users u ON u.id = k.user_id
+                        WHERE k.key_hash = %s
+                        """,
+                        (token_hash,),
+                    )
+                    user = cur.fetchone()
+                    if user:
+                        # Touch last_used_at asynchronously/inline
+                        cur.execute(
+                            "UPDATE api_keys SET last_used_at = NOW() WHERE id = %s",
+                            (user["key_id"],),
+                        )
+                        conn.commit()
+                        return {
+                            "id": str(user["id"]),
+                            "username": user["username"],
+                            "name": user.get("name") or user["username"],
+                            "payday_day": user["payday_day"],
+                            "currency": user["currency"],
+                            "emergency_fund_multiplier": user.get("emergency_fund_multiplier", 6),
+                            "monthly_spending_budget": user.get("monthly_spending_budget"),
+                        }
+
+    raise HTTPException(status_code=401, detail="Not authenticated")

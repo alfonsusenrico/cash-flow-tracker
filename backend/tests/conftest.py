@@ -17,6 +17,14 @@ import os
 import subprocess
 import pathlib
 from uuid import uuid4
+
+# Set default test environment variables before any app modules are imported
+os.environ.setdefault("DATABASE_URL", "postgresql://ledger:ledgerpass@localhost:5432/ledger_test")
+os.environ.setdefault("SESSION_SECRET", "test-secret-for-pytest")
+os.environ.setdefault("INVITE_CODE", "TESTCODE")
+os.environ.setdefault("COOKIE_SECURE", "false")
+os.environ.setdefault("REDIS_URL", "")
+
 import pytest
 from fastapi.testclient import TestClient
 

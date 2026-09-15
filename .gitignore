@@ -10,8 +10,6 @@ frontend/node_modules/
 frontend/.next/
 frontend/.env.local
 frontend/*.tsbuildinfo
-scripts/
-docs/
 .bob/
 telegram-bot/.pytest_cache/
 telegram-bot/src/bot/__pycache__/

@@ -1,27 +1,38 @@
 "use client";
-import { useState } from "react";
-import { api } from "@/lib/api";
+
+import { usePathname } from "next/navigation";
 import { useAppCtx } from "@/components/layout/AppLayout";
-import { SettingsModal } from "@/components/ui/SettingsModal";
 import { Icon } from "@/components/ui/Icon";
 
 interface TopBarProps {
-  title: string;
-  showDateRange?: boolean;
+  onToggleMobileMenu: () => void;
+  onQuickAdd?: () => void;
+  onOpenSettings?: () => void;
 }
 
-export function TopBar({ title, showDateRange = true }: TopBarProps) {
-  const { hideBalances, setHideBalances, theme, setTheme, paydayDay, paydaySource, summaryRange, user } = useAppCtx();
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+const TITLES: Record<string, { title: string; subtitle: string }> = {
+  "/": { title: "Beranda", subtitle: "Pantauan Keuangan & Arus Kas Harian" },
+  "/ledger": { title: "Transaksi", subtitle: "Riwayat & Catatan Keuangan Lengkap" },
+  "/insights": { title: "Analisis", subtitle: "Laporan Pengeluaran & Anggaran" },
+  "/accounts": { title: "Rekening & Saldo", subtitle: "Daftar Rekening, Dompet Digital & Tunai" },
+  "/goals": { title: "Target & Tagihan", subtitle: "Target Tabungan & Rencana Pembayaran" },
+};
 
-  async function logout() {
-    try {
-      await api.post("/auth/logout");
-    } finally {
-      window.location.replace("/auth/login");
-    }
-  }
+export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
+  const pathname = usePathname();
+  const {
+    hideBalances,
+    setHideBalances,
+    theme,
+    setTheme,
+    cycleOffset,
+    setCycleOffset,
+  } = useAppCtx();
+
+  const currentMeta = TITLES[pathname] || {
+    title: "Beranda",
+    subtitle: "Catatan Keuangan Pribadi",
+  };
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
@@ -36,104 +47,111 @@ export function TopBar({ title, showDateRange = true }: TopBarProps) {
     localStorage.setItem("hideBalances", next ? "1" : "0");
   }
 
-  const paydayLabel = paydaySource === "override" ? `Cycle day ${paydayDay}` : "Set pay cycle";
-  const paydayTitle = paydaySource === "override"
-    ? "Open settings to change your payday cycle"
-    : "Open settings to set your payday cycle";
-
   return (
-    <header className="fixed left-0 right-0 top-0 z-40 flex h-[var(--topbar-height)] items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface)]/95 px-4 backdrop-blur lg:left-[var(--sidebar-width)] lg:px-6">
-      <div className="flex min-w-0 items-center gap-3">
-        <h1 className="truncate text-base font-bold tracking-[-0.01em] text-[var(--text)] lg:text-lg">{title}</h1>
-        {showDateRange && summaryRange && (
-          <div className="hidden items-center gap-2 md:flex">
-            <button type="button" disabled title="Date range selection is coming soon" className="flex cursor-not-allowed items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--border)] px-3 py-1.5 text-xs font-medium opacity-80">
-              <span className="text-[var(--muted)]">Cycle</span>
-              <span className="tabular">{summaryRange.from} - {summaryRange.to}</span>
-            </button>
-            <button
-              onClick={() => setSettingsOpen(true)}
-              className="rounded-[var(--radius-md)] border border-[var(--primary)]/20 bg-[var(--primary-light)] px-2.5 py-1 text-xs font-semibold text-[var(--primary)] transition-colors hover:bg-[var(--primary)]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
-              title={paydayTitle}
-            >
-              {paydayLabel}
-            </button>
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/90 px-4 sm:px-6 lg:px-8 backdrop-blur-md">
+      {/* Left: Mobile Hamburger + Breadcrumb/Title */}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onToggleMobileMenu}
+          className="flex lg:hidden p-2 rounded-xl text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)] transition-colors"
+          title="Buka Menu"
+        >
+          <Icon name="menu" className="h-5 w-5" />
+        </button>
+
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            <span className="text-sm sm:text-base font-bold tracking-tight text-[var(--text)] leading-none">
+              {currentMeta.title}
+            </span>
           </div>
+          <span className="hidden sm:block text-[11px] text-[var(--muted)] font-medium mt-0.5">
+            {currentMeta.subtitle}
+          </span>
+        </div>
+      </div>
+
+      {/* Center: Month & Year Statement Stepper */}
+      <div className="flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/60 px-2 py-1 text-xs">
+        <button
+          type="button"
+          onClick={() => setCycleOffset(cycleOffset - 1)}
+          title="Bulan Sebelumnya"
+          className="p-1 rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors"
+        >
+          <Icon name="chevron-left" className="h-3.5 w-3.5" />
+        </button>
+
+        <span className="text-xs font-bold text-[var(--text)] px-2 select-none min-w-[76px] text-center">
+          {(() => {
+            const d = new Date();
+            d.setDate(1);
+            d.setMonth(d.getMonth() + cycleOffset);
+            return d.toLocaleDateString("id-ID", { month: "short", year: "numeric" });
+          })()}
+        </span>
+
+        <button
+          type="button"
+          disabled={cycleOffset >= 0}
+          onClick={() => setCycleOffset(cycleOffset + 1)}
+          title="Bulan Berikutnya"
+          className="p-1 rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+        >
+          <Icon name="chevron-right" className="h-3.5 w-3.5" />
+        </button>
+
+        {cycleOffset !== 0 && (
+          <button
+            type="button"
+            onClick={() => setCycleOffset(0)}
+            title="Kembali ke bulan ini"
+            className="ml-1 text-[11px] text-income hover:underline font-semibold"
+          >
+            Bulan Ini
+          </button>
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
-        <div className="hidden items-center gap-2 sm:flex">
-          <span className="text-xs text-[var(--muted)]">Hide balances</span>
-          <button
-            onClick={toggleHideBalances}
-            className={`relative h-5 w-9 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${hideBalances ? "bg-[var(--primary)]" : "bg-[var(--color-rule-strong)]"}`}
-            aria-pressed={hideBalances}
-          >
-            <span className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${hideBalances ? "translate-x-4" : ""}`} />
-          </button>
-        </div>
-
+      {/* Right: Actions */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Balance Privacy Eye */}
         <button
+          type="button"
+          onClick={toggleHideBalances}
+          title={hideBalances ? "Tampilkan saldo" : "Sembunyikan saldo"}
+          className="p-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors shadow-2xs"
+        >
+          <Icon name={hideBalances ? "eye-off" : "eye"} className="h-4 w-4" />
+        </button>
+
+        {/* Theme Toggle */}
+        <button
+          type="button"
           onClick={toggleTheme}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
-          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={theme === "dark" ? "Ganti ke mode terang" : "Ganti ke mode gelap"}
+          className="p-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors shadow-2xs"
         >
           <Icon name={theme === "dark" ? "sun" : "moon"} className="h-4 w-4" />
         </button>
 
-        <button
-          onClick={() => setSettingsOpen(true)}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
-          title="Settings"
-          aria-label="Open settings"
-        >
-          <Icon name="settings" className="h-4 w-4" />
-        </button>
-
-        <div className="relative">
+        {/* Quick Add CTA */}
+        {onQuickAdd && (
           <button
-            onClick={() => setUserMenuOpen((open) => !open)}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--primary)] text-white transition-colors hover:bg-[var(--primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
-            title="Account menu"
-            aria-label="Open account menu"
-            aria-haspopup="menu"
-            aria-expanded={userMenuOpen}
+            type="button"
+            onClick={onQuickAdd}
+            title="Catat Transaksi (N)"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-btn bg-income hover:bg-income-hover text-white text-xs font-semibold shadow-2xs transition-all active:scale-95"
           >
-            <Icon name="user" className="h-4 w-4" />
+            <Icon name="plus" className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Catat</span>
+            <kbd className="hidden md:inline rounded bg-black/20 px-1 py-0.2 text-[9px] font-mono text-white/90">
+              N
+            </kbd>
           </button>
-          {userMenuOpen && (
-            <div role="menu" className="absolute right-0 top-10 z-50 w-56 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] py-2 shadow-[var(--shadow-md)]">
-              <div className="border-b border-[var(--border)] px-3 pb-2">
-                <p className="truncate text-sm font-semibold text-[var(--text)]">
-                  {user?.full_name || user?.username || "Account"}
-                </p>
-                {user?.full_name && user?.username && (
-                  <p className="truncate text-xs text-[var(--muted)]">{user.username}</p>
-                )}
-              </div>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={logout}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--text)] transition-colors hover:bg-[var(--bg)]"
-              >
-                <Icon name="logout" className="h-4 w-4 text-[var(--muted)]" />
-                Logout
-              </button>
-            </div>
-          )}
-        </div>
+        )}
       </div>
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        paydayDay={paydayDay}
-        paydaySource={paydaySource}
-        hideBalances={hideBalances}
-        onHideBalancesToggle={toggleHideBalances}
-      />
     </header>
   );
 }

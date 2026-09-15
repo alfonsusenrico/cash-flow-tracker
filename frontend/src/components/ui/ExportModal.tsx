@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Input";
+import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import type { Account } from "@/types/domain";
 
 interface Props {
@@ -63,7 +64,7 @@ export function ExportModal({ open, onClose, accounts, paydayDay }: Props) {
         </Select>
         {scope === "account" && (
           <Select label="Account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            {accounts.map((a) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
+            <AccountSelectOptions accounts={accounts} allowParentSelection={true} />
           </Select>
         )}
         <Select label="Format" value={format} onChange={(e) => setFormat(e.target.value as "pdf" | "csv")}>

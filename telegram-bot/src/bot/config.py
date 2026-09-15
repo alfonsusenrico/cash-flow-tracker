@@ -30,6 +30,7 @@ class Settings:
     vision_model: str
     vision_base_url: str
     use_two_step_vision: bool
+    message_debounce_delay: float = 1.0
 
 
 def load_settings() -> Settings:
@@ -50,5 +51,5 @@ def load_settings() -> Settings:
         vision_model=os.environ.get("VISION_MODEL", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"),
         vision_base_url=os.environ.get("VISION_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/"),
         use_two_step_vision=os.environ.get("USE_TWO_STEP_VISION", "true").lower() in ("true", "1", "yes"),
+        message_debounce_delay=float(os.environ.get("MESSAGE_DEBOUNCE_DELAY", "1.0")),
     )
-

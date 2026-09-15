@@ -12,6 +12,12 @@ export interface User {
 export interface Account {
   account_id: string;
   account_name: string;
+  type?: string;
+  id?: string;
+  name?: string;
+  parent_id?: string | null;
+  default_funding_account_id?: string | null;
+  default_funding_account_name?: string | null;
   profile_type: "tabungan" | "fixed_spending" | "dynamic_spending";
   is_payroll_source: boolean;
   is_no_limit: boolean;

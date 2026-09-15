@@ -11,13 +11,16 @@ export default function LoginPage() {
   function getSafeRedirectTarget() {
     const params = new URLSearchParams(window.location.search);
     const next = params.get("next");
-    return next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+    if (next && next.startsWith("/") && !next.startsWith("//") && next !== "/dashboard") {
+      return next;
+    }
+    return "/";
   }
 
   useEffect(() => {
     async function redirectIfAuthenticated() {
       try {
-        await api.get("/me");
+        await api.get("/auth/me");
         window.location.replace(getSafeRedirectTarget());
       } catch {
         // Staying on the login page is correct when there is no valid session.
@@ -50,52 +53,52 @@ export default function LoginPage() {
           invite_code: fd.get("invite_code"),
         });
         setMode("login");
-        setError("Registered! Please log in.");
+        setError("Pendaftaran berhasil! Silakan masuk ke akun Anda.");
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof Error ? err.message : "Terjadi kesalahan, silakan coba lagi");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <div className="w-full max-w-sm p-8 bg-white dark:bg-gray-800 rounded-xl shadow">
-        <h1 className="text-2xl font-bold mb-2 text-center">Financial Manager</h1>
-        <p className="text-center text-sm text-gray-500 mb-6">
-          {mode === "login" ? "Sign in to your account" : "Create a new account"}
+    <main className="min-h-screen flex items-center justify-center bg-[var(--bg)] text-[var(--text)] px-4">
+      <div className="w-full max-w-sm p-8 bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm">
+        <h1 className="text-2xl font-bold mb-1 text-center tracking-tight">CashFlow</h1>
+        <p className="text-center text-xs text-[var(--muted)] mb-6">
+          {mode === "login" ? "Masuk ke akun Anda" : "Buat akun baru"}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === "register" && (
             <div>
-              <label className="block text-sm font-medium mb-1" htmlFor="full_name">
-                Full Name (optional)
+              <label className="block text-xs font-medium text-[var(--muted)] mb-1" htmlFor="full_name">
+                Nama Lengkap (opsional)
               </label>
               <input
                 id="full_name"
                 name="full_name"
                 autoComplete="name"
-                className="w-full border rounded px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs font-medium text-[var(--text)] outline-none focus:ring-2 focus:ring-income/30 transition-all"
               />
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium mb-1" htmlFor="username">
-              Username
+            <label className="block text-xs font-medium text-[var(--muted)] mb-1" htmlFor="username">
+              Nama Pengguna
             </label>
             <input
               id="username"
               name="username"
               autoComplete="username"
               required
-              className="w-full border rounded px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs font-medium text-[var(--text)] outline-none focus:ring-2 focus:ring-income/30 transition-all"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1" htmlFor="password">
-              Password
+            <label className="block text-xs font-medium text-[var(--muted)] mb-1" htmlFor="password">
+              Kata Sandi
             </label>
             <input
               id="password"
@@ -103,26 +106,26 @@ export default function LoginPage() {
               type="password"
               autoComplete={mode === "login" ? "current-password" : "new-password"}
               required
-              className="w-full border rounded px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs font-medium text-[var(--text)] outline-none focus:ring-2 focus:ring-income/30 transition-all"
             />
           </div>
           {mode === "register" && (
             <div>
-              <label className="block text-sm font-medium mb-1" htmlFor="invite_code">
-                Invite Code
+              <label className="block text-xs font-medium text-[var(--muted)] mb-1" htmlFor="invite_code">
+                Kode Undangan
               </label>
               <input
                 id="invite_code"
                 name="invite_code"
                 autoComplete="off"
                 required
-                className="w-full border rounded px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs font-medium text-[var(--text)] outline-none focus:ring-2 focus:ring-income/30 transition-all"
               />
             </div>
           )}
 
           {error && (
-            <p className={`text-sm ${error.startsWith("Registered") ? "text-green-600" : "text-red-500"}`}>
+            <p className={`text-xs font-medium ${error.includes("berhasil") ? "text-income" : "text-expense"}`}>
               {error}
             </p>
           )}
@@ -130,31 +133,31 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 rounded disabled:opacity-50"
+            className="w-full rounded-xl bg-income hover:bg-income-hover text-white font-semibold py-2.5 text-xs shadow-xs transition-all active:scale-[0.98] disabled:opacity-50"
           >
-            {loading ? "Please wait…" : mode === "login" ? "Login" : "Register"}
+            {loading ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar Akun"}
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-500 mt-4">
+        <p className="text-center text-xs text-[var(--muted)] mt-5">
           {mode === "login" ? (
             <>
-              First time?{" "}
+              Belum punya akun?{" "}
               <button
                 onClick={() => { setMode("register"); setError(""); }}
-                className="text-green-600 hover:underline font-medium"
+                className="text-income hover:underline font-semibold"
               >
-                Register
+                Daftar sekarang
               </button>
             </>
           ) : (
             <>
-              Already have an account?{" "}
+              Sudah punya akun?{" "}
               <button
                 onClick={() => { setMode("login"); setError(""); }}
-                className="text-green-600 hover:underline font-medium"
+                className="text-income hover:underline font-semibold"
               >
-                Login
+                Masuk di sini
               </button>
             </>
           )}

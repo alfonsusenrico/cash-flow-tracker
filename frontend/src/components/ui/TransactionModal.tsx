@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Input";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { toDatetimeLocal, fromDatetimeLocal } from "@/lib/utils";
+import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import type { Account, Category, LedgerRow } from "@/types/domain";
 
 interface Props {
@@ -32,8 +33,30 @@ export function TransactionModal({ open, onClose, accounts, categories, editing,
   const [isTopup, setIsTopup] = useState(false);
   const [err, setErr] = useState("");
 
+  // Stock Investment helper states
+  const [isStockMode, setIsStockMode] = useState(false);
+  const [stockLots, setStockLots] = useState<number | "">("");
+  const [stockPricePerShare, setStockPricePerShare] = useState<number | "">("");
+  const [stockTicker, setStockTicker] = useState("");
+
+  function updateStockTotal(lots: number | "", price: number | "", ticker: string) {
+    if (typeof lots === "number" && lots > 0 && typeof price === "number" && price > 0) {
+      const total = lots * 100 * price;
+      setAmount(total);
+      const formattedPrice = price.toLocaleString("id-ID");
+      const generatedName = ticker.trim()
+        ? `${ticker.trim().toUpperCase()} (${lots} lot @ Rp ${formattedPrice})`
+        : `Saham (${lots} lot @ Rp ${formattedPrice})`;
+      setName(generatedName);
+    }
+  }
+
   useEffect(() => {
     if (!open) return;
+    setIsStockMode(false);
+    setStockLots("");
+    setStockPricePerShare("");
+    setStockTicker("");
     if (editing) {
       setType(editing.debit > 0 ? "debit" : "credit");
       setAccountId(editing.account_id ?? "");
@@ -45,7 +68,12 @@ export function TransactionModal({ open, onClose, accounts, categories, editing,
       setNotes("");
     } else {
       setType("credit");
-      setAccountId(defaultAccountId ?? accounts[0]?.account_id ?? "");
+      const initAccId = defaultAccountId ?? accounts[0]?.account_id ?? "";
+      setAccountId(initAccId);
+      const initAcc = accounts.find((a) => a.account_id === initAccId);
+      if (initAcc?.type === "investment") {
+        setIsStockMode(true);
+      }
       setName("");
       setAmount(0);
       setDate(toDatetimeLocal());
@@ -119,11 +147,103 @@ export function TransactionModal({ open, onClose, accounts, categories, editing,
           ))}
         </div>
 
-        <Select label="Account" value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
-          {accounts.map((a) => (
-            <option key={a.account_id} value={a.account_id}>{a.account_name}</option>
-          ))}
+        <Select
+          label="Account"
+          value={accountId}
+          onChange={(e) => {
+            const nextId = e.target.value;
+            setAccountId(nextId);
+            const acc = accounts.find((a) => a.account_id === nextId);
+            if (acc?.type === "investment") {
+              setIsStockMode(true);
+              const investCat = categories.find((c) => c.name.toLowerCase().includes("invest"));
+              if (investCat) setCategoryId(investCat.category_id);
+            }
+          }}
+          required
+        >
+          <AccountSelectOptions accounts={accounts} allowParentSelection={true} />
         </Select>
+
+        {/* Stock / Lot Calculator */}
+        <div className="rounded border border-[var(--border)] bg-[var(--surface)] p-3 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+              Kalkulator Saham (Lot & Harga)
+            </span>
+            <label className="flex items-center gap-1.5 text-xs text-[var(--muted)] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isStockMode}
+                onChange={(e) => setIsStockMode(e.target.checked)}
+                className="rounded"
+              />
+              Input per Lot
+            </label>
+          </div>
+
+          {isStockMode && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1">Ticker</label>
+                <input
+                  type="text"
+                  placeholder="e.g. BBRI"
+                  value={stockTicker}
+                  onChange={(e) => {
+                    const tick = e.target.value.toUpperCase();
+                    setStockTicker(tick);
+                    updateStockTotal(stockLots, stockPricePerShare, tick);
+                  }}
+                  className="w-full px-2.5 py-1.5 text-sm bg-[var(--bg)] border border-[var(--border)] rounded text-[var(--text)] uppercase"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1">Lot (1 lot = 100 lembar)</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="e.g. 4"
+                  value={stockLots}
+                  onChange={(e) => {
+                    const val = e.target.value ? Number(e.target.value) : "";
+                    setStockLots(val);
+                    updateStockTotal(val, stockPricePerShare, stockTicker);
+                  }}
+                  className="w-full px-2.5 py-1.5 text-sm bg-[var(--bg)] border border-[var(--border)] rounded text-[var(--text)]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1">Harga / Lembar (IDR)</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="e.g. 3340"
+                  value={stockPricePerShare}
+                  onChange={(e) => {
+                    const val = e.target.value ? Number(e.target.value) : "";
+                    setStockPricePerShare(val);
+                    updateStockTotal(stockLots, val, stockTicker);
+                  }}
+                  className="w-full px-2.5 py-1.5 text-sm bg-[var(--bg)] border border-[var(--border)] rounded text-[var(--text)]"
+                />
+              </div>
+            </div>
+          )}
+
+          {isStockMode && stockLots !== "" && stockPricePerShare !== "" && Number(stockLots) > 0 && Number(stockPricePerShare) > 0 && (
+            <div className="text-xs text-emerald-400 bg-emerald-950/30 border border-emerald-800/40 rounded p-2 flex justify-between items-center">
+              <span>
+                {stockLots} lot ({Number(stockLots) * 100} lembar) × Rp {Number(stockPricePerShare).toLocaleString("id-ID")}
+              </span>
+              <span className="font-bold font-mono text-sm">
+                = Rp {(Number(stockLots) * 100 * Number(stockPricePerShare)).toLocaleString("id-ID")}
+              </span>
+            </div>
+          )}
+        </div>
 
         <Input
           label="Description"

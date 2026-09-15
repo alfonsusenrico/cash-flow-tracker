@@ -1,64 +1,95 @@
 "use client";
-import { useState } from "react";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { MobileMenu } from "@/components/ui/MobileMenu";
+import { Icon } from "@/components/ui/Icon";
 
-const TABS = [
-  { href: "/dashboard", label: "Home", icon: "⊞" },
-  { href: "/ledger", label: "Txn", icon: "↕" },
-  { href: "/goals", label: "Goals", icon: "◉" },
-  { href: "/analysis", label: "Analysis", icon: "◈" },
-  { href: null, label: "More", icon: "≡" },
-];
+interface BottomNavProps {
+  onQuickAdd?: () => void;
+}
 
-export function BottomNav() {
+export function BottomNav({ onQuickAdd }: BottomNavProps) {
   const pathname = usePathname();
-  const [menuOpen, setMenuOpen] = useState(false);
+
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
+  };
 
   return (
-    <>
-      <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-[var(--surface)] border-[var(--border)]"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-      >
-        <div className="flex items-center justify-around h-14">
-          {TABS.map((tab) => {
-            if (tab.href === null) {
-              return (
-                <button
-                  key="more"
-                  onClick={() => setMenuOpen(true)}
-                  className={cn(
-                    "flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors",
-                    menuOpen ? "text-primary" : "text-[var(--muted)]"
-                  )}
-                >
-                  <span className="text-lg leading-none">{tab.icon}</span>
-                  <span className="text-[10px] font-medium leading-tight">{tab.label}</span>
-                </button>
-              );
-            }
-            const active = pathname === tab.href || (tab.href !== "/dashboard" && pathname.startsWith(tab.href));
-            return (
-              <Link
-                key={tab.href}
-                href={tab.href}
-                className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors",
-                  active ? "text-primary" : "text-[var(--muted)]"
-                )}
-              >
-                <span className="text-lg leading-none">{tab.icon}</span>
-                <span className="text-[10px] font-medium leading-tight">{tab.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
+    <div
+      className="lg:hidden fixed bottom-3 left-3 right-3 z-50 max-w-md mx-auto pointer-events-none"
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+    >
+      <nav className="glass-dock rounded-full p-1.5 flex items-center justify-around pointer-events-auto border border-white/[0.08] shadow-2xl">
+        {/* 1. Beranda / Pulse */}
+        <Link
+          href="/"
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all",
+            isActive("/")
+              ? "bg-white/10 text-white font-semibold border border-white/10 shadow-xs"
+              : "text-[var(--muted)] hover:text-[var(--text)]"
+          )}
+        >
+          <Icon name="dashboard" className="h-4 w-4 shrink-0" />
+          <span className={cn("text-[11px]", !isActive("/") && "hidden sm:inline")}>Beranda</span>
+        </Link>
 
-      <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
-    </>
+        {/* 2. Transaksi / Ledger */}
+        <Link
+          href="/ledger"
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all",
+            isActive("/ledger")
+              ? "bg-white/10 text-white font-semibold border border-white/10 shadow-xs"
+              : "text-[var(--muted)] hover:text-[var(--text)]"
+          )}
+        >
+          <Icon name="ledger" className="h-4 w-4 shrink-0" />
+          <span className={cn("text-[11px]", !isActive("/ledger") && "hidden sm:inline")}>Transaksi</span>
+        </Link>
+
+        {/* Center Quick Add Trigger */}
+        <button
+          type="button"
+          onClick={onQuickAdd}
+          aria-label="Catat Transaksi Cepat"
+          title="Catat Transaksi Cepat"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg active:scale-95 transition-transform shrink-0 cursor-pointer"
+        >
+          <Icon name="plus" className="h-5 w-5" />
+        </button>
+
+        {/* 3. Analisis / Insights */}
+        <Link
+          href="/insights"
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all",
+            isActive("/insights")
+              ? "bg-white/10 text-white font-semibold border border-white/10 shadow-xs"
+              : "text-[var(--muted)] hover:text-[var(--text)]"
+          )}
+        >
+          <Icon name="analysis" className="h-4 w-4 shrink-0" />
+          <span className={cn("text-[11px]", !isActive("/insights") && "hidden sm:inline")}>Analisis</span>
+        </Link>
+
+        {/* 4. Rekening / Accounts */}
+        <Link
+          href="/accounts"
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all",
+            isActive("/accounts")
+              ? "bg-white/10 text-white font-semibold border border-white/10 shadow-xs"
+              : "text-[var(--muted)] hover:text-[var(--text)]"
+          )}
+        >
+          <Icon name="credit-card" className="h-4 w-4 shrink-0" />
+          <span className={cn("text-[11px]", !isActive("/accounts") && "hidden sm:inline")}>Dompet</span>
+        </Link>
+      </nav>
+    </div>
   );
 }

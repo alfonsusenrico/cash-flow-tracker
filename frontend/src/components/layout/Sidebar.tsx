@@ -1,116 +1,319 @@
 "use client";
+
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Icon, type IconName } from "@/components/ui/Icon";
+import { useAppCtx } from "@/components/layout/AppLayout";
+import { api } from "@/lib/api";
 
-const NAV: { href: string; label: string; icon: IconName }[] = [
-  { href: "/dashboard", label: "Summary", icon: "dashboard" },
-  { href: "/ledger", label: "Transactions", icon: "ledger" },
-  { href: "/accounts", label: "Accounts", icon: "accounts" },
-  { href: "/obligations", label: "Payables", icon: "obligations" },
-  { href: "/buckets", label: "Buckets", icon: "buckets" },
-  { href: "/allocation", label: "Allocation", icon: "allocation" },
-  { href: "/analysis", label: "Analysis", icon: "analysis" },
-  { href: "/strategy", label: "Strategy", icon: "strategy" },
-  { href: "/goals", label: "Goals", icon: "goals" },
-  { href: "/net-worth", label: "Net Worth", icon: "netWorth" },
-  { href: "/categories", label: "Categories", icon: "categories" },
-];
-
-const QUICK_ACTIONS: { href: string; label: string; icon: IconName }[] = [
-  { href: "/ledger?action=add", label: "Add Transaction", icon: "plus" },
-  { href: "/ledger?action=movement", label: "Move Accounts", icon: "move" },
-  { href: "/net-worth?action=record", label: "Record Net Worth", icon: "netWorth" },
-  { href: "/buckets?action=new", label: "New Bucket", icon: "buckets" },
-];
-
-function isActive(pathname: string, href: string) {
-  return pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+export interface NavItem {
+  href: string;
+  label: string;
+  icon: IconName;
+  badge?: string;
 }
 
-export function Sidebar() {
+export const MAIN_NAV: NavItem[] = [
+  { href: "/", label: "Beranda", icon: "dashboard" },
+  { href: "/ledger", label: "Transaksi", icon: "ledger" },
+  { href: "/insights", label: "Analisis", icon: "analysis" },
+  { href: "/accounts", label: "Rekening & Saldo", icon: "credit-card" },
+  { href: "/goals", label: "Target & Tagihan", icon: "goals" },
+];
+
+interface SidebarProps {
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  onQuickAdd?: () => void;
+  onOpenSettings?: () => void;
+}
+
+export function Sidebar({
+  collapsed,
+  onToggleCollapse,
+  onOpenSettings,
+}: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
+  const { user } = useAppCtx();
+
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
+  };
+
+  async function logout() {
+    try {
+      await api.post("/auth/logout");
+    } finally {
+      window.location.replace("/auth/login");
+    }
+  }
 
   return (
-    <>
-      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-[var(--sidebar-width)] flex-col border-r border-white/10 bg-[var(--sidebar)] lg:flex">
-        <div className="flex items-center gap-3 px-4 py-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] bg-[var(--primary)] text-sm font-bold tabular text-white">CF</div>
-          <div className="min-w-0">
-            <span className="block text-sm font-bold leading-tight text-white">Financial Manager</span>
-            <span className="block text-[11px] text-[var(--sidebar-text)]">private finance</span>
-          </div>
+    <aside
+      className={cn(
+        "fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-[width] duration-200 ease-in-out lg:flex",
+        collapsed ? "w-[72px]" : "w-[260px]"
+      )}
+    >
+      {/* Brand Header */}
+      <div className="h-16 flex items-center px-4 border-b border-[var(--border)] gap-3 shrink-0">
+        <div className="h-9 w-9 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-black text-sm shadow-[0_4px_12px_rgba(0,208,156,0.3)] shrink-0">
+          <Icon name="wallet" className="h-5 w-5 stroke-[2.5]" />
         </div>
+        {!collapsed && (
+          <div className="min-w-0">
+            <div className="font-extrabold text-sm tracking-tight text-[var(--text)] flex items-center gap-1.5 leading-none">
+              <span>CashFlow</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
+                PRO
+              </span>
+            </div>
+            <div className="text-[10px] text-[var(--muted)] font-medium mt-1 truncate">
+              Daily Money & Vault
+            </div>
+          </div>
+        )}
+      </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
-          {NAV.map((item) => {
-            const active = isActive(pathname, item.href);
+      {/* Primary Navigation List */}
+      <nav className="flex-1 flex flex-col justify-between px-3 pt-4 pb-3 overflow-y-auto">
+        <div className="space-y-1">
+          {MAIN_NAV.map((item) => {
+            const active = isActive(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                prefetch
-                onMouseEnter={() => router.prefetch(item.href)}
-                onFocus={() => router.prefetch(item.href)}
+                title={collapsed ? item.label : undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]",
+                  "flex items-center gap-3 rounded-xl transition-all pressable group",
+                  collapsed ? "h-10 justify-center px-0" : "px-3 py-2.5 text-xs font-medium",
                   active
-                    ? "bg-[var(--sidebar-active)] font-medium text-white"
-                    : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-white"
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20 shadow-xs"
+                    : "text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
                 )}
               >
-                <Icon name={item.icon} className="h-4 w-4 shrink-0" />
+                <Icon
+                  name={item.icon}
+                  className={cn(
+                    "h-4 w-4 shrink-0 transition-transform group-hover:scale-110",
+                    active ? "text-emerald-500" : "text-[var(--muted)] group-hover:text-[var(--text)]"
+                  )}
+                />
+                {!collapsed && <span>{item.label}</span>}
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Collapse Toggle */}
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title={collapsed ? "Tampilkan menu samping" : "Sembunyikan menu samping"}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-xl transition-colors text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]",
+              collapsed ? "h-10 justify-center px-0" : "px-3 py-2 text-xs font-medium"
+            )}
+          >
+            <Icon
+              name={collapsed ? "chevron-right" : "chevron-left"}
+              className="h-4 w-4 shrink-0"
+            />
+            {!collapsed && <span>Sembunyikan menu</span>}
+          </button>
+        </div>
+      </nav>
+
+      {/* Footer Profile with Integrated Logout */}
+      <div className="border-t border-[var(--border)] p-3">
+        {!collapsed ? (
+          <div className="flex items-center justify-between p-2 rounded-xl bg-[var(--surface-raised)] border border-[var(--border)]/60 text-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="h-7 w-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center shrink-0 text-xs uppercase">
+                {user?.username ? user.username.slice(0, 2) : "CF"}
+              </div>
+              <div className="min-w-0">
+                <span className="block font-semibold text-[var(--text)] truncate">
+                  {user?.username || "User"}
+                </span>
+                <span className="block text-[10px] text-[var(--muted)] font-medium">
+                  {user?.currency || "IDR"} • Gajian Tgl {user?.payday_day || 25}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-0.5 shrink-0">
+              {onOpenSettings && (
+                <button
+                  type="button"
+                  onClick={onOpenSettings}
+                  title="Pengaturan"
+                  className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors"
+                >
+                  <Icon name="settings" className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={logout}
+                title="Keluar dari akun"
+                className="p-1.5 rounded-lg text-rose-500/80 hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+              >
+                <Icon name="logout" className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2">
+            <div
+              title={`${user?.username || "Pengguna"} (${user?.currency || "IDR"})`}
+              className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center text-xs uppercase cursor-default"
+            >
+              {user?.username ? user.username.slice(0, 2) : "CF"}
+            </div>
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                title="Pengaturan"
+                className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)] transition-colors"
+              >
+                <Icon name="settings" className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={logout}
+              title="Keluar dari akun"
+              className="p-1.5 rounded-lg text-rose-500/80 hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+            >
+              <Icon name="logout" className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+export function MobileDrawer({
+  open,
+  onClose,
+  onOpenSettings,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onQuickAdd?: () => void;
+  onOpenSettings?: () => void;
+}) {
+  const pathname = usePathname();
+  const { user } = useAppCtx();
+
+  if (!open) return null;
+
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
+  };
+
+  async function logout() {
+    try {
+      await api.post("/auth/logout");
+    } finally {
+      window.location.replace("/auth/login");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex lg:hidden">
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
+        onClick={onClose}
+      />
+
+      {/* Drawer Panel */}
+      <div className="relative flex w-72 max-w-[85vw] flex-col bg-[var(--surface)] border-r border-[var(--border)] shadow-xl">
+        {/* Header */}
+        <div className="flex h-14 items-center justify-between px-4 border-b border-[var(--border)]">
+          <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Menu Navigasi</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--surface-raised)]"
+          >
+            <Icon name="close" className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Navigation List */}
+        <nav className="flex-1 space-y-1.5 px-4 py-3 overflow-y-auto">
+          {MAIN_NAV.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-medium transition-colors",
+                  active
+                    ? "bg-income/10 text-income font-semibold"
+                    : "text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
+                )}
+              >
+                <Icon
+                  name={item.icon}
+                  className={cn("h-4 w-4", active ? "text-income" : "text-[var(--muted)]")}
+                />
                 <span>{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="border-t border-white/10 px-3 py-3">
-          <p className="mb-2 px-1 text-[11px] uppercase tracking-[0.12em] text-[var(--sidebar-text)]">Quick Actions</p>
-          <div className="space-y-0.5">
-            {QUICK_ACTIONS.map((a) => (
-              <Link
-                key={a.href}
-                href={a.href}
-                prefetch
-                onMouseEnter={() => router.prefetch(a.href)}
-                onFocus={() => router.prefetch(a.href)}
-                className="flex items-center gap-2.5 rounded-[var(--radius-md)] px-3 py-1.5 text-xs text-[var(--sidebar-text)] outline-none transition-colors hover:bg-[var(--sidebar-hover)] hover:text-white focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
+        {/* Footer with Integrated Logout */}
+        <div className="border-t border-[var(--border)] p-4">
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--surface-raised)] border border-[var(--border)]/60 text-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center shrink-0 text-xs uppercase">
+                {user?.username ? user.username.slice(0, 2) : "CF"}
+              </div>
+              <div className="min-w-0">
+                <span className="block font-semibold text-[var(--text)] truncate">
+                  {user?.username || "Pengguna"}
+                </span>
+                <span className="block text-[10px] text-[var(--muted)] font-medium">
+                  {user?.currency || "IDR"} • Gajian Tgl {user?.payday_day || 25}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {onOpenSettings && (
+                <button
+                  type="button"
+                  onClick={onOpenSettings}
+                  title="Pengaturan"
+                  className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors"
+                >
+                  <Icon name="settings" className="h-4 w-4" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={logout}
+                title="Keluar dari akun"
+                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors"
               >
-                <Icon name={a.icon} className="h-4 w-4 shrink-0" />
-                <span>{a.label}</span>
-              </Link>
-            ))}
+                <Icon name="logout" className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
-
-        <div className="border-t border-white/10 px-4 py-3">
-          <p className="text-xs text-[var(--sidebar-text)]">© 2026 Alfonsus Enrico</p>
-          <p className="text-xs text-[var(--sidebar-text)] opacity-60">Financial Manager</p>
-        </div>
-      </aside>
-
-      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-[var(--border)] bg-[var(--surface)]/95 px-1 py-1 backdrop-blur lg:hidden">
-        {NAV.slice(0, 5).map((item) => {
-          const active = isActive(pathname, item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex min-w-0 flex-col items-center gap-0.5 rounded-[var(--radius-md)] px-1 py-1.5 text-[10px] font-medium",
-                active ? "bg-[var(--primary-light)] text-[var(--primary)]" : "text-[var(--muted)]"
-              )}
-            >
-              <Icon name={item.icon} className="h-4 w-4" />
-              <span className="max-w-full truncate">{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-    </>
+      </div>
+    </div>
   );
 }

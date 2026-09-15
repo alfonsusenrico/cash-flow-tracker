@@ -1,110 +1,136 @@
-/* Hallmark · macrostructure: Ledger Workbench · tone: utilitarian-austere · anchor hue: finance-green
- * theme: Quiet Ledger · design-system: design.md · designed-as-app
- * pre-emit critique: P5 H4 E4 S5 R4 V4
+/* Cash Flow Tracker — Modern Fintech Design System
+ * Aesthetic: Kazz / Ivy Wallet / Copilot Money Dark Charcoal Slate Surfaces
+ * Typography: Modern Bauhaus Geometric Sans (Outfit) + Tabular Digits (Geist Mono)
  */
-:root {
-  --color-paper: oklch(98% 0.006 96);
-  --color-paper-2: oklch(95% 0.01 96);
-  --color-paper-3: oklch(92% 0.012 96);
-  --color-surface: oklch(100% 0 0);
-  --color-surface-raised: oklch(99% 0.003 96);
-  --color-ink: oklch(20% 0.025 255);
-  --color-ink-2: oklch(42% 0.028 255);
-  --color-muted: oklch(57% 0.026 255);
-  --color-rule: oklch(88% 0.014 255);
-  --color-rule-strong: oklch(78% 0.018 255);
-  --color-accent: oklch(57% 0.15 148);
-  --color-accent-2: oklch(49% 0.13 148);
-  --color-accent-soft: oklch(93% 0.055 148);
-  --color-accent-ink: oklch(99% 0 0);
-  --color-danger: oklch(57% 0.2 28);
-  --color-danger-soft: oklch(94% 0.055 28);
-  --color-warning: oklch(72% 0.16 75);
-  --color-warning-soft: oklch(95% 0.06 75);
-  --color-info: oklch(58% 0.15 250);
-  --color-info-soft: oklch(93% 0.045 250);
-  --color-focus: oklch(62% 0.16 148);
 
+:root {
+  /* Surfaces & Ink (Light: Refined Slate & Pure Card Surfaces) */
+  --color-paper: #F8F9FA;
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #F1F3F5;
+  --color-ink: #111418;
+  --color-ink-2: #4A5568;
+  --color-muted: #718096;
+  --color-rule: rgba(0, 0, 0, 0.075);
+  --color-rule-strong: rgba(0, 0, 0, 0.12);
+
+  /* Semantic Accents (Modern Pop) */
+  --color-income: #00D09C;
+  --color-income-hover: #00B887;
+  --color-income-soft: #E6FBF5;
+  --color-expense: #FF3B69;
+  --color-expense-hover: #E62A56;
+  --color-expense-soft: #FFF0F3;
+  --color-transfer: #6366F1;
+  --color-transfer-hover: #4F46E5;
+  --color-transfer-soft: #EEF2FF;
+  --color-warning: #FFB020;
+  --color-warning-soft: #FFF9EB;
+  --color-focus: #00D09C;
+
+  /* Kakeibo 3-Pillar Tokens */
+  --color-kakeibo-need: #38BDF8;
+  --color-kakeibo-need-soft: #F0F9FF;
+  --color-kakeibo-want: #FF3B69;
+  --color-kakeibo-want-soft: #FFF0F3;
+  --color-kakeibo-saving: #00D09C;
+  --color-kakeibo-saving-soft: #E6FBF5;
+
+  /* System mappings */
   --bg: var(--color-paper);
   --surface: var(--color-surface);
+  --surface-raised: var(--color-surface-raised);
   --border: var(--color-rule);
+  --border-strong: var(--color-rule-strong);
   --text: var(--color-ink);
   --text-secondary: var(--color-ink-2);
   --muted: var(--color-muted);
-  --primary: var(--color-accent);
-  --primary-hover: var(--color-accent-2);
-  --primary-light: var(--color-accent-soft);
-  --danger: var(--color-danger);
-  --danger-hover: oklch(49% 0.18 28);
-  --danger-light: var(--color-danger-soft);
-  --warning: var(--color-warning);
-  --warning-light: var(--color-warning-soft);
-  --info: var(--color-info);
-  --info-light: var(--color-info-soft);
-  --sidebar: oklch(18% 0.03 255);
-  --sidebar-hover: oklch(24% 0.035 255);
-  --sidebar-active: oklch(28% 0.055 148);
-  --sidebar-text: oklch(76% 0.025 255);
-  --sidebar-text-active: oklch(99% 0 0);
 
-  --font-display: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-body: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --primary: var(--color-income);
+  --primary-hover: var(--color-income-hover);
+  --primary-soft: var(--color-income-soft);
+  --primary-contrast: #FFFFFF;
+  --danger: var(--color-expense);
+  --danger-hover: var(--color-expense-hover);
+  --danger-soft: var(--color-expense-soft);
 
-  --space-3xs: 0.25rem;
-  --space-2xs: 0.5rem;
-  --space-xs: 0.75rem;
-  --space-sm: 1rem;
-  --space-md: 1.5rem;
-  --space-lg: 2rem;
-  --space-xl: 3rem;
-  --space-2xl: 4.5rem;
-  --space-3xl: 7rem;
+  --sidebar: #111418;
+  --sidebar-hover: #1A1E24;
+  --sidebar-active: #232830;
+  --sidebar-text: #9CA3AF;
+  --sidebar-text-active: #FFFFFF;
 
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-md: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.375rem;
-  --text-2xl: 1.75rem;
-  --text-display-s: 2.25rem;
-  --text-display: 2.75rem;
+  /* Typography: Plus Jakarta Sans + Tabular Numbers */
+  --font-display: var(--font-jakarta), "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: var(--font-jakarta), "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
 
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --dur-fast: 120ms;
-  --dur-short: 180ms;
-  --dur-medium: 240ms;
+  /* Radii: Soft Consumer Fintech Curvature */
+  --radius-xs: 8px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 22px;
+  --radius-2xl: 26px;
+  --radius-3xl: 32px;
+  --radius-btn: 14px;
+  --radius-card: 24px;
+  --radius-pill: 9999px;
 
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-pill: 999px;
-  --shadow-sm: 0 1px 2px oklch(20% 0.025 255 / 8%);
-  --shadow-md: 0 16px 40px oklch(20% 0.025 255 / 10%);
-  --sidebar-width: 216px;
-  --topbar-height: 60px;
+  /* Ambient Soft Shadows */
+  --shadow-sm: 0 2px 8px -1px rgba(0, 0, 0, 0.04), 0 1px 3px -1px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 10px 28px -4px rgba(0, 0, 0, 0.06), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
+
+  --sidebar-width: 220px;
+  --topbar-height: 56px;
 }
 
 .dark {
-  --color-paper: oklch(16% 0.025 255);
-  --color-paper-2: oklch(20% 0.028 255);
-  --color-paper-3: oklch(25% 0.03 255);
-  --color-surface: oklch(21% 0.026 255);
-  --color-surface-raised: oklch(24% 0.03 255);
-  --color-ink: oklch(94% 0.008 255);
-  --color-ink-2: oklch(77% 0.016 255);
-  --color-muted: oklch(66% 0.018 255);
-  --color-rule: oklch(33% 0.026 255);
-  --color-rule-strong: oklch(43% 0.03 255);
-  --color-accent-soft: oklch(29% 0.06 148);
-  --color-danger-soft: oklch(29% 0.07 28);
-  --color-warning-soft: oklch(31% 0.06 75);
-  --color-info-soft: oklch(30% 0.055 250);
-  --sidebar: oklch(14% 0.022 255);
-  --sidebar-hover: oklch(21% 0.03 255);
-  --sidebar-active: oklch(27% 0.055 148);
-  --sidebar-text: oklch(72% 0.02 255);
+  /* Modern High-Energy Dark Charcoal Palette */
+  --color-paper: #0B0E14;
+  --color-surface: #131720;
+  --color-surface-raised: #1C2230;
+  --color-ink: #F8FAFC;
+  --color-ink-2: #94A3B8;
+  --color-muted: #64748B;
+  --color-rule: rgba(255, 255, 255, 0.08);
+  --color-rule-strong: rgba(255, 255, 255, 0.15);
+
+  --color-income: #00D09C;
+  --color-income-hover: #33F0BA;
+  --color-income-soft: rgba(0, 208, 156, 0.16);
+  --color-expense: #FF3B69;
+  --color-expense-hover: #FF668B;
+  --color-expense-soft: rgba(255, 59, 105, 0.16);
+  --color-transfer: #6366F1;
+  --color-transfer-hover: #818CF8;
+  --color-transfer-soft: rgba(99, 102, 241, 0.16);
+  --color-warning: #FFB020;
+  --color-warning-soft: rgba(255, 176, 32, 0.16);
+
+  /* Kakeibo 3-Pillar Tokens in Dark Mode */
+  --color-kakeibo-need: #38BDF8;
+  --color-kakeibo-need-soft: rgba(56, 189, 248, 0.16);
+  --color-kakeibo-want: #FF3B69;
+  --color-kakeibo-want-soft: rgba(255, 59, 105, 0.16);
+  --color-kakeibo-saving: #00D09C;
+  --color-kakeibo-saving-soft: rgba(0, 208, 156, 0.16);
+
+  --bg: var(--color-paper);
+  --surface: var(--color-surface);
+  --surface-raised: var(--color-surface-raised);
+  --border: var(--color-rule);
+  --border-strong: var(--color-rule-strong);
+  --text: var(--color-ink);
+  --text-secondary: var(--color-ink-2);
+  --muted: var(--color-muted);
+
+  --sidebar: #0B0E14;
+  --sidebar-hover: #131720;
+  --sidebar-active: #1C2230;
+  --sidebar-text: #94A3B8;
+  --sidebar-text-active: #F8FAFC;
+
+  --shadow-sm: 0 4px 14px -2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 14px 36px -4px rgba(0, 0, 0, 0.7);
 }

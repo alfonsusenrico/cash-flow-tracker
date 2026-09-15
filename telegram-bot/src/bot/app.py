@@ -191,22 +191,29 @@ class BotApp:
             "update": update
         })
 
-        # Cancel existing timer if any
-        if telegram_user_id in self._message_timers:
-            self._message_timers[telegram_user_id].cancel()
-            
-        # Start a new 1.0-second debounce timer
-        self._message_timers[telegram_user_id] = asyncio.create_task(
-            self._process_buffered_messages(telegram_user_id, chat_id, api_key, context)
-        )
+        delay = getattr(self.settings, "message_debounce_delay", 1.0)
+        if delay <= 0:
+            await self._process_buffered_messages(telegram_user_id, chat_id, api_key, context)
+        else:
+            # Cancel existing timer if any
+            if telegram_user_id in self._message_timers:
+                self._message_timers[telegram_user_id].cancel()
+
+            # Start a new debounce timer
+            self._message_timers[telegram_user_id] = asyncio.create_task(
+                self._process_buffered_messages(telegram_user_id, chat_id, api_key, context)
+            )
 
     async def _process_buffered_messages(self, telegram_user_id: int, chat_id: int, api_key: str, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Wait for debounce period, then merge all buffered messages and process."""
-        try:
-            await asyncio.sleep(1.0)
-        except asyncio.CancelledError:
-            # Cancelled because another message arrived, wait for that one to finish debouncing
-            return
+        delay = getattr(self.settings, "message_debounce_delay", 1.0)
+        if delay > 0:
+            try:
+                await asyncio.sleep(delay)
+            except asyncio.CancelledError:
+                # Cancelled because another message arrived, wait for that one to finish debouncing
+                return
+
             
         # Time's up! Grab the buffer
         buffer = self._message_buffers.pop(telegram_user_id, [])

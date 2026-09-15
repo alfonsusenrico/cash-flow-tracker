@@ -60,7 +60,13 @@ services:
       RECEIPT_MAX_PIXELS: ${RECEIPT_MAX_PIXELS:-50000000}
       LEDGER_EXPORT_MAX_ROWS: ${LEDGER_EXPORT_MAX_ROWS:-5000}
     volumes:
-      - ./storage:/app/storage
+      - api_storage:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     depends_on:
       db:
         condition: service_healthy
@@ -133,7 +139,13 @@ services:
     container_name: ledger_web
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8090:80"
+      - "${WEB_PORT:-8090}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/healthz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
@@ -144,3 +156,4 @@ services:
 volumes:
   db_data:
   bot_storage:
+  api_storage:

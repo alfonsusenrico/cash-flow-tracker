@@ -1,788 +1,703 @@
 "use client";
-import { Suspense, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "@/lib/api";
-import { fmtMoney, cn, toDatetimeLocal, fromDatetimeLocal } from "@/lib/utils";
+
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { cn, formatNumberWithDots } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
-import { Badge } from "@/components/ui/Badge";
+import { Icon } from "@/components/ui/Icon";
 import { Modal } from "@/components/ui/Modal";
-import { Button } from "@/components/ui/Button";
-import { Input, Select } from "@/components/ui/Input";
-import { MoneyInput } from "@/components/ui/MoneyInput";
-import { FilterBar } from "@/components/ui/FilterBar";
-import type { LedgerRow, LedgerResponse, Category } from "@/types/domain";
+import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
+import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
+import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 
-const FINANCIAL_QUERY_KEYS = [
-  ["ledger"],
-  ["summary"],
-  ["accounts"],
-  ["dashboard"],
-  ["buckets"],
-  ["goals"],
-  ["allocation-plans"],
-  ["net-worth"],
-] as const;
-
-// Fallback icon map keyed by category kind or well-known names
-const KIND_ICONS: Record<string, string> = {
-  income: "💵", expense: "🛍️", transfer: "⇄", adjustment: "⚙️",
-};
-const NAME_ICONS: Record<string, string> = {
-  salary: "💵", bonus: "🎁", freelance: "💻",
-  "food & dining": "🍽️", food: "🍽️", dining: "🍽️", groceries: "🛒",
-  transport: "🚗", shopping: "🛍️", health: "❤️",
-  utilities: "💡", bills: "💡", housing: "🏠",
-  entertainment: "🎬", education: "📚", savings: "🏦",
-  investment: "📈", "internal movement": "⇄", "transfer in": "⇄", "transfer out": "⇄",
-  "interest income": "💰", giving: "❤️", church: "⛪",
-};
-
-function getCategoryIcon(category: Category | undefined, fallbackName: string): string {
-  if (category?.icon) return category.icon;
-  const byName = NAME_ICONS[category?.name?.toLowerCase() ?? ""] ?? NAME_ICONS[fallbackName.toLowerCase()];
-  if (byName) return byName;
-  return KIND_ICONS[category?.kind ?? "expense"] ?? "📋";
+interface TransactionItem {
+  id: string;
+  account_id: string;
+  account_name: string;
+  category_id: string | null;
+  category_name: string | null;
+  category_icon: string | null;
+  category_color: string | null;
+  goal_id: string | null;
+  goal_name: string | null;
+  obligation_id: string | null;
+  obligation_name: string | null;
+  type: "expense" | "income" | "transfer";
+  transfer_target_account_id: string | null;
+  transfer_target_account_name: string | null;
+  amount: number;
+  notes: string | null;
+  date: string;
+  receipt_path: string | null;
+  created_at: string;
 }
 
 export default function LedgerPage() {
-  return (
-    <Suspense fallback={<div className="workbench-page text-sm text-[var(--muted)]">Loading ledger...</div>}>
-      <LedgerContent />
-    </Suspense>
-  );
-}
-
-function LedgerContent() {
-  const { accounts, hideBalances } = useAppCtx();
   const qc = useQueryClient();
-  const searchParams = useSearchParams();
-  const bal = (n: number) => hideBalances ? "Rp ••••" : fmtMoney(n);
-  const invalidateFinancialQueries = () =>
-    Promise.all(FINANCIAL_QUERY_KEYS.map((queryKey) => qc.invalidateQueries({ queryKey })));
+  const { openQuickAdd, bal } = useAppCtx();
 
-  const { data: categoriesData } = useQuery<{ categories: Category[] }>({
+  // Filters state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [accountFilter, setAccountFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [page, setPage] = useState(0);
+  const pageSize = 50;
+
+  // Selected for Edit/Detail
+  const [editingTx, setEditingTx] = useState<TransactionItem | null>(null);
+  const [recurringModalOpen, setRecurringModalOpen] = useState(false);
+
+  // Edit form state
+  const [editAmount, setEditAmount] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editAccountId, setEditAccountId] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState("");
+  const [editGoalId, setEditGoalId] = useState("");
+  const [editObligationId, setEditObligationId] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editError, setEditError] = useState("");
+
+  // Fetch Accounts
+  const { data: accountsData } = useQuery<{ accounts: any[] }>({
+    queryKey: ["accounts"],
+    queryFn: () => api.get("/accounts"),
+  });
+  const accounts = accountsData?.accounts ?? [];
+
+  // Fetch Categories
+  const { data: categoriesData } = useQuery<{ categories: any[] }>({
     queryKey: ["categories"],
     queryFn: () => api.get("/categories"),
   });
-  // Build a fast lookup map: category_id -> Category
-  const categoryById: Record<string, Category> = {};
-  (categoriesData?.categories ?? []).forEach((c) => { categoryById[c.category_id] = c; });
-
-  // Filters
-  const [scope, setScope] = useState<"all" | "account">("all");
-  const [accountId, setAccountId] = useState<string | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "transfer" | "payroll">("all");
-  const [search, setSearch] = useState("");
-  const perPage = 10;
-  const loadMoreRef = useRef<HTMLTableRowElement | null>(null);
-
-  // Modals
-  const [txModal, setTxModal] = useState(false);
-  const [editingRow, setEditingRow] = useState<LedgerRow | null>(null);
-  const [selectedRow, setSelectedRow] = useState<LedgerRow | null>(null);
-  const [movementModal, setMovementModal] = useState(false);
-  const [editingMovement, setEditingMovement] = useState<any | null>(null);
-  const [deleteErr, setDeleteErr] = useState("");
-  const [deletingDetail, setDeletingDetail] = useState(false);
-  const [receiptErr, setReceiptErr] = useState("");
-  const [receiptBusy, setReceiptBusy] = useState(false);
-
   const categories = categoriesData?.categories ?? [];
 
-  // Ledger data
-  const {
-    data: ledgerData,
-    isLoading,
-    isFetchingNextPage,
-    fetchNextPage,
-    hasNextPage,
-  } = useInfiniteQuery<LedgerResponse>({
-    queryKey: ["ledger", scope, accountId, categoryFilter, typeFilter, search, perPage],
-    initialPageParam: 0,
-    queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({
-        scope,
-        limit: String(perPage),
-        offset: String(pageParam ?? 0),
-        order: "desc",
-        include_switch: "true",
-        include_summary: pageParam === 0 ? "true" : "false",
+  // Fetch Goals & Obligations
+  const { data: goalsData } = useQuery<{ goals: any[] }>({
+    queryKey: ["goals"],
+    queryFn: () => api.get("/goals"),
+  });
+  const goals = goalsData?.goals ?? [];
+
+  const { data: obligationsData } = useQuery<{ obligations: any[] }>({
+    queryKey: ["obligations"],
+    queryFn: () => api.get("/obligations"),
+  });
+  const obligations = obligationsData?.obligations ?? [];
+
+  // Build query params
+  const queryParams = useMemo(() => {
+    const p = new URLSearchParams();
+    p.set("limit", pageSize.toString());
+    p.set("offset", (page * pageSize).toString());
+    if (searchQuery.trim()) p.set("q", searchQuery.trim());
+    if (typeFilter !== "all") p.set("type", typeFilter);
+    if (accountFilter !== "all") p.set("account_id", accountFilter);
+    if (categoryFilter !== "all") p.set("category_id", categoryFilter);
+    return p.toString();
+  }, [searchQuery, typeFilter, accountFilter, categoryFilter, page]);
+
+  // Fetch Transactions
+  const { data: txData, isLoading } = useQuery<{
+    ok: boolean;
+    total: number;
+    transactions: TransactionItem[];
+  }>({
+    queryKey: ["transactions-ledger", queryParams],
+    queryFn: () => api.get(`/transactions?${queryParams}`),
+  });
+
+  const transactions = txData?.transactions ?? [];
+  const totalCount = txData?.total ?? 0;
+  const totalPages = Math.ceil(totalCount / pageSize);
+
+  // Compute page totals
+  const pageInflow = transactions
+    .filter((t) => t.type === "income")
+    .reduce((sum, t) => sum + t.amount, 0);
+  const pageOutflow = transactions
+    .filter((t) => t.type === "expense")
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  // Open Edit Modal
+  const handleOpenEdit = (tx: TransactionItem) => {
+    setEditingTx(tx);
+    setEditAmount(formatNumberWithDots(tx.amount));
+    setEditNotes(tx.notes || "");
+    setEditAccountId(tx.account_id);
+    setEditCategoryId(tx.category_id || "");
+    setEditGoalId(tx.goal_id || "");
+    setEditObligationId(tx.obligation_id || "");
+    setEditDate(tx.date ? tx.date.slice(0, 16) : "");
+    setEditError("");
+  };
+
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingTx) return;
+      const amt = parseInt(editAmount.replace(/[^0-9]/g, ""), 10);
+      if (!amt || amt <= 0) throw new Error("Nominal harus lebih dari 0");
+      if (!editAccountId) throw new Error("Pilih rekening");
+
+      return api.patch(`/transactions/${editingTx.id}`, {
+        amount: amt,
+        notes: editNotes.trim() || null,
+        account_id: editAccountId,
+        category_id: editCategoryId || null,
+        goal_id: editGoalId || null,
+        obligation_id: editObligationId || null,
+        date: editDate ? new Date(editDate).toISOString() : undefined,
       });
-      if (accountId) params.set("account_id", accountId);
-      if (categoryFilter) params.set("category_id", categoryFilter);
-      if (typeFilter !== "all") params.set("kind", typeFilter);
-      if (search) params.set("q", search);
-      return api.get(`/ledger?${params.toString()}`);
     },
-    getNextPageParam: (lastPage) => lastPage.paging.has_more ? lastPage.paging.next_offset : undefined,
-  });
-
-  const ledgerPages = ledgerData?.pages ?? [];
-  const rows = ledgerPages.flatMap((pageData) => pageData.rows);
-  const cashFlowRows = rows.filter((r) => !r.is_transfer);
-  const movementRows = rows.filter((r) => r.is_transfer);
-  const totalIn = cashFlowRows.reduce((s, r) => s + r.debit, 0);
-  const totalOut = cashFlowRows.reduce((s, r) => s + r.credit, 0);
-  const movementIn = movementRows.reduce((s, r) => s + r.debit, 0);
-  const movementOut = movementRows.reduce((s, r) => s + r.credit, 0);
-  const filteredRows = rows;
-
-  const selectedTxId = selectedRow?.transaction_id;
-  const { data: receiptData } = useQuery<any | null>({
-    queryKey: ["transaction-receipt", selectedTxId],
-    enabled: !!selectedTxId && !selectedRow?.is_transfer,
-    queryFn: async () => {
-      try {
-        return await api.get(`/transactions/${selectedTxId}/receipt`);
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 404) return null;
-        throw e;
-      }
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transactions-ledger"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-analytics"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["goals"] });
+      qc.invalidateQueries({ queryKey: ["obligations"] });
+      setEditingTx(null);
+    },
+    onError: (err: any) => {
+      setEditError(err?.message || "Gagal memperbarui transaksi");
     },
   });
-  const { data: auditData } = useQuery<{ audit: any[] }>({
-    queryKey: ["transaction-audit", selectedTxId],
-    enabled: !!selectedTxId && !selectedRow?.is_transfer,
-    queryFn: () => api.get(`/transactions/audit?transaction_id=${selectedTxId}`),
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: (txId: string) => api.del(`/transactions/${txId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transactions-ledger"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-analytics"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["goals"] });
+      qc.invalidateQueries({ queryKey: ["obligations"] });
+      setEditingTx(null);
+    },
   });
-  const auditRows = auditData?.audit ?? [];
-  const hasHistory = auditRows.length > 1;
-  const selectedTransferId = selectedRow?.is_transfer ? selectedRow.transfer_id : null;
-  const { data: movementDetail } = useQuery<any | null>({
-    queryKey: ["account-movement", selectedTransferId],
-    enabled: !!selectedTransferId,
-    queryFn: () => api.get(`/account-movements/${selectedTransferId}`),
-  });
-  const movementSourceName = accounts.find((a: any) => a.account_id === movementDetail?.source_account_id)?.account_name ?? "Source account";
-  const movementTargetName = accounts.find((a: any) => a.account_id === movementDetail?.target_account_id)?.account_name ?? "Target account";
-  const movementLabel = movementDetail?.movement_type === "allocation_funding" ? "Allocation Funding" : "Internal Movement";
-
-  useEffect(() => {
-    const action = searchParams.get("action");
-    if (!action) return;
-    const params = new URLSearchParams(searchParams.toString());
-    if (action === "add") {
-      setEditingRow(null);
-      setTxModal(true);
-    } else if (action === "transfer" || action === "movement") {
-      setMovementModal(true);
-    }
-    if (action) {
-      params.delete("action");
-      const nextUrl = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
-      window.history.replaceState(null, "", nextUrl);
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    const node = loadMoreRef.current;
-    if (!node || !hasNextPage || isFetchingNextPage) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) fetchNextPage();
-      },
-      { root: null, rootMargin: "240px", threshold: 0.01 },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage, filteredRows.length]);
-
-  async function deleteSelectedRow() {
-    if (!selectedRow || selectedRow.is_transfer) return;
-    if (!confirm(`Delete "${selectedRow.transaction_name}"?`)) return;
-    setDeletingDetail(true);
-    setDeleteErr("");
-    try {
-      await api.del(`/transactions/${selectedRow.transaction_id}`);
-      setSelectedRow(null);
-      await invalidateFinancialQueries();
-    } catch (e: any) {
-      setDeleteErr(e.message);
-    } finally {
-      setDeletingDetail(false);
-    }
-  }
-
-  async function deleteSelectedMovement() {
-    if (!selectedRow?.transfer_id) return;
-    if (!confirm("Delete this account movement? This removes both paired ledger entries.")) return;
-    setDeletingDetail(true);
-    setDeleteErr("");
-    try {
-      await api.del(`/account-movements/${selectedRow.transfer_id}`);
-      setSelectedRow(null);
-      await invalidateFinancialQueries();
-    } catch (e: any) {
-      setDeleteErr(e.message);
-    } finally {
-      setDeletingDetail(false);
-    }
-  }
-
-  async function uploadReceipt(file: File | null) {
-    if (!file || !selectedRow) return;
-    setReceiptBusy(true);
-    setReceiptErr("");
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch(`/api/transactions/${selectedRow.transaction_id}/receipt`, {
-        method: "POST",
-        credentials: "include",
-        body: form,
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail ?? "Upload failed");
-      }
-      await qc.invalidateQueries({ queryKey: ["transaction-receipt", selectedRow.transaction_id] });
-    } catch (e: any) {
-      setReceiptErr(e.message);
-    } finally {
-      setReceiptBusy(false);
-    }
-  }
-
-  async function deleteReceipt() {
-    if (!selectedRow || !confirm("Delete this receipt?")) return;
-    setReceiptBusy(true);
-    setReceiptErr("");
-    try {
-      await api.del(`/transactions/${selectedRow.transaction_id}/receipt`);
-      await qc.invalidateQueries({ queryKey: ["transaction-receipt", selectedRow.transaction_id] });
-    } catch (e: any) {
-      setReceiptErr(e.message);
-    } finally {
-      setReceiptBusy(false);
-    }
-  }
-
-  const TYPE_PILLS = [
-    { key: "all", label: "All" },
-    { key: "income", label: "Cash In" },
-    { key: "expense", label: "Cash Out" },
-    { key: "transfer", label: "Movement" },
-    { key: "payroll", label: "★ Payroll" },
-  ];
 
   return (
-    <div className="flex h-[calc(100vh-var(--topbar-height))] min-w-0">
-      {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Filter bar */}
-        <FilterBar>
-          <Select value={scope === "all" ? "all" : accountId ?? "all"} onChange={(e) => {
-            if (e.target.value === "all") { setScope("all"); setAccountId(null); }
-            else { setScope("account"); setAccountId(e.target.value); }
-          }} className="text-xs py-1.5 w-40">
-            <option value="all">All accounts</option>
-            {accounts.map((a) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
-          </Select>
-          <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="text-xs py-1.5 w-36">
-            <option value="">All categories</option>
-            {categories.map((c) => <option key={c.category_id} value={c.category_id}>{c.name}</option>)}
-          </Select>
-          <div className="relative flex-1 min-w-48">
-            <input
-              type="search" placeholder="Search description, category, account..."
-              value={search} onChange={(e) => setSearch(e.target.value)}
-              className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-xs bg-[var(--surface)] text-[var(--text)] pr-8"
-            />
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] text-xs">🔍</span>
+    <div className="space-y-6">
+      {/* 1. Header & Summary Ribbon */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[var(--border)]">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+              Riwayat & Catatan Keuangan
+            </span>
+            <span className="h-1 w-1 rounded-full bg-[var(--muted)]" />
+            <span className="text-xs text-emerald-500 font-semibold">
+              {totalCount} Total Transaksi
+            </span>
           </div>
-          <div className="ml-auto flex gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setMovementModal(true)}>⇄ Move Accounts</Button>
-            <Button size="sm" variant="primary" onClick={() => { setEditingRow(null); setTxModal(true); }}>+ Add Transaction</Button>
-          </div>
-        </FilterBar>
-
-        {/* Type pills */}
-        <div className="px-5 py-2 border-b border-[var(--border)] bg-[var(--surface)] flex gap-1.5 items-center">
-          {TYPE_PILLS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setTypeFilter(p.key as typeof typeFilter)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${typeFilter === p.key ? "bg-primary text-white" : "bg-[var(--bg)] text-[var(--muted)] hover:bg-[var(--border)]"}`}
-            >
-              {p.label}
-            </button>
-          ))}
+          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)] mt-1">
+            Riwayat Transaksi
+          </h1>
         </div>
 
-        {/* Stat cards */}
-        <div className="px-5 py-3 border-b border-[var(--border)] grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
-          {[
-            { icon: "↑", label: "Total Cash In", value: totalIn, color: "text-primary" },
-            { icon: "↓", label: "Total Cash Out", value: totalOut, color: "text-danger" },
-            { icon: "↘", label: "Movement In", value: movementIn, color: "text-info" },
-            { icon: "↗", label: "Movement Out", value: movementOut, color: "text-info" },
-            { icon: "~", label: "Net Balance Change", value: totalIn - totalOut + movementIn - movementOut, color: totalIn - totalOut + movementIn - movementOut >= 0 ? "text-primary" : "text-danger" },
-            { icon: "#", label: "Loaded Transactions", value: null, count: filteredRows.length, color: "text-[var(--text)]" },
-          ].map((s) => (
-            <div key={s.label} className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-sm font-bold text-[var(--muted)]">{s.icon}</div>
-              <div>
-                <p className="text-xs text-[var(--muted)]">{s.label}</p>
-                <p className={`text-sm font-bold tabular ${s.color}`}>
-                  {s.count != null ? s.count : bal(s.value ?? 0)}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setRecurringModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-semibold text-[var(--text)] shadow-xs transition-transform active:scale-95"
+            title="Kelola Transaksi Rutin & Otomatis"
+          >
+            <Icon name="repeat" className="h-3.5 w-3.5 text-blue-500" />
+            <span>Rutin</span>
+          </button>
 
-        {/* Table — desktop */}
-        <div className="flex-1 overflow-auto hidden md:block">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-[var(--surface)] border-b border-[var(--border)]">
-              <tr className="text-[var(--muted)]">
-                <th className="text-left px-4 py-2.5 font-medium">Date ↓</th>
-                <th className="text-left px-3 py-2.5 font-medium">Account</th>
-                <th className="text-left px-3 py-2.5 font-medium">Category</th>
-                <th className="text-left px-3 py-2.5 font-medium">Description</th>
-                <th className="text-right px-3 py-2.5 font-medium">Cash In</th>
-                <th className="text-right px-3 py-2.5 font-medium">Cash Out</th>
-                <th className="text-right px-3 py-2.5 font-medium">Movement</th>
-                <th className="text-right px-3 py-2.5 font-medium">Running Balance</th>
-                <th className="px-3 py-2.5"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {isLoading && (
-                <tr><td colSpan={9} className="text-center py-8 text-[var(--muted)]">Loading…</td></tr>
-              )}
-              {filteredRows.map((row) => (
-                <tr
-                  key={row.transaction_id}
-                  onClick={() => { setSelectedRow(row); setEditingRow(null); }}
-                  className={`hover:bg-[var(--bg)] cursor-pointer transition-colors ${selectedRow?.transaction_id === row.transaction_id ? "bg-primary/5" : ""}`}
-                >
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      {row.is_cycle_topup && <span className="text-warning text-xs">★</span>}
-                      <div>
-                        <p className="font-medium text-[var(--text)]">{new Date(row.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</p>
-                        <p className="text-[var(--muted)]">{new Date(row.date).toLocaleDateString("en-GB", { weekday: "short" })}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    {row.is_transfer ? (
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-5 h-5 rounded bg-blue-100 dark:bg-blue-900/30 text-primary flex items-center justify-center text-xs">⇄</span>
-                        <span className="font-medium text-[var(--text)] whitespace-normal break-words">{row.account_name}</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-5 h-5 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-xs">🏦</div>
-                        <div>
-                          <p className="font-medium text-[var(--text)] whitespace-normal break-words">{row.account_name}</p>
-                        </div>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm">{row.is_transfer ? "⇄" : getCategoryIcon(categoryById[row.category_id ?? ""], row.transaction_name)}</span>
-                      <span className="text-[var(--muted)] whitespace-normal break-words">{row.is_transfer ? "Internal Movement" : categoryById[row.category_id ?? ""]?.name ?? "Uncategorized"}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-start gap-1.5">
-                      <span className="block max-w-[340px] whitespace-normal break-words text-[var(--text)]">{row.transaction_name}</span>
-                      {row.is_transfer && <Badge variant="blue">Movement</Badge>}
-                      {row.is_cycle_topup && <Badge variant="yellow">Payroll</Badge>}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular font-medium text-primary">
-                    {!row.is_transfer && row.debit > 0 ? bal(row.debit) : "—"}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular font-medium text-danger">
-                    {!row.is_transfer && row.credit > 0 ? bal(row.credit) : "—"}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular font-medium text-info">
-                    {row.is_transfer ? bal(Math.max(row.debit, row.credit)) : "—"}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular text-[var(--text)]">{bal(row.balance)}</td>
-                  <td className="px-3 py-2.5 text-[var(--muted)]">⋯</td>
-                </tr>
-              ))}
-              {!isLoading && filteredRows.length === 0 && (
-                <tr><td colSpan={9} className="text-center py-8 text-[var(--muted)]">No transactions found</td></tr>
-              )}
-              {(hasNextPage || isFetchingNextPage) && (
-                <tr ref={loadMoreRef}>
-                  <td colSpan={9} className="py-4 text-center text-[var(--muted)]">
-                    <span className="inline-flex items-center gap-2 text-xs">
-                      <span className="h-4 w-4 rounded-full border-2 border-[var(--border)] border-t-primary animate-spin" />
-                      {isFetchingNextPage ? "Loading more transactions..." : "Scroll to load more"}
-                    </span>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile card list — replaces table on small screens */}
-        <div className="flex-1 overflow-auto md:hidden px-3 py-2 space-y-2">
-          {isLoading && <p className="text-center py-8 text-[var(--muted)] text-sm">Loading…</p>}
-          {filteredRows.length === 0 && !isLoading && (
-            <p className="text-center py-8 text-[var(--muted)] text-sm">No transactions found.</p>
-          )}
-          {filteredRows.map((row) => (
-            <div
-              key={row.transaction_id}
-              onClick={() => { if (!row.is_transfer) { setEditingRow(row); setSelectedRow(row); } }}
-              className={cn(
-                "bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 active:bg-[var(--bg)] transition-colors",
-                row.is_transfer && "opacity-60"
-              )}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2 min-w-0">
-                  {row.is_cycle_topup && <span className="text-yellow-500 text-xs">★</span>}
-                  {row.is_transfer && <span className="text-[var(--muted)] text-xs">⇄</span>}
-                  <span className="text-sm font-medium truncate">{row.transaction_name}</span>
-                </div>
-                <span className={cn("text-sm font-bold tabular whitespace-nowrap ml-2", row.debit > 0 ? "text-green-500" : "text-red-500")}>
-                  {row.debit > 0 ? `+${bal(row.debit)}` : `-${bal(row.credit)}`}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs text-[var(--muted)]">
-                <div className="flex items-center gap-2">
-                  <span>{new Date(row.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}</span>
-                  <span>·</span>
-                  <span className="truncate max-w-[100px]">{row.account_name}</span>
-                </div>
-                <span className="tabular">{bal(row.balance)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Result count */}
-        <div className="px-5 py-3 border-t border-[var(--border)] bg-[var(--surface)] flex items-center justify-between text-xs text-[var(--muted)]">
-          <span>Showing latest {filteredRows.length} loaded transactions</span>
-          <span>{hasNextPage ? "More results available" : "End of current results"}</span>
+          <button
+            type="button"
+            onClick={() => openQuickAdd()}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-income hover:bg-income-hover text-white text-xs font-bold shadow-xs transition-transform active:scale-95"
+          >
+            <Icon name="plus" className="h-4 w-4" />
+            <span>Catat Transaksi</span>
+            <kbd className="hidden sm:inline-block rounded bg-black/20 px-1.5 py-0.5 text-[9px] font-mono text-white/90">
+              N
+            </kbd>
+          </button>
         </div>
       </div>
 
-      {/* Right detail panel */}
-      {selectedRow && !txModal && (
-        <div className="hidden lg:flex w-80 border-l border-[var(--border)] bg-[var(--surface)] flex-col">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
-            <h3 className="font-semibold text-sm">Transaction Details</h3>
-            <button onClick={() => setSelectedRow(null)} className="text-[var(--muted)] hover:text-[var(--text)]">✕</button>
+      {/* Pending Scheduled & Recurring Banner */}
+      <PendingScheduledBanner onOpenRulesManager={() => setRecurringModalOpen(true)} />
+
+      {/* 2. Ledger Volume Summary Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
+          <span className="text-xs text-[var(--muted)] font-medium">Uang Masuk (Halaman Ini)</span>
+          <div className="text-xl font-bold tabular tracking-tight text-emerald-500 mt-1 select-all">
+            +{bal(pageInflow)}
           </div>
-          <div className="flex gap-4 px-4 py-2 border-b border-[var(--border)]">
-            <button type="button" className="text-xs font-semibold text-primary border-b-2 border-primary pb-1">Details</button>
-            {hasHistory && <button type="button" disabled title="Audit history is available for this transaction" className="text-xs text-[var(--muted)] cursor-not-allowed">History</button>}
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <div className={`p-3 rounded-xl ${selectedRow.is_transfer ? "bg-blue-50 dark:bg-blue-900/20" : selectedRow.debit > 0 ? "bg-green-50 dark:bg-green-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
-              <Badge variant={selectedRow.is_transfer ? "blue" : selectedRow.debit > 0 ? "green" : "red"}>{selectedRow.is_transfer ? movementLabel : selectedRow.debit > 0 ? "Cash In" : "Cash Out"}</Badge>
-              <p className={`text-2xl font-bold tabular mt-1 ${selectedRow.is_transfer ? "text-info" : selectedRow.debit > 0 ? "text-primary" : "text-danger"}`}>
-                {bal(selectedRow.debit > 0 ? selectedRow.debit : selectedRow.credit)}
-              </p>
-              <p className="text-xs text-[var(--muted)] mt-0.5">{selectedRow.transaction_name}</p>
-              {selectedRow.is_transfer && (
-                <p className="text-xs text-[var(--muted)] mt-1">
-                  {movementDetail ? `${movementSourceName} -> ${movementTargetName}` : "Loading movement pair..."}
-                </p>
-              )}
-            </div>
-            {!selectedRow.is_transfer && (
-              <div className="rounded-xl border border-[var(--border)] p-3 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-xs text-[var(--muted)] mb-1">Transaction Media</p>
-                    <p className="font-medium">{receiptData?.receipt ? receiptData.receipt.original_filename : "No receipt attached"}</p>
-                  </div>
-                  {receiptData?.receipt && (
-                    <a
-                      href={`/api/transactions/${selectedRow.transaction_id}/receipt/view`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs font-semibold text-primary hover:underline"
-                    >
-                      View
-                    </a>
-                  )}
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <label className="flex-1">
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*,application/pdf"
-                      disabled={receiptBusy}
-                      onChange={(e) => uploadReceipt(e.target.files?.[0] ?? null)}
-                    />
-                    <span className="block w-full text-center rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold cursor-pointer hover:bg-[var(--bg)]">
-                      {receiptData?.receipt ? "Replace" : "Upload"}
-                    </span>
-                  </label>
-                  {receiptData?.receipt && (
-                    <button
-                      type="button"
-                      onClick={deleteReceipt}
-                      disabled={receiptBusy}
-                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-red-50 dark:hover:bg-red-900/20"
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
-                {receiptErr && <p className="mt-2 text-xs text-danger">{receiptErr}</p>}
-              </div>
-            )}
-            <div className="space-y-3 text-sm">
-              <div><p className="text-xs text-[var(--muted)] mb-1">Date</p><p className="font-medium">{new Date(selectedRow.date).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</p></div>
-              {selectedRow.is_transfer && movementDetail ? (
-                <>
-                  <div><p className="text-xs text-[var(--muted)] mb-1">From Account</p><p className="font-medium">{movementSourceName}</p></div>
-                  <div><p className="text-xs text-[var(--muted)] mb-1">To Account</p><p className="font-medium">{movementTargetName}</p></div>
-                  <div><p className="text-xs text-[var(--muted)] mb-1">Category</p><p className="font-medium">{movementLabel}</p></div>
-                  <div>
-                    <p className="text-xs text-[var(--muted)] mb-1">Movement Pair</p>
-                    <p className="text-xs text-[var(--muted)]">An account movement changes owned-account balances only. It is excluded from cash in, cash out, spending, and income analysis.</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div><p className="text-xs text-[var(--muted)] mb-1">Account</p><p className="font-medium">{selectedRow.account_name}</p></div>
-                  <div><p className="text-xs text-[var(--muted)] mb-1">Category</p><p className="font-medium">{categoryById[selectedRow.category_id ?? ""]?.name ?? "Uncategorized"}</p></div>
-                </>
-              )}
-              {(selectedRow.tags ?? []).length > 0 && (
-                <div>
-                  <p className="text-xs text-[var(--muted)] mb-1">Tags</p>
-                  <div className="flex flex-wrap gap-1">{(selectedRow.tags ?? []).map((tag) => <Badge key={tag} variant="blue">{tag}</Badge>)}</div>
-                </div>
-              )}
-              {selectedRow.notes && <div><p className="text-xs text-[var(--muted)] mb-1">Notes</p><p className="font-medium whitespace-pre-wrap">{selectedRow.notes}</p></div>}
-              <div><p className="text-xs text-[var(--muted)] mb-1">Running Balance</p><p className="font-medium tabular">{bal(selectedRow.balance)}</p></div>
-            </div>
-          </div>
-          {!selectedRow.is_transfer && (
-            <div className="p-4 border-t border-[var(--border)] space-y-2">
-              {deleteErr && <p className="text-xs text-danger">{deleteErr}</p>}
-              <div className="flex gap-2">
-                <Button size="sm" variant="danger" className="flex-1" onClick={deleteSelectedRow} disabled={deletingDetail}>
-                  {deletingDetail ? "Deleting..." : "Delete"}
-                </Button>
-                <Button size="sm" variant="secondary" className="flex-1" onClick={() => setSelectedRow(null)}>Cancel</Button>
-                <Button size="sm" variant="primary" className="flex-1" onClick={() => { setEditingRow(selectedRow); setTxModal(true); }}>Edit</Button>
-              </div>
-            </div>
-          )}
-          {selectedRow.is_transfer && (
-            <div className="p-4 border-t border-[var(--border)] space-y-2">
-              {deleteErr && <p className="text-xs text-danger">{deleteErr}</p>}
-              <div className="flex gap-2">
-                <Button size="sm" variant="danger" className="flex-1" onClick={deleteSelectedMovement} disabled={deletingDetail}>
-                  {deletingDetail ? "Deleting..." : "Delete"}
-                </Button>
-                <Button size="sm" variant="secondary" className="flex-1" onClick={() => setSelectedRow(null)}>Close</Button>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  className="flex-1"
-                  disabled={!movementDetail}
-                  onClick={() => { setEditingMovement(movementDetail); setMovementModal(true); }}
-                >
-                  Edit
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
-      )}
+        <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
+          <span className="text-xs text-[var(--muted)] font-medium">Uang Keluar (Halaman Ini)</span>
+          <div className="text-xl font-bold tabular tracking-tight text-rose-500 mt-1 select-all">
+            -{bal(pageOutflow)}
+          </div>
+        </div>
+        <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
+          <span className="text-xs text-[var(--muted)] font-medium">Selisih Bersih (Halaman Ini)</span>
+          <div
+            className={cn(
+              "text-xl font-bold tabular tracking-tight mt-1 select-all",
+              pageInflow - pageOutflow >= 0 ? "text-emerald-500" : "text-rose-500"
+            )}
+          >
+            {pageInflow - pageOutflow >= 0 ? "+" : ""}
+            {bal(pageInflow - pageOutflow)}
+          </div>
+        </div>
+      </div>
 
-      {/* Transaction modal */}
-      {txModal && (
-        <TxModal
-          open={txModal}
-          onClose={() => { setTxModal(false); setEditingRow(null); }}
-          accounts={accounts}
-          categories={categories}
-          editing={editingRow}
-          onSaved={async () => {
-            await invalidateFinancialQueries();
-            setTxModal(false);
-            setEditingRow(null);
-          }}
-        />
-      )}
+      {/* 3. Search & Filter Bar */}
+      <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+          {/* Search Input */}
+          <div className="sm:col-span-6 relative">
+            <Icon
+              name="search"
+              className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(0);
+              }}
+              placeholder="Cari catatan, kategori, toko, target..."
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] pl-10 pr-4 py-2 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:outline-none focus:border-income transition-colors"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--muted)] hover:text-[var(--text)]"
+              >
+                ✕
+              </button>
+            )}
+          </div>
 
-      {/* Account movement modal */}
-      {movementModal && (
-        <AccountMovementModal
-          open={movementModal}
-          onClose={() => { setMovementModal(false); setEditingMovement(null); }}
-          accounts={accounts}
-          editing={editingMovement}
-          onSaved={async () => {
-            await invalidateFinancialQueries();
-            if (editingMovement?.transfer_id) {
-              await qc.invalidateQueries({ queryKey: ["account-movement", editingMovement.transfer_id] });
-            }
-            setMovementModal(false);
-            setEditingMovement(null);
-            setSelectedRow(null);
-          }}
-        />
-      )}
-    </div>
-  );
-}
+          {/* Account Filter */}
+          <div className="sm:col-span-3">
+            <select
+              value={accountFilter}
+              onChange={(e) => {
+                setAccountFilter(e.target.value);
+                setPage(0);
+              }}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)] focus:outline-none focus:border-income"
+            >
+              <option value="all">Semua Rekening</option>
+              <AccountSelectOptions accounts={accounts} allowParentSelection={true} />
+            </select>
+          </div>
 
-// Transaction modal
-function TxModal({ open, onClose, accounts, categories, editing, onSaved }: any) {
-  const [type, setType] = useState<"debit" | "credit">(editing?.debit > 0 ? "debit" : "credit");
-  const [accountId, setAccountId] = useState(editing?.account_id ?? accounts[0]?.account_id ?? "");
-  const [name, setName] = useState(editing?.transaction_name ?? "");
-  const [amount, setAmount] = useState(editing ? (editing.debit > 0 ? editing.debit : editing.credit) : 0);
-  const [date, setDate] = useState(toDatetimeLocal(editing?.date));
-  const [categoryId, setCategoryId] = useState(editing?.category_id ?? "");
-  const [notes, setNotes] = useState(editing?.notes ?? "");
-  const [tagsText, setTagsText] = useState<string>((editing?.tags ?? []).join(", "));
-  const [isTopup, setIsTopup] = useState(editing?.is_cycle_topup ?? false);
-  const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(false);
+          {/* Category Filter */}
+          <div className="sm:col-span-3">
+            <select
+              value={categoryFilter}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value);
+                setPage(0);
+              }}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)] focus:outline-none focus:border-income"
+            >
+              <option value="all">Semua Kategori</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name} ({cat.kind === "income" ? "Masuk" : "Keluar"})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-  const filteredCats = categories.filter((c: Category) => !c.is_archived && (type === "debit" ? c.kind === "income" : c.kind === "expense"));
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true); setErr("");
-    try {
-      const tags = tagsText.split(",").map((tag) => tag.trim()).filter(Boolean);
-      const payload = { account_id: accountId, transaction_type: type, transaction_name: name, amount, date: fromDatetimeLocal(date), is_cycle_topup: isTopup, category_id: categoryId || null, notes: notes || null, tags, is_reviewed: true };
-      if (editing) await api.put(`/transactions/${editing.transaction_id}`, payload);
-      else await api.post("/transactions", payload);
-      await onSaved();
-    } catch (e: any) { setErr(e.message); }
-    finally { setLoading(false); }
-  }
-
-  async function handleDelete() {
-    if (!editing || !confirm("Delete this transaction?")) return;
-    setLoading(true);
-    try { await api.del(`/transactions/${editing.transaction_id}`); await onSaved(); }
-    catch (e: any) { setErr(e.message); setLoading(false); }
-  }
-
-  return (
-    <Modal open={open} onClose={onClose} title={editing ? "Edit Transaction" : "Add Transaction"}>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="flex rounded-lg overflow-hidden border border-[var(--border)]">
-          {(["credit", "debit"] as const).map((t) => (
-            <button key={t} type="button" onClick={() => setType(t)}
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${type === t ? (t === "debit" ? "bg-primary text-white" : "bg-danger text-white") : "bg-[var(--surface)] text-[var(--muted)]"}`}>
-              {t === "debit" ? "Cash In" : "Cash Out"}
+        {/* Type Filter Chips */}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <span className="text-xs text-[var(--muted)] font-medium mr-1">Jenis:</span>
+          {[
+            { key: "all", label: "Semua" },
+            { key: "expense", label: "Uang Keluar" },
+            { key: "income", label: "Uang Masuk" },
+            { key: "transfer", label: "Pindah Saldo" },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                setTypeFilter(key);
+                setPage(0);
+              }}
+              className={cn(
+                "px-3 py-1 rounded-xl text-xs font-semibold transition-colors",
+                typeFilter === key
+                  ? "bg-income text-white shadow-2xs"
+                  : "bg-[var(--surface-raised)] text-[var(--muted)] hover:text-[var(--text)]"
+              )}
+            >
+              {label}
             </button>
           ))}
+
+          {(searchQuery || typeFilter !== "all" || accountFilter !== "all" || categoryFilter !== "all") && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery("");
+                setTypeFilter("all");
+                setAccountFilter("all");
+                setCategoryFilter("all");
+                setPage(0);
+              }}
+              className="ml-auto text-xs text-income hover:underline font-medium"
+            >
+              Hapus filter
+            </button>
+          )}
         </div>
-        <Select label="Account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-          {accounts.map((a: any) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
-        </Select>
-        <Input label="Description" value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Lunch, Salary" />
-        <MoneyInput label="Amount" value={amount} onChange={setAmount} required />
-        <Input label="Date & Time" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
-        {filteredCats.length > 0 && (
-          <Select label="Category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">— none —</option>
-            {filteredCats.map((c: any) => <option key={c.category_id} value={c.category_id}>{c.name}</option>)}
-          </Select>
+      </div>
+
+      {/* 4. Ledger Data Table */}
+      <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-xs overflow-hidden">
+        {isLoading ? (
+          <div className="py-20 text-center text-xs text-[var(--muted)] animate-pulse">
+            Memuat riwayat transaksi...
+          </div>
+        ) : transactions.length === 0 ? (
+          <div className="py-20 text-center space-y-2">
+            <p className="text-sm font-semibold text-[var(--text)]">Belum ada transaksi ditemukan</p>
+            <p className="text-xs text-[var(--muted)]">
+              Coba sesuaikan kata kunci pencarian atau filter Anda.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="border-b border-[var(--border)] text-[var(--muted)] uppercase text-[10px] bg-[var(--surface-raised)]/40">
+                  <th className="py-3 px-4 font-semibold">Tanggal</th>
+                  <th className="py-3 px-4 font-semibold">Jenis</th>
+                  <th className="py-3 px-4 font-semibold">Keterangan / Catatan</th>
+                  <th className="py-3 px-4 font-semibold">Kategori</th>
+                  <th className="py-3 px-4 font-semibold">Rekening</th>
+                  <th className="py-3 px-4 font-semibold">Target / Tagihan</th>
+                  <th className="py-3 px-4 font-semibold text-right">Nominal</th>
+                  <th className="py-3 px-4 font-semibold text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {transactions.map((tx) => {
+                  const isIncome = tx.type === "income";
+                  const isTransfer = tx.type === "transfer";
+                  const isExpense = tx.type === "expense";
+
+                  return (
+                    <tr
+                      key={tx.id}
+                      onClick={() => handleOpenEdit(tx)}
+                      className="hover:bg-[var(--surface-raised)]/60 transition-colors cursor-pointer group"
+                    >
+                      {/* Date */}
+                      <td className="py-3.5 px-4 text-[var(--muted)] whitespace-nowrap">
+                        {new Date(tx.date).toLocaleDateString("id-ID", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </td>
+
+                      {/* Type Badge */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span
+                          className={cn(
+                            "px-2 py-0.5 rounded-md text-[10px] font-bold uppercase",
+                            isIncome
+                              ? "bg-income/10 text-income"
+                              : isTransfer
+                              ? "bg-transfer/10 text-transfer"
+                              : "bg-expense/10 text-expense"
+                          )}
+                        >
+                          {isIncome ? "Uang Masuk" : isTransfer ? "Pindah Saldo" : "Uang Keluar"}
+                        </span>
+                      </td>
+
+                      {/* Notes / Description */}
+                      <td className="py-3.5 px-4 font-medium text-[var(--text)] group-hover:text-income transition-colors max-w-xs truncate">
+                        {tx.notes || (isTransfer ? "Pindah Saldo" : tx.category_name || "Umum")}
+                      </td>
+
+                      {/* Category */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        {tx.category_name ? (
+                          <span className="inline-flex items-center gap-1 text-[var(--text)] font-medium">
+                            <span
+                              className="h-2 w-2 rounded-full"
+                              style={{ backgroundColor: tx.category_color || "#3b82f6" }}
+                            />
+                            <span>{tx.category_name}</span>
+                          </span>
+                        ) : (
+                          <span className="text-[var(--muted)]">-</span>
+                        )}
+                      </td>
+
+                      {/* Account */}
+                      <td className="py-3.5 px-4 whitespace-nowrap font-medium text-[var(--text)]">
+                        {tx.account_name}
+                      </td>
+
+                      {/* Target Account or Linked Goal/Debt */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        {isTransfer && tx.transfer_target_account_name ? (
+                          <span className="text-transfer text-[11px] font-semibold">
+                            &rarr; {tx.transfer_target_account_name}
+                          </span>
+                        ) : tx.goal_name ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-500 font-semibold">
+                            🎯 {tx.goal_name}
+                          </span>
+                        ) : tx.obligation_name ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-rose-500 font-semibold">
+                            💳 {tx.obligation_name}
+                          </span>
+                        ) : (
+                          <span className="text-[var(--muted)]">-</span>
+                        )}
+                      </td>
+
+                      {/* Amount */}
+                      <td
+                        className={cn(
+                          "py-3.5 px-4 text-right font-bold tabular whitespace-nowrap",
+                          isIncome ? "text-income" : isTransfer ? "text-transfer" : "text-expense"
+                        )}
+                      >
+                        {isIncome ? "+" : isExpense ? "-" : ""}
+                        {bal(tx.amount)}
+                      </td>
+
+                      {/* Action */}
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEdit(tx);
+                          }}
+                          className="px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface)] text-[11px]"
+                        >
+                          Ubah
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-[var(--muted)]">Notes</label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Optional note" className="w-full border border-[var(--border)] rounded px-3 py-2 text-sm bg-[var(--surface)] text-[var(--text)] resize-none" />
-          <p className="text-xs text-[var(--muted)] text-right">{notes.length}/250</p>
-        </div>
-        <Input label="Tags" value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder="comma separated, e.g. reimbursable, recurring" />
-        {type === "debit" && (
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" checked={isTopup} onChange={(e) => setIsTopup(e.target.checked)} className="rounded" />
-            Mark as Payroll / Top-up
-          </label>
+
+        {/* Pagination Bar */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between p-4 border-t border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--muted)]">
+            <span>
+              Menampilkan {page * pageSize + 1} - {Math.min((page + 1) * pageSize, totalCount)} dari {totalCount}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                className="px-3 py-1.5 rounded-xl border border-[var(--border)] hover:bg-[var(--surface-raised)] disabled:opacity-40"
+              >
+                Sebelumnya
+              </button>
+              <span className="text-[11px] px-2 font-semibold text-[var(--text)]">
+                {page + 1} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                className="px-3 py-1.5 rounded-xl border border-[var(--border)] hover:bg-[var(--surface-raised)] disabled:opacity-40"
+              >
+                Berikutnya
+              </button>
+            </div>
+          </div>
         )}
-        {err && <p className="text-xs text-danger">{err}</p>}
-        <div className="flex gap-2 pt-1">
-          {editing && <Button type="button" variant="danger" size="sm" onClick={handleDelete} disabled={loading}>Delete</Button>}
-          <Button type="button" variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" size="sm" className="flex-1" disabled={loading}>{loading ? "Saving…" : "Save Changes"}</Button>
-        </div>
-        {editing && <p className="text-xs text-[var(--muted)] text-center">Created {new Date(editing.date).toLocaleString()}</p>}
-      </form>
-    </Modal>
-  );
-}
+      </div>
 
-function AccountMovementModal({ open, onClose, accounts, onSaved, editing }: any) {
-  const [fromId, setFromId] = useState(accounts[0]?.account_id ?? "");
-  const [toId, setToId] = useState(accounts[1]?.account_id ?? "");
-  const [amount, setAmount] = useState(0);
-  const [date, setDate] = useState(toDatetimeLocal());
-  const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(false);
+      {/* 5. Transaction Edit Modal */}
+      {editingTx && (
+        <Modal
+          open={Boolean(editingTx)}
+          onClose={() => setEditingTx(null)}
+          title="Ubah Transaksi"
+        >
+          <div className="space-y-4 pt-2 text-xs">
+            {editError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-medium">
+                {editError}
+              </div>
+            )}
 
-  useEffect(() => {
-    if (!open) return;
-    if (editing) {
-      setFromId(editing.source_account_id ?? "");
-      setToId(editing.target_account_id ?? "");
-      setAmount(Number(editing.amount ?? 0));
-      setDate(toDatetimeLocal(editing.date));
-    } else {
-      setFromId(accounts[0]?.account_id ?? "");
-      setToId(accounts[1]?.account_id ?? "");
-      setAmount(0);
-      setDate(toDatetimeLocal());
-    }
-    setErr("");
-    setLoading(false);
-  }, [open, editing, accounts]);
+            <div>
+              <label className="text-xs font-medium text-[var(--muted)] block mb-1">Nominal Uang (IDR)</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={editAmount}
+                onChange={(e) => setEditAmount(formatNumberWithDots(e.target.value))}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
+              />
+            </div>
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (fromId === toId) return setErr("Source and target must differ");
-    if (!fromId || !toId) return setErr("Choose source and target accounts");
-    if (!amount || amount <= 0) return setErr("Amount must be greater than zero");
-    setLoading(true); setErr("");
-    const payload = { source_account_id: fromId, target_account_id: toId, amount, date: fromDatetimeLocal(date) };
-    try {
-      if (editing) await api.put(`/account-movements/${editing.transfer_id}`, payload);
-      else await api.post("/account-movements", payload);
-      await onSaved();
-    }
-    catch (e: any) { setErr(e.message); setLoading(false); }
-  }
+            <div>
+              <label className="text-xs font-medium text-[var(--muted)] block mb-1">Rekening / Dompet</label>
+              <select
+                value={editAccountId}
+                onChange={(e) => setEditAccountId(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+              >
+                <AccountSelectOptions accounts={accounts} formatBalance={bal} allowParentSelection={true} />
+              </select>
+            </div>
 
-  return (
-    <Modal open={open} onClose={onClose} title={editing ? "Edit Account Movement" : "Move Between Accounts"}>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <Select label="From Account" value={fromId} onChange={(e) => setFromId(e.target.value)}>
-          {accounts.map((a: any) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
-        </Select>
-        <Select label="To Account" value={toId} onChange={(e) => setToId(e.target.value)}>
-          {accounts.map((a: any) => <option key={a.account_id} value={a.account_id}>{a.account_name}</option>)}
-        </Select>
-        <MoneyInput label="Amount" value={amount} onChange={setAmount} required />
-        <Input label="Date & Time" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
-        <p className="text-xs text-[var(--muted)]">This only moves money between owned accounts. It does not count as cash in, cash out, spending, income, or allocation progress.</p>
-        {err && <p className="text-xs text-danger">{err}</p>}
-        <div className="flex gap-2 pt-1">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" className="flex-1" disabled={loading}>
-            {loading ? "Saving..." : (editing ? "Save Movement" : "Move Money")}
-          </Button>
-        </div>
-      </form>
-    </Modal>
+            {editingTx.type !== "transfer" && (
+              <div>
+                <label className="text-xs font-medium text-[var(--muted)] block mb-1">Kategori</label>
+                <select
+                  value={editCategoryId}
+                  onChange={(e) => setEditCategoryId(e.target.value)}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+                >
+                  <option value="">Tanpa Kategori</option>
+                  {categories
+                    .filter((c) => c.kind === editingTx.type)
+                    .map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
+
+            {/* Optional Goal Link */}
+            <div>
+              <label className="text-xs font-medium text-[var(--muted)] block mb-1">
+                Hubungkan ke Target Tabungan (Opsional)
+              </label>
+              <select
+                value={editGoalId}
+                onChange={(e) => {
+                  setEditGoalId(e.target.value);
+                  if (e.target.value) setEditObligationId("");
+                }}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+              >
+                <option value="">Tidak ada</option>
+                {goals.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    🎯 {g.name} ({bal(g.current_amount)} / {bal(g.target_amount)})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Optional Obligation Link */}
+            <div>
+              <label className="text-xs font-medium text-[var(--muted)] block mb-1">
+                Hubungkan ke Tagihan / Utang (Opsional)
+              </label>
+              <select
+                value={editObligationId}
+                onChange={(e) => {
+                  setEditObligationId(e.target.value);
+                  if (e.target.value) setEditGoalId("");
+                }}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+              >
+                <option value="">Tidak ada</option>
+                {obligations.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    💳 {o.name} ({bal(o.remaining_amount)} tersisa)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-[var(--muted)] block mb-1">Tanggal & Waktu</label>
+              <input
+                type="datetime-local"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-[var(--muted)] block mb-1">Catatan</label>
+              <input
+                type="text"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="Tambahkan catatan..."
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+              />
+            </div>
+
+            <div className="pt-4 flex items-center justify-between border-t border-[var(--border)]">
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm("Hapus transaksi ini? Saldo rekening dan progres target terkait akan dikembalikan.")) {
+                    deleteMutation.mutate(editingTx.id);
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+                className="px-3.5 py-2 rounded-btn bg-rose-500/10 text-rose-500 border border-rose-500/20 font-semibold hover:bg-rose-500/20 disabled:opacity-50 transition-all active:scale-95"
+              >
+                {deleteMutation.isPending ? "Menghapus..." : "Hapus"}
+              </button>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingTx(null)}
+                  className="btn-secondary"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={updateMutation.isPending}
+                  onClick={() => updateMutation.mutate()}
+                  className="btn-primary"
+                >
+                  {updateMutation.isPending ? "Menyimpan..." : "Simpan Perubahan"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Recurring Rules Modal */}
+      <RecurringRulesModal
+        open={recurringModalOpen}
+        onClose={() => setRecurringModalOpen(false)}
+      />
+    </div>
   );
 }

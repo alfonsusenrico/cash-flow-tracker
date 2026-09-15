@@ -23,7 +23,8 @@ def mock_app():
         telegram_webhook_secret="fake-secret",
         vision_model="fake-vision-model",
         vision_base_url="http://fake.vision",
-        use_two_step_vision=True
+        use_two_step_vision=True,
+        message_debounce_delay=0.0,
     )
     with patch("bot.app.Store") as MockStore, \
          patch("bot.app.FinanceClient") as MockFinance, \

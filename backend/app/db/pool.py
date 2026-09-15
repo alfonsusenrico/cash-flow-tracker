@@ -17,6 +17,17 @@ DB_POOL = ConnectionPool(
 
 
 def open_db_pool() -> None:
+    global DB_POOL
+    if getattr(DB_POOL, "closed", False):
+        DB_POOL = ConnectionPool(
+            settings.database_url,
+            min_size=settings.db_pool_min,
+            max_size=settings.db_pool_max,
+            timeout=settings.db_pool_timeout,
+            max_waiting=settings.db_pool_max_waiting,
+            open=False,
+            kwargs={"row_factory": dict_row},
+        )
     DB_POOL.open()
 
 
