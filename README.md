@@ -11,11 +11,11 @@ You tap your card or QRIS at lunch. By the time you lock your phone, your net wo
 
 <div align="center">
 
-| 📱 **Android Companion Listener**<br>*(On-device push interception & regex parsing)* | 💻 **Self-Hosted Web Dashboard**<br>*(Real-time net worth, daily pulse & transaction feed)* |
+| 📱 **Android Companion Listener**<br>*(On-device push interception & regex parsing)* | 💻 **Self-Hosted Web Ledger**<br>*(Instant zero-effort transaction append & audit log)* |
 | :---: | :---: |
-| <img src="docs/assets/mobile_listener_demo.gif" alt="Mobile Notification Extractor" width="340" /> | <img src="docs/assets/web_ui_demo.gif" alt="Web Dashboard Real-Time Update" width="560" /> |
+| <img src="docs/assets/mobile_listener_demo.gif" alt="Mobile Notification Extractor" width="340" /> | <img src="docs/assets/web_ui_demo.gif" alt="Web Ledger Real-Time Append" width="560" /> |
 
-*Watch a BCA salary notification arrive on the phone (left) — parsed in <300ms and synced directly to the self-hosted dashboard and ledger (right).*
+*Watch a BCA salary notification arrive on the phone (left) — intercepted, parsed in <300ms, and automatically appended into the self-hosted ledger list (right).*
 
 </div>
 
