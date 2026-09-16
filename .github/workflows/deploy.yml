@@ -81,9 +81,10 @@ jobs:
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           INVITE_CODE: ${{ secrets.INVITE_CODE }}
-          COOKIE_SECURE: "true"
+          COOKIE_SECURE: ${{ secrets.COOKIE_SECURE || 'false' }}
           APP_ORIGINS: ${{ secrets.APP_ORIGINS || 'https://finance.alfonsusenrico.com,http://localhost:8090,http://127.0.0.1:8090' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_URL: ${{ secrets.TELEGRAM_WEBHOOK_URL || 'https://telegram-webhook.alfonsusenrico.com/cash-flow-tracker' }}
           TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           BOT_SECRET: ${{ secrets.BOT_SECRET }}
