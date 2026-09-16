@@ -182,7 +182,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
 
     # Pace status
     time_elapsed_pct = (elapsed_days / total_days) * 100
-    budget_spent_pct = (cycle_spent / total_budget * 100) if total_budget > 0 else 0
+    budget_spent_pct = (cycle_spent / effective_budget * 100) if effective_budget > 0 else 0
     if budget_spent_pct <= time_elapsed_pct + 5:
         pace_status = "on_track"
     elif budget_spent_pct <= time_elapsed_pct + 15:
@@ -197,7 +197,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
         "today_spent": today_spent,
         "safe_to_spend_today": safe_to_spend_today,
         "cycle_spent": cycle_spent,
-        "cycle_total_budget": total_budget,
+        "cycle_total_budget": effective_budget,
         "cycle_remaining": remaining_budget,
         "cycle_days_total": total_days,
         "cycle_day_current": elapsed_days,
