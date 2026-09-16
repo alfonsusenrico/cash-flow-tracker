@@ -133,6 +133,13 @@ async def ingest_notifications(
                 )
                 parsed_summary = parsed.to_dict()
 
+                # Strict Whitelist Gate: Discard non-financial noise before DB insertion or ledger creation
+                final_amount = parsed.amount if (parsed.amount is not None and parsed.amount > 0) else (
+                    int(ev.expected_amount) if ev.expected_amount else None
+                )
+                if not parsed.is_financial or parsed.event_class == "noise" or not final_amount or final_amount <= 0:
+                    continue
+
                 # 2. Automated Categorization
                 cat_res = resolve_category_for_notification(parsed, categories, user_rules)
                 parsed_summary["resolved_category"] = cat_res
@@ -146,10 +153,6 @@ async def ingest_notifications(
                 tx_id = existing_ev.get("transaction_id") if (isinstance(existing_ev, dict)) else None
 
                 # 4. Auto-create ledger transaction if it is a settled transaction with a valid amount
-                final_amount = parsed.amount if (parsed.amount is not None and parsed.amount > 0) else (
-                    int(ev.expected_amount) if ev.expected_amount else None
-                )
-
                 if tx_id is None and parsed.is_financial and parsed.event_class != "noise" and final_amount and final_amount > 0:
                     pkg_lower = ev.package_name.lower()
                     matched_account = None

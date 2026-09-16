@@ -145,6 +145,20 @@ STOCKBIT_MATCH_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# 13. QRIS Payment / Transfer
+# "Transfer QRIS Rp 50.000 berhasil" or "Transfer QRIS Rp 50.000 ke Kopi Kenangan berhasil"
+QRIS_PATTERN = re.compile(
+    r"(?:Transfer\s+)?QRIS\s+(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)(?:\s+ke\s+(?P<merchant>.+?))?\s+berhasil",
+    re.IGNORECASE,
+)
+
+# 14. Debit / Top Up
+# "Rp 25.000 terdebit untuk GoPay Top Up" or "Rp50.000 terdebit"
+DEBIT_PATTERN = re.compile(
+    r"(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)\s+terdebit(?:\s+untuk\s+(?P<target>.+))?",
+    re.IGNORECASE,
+)
+
 
 
 def parse_notification(
@@ -442,10 +456,52 @@ def parse_notification(
             investment_action="buy" if is_buy else "sell",
         )
 
-    # Generic Fallback: Could not determine deterministic pattern
+    # Step 13: QRIS Payment / Transfer
+    m = QRIS_PATTERN.search(raw_content) or QRIS_PATTERN.search(full_text)
+    if m:
+        amt = _clean_amount(m.group("amount"))
+        merchant = (m.group("merchant") or "QRIS Merchant").strip()
+        return ParsedNotification(
+            is_financial=True,
+            event_class="expense",
+            amount=amt,
+            currency="IDR",
+            direction="out",
+            source_pocket=None,
+            target_pocket=None,
+            counterparty=merchant,
+            category_hint="Pembayaran QRIS",
+            confidence=1.0,
+            raw_title=title,
+            raw_text=raw_content,
+            package_name=clean_package,
+        )
+
+    # Step 14: Debit / Top Up
+    m = DEBIT_PATTERN.search(raw_content) or DEBIT_PATTERN.search(full_text)
+    if m:
+        amt = _clean_amount(m.group("amount"))
+        target = (m.group("target") or "").strip()
+        return ParsedNotification(
+            is_financial=True,
+            event_class="expense",
+            amount=amt,
+            currency="IDR",
+            direction="out",
+            source_pocket=None,
+            target_pocket=None,
+            counterparty=target or "Debit",
+            category_hint="Pengeluaran",
+            confidence=0.95,
+            raw_title=title,
+            raw_text=raw_content,
+            package_name=clean_package,
+        )
+
+    # Generic Fallback: Could not determine deterministic pattern -> Strict Whitelist Rejection
     return ParsedNotification(
-        is_financial=True,
-        event_class="unknown",
+        is_financial=False,
+        event_class="noise",
         amount=None,
         currency="IDR",
         direction=None,
@@ -453,7 +509,7 @@ def parse_notification(
         target_pocket=None,
         counterparty=None,
         category_hint=None,
-        confidence=0.3,
+        confidence=0.1,
         raw_title=title,
         raw_text=raw_content,
         package_name=clean_package,
