@@ -10,6 +10,8 @@ DEFAULT_CATEGORIES = [
     {"name": "Belanja", "icon": "shopping-bag", "color": "#ec4899", "kind": "expense"},
     {"name": "Hiburan", "icon": "film", "color": "#8b5cf6", "kind": "expense"},
     {"name": "Kesehatan", "icon": "heart", "color": "#ef4444", "kind": "expense"},
+    {"name": "Investasi", "icon": "trending-up", "color": "#0ea5e9", "kind": "expense"},
+    {"name": "Internal Movement", "icon": "repeat", "color": "#64748b", "kind": "expense"},
     {"name": "Gaji", "icon": "dollar-sign", "color": "#22c55e", "kind": "income"},
     {"name": "Pendapatan Lain", "icon": "plus-circle", "color": "#14b8a6", "kind": "income"},
 ]
@@ -182,6 +184,9 @@ def init_db_schema() -> None:
                 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS default_funding_account_id UUID NULL REFERENCES accounts(id) ON DELETE SET NULL;
                 CREATE INDEX IF NOT EXISTS idx_accounts_display_order ON accounts(user_id, display_order);
                 CREATE INDEX IF NOT EXISTS idx_accounts_instrument_symbol ON accounts(instrument_symbol) WHERE instrument_symbol IS NOT NULL;
+
+                ALTER TABLE transactions ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64) NULL;
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_tx_user_idempotency ON transactions(user_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
             """)
             conn.commit()
 

@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -14,16 +15,20 @@ router = APIRouter(tags=["Transactions"])
 
 
 class TransactionCreate(BaseModel):
-    account_id: UUID
+    account_id: UUID | None = None
+    account_name: str | None = Field(default=None, max_length=100)
     type: str = Field(pattern="^(expense|income|transfer)$")
     amount: int = Field(gt=0)
     category_id: UUID | None = None
+    category_name: str | None = Field(default=None, max_length=100)
     transfer_target_account_id: UUID | None = None
+    target_account_name: str | None = Field(default=None, max_length=100)
     goal_id: UUID | None = None
     obligation_id: UUID | None = None
     notes: str | None = Field(default=None, max_length=500)
     date: datetime | None = None
     receipt_path: str | None = None
+    idempotency_key: str | None = Field(default=None, max_length=64)
     kakeibo_type: str | None = Field(default=None, pattern="^(need|want|saving)$")
     investment_action: str | None = Field(default=None, pattern="^(buy|sell)$")
     units: float | None = Field(default=None, ge=0)
@@ -177,66 +182,249 @@ def list_transactions(
     }
 
 
+def _match_account_by_name(
+    cur,
+    user_id: str,
+    raw_name: str,
+    accounts: list[dict[str, Any]],
+    parent_account: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    if not raw_name:
+        return None
+    raw = raw_name.strip()
+    raw_lower = raw.lower()
+
+    # 1. Exact match
+    for acc in accounts:
+        if (acc.get("name") or "").strip().lower() == raw_lower:
+            return acc
+
+    # 2. Match without "pocket" or "kantong"
+    norm = re.sub(r"\bpocket\b|\bkantong\b", "", raw_lower, flags=re.IGNORECASE).strip()
+    if norm:
+        for acc in accounts:
+            acc_name = (acc.get("name") or "").strip().lower()
+            acc_norm = re.sub(r"\bpocket\b|\bkantong\b", "", acc_name, flags=re.IGNORECASE).strip()
+            if acc_name == norm or acc_norm == norm:
+                return acc
+
+    # 3. Synonym dictionary
+    synonyms = {
+        "emergency fund": "dana darurat",
+        "emergency": "dana darurat",
+        "darurat": "dana darurat",
+        "savings": "tabungan",
+        "saving": "tabungan",
+    }
+    for syn_key, syn_val in synonyms.items():
+        if syn_key in norm or syn_key in raw_lower:
+            for acc in accounts:
+                if syn_val in (acc.get("name") or "").lower():
+                    return acc
+
+    # 4. Main/Utama fallback to parent or designated main account
+    if norm in ("main", "utama", "kantong utama", "") or raw_lower in ("main", "utama", "kantong utama"):
+        if parent_account:
+            return parent_account
+        for acc in accounts:
+            if any(k in (acc.get("name") or "").lower() for k in ("utama", "main")):
+                return acc
+        return next((a for a in accounts if not a.get("parent_id")), None)
+
+    # 5. Substring match
+    for acc in accounts:
+        acc_name = (acc.get("name") or "").strip().lower()
+        if norm and (norm in acc_name or acc_name in norm):
+            return acc
+        if raw_lower in acc_name or acc_name in raw_lower:
+            return acc
+
+    # 6. Auto-provision child pocket under parent bank if applicable
+    if norm and norm not in ("main", "utama", "kantong utama"):
+        target_parent = parent_account
+        if not target_parent:
+            target_parent = next((a for a in accounts if "jago" in (a.get("name") or "").lower() and not a.get("parent_id")), None)
+        if target_parent and "id" in target_parent:
+            cur.execute(
+                """
+                INSERT INTO accounts (user_id, parent_id, name, type, initial_balance)
+                VALUES (%s, %s, %s, 'bank', 0)
+                RETURNING id, name, parent_id, type
+                """,
+                (user_id, target_parent["id"], raw),
+            )
+            created = cur.fetchone()
+            if created:
+                accounts.append(created)
+                return created
+
+    return None
+
+
+def _resolve_category_by_name(
+    cur,
+    user_id: str,
+    raw_name: str,
+    categories: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if not raw_name:
+        return None
+    raw = raw_name.strip()
+    raw_lower = raw.lower()
+
+    for cat in categories:
+        if (cat.get("name") or "").strip().lower() == raw_lower:
+            return cat
+
+    # Auto-seed standard categories if missing
+    icon = "tag"
+    color = "#3b82f6"
+    kind = "expense"
+    if raw_lower == "internal movement":
+        icon = "repeat"
+        color = "#64748b"
+    elif raw_lower == "investasi":
+        icon = "trending-up"
+        color = "#0ea5e9"
+    elif raw_lower in ("gaji", "pendapatan lain"):
+        icon = "dollar-sign"
+        color = "#22c55e"
+        kind = "income"
+    elif raw_lower == "makanan & minuman":
+        icon = "utensils"
+        color = "#f97316"
+
+    cur.execute(
+        """
+        INSERT INTO categories (user_id, name, icon, color, kind)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT DO NOTHING
+        RETURNING id, name, kind, icon, color
+        """,
+        (user_id, raw, icon, color, kind),
+    )
+    created = cur.fetchone()
+    if created:
+        categories.append(created)
+        return created
+
+    cur.execute(
+        "SELECT id, name, kind, icon, color FROM categories WHERE user_id = %s AND LOWER(name) = %s LIMIT 1",
+        (user_id, raw_lower),
+    )
+    found = cur.fetchone()
+    if found:
+        categories.append(found)
+        return found
+    return None
+
+
 @router.post("")
 def create_transaction(payload: TransactionCreate, current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
-    account_id = str(payload.account_id)
-    category_id = str(payload.category_id) if payload.category_id else None
-    target_account_id = (
-        str(payload.transfer_target_account_id) if payload.transfer_target_account_id else None
-    )
-    goal_id = str(payload.goal_id) if payload.goal_id else None
-    obligation_id = str(payload.obligation_id) if payload.obligation_id else None
     tx_date = payload.date or datetime.now(timezone.utc)
 
     with db_conn() as conn:
         with conn.cursor() as cur:
-            # Validate source account
-            cur.execute("SELECT id FROM accounts WHERE user_id = %s AND id = %s", (user_id, account_id))
-            if not cur.fetchone():
-                raise HTTPException(status_code=404, detail="Source account not found")
+            # 1. Idempotency Check
+            if payload.idempotency_key:
+                cur.execute(
+                    """
+                    SELECT id, created_at, amount, type
+                    FROM transactions
+                    WHERE user_id = %s AND idempotency_key = %s
+                    """,
+                    (user_id, payload.idempotency_key),
+                )
+                existing_tx = cur.fetchone()
+                if existing_tx:
+                    return {
+                        "ok": True,
+                        "transaction_id": str(existing_tx["id"]),
+                        "created_at": existing_tx["created_at"].isoformat() if existing_tx.get("created_at") else None,
+                        "amount": existing_tx["amount"],
+                        "type": existing_tx["type"],
+                        "idempotent": True,
+                        "message": "Transaction already recorded (idempotent)",
+                    }
 
-            # Validate transfer target if transfer
+            # Pre-fetch user accounts & categories for name resolution
+            cur.execute(
+                "SELECT id, parent_id, name, type, default_funding_account_id FROM accounts WHERE user_id = %s AND is_archived = FALSE",
+                (user_id,),
+            )
+            accounts = cur.fetchall()
+
+            cur.execute(
+                "SELECT id, name, kind, kakeibo_type, is_primary FROM categories WHERE user_id = %s AND is_archived = FALSE",
+                (user_id,),
+            )
+            categories = cur.fetchall()
+
+            # Resolve source account
+            account_id = None
+            matched_source = None
+            if payload.account_id:
+                account_id = str(payload.account_id)
+                matched_source = next((a for a in accounts if str(a["id"]) == account_id), None)
+                if not matched_source:
+                    cur.execute("SELECT id, name, type FROM accounts WHERE user_id = %s AND id = %s", (user_id, account_id))
+                    matched_source = cur.fetchone()
+                if not matched_source:
+                    raise HTTPException(status_code=404, detail="Source account not found")
+            elif payload.account_name:
+                matched_source = _match_account_by_name(cur, user_id, payload.account_name, accounts)
+                if not matched_source:
+                    raise HTTPException(status_code=400, detail=f"Source account '{payload.account_name}' could not be resolved")
+                account_id = str(matched_source["id"])
+            else:
+                raise HTTPException(status_code=422, detail="Either account_id or account_name must be provided")
+
+            # Resolve transfer target account
+            target_account_id = None
             if payload.type == "transfer":
-                if not target_account_id:
-                    raise HTTPException(
-                        status_code=400, detail="Transfer requires a target account"
-                    )
-                if target_account_id == account_id:
-                    raise HTTPException(
-                        status_code=400, detail="Cannot transfer to the same account"
-                    )
-                cur.execute(
-                    "SELECT id FROM accounts WHERE user_id = %s AND id = %s",
-                    (user_id, target_account_id),
-                )
-                if not cur.fetchone():
-                    raise HTTPException(status_code=404, detail="Target account not found")
+                if payload.transfer_target_account_id:
+                    target_account_id = str(payload.transfer_target_account_id)
+                    cur.execute("SELECT id FROM accounts WHERE user_id = %s AND id = %s", (user_id, target_account_id))
+                    if not cur.fetchone():
+                        raise HTTPException(status_code=404, detail="Target account not found")
+                elif payload.target_account_name:
+                    parent_acc = None
+                    if matched_source and matched_source.get("parent_id"):
+                        parent_acc = next((a for a in accounts if str(a["id"]) == str(matched_source["parent_id"])), None)
+                    matched_target = _match_account_by_name(cur, user_id, payload.target_account_name, accounts, parent_account=parent_acc)
+                    if not matched_target:
+                        raise HTTPException(status_code=400, detail=f"Target account '{payload.target_account_name}' could not be resolved")
+                    target_account_id = str(matched_target["id"])
+                else:
+                    raise HTTPException(status_code=400, detail="Transfer requires a target account")
 
-            # Validate category if provided
-            if category_id:
-                cur.execute(
-                    "SELECT id FROM categories WHERE user_id = %s AND id = %s",
-                    (user_id, category_id),
-                )
+                if target_account_id == account_id:
+                    raise HTTPException(status_code=400, detail="Cannot transfer to the same account")
+
+            # Resolve category
+            category_id = None
+            if payload.category_id:
+                category_id = str(payload.category_id)
+                cur.execute("SELECT id FROM categories WHERE user_id = %s AND id = %s", (user_id, category_id))
                 if not cur.fetchone():
                     raise HTTPException(status_code=404, detail="Category not found")
+            elif payload.category_name:
+                matched_cat = _resolve_category_by_name(cur, user_id, payload.category_name, categories)
+                if matched_cat:
+                    category_id = str(matched_cat["id"])
 
             # Validate goal if provided
+            goal_id = str(payload.goal_id) if payload.goal_id else None
             if goal_id:
-                cur.execute(
-                    "SELECT id FROM goals WHERE user_id = %s AND id = %s",
-                    (user_id, goal_id),
-                )
+                cur.execute("SELECT id FROM goals WHERE user_id = %s AND id = %s", (user_id, goal_id))
                 if not cur.fetchone():
                     raise HTTPException(status_code=404, detail="Goal not found")
 
             # Validate obligation if provided
+            obligation_id = str(payload.obligation_id) if payload.obligation_id else None
             if obligation_id:
-                cur.execute(
-                    "SELECT id FROM obligations WHERE user_id = %s AND id = %s",
-                    (user_id, obligation_id),
-                )
+                cur.execute("SELECT id FROM obligations WHERE user_id = %s AND id = %s", (user_id, obligation_id))
                 if not cur.fetchone():
                     raise HTTPException(status_code=404, detail="Obligation not found")
 
@@ -249,7 +437,10 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     cur.execute("SELECT id FROM categories WHERE user_id = %s AND name = 'Investasi' LIMIT 1", (user_id,))
                     inv_cat = cur.fetchone()
                     if inv_cat:
-                        category_id = inv_cat["id"]
+                        category_id = str(inv_cat["id"])
+            elif payload.type == "transfer":
+                # Regular transfers are net-zero, excluded from living expense kakeibo
+                kakeibo_val = "saving" if goal_id else None
             elif not kakeibo_val and category_id:
                 cur.execute(
                     "SELECT kakeibo_type, is_primary FROM categories WHERE id = %s",
@@ -258,18 +449,15 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 crow = cur.fetchone()
                 if crow:
                     kakeibo_val = crow.get("kakeibo_type") or ("need" if crow.get("is_primary", True) else "want")
-            elif not kakeibo_val and payload.type == "transfer" and goal_id:
-                # Dedicated transfer into a specific financial goal is tracked as saving
-                kakeibo_val = "saving"
 
             # Insert transaction
             cur.execute(
                 """
                 INSERT INTO transactions (
                     user_id, account_id, category_id, goal_id, obligation_id, type,
-                    transfer_target_account_id, amount, notes, date, receipt_path, kakeibo_type
+                    transfer_target_account_id, amount, notes, date, receipt_path, kakeibo_type, idempotency_key
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, created_at
                 """,
                 (
@@ -285,6 +473,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     tx_date,
                     payload.receipt_path,
                     kakeibo_val,
+                    payload.idempotency_key,
                 ),
             )
             created = cur.fetchone()
