@@ -60,14 +60,6 @@ def _clean_amount(raw: str) -> int | None:
     except ValueError:
         return None
 
-
-# 1. Noise Patterns (Promotions, Pending VA, In-flight Status)
-NOISE_PATTERNS = [
-    re.compile(r"hadiah miliaran|puzzle & klaim|diskon|voucher|cashback yuk", re.IGNORECASE),
-    re.compile(r"nomor va sekarang|menunggu pembayaran|sebelum .+? untuk kami teruskan", re.IGNORECASE),
-    re.compile(r"lagi dikirim|lagi memproses pengiriman", re.IGNORECASE),
-]
-
 # 2. Bank Jago Pocket Movement
 # "Rp500.000 has been moved from your Main Pocket Pocket to your GoPay Tabungan Pocket."
 JAGO_POCKET_PATTERN = re.compile(
@@ -175,7 +167,7 @@ def parse_notification(
     full_text = f"{title or ''} {raw_content}".strip()
     clean_package = package_name.strip()
 
-    # Step 1: Discard Empty or Pure Noise
+    # Step 1: Discard Empty
     if not raw_content and not title:
         return ParsedNotification(
             is_financial=False,
@@ -192,24 +184,6 @@ def parse_notification(
             raw_text=raw_content,
             package_name=clean_package,
         )
-
-    for np in NOISE_PATTERNS:
-        if np.search(full_text):
-            return ParsedNotification(
-                is_financial=False,
-                event_class="noise",
-                amount=None,
-                currency="IDR",
-                direction=None,
-                source_pocket=None,
-                target_pocket=None,
-                counterparty=None,
-                category_hint=None,
-                confidence=0.95,
-                raw_title=title,
-                raw_text=raw_content,
-                package_name=clean_package,
-            )
 
     # Step 2: Bank Jago Pocket Movement
     m = JAGO_POCKET_PATTERN.search(raw_content)
