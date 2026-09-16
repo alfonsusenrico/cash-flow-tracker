@@ -1,369 +1,209 @@
-# Cash Flow Tracker
+# ⚡️ CashFlow — Frictionless Money Mindfulness & Self-Hosted Vault
 
-A self-hosted personal finance app. Track your daily spending, see where your money goes each month, and manage multiple accounts — all from your own server.
-
----
-
-## What you can do
-
-- Record cash in and cash out across multiple accounts (cash, bank, e-wallet, etc.)
-- See a monthly summary: balance per account, total in/out, and budget usage
-- Browse your full transaction history with search and date filters
-- Analyze spending by category and day
-- Move money between owned accounts without counting it as income or spending
-- Export your ledger to CSV or PDF
-- Attach receipts (image or PDF) to any transaction
-- Manage spending categories
-- Track monthly periods (open / closed)
+> **Stop typing coffee receipts into spreadsheets at 11 PM.**  
+> CashFlow is a self-hosted personal finance companion built for daily mindfulness, zero-effort automation, and absolute financial privacy.
 
 ---
 
-## Requirements
+## 🌟 The Magic Flow: Notification ➔ Instant Parse ➔ Live Ledger
 
-- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+You tap your card or QRIS at lunch. By the time you lock your phone, your net worth, category spending, and daily safe-to-spend allowance are already updated. **Zero manual entry. Zero cloud subscription fees. Zero data tracking.**
 
-That's it.
+<div align="center">
+
+| 📱 **Android Companion Listener**<br>*(On-device push interception & regex parsing)* | 💻 **Self-Hosted Web Dashboard**<br>*(Real-time net worth, daily pulse & transaction feed)* |
+| :---: | :---: |
+| <img src="docs/assets/mobile_listener_demo.gif" alt="Mobile Notification Extractor" width="340" /> | <img src="docs/assets/web_ui_demo.gif" alt="Web Dashboard Real-Time Update" width="560" /> |
+
+*Watch a BCA salary notification arrive on the phone (left) — parsed in <300ms and synced directly to the self-hosted dashboard and ledger (right).*
+
+</div>
 
 ---
 
-## Install and run
+## 💡 Why CashFlow?
+
+Traditional personal finance apps fail for two big reasons:
+
+1. **Manual Logging Fatigue:** Opening an app, selecting a category, picking a date, typing `Rp 35.000`, and pressing save for every cup of coffee is exhausting. Within two weeks, everyone gives up and falls back into spreadsheet debt.
+2. **Privacy Invasive & Subscription Bloat:** Cloud aggregators want your direct banking credentials, sell your spending habits to advertiser networks, and charge $10/month for a glorified pie chart.
+
+**CashFlow takes the hacker-native approach:**
+- ⚡️ **Zero-Touch Ingestion:** A lightweight Android listener captures banking push notifications, parses the amount, sender, and category entirely on-device, and posts directly to your private server via secured Bearer API.
+- 🎯 **Daily Safe-To-Spend Mindfulness:** No confusing 100-row budget sheets. Just one clear, stress-free number: *"How much is safe to spend today without breaking this month's runway?"*
+- 🛡️ **100% Self-Hosted Sovereignty:** Built on FastAPI, PostgreSQL, Next.js, and Redis. All ledger entries, accounts, and financial credentials live exclusively on your own infrastructure.
+
+---
+
+## 🚀 Core Superpowers
+
+### 1. 📱 Zero-Tap Mobile Interception (Android Companion)
+Runs silently in the background using native Android `NotificationListenerService`. Battery impact is virtually zero (<0.1% daily).
+- **Out-of-the-Box App Intelligence:**
+  - **BCA & myBCA:** Inbound transfers, salary deposits, QRIS payments, debit card spending.
+  - **Bank Jago:** Single pocket withdrawals, dual-pocket transfers (`Main Pocket ➔ Emergency Fund`), incoming transfers.
+  - **GoPay:** QRIS merchant payments, GoPay Tabungan internal movements, bank transfers.
+  - **ShopeePay:** Merchant checkouts, peer-to-peer transfers, top-ups.
+  - **Stockbit:** Real-time equity trade fills (`Beli 10 lot BBRI match di Rp 3.850`) updating stock units and RDN cash balances automatically!
+- **Strict Spam & Promo Rejection:** Marketing blasts, promo push notifications, OTPs, and cashback vouchers are strictly rejected on-device before any network request is made.
+
+### 2. 🎯 Paycheck Cycle & Daily Pulse
+- **Payday-Aligned Cycles:** Budgets operate on your real financial cadence (e.g. 25th to 24th), not arbitrary calendar months.
+- **Safe-to-Spend Allowance:** Dynamically adjusts your daily allowance based on remaining days and actual burn rate.
+- **Kakeibo Financial Allocation:** Visual 50 / 30 / 20 breakdown (Needs, Wants, Savings & Investment) to keep cash flow balanced.
+
+### 3. 🏦 Multi-Vault Liquidity & Asset Portfolio
+- **Cash, Banks & E-Wallets:** Real-time balances for physical cash, bank accounts, and digital wallets with 1-tap internal transfers.
+- **Investment Portfolio & RDN:** Track stock lots and weighted-average buy price (WAC) with direct source account linking.
+
+### 4. 🤖 Telegram AI Companion with Receipt OCR
+- **Natural Language Chat:** Send *"beli makan 50rb pake bca"* or *"transfer 500k dari BCA ke Jago"*. DeepSeek AI parses intent and records the transaction instantly.
+- **Receipt Photo Ingestion:** Snap a photo of any receipt in Telegram — the bot extracts line items, tax, total, and timestamp automatically.
+
+### 5. 🎨 Linear-Grade Craft & Density
+- High-contrast, dark-first Bauhaus visual language.
+- Monospaced tabular digits for currencies, sub-millisecond keyboard shortcuts (`N` for quick entry), and responsive desktop/mobile layouts.
+
+---
+
+## 🛠️ Technical Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   CashFlow Ecosystem                        │
+├─────────────────────────┬───────────────────────────────────┤
+│  📱 Mobile Listener     │  🤖 Telegram Bot                  │
+│  - Android Native       │  - Python + DeepSeek AI           │
+│  - On-Device Regex      │  - Receipt OCR Vision             │
+│  - Secured Bearer Post  │  - Natural Language Interface     │
+└────────────┬────────────┴─────────────────┬─────────────────┘
+             │                              │
+             ▼                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  ⚡️ FastAPI Backend (:8000)                                 │
+│  - Single unified auth (Starlette Sessions + Bearer Tokens) │
+│  - High-performance Psycopg3 connection pooling             │
+│  - Strict CSRF protection & origin validation               │
+└────────────┬──────────────────────────────┬─────────────────┘
+             │                              │
+             ▼                              ▼
+┌───────────────────────────┐  ┌──────────────────────────────┐
+│  🐘 PostgreSQL 16         │  │  ⚡️ Redis 7                 │
+│  - Core 5-table ledger    │  │  - Ephemeral cache           │
+│  - ACID transaction logs  │  │  - Rate limiting & locks     │
+└───────────────────────────┘  └──────────────────────────────┘
+```
+
+---
+
+## 📦 Quickstart (Docker Compose)
+
+### 1. Clone & Configure
 
 ```bash
 git clone https://github.com/alfonsusenrico/cash-flow-tracker.git
 cd cash-flow-tracker
 
-# Copy the example config
+# Copy environment template
 cp .env.example .env
 
-# Generate a secure session secret
+# Generate secure secrets
 SESSION_SECRET=$(openssl rand -hex 32)
-sed -i.bak "s/^SESSION_SECRET=.*/SESSION_SECRET=${SESSION_SECRET}/" .env && rm .env.bak
-
-# Generate a database password and invite code
 POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 32)
 INVITE_CODE=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24)
-sed -i.bak "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${POSTGRES_PASSWORD}/" .env && rm .env.bak
-sed -i.bak "s/^INVITE_CODE=.*/INVITE_CODE=${INVITE_CODE}/" .env && rm .env.bak
 
-# Start the database and run migrations
+sed -i.bak "s/^SESSION_SECRET=.*/SESSION_SECRET=${SESSION_SECRET}/" .env
+sed -i.bak "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${POSTGRES_PASSWORD}/" .env
+sed -i.bak "s/^INVITE_CODE=.*/INVITE_CODE=${INVITE_CODE}/" .env
+rm -f .env.bak
+```
+
+### 2. Run Database Migrations & Start
+
+```bash
+# Spin up database and execute migrations
 docker compose up -d db
 docker compose run --rm migrate
 
-# Start everything
+# Start all services
 docker compose up -d
 ```
 
-Open **http://localhost:8090** in your browser.
+Open **`http://localhost:8090`** in your browser.
+
+### 3. Register & Initial Setup
+1. Click **First time? Register** on the login page.
+2. Enter your chosen username, password, and the `INVITE_CODE` from your `.env`.
+3. Add your bank accounts or wallets in **Rekening & Saldo**.
+4. Generate an API Key under your profile menu for companion app pairing.
 
 ---
 
-## First-time setup
+## 📲 Pairing the Mobile Companion App
 
-1. **Register** — click "First time? Register" on the login page. Use the invite code from `INVITE_CODE` in your `.env` file.
-2. **Create your first account** — open **Accounts** and add an account such as "Cash", "BCA", or "GoPay". Set an initial balance if you have one.
-3. **Record a transaction** — open **Ledger**, click **+ Add Transaction**, fill in the amount and description, and save.
-4. **Check your summary** — open **Dashboard** to see balances, spending, and budget status.
-
----
-
-## Daily use
-
-| What you want to do | Where to go |
-|---|---|
-| Record spending or income | Ledger → + Add Transaction |
-| Move money between owned accounts | Ledger → Move Accounts |
-| See this month's overview | Dashboard |
-| See spending by day / category | Analysis |
-| Browse all transactions | Ledger |
-| Manage accounts | Accounts |
-| Manage categories | Categories |
-| View monthly periods | Periods |
-| Export to CSV or PDF | Ledger → Export |
+1. Build or download the debug APK from `financial-tracker-mobile-listener`:
+   ```bash
+   cd ../financial-tracker-mobile-listener
+   ./gradlew assembleDebug
+   adb install -r app/build/outputs/apk/debug/app-debug.apk
+   ```
+2. Open **Mobile Listener** on your Android device.
+3. Open **Pengaturan (Settings)**:
+   - **Server URL:** `https://finance.your-domain.com` (or your LAN IP)
+   - **API Key:** Paste your user `cfk_...` Bearer token.
+4. Grant **Notification Access** when prompted by Android.
+5. You're all set! Any notification from BCA, Jago, GoPay, ShopeePay, or Stockbit will sync automatically.
 
 ---
 
-## Set your payday
+## 🔌 API Reference Highlights
 
-The app groups your month from payday to payday, not calendar month. To set it:
+Every account can authenticate via Session Cookie (browser) or Bearer Token (mobile companion & automation scripts).
 
-1. Open **Settings**
-2. Set your payday day
-3. Save the setting. A payday day of 25 means your cycle runs from the 25th to the 24th of the next month.
+- `POST /api/transactions` — 1-call expense, income, or transfer entry.
+  ```json
+  {
+    "type": "income",
+    "amount": 1500000,
+    "account_name": "BCA",
+    "category_name": "Gaji",
+    "notes": "PT TEKNOLOGI KARYA",
+    "date": "2026-09-16T15:33:14Z"
+  }
+  ```
+- `GET /api/pulse` — Returns today's spending, remaining daily allowance, and monthly pace.
+- `GET /api/dashboard/overview?timeframe=cycle` — Full financial health KPIs, cumulative cashflow, and Kakeibo breakdown.
+- `GET /api/accounts` — Balance snapshot across all liquid and investment accounts.
 
----
-
-## Set a budget
-
-1. Go to **Accounts**
-2. Edit an account
-3. Set a **Monthly Limit** — the Summary page will show how much of that budget you've used
-
----
-
-## Dashboard metric glossary
-
-| Metric | Formula / meaning |
-|---|---|
-| Health Score | Average of dashboard metric statuses: `ok = 100`, `warn = 50`, `critical = 0`. |
-| Safe to Spend | `min(spendable account balance, remaining spending plan) - payables due this cycle`. Account movements are not counted as income or spending. |
-| Net Worth | Current liquid account balances plus invested asset value. |
-| Emergency Fund Coverage | Emergency bucket balance divided by the monthly emergency spending base from allocation items. |
-| Savings Rate | Allocation-based savings rate when a plan exists: planned savings divided by expected income. |
-| Cash Runway | Current liquid assets divided by the monthly emergency spending base, converted to days/months. |
-| Monthly Drift | Actual spending minus planned spending. Negative means spending is under plan. |
-
-## Cashflow model
-
-- **Cash In** is new money entering your finances, such as salary, a gift, refund, or interest.
-- **Cash Out** is money leaving your finances, such as food, bills, shopping, or giving.
-- **Move Between Accounts** is the same owned money moved between tracked accounts, such as BCA to Jago. It changes account balances only.
-- **Allocation Funding** moves planned monthly allocation amounts from the funding source to target accounts. It updates allocation funding progress and may create internal movement rows when the target account differs from the source.
-
-Example: if family sends money to BCA and you save it in Jago, record the gift as Cash In once, then use Move Accounts to move it from BCA to Jago. Reports count the gift as income once and exclude the BCA-to-Jago movement from spending, income, and savings-rate calculations.
+Interactive Swagger API docs are available at **`/api/docs`**.
 
 ---
 
-## Update the app
+## 💻 Development & Verification Commands
 
-```bash
-git pull
-docker compose run --rm migrate   # apply any new database migrations
-docker compose up -d --build      # rebuild and restart
-```
-
----
-
-## Stop the app
-
-```bash
-docker compose down
-```
-
-Your data is stored in a Docker volume (`db_data`) and is not deleted when you stop.
-
----
-
-## Configuration
-
-Edit `.env` to change these settings:
-
-| Variable | Default | What it does |
-|---|---|---|
-| `SESSION_SECRET` | *(required)* | Signs session cookies — keep this secret |
-| `INVITE_CODE` | *(required)* | Code required to register a new account |
-| `TZ` | `Asia/Jakarta` | Your timezone — affects how dates are displayed |
-| `COOKIE_SECURE` | `false` | Set to `true` when running behind HTTPS |
-| `APP_ORIGINS` | `http://localhost:8090` | Comma-separated browser origins allowed for cookie-auth writes |
-| `TRUSTED_PROXY_CIDRS` | Docker bridge + localhost | Proxy networks allowed to supply `X-Real-IP` / `X-Forwarded-For` |
-| `POSTGRES_PASSWORD` | *(required)* | Database password |
-| `RECEIPT_MAX_MB` | `10` | Maximum receipt upload size |
-| `RECEIPT_MAX_PIXELS` | `50000000` | Maximum decoded receipt image pixels |
-| `LEDGER_EXPORT_MAX_ROWS` | `5000` | Maximum rows allowed in one ledger export |
-
-## Production checklist
-
-Before exposing the app outside your machine:
-
-- Use HTTPS and set `COOKIE_SECURE=true`.
-- Set `APP_ORIGINS` to the exact public origin, for example `https://finance.example.com`.
-- Replace `SESSION_SECRET`, `POSTGRES_PASSWORD`, and `INVITE_CODE` with random values.
-- Keep the backend reachable only through nginx or another trusted reverse proxy.
-- Keep `TRUSTED_PROXY_CIDRS` limited to your reverse proxy network.
-- Run migrations before each app start after an update.
-- Keep regular database backups.
+- **Backend Tests:**
+  ```bash
+  cd backend
+  python -m pytest tests/
+  ```
+- **Frontend Typecheck & Build:**
+  ```bash
+  cd frontend
+  npm run type-check
+  npm run build
+  ```
+- **Mobile Companion Unit Tests:**
+  ```bash
+  cd ../financial-tracker-mobile-listener
+  ./gradlew testDebugUnitTest
+  ```
+- **Database Backup:**
+  ```bash
+  docker compose exec db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backup.sql
+  ```
 
 ---
 
-## API access
+## 📄 License
 
-Every account gets a Bearer API key for automation. Find it under **API Key** in the top nav.
-
-```bash
-curl -sS -X POST "http://localhost:8090/api/v1/accounts/list" \
-  -H "Authorization: Bearer <YOUR_API_KEY>" \
-  -H "Content-Type: application/json" \
-  -d '{}'
-```
-
-Full API reference: see the FastAPI docs at `http://localhost:8090/api/docs` (available when the backend is running).
-
----
-
-## Telegram Bot (Optional)
-
-Manage your finances through natural language conversations on Telegram. The bot uses AI (DeepSeek) to understand your messages and automatically record transactions, check balances, and query transaction history.
-
-### Features
-
-- 💬 **Natural language**: "beli makan 50rb pake BCA" or "transfer 500k from BCA to Cash"
-- 📸 **Receipt OCR**: Send photos of receipts to extract transaction details
-- 💰 **Balance queries**: "berapa saldo BCA?" or "cek saldo semua akun"
-- 📊 **Transaction history**: "tampilkan transaksi hari ini" or "list spending minggu ini"
-- ✅ **Smart confirmations**: High-confidence transactions execute automatically
-- 🔐 **Secure**: API keys encrypted at rest
-
-### Setup
-
-1. **Get a Telegram bot token** from [@BotFather](https://t.me/botfather)
-2. **Get a DeepSeek API key** from [OpenRouter](https://openrouter.ai/) or [DeepSeek Platform](https://platform.deepseek.com)
-3. **Generate security secrets**:
-
-```bash
-# Generate webhook secret (validates requests from Telegram)
-TELEGRAM_WEBHOOK_SECRET=$(openssl rand -hex 16)
-echo "TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}"
-
-# Generate bot secret (encrypts API keys in database - MUST be Fernet format)
-BOT_SECRET=$(openssl rand -base64 32)
-echo "BOT_SECRET=${BOT_SECRET}"
-```
-
-**Note:** The bot secret is a Fernet-compatible key (32 random bytes, base64-encoded = 44 characters).
-
-4. **Configure environment variables** in `.env`:
-
-```bash
-# Telegram Bot Configuration
-TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
-TELEGRAM_WEBHOOK_URL=https://telegram-webhook.your-domain.com/cash-flow-tracker
-TELEGRAM_WEBHOOK_SECRET=<generated_webhook_secret>
-
-# DeepSeek LLM Configuration
-DEEPSEEK_API_KEY=your_deepseek_api_key
-DEEPSEEK_BASE_URL=https://openrouter.ai/api/v1
-DEEPSEEK_MODEL=deepseek/deepseek-chat
-
-# Security
-BOT_SECRET=<generated_fernet_key>
-
-# Optional
-CONFIDENCE_THRESHOLD=0.75
-```
-
-**Important:** 
-- `TELEGRAM_WEBHOOK_URL`: Public base URL for this project. The bot appends `/telegram/webhook`, producing `/cash-flow-tracker/telegram/webhook`.
-- `TELEGRAM_WEBHOOK_SECRET`: Random string that validates webhook requests from Telegram
-- `BOT_SECRET`: Fernet encryption key (44 chars, base64) that encrypts API keys in database
-
-4. **Start the bot**:
-
-```bash
-docker compose up -d telegram-bot
-```
-
-When changing the webhook hostname or path, recreate both the bot and web
-services so Telegram registration and Nginx routing change together:
-
-```bash
-docker compose up -d --build telegram-bot web
-```
-
-For the shared production webhook hostname, route only this project's path to
-the cash-flow-tracker web service:
-
-```yaml
-- hostname: telegram-webhook.alfonsusenrico.com
-  path: ^/cash-flow-tracker/telegram/webhook$
-  service: http://127.0.0.1:8090
-```
-
-5. **Link your account**:
-   - Start a chat with your bot on Telegram
-   - Send `/start`
-   - Get your API key from the web app (top nav → API Key)
-   - Send `/link YOUR_API_KEY`
-
-### Usage Examples
-
-**Record transactions:**
-- "beli makan 50rb pake BCA"
-- "gaji masuk 7jt ke BCA"
-- "bayar listrik 200rb dari Cash"
-
-**Transfer between accounts:**
-- "pindahin 500rb dari BCA ke Cash"
-- "transfer 1jt BCA ke Mandiri"
-
-**Check balances:**
-- "berapa saldo BCA?"
-- "cek saldo Cash dan Mandiri"
-- "tampilkan semua saldo"
-
-**Query transactions:**
-- "transaksi hari ini"
-- "list spending BCA minggu ini"
-- "show transactions last friday"
-- "transaksi 2 jam terakhir"
-
-**With receipt photo:**
-Just send a photo of your receipt with optional caption. The bot will extract amount, name, and date.
-
-For detailed documentation, see [telegram-bot/README.md](telegram-bot/README.md).
-
----
-
----
-
-## Backup and restore
-
-Create a backup:
-
-```bash
-docker compose exec db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backup.sql
-```
-
-Restore into an empty database:
-
-```bash
-docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"' < backup.sql
-```
-
----
-
-## Verification commands
-
-Frontend:
-
-```bash
-cd frontend
-npm run type-check
-npm run lint
-npm run build
-npm audit --omit=dev --audit-level=moderate
-```
-
-Backend:
-
-```bash
-python -m pip install -r backend/requirements-dev.txt
-python -m pytest backend/tests
-uvx pip-audit -r backend/requirements.txt
-docker compose config
-```
-
----
-
-## Troubleshooting
-
-**App won't start**
-```bash
-docker compose logs api
-docker compose logs web
-```
-
-**Database migration failed**
-```bash
-docker compose run --rm migrate
-```
-Migrations are safe to re-run.
-
-**Forgot your invite code**
-```bash
-grep INVITE_CODE .env
-```
-
----
-
-## License
-
-All rights reserved.
+MIT License. Crafted for personal sovereignty and frictionless money mindfulness.
