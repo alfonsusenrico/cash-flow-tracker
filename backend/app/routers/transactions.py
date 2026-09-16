@@ -238,6 +238,9 @@ def _match_account_by_name(
     if norm in ("main", "utama", "kantong utama", "") or raw_lower in ("main", "utama", "kantong utama"):
         if parent_account:
             return parent_account
+        jago_acc = next((a for a in accounts if "jago" in (a.get("name") or "").lower() and not a.get("parent_id")), None)
+        if jago_acc:
+            return jago_acc
         for acc in accounts:
             if any(k in (acc.get("name") or "").lower() for k in ("utama", "main")):
                 return acc
@@ -287,6 +290,33 @@ def _resolve_category_by_name(
     for cat in categories:
         if (cat.get("name") or "").strip().lower() == raw_lower:
             return cat
+
+    # Common English/Indonesian synonyms
+    synonyms = {
+        "food & beverage": "makanan & minuman",
+        "food and beverage": "makanan & minuman",
+        "f&b": "makanan & minuman",
+        "food": "makanan & minuman",
+        "beverage": "makanan & minuman",
+        "groceries": "belanja",
+        "shopping": "belanja",
+        "transport": "transportasi",
+        "transportation": "transportasi",
+        "salary": "gaji",
+        "health": "kesehatan",
+        "medical": "kesehatan",
+        "bills & utilities": "tagihan & utilitas",
+        "utilities": "tagihan & utilitas",
+        "payment": "tagihan & utilitas",
+        "account transfer": "pendapatan lain",
+        "transfer masuk": "pendapatan lain",
+        "transfer": "internal movement",
+    }
+    target_syn = synonyms.get(raw_lower)
+    if target_syn:
+        for cat in categories:
+            if (cat.get("name") or "").strip().lower() == target_syn:
+                return cat
 
     # Auto-seed standard categories if missing
     icon = "tag"
@@ -404,6 +434,8 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     parent_acc = None
                     if matched_source and matched_source.get("parent_id"):
                         parent_acc = next((a for a in accounts if str(a["id"]) == str(matched_source["parent_id"])), None)
+                    elif matched_source and any(str(a.get("parent_id")) == str(matched_source["id"]) for a in accounts):
+                        parent_acc = matched_source
                     matched_target = _match_account_by_name(cur, user_id, payload.target_account_name, accounts, parent_account=parent_acc)
 
                     # Auto-provision investment stock account if buying a new ticker
