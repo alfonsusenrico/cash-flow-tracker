@@ -26,7 +26,7 @@ def _match_pocket_account(
         return None
     raw = pocket_name.strip()
     raw_lower = raw.lower()
-    norm = re.sub(r"\bpocket\b", "", raw_lower, flags=re.IGNORECASE).strip()
+    norm = re.sub(r"\bpocket\b|\bkantong\b", "", raw_lower, flags=re.IGNORECASE).strip()
 
     # 1. Exact match on child account name
     for acc in child_accounts:
@@ -42,7 +42,24 @@ def _match_pocket_account(
         if raw_lower in acc_name or acc_name in raw_lower:
             return acc
 
-    # 3. Main/Utama fallback to parent or designated main child pocket
+    # 3. Known synonyms (English <-> Indonesian)
+    # e.g. "Emergency Fund" or "My Emergency Fund" -> "Dana Darurat"
+    synonyms = {
+        "emergency fund": "dana darurat",
+        "emergency": "dana darurat",
+        "darurat": "dana darurat",
+        "savings": "tabungan",
+        "saving": "tabungan",
+        "main": "utama",
+    }
+    for syn_key, syn_val in synonyms.items():
+        if syn_key in norm or syn_key in raw_lower:
+            for acc in child_accounts:
+                acc_name = (acc.get("name") or "").strip().lower()
+                if syn_val in acc_name:
+                    return acc
+
+    # 4. Main/Utama fallback to parent or designated main child pocket
     if norm in ("main", "utama", "kantong utama", "") or raw_lower in ("main", "utama", "kantong utama"):
         for acc in child_accounts:
             acc_name = (acc.get("name") or "").strip().lower()
@@ -299,10 +316,51 @@ async def ingest_notifications(
                                     tx_type = "transfer"
                         elif "jago" in pkg_lower and (parsed.source_pocket or parsed.target_pocket):
                             src_acc = _match_pocket_account(parsed.source_pocket, child_accounts, matched_account)
+                            tgt_acc = _match_pocket_account(parsed.target_pocket, child_accounts, matched_account)
+
+                            # Auto-create source pocket if not found and not a variation of main/utama
+                            if parsed.source_pocket and not src_acc:
+                                norm_s = re.sub(r"\bpocket\b|\bkantong\b", "", parsed.source_pocket, flags=re.I).strip()
+                                if norm_s and norm_s.lower() not in ("main", "utama", "kantong utama"):
+                                    cur.execute(
+                                        """
+                                        INSERT INTO accounts (user_id, parent_id, name, type, initial_balance)
+                                        VALUES (%s, %s, %s, 'bank', 0)
+                                        RETURNING id, name, parent_id, type
+                                        """,
+                                        (user_id, matched_account["id"], parsed.source_pocket.strip()),
+                                    )
+                                    src_acc = cur.fetchone()
+                                    if src_acc:
+                                        accounts.append(src_acc)
+                                        child_accounts.append(src_acc)
+
+                            # Auto-create target pocket if not found and not a variation of main/utama
+                            if parsed.target_pocket and not tgt_acc:
+                                norm_t = re.sub(r"\bpocket\b|\bkantong\b", "", parsed.target_pocket, flags=re.I).strip()
+                                if norm_t and norm_t.lower() not in ("main", "utama", "kantong utama"):
+                                    cur.execute(
+                                        """
+                                        INSERT INTO accounts (user_id, parent_id, name, type, initial_balance)
+                                        VALUES (%s, %s, %s, 'bank', 0)
+                                        RETURNING id, name, parent_id, type
+                                        """,
+                                        (user_id, matched_account["id"], parsed.target_pocket.strip()),
+                                    )
+                                    tgt_acc = cur.fetchone()
+                                    if tgt_acc:
+                                        accounts.append(tgt_acc)
+                                        child_accounts.append(tgt_acc)
+
+                            # Fallback: moving out of pocket -> destination defaults to parent account
+                            if src_acc and not tgt_acc:
+                                tgt_acc = matched_account
+                            # Fallback: moving into pocket -> source defaults to parent account
+                            elif tgt_acc and not src_acc:
+                                src_acc = matched_account
+
                             if src_acc and "id" in src_acc:
                                 source_account_id = src_acc["id"]
-
-                            tgt_acc = _match_pocket_account(parsed.target_pocket, child_accounts, None)
                             if tgt_acc and "id" in tgt_acc:
                                 transfer_target_id = tgt_acc["id"]
 

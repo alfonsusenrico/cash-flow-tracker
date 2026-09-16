@@ -457,6 +457,65 @@ def test_ingest_jago_custom_pockets_transfer():
         assert args[8] is None  # Kakeibo decoupled!
 
 
+def test_ingest_jago_single_pocket_out_emergency_fund():
+    mock_user = {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "username": "tester",
+        "currency": "IDR",
+        "payday_day": 25,
+    }
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    jago_parent_id = str(uuid4())
+    emergency_pocket_id = str(uuid4())
+
+    payload = {
+        "events": [
+            {
+                "device_id": "test_phone",
+                "package_name": "com.jago.digitalBanking",
+                "title": "Jago",
+                "body_text": "You've moved Rp500.000 out of your My Emergency Fund Pocket. Need help? Contact Tanya Jago at 1500 746.",
+                "big_text": "You've moved Rp500.000 out of your My Emergency Fund Pocket. Need help? Contact Tanya Jago at 1500 746.",
+                "post_time": "2026-09-16T09:00:00Z",
+                "payload_hash": "jago_single_pocket_hash_999",
+            }
+        ]
+    }
+
+    with patch("app.routers.ingest.db_conn") as mock_conn:
+        cur = MagicMock()
+        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
+
+        cur.fetchall.side_effect = [
+            [],  # categories
+            [],  # user rules
+            [
+                {"id": jago_parent_id, "name": "Bank Jago", "type": "bank", "default_funding_account_id": None, "parent_id": None},
+                {"id": emergency_pocket_id, "name": "Dana Darurat", "type": "bank", "default_funding_account_id": None, "parent_id": jago_parent_id},
+            ],
+        ]
+        cur.fetchone.side_effect = [
+            None,  # existing_ev check
+            {"id": str(uuid4())},  # created tx
+            {"was_inserted": True},  # upsert event
+        ]
+
+        client = TestClient(app, raise_server_exceptions=True)
+        res = client.post("/api/ingest/notifications", json=payload)
+
+        assert res.status_code == 200
+        assert res.json()["created_transactions"] == 1
+
+        insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
+        assert len(insert_calls) == 1
+        args = insert_calls[0][0][1]
+        assert args[1] == emergency_pocket_id  # resolved source pocket via synonym
+        assert args[2] == jago_parent_id  # resolved target as parent Jago account
+        assert args[4] == "transfer"
+        assert args[5] == 500000
+
+
 def test_ingest_supported_apps_scope_verification():
     """Verify that all 6 active registered apps produce transactions, and unconfigured apps gracefully fallback."""
     from app.services.notification_parser import parse_notification

@@ -60,10 +60,23 @@ def _clean_amount(raw: str) -> int | None:
     except ValueError:
         return None
 
-# 2. Bank Jago Pocket Movement
-# "Rp500.000 has been moved from your Main Pocket Pocket to your GoPay Tabungan Pocket."
-JAGO_POCKET_PATTERN = re.compile(
-    r"(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)\s+has been moved from your\s+(?P<source>.+?)\s+Pocket to your\s+(?P<target>.+?)\s+Pocket",
+# 2. Bank Jago Pocket Transfers
+# 2a. Dual-Pocket Move: "Rp500.000 has been moved from your Main Pocket Pocket to your GoPay Tabungan Pocket."
+JAGO_DUAL_POCKET_PATTERN = re.compile(
+    r"(?:You(?:\x27ve|\s+have)\s+moved|Kamu(?:\s+telah)?\s+memindahkan\s+)?(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)(?:\s+has been moved|\s+telah dipindahkan)?\s+(?:from your|dari)\s+(?P<source>.+?)\s+(?:Pocket|Kantong)\s+(?:to your|ke)\s+(?P<target>.+?)\s+(?:Pocket|Kantong)",
+    re.IGNORECASE,
+)
+JAGO_POCKET_PATTERN = JAGO_DUAL_POCKET_PATTERN
+
+# 2b. Single-Pocket Outbound: "You've moved Rp500.000 out of your My Emergency Fund Pocket."
+JAGO_OUT_POCKET_PATTERN = re.compile(
+    r"(?:You(?:\x27ve|\s+have)\s+moved|Kamu(?:\s+telah)?\s+memindahkan\s+)?(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)(?:\s+has been moved|\s+telah dipindahkan)?\s+(?:out of your|keluar dari)\s+(?P<source>.+?)\s+(?:Pocket|Kantong)",
+    re.IGNORECASE,
+)
+
+# 2c. Single-Pocket Inbound: "You've moved Rp500.000 into your Tabungan Pocket."
+JAGO_IN_POCKET_PATTERN = re.compile(
+    r"(?:You(?:\x27ve|\s+have)\s+moved|Kamu(?:\s+telah)?\s+memindahkan\s+)?(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)(?:\s+has been moved|\s+telah dipindahkan)?\s+(?:into your|ke dalam|ke)\s+(?P<target>.+?)\s+(?:Pocket|Kantong)",
     re.IGNORECASE,
 )
 
@@ -185,8 +198,9 @@ def parse_notification(
             package_name=clean_package,
         )
 
-    # Step 2: Bank Jago Pocket Movement
-    m = JAGO_POCKET_PATTERN.search(raw_content)
+    # Step 2: Bank Jago Pocket Transfers
+    # 2a. Dual-Pocket Movement
+    m = JAGO_DUAL_POCKET_PATTERN.search(raw_content)
     if m:
         amt = _clean_amount(m.group("amount"))
         src = m.group("source").strip()
@@ -200,6 +214,48 @@ def parse_notification(
             source_pocket=src,
             target_pocket=tgt,
             counterparty=f"{src} → {tgt}",
+            category_hint="Internal Movement",
+            confidence=1.0,
+            raw_title=title,
+            raw_text=raw_content,
+            package_name=clean_package,
+        )
+
+    # 2b. Single-Pocket Outbound ("out of your <Pocket> Pocket")
+    m = JAGO_OUT_POCKET_PATTERN.search(raw_content)
+    if m:
+        amt = _clean_amount(m.group("amount"))
+        src = m.group("source").strip()
+        return ParsedNotification(
+            is_financial=True,
+            event_class="transfer",
+            amount=amt,
+            currency="IDR",
+            direction="internal",
+            source_pocket=src,
+            target_pocket="Kantong Utama",
+            counterparty=f"{src} → Kantong Utama",
+            category_hint="Internal Movement",
+            confidence=1.0,
+            raw_title=title,
+            raw_text=raw_content,
+            package_name=clean_package,
+        )
+
+    # 2c. Single-Pocket Inbound ("into your <Pocket> Pocket")
+    m = JAGO_IN_POCKET_PATTERN.search(raw_content)
+    if m:
+        amt = _clean_amount(m.group("amount"))
+        tgt = m.group("target").strip()
+        return ParsedNotification(
+            is_financial=True,
+            event_class="transfer",
+            amount=amt,
+            currency="IDR",
+            direction="internal",
+            source_pocket="Kantong Utama",
+            target_pocket=tgt,
+            counterparty=f"Kantong Utama → {tgt}",
             category_hint="Internal Movement",
             confidence=1.0,
             raw_title=title,

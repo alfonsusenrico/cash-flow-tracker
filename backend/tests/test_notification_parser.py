@@ -20,6 +20,58 @@ def test_bank_jago_pocket_movement():
     assert parsed.confidence >= 0.95
 
 
+def test_bank_jago_single_pocket_out():
+    text = "You've moved Rp500.000 out of your My Emergency Fund Pocket. Need help? Contact Tanya Jago at 1500 746."
+    parsed = parse_notification(
+        package_name="com.jago.digitalBanking",
+        title="Jago",
+        body_text=text,
+        big_text=text,
+    )
+    assert parsed.is_financial is True
+    assert parsed.event_class == "transfer"
+    assert parsed.amount == 500000
+    assert parsed.direction == "internal"
+    assert parsed.source_pocket == "My Emergency Fund"
+    assert parsed.target_pocket == "Kantong Utama"
+    assert parsed.counterparty == "My Emergency Fund → Kantong Utama"
+    assert parsed.category_hint == "Internal Movement"
+
+
+def test_bank_jago_single_pocket_in():
+    text = "You've moved Rp250.000 into your Tabungan Pocket."
+    parsed = parse_notification(
+        package_name="com.jago.digitalBanking",
+        title="Jago",
+        body_text=text,
+        big_text=text,
+    )
+    assert parsed.is_financial is True
+    assert parsed.event_class == "transfer"
+    assert parsed.amount == 250000
+    assert parsed.direction == "internal"
+    assert parsed.source_pocket == "Kantong Utama"
+    assert parsed.target_pocket == "Tabungan"
+    assert parsed.counterparty == "Kantong Utama → Tabungan"
+    assert parsed.category_hint == "Internal Movement"
+
+
+def test_bank_jago_single_pocket_out_id():
+    text = "Kamu telah memindahkan Rp500.000 keluar dari Dana Darurat Kantong."
+    parsed = parse_notification(
+        package_name="com.jago.digitalBanking",
+        title="Jago",
+        body_text=text,
+        big_text=text,
+    )
+    assert parsed.is_financial is True
+    assert parsed.event_class == "transfer"
+    assert parsed.amount == 500000
+    assert parsed.direction == "internal"
+    assert parsed.source_pocket == "Dana Darurat"
+    assert parsed.target_pocket == "Kantong Utama"
+
+
 def test_bank_jago_inbound_transfer():
     text = "Alfonsus Enrico Soebijanto has sent Rp500.050 to you. Need help? Contact Tanya Jago at 1500 746."
     parsed = parse_notification(
