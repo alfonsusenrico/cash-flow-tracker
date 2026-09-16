@@ -402,3 +402,130 @@ def test_record_investment_sell_trade_decrements_units():
 
     app.dependency_overrides.clear()
 
+
+def test_record_investment_buy_trade_by_account_names():
+    from uuid import uuid4
+    from app.main import app
+    from app.services.auth import get_current_user
+
+    mock_user = {"id": "user-trade-123", "username": "trader", "currency": "IDR", "payday_day": 25}
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    rdn_id = str(uuid4())
+    bbri_id = str(uuid4())
+    invest_cat_id = str(uuid4())
+
+    with patch("app.routers.transactions.db_conn") as mock_conn:
+        cur = MagicMock()
+        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
+
+        cur.fetchone.side_effect = [
+            {"id": str(uuid4()), "created_at": datetime.datetime.now(datetime.timezone.utc)},  # tx insert
+            {"id": bbri_id, "units": 1000.0, "avg_buy_price": 3500, "last_price": 3500},  # invest_acc query
+        ]
+        cur.fetchall.side_effect = [
+            [
+                {"id": rdn_id, "name": "RDN BCA", "type": "bank", "parent_id": None, "instrument_type": None, "instrument_symbol": None, "default_funding_account_id": None},
+                {"id": bbri_id, "name": "BBRI Stock", "type": "investment", "parent_id": None, "instrument_type": "stock", "instrument_symbol": "BBRI.JK", "default_funding_account_id": rdn_id},
+            ],
+            [
+                {"id": invest_cat_id, "name": "Investasi", "kind": "transfer", "kakeibo_type": None, "is_primary": False},
+            ],
+        ]
+
+        client = TestClient(app, raise_server_exceptions=True)
+        res = client.post(
+            "/api/transactions",
+            json={
+                "type": "transfer",
+                "account_name": "RDN BCA",
+                "target_account_name": "BBRI",
+                "amount": 3850000,
+                "category_name": "Investasi",
+                "investment_action": "buy",
+                "units": 1000.0,
+                "price_per_unit": 3850.0,
+                "notes": "Stockbit: Stockbit BBRI (10 lot @ Rp3.850)",
+            },
+        )
+        assert res.status_code == 200
+        assert res.json()["ok"] is True
+
+        # Check account update: old 1000 @ 3500, new +1000 @ 3850 -> 2000 @ 3675
+        update_calls = [c for c in cur.execute.call_args_list if "UPDATE accounts" in str(c)]
+        assert len(update_calls) == 1
+        args = update_calls[0][0][1]
+        assert args[0] == 2000.0  # units
+        assert args[1] == 3675    # (1000*3500 + 1000*3850) / 2000 = 3675
+    app.dependency_overrides.clear()
+
+
+def test_record_investment_buy_auto_provisions_new_stock_ticker():
+    from uuid import uuid4
+    from app.main import app
+    from app.services.auth import get_current_user
+
+    mock_user = {"id": "user-trade-123", "username": "trader", "currency": "IDR", "payday_day": 25}
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    rdn_id = str(uuid4())
+    new_stock_id = str(uuid4())
+    invest_cat_id = str(uuid4())
+
+    with patch("app.routers.transactions.db_conn") as mock_conn:
+        cur = MagicMock()
+        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
+
+        # 1. auto-provision INSERT RETURNING
+        # 2. tx insert RETURNING
+        # 3. invest_acc query
+        cur.fetchone.side_effect = [
+            {"id": new_stock_id, "parent_id": None, "name": "TLKM", "type": "investment", "instrument_type": "stock", "instrument_symbol": "TLKM.JK", "default_funding_account_id": rdn_id},
+            {"id": str(uuid4()), "created_at": datetime.datetime.now(datetime.timezone.utc)},
+            {"id": new_stock_id, "units": 0.0, "avg_buy_price": 0, "last_price": None},
+        ]
+        cur.fetchall.side_effect = [
+            [
+                {"id": rdn_id, "name": "RDN BCA", "type": "bank", "parent_id": None, "instrument_type": None, "instrument_symbol": None, "default_funding_account_id": None},
+            ],
+            [
+                {"id": invest_cat_id, "name": "Investasi", "kind": "transfer", "kakeibo_type": None, "is_primary": False},
+            ],
+        ]
+
+        client = TestClient(app, raise_server_exceptions=True)
+        res = client.post(
+            "/api/transactions",
+            json={
+                "type": "transfer",
+                "account_name": "RDN BCA",
+                "target_account_name": "TLKM",
+                "amount": 3000000,
+                "category_name": "Investasi",
+                "investment_action": "buy",
+                "units": 1000.0,
+                "price_per_unit": 3000.0,
+            },
+        )
+        assert res.status_code == 200
+        assert res.json()["ok"] is True
+
+        # Check account was provisioned
+        provision_calls = [c for c in cur.execute.call_args_list if "INSERT INTO accounts" in str(c)]
+        assert len(provision_calls) == 1
+        p_args = provision_calls[0][0][1]
+        assert p_args[1] == "TLKM"
+        assert p_args[2] == "TLKM.JK"
+
+        # Check units updated
+        update_calls = [c for c in cur.execute.call_args_list if "UPDATE accounts" in str(c)]
+        assert len(update_calls) == 1
+        u_args = update_calls[0][0][1]
+        assert u_args[0] == 1000.0
+        assert u_args[1] == 3000.0
+        assert u_args[2] == new_stock_id
+
+    app.dependency_overrides.clear()
+
+
+

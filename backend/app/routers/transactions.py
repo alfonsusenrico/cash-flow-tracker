@@ -194,6 +194,14 @@ def _match_account_by_name(
     raw = raw_name.strip()
     raw_lower = raw.lower()
 
+    # 0. Match by instrument symbol (e.g. "BBRI" matching "BBRI" or "BBRI.JK")
+    for acc in accounts:
+        sym = (acc.get("instrument_symbol") or "").strip().upper()
+        if sym:
+            sym_clean = re.sub(r"\.(JK|IDX)$", "", sym, flags=re.IGNORECASE)
+            if raw.upper() == sym or raw.upper() == sym_clean:
+                return acc
+
     # 1. Exact match
     for acc in accounts:
         if (acc.get("name") or "").strip().lower() == raw_lower:
@@ -215,6 +223,10 @@ def _match_account_by_name(
         "darurat": "dana darurat",
         "savings": "tabungan",
         "saving": "tabungan",
+        "rdn bca": "rdn",
+        "rdn": "rdn",
+        "rekening dana nasabah": "rdn",
+        "dana nasabah": "rdn",
     }
     for syn_key, syn_val in synonyms.items():
         if syn_key in norm or syn_key in raw_lower:
@@ -350,7 +362,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
 
             # Pre-fetch user accounts & categories for name resolution
             cur.execute(
-                "SELECT id, parent_id, name, type, default_funding_account_id FROM accounts WHERE user_id = %s AND is_archived = FALSE",
+                "SELECT id, parent_id, name, type, instrument_type, instrument_symbol, default_funding_account_id FROM accounts WHERE user_id = %s AND is_archived = FALSE",
                 (user_id,),
             )
             accounts = cur.fetchall()
@@ -393,6 +405,22 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     if matched_source and matched_source.get("parent_id"):
                         parent_acc = next((a for a in accounts if str(a["id"]) == str(matched_source["parent_id"])), None)
                     matched_target = _match_account_by_name(cur, user_id, payload.target_account_name, accounts, parent_account=parent_acc)
+
+                    # Auto-provision investment stock account if buying a new ticker
+                    if not matched_target and payload.investment_action == "buy":
+                        symbol = payload.target_account_name.strip().upper()
+                        cur.execute(
+                            """
+                            INSERT INTO accounts (user_id, name, type, instrument_type, instrument_symbol, units, avg_buy_price, default_funding_account_id)
+                            VALUES (%s, %s, 'investment', 'stock', %s, 0, 0, %s)
+                            RETURNING id, parent_id, name, type, instrument_type, instrument_symbol, default_funding_account_id
+                            """,
+                            (user_id, symbol, f"{symbol}.JK", account_id),
+                        )
+                        matched_target = cur.fetchone()
+                        if matched_target:
+                            accounts.append(matched_target)
+
                     if not matched_target:
                         raise HTTPException(status_code=400, detail=f"Target account '{payload.target_account_name}' could not be resolved")
                     target_account_id = str(matched_target["id"])
