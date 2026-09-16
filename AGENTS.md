@@ -144,3 +144,12 @@ npm run build
 docker compose up -d
 docker compose down
 ```
+
+---
+
+## 6. Security & Secrets Sanitization Guardrail (MANDATORY)
+
+- **NEVER print, cat, read, or output sensitive credentials, secret values, tokens, API keys, private keys, or passwords in tool outputs or terminal commands.**
+- **Inspecting Environment Files:** When inspecting `.env`, `runtime.env`, secrets files, or configuration files, agents **MUST extract ONLY variable names/keys** (e.g. `cut -d= -f1`, `awk -F= '{print $1}'`), NEVER the values.
+- **Handling Secrets:** If a secret is required in a configuration, CI/CD secret, or script, provide the variable name and instructions for the user to populate or set it, or use placeholders. Never dump plaintext secrets to the console, logs, or chat transcripts.
+
