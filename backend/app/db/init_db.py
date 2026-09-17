@@ -12,6 +12,7 @@ DEFAULT_CATEGORIES = [
     {"name": "Kesehatan", "icon": "heart", "color": "#ef4444", "kind": "expense"},
     {"name": "Investasi", "icon": "trending-up", "color": "#0ea5e9", "kind": "expense"},
     {"name": "Internal Movement", "icon": "repeat", "color": "#64748b", "kind": "expense"},
+    {"name": "Internal Movement", "icon": "repeat", "color": "#64748b", "kind": "income"},
     {"name": "Gaji", "icon": "dollar-sign", "color": "#22c55e", "kind": "income"},
     {"name": "Pendapatan Lain", "icon": "plus-circle", "color": "#14b8a6", "kind": "income"},
 ]
@@ -48,6 +49,7 @@ def init_db_schema() -> None:
                     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                     parent_id UUID NULL REFERENCES accounts(id) ON DELETE CASCADE,
                     default_funding_account_id UUID NULL REFERENCES accounts(id) ON DELETE SET NULL,
+                    default_pocket_id UUID NULL REFERENCES accounts(id) ON DELETE SET NULL,
                     name VARCHAR(100) NOT NULL,
                     type VARCHAR(30) NOT NULL DEFAULT 'bank',
                     initial_balance BIGINT NOT NULL DEFAULT 0,
@@ -66,6 +68,7 @@ def init_db_schema() -> None:
                 );
                 CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
                 CREATE INDEX IF NOT EXISTS idx_accounts_parent ON accounts(parent_id);
+                CREATE INDEX IF NOT EXISTS idx_accounts_default_pocket ON accounts(default_pocket_id);
                 CREATE INDEX IF NOT EXISTS idx_accounts_display_order ON accounts(user_id, display_order);
                 CREATE INDEX IF NOT EXISTS idx_accounts_instrument_symbol ON accounts(instrument_symbol) WHERE instrument_symbol IS NOT NULL;
 
@@ -182,11 +185,14 @@ def init_db_schema() -> None:
                 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS color VARCHAR(30) NOT NULL DEFAULT '#3b82f6';
                 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS display_order INT NOT NULL DEFAULT 0;
                 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS default_funding_account_id UUID NULL REFERENCES accounts(id) ON DELETE SET NULL;
+                ALTER TABLE accounts ADD COLUMN IF NOT EXISTS default_pocket_id UUID NULL REFERENCES accounts(id) ON DELETE SET NULL;
                 CREATE INDEX IF NOT EXISTS idx_accounts_display_order ON accounts(user_id, display_order);
                 CREATE INDEX IF NOT EXISTS idx_accounts_instrument_symbol ON accounts(instrument_symbol) WHERE instrument_symbol IS NOT NULL;
+                CREATE INDEX IF NOT EXISTS idx_accounts_default_pocket ON accounts(default_pocket_id);
 
                 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64) NULL;
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_tx_user_idempotency ON transactions(user_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
+                ALTER TABLE transactions DROP COLUMN IF EXISTS transfer_target_account_id;
             """)
             conn.commit()
 

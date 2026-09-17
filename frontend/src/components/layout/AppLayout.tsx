@@ -7,6 +7,7 @@ import { Sidebar, MobileDrawer } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { QuickCaptureModal } from "@/components/ui/QuickCaptureModal";
+import { InternalMovementModal } from "@/components/ui/InternalMovementModal";
 import { SettingsModal } from "@/components/ui/SettingsModal";
 import { api, ApiError } from "@/lib/api";
 import { cn, setCurrencyConfig, fmtMoney as globalFmtMoney, convertAmount as globalConvertAmount } from "@/lib/utils";
@@ -31,7 +32,8 @@ interface AppCtxType {
   ) => string;
   bal: (n: number, overrideCurrency?: "IDR" | "USD") => string;
   convertAmount: (amountInIDR: number) => number;
-  openQuickAdd: (type?: "expense" | "income" | "transfer") => void;
+  openQuickAdd: (type?: "expense" | "income") => void;
+  openMovement: () => void;
 }
 
 const AppContext = createContext<AppCtxType>({
@@ -50,6 +52,7 @@ const AppContext = createContext<AppCtxType>({
   bal: (n: number) => globalFmtMoney(n),
   convertAmount: (amountInIDR: number) => amountInIDR,
   openQuickAdd: () => {},
+  openMovement: () => {},
 });
 
 export const useAppCtx = () => useContext(AppContext);
@@ -68,12 +71,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
-  const [quickAddType, setQuickAddType] = useState<"expense" | "income" | "transfer">("expense");
+  const [quickAddType, setQuickAddType] = useState<"expense" | "income">("expense");
+  const [movementOpen, setMovementOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const handleOpenQuickAdd = (type?: "expense" | "income" | "transfer") => {
+  const handleOpenQuickAdd = (type?: "expense" | "income") => {
     if (type) setQuickAddType(type);
     setQuickAddOpen(true);
+  };
+
+  const handleOpenMovement = () => {
+    setMovementOpen(true);
   };
 
   useEffect(() => {
@@ -184,6 +192,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         bal,
         convertAmount,
         openQuickAdd: handleOpenQuickAdd,
+        openMovement: handleOpenMovement,
       }}
     >
       <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)]">
@@ -236,6 +245,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
           open={quickAddOpen}
           onClose={() => setQuickAddOpen(false)}
           defaultType={quickAddType}
+        />
+
+        <InternalMovementModal
+          open={movementOpen}
+          onClose={() => setMovementOpen(false)}
         />
 
         <SettingsModal

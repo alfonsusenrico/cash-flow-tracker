@@ -156,9 +156,9 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
       const targetAccountId = action === "buy" ? pocket.id : fundingAccountId;
 
       return api.post("/transactions", {
-        type: "transfer",
+        type: action === "buy" ? "expense" : "income",
         account_id: accountId,
-        transfer_target_account_id: targetAccountId,
+        target_account_id: targetAccountId,
         amount: tradeAmount,
         investment_action: action,
         units: tradeUnits,

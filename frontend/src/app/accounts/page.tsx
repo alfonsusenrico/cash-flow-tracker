@@ -57,6 +57,7 @@ interface AccountItem {
   cost_basis?: number | null;
   is_archived: boolean;
   is_parent?: boolean;
+  default_pocket_id?: string | null;
   children?: AccountItem[];
   created_at: string;
 }
@@ -292,6 +293,7 @@ export default function AccountsPage() {
   const [accInitBal, setAccInitBal] = useState("");
   const [accColor, setAccColor] = useState<string>("#2563EB");
   const [accDefaultFundingId, setAccDefaultFundingId] = useState<string>("");
+  const [accDefaultPocketId, setAccDefaultPocketId] = useState<string>("");
   const [accError, setAccError] = useState("");
 
   // Account drag-and-drop reordering state
@@ -418,6 +420,7 @@ export default function AccountsPage() {
     setAccInitBal("");
     setAccColor("#2563EB");
     setAccDefaultFundingId("");
+    setAccDefaultPocketId("");
     setAccIsMultiInstrument(true);
     setAccInstrumentType("stock");
     setAccTicker("");
@@ -451,6 +454,7 @@ export default function AccountsPage() {
     setAccType(acc.type);
     setAccColor(acc.color || "#2563EB");
     setAccDefaultFundingId(acc.default_funding_account_id || "");
+    setAccDefaultPocketId(acc.default_pocket_id || "");
     setAccInitBal(formatNumberWithDots(acc.initial_balance));
     const hasInst = Boolean(acc.instrument_type || acc.instrument_symbol || (acc.units !== null && acc.units !== undefined));
     setAccIsMultiInstrument(!hasInst);
@@ -505,11 +509,10 @@ export default function AccountsPage() {
       if (!fromAccountId || !toAccountId) throw new Error("Pilih rekening asal dan tujuan");
       if (fromAccountId === toAccountId) throw new Error("Rekening asal dan tujuan harus berbeda");
 
-      return api.post("/transactions", {
-        type: "transfer",
+      return api.post("/movements", {
+        source_account_id: fromAccountId,
+        target_account_id: toAccountId,
         amount: amt,
-        account_id: fromAccountId,
-        transfer_target_account_id: toAccountId,
         notes: transferNotes.trim() || null,
         date: new Date().toISOString(),
       });
@@ -551,7 +554,11 @@ export default function AccountsPage() {
           instrument_symbol: tickerSymbol,
           units: unitsNum,
           avg_buy_price: avgPriceNum,
-          ...(!isEditingPocket ? { color: accColor, default_funding_account_id: accType === "investment" ? defaultFunding : null } : {}),
+          ...(!isEditingPocket ? {
+            color: accColor,
+            default_funding_account_id: accType === "investment" ? defaultFunding : null,
+            default_pocket_id: accDefaultPocketId ? accDefaultPocketId : null,
+          } : {}),
         });
       } else {
         return api.post("/accounts", {
@@ -1722,6 +1729,29 @@ export default function AccountsPage() {
                   <option value="investment">Rekening Investasi (Bibit, Stockbit, Binance, dll)</option>
                 </select>
               </div>
+
+              {editingAccount && !editingAccount.parent_id && editingAccount.children && editingAccount.children.length > 0 && (
+                <div>
+                  <label className="font-medium text-[var(--muted)] block mb-1">
+                    Kantong Default (Penerima Notifikasi Otomatis)
+                  </label>
+                  <select
+                    value={accDefaultPocketId}
+                    onChange={(e) => setAccDefaultPocketId(e.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+                  >
+                    <option value="">Tanpa Kantong Default (Gunakan Rekening Induk)</option>
+                    {editingAccount.children.map((child) => (
+                      <option key={child.id} value={child.id}>
+                        {child.name} ({bal(child.balance)})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-[var(--muted)] mt-1">
+                    Transaksi mobile tanpa rincian kantong akan otomatis dialokasikan ke kantong default ini.
+                  </p>
+                </div>
+              )}
 
               {accType === "investment" && (
                 <div className="space-y-3">

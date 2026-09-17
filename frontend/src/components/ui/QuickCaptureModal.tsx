@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { cn, fmtMoney, formatNumberWithDots } from "@/lib/utils";
+import { cn, fmtMoney, formatNumberWithDots, localDatetimeToISO, toDatetimeLocal } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 
@@ -11,7 +11,7 @@ interface QuickCaptureModalProps {
   open: boolean;
   onClose: () => void;
   defaultAccountId?: string;
-  defaultType?: "expense" | "income" | "transfer";
+  defaultType?: "expense" | "income";
 }
 
 export function QuickCaptureModal({
@@ -23,17 +23,16 @@ export function QuickCaptureModal({
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [type, setType] = useState<"expense" | "income" | "transfer">(defaultType);
+  const [type, setType] = useState<"expense" | "income">(defaultType);
   const [amountStr, setAmountStr] = useState("");
   const [selectedAccount, setSelectedAccount] = useState(defaultAccountId ?? "");
-  const [targetAccount, setTargetAccount] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [kakeiboType, setKakeiboType] = useState<"need" | "want" | "saving">("need");
   const [selectedGoalId, setSelectedGoalId] = useState<string>("");
   const [selectedObligationId, setSelectedObligationId] = useState<string>("");
   const [notes, setNotes] = useState("");
+  const [txDate, setTxDate] = useState(() => toDatetimeLocal(new Date()));
   const [err, setErr] = useState("");
-  const [showKeypad, setShowKeypad] = useState(true);
   const [isSuccess, setIsSuccess] = useState(false);
 
   // Fetch accounts
@@ -65,26 +64,21 @@ export function QuickCaptureModal({
   });
 
   const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData?.accounts]);
-  const categories = categoriesData?.categories ?? [];
-  const goals = goalsData?.goals ?? [];
-  const obligations = obligationsData?.obligations ?? [];
+  const categories = useMemo(() => categoriesData?.categories ?? [], [categoriesData?.categories]);
+  const goals = useMemo(() => goalsData?.goals ?? [], [goalsData?.goals]);
+  const obligations = useMemo(() => obligationsData?.obligations ?? [], [obligationsData?.obligations]);
 
   // Filter categories by type
-  const availableCategories = categories.filter((c) => c.kind === type && !c.is_archived);
+  const availableCategories = useMemo(() => {
+    return categories.filter((c: any) => c.kind === type && !c.is_archived);
+  }, [categories, type]);
 
   // Set default account when accounts load
   useEffect(() => {
     if (accounts.length > 0 && !selectedAccount) {
       setSelectedAccount(accounts[0].id);
     }
-    if (accounts.length > 0 && (!targetAccount || targetAccount === selectedAccount)) {
-      const allSelectable = accounts.flatMap((a) =>
-        a.children && a.children.length > 0 ? [a, ...a.children] : [a]
-      );
-      const other = allSelectable.find((a) => a.id !== (selectedAccount || accounts[0].id));
-      if (other) setTargetAccount(other.id);
-    }
-  }, [accounts, selectedAccount, targetAccount]);
+  }, [accounts, selectedAccount]);
 
   // Sync default type when opened
   useEffect(() => {
@@ -92,6 +86,7 @@ export function QuickCaptureModal({
       setType(defaultType);
       setAmountStr("");
       setNotes("");
+      setTxDate(toDatetimeLocal(new Date()));
       setErr("");
       setIsSuccess(false);
       setSelectedCategory(null);
@@ -160,66 +155,28 @@ export function QuickCaptureModal({
   };
 
   const parsedAmount = parseAmount(amountStr);
-  const hasMathExpression = /[+\-*/]/.test(amountStr);
 
   const handleCategoryChange = (catId: string | null) => {
     setSelectedCategory(catId);
-  };
-
-  // Keypad Handlers
-  const handleKeypadInput = (char: string) => {
-    if (hasMathExpression || /[+\-*/]/.test(char)) {
-      setAmountStr((prev) => prev + char);
-    } else {
-      const raw = (amountStr + char).replace(/[^0-9]/g, "");
-      setAmountStr(formatNumberWithDots(raw));
-    }
-  };
-
-  const handleKeypadOperator = (op: string) => {
-    if (!amountStr) return;
-    setAmountStr((prev) => `${prev} ${op} `);
-  };
-
-  const handleKeypadBackspace = () => {
-    if (!amountStr) return;
-    const trimmed = amountStr.trimEnd();
-    const next = trimmed.slice(0, -1);
-    if (!/[+\-*/]/.test(next)) {
-      const raw = next.replace(/[^0-9]/g, "");
-      setAmountStr(raw ? formatNumberWithDots(raw) : "");
-    } else {
-      setAmountStr(next);
-    }
-  };
-
-  const handleEvaluateOrSubmit = () => {
-    if (hasMathExpression && parsedAmount > 0) {
-      setAmountStr(formatNumberWithDots(parsedAmount));
-    } else if (parsedAmount > 0) {
-      mutation.mutate();
-    }
   };
 
   const mutation = useMutation({
     mutationFn: async () => {
       if (parsedAmount <= 0) throw new Error("Masukkan nominal yang valid");
       if (!selectedAccount) throw new Error("Pilih rekening / dompet");
-      if (type === "transfer" && (!targetAccount || targetAccount === selectedAccount)) {
-        throw new Error("Pilih rekening tujuan yang berbeda");
-      }
+
+      const isoDate = localDatetimeToISO(txDate) || new Date().toISOString();
 
       return api.post("/transactions", {
         type,
         amount: parsedAmount,
         account_id: selectedAccount,
-        transfer_target_account_id: type === "transfer" ? targetAccount : null,
-        category_id: type !== "transfer" ? selectedCategory : null,
+        category_id: selectedCategory || null,
         kakeibo_type: type !== "income" ? kakeiboType : null,
         goal_id: selectedGoalId || null,
         obligation_id: selectedObligationId || null,
         notes: notes.trim() || null,
-        date: new Date().toISOString(),
+        date: isoDate,
       });
     },
     onSuccess: () => {
@@ -255,19 +212,9 @@ export function QuickCaptureModal({
           <div
             className="absolute top-1 bottom-1 rounded-xl transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-xs"
             style={{
-              width: "calc((100% - 8px) / 3)",
-              transform:
-                type === "expense"
-                  ? "translateX(0%)"
-                  : type === "income"
-                  ? "translateX(100%)"
-                  : "translateX(200%)",
-              backgroundColor:
-                type === "expense"
-                  ? "var(--color-expense)"
-                  : type === "income"
-                  ? "var(--color-income)"
-                  : "var(--color-transfer)",
+              width: "calc((100% - 8px) / 2)",
+              transform: type === "expense" ? "translateX(0%)" : "translateX(100%)",
+              backgroundColor: type === "expense" ? "var(--color-expense)" : "var(--color-income)",
             }}
           />
           <button
@@ -293,18 +240,6 @@ export function QuickCaptureModal({
             )}
           >
             💰 Masuk
-          </button>
-          <button
-            type="button"
-            onClick={() => { setType("transfer"); setSelectedCategory(null); }}
-            className={cn(
-              "relative z-10 flex-1 py-2 text-xs font-bold rounded-xl transition-colors duration-150 text-center pressable",
-              type === "transfer"
-                ? "text-white"
-                : "text-[var(--muted)] hover:text-[var(--text)]"
-            )}
-          >
-            🔁 Pindah
           </button>
         </div>
 
@@ -338,8 +273,8 @@ export function QuickCaptureModal({
           />
         </div>
 
-        {/* Kakeibo 3-Way Chips (For Expense or Transfer) */}
-        {type !== "income" && (
+        {/* Kakeibo 3-Way Chips (For Expense) */}
+        {type === "expense" && (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[11px] font-medium text-[var(--muted)]">
               <span className="text-[10px] uppercase tracking-wider">Pilar Kakeibo</span>
@@ -396,7 +331,7 @@ export function QuickCaptureModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <div>
             <label className="block text-[11px] font-medium text-[var(--muted)] mb-1">
-              {type === "transfer" ? "Dari Rekening / Dompet" : "Rekening / Dompet"}
+              Rekening / Dompet
             </label>
             <select
               value={selectedAccount}
@@ -407,47 +342,40 @@ export function QuickCaptureModal({
             </select>
           </div>
 
-          {type === "transfer" ? (
-            <div>
-              <label className="block text-[11px] font-medium text-[var(--muted)] mb-1">
-                Ke Rekening Tujuan
-              </label>
-              <select
-                value={targetAccount}
-                onChange={(e) => setTargetAccount(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs font-medium text-[var(--text)] outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-all"
-              >
-                <AccountSelectOptions
-                  accounts={accounts}
-                  formatBalance={fmtMoney}
-                  allowParentSelection={true}
-                  excludeAccountId={selectedAccount}
-                />
-              </select>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-[11px] font-medium text-[var(--muted)] mb-1">
-                Kategori
-              </label>
-              <select
-                value={selectedCategory || ""}
-                onChange={(e) => handleCategoryChange(e.target.value || null)}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs font-medium text-[var(--text)] outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-all"
-              >
-                <option value="">Pilih Kategori...</option>
-                {availableCategories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="block text-[11px] font-medium text-[var(--muted)] mb-1">
+              Kategori
+            </label>
+            <select
+              value={selectedCategory || ""}
+              onChange={(e) => handleCategoryChange(e.target.value || null)}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs font-medium text-[var(--text)] outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-all"
+            >
+              <option value="">Pilih Kategori...</option>
+              {availableCategories.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Datetime Picker (Local Timezone Aware) */}
+        <div>
+          <label className="block text-[11px] font-medium text-[var(--muted)] mb-1">
+            Waktu Transaksi
+          </label>
+          <input
+            type="datetime-local"
+            value={txDate}
+            onChange={(e) => setTxDate(e.target.value)}
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs font-medium text-[var(--text)] outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-all"
+          />
         </div>
 
         {/* Optional Link to Goal or Debt */}
-        {type !== "transfer" && (goals.length > 0 || obligations.length > 0) && (
+        {(goals.length > 0 || obligations.length > 0) && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div>
               <label className="block text-[10px] font-medium text-[var(--muted)] mb-1">
@@ -513,61 +441,6 @@ export function QuickCaptureModal({
           />
         </div>
 
-        {/* Tactile 4x4 Calculator Keypad */}
-        <div className="pt-1">
-          <div className="flex items-center justify-between pb-1.5">
-            <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-              Kalkulator Cepat
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowKeypad(!showKeypad)}
-              className="text-[10px] text-[var(--muted)] hover:text-[var(--text)] cursor-pointer"
-            >
-              {showKeypad ? "Sembunyikan" : "Tampilkan Keypad"}
-            </button>
-          </div>
-
-          {showKeypad && (
-            <div className="grid grid-cols-4 gap-1.5 select-none">
-              {/* Row 1 */}
-              <button type="button" onClick={() => handleKeypadInput("1")} className="keypad-btn pressable h-11">1</button>
-              <button type="button" onClick={() => handleKeypadInput("2")} className="keypad-btn pressable h-11">2</button>
-              <button type="button" onClick={() => handleKeypadInput("3")} className="keypad-btn pressable h-11">3</button>
-              <button type="button" onClick={handleKeypadBackspace} className="keypad-btn pressable h-11 text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/20">⌫</button>
-
-              {/* Row 2 */}
-              <button type="button" onClick={() => handleKeypadInput("4")} className="keypad-btn pressable h-11">4</button>
-              <button type="button" onClick={() => handleKeypadInput("5")} className="keypad-btn pressable h-11">5</button>
-              <button type="button" onClick={() => handleKeypadInput("6")} className="keypad-btn pressable h-11">6</button>
-              <button type="button" onClick={() => handleKeypadOperator("+")} className="keypad-btn pressable h-11 text-blue-500 font-bold">+</button>
-
-              {/* Row 3 */}
-              <button type="button" onClick={() => handleKeypadInput("7")} className="keypad-btn pressable h-11">7</button>
-              <button type="button" onClick={() => handleKeypadInput("8")} className="keypad-btn pressable h-11">8</button>
-              <button type="button" onClick={() => handleKeypadInput("9")} className="keypad-btn pressable h-11">9</button>
-              <button type="button" onClick={() => handleKeypadOperator("-")} className="keypad-btn pressable h-11 text-blue-500 font-bold">-</button>
-
-              {/* Row 4 */}
-              <button type="button" onClick={() => handleKeypadInput(".")} className="keypad-btn pressable h-11">.</button>
-              <button type="button" onClick={() => handleKeypadInput("0")} className="keypad-btn pressable h-11">0</button>
-              <button type="button" onClick={() => handleKeypadInput("000")} className="keypad-btn pressable h-11 text-xs font-bold tracking-tighter">000</button>
-              <button
-                type="button"
-                onClick={handleEvaluateOrSubmit}
-                className={cn(
-                  "keypad-btn pressable h-11 font-bold text-sm",
-                  hasMathExpression
-                    ? "bg-blue-500/20 text-blue-500 hover:bg-blue-500/30 border-blue-500/30"
-                    : "bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500/30 border-emerald-500/30"
-                )}
-              >
-                {hasMathExpression ? "=" : "✓"}
-              </button>
-            </div>
-          )}
-        </div>
-
         {err && (
           <div className="p-2.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-medium">
             {err}
@@ -592,9 +465,7 @@ export function QuickCaptureModal({
                 ? "bg-emerald-500 scale-105 shadow-md shadow-emerald-500/30"
                 : type === "expense"
                 ? "bg-rose-500 hover:bg-rose-600 active:bg-rose-700 shadow-rose-500/20"
-                : type === "income"
-                ? "bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 shadow-emerald-500/20"
-                : "bg-blue-500 hover:bg-blue-600 active:bg-blue-700 shadow-blue-500/20",
+                : "bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 shadow-emerald-500/20",
               "disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
             )}
           >

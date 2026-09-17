@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
+from app.routers.movements import _ensure_internal_movement_categories
 from app.services.auth import get_current_user
 
 router = APIRouter(tags=["Recurring"])
@@ -470,29 +471,68 @@ def process_auto_post_due_rules(
                 rule_date = rule["next_due_date"]
                 tx_dt = datetime(rule_date.year, rule_date.month, rule_date.day, 10, 0, 0, tzinfo=timezone.utc)
 
-                # Create transaction
-                cur.execute(
-                    """
-                    INSERT INTO transactions (
-                        user_id, account_id, category_id, obligation_id, type,
-                        transfer_target_account_id, amount, notes, date, recurring_rule_id
+                # Create transaction(s)
+                if rule["type"] == "transfer":
+                    exp_cat_id, inc_cat_id = _ensure_internal_movement_categories(cur, user_id)
+                    cur.execute(
+                        """
+                        INSERT INTO transactions (
+                            user_id, account_id, category_id, obligation_id, type,
+                            amount, notes, date, recurring_rule_id, kakeibo_type
+                        )
+                        VALUES (%s, %s, %s, %s, 'expense', %s, %s, %s, %s, 'saving')
+                        """,
+                        (
+                            user_id,
+                            rule["source_account_id"],
+                            exp_cat_id,
+                            rule["obligation_id"],
+                            rule["amount"],
+                            rule["notes"] or f"Otomatis: {rule['name']}",
+                            tx_dt,
+                            rule_id,
+                        ),
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                    """,
-                    (
-                        user_id,
-                        rule["source_account_id"],
-                        rule["category_id"],
-                        rule["obligation_id"],
-                        rule["type"],
-                        rule["target_account_id"],
-                        rule["amount"],
-                        rule["notes"] or f"Otomatis: {rule['name']}",
-                        tx_dt,
-                        rule_id,
-                    ),
-                )
+                    cur.execute(
+                        """
+                        INSERT INTO transactions (
+                            user_id, account_id, category_id, obligation_id, type,
+                            amount, notes, date, recurring_rule_id, kakeibo_type
+                        )
+                        VALUES (%s, %s, %s, %s, 'income', %s, %s, %s, %s, NULL)
+                        """,
+                        (
+                            user_id,
+                            rule["target_account_id"],
+                            inc_cat_id,
+                            rule["obligation_id"],
+                            rule["amount"],
+                            rule["notes"] or f"Otomatis: {rule['name']}",
+                            tx_dt,
+                            rule_id,
+                        ),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO transactions (
+                            user_id, account_id, category_id, obligation_id, type,
+                            amount, notes, date, recurring_rule_id
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            user_id,
+                            rule["source_account_id"],
+                            rule["category_id"],
+                            rule["obligation_id"],
+                            rule["type"],
+                            rule["amount"],
+                            rule["notes"] or f"Otomatis: {rule['name']}",
+                            tx_dt,
+                            rule_id,
+                        ),
+                    )
 
                 # Decrement obligation if linked
                 if rule["obligation_id"]:
@@ -557,27 +597,67 @@ def execute_selected_rules(
                 if not rule:
                     continue
 
-                cur.execute(
-                    """
-                    INSERT INTO transactions (
-                        user_id, account_id, category_id, obligation_id, type,
-                        transfer_target_account_id, amount, notes, date, recurring_rule_id
+                if rule["type"] == "transfer":
+                    exp_cat_id, inc_cat_id = _ensure_internal_movement_categories(cur, user_id)
+                    cur.execute(
+                        """
+                        INSERT INTO transactions (
+                            user_id, account_id, category_id, obligation_id, type,
+                            amount, notes, date, recurring_rule_id, kakeibo_type
+                        )
+                        VALUES (%s, %s, %s, %s, 'expense', %s, %s, %s, %s, 'saving')
+                        """,
+                        (
+                            user_id,
+                            rule["source_account_id"],
+                            exp_cat_id,
+                            rule["obligation_id"],
+                            rule["amount"],
+                            rule["notes"] or f"Rutin: {rule['name']}",
+                            tx_dt,
+                            str(rule["id"]),
+                        ),
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    (
-                        user_id,
-                        rule["source_account_id"],
-                        rule["category_id"],
-                        rule["obligation_id"],
-                        rule["type"],
-                        rule["target_account_id"],
-                        rule["amount"],
-                        rule["notes"] or f"Rutin: {rule['name']}",
-                        tx_dt,
-                        str(rule["id"]),
-                    ),
-                )
+                    cur.execute(
+                        """
+                        INSERT INTO transactions (
+                            user_id, account_id, category_id, obligation_id, type,
+                            amount, notes, date, recurring_rule_id, kakeibo_type
+                        )
+                        VALUES (%s, %s, %s, %s, 'income', %s, %s, %s, %s, NULL)
+                        """,
+                        (
+                            user_id,
+                            rule["target_account_id"],
+                            inc_cat_id,
+                            rule["obligation_id"],
+                            rule["amount"],
+                            rule["notes"] or f"Rutin: {rule['name']}",
+                            tx_dt,
+                            str(rule["id"]),
+                        ),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO transactions (
+                            user_id, account_id, category_id, obligation_id, type,
+                            amount, notes, date, recurring_rule_id
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            user_id,
+                            rule["source_account_id"],
+                            rule["category_id"],
+                            rule["obligation_id"],
+                            rule["type"],
+                            rule["amount"],
+                            rule["notes"] or f"Rutin: {rule['name']}",
+                            tx_dt,
+                            str(rule["id"]),
+                        ),
+                    )
 
                 if rule["obligation_id"] and rule["type"] == "expense":
                     cur.execute(
@@ -628,6 +708,9 @@ def execute_payroll_batch(
 
     with db_conn() as conn:
         with conn.cursor() as cur:
+            # Ensure internal movement categories
+            exp_cat_id, inc_cat_id = _ensure_internal_movement_categories(cur, user_id)
+
             # Validate all accounts belong to user
             for item in payload.items:
                 source_id = str(item.source_account_id)
@@ -641,24 +724,43 @@ def execute_payroll_batch(
                 if not cur.fetchone():
                     raise HTTPException(status_code=404, detail=f"Target account {target_id} not found")
 
-                # Insert transfer transaction
+                # Insert paired transactions (outbound expense first, then inbound income)
                 notes = item.notes or "Alokasi Gaji Bulanan"
+                r_id = str(item.rule_id) if item.rule_id else None
                 cur.execute(
                     """
                     INSERT INTO transactions (
-                        user_id, account_id, type, transfer_target_account_id,
-                        amount, notes, date, recurring_rule_id
+                        user_id, account_id, category_id, type,
+                        amount, notes, date, recurring_rule_id, kakeibo_type
                     )
-                    VALUES (%s, %s, 'transfer', %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, 'expense', %s, %s, %s, %s, 'saving')
                     """,
                     (
                         user_id,
                         source_id,
-                        target_id,
+                        exp_cat_id,
                         item.amount,
                         notes,
                         tx_dt,
-                        str(item.rule_id) if item.rule_id else None,
+                        r_id,
+                    ),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO transactions (
+                        user_id, account_id, category_id, type,
+                        amount, notes, date, recurring_rule_id, kakeibo_type
+                    )
+                    VALUES (%s, %s, %s, 'income', %s, %s, %s, %s, NULL)
+                    """,
+                    (
+                        user_id,
+                        target_id,
+                        inc_cat_id,
+                        item.amount,
+                        notes,
+                        tx_dt,
+                        r_id,
                     ),
                 )
 

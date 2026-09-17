@@ -15,6 +15,7 @@ from app.routers.categories import router as categories_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.goals import router as goals_router
 from app.routers.ingest import router as ingest_router
+from app.routers.movements import router as movements_router
 from app.routers.obligations import router as obligations_router
 from app.routers.pulse import router as pulse_router
 from app.routers.recurring import router as recurring_router
@@ -147,6 +148,7 @@ for prefix in ("", "/api", "/v1"):
     app.include_router(accounts_router, prefix=f"{prefix}/accounts")
     app.include_router(categories_router, prefix=f"{prefix}/categories")
     app.include_router(transactions_router, prefix=f"{prefix}/transactions")
+    app.include_router(movements_router, prefix=prefix)
     app.include_router(goals_router, prefix=f"{prefix}/goals")
     app.include_router(obligations_router, prefix=f"{prefix}/obligations")
     app.include_router(recurring_router, prefix=f"{prefix}/recurring")

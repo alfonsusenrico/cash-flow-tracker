@@ -192,10 +192,13 @@ def test_api_payroll_batch_execute():
             mock_cur = MagicMock()
             mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = mock_cur
 
+            # Internal movement categories lookup (expense, income)
             # Account checks in execution order:
             # Item 1: source check, target check, then rule fetch
             # Item 2: source check, target check (no rule_id)
             mock_cur.fetchone.side_effect = [
+                {"id": str(uuid4())},  # internal movement expense category
+                {"id": str(uuid4())},  # internal movement income category
                 {"id": src_id},
                 {"id": dst1_id},
                 {

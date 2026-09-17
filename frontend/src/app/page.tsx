@@ -75,11 +75,10 @@ export default function OverviewPage() {
       if (!transferFrom || !transferTo) throw new Error("Pilih rekening asal dan tujuan");
       if (transferFrom === transferTo) throw new Error("Rekening asal dan tujuan harus berbeda");
 
-      return api.post("/transactions", {
-        type: "transfer",
+      return api.post("/movements", {
+        source_account_id: transferFrom,
+        target_account_id: transferTo,
         amount: amt,
-        account_id: transferFrom,
-        transfer_target_account_id: transferTo,
         notes: transferNotes.trim() || null,
         date: new Date().toISOString(),
       });

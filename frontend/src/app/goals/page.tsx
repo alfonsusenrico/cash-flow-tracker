@@ -315,9 +315,8 @@ export default function GoalsAndDebtsPage() {
       }
 
       return api.post("/transactions", {
-        account_id: accId,
-        transfer_target_account_id: targetAccId,
-        type: "transfer",
+        account_id: targetAccId || accId,
+        type: "income",
         amount: amt,
         goal_id: depositGoal.id,
         notes: `Setor tabungan: ${depositGoal.name}`,

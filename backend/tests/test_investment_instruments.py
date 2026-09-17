@@ -335,9 +335,9 @@ def test_record_investment_buy_trade_accumulates_units_and_weighted_average_pric
         res = client.post(
             "/api/transactions",
             json={
-                "type": "transfer",
+                "type": "expense",
                 "account_id": funding_id,
-                "transfer_target_account_id": bbri_id,
+                "target_account_name": "BBRI",
                 "amount": 1920000,
                 "investment_action": "buy",
                 "units": 600.0,
@@ -373,7 +373,6 @@ def test_record_investment_sell_trade_decrements_units():
 
         cur.fetchone.side_effect = [
             {"id": bbri_id},      # source account check
-            {"id": funding_id},   # target account check
             {"id": str(uuid4())},  # Investasi category lookup
             {"id": str(uuid4()), "created_at": datetime.datetime.now(datetime.timezone.utc)},  # tx insert
             {"id": bbri_id, "units": 1400.0, "avg_buy_price": 3340, "last_price": 3500},  # invest_acc query
@@ -383,9 +382,8 @@ def test_record_investment_sell_trade_decrements_units():
         res = client.post(
             "/api/transactions",
             json={
-                "type": "transfer",
+                "type": "income",
                 "account_id": bbri_id,
-                "transfer_target_account_id": funding_id,
                 "amount": 1750000,
                 "investment_action": "sell",
                 "units": 500.0,
@@ -429,7 +427,7 @@ def test_record_investment_buy_trade_by_account_names():
                 {"id": bbri_id, "name": "BBRI Stock", "type": "investment", "parent_id": None, "instrument_type": "stock", "instrument_symbol": "BBRI.JK", "default_funding_account_id": rdn_id},
             ],
             [
-                {"id": invest_cat_id, "name": "Investasi", "kind": "transfer", "kakeibo_type": None, "is_primary": False},
+                {"id": invest_cat_id, "name": "Investasi", "kind": "expense", "kakeibo_type": None, "is_primary": False},
             ],
         ]
 
@@ -437,7 +435,7 @@ def test_record_investment_buy_trade_by_account_names():
         res = client.post(
             "/api/transactions",
             json={
-                "type": "transfer",
+                "type": "expense",
                 "account_name": "RDN BCA",
                 "target_account_name": "BBRI",
                 "amount": 3850000,
@@ -489,7 +487,7 @@ def test_record_investment_buy_auto_provisions_new_stock_ticker():
                 {"id": rdn_id, "name": "RDN BCA", "type": "bank", "parent_id": None, "instrument_type": None, "instrument_symbol": None, "default_funding_account_id": None},
             ],
             [
-                {"id": invest_cat_id, "name": "Investasi", "kind": "transfer", "kakeibo_type": None, "is_primary": False},
+                {"id": invest_cat_id, "name": "Investasi", "kind": "expense", "kakeibo_type": None, "is_primary": False},
             ],
         ]
 
@@ -497,7 +495,7 @@ def test_record_investment_buy_auto_provisions_new_stock_ticker():
         res = client.post(
             "/api/transactions",
             json={
-                "type": "transfer",
+                "type": "expense",
                 "account_name": "RDN BCA",
                 "target_account_name": "TLKM",
                 "amount": 3000000,

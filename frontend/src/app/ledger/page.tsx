@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { cn, formatNumberWithDots } from "@/lib/utils";
+import { cn, formatNumberWithDots, localDatetimeToISO, toDatetimeLocal } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
 import { Modal } from "@/components/ui/Modal";
@@ -23,9 +23,7 @@ interface TransactionItem {
   goal_name: string | null;
   obligation_id: string | null;
   obligation_name: string | null;
-  type: "expense" | "income" | "transfer";
-  transfer_target_account_id: string | null;
-  transfer_target_account_name: string | null;
+  type: "expense" | "income";
   amount: number;
   notes: string | null;
   date: string;
@@ -129,7 +127,7 @@ export default function LedgerPage() {
     setEditCategoryId(tx.category_id || "");
     setEditGoalId(tx.goal_id || "");
     setEditObligationId(tx.obligation_id || "");
-    setEditDate(tx.date ? tx.date.slice(0, 16) : "");
+    setEditDate(tx.date ? toDatetimeLocal(tx.date) : "");
     setEditError("");
   };
 
@@ -148,7 +146,7 @@ export default function LedgerPage() {
         category_id: editCategoryId || null,
         goal_id: editGoalId || null,
         obligation_id: editObligationId || null,
-        date: editDate ? new Date(editDate).toISOString() : undefined,
+        date: editDate ? (localDatetimeToISO(editDate) || new Date(editDate).toISOString()) : undefined,
       });
     },
     onSuccess: () => {
@@ -326,7 +324,6 @@ export default function LedgerPage() {
             { key: "all", label: "Semua" },
             { key: "expense", label: "Uang Keluar" },
             { key: "income", label: "Uang Masuk" },
-            { key: "transfer", label: "Pindah Saldo" },
           ].map(({ key, label }) => (
             <button
               key={key}
@@ -395,8 +392,6 @@ export default function LedgerPage() {
               <tbody className="divide-y divide-[var(--border)]">
                 {transactions.map((tx) => {
                   const isIncome = tx.type === "income";
-                  const isTransfer = tx.type === "transfer";
-                  const isExpense = tx.type === "expense";
 
                   return (
                     <tr
@@ -420,18 +415,16 @@ export default function LedgerPage() {
                             "px-2 py-0.5 rounded-md text-[10px] font-bold uppercase",
                             isIncome
                               ? "bg-income/10 text-income"
-                              : isTransfer
-                              ? "bg-transfer/10 text-transfer"
                               : "bg-expense/10 text-expense"
                           )}
                         >
-                          {isIncome ? "Uang Masuk" : isTransfer ? "Pindah Saldo" : "Uang Keluar"}
+                          {isIncome ? "Uang Masuk" : "Uang Keluar"}
                         </span>
                       </td>
 
                       {/* Notes / Description */}
                       <td className="py-3.5 px-4 font-medium text-[var(--text)] group-hover:text-income transition-colors max-w-xs truncate">
-                        {tx.notes || (isTransfer ? "Pindah Saldo" : tx.category_name || "Umum")}
+                        {tx.notes || tx.category_name || "Umum"}
                       </td>
 
                       {/* Category */}
@@ -456,11 +449,7 @@ export default function LedgerPage() {
 
                       {/* Target Account or Linked Goal/Debt */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        {isTransfer && tx.transfer_target_account_name ? (
-                          <span className="text-transfer text-[11px] font-semibold">
-                            &rarr; {tx.transfer_target_account_name}
-                          </span>
-                        ) : tx.goal_name ? (
+                        {tx.goal_name ? (
                           <span className="inline-flex items-center gap-1 text-[11px] text-emerald-500 font-semibold">
                             🎯 {tx.goal_name}
                           </span>
@@ -477,10 +466,10 @@ export default function LedgerPage() {
                       <td
                         className={cn(
                           "py-3.5 px-4 text-right font-bold tabular whitespace-nowrap",
-                          isIncome ? "text-income" : isTransfer ? "text-transfer" : "text-expense"
+                          isIncome ? "text-income" : "text-expense"
                         )}
                       >
-                        {isIncome ? "+" : isExpense ? "-" : ""}
+                        {isIncome ? "+" : "-"}
                         {bal(tx.amount)}
                       </td>
 
@@ -572,25 +561,23 @@ export default function LedgerPage() {
               </select>
             </div>
 
-            {editingTx.type !== "transfer" && (
-              <div>
-                <label className="text-xs font-medium text-[var(--muted)] block mb-1">Kategori</label>
-                <select
-                  value={editCategoryId}
-                  onChange={(e) => setEditCategoryId(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-                >
-                  <option value="">Tanpa Kategori</option>
-                  {categories
-                    .filter((c) => c.kind === editingTx.type)
-                    .map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            )}
+            <div>
+              <label className="text-xs font-medium text-[var(--muted)] block mb-1">Kategori</label>
+              <select
+                value={editCategoryId}
+                onChange={(e) => setEditCategoryId(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+              >
+                <option value="">Tanpa Kategori</option>
+                {categories
+                  .filter((c) => c.kind === editingTx.type)
+                  .map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
 
             {/* Optional Goal Link */}
             <div>

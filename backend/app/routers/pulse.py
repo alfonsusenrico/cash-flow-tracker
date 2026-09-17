@@ -54,13 +54,13 @@ def get_cycle_window(payday_day: int, ref_date: date | None = None) -> tuple[dat
         max_prev = calendar.monthrange(prev_month_year, prev_month)[1]
         actual_start_day = min(target_payday, max_prev)
         start_date = date(prev_month_year, prev_month, actual_start_day)
-        
+
         target_end_day = actual_payday_this_month - 1 if target_payday > 1 else max_prev
         end_date = date(today.year, today.month, target_end_day)
 
     cycle_start = datetime.combine(start_date, time.min, tzinfo=tz).astimezone(timezone.utc)
     cycle_end = datetime.combine(end_date, time.max, tzinfo=tz).astimezone(timezone.utc)
-    
+
     total_days = (end_date - start_date).days + 1
     elapsed_days = max(1, (today - start_date).days + 1)
 
@@ -94,7 +94,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
                 SELECT COALESCE(SUM(t.amount), 0) AS today_spent
                 FROM transactions t
                 LEFT JOIN categories c ON t.category_id = c.id
-                WHERE t.user_id = %s 
+                WHERE t.user_id = %s
                   AND t.type = 'expense'
                   AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
                   AND (c.kakeibo_type IS NULL OR c.kakeibo_type IN ('need', 'want'))
@@ -108,14 +108,18 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
             # 3. Cycle spending & income (living expenses only for cycle_spent)
             cur.execute(
                 """
-                SELECT 
-                    COALESCE(SUM(CASE 
-                        WHEN t.type = 'expense' 
+                SELECT
+                    COALESCE(SUM(CASE
+                        WHEN t.type = 'expense'
                              AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
                              AND (c.kakeibo_type IS NULL OR c.kakeibo_type IN ('need', 'want'))
                              AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
                         THEN t.amount ELSE 0 END), 0) AS cycle_spent,
-                    COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) AS cycle_income
+                    COALESCE(SUM(CASE
+                        WHEN t.type = 'income'
+                             AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
+                             AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                        THEN t.amount ELSE 0 END), 0) AS cycle_income
                 FROM transactions t
                 LEFT JOIN categories c ON t.category_id = c.id
                 WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
@@ -149,7 +153,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
             # 5. Today's transactions
             cur.execute(
                 """
-                SELECT 
+                SELECT
                     t.id, t.type, t.amount, t.notes, t.date,
                     sa.name AS account_name,
                     c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
@@ -241,14 +245,23 @@ def get_insights(current_user: dict = Depends(get_current_user)):
 
     with db_conn() as conn:
         with conn.cursor() as cur:
-            # 1. Total in & out
+            # 1. Total in & out (excluding internal movement & invest)
             cur.execute(
                 """
-                SELECT 
-                    COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS total_income,
-                    COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS total_expense
-                FROM transactions
-                WHERE user_id = %s AND date >= %s AND date <= %s
+                SELECT
+                    COALESCE(SUM(CASE
+                        WHEN t.type = 'income'
+                             AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
+                             AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                        THEN t.amount ELSE 0 END), 0) AS total_income,
+                    COALESCE(SUM(CASE
+                        WHEN t.type = 'expense'
+                             AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
+                             AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                        THEN t.amount ELSE 0 END), 0) AS total_expense
+                FROM transactions t
+                LEFT JOIN categories c ON t.category_id = c.id
+                WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
                 """,
                 (user_id, cycle_start, cycle_end),
             )
@@ -259,14 +272,15 @@ def get_insights(current_user: dict = Depends(get_current_user)):
             # 2. Category spending vs budgets
             cur.execute(
                 """
-                SELECT 
+                SELECT
                     c.id, c.name, c.icon, c.color, c.monthly_budget,
                     COALESCE(SUM(t.amount), 0) AS spent
                 FROM categories c
-                LEFT JOIN transactions t ON t.category_id = c.id 
-                    AND t.type = 'expense' 
+                LEFT JOIN transactions t ON t.category_id = c.id
+                    AND t.type = 'expense'
                     AND t.date >= %s AND t.date <= %s
                 WHERE c.user_id = %s AND c.kind = 'expense' AND c.is_archived = FALSE
+                  AND c.name NOT IN ('Internal Movement', 'Investasi')
                 GROUP BY c.id, c.name, c.icon, c.color, c.monthly_budget
                 ORDER BY spent DESC, c.name ASC
                 """,
@@ -277,12 +291,21 @@ def get_insights(current_user: dict = Depends(get_current_user)):
             # 3. Daily spending histogram
             cur.execute(
                 """
-                SELECT 
-                    DATE(date AT TIME ZONE %s) AS day_date,
-                    COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS day_expense,
-                    COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS day_income
-                FROM transactions
-                WHERE user_id = %s AND date >= %s AND date <= %s
+                SELECT
+                    DATE(t.date AT TIME ZONE %s) AS day_date,
+                    COALESCE(SUM(CASE
+                        WHEN t.type = 'expense'
+                             AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
+                             AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                        THEN t.amount ELSE 0 END), 0) AS day_expense,
+                    COALESCE(SUM(CASE
+                        WHEN t.type = 'income'
+                             AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
+                             AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                        THEN t.amount ELSE 0 END), 0) AS day_income
+                FROM transactions t
+                LEFT JOIN categories c ON t.category_id = c.id
+                WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
                 GROUP BY day_date
                 ORDER BY day_date ASC
                 """,

@@ -22,6 +22,7 @@ class AccountCreate(BaseModel):
     initial_balance: int = Field(default=0, ge=0)
     parent_id: UUID | None = None
     default_funding_account_id: UUID | None = None
+    default_pocket_id: UUID | None = None
     instrument_type: str | None = Field(default=None, pattern="^(stock|mutual_fund|gold|crypto|deposit|other)$")
     instrument_symbol: str | None = Field(default=None, max_length=30)
     units: float | None = Field(default=None, ge=0)
@@ -36,6 +37,7 @@ class AccountUpdate(BaseModel):
     is_archived: bool | None = None
     parent_id: UUID | None = None
     default_funding_account_id: UUID | None = None
+    default_pocket_id: UUID | None = None
     instrument_type: str | None = Field(default=None, pattern="^(stock|mutual_fund|gold|crypto|deposit|other)$")
     instrument_symbol: str | None = Field(default=None, max_length=30)
     units: float | None = Field(default=None, ge=0)
@@ -70,6 +72,8 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
                     a.parent_id,
                     a.default_funding_account_id,
                     funding_acc.name AS default_funding_account_name,
+                    a.default_pocket_id,
+                    default_pocket.name AS default_pocket_name,
                     a.name, 
                     a.type, 
                     a.initial_balance, 
@@ -87,15 +91,16 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
                         a.initial_balance 
                         + COALESCE(SUM(CASE WHEN t.account_id = a.id AND t.type = 'income' THEN t.amount ELSE 0 END), 0)
                         - COALESCE(SUM(CASE WHEN t.account_id = a.id AND t.type = 'expense' THEN t.amount ELSE 0 END), 0)
-                        - COALESCE(SUM(CASE WHEN t.account_id = a.id AND t.type = 'transfer' THEN t.amount ELSE 0 END), 0)
-                        + COALESCE(SUM(CASE WHEN t.transfer_target_account_id = a.id AND t.type = 'transfer' THEN t.amount ELSE 0 END), 0)
                     ) AS ledger_balance
                 FROM accounts a
                 LEFT JOIN accounts funding_acc ON funding_acc.id = a.default_funding_account_id
-                LEFT JOIN transactions t ON (t.account_id = a.id OR t.transfer_target_account_id = a.id)
+                LEFT JOIN accounts default_pocket ON default_pocket.id = a.default_pocket_id
+                LEFT JOIN transactions t ON t.account_id = a.id
                 WHERE a.user_id = %s AND (a.is_archived = false OR %s = true)
                 GROUP BY 
-                    a.id, a.parent_id, a.default_funding_account_id, funding_acc.name, a.name, a.type, a.initial_balance,
+                    a.id, a.parent_id, a.default_funding_account_id, funding_acc.name,
+                    a.default_pocket_id, default_pocket.name,
+                    a.name, a.type, a.initial_balance,
                     a.instrument_type, a.instrument_symbol, a.units, a.avg_buy_price,
                     a.last_price, a.last_price_at, a.color, a.display_order, a.is_archived, a.created_at
                 ORDER BY a.display_order ASC, a.created_at ASC, a.name ASC
@@ -147,6 +152,8 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
             "parent_id": str(r["parent_id"]) if r.get("parent_id") else None,
             "default_funding_account_id": str(r["default_funding_account_id"]) if r.get("default_funding_account_id") else None,
             "default_funding_account_name": r.get("default_funding_account_name"),
+            "default_pocket_id": str(r["default_pocket_id"]) if r.get("default_pocket_id") else None,
+            "default_pocket_name": r.get("default_pocket_name"),
             "name": r.get("name"),
             "account_name": r.get("name"),
             "type": r.get("type"),
@@ -279,6 +286,7 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
     name = payload.name.strip()
     parent_id = str(payload.parent_id) if payload.parent_id else None
     default_funding_account_id = str(payload.default_funding_account_id) if payload.default_funding_account_id else None
+    default_pocket_id = str(payload.default_pocket_id) if payload.default_pocket_id else None
 
     # Determine initial values
     initial_bal = payload.initial_balance
@@ -328,15 +336,23 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                 if not cur.fetchone():
                     raise HTTPException(status_code=404, detail="Default funding account not found")
 
+            if default_pocket_id:
+                cur.execute(
+                    "SELECT id FROM accounts WHERE user_id = %s AND id = %s AND is_archived = false",
+                    (user_id, default_pocket_id),
+                )
+                if not cur.fetchone():
+                    raise HTTPException(status_code=404, detail="Default pocket account not found")
+
             cur.execute(
                 """
                 INSERT INTO accounts (
-                    user_id, parent_id, default_funding_account_id, name, type, initial_balance,
+                    user_id, parent_id, default_funding_account_id, default_pocket_id, name, type, initial_balance,
                     instrument_type, instrument_symbol, units, avg_buy_price,
                     last_price, last_price_at, color, display_order
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id, parent_id, default_funding_account_id, name, type, initial_balance,
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, parent_id, default_funding_account_id, default_pocket_id, name, type, initial_balance,
                           instrument_type, instrument_symbol, units, avg_buy_price,
                           last_price, last_price_at, color, display_order, is_archived, created_at
                 """,
@@ -344,6 +360,7 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                     user_id,
                     parent_id,
                     default_funding_account_id,
+                    default_pocket_id,
                     name,
                     payload.type,
                     initial_bal,
@@ -363,6 +380,7 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
     acc_id = str(row["id"])
     pid = str(row["parent_id"]) if row.get("parent_id") else None
     dfid = str(row["default_funding_account_id"]) if row.get("default_funding_account_id") else None
+    dpid = str(row["default_pocket_id"]) if row.get("default_pocket_id") else None
     init_b = int(row.get("initial_balance", 0))
     u = float(row["units"]) if row.get("units") is not None else None
     abp = float(row["avg_buy_price"]) if row.get("avg_buy_price") is not None else None
@@ -398,6 +416,7 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
             "account_id": acc_id,
             "parent_id": pid,
             "default_funding_account_id": dfid,
+            "default_pocket_id": dpid,
             "name": row.get("name"),
             "account_name": row.get("name"),
             "type": row.get("type"),
@@ -503,6 +522,21 @@ async def update_account(
                 )
                 if not cur.fetchone():
                     raise HTTPException(status_code=404, detail="Default funding account not found")
+
+            # Validate and update default_pocket_id if provided
+            if "default_pocket_id" in payload.model_fields_set:
+                if payload.default_pocket_id is not None:
+                    dpid = str(payload.default_pocket_id)
+                    cur.execute(
+                        "SELECT id FROM accounts WHERE user_id = %s AND id = %s AND parent_id = %s AND is_archived = false",
+                        (user_id, dpid, aid),
+                    )
+                    if not cur.fetchone():
+                        raise HTTPException(status_code=400, detail="Default pocket must be an active child pocket of this account")
+                    updates.append("default_pocket_id = %s")
+                    params.append(dpid)
+                else:
+                    updates.append("default_pocket_id = NULL")
 
             # Validate parent_id if being updated
             if "parent_id" in payload.model_fields_set and payload.parent_id is not None:
@@ -693,11 +727,10 @@ def delete_account(account_id: UUID, current_user: dict = Depends(get_current_us
                 """
                 SELECT COUNT(*) AS c 
                 FROM transactions t
-                WHERE (t.account_id = %s OR t.transfer_target_account_id = %s)
-                   OR (t.account_id IN (SELECT id FROM accounts WHERE parent_id = %s)
-                       OR t.transfer_target_account_id IN (SELECT id FROM accounts WHERE parent_id = %s))
+                WHERE t.account_id = %s
+                   OR t.account_id IN (SELECT id FROM accounts WHERE parent_id = %s)
                 """,
-                (aid, aid, aid, aid),
+                (aid, aid),
             )
             row = cur.fetchone()
             if row and row["c"] > 0:

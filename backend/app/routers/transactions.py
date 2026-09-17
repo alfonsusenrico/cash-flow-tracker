@@ -17,11 +17,11 @@ router = APIRouter(tags=["Transactions"])
 class TransactionCreate(BaseModel):
     account_id: UUID | None = None
     account_name: str | None = Field(default=None, max_length=100)
-    type: str = Field(pattern="^(expense|income|transfer)$")
+    type: str = Field(pattern="^(expense|income)$")
     amount: int = Field(gt=0)
     category_id: UUID | None = None
     category_name: str | None = Field(default=None, max_length=100)
-    transfer_target_account_id: UUID | None = None
+    target_account_id: UUID | None = None
     target_account_name: str | None = Field(default=None, max_length=100)
     goal_id: UUID | None = None
     obligation_id: UUID | None = None
@@ -38,7 +38,7 @@ class TransactionCreate(BaseModel):
 class TransactionUpdate(BaseModel):
     account_id: UUID | None = None
     category_id: UUID | None = None
-    transfer_target_account_id: UUID | None = None
+    type: str | None = Field(default=None, pattern="^(expense|income)$")
     goal_id: UUID | None = None
     obligation_id: UUID | None = None
     amount: int | None = Field(default=None, gt=0)
@@ -53,7 +53,7 @@ def list_transactions(
     category_id: UUID | None = None,
     goal_id: UUID | None = None,
     obligation_id: UUID | None = None,
-    type: str | None = Query(default=None, pattern="^(expense|income|transfer)$"),
+    type: str | None = Query(default=None, pattern="^(expense|income)$"),
     kakeibo_type: str | None = Query(default=None, pattern="^(need|want|saving)$"),
     from_date: datetime | None = None,
     to_date: datetime | None = None,
@@ -67,8 +67,8 @@ def list_transactions(
     params: list[Any] = [user_id]
 
     if account_id:
-        conditions.append("(t.account_id = %s OR t.transfer_target_account_id = %s)")
-        params.extend([str(account_id), str(account_id)])
+        conditions.append("t.account_id = %s")
+        params.append(str(account_id))
     if category_id:
         conditions.append("t.category_id = %s")
         params.append(str(category_id))
@@ -113,7 +113,7 @@ def list_transactions(
 
             # Select page
             select_query = f"""
-                SELECT 
+                SELECT
                     t.id,
                     t.account_id,
                     sa.name AS account_name,
@@ -127,8 +127,6 @@ def list_transactions(
                     o.name AS obligation_name,
                     t.type,
                     COALESCE(t.kakeibo_type, c.kakeibo_type, CASE WHEN COALESCE(c.is_primary, TRUE) THEN 'need' ELSE 'want' END) AS kakeibo_type,
-                    t.transfer_target_account_id,
-                    ta.name AS transfer_target_account_name,
                     t.amount,
                     t.notes,
                     t.date,
@@ -136,7 +134,6 @@ def list_transactions(
                     t.created_at
                 FROM transactions t
                 JOIN accounts sa ON sa.id = t.account_id
-                LEFT JOIN accounts ta ON ta.id = t.transfer_target_account_id
                 LEFT JOIN categories c ON c.id = t.category_id
                 LEFT JOIN goals g ON g.id = t.goal_id
                 LEFT JOIN obligations o ON o.id = t.obligation_id
@@ -167,10 +164,8 @@ def list_transactions(
                 "obligation_name": r["obligation_name"],
                 "type": r["type"],
                 "kakeibo_type": r.get("kakeibo_type"),
-                "transfer_target_account_id": (
-                    str(r["transfer_target_account_id"]) if r["transfer_target_account_id"] else None
-                ),
-                "transfer_target_account_name": r["transfer_target_account_name"],
+                "transfer_target_account_id": None,
+                "transfer_target_account_name": None,
                 "amount": r["amount"],
                 "notes": r["notes"],
                 "date": r["date"].isoformat() if r["date"] else None,
@@ -392,7 +387,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
 
             # Pre-fetch user accounts & categories for name resolution
             cur.execute(
-                "SELECT id, parent_id, name, type, instrument_type, instrument_symbol, default_funding_account_id FROM accounts WHERE user_id = %s AND is_archived = FALSE",
+                "SELECT id, parent_id, name, type, instrument_type, instrument_symbol, default_funding_account_id, default_pocket_id FROM accounts WHERE user_id = %s AND is_archived = FALSE",
                 (user_id,),
             )
             accounts = cur.fetchall()
@@ -410,7 +405,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 account_id = str(payload.account_id)
                 matched_source = next((a for a in accounts if str(a["id"]) == account_id), None)
                 if not matched_source:
-                    cur.execute("SELECT id, name, type FROM accounts WHERE user_id = %s AND id = %s", (user_id, account_id))
+                    cur.execute("SELECT id, name, type, default_pocket_id FROM accounts WHERE user_id = %s AND id = %s", (user_id, account_id))
                     matched_source = cur.fetchone()
                 if not matched_source:
                     raise HTTPException(status_code=404, detail="Source account not found")
@@ -422,45 +417,35 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
             else:
                 raise HTTPException(status_code=422, detail="Either account_id or account_name must be provided")
 
-            # Resolve transfer target account
+            # If matched source has a default_pocket_id configured, route transaction to the default pocket
+            if matched_source and matched_source.get("default_pocket_id"):
+                dpid = str(matched_source["default_pocket_id"])
+                pocket = next((a for a in accounts if str(a["id"]) == dpid), None)
+                if pocket:
+                    matched_source = pocket
+                    account_id = str(pocket["id"])
+
+            # Resolve target account for investment tracking if provided
             target_account_id = None
-            if payload.type == "transfer":
-                if payload.transfer_target_account_id:
-                    target_account_id = str(payload.transfer_target_account_id)
-                    cur.execute("SELECT id FROM accounts WHERE user_id = %s AND id = %s", (user_id, target_account_id))
-                    if not cur.fetchone():
-                        raise HTTPException(status_code=404, detail="Target account not found")
-                elif payload.target_account_name:
-                    parent_acc = None
-                    if matched_source and matched_source.get("parent_id"):
-                        parent_acc = next((a for a in accounts if str(a["id"]) == str(matched_source["parent_id"])), None)
-                    elif matched_source and any(str(a.get("parent_id")) == str(matched_source["id"]) for a in accounts):
-                        parent_acc = matched_source
-                    matched_target = _match_account_by_name(cur, user_id, payload.target_account_name, accounts, parent_account=parent_acc)
-
-                    # Auto-provision investment stock account if buying a new ticker
-                    if not matched_target and payload.investment_action == "buy":
-                        symbol = payload.target_account_name.strip().upper()
-                        cur.execute(
-                            """
-                            INSERT INTO accounts (user_id, name, type, instrument_type, instrument_symbol, units, avg_buy_price, default_funding_account_id)
-                            VALUES (%s, %s, 'investment', 'stock', %s, 0, 0, %s)
-                            RETURNING id, parent_id, name, type, instrument_type, instrument_symbol, default_funding_account_id
-                            """,
-                            (user_id, symbol, f"{symbol}.JK", account_id),
-                        )
-                        matched_target = cur.fetchone()
-                        if matched_target:
-                            accounts.append(matched_target)
-
-                    if not matched_target:
-                        raise HTTPException(status_code=400, detail=f"Target account '{payload.target_account_name}' could not be resolved")
+            if payload.target_account_id:
+                target_account_id = str(payload.target_account_id)
+            elif payload.target_account_name:
+                matched_target = _match_account_by_name(cur, user_id, payload.target_account_name, accounts)
+                if not matched_target and payload.investment_action == "buy":
+                    symbol = payload.target_account_name.strip().upper()
+                    cur.execute(
+                        """
+                        INSERT INTO accounts (user_id, name, type, instrument_type, instrument_symbol, units, avg_buy_price, default_funding_account_id)
+                        VALUES (%s, %s, 'investment', 'stock', %s, 0, 0, %s)
+                        RETURNING id, parent_id, name, type, instrument_type, instrument_symbol, default_funding_account_id
+                        """,
+                        (user_id, symbol, f"{symbol}.JK", account_id),
+                    )
+                    matched_target = cur.fetchone()
+                    if matched_target:
+                        accounts.append(matched_target)
+                if matched_target:
                     target_account_id = str(matched_target["id"])
-                else:
-                    raise HTTPException(status_code=400, detail="Transfer requires a target account")
-
-                if target_account_id == account_id:
-                    raise HTTPException(status_code=400, detail="Cannot transfer to the same account")
 
             # Resolve category
             category_id = None
@@ -498,9 +483,6 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     inv_cat = cur.fetchone()
                     if inv_cat:
                         category_id = str(inv_cat["id"])
-            elif payload.type == "transfer":
-                # Regular transfers are net-zero, excluded from living expense kakeibo
-                kakeibo_val = "saving" if goal_id else None
             elif not kakeibo_val and category_id:
                 cur.execute(
                     "SELECT kakeibo_type, is_primary FROM categories WHERE id = %s",
@@ -515,9 +497,9 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 """
                 INSERT INTO transactions (
                     user_id, account_id, category_id, goal_id, obligation_id, type,
-                    transfer_target_account_id, amount, notes, date, receipt_path, kakeibo_type, idempotency_key
+                    amount, notes, date, receipt_path, kakeibo_type, idempotency_key
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, created_at
                 """,
                 (
@@ -527,7 +509,6 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     goal_id,
                     obligation_id,
                     payload.type,
-                    target_account_id,
                     payload.amount,
                     payload.notes,
                     tx_date,
@@ -540,7 +521,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
 
             # If linked to a goal, update goal's current_amount
             if goal_id:
-                if payload.type in ("income", "transfer"):
+                if payload.type == "income":
                     cur.execute(
                         "UPDATE goals SET current_amount = current_amount + %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
                         (payload.amount, goal_id, user_id),
@@ -621,6 +602,60 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
     }
 
 
+@router.get("/{transaction_id}")
+def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
+    tid = str(transaction_id)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    t.id, t.account_id, sa.name AS account_name,
+                    t.category_id, c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
+                    t.goal_id, g.name AS goal_name,
+                    t.obligation_id, o.name AS obligation_name,
+                    t.type,
+                    COALESCE(t.kakeibo_type, c.kakeibo_type, CASE WHEN COALESCE(c.is_primary, TRUE) THEN 'need' ELSE 'want' END) AS kakeibo_type,
+                    t.amount, t.notes, t.date, t.receipt_path, t.created_at
+                FROM transactions t
+                JOIN accounts sa ON sa.id = t.account_id
+                LEFT JOIN categories c ON c.id = t.category_id
+                LEFT JOIN goals g ON g.id = t.goal_id
+                LEFT JOIN obligations o ON o.id = t.obligation_id
+                WHERE t.user_id = %s AND t.id = %s
+                """,
+                (user_id, tid),
+            )
+            r = cur.fetchone()
+            if not r:
+                raise HTTPException(status_code=404, detail="Transaction not found")
+
+    return {
+        "ok": True,
+        "transaction": {
+            "id": str(r["id"]),
+            "account_id": str(r["account_id"]),
+            "account_name": r["account_name"],
+            "category_id": str(r["category_id"]) if r["category_id"] else None,
+            "category_name": r["category_name"],
+            "category_icon": r["category_icon"],
+            "category_color": r["category_color"],
+            "goal_id": str(r["goal_id"]) if r["goal_id"] else None,
+            "goal_name": r["goal_name"],
+            "obligation_id": str(r["obligation_id"]) if r["obligation_id"] else None,
+            "obligation_name": r["obligation_name"],
+            "type": r["type"],
+            "kakeibo_type": r.get("kakeibo_type"),
+            "amount": r["amount"],
+            "notes": r["notes"],
+            "date": r["date"].isoformat() if r["date"] else None,
+            "receipt_path": r["receipt_path"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+        },
+    }
+
+
 @router.put("/{transaction_id}")
 @router.patch("/{transaction_id}")
 def update_transaction(
@@ -636,7 +671,7 @@ def update_transaction(
             cur.execute(
                 """
                 SELECT id, account_id, category_id, goal_id, obligation_id, type,
-                       transfer_target_account_id, amount, notes, date, receipt_path, kakeibo_type
+                       amount, notes, date, receipt_path, kakeibo_type
                 FROM transactions
                 WHERE user_id = %s AND id = %s
                 """,
@@ -648,7 +683,7 @@ def update_transaction(
 
             # 2. Reverse previous goal / obligation side-effects
             if old_tx["goal_id"]:
-                if old_tx["type"] in ("income", "transfer"):
+                if old_tx["type"] == "income":
                     cur.execute(
                         "UPDATE goals SET current_amount = GREATEST(0, current_amount - %s), updated_at = NOW() WHERE id = %s AND user_id = %s",
                         (old_tx["amount"], str(old_tx["goal_id"]), user_id),
@@ -674,17 +709,12 @@ def update_transaction(
             # 3. Determine new values (merging payload with old_tx)
             new_amount = payload.amount if payload.amount is not None else old_tx["amount"]
             new_account_id = str(payload.account_id) if payload.account_id is not None else str(old_tx["account_id"])
-            new_type = old_tx["type"]
+            new_type = payload.type if payload.type is not None else old_tx["type"]
 
             if "category_id" in payload.model_fields_set:
                 new_category_id = str(payload.category_id) if payload.category_id else None
             else:
                 new_category_id = str(old_tx["category_id"]) if old_tx["category_id"] else None
-
-            if "transfer_target_account_id" in payload.model_fields_set:
-                new_target_account_id = str(payload.transfer_target_account_id) if payload.transfer_target_account_id else None
-            else:
-                new_target_account_id = str(old_tx["transfer_target_account_id"]) if old_tx["transfer_target_account_id"] else None
 
             if "goal_id" in payload.model_fields_set:
                 new_goal_id = str(payload.goal_id) if payload.goal_id else None
@@ -731,7 +761,7 @@ def update_transaction(
                 UPDATE transactions
                 SET account_id = %s,
                     category_id = %s,
-                    transfer_target_account_id = %s,
+                    type = %s,
                     goal_id = %s,
                     obligation_id = %s,
                     amount = %s,
@@ -745,7 +775,7 @@ def update_transaction(
                 (
                     new_account_id,
                     new_category_id,
-                    new_target_account_id,
+                    new_type,
                     new_goal_id,
                     new_obligation_id,
                     new_amount,
@@ -759,7 +789,7 @@ def update_transaction(
 
             # 5. Apply new goal / obligation side-effects
             if new_goal_id:
-                if new_type in ("income", "transfer"):
+                if new_type == "income":
                     cur.execute(
                         "UPDATE goals SET current_amount = current_amount + %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
                         (new_amount, new_goal_id, user_id),
@@ -804,7 +834,7 @@ def delete_transaction(transaction_id: UUID, current_user: dict = Depends(get_cu
 
             # Reverse goal adjustment
             if tx["goal_id"]:
-                if tx["type"] in ("income", "transfer"):
+                if tx["type"] == "income":
                     cur.execute(
                         "UPDATE goals SET current_amount = GREATEST(0, current_amount - %s), updated_at = NOW() WHERE id = %s AND user_id = %s",
                         (tx["amount"], str(tx["goal_id"]), user_id),

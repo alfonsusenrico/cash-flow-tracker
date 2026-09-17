@@ -59,11 +59,15 @@ def test_create_transaction_by_name():
         assert args[1] == gopay_id  # resolved source account
         assert args[2] == food_cat_id  # resolved category
         assert args[5] == "expense"
-        assert args[7] == 25000
-        assert args[12] == "test_gopay_key_123"
+        assert args[6] == 25000
+        assert args[7] == "Kopi Kenangan"
+        assert args[11] == "test_gopay_key_123"
 
 
-def test_create_transfer_by_name_jago_pocket():
+def test_create_jago_pocket_movement():
+    from app.main import app
+    from app.services.auth import get_current_user
+
     mock_user = {
         "id": "11111111-1111-1111-1111-111111111111",
         "username": "tester",
@@ -74,48 +78,56 @@ def test_create_transfer_by_name_jago_pocket():
 
     jago_parent_id = str(uuid4())
     emergency_pocket_id = str(uuid4())
-    internal_cat_id = str(uuid4())
+    exp_cat_id = str(uuid4())
+    inc_cat_id = str(uuid4())
 
     payload = {
-        "account_name": "My Emergency Fund",
-        "target_account_name": "Bank Jago",
-        "type": "transfer",
+        "source_account_id": emergency_pocket_id,
+        "target_account_id": jago_parent_id,
         "amount": 500000,
-        "category_name": "Internal Movement",
         "notes": "Bank Jago: My Emergency Fund → Kantong Utama",
         "idempotency_key": "jago_pocket_transfer_key_456",
     }
 
-    with patch("app.routers.transactions.db_conn") as mock_conn:
+    with patch("app.routers.movements.db_conn") as mock_conn:
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
-        cur.fetchone.side_effect = [
-            None,  # idempotency check
-            {"id": str(uuid4()), "created_at": "2026-09-16T12:00:00Z"},  # insert returning
-        ]
         cur.fetchall.side_effect = [
             [
-                {"id": jago_parent_id, "name": "Bank Jago", "type": "bank", "parent_id": None, "default_funding_account_id": None},
-                {"id": emergency_pocket_id, "name": "Dana Darurat", "type": "bank", "parent_id": jago_parent_id, "default_funding_account_id": None},
+                {"id": emergency_pocket_id, "name": "Dana Darurat"},
+                {"id": jago_parent_id, "name": "Bank Jago"},
             ],
-            [{"id": internal_cat_id, "name": "Internal Movement", "kind": "expense", "kakeibo_type": "saving", "is_primary": True}],
+            [
+                {"id": exp_cat_id, "kind": "expense"},
+                {"id": inc_cat_id, "kind": "income"},
+            ],
+        ]
+        cur.fetchone.side_effect = [
+            None,  # idempotency check
+            {"id": str(uuid4()), "created_at": "2026-09-16T12:00:00Z"},  # expense insert returning
+            {"id": str(uuid4()), "created_at": "2026-09-16T12:00:00Z"},  # income insert returning
         ]
 
         client = TestClient(app, raise_server_exceptions=True)
-        res = client.post("/api/transactions", json=payload)
+        res = client.post("/api/movements", json=payload)
 
         assert res.status_code == 200
-        assert res.json()["ok"] is True
+        data = res.json()
+        assert data["ok"] is True
+        assert data["expense_transaction_id"] is not None
+        assert data["income_transaction_id"] is not None
 
         insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
-        assert len(insert_calls) == 1
-        args = insert_calls[0][0][1]
-        assert args[1] == emergency_pocket_id  # resolved source via synonym "emergency fund" -> "Dana Darurat"
-        assert args[2] == internal_cat_id  # resolved category "Internal Movement"
-        assert args[5] == "transfer"  # strictly type == transfer
-        assert args[6] == jago_parent_id  # target is parent Bank Jago
-        assert args[7] == 500000
+        assert len(insert_calls) == 2
+        # First call is expense (outbound)
+        assert insert_calls[0][0][1][1] == emergency_pocket_id
+        assert insert_calls[0][0][1][2] == exp_cat_id
+        assert insert_calls[0][0][1][3] == 500000
+        # Second call is income (inbound)
+        assert insert_calls[1][0][1][1] == jago_parent_id
+        assert insert_calls[1][0][1][2] == inc_cat_id
+        assert insert_calls[1][0][1][3] == 500000
 
 
 def test_create_transaction_idempotent_replay():
@@ -195,6 +207,6 @@ def test_create_transaction_validation_errors():
         assert res.status_code == 422
         assert "Either account_id or account_name must be provided" in res.json()["detail"]
 
+        # Reject 'transfer' as invalid transaction type
         res = client.post("/api/transactions", json={"account_name": "Bank Jago", "type": "transfer", "amount": 1000})
-        assert res.status_code == 400
-        assert "Transfer requires a target account" in res.json()["detail"]
+        assert res.status_code == 422

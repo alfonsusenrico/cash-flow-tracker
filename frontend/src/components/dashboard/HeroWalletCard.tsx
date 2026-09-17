@@ -9,7 +9,8 @@ interface HeroWalletCardProps {
   liquidBalance: number;
   investmentBalance?: number;
   accountsCount: number;
-  onOpenCapture: (type?: "expense" | "income" | "transfer") => void;
+  onOpenCapture: (type?: "expense" | "income") => void;
+  onOpenMovement?: () => void;
 }
 
 export function HeroWalletCard({
@@ -18,8 +19,9 @@ export function HeroWalletCard({
   investmentBalance = 0,
   accountsCount,
   onOpenCapture,
+  onOpenMovement,
 }: HeroWalletCardProps) {
-  const { hideBalances, setHideBalances, bal } = useAppCtx();
+  const { hideBalances, setHideBalances, bal, openMovement } = useAppCtx();
 
   const animTotal = useAnimatedCounter(totalBalance);
   const animLiquid = useAnimatedCounter(liquidBalance);
@@ -109,7 +111,7 @@ export function HeroWalletCard({
 
         <button
           type="button"
-          onClick={() => onOpenCapture("transfer")}
+          onClick={() => (onOpenMovement ? onOpenMovement() : openMovement())}
           className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-extrabold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 border border-indigo-500/30 shadow-xs hover:shadow-indigo-500/10 transition-all pressable"
         >
           <div className="h-5 w-5 rounded-lg bg-indigo-500 text-white flex items-center justify-center text-[10px] shadow-2xs">

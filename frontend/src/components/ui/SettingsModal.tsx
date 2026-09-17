@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, getApiKeyInfo, rotateApiKey, type ApiKeyMetadata } from "@/lib/api";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -41,6 +41,34 @@ export function SettingsModal({ open, onClose }: Props) {
     enabled: open,
   });
 
+  const [showRotateConfirm, setShowRotateConfirm] = useState(false);
+  const [newPlainKey, setNewPlainKey] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState(false);
+
+  // Fetch API key metadata
+  const { data: apiKeyData } = useQuery<{ ok: boolean; api_key: ApiKeyMetadata | null }>({
+    queryKey: ["auth-api-key"],
+    queryFn: getApiKeyInfo,
+    enabled: open,
+  });
+
+  const rotateKeyMut = useMutation({
+    mutationFn: rotateApiKey,
+    onSuccess: (data) => {
+      setNewPlainKey(data.api_key);
+      setShowRotateConfirm(false);
+      qc.invalidateQueries({ queryKey: ["auth-api-key"] });
+    },
+    onError: (e: Error) => setErr(e.message || "Gagal memperbarui kunci API"),
+  });
+
+  const handleCopyKey = () => {
+    if (!newPlainKey) return;
+    navigator.clipboard.writeText(newPlainKey);
+    setCopiedKey(true);
+    setTimeout(() => setCopiedKey(false), 2000);
+  };
+
   useEffect(() => {
     if (!open) return;
     const u = userData?.user || user;
@@ -52,6 +80,9 @@ export function SettingsModal({ open, onClose }: Props) {
       if (u.monthly_spending_budget) setMonthlyBudget(formatNumberWithDots(u.monthly_spending_budget));
       else setMonthlyBudget("");
     }
+    setShowRotateConfirm(false);
+    setNewPlainKey(null);
+    setCopiedKey(false);
     setErr("");
     setMsg("");
   }, [open, userData, user]);
@@ -230,6 +261,119 @@ export function SettingsModal({ open, onClose }: Props) {
               </p>
             </div>
           </div>
+        </section>
+
+        {/* Kunci API (Aplikasi Mobile & Bot) */}
+        <section className="space-y-3 pt-3 border-t border-[var(--border)]">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+              Kunci API (Aplikasi Mobile & Bot)
+            </h3>
+            <span className="text-[10px] text-[var(--muted)] font-mono">
+              Bearer Token
+            </span>
+          </div>
+
+          {newPlainKey ? (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2.5">
+              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold text-xs">
+                <span>⚠️ Salin Kunci API Baru Anda Sekarang</span>
+              </div>
+              <p className="text-[11px] text-[var(--muted)]">
+                Kunci ini hanya ditampilkan satu kali ini saja. Simpan atau masukkan ke aplikasi mobile tracker Anda.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={newPlainKey}
+                  className="flex-1 font-mono text-xs p-2 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] select-all"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleCopyKey}
+                  className="shrink-0"
+                >
+                  {copiedKey ? "✓ Tersalin!" : "Salin"}
+                </Button>
+              </div>
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setNewPlainKey(null)}
+                  className="text-[11px] text-[var(--muted)] hover:text-[var(--text)] underline cursor-pointer"
+                >
+                  Tutup & selesai
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]/70 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] text-[var(--muted)] font-medium">Awalan Kunci Aktif</div>
+                  <div className="font-mono font-bold text-sm text-[var(--text)] mt-0.5">
+                    {apiKeyData?.api_key?.key_prefix ? `${apiKeyData.api_key.key_prefix}••••••••••••` : "Belum ada kunci"}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[11px] text-[var(--muted)] font-medium">Terakhir Digunakan</div>
+                  <div className="text-xs text-[var(--text)] font-medium mt-0.5">
+                    {apiKeyData?.api_key?.last_used_at
+                      ? new Date(apiKeyData.api_key.last_used_at).toLocaleDateString("id-ID", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "Belum pernah"}
+                  </div>
+                </div>
+              </div>
+
+              {showRotateConfirm ? (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-2">
+                  <p className="text-xs font-semibold text-rose-500">
+                    Kunci lama akan langsung dicabut dan tidak dapat digunakan lagi. Lanjutkan?
+                  </p>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowRotateConfirm(false)}
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={() => rotateKeyMut.mutate()}
+                      disabled={rotateKeyMut.isPending}
+                      className="bg-rose-600 hover:bg-rose-700 text-white"
+                    >
+                      {rotateKeyMut.isPending ? "Membuat..." : "Ya, Buat Kunci Baru"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-end pt-1">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowRotateConfirm(true)}
+                  >
+                    Buat Kunci Baru (Reset)
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         {/* Action Footer */}

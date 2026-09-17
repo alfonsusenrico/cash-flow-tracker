@@ -117,6 +117,31 @@ export function fromDatetimeLocal(value: string): string {
 }
 
 /**
+ * Converts a datetime-local string (e.g. "2026-09-17T10:00") into a timezone-aware
+ * ISO 8601 string including the client's local offset (e.g. "2026-09-17T10:00:00+07:00").
+ */
+export function localDatetimeToISO(value: string): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+
+  const pad = (n: number) => String(Math.floor(Math.abs(n))).padStart(2, "0");
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  const seconds = pad(d.getSeconds());
+
+  const offsetMinutes = -d.getTimezoneOffset();
+  const offsetSign = offsetMinutes >= 0 ? "+" : "-";
+  const offsetHours = pad(Math.floor(Math.abs(offsetMinutes) / 60));
+  const offsetMins = pad(Math.abs(offsetMinutes) % 60);
+
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetSign}${offsetHours}:${offsetMins}`;
+}
+
+/**
  * Formats a raw number or string input with Indonesian thousand dots (e.g. 20000000 -> "20.000.000").
  * Strips non-digit characters and leading zeroes (unless the number is 0).
  * Returns an empty string if no digits are present.
