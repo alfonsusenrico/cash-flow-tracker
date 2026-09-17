@@ -210,3 +210,57 @@ def test_create_transaction_validation_errors():
         # Reject 'transfer' as invalid transaction type
         res = client.post("/api/transactions", json={"account_name": "Bank Jago", "type": "transfer", "amount": 1000})
         assert res.status_code == 422
+
+
+def test_create_transaction_routes_to_default_pocket():
+    mock_user = {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "username": "tester",
+        "currency": "IDR",
+        "payday_day": 25,
+    }
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    bca_id = str(uuid4())
+    atm_id = str(uuid4())
+    gold_id = str(uuid4())
+    food_cat_id = str(uuid4())
+
+    with patch("app.routers.transactions.db_conn") as mock_conn:
+        cur = MagicMock()
+        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
+
+        cur.fetchone.side_effect = [
+            None,  # idempotency check
+            {"kakeibo_type": "need", "is_primary": True},  # category kakeibo check
+            {"id": str(uuid4()), "created_at": "2026-09-17T12:00:00Z"},  # insert returning
+        ]
+        cur.fetchall.side_effect = [
+            [
+                {"id": bca_id, "name": "BCA", "type": "bank", "parent_id": None, "default_pocket_id": atm_id},
+                {"id": atm_id, "name": "ATM", "type": "bank", "parent_id": bca_id, "default_pocket_id": None},
+                {"id": gold_id, "name": "Gold", "type": "bank", "parent_id": bca_id, "default_pocket_id": None},
+            ],
+            [{"id": food_cat_id, "name": "Makanan & Minuman", "kind": "expense", "kakeibo_type": "need", "is_primary": True}],
+        ]
+
+        client = TestClient(app, raise_server_exceptions=True)
+        res = client.post(
+            "/api/transactions",
+            json={
+                "account_name": "BCA",
+                "type": "expense",
+                "amount": 50000,
+                "category_name": "Makanan & Minuman",
+                "notes": "Makan siang",
+                "idempotency_key": "test_bca_default_pocket_123",
+            },
+        )
+        assert res.status_code == 200
+        assert res.json()["ok"] is True
+
+        # Verify that the inserted transaction account_id is ATM (not BCA!)
+        inserts = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
+        assert len(inserts) == 1
+        inserted_args = inserts[0][0][1]
+        assert inserted_args[1] == atm_id

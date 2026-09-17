@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { cn, fmtMoney, formatNumberWithDots, parseNumberFromDots, formatDecimalInput, parseDecimal, parseUnits } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Modal } from "@/components/ui/Modal";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Icon } from "@/components/ui/Icon";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { PayrollAllocationModal } from "@/components/recurring/PayrollAllocationModal";
@@ -716,7 +717,7 @@ export default function AccountsPage() {
           <button
             type="button"
             onClick={() => setRecurringModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] transition-all pressable shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] hover:bg-[var(--surface-sunken)] text-xs font-semibold text-[var(--text)] transition-colors shadow-2xs"
             title="Kelola Transaksi Rutin & Otomatis"
           >
             <Icon name="repeat" className="h-3.5 w-3.5 text-blue-500 stroke-[2.5]" />
@@ -727,7 +728,7 @@ export default function AccountsPage() {
             type="button"
             onClick={() => handleOpenTransfer()}
             disabled={activeAccounts.length < 2}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/10 hover:bg-indigo-500/20 text-xs font-bold text-indigo-500 transition-all pressable shadow-2xs disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] hover:bg-[var(--surface-sunken)] text-xs font-semibold text-[var(--text)] transition-colors shadow-2xs disabled:opacity-40"
           >
             <Icon name="move" className="h-3.5 w-3.5 text-indigo-500 stroke-[2.5]" />
             <span>Pindah Saldo</span>
@@ -736,7 +737,7 @@ export default function AccountsPage() {
           <button
             type="button"
             onClick={handleOpenNewAccount}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-black shadow-xs pressable"
+            className="btn-charcoal inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg shadow-2xs"
           >
             <span className="font-black text-sm leading-none">+</span>
             <span>Rekening Baru</span>
@@ -745,48 +746,34 @@ export default function AccountsPage() {
       </div>
 
       {/* 2. Executive Net Worth & Runway Hero Card */}
-      <div className="card-squircle relative overflow-hidden bg-gradient-to-br from-white via-slate-50 to-slate-100 text-slate-900 dark:from-[#1E2127] dark:via-[#14161A] dark:to-[#0D0E11] dark:text-white p-6 sm:p-7 shadow-xs dark:shadow-md border border-[var(--border-strong)]">
-        <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 blur-3xl pointer-events-none" />
-        <div className="absolute -left-16 -bottom-16 h-48 w-48 rounded-full bg-indigo-500/10 dark:bg-indigo-500/15 blur-3xl pointer-events-none" />
-
-        <div className="relative flex items-center justify-between">
+      <div className="card-crisp p-6 sm:p-7">
+        <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
             Total Kekayaan Bersih (Total saldo kas dikurangi sisa cicilan & utang)
           </span>
           {runway && (
-            <span
-              className={cn(
-                "text-xs px-3 py-1 rounded-full font-bold border inline-flex items-center gap-1.5 shadow-2xs",
+            <StatusBadge
+              variant={
                 totalAssets <= 0 || runway.status === "zero"
-                  ? "bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border-zinc-500/20"
+                  ? "neutral"
                   : runway.status === "healthy"
-                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                  ? "success"
                   : runway.status === "moderate"
-                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-              )}
+                  ? "warning"
+                  : "danger"
+              }
             >
-              <span
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full",
-                  runway.status === "healthy"
-                    ? "bg-emerald-500"
-                    : runway.status === "moderate"
-                    ? "bg-amber-500"
-                    : "bg-rose-500"
-                )}
-              />
               Ketahanan Dana:{" "}
               {totalAssets <= 0 || runway.status === "zero"
                 ? `0 Hari (${bal(0)})`
                 : runway.runway_months >= 99
                 ? "> 12x Biaya Hidup"
                 : `${runway.runway_months}x Biaya Hidup (${runway.runway_days > 365 ? "> 1 Thn" : `${runway.runway_days} Hari`})`}
-            </span>
+            </StatusBadge>
           )}
         </div>
 
-        <div className="relative mt-3.5">
+        <div className="mt-3.5">
           <div className="text-3xl sm:text-5xl font-black tracking-tight tabular select-all text-[var(--text)]">
             {bal(animNetWorth)}
           </div>
@@ -796,7 +783,7 @@ export default function AccountsPage() {
         </div>
 
         {/* 3-Column Asset vs Liability Ribbon */}
-        <div className="relative mt-6 pt-5 border-t border-[var(--border)] grid grid-cols-3 gap-3 sm:gap-6 text-xs">
+        <div className="mt-6 pt-5 border-t border-[var(--border)] grid grid-cols-3 gap-3 sm:gap-6 text-xs">
           <div>
             <div className="text-[10px] text-[var(--muted)] uppercase tracking-wider font-bold">Saldo Kas Tersedia</div>
             <div className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5 tabular select-all">
@@ -828,7 +815,7 @@ export default function AccountsPage() {
       </div>
 
       {/* 3. Liquidity Distribution Bar */}
-      <div className="card-squircle p-5 sm:p-6 space-y-3.5 shadow-xs">
+      <div className="card-crisp p-5 sm:p-6 space-y-3.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <h2 className="text-base font-bold tracking-tight text-[var(--text)]">
             Alokasi Saldo
@@ -933,9 +920,9 @@ export default function AccountsPage() {
                 setDragOverAccountId(null);
               }}
               className={cn(
-                "card-squircle relative overflow-hidden p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between cursor-grab active:cursor-grabbing group bg-[var(--surface)] text-[var(--text)]",
+                "card-crisp relative overflow-hidden p-5 transition-all duration-150 flex flex-col justify-between cursor-grab active:cursor-grabbing group bg-[var(--surface)] text-[var(--text)] hover:border-[var(--border-strong)]",
                 draggedAccountId === acc.id && "opacity-40 scale-[0.98]",
-                dragOverAccountId === acc.id && "ring-2 ring-emerald-500 ring-offset-2 border-emerald-500"
+                dragOverAccountId === acc.id && "ring-2 ring-[var(--accent-lime)] ring-offset-2 border-[var(--accent-lime)]"
               )}
             >
               <div>

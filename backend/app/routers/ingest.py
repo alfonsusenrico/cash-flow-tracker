@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
+from app.routers.transactions import resolve_effective_account
 from app.services.auth import get_current_user
 from app.services.category_rules import resolve_category_for_notification
 from app.services.market_data import get_instrument_quote
@@ -391,6 +392,19 @@ async def ingest_notifications(
                                 tx_type = "income"
                             else:
                                 tx_type = "expense"
+
+                        if source_account_id:
+                            src_cand = next((a for a in accounts if str(a.get("id")) == str(source_account_id)), None)
+                            if src_cand:
+                                eff_src = resolve_effective_account(cur, user_id, src_cand, accounts)
+                                if eff_src:
+                                    source_account_id = eff_src["id"]
+                        if transfer_target_id:
+                            tgt_cand = next((a for a in accounts if str(a.get("id")) == str(transfer_target_id)), None)
+                            if tgt_cand:
+                                eff_tgt = resolve_effective_account(cur, user_id, tgt_cand, accounts)
+                                if eff_tgt:
+                                    transfer_target_id = eff_tgt["id"]
 
                         notes_content = f"{ev.app_label or ev.package_name}: {parsed.counterparty or ev.title or ''}".strip()
                         kakeibo_val = (

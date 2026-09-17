@@ -53,7 +53,7 @@ def list_transactions(
     category_id: UUID | None = None,
     goal_id: UUID | None = None,
     obligation_id: UUID | None = None,
-    type: str | None = Query(default=None, pattern="^(expense|income)$"),
+    type: str | None = Query(default=None, pattern="^(expense|income|transfer)$"),
     kakeibo_type: str | None = Query(default=None, pattern="^(need|want|saving)$"),
     from_date: datetime | None = None,
     to_date: datetime | None = None,
@@ -63,42 +63,55 @@ def list_transactions(
     current_user: dict = Depends(get_current_user),
 ):
     user_id = current_user["id"]
-    conditions = ["t.user_id = %s"]
-    params: list[Any] = [user_id]
-
-    if account_id:
-        conditions.append("t.account_id = %s")
-        params.append(str(account_id))
-    if category_id:
-        conditions.append("t.category_id = %s")
-        params.append(str(category_id))
-    if goal_id:
-        conditions.append("t.goal_id = %s")
-        params.append(str(goal_id))
-    if obligation_id:
-        conditions.append("t.obligation_id = %s")
-        params.append(str(obligation_id))
-    if type:
-        conditions.append("t.type = %s")
-        params.append(type)
-    if kakeibo_type:
-        conditions.append("COALESCE(t.kakeibo_type, c.kakeibo_type, CASE WHEN COALESCE(c.is_primary, TRUE) THEN 'need' ELSE 'want' END) = %s")
-        params.append(kakeibo_type)
-    if from_date:
-        conditions.append("t.date >= %s")
-        params.append(from_date)
-    if to_date:
-        conditions.append("t.date <= %s")
-        params.append(to_date)
-    if q:
-        search_pattern = f"%{q.strip()}%"
-        conditions.append("(t.notes ILIKE %s OR c.name ILIKE %s OR g.name ILIKE %s OR o.name ILIKE %s)")
-        params.extend([search_pattern, search_pattern, search_pattern, search_pattern])
-
-    where_clause = " AND ".join(conditions)
-
     with db_conn() as conn:
         with conn.cursor() as cur:
+            conditions = ["t.user_id = %s"]
+            params: list[Any] = [user_id]
+
+            if account_id:
+                aid = str(account_id)
+                cur.execute(
+                    "SELECT id FROM accounts WHERE user_id = %s AND (id = %s OR parent_id = %s) AND is_archived = FALSE",
+                    (user_id, aid, aid),
+                )
+                child_rows = cur.fetchall()
+                matching_acc_ids = [str(r["id"]) for r in child_rows] or [aid]
+                placeholders = ", ".join(["%s"] * len(matching_acc_ids))
+                conditions.append(f"t.account_id IN ({placeholders})")
+                params.extend(matching_acc_ids)
+
+            if category_id:
+                conditions.append("t.category_id = %s")
+                params.append(str(category_id))
+            if goal_id:
+                conditions.append("t.goal_id = %s")
+                params.append(str(goal_id))
+            if obligation_id:
+                conditions.append("t.obligation_id = %s")
+                params.append(str(obligation_id))
+            if type:
+                if type == "transfer":
+                    conditions.append("(t.type = 'transfer' OR c.name IN ('Internal Movement', 'Investasi') OR c.is_excluded_from_budget = true)")
+                elif type == "expense":
+                    conditions.append("t.type = 'expense' AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND COALESCE(c.is_excluded_from_budget, false) = false")
+                elif type == "income":
+                    conditions.append("t.type = 'income' AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND COALESCE(c.is_excluded_from_budget, false) = false")
+            if kakeibo_type:
+                conditions.append("COALESCE(t.kakeibo_type, c.kakeibo_type, CASE WHEN COALESCE(c.is_primary, TRUE) THEN 'need' ELSE 'want' END) = %s")
+                params.append(kakeibo_type)
+            if from_date:
+                conditions.append("t.date >= %s")
+                params.append(from_date)
+            if to_date:
+                conditions.append("t.date <= %s")
+                params.append(to_date)
+            if q:
+                search_pattern = f"%{q.strip()}%"
+                conditions.append("(t.notes ILIKE %s OR c.name ILIKE %s OR g.name ILIKE %s OR o.name ILIKE %s)")
+                params.extend([search_pattern, search_pattern, search_pattern, search_pattern])
+
+            where_clause = " AND ".join(conditions)
+
             # Count total matching
             count_query = f"""
                 SELECT COUNT(*) AS total
@@ -358,6 +371,74 @@ def _resolve_category_by_name(
     return None
 
 
+def resolve_effective_account(
+    cur,
+    user_id: str,
+    account: dict[str, Any] | None,
+    accounts: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """If the account has child pockets, the parent account cannot directly hold transactions or balance.
+    Resolves the account down to:
+    1. Its configured default_pocket_id (if set and active)
+    2. Fallback: Child pocket matching common main pocket names ('ATM', 'Main Pocket', 'Kantong Utama', 'Utama', 'Tabungan', 'Checking')
+    3. Fallback: First active child pocket ordered by display_order, created_at, name.
+    If resolved to a fallback, automatically updates parent's default_pocket_id in DB.
+    """
+    if not account:
+        return None
+
+    acc_id = str(account["id"])
+    child_pockets = [
+        a for a in accounts
+        if a.get("parent_id") and str(a["parent_id"]) == acc_id and not a.get("is_archived")
+    ]
+
+    # Standalone account or already a child pocket
+    if not child_pockets:
+        return account
+
+    # 1. Configured default pocket
+    dpid = str(account["default_pocket_id"]) if account.get("default_pocket_id") else None
+    if dpid:
+        chosen = next((c for c in child_pockets if str(c["id"]) == dpid), None)
+        if chosen:
+            return chosen
+
+    # 2. Fallback: Look for standard default pocket names
+    preferred_names = ["atm", "kantong utama", "main pocket", "utama", "tabungan", "checking"]
+    chosen = None
+    for pref in preferred_names:
+        chosen = next((c for c in child_pockets if pref in (c.get("name") or "").lower()), None)
+        if chosen:
+            break
+
+    # 3. Fallback: First active child pocket (sorted by display_order, created_at, name)
+    if not chosen:
+        sorted_pockets = sorted(
+            child_pockets,
+            key=lambda x: (
+                x.get("display_order", 0),
+                str(x.get("created_at") or ""),
+                (x.get("name") or "").lower(),
+            )
+        )
+        chosen = sorted_pockets[0]
+
+    # Persist the default_pocket_id back to parent account so it's formally saved
+    if chosen and cur:
+        try:
+            chosen_id = str(chosen["id"])
+            cur.execute(
+                "UPDATE accounts SET default_pocket_id = %s, updated_at = NOW() WHERE user_id = %s AND id = %s",
+                (chosen_id, user_id, acc_id),
+            )
+            account["default_pocket_id"] = chosen_id
+        except Exception:
+            pass
+
+    return chosen
+
+
 @router.post("")
 def create_transaction(payload: TransactionCreate, current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
@@ -407,7 +488,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 account_id = str(payload.account_id)
                 matched_source = next((a for a in accounts if str(a["id"]) == account_id), None)
                 if not matched_source:
-                    cur.execute("SELECT id, name, type, default_pocket_id FROM accounts WHERE user_id = %s AND id = %s", (user_id, account_id))
+                    cur.execute("SELECT id, name, type, default_pocket_id, parent_id FROM accounts WHERE user_id = %s AND id = %s", (user_id, account_id))
                     matched_source = cur.fetchone()
                 if not matched_source:
                     raise HTTPException(status_code=404, detail="Source account not found")
@@ -419,18 +500,22 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
             else:
                 raise HTTPException(status_code=422, detail="Either account_id or account_name must be provided")
 
-            # If matched source has a default_pocket_id configured, route transaction to the default pocket
-            if matched_source and matched_source.get("default_pocket_id"):
-                dpid = str(matched_source["default_pocket_id"])
-                pocket = next((a for a in accounts if str(a["id"]) == dpid), None)
-                if pocket:
-                    matched_source = pocket
-                    account_id = str(pocket["id"])
+            # Route to effective pocket if source is a parent account with child pockets
+            effective_source = resolve_effective_account(cur, user_id, matched_source, accounts)
+            if effective_source:
+                matched_source = effective_source
+                account_id = str(effective_source["id"])
 
             # Resolve target account for investment tracking if provided
             target_account_id = None
             if payload.target_account_id:
                 target_account_id = str(payload.target_account_id)
+                matched_target = next((a for a in accounts if str(a["id"]) == target_account_id), None)
+                if matched_target:
+                    effective_target = resolve_effective_account(cur, user_id, matched_target, accounts)
+                    if effective_target:
+                        matched_target = effective_target
+                        target_account_id = str(effective_target["id"])
             elif payload.target_account_name:
                 matched_target = _match_account_by_name(cur, user_id, payload.target_account_name, accounts)
                 if not matched_target and payload.investment_action == "buy":
@@ -439,7 +524,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                         """
                         INSERT INTO accounts (user_id, name, type, instrument_type, instrument_symbol, units, avg_buy_price, default_funding_account_id)
                         VALUES (%s, %s, 'investment', 'stock', %s, 0, 0, %s)
-                        RETURNING id, parent_id, name, type, instrument_type, instrument_symbol, default_funding_account_id
+                        RETURNING id, parent_id, name, type, instrument_type, instrument_symbol, default_funding_account_id, default_pocket_id
                         """,
                         (user_id, symbol, f"{symbol}.JK", account_id),
                     )
@@ -447,6 +532,9 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     if matched_target:
                         accounts.append(matched_target)
                 if matched_target:
+                    effective_target = resolve_effective_account(cur, user_id, matched_target, accounts)
+                    if effective_target:
+                        matched_target = effective_target
                     target_account_id = str(matched_target["id"])
 
             # Resolve category
@@ -710,7 +798,20 @@ def update_transaction(
 
             # 3. Determine new values (merging payload with old_tx)
             new_amount = payload.amount if payload.amount is not None else old_tx["amount"]
-            new_account_id = str(payload.account_id) if payload.account_id is not None else str(old_tx["account_id"])
+            if payload.account_id is not None:
+                new_acc_id_str = str(payload.account_id)
+                cur.execute(
+                    "SELECT id, parent_id, name, type, default_pocket_id FROM accounts WHERE user_id = %s AND is_archived = FALSE",
+                    (user_id,),
+                )
+                user_accounts = cur.fetchall()
+                target_acc = next((a for a in user_accounts if str(a["id"]) == new_acc_id_str), None)
+                if not target_acc:
+                    raise HTTPException(status_code=404, detail="Account not found")
+                effective_acc = resolve_effective_account(cur, user_id, target_acc, user_accounts)
+                new_account_id = str(effective_acc["id"]) if effective_acc else new_acc_id_str
+            else:
+                new_account_id = str(old_tx["account_id"])
             new_type = payload.type if payload.type is not None else old_tx["type"]
 
             if "category_id" in payload.model_fields_set:

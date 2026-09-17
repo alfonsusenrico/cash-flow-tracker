@@ -5,14 +5,60 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        canvas: {
+          desktop: "var(--canvas-desktop)",
+          app: "var(--canvas-app)",
+          card: "var(--canvas-card)",
+          subtle: "var(--canvas-subtle)",
+          muted: "var(--canvas-muted)",
+        },
         bg: "var(--bg)",
         surface: "var(--surface)",
         "surface-raised": "var(--surface-raised)",
         border: "var(--border)",
         "border-strong": "var(--border-strong)",
-        text: "var(--text)",
-        "text-secondary": "var(--text-secondary)",
+        "border-divider": "var(--border-divider)",
+        text: {
+          DEFAULT: "var(--text)",
+          secondary: "var(--text-secondary)",
+          muted: "var(--text-muted)",
+          tertiary: "var(--text-tertiary)",
+        },
         muted: "var(--muted)",
+        accent: {
+          lime: {
+            DEFAULT: "var(--accent-lime)",
+            hover: "var(--accent-lime-hover)",
+            contrast: "var(--accent-lime-contrast)",
+          },
+          dark: {
+            DEFAULT: "var(--accent-dark)",
+            hover: "var(--accent-dark-hover)",
+            contrast: "var(--accent-dark-contrast)",
+          },
+        },
+        status: {
+          success: {
+            bg: "var(--status-success-bg)",
+            text: "var(--status-success-text)",
+          },
+          warning: {
+            bg: "var(--status-warning-bg)",
+            text: "var(--status-warning-text)",
+          },
+          danger: {
+            bg: "var(--status-danger-bg)",
+            text: "var(--status-danger-text)",
+          },
+          info: {
+            bg: "var(--status-info-bg)",
+            text: "var(--status-info-text)",
+          },
+          purple: {
+            bg: "var(--status-purple-bg)",
+            text: "var(--status-purple-text)",
+          },
+        },
         income: {
           DEFAULT: "var(--color-income)",
           hover: "var(--color-income-hover)",
@@ -45,8 +91,8 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-jakarta)", "Plus Jakarta Sans", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
-        display: ["var(--font-jakarta)", "Plus Jakarta Sans", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        sans: ["var(--font-jakarta)", "Plus Jakarta Sans", "Inter", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        display: ["var(--font-jakarta)", "Plus Jakarta Sans", "Inter", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
         mono: ["var(--font-geist-mono)", "Geist Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       borderRadius: {
@@ -56,10 +102,15 @@ module.exports = {
         lg: "var(--radius-lg)",
         btn: "var(--radius-btn)",
         card: "var(--radius-card)",
+        "card-sm": "var(--radius-card-sm)",
+        window: "var(--radius-window)",
+        pill: "var(--radius-pill)",
       },
       boxShadow: {
+        xs: "var(--shadow-xs)",
         sm: "var(--shadow-sm)",
         md: "var(--shadow-md)",
+        window: "var(--shadow-window)",
       },
     },
   },

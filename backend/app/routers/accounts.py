@@ -572,6 +572,10 @@ async def update_account(
                     "UPDATE accounts SET is_archived = TRUE, updated_at = NOW() WHERE user_id = %s AND parent_id = %s",
                     (user_id, aid),
                 )
+                cur.execute(
+                    "UPDATE accounts SET default_pocket_id = NULL, updated_at = NOW() WHERE user_id = %s AND default_pocket_id = %s",
+                    (user_id, aid),
+                )
 
             updates.append("updated_at = NOW()")
             params.extend([user_id, aid])

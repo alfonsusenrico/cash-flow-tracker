@@ -440,8 +440,8 @@ def get_dashboard_overview(
             cur.execute(
                 """
                 SELECT
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS inflow,
-                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS outflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS outflow,
                     COUNT(*) AS tx_count
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
@@ -625,8 +625,8 @@ def get_dashboard_overview(
             cur.execute(
                 """
                 SELECT
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS inflow,
-                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS outflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS outflow,
                     COUNT(*) AS tx_count
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
@@ -922,7 +922,7 @@ def get_dashboard_analytics(
                     COALESCE(SUM(t.amount), 0) AS total_spent
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
-                WHERE t.user_id = %s AND t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND t.date >= %s AND t.date <= %s
+                WHERE t.user_id = %s AND t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' AND t.date >= %s AND t.date <= %s
                 GROUP BY dow
                 ORDER BY dow ASC
                 """,
@@ -954,8 +954,8 @@ def get_dashboard_analytics(
                 """
                 SELECT 
                     (t.date AT TIME ZONE %s)::date AS tx_day,
-                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS expense,
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS income
+                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS expense,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS income
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
                 WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s

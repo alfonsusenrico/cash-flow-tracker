@@ -7,10 +7,19 @@ import { cn, formatNumberWithDots } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
 import { Modal } from "@/components/ui/Modal";
-import { BurnCadenceChart } from "@/components/dashboard/BurnCadenceChart";
-import { SpendingHeatmap } from "@/components/dashboard/SpendingHeatmap";
-import { NarrativeInsightCard } from "@/components/dashboard/NarrativeInsightCard";
-import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
+import { StatCard } from "@/components/ui/StatCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { TakeawayBanner } from "@/components/ui/TakeawayBanner";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Cell,
+} from "recharts";
 
 const CATEGORY_ICONS = [
   { id: "tag", label: "Label" },
@@ -26,15 +35,15 @@ const CATEGORY_ICONS = [
 ];
 
 const CATEGORY_COLORS = [
-  "#f97316", // orange
-  "#10b981", // emerald
-  "#3b82f6", // blue
-  "#8b5cf6", // purple
-  "#ec4899", // pink
-  "#ef4444", // rose
-  "#eab308", // amber
-  "#14b8a6", // teal
-  "#64748b", // slate
+  "#f97316",
+  "#10b981",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+  "#ef4444",
+  "#eab308",
+  "#14b8a6",
+  "#64748b",
 ];
 
 export default function AnalyticsPage() {
@@ -42,7 +51,7 @@ export default function AnalyticsPage() {
   const { timeframe, cycleOffset, bal } = useAppCtx();
 
   // Active view tab: summary vs compare/kakeibo
-  const [activeTab, setActiveTab] = useState<"summary" | "compare">("summary");
+  const [activeTab, setActiveTab] = useState<"summary" | "kakeibo">("summary");
 
   // Category Modal State (Add / Edit)
   const [catModalOpen, setCatModalOpen] = useState(false);
@@ -131,804 +140,577 @@ export default function AnalyticsPage() {
       ),
   });
 
-  const burnRate = data?.burn_rate;
-  const targetProjected =
-    (timeframe === "cycle"
-      ? burnRate?.projected_cycle_outflow
-      : burnRate?.projected_30d_outflow) ??
-    burnRate?.projected_cycle_outflow ??
-    burnRate?.projected_30d_outflow ??
-    0;
-
-  const animBurn7d = useAnimatedCounter(burnRate?.daily_burn_7d ?? 0);
-  const animBurn30d = useAnimatedCounter(burnRate?.daily_burn_30d ?? 0);
-  const animProjected = useAnimatedCounter(targetProjected);
-
   if (isLoading) {
     return (
       <div className="space-y-6 animate-pulse">
-        <div className="h-16 rounded-2xl bg-[var(--border)]/30" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="h-28 rounded-2xl bg-[var(--border)]/30" />
-          <div className="h-28 rounded-2xl bg-[var(--border)]/30" />
-          <div className="h-28 rounded-2xl bg-[var(--border)]/30" />
+        <div className="h-10 w-72 rounded-xl bg-[var(--canvas-subtle)]" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-28 rounded-2xl bg-[var(--canvas-subtle)]" />
+          ))}
         </div>
-        <div className="h-80 rounded-3xl bg-[var(--border)]/20" />
-        <div className="h-64 rounded-3xl bg-[var(--border)]/20" />
+        <div className="h-80 rounded-2xl bg-[var(--canvas-subtle)]" />
+        <div className="h-64 rounded-2xl bg-[var(--canvas-subtle)]" />
       </div>
     );
   }
 
+  const burnRate = data?.burn_rate;
   const cadence = data?.daily_cadence ?? [];
-  const heatmap = data?.day_of_week_heatmap ?? [];
   const rawCategories = data?.category_variance ?? [];
-  const comparison = data?.comparison;
   const kakeibo = data?.kakeibo;
   const narrative = data?.narrative;
-  const timeframeLabel = data?.timeframe_label;
+  const timeframeLabel = data?.timeframe_label || "Siklus Aktif";
 
-  // Ensure strict filtering for expense categories only
-  const categories = rawCategories.filter((c: any) => c.kind !== "income");
+  // Filter out internal transfers and movements
+  const categories = rawCategories.filter(
+    (c: any) =>
+      c.kind !== "income" &&
+      c.name !== "Internal Movement" &&
+      c.name !== "Investasi" &&
+      !c.is_excluded_from_budget
+  );
 
-  const totalSpentInCategories = categories.reduce((acc: number, c: any) => acc + c.spent, 0);
+  const totalSpentInCategories = categories.reduce((acc: number, c: any) => acc + (c.spent || 0), 0);
   const totalBudgeted = categories.reduce((acc: number, c: any) => acc + (c.budget || 0), 0);
-  const overBudgetCount = categories.filter((c: any) => c.status === "over_budget").length;
+
+  // Find max peak daily expense for highlighting (Ref 4)
+  const maxDayExpense = cadence.reduce(
+    (max: number, d: any) => Math.max(max, d.expense || 0),
+    0
+  );
+
+  // Daily target benchmark line
+  const dailyBenchmark = totalBudgeted > 0 ? Math.round(totalBudgeted / 30) : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 select-none">
       {/* 1. Header & Segmented Tab Switch */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[var(--border)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
-              Analisis Keuangan
-            </span>
-            <span className="h-1 w-1 rounded-full bg-[var(--muted)]" />
-            <span className="text-xs text-[var(--text-secondary)]">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--text-primary)]">
+              Analisis Pengeluaran & Anggaran
+            </h1>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--canvas-subtle)] text-[var(--text-secondary)] border border-[var(--border-structural)]">
               {timeframeLabel}
             </span>
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)] mt-1">
-            Analisis Pengeluaran & Anggaran
-          </h1>
+          <p className="text-xs text-[var(--text-muted)] font-medium mt-0.5">
+            Evaluasi laju belanja harian dan pemenuhan alokasi batas pos keuangan
+          </p>
         </div>
 
-        {/* Segmented Control Switch */}
-        <div className="flex items-center p-1 rounded-2xl bg-[var(--surface-raised)] border border-[var(--border)] self-start sm:self-auto">
+        <div className="flex items-center gap-2">
+          {/* Segmented Control Switch */}
+          <div className="flex items-center p-1 rounded-xl bg-[var(--canvas-subtle)] border border-[var(--border-structural)]">
+            <button
+              type="button"
+              onClick={() => setActiveTab("summary")}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                activeTab === "summary"
+                  ? "bg-[#1E201E] text-white shadow-xs"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              )}
+            >
+              Laju & Kategori
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("kakeibo")}
+              className={cn(
+                "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                activeTab === "kakeibo"
+                  ? "bg-[#1E201E] text-white shadow-xs"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              )}
+            >
+              Pilar Kakeibo
+            </button>
+          </div>
+
           <button
             type="button"
-            onClick={() => setActiveTab("summary")}
-            className={cn(
-              "px-4 py-2 rounded-xl text-xs font-bold transition-all pressable",
-              activeTab === "summary"
-                ? "bg-[var(--surface)] text-[var(--text)] shadow-xs border border-[var(--border)]"
-                : "text-[var(--muted)] hover:text-[var(--text)]"
-            )}
+            onClick={openCreateCategory}
+            className="btn-lime px-3 py-1.5 text-xs font-bold rounded-xl"
           >
-            Ringkasan & Anggaran
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("compare")}
-            className={cn(
-              "px-4 py-2 rounded-xl text-xs font-bold transition-all pressable flex items-center gap-1.5",
-              activeTab === "compare"
-                ? "bg-[var(--surface)] text-[var(--text)] shadow-xs border border-[var(--border)]"
-                : "text-[var(--muted)] hover:text-[var(--text)]"
-            )}
-          >
-            <span>Bandingkan & Kakeibo</span>
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            + Pos Kategori
           </button>
         </div>
       </div>
 
-      {/* ===================== TAB 1: SUMMARY & BUDGETS ===================== */}
+      {/* 2. Top Summary Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <StatCard
+          title="Rata-rata Laju Belanja (7 Hari)"
+          value={bal(burnRate?.daily_burn_7d ?? 0)}
+          subtitle={
+            dailyBenchmark > 0
+              ? `Target harian: ${bal(dailyBenchmark)}/hari`
+              : "Laju pergerakan harian terkini"
+          }
+          badge={{
+            text: (burnRate?.daily_burn_7d ?? 0) > dailyBenchmark && dailyBenchmark > 0 ? "Laju Tinggi" : "Normal",
+            variant: (burnRate?.daily_burn_7d ?? 0) > dailyBenchmark && dailyBenchmark > 0 ? "warning" : "success",
+          }}
+          icon={<Icon name="clock" className="h-4 w-4 text-amber-600" />}
+          iconBg="bg-amber-500/10"
+        />
+
+        <StatCard
+          title="Total Belanja Pos Kategori"
+          value={bal(totalSpentInCategories)}
+          subtitle={`Total Pagu Anggaran: ${bal(totalBudgeted)}`}
+          badge={{
+            text: totalBudgeted > 0 ? `${Math.round((totalSpentInCategories / totalBudgeted) * 100)}% Terpakai` : "Tanpa Limit",
+            variant: totalSpentInCategories > totalBudgeted && totalBudgeted > 0 ? "danger" : "neutral",
+          }}
+          icon={<Icon name="tag" className="h-4 w-4 text-sky-600" />}
+          iconBg="bg-sky-500/10"
+        />
+
+        <StatCard
+          title="Proyeksi Pengeluaran Siklus"
+          value={bal(burnRate?.projected_cycle_outflow ?? totalSpentInCategories)}
+          subtitle="Estimasi akhir siklus jika laju konstan"
+          badge={{ text: "Forecast", variant: "info" }}
+          icon={<Icon name="trending-up" className="h-4 w-4 text-emerald-600" />}
+          iconBg="bg-emerald-500/10"
+        />
+      </div>
+
+      {/* 3. Analytical Takeaway Banner (Ref 1 & Ref 7) */}
+      <TakeawayBanner
+        title="Evaluasi Keuangan Siklus Ini"
+        badgeText="Rekomendasi Pintar"
+        variant="sage"
+      >
+        {narrative?.summary ? (
+          <span>{narrative.summary}</span>
+        ) : (
+          <span>
+            Laju belanja harian terkendali. Tidak ditemukan lonjakan pengeluaran berlebih di luar kebutuhan pokok.
+          </span>
+        )}
+      </TakeawayBanner>
+
+      {/* 4. Tab 1: Summary & Category Benchmarks */}
       {activeTab === "summary" && (
-        <div className="space-y-6">
-          {/* Burn Rate KPI Tiles */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="card-squircle bg-rose-500/[0.04] border-rose-500/20 p-5 space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--muted)] font-bold">Rata-rata 7 Hari</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-500 border border-rose-500/25">
-                  7 Hari
-                </span>
-              </div>
-              <div className="text-2xl sm:text-3xl font-black tabular tracking-tight text-rose-500 select-all">
-                {bal(animBurn7d)}
-                <span className="text-xs text-[var(--muted)] font-bold font-sans"> / hari</span>
-              </div>
-              <p className="text-[11px] text-[var(--muted)] font-medium">Laju pengeluaran harian terkini</p>
-            </div>
-
-            <div className="card-squircle bg-amber-500/[0.04] border-amber-500/20 p-5 space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--muted)] font-bold">Rata-rata 30 Hari</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-500 border border-amber-500/25">
-                  30 Hari
-                </span>
-              </div>
-              <div className="text-2xl sm:text-3xl font-black tabular tracking-tight text-amber-500 select-all">
-                {bal(animBurn30d)}
-                <span className="text-xs text-[var(--muted)] font-bold font-sans"> / hari</span>
-              </div>
-              <p className="text-[11px] text-[var(--muted)] font-medium">Rata-rata pengeluaran harian sebulan</p>
-            </div>
-
-            <div className="card-squircle bg-indigo-500/[0.04] border-indigo-500/20 p-5 space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--muted)] font-bold">
-                  {timeframe === "cycle"
-                    ? "Proyeksi Akhir Siklus"
-                    : timeframe === "90d"
-                    ? "Proyeksi 90 Hari"
-                    : "Proyeksi 30 Hari"}
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/15 text-indigo-500 border border-indigo-500/25">
-                  {timeframe === "cycle" ? "Siklus" : "Horizon"}
-                </span>
-              </div>
-              <div className="text-2xl sm:text-3xl font-black tabular tracking-tight text-[var(--text)] select-all">
-                {bal(animProjected)}
-              </div>
-              <p className="text-[11px] text-[var(--muted)] font-medium">
-                {timeframe === "cycle" && burnRate?.cycle_end_date ? (
-                  <>
-                    Estimasi total s.d.{" "}
-                    <span className="font-bold text-[var(--text)]">
-                      {(() => {
-                        const parts = (burnRate.cycle_end_date as string).split("-");
-                        if (parts.length === 3) {
-                          const m = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-                          return `${parseInt(parts[2], 10)} ${m[parseInt(parts[1], 10) - 1] || ""}`;
-                        }
-                        return burnRate.cycle_end_date;
-                      })()}
-                    </span>{" "}
-                    <span className="text-[10px] text-[var(--muted)] tabular font-medium">
-                      ({burnRate.cycle_elapsed_days ?? 0}/{burnRate.cycle_total_days ?? 0} hari)
-                    </span>
-                  </>
-                ) : (
-                  "Berdasarkan tren pengeluaran saat ini"
-                )}
-              </p>
-            </div>
-          </div>
-
-          {/* Daily Burn Cadence Chart */}
-          <BurnCadenceChart
-            data={cadence}
-            title="Laju Pengeluaran Harian"
-            subtitle="Distribusi kronologis pengeluaran selama periode aktif"
-          />
-
-          {/* Day-of-Week Spending Heatmap */}
-          <SpendingHeatmap
-            data={heatmap}
-            title="Peta Pola Belanja Mingguan"
-            subtitle="Ketahui hari-hari dengan tingkat pengeluaran tertinggi"
-          />
-
-          {/* Category Budget Variance Table */}
-          <div className="cockpit-card p-5 sm:p-6 space-y-4 border border-[var(--border)] shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="space-y-5">
+          {/* A. Daily Spending Cadence Bar Chart (Ref 4 Aesthetic) */}
+          <div className="card-crisp p-5 space-y-4">
+            <div className="flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold tracking-tight text-[var(--text)]">
-                    Batas Anggaran Kategori
-                  </h2>
-                  {overBudgetCount > 0 && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
-                      {overBudgetCount} melebihi batas
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-[var(--muted)] mt-0.5">
-                  Pengeluaran periode ini dibanding batas anggaran pengeluaran
+                <h2 className="text-sm font-bold text-[var(--text-primary)] tracking-tight">
+                  Laju Belanja Harian (Daily Spending Cadence)
+                </h2>
+                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                  Distribusi arus uang keluar setiap hari dalam siklus aktif
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 self-start sm:self-auto">
-                <div className="hidden sm:flex items-center gap-2 text-xs text-[var(--muted)] tabular font-medium">
-                  <span>Total Keluar: {bal(totalSpentInCategories)}</span>
-                  {totalBudgeted > 0 && (
-                    <>
-                      <span>•</span>
-                      <span>Total Anggaran: {bal(totalBudgeted)}</span>
-                    </>
-                  )}
+              <div className="flex items-center gap-3 text-xs">
+                <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-[#66CC55]" />
+                  <span className="text-[11px] font-medium">Hari Puncak (Peak)</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={openCreateCategory}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
-                >
-                  <Icon name="plus" className="h-3.5 w-3.5" />
-                  <span>Tambah Kategori</span>
-                </button>
+                <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-[var(--border-structural)]" />
+                  <span className="text-[11px] font-medium">Hari Biasa</span>
+                </div>
               </div>
+            </div>
+
+            {cadence.length === 0 ? (
+              <div className="py-16 text-center text-xs text-[var(--text-muted)]">
+                Belum ada data belanja di siklus ini.
+              </div>
+            ) : (
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={cadence} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <XAxis
+                      dataKey="label"
+                      stroke="#8E948B"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      stroke="#8E948B"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => (v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : `${Math.round(v / 1000)}k`)}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "rgba(0,0,0,0.03)" }}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        return (
+                          <div className="rounded-xl border border-[var(--border-structural)] bg-[var(--canvas-card)] p-2.5 shadow-lg text-xs">
+                            <span className="font-bold text-[var(--text-primary)] block">
+                              {d.label}
+                            </span>
+                            <span className="text-rose-600 font-bold tabular block mt-0.5">
+                              Belanja: {bal(d.expense)}
+                            </span>
+                            {d.income > 0 && (
+                              <span className="text-emerald-600 font-bold tabular block mt-0.5">
+                                Masuk: {bal(d.income)}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      }}
+                    />
+                    {dailyBenchmark > 0 && (
+                      <ReferenceLine
+                        y={dailyBenchmark}
+                        stroke="#B45309"
+                        strokeDasharray="3 3"
+                        label={{
+                          value: `Limit: ${bal(dailyBenchmark)}`,
+                          fill: "#B45309",
+                          fontSize: 10,
+                          position: "top",
+                        }}
+                      />
+                    )}
+                    <Bar dataKey="expense" radius={[6, 6, 0, 0]}>
+                      {cadence.map((entry: any, index: number) => {
+                        const isPeak = entry.expense === maxDayExpense && entry.expense > 0;
+                        return (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={isPeak ? "#66CC55" : "var(--border-strong)"}
+                          />
+                        );
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          {/* B. Bullet Benchmark Category Cards (Ref 7 Aesthetic) */}
+          <div className="card-crisp p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-[var(--text-primary)] tracking-tight">
+                  Evaluasi Anggaran per Kategori (Bullet Benchmarks)
+                </h2>
+                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                  Realisasi belanja dibandingkan pagu anggaran bulanan
+                </p>
+              </div>
+
+              <span className="text-xs text-[var(--text-muted)] font-medium">
+                {categories.length} Pos Kategori
+              </span>
             </div>
 
             {categories.length === 0 ? (
-              <div className="py-12 text-center text-xs text-[var(--muted)]">
-                Belum ada data pengeluaran kategori.
+              <div className="py-12 text-center text-xs text-[var(--text-muted)] space-y-2">
+                <div>Belum ada pos kategori belanja.</div>
+                <button
+                  type="button"
+                  onClick={openCreateCategory}
+                  className="btn-lime px-3 py-1.5 text-xs rounded-xl"
+                >
+                  + Tambah Kategori
+                </button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead>
-                    <tr className="border-b border-[var(--border)] text-[var(--muted)] uppercase text-[10px] font-semibold">
-                      <th className="pb-3 font-semibold">Kategori</th>
-                      <th className="pb-3 font-semibold text-right">Terpakai</th>
-                      <th className="pb-3 font-semibold text-right">Batas Anggaran</th>
-                      <th className="pb-3 font-semibold text-right">Sisa Anggaran</th>
-                      <th className="pb-3 font-semibold text-right">Status</th>
-                      <th className="pb-3 font-semibold text-right w-16">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)]">
-                    {categories.map((cat: any) => {
-                      const hasBudget = cat.budget && cat.budget > 0;
-                      const isOver = cat.status === "over_budget";
-                      const isWarning = cat.status === "warning";
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {categories.map((cat: any) => {
+                  const spent = cat.spent || 0;
+                  const budget = cat.budget || 0;
+                  const pct = budget > 0 ? Math.round((spent / budget) * 100) : 0;
+                  const isOver = budget > 0 && spent > budget;
+                  const isWarning = budget > 0 && pct >= 80 && !isOver;
 
-                      return (
-                        <tr
-                          key={cat.id}
-                          className="hover:bg-[var(--surface-raised)]/50 transition-colors"
-                        >
-                          <td className="py-3.5 pr-4">
-                            <div className="flex items-center gap-2.5">
-                              <div
-                                className="h-7 w-7 rounded-lg flex items-center justify-center text-xs text-white shrink-0 shadow-2xs"
-                                style={{ backgroundColor: cat.color || "#3b82f6" }}
-                              >
-                                <Icon
-                                  name={cat.icon || "tag"}
-                                  className="h-3.5 w-3.5 text-white"
-                                />
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-semibold text-[var(--text)]">
-                                    {cat.name}
-                                  </span>
-                                </div>
-                                {hasBudget && (
-                                  <div className="w-24 sm:w-36 h-1.5 rounded-full bg-[var(--border)]/60 overflow-hidden mt-1">
-                                    <div
-                                      style={{
-                                        width: `${Math.min(cat.percentage_used, 100)}%`,
-                                      }}
-                                      className={cn(
-                                        "h-full rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
-                                        isOver
-                                          ? "bg-rose-500 shadow-rose-500/30"
-                                          : isWarning
-                                          ? "bg-amber-500 shadow-amber-500/30"
-                                          : "bg-emerald-500 shadow-emerald-500/30"
-                                      )}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-
-                          <td className="py-3.5 text-right font-bold tabular text-[var(--text)]">
-                            {bal(cat.spent)}
-                          </td>
-
-                          <td className="py-3.5 text-right text-[var(--muted)] tabular">
-                            <button
-                              type="button"
-                              onClick={() => openEditCategory(cat)}
-                              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-[var(--surface-raised)] text-[var(--text)] font-semibold border border-transparent hover:border-[var(--border)] transition-colors group/btn cursor-pointer"
-                              title="Klik untuk mengatur batas anggaran"
-                            >
-                              <span>{hasBudget ? bal(cat.budget) : "Atur batas"}</span>
-                              <Icon
-                                name="edit"
-                                className="h-3 w-3 opacity-0 group-hover/btn:opacity-100 text-[var(--muted)] transition-opacity"
-                              />
-                            </button>
-                          </td>
-
-                          <td className="py-3.5 text-right tabular">
-                            {hasBudget ? (
-                              <span
-                                className={cn(
-                                  "font-semibold",
-                                  cat.variance >= 0 ? "text-emerald-500" : "text-rose-500"
-                                )}
-                              >
-                                {cat.variance >= 0
-                                  ? `Sisa ${bal(cat.variance)}`
-                                  : `Lebih ${bal(Math.abs(cat.variance))}`}
-                              </span>
-                            ) : (
-                              <span className="text-[var(--muted)]">-</span>
-                            )}
-                          </td>
-
-                          <td className="py-3.5 text-right">
-                            <span
-                              className={cn(
-                                "px-2 py-0.5 rounded-full text-[10px] font-bold tabular",
-                                isOver
-                                  ? "bg-rose-500/10 text-rose-500 border border-rose-500/20"
-                                  : isWarning
-                                  ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
-                                  : hasBudget
-                                  ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                                  : "bg-[var(--surface-raised)] text-[var(--muted)]"
-                              )}
-                            >
-                              {isOver
-                                ? `${cat.percentage_used}% Lewat`
-                                : isWarning
-                                ? `${cat.percentage_used}% Waspada`
-                                : hasBudget
-                                ? `${cat.percentage_used}% Aman`
-                                : "Tanpa Batas"}
+                  return (
+                    <div
+                      key={cat.id}
+                      className="p-3.5 rounded-xl border border-[var(--border-structural)] bg-[var(--canvas-app)] space-y-2.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span
+                            className="h-7 w-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-xs"
+                            style={{ backgroundColor: cat.color || "#0284C7" }}
+                          >
+                            <Icon name={cat.icon || "tag"} className="h-3.5 w-3.5 text-white" />
+                          </span>
+                          <div className="min-w-0">
+                            <span className="font-bold text-xs text-[var(--text-primary)] truncate block">
+                              {cat.name}
                             </span>
-                          </td>
+                            <span className="text-[10px] text-[var(--text-muted)] truncate block">
+                              {cat.is_primary ? "Pokok (Need)" : "Keinginan (Want)"}
+                            </span>
+                          </div>
+                        </div>
 
-                          <td className="py-3.5 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                type="button"
-                                onClick={() => openEditCategory(cat)}
-                                className="p-1.5 rounded-lg hover:bg-[var(--surface-raised)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
-                                title="Edit kategori"
-                              >
-                                <Icon name="edit" className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={deleteCategoryMutation.isPending}
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      `Yakin ingin menghapus atau mengarsipkan kategori "${cat.name}"?`
-                                    )
-                                  ) {
-                                    deleteCategoryMutation.mutate(cat.id);
-                                  }
-                                }}
-                                className="p-1.5 rounded-lg hover:bg-rose-500/10 text-[var(--muted)] hover:text-rose-500 transition-colors disabled:opacity-50 cursor-pointer"
-                                title="Hapus kategori"
-                              >
-                                <Icon name="trash" className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                        <div className="flex items-center gap-1.5">
+                          {budget > 0 ? (
+                            <StatusBadge
+                              variant={isOver ? "danger" : isWarning ? "warning" : "success"}
+                            >
+                              {isOver ? `Over ${pct}%` : `${pct}%`}
+                            </StatusBadge>
+                          ) : (
+                            <StatusBadge variant="neutral">No Limit</StatusBadge>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => openEditCategory(cat)}
+                            className="p-1 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--canvas-subtle)] transition-colors cursor-pointer"
+                            title="Ubah Anggaran"
+                          >
+                            <Icon name="edit" className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Bullet Progress Track with Target Tick */}
+                      <div className="space-y-1">
+                        <div className="relative w-full h-2 rounded-full bg-[var(--canvas-subtle)] overflow-hidden">
+                          <div
+                            style={{
+                              width: `${Math.min(pct, 100)}%`,
+                              backgroundColor: isOver ? "#DC2626" : isWarning ? "#B45309" : cat.color || "#0284C7",
+                            }}
+                            className="h-full rounded-full transition-all duration-300"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] tabular font-medium pt-0.5">
+                          <span>Realisasi: <strong className="text-[var(--text-primary)]">{bal(spent)}</strong></span>
+                          <span>Budget: <strong className="text-[var(--text-primary)]">{budget > 0 ? bal(budget) : "—"}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* ===================== TAB 2: COMPARE & KAKEIBO ===================== */}
-      {activeTab === "compare" && (
-        <div className="space-y-6">
-          {/* 1. Conversational Financial Narrative */}
-          <NarrativeInsightCard
-            narrative={narrative}
-            outflowDeltaPct={comparison?.outflow_delta_pct ?? 0}
-            timeframeLabel={timeframeLabel}
-          />
-
-          {/* 2. Period-over-Period Delta Metric Cards ($T_0$ vs $T_{-1}$) */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold tracking-tight text-[var(--text)]">
-                  Komparasi Siklus Berjalan vs Siklus Lalu
-                </h2>
-                <p className="text-xs text-[var(--muted)]">
-                  Membandingkan performa {timeframeLabel} dengan{" "}
-                  <span className="font-semibold text-[var(--text)]">
-                    {comparison?.prev_timeframe_label || "periode sebelumnya"}
-                  </span>
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Card 1: Inflow Delta */}
-              <div className="cockpit-card p-4 space-y-2 border border-[var(--border)]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--muted)]">Pemasukan</span>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-1.5 py-0.5 rounded border",
-                      (comparison?.inflow_delta_pct ?? 0) >= 0
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                    )}
-                  >
-                    {(comparison?.inflow_delta_pct ?? 0) >= 0 ? "+" : ""}
-                    {comparison?.inflow_delta_pct ?? 0}%
-                  </span>
-                </div>
-                <div className="text-xl font-bold text-[var(--text)] tabular">
-                  {bal(comparison?.total_inflow ?? 0)}
-                </div>
-                <div className="text-[10px] text-[var(--muted)]">
-                  Siklus lalu: {bal(comparison?.prev_inflow ?? 0)}
-                </div>
-              </div>
-
-              {/* Card 2: Outflow Delta */}
-              <div className="cockpit-card p-4 space-y-2 border border-[var(--border)]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--muted)]">Pengeluaran</span>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-1.5 py-0.5 rounded border",
-                      (comparison?.outflow_delta_pct ?? 0) <= 0
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                    )}
-                  >
-                    {(comparison?.outflow_delta_pct ?? 0) > 0 ? "+" : ""}
-                    {comparison?.outflow_delta_pct ?? 0}%
-                  </span>
-                </div>
-                <div className="text-xl font-bold text-[var(--text)] tabular">
-                  {bal(comparison?.total_outflow ?? 0)}
-                </div>
-                <div className="text-[10px] text-[var(--muted)]">
-                  Siklus lalu: {bal(comparison?.prev_outflow ?? 0)}
-                </div>
-              </div>
-
-              {/* Card 3: Net Cashflow Delta */}
-              <div className="cockpit-card p-4 space-y-2 border border-[var(--border)]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--muted)]">Arus Kas Bersih</span>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-1.5 py-0.5 rounded border",
-                      (comparison?.net_cashflow ?? 0) >= 0
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                    )}
-                  >
-                    {(comparison?.net_cashflow_delta_pct ?? 0) >= 0 ? "+" : ""}
-                    {comparison?.net_cashflow_delta_pct ?? 0}%
-                  </span>
-                </div>
-                <div
-                  className={cn(
-                    "text-xl font-bold tabular",
-                    (comparison?.net_cashflow ?? 0) >= 0
-                      ? "text-emerald-500"
-                      : "text-rose-500"
-                  )}
-                >
-                  {bal(comparison?.net_cashflow ?? 0)}
-                </div>
-                <div className="text-[10px] text-[var(--muted)]">
-                  Siklus lalu: {bal(comparison?.prev_net_cashflow ?? 0)}
-                </div>
-              </div>
-
-              {/* Card 4: Savings Rate Delta */}
-              <div className="cockpit-card p-4 space-y-2 border border-[var(--border)]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--muted)]">Rasio Tabungan</span>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-1.5 py-0.5 rounded border",
-                      (comparison?.savings_rate_delta_pts ?? 0) >= 0
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                    )}
-                  >
-                    {(comparison?.savings_rate_delta_pts ?? 0) >= 0 ? "+" : ""}
-                    {comparison?.savings_rate_delta_pts ?? 0} pts
-                  </span>
-                </div>
-                <div className="text-xl font-bold text-[var(--text)] tabular">
-                  {comparison?.savings_rate ?? 0}%
-                </div>
-                <div className="text-[10px] text-[var(--muted)]">
-                  Siklus lalu: {comparison?.prev_savings_rate ?? 0}%
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 3. Kakeibo 3-Pillar Budgeting Blueprint (50 / 30 / 20) */}
-          <div className="cockpit-card p-5 sm:p-6 space-y-5 border border-[var(--border)] shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🇯🇵</span>
-                  <h2 className="text-base font-bold tracking-tight text-[var(--text)]">
-                    Metode Kakeibo (50 / 30 / 20)
-                  </h2>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                      kakeibo?.kakeibo_status === "SEHAT"
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                    )}
-                  >
-                    {kakeibo?.kakeibo_status === "SEHAT"
-                      ? "KAKEIBO SEHAT"
-                      : "PERLU PENYESUAIAN"}
-                  </span>
-                </div>
-                <p className="text-xs text-[var(--muted)] mt-0.5">
-                  Filosofi alokasi kas harian: 50% Kebutuhan Pokok, 30% Keinginan, 20% Tabungan & Investasi
-                </p>
-              </div>
-            </div>
-
-            {/* Visual 3-Pillar Proportion Stack Bar */}
-            <div className="space-y-1.5">
-              <div className="h-3.5 w-full rounded-full bg-[var(--surface-raised)] border border-[var(--border)] flex overflow-hidden">
-                <div
-                  style={{ width: `${Math.min(kakeibo?.need_pct ?? 0, 100)}%` }}
-                  className="bg-emerald-500 h-full transition-all"
-                  title={`Kebutuhan: ${kakeibo?.need_pct ?? 0}%`}
-                />
-                <div
-                  style={{ width: `${Math.min(kakeibo?.want_pct ?? 0, 100)}%` }}
-                  className="bg-blue-500 h-full transition-all"
-                  title={`Keinginan: ${kakeibo?.want_pct ?? 0}%`}
-                />
-                <div
-                  style={{ width: `${Math.min(kakeibo?.saving_pct ?? 0, 100)}%` }}
-                  className="bg-purple-500 h-full transition-all"
-                  title={`Tabungan: ${kakeibo?.saving_pct ?? 0}%`}
-                />
-              </div>
-              <div className="flex items-center justify-between text-[10px] text-[var(--muted)] tabular font-medium">
-                <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  Kebutuhan ({kakeibo?.need_pct ?? 0}%)
+      {/* 5. Tab 2: Kakeibo 50/30/20 Pillar Cards */}
+      {activeTab === "kakeibo" && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Pillar 1: Need */}
+            <div className="card-crisp p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-sky-600">
+                  🍞 Pokok (Need)
                 </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                  Keinginan ({kakeibo?.want_pct ?? 0}%)
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
-                  Tabungan ({kakeibo?.saving_pct ?? 0}%)
-                </span>
+                <StatusBadge variant={kakeibo?.need_pct > 50 ? "warning" : "success"}>
+                  Target ≤ 50%
+                </StatusBadge>
               </div>
-            </div>
-
-            {/* 3 Interactive Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Pillar 1: Needs */}
-              <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🍞</span>
-                    <div>
-                      <div className="text-xs font-bold text-[var(--text)]">Kebutuhan (Need)</div>
-                      <div className="text-[10px] text-[var(--muted)]">Target: &le; 50%</div>
-                    </div>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                      (kakeibo?.need_pct ?? 0) <= 50
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                    )}
-                  >
-                    {(kakeibo?.need_pct ?? 0) <= 50 ? "Aman" : "Over 50%"}
-                  </span>
-                </div>
-
-                <div>
-                  <div className="text-xl font-bold text-[var(--text)] tabular">
-                    {bal(kakeibo?.need_spent ?? 0)}
-                  </div>
-                  <div className="text-[11px] text-[var(--muted)] mt-0.5">
-                    {kakeibo?.need_pct ?? 0}% dari total uang masuk
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-[var(--muted)] leading-relaxed">
-                  Belanja makanan pokok, sewa/kost, utilitas, cicilan wajib, dan operasional penting.
-                </p>
+              <div className="text-2xl font-bold tabular text-[var(--text-primary)]">
+                {bal(kakeibo?.need_spent ?? 0)}
               </div>
-
-              {/* Pillar 2: Wants */}
-              <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">👑</span>
-                    <div>
-                      <div className="text-xs font-bold text-[var(--text)]">Keinginan (Want)</div>
-                      <div className="text-[10px] text-[var(--muted)]">Target: &le; 30%</div>
-                    </div>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                      (kakeibo?.want_pct ?? 0) <= 30
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                    )}
-                  >
-                    {(kakeibo?.want_pct ?? 0) <= 30 ? "Terkendali" : "Over 30%"}
-                  </span>
-                </div>
-
-                <div>
-                  <div className="text-xl font-bold text-[var(--text)] tabular">
-                    {bal(kakeibo?.want_spent ?? 0)}
-                  </div>
-                  <div className="text-[11px] text-[var(--muted)] mt-0.5">
-                    {kakeibo?.want_pct ?? 0}% dari total uang masuk
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-[var(--muted)] leading-relaxed">
-                  Makan di resto, kopi, hobi, langganan hiburan, dan belanja sekunder penunjang gaya hidup.
-                </p>
+              <div className="text-xs text-[var(--text-muted)] font-medium">
+                Porsi Pengeluaran: <strong className="text-[var(--text-primary)]">{kakeibo?.need_pct ?? 0}%</strong>
               </div>
-
-              {/* Pillar 3: Savings */}
-              <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">💰</span>
-                    <div>
-                      <div className="text-xs font-bold text-[var(--text)]">Tabungan (Saving)</div>
-                      <div className="text-[10px] text-[var(--muted)]">Target: &ge; 20%</div>
-                    </div>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                      (kakeibo?.saving_pct ?? 0) >= 20
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                    )}
-                  >
-                    {(kakeibo?.saving_pct ?? 0) >= 20 ? "Target Tercapai" : "Perlu Ditingkatkan"}
-                  </span>
-                </div>
-
-                <div>
-                  <div className="text-xl font-bold text-[var(--text)] tabular">
-                    {bal(kakeibo?.saving_spent ?? 0)}
-                  </div>
-                  <div className="text-[11px] text-[var(--muted)] mt-0.5">
-                    {kakeibo?.saving_pct ?? 0}% dari total uang masuk
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-[var(--muted)] leading-relaxed">
-                  Dana darurat, tabungan target masa depan, reksadana/saham, dan sisa surplus kas aktif.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================== CATEGORY MODAL ===================== */}
-      {catModalOpen && (
-        <Modal
-          open={catModalOpen}
-          onClose={() => setCatModalOpen(false)}
-          title={
-            editingCategory
-              ? `Kelola Kategori: ${editingCategory.name}`
-              : "Tambah Kategori Baru"
-          }
-        >
-          <div className="space-y-4 pt-2 text-xs">
-            {catError && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-medium">
-                {catError}
-              </div>
-            )}
-
-            <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1">
-                Nama Kategori
-              </label>
-              <input
-                type="text"
-                value={catName}
-                onChange={(e) => setCatName(e.target.value)}
-                placeholder="Contoh: Langganan Streaming, Asuransi, dsb"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-semibold text-[var(--text)] focus:outline-hidden focus:border-emerald-500"
-              />
-            </div>
-
-            {/* Icon Picker */}
-            <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1.5">
-                Ikon Kategori
-              </label>
-              <div className="grid grid-cols-5 gap-2">
-                {CATEGORY_ICONS.map((ic) => (
-                  <button
-                    key={ic.id}
-                    type="button"
-                    onClick={() => setCatIcon(ic.id)}
-                    className={cn(
-                      "flex flex-col items-center justify-center p-2 rounded-xl border transition-all cursor-pointer",
-                      catIcon === ic.id
-                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-500"
-                        : "border-[var(--border)] bg-[var(--surface-raised)]/60 text-[var(--muted)] hover:text-[var(--text)]"
-                    )}
-                  >
-                    <Icon name={ic.id} className="h-4 w-4 mb-1" />
-                    <span className="text-[10px] truncate font-medium">{ic.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Color Palette */}
-            <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1.5">
-                Warna Kategori
-              </label>
-              <div className="flex items-center gap-2">
-                {CATEGORY_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setCatColor(c)}
-                    style={{ backgroundColor: c }}
-                    className={cn(
-                      "h-7 w-7 rounded-full transition-transform cursor-pointer",
-                      catColor === c
-                        ? "ring-2 ring-offset-2 ring-offset-[var(--surface)] ring-emerald-500 scale-110"
-                        : "opacity-80 hover:opacity-100 hover:scale-105"
-                    )}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Monthly Budget Input */}
-            <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1">
-                Batas Anggaran Bulanan (IDR)
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={catBudget}
-                onChange={(e) =>
-                  setCatBudget(formatNumberWithDots(e.target.value))
-                }
-                placeholder="Kosongkan jika tanpa batas"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-bold tabular text-[var(--text)] focus:outline-hidden focus:border-emerald-500"
-              />
-              <p className="text-[11px] text-[var(--muted)] mt-1">
-                Batas pengeluaran bulanan untuk memantau disiplin anggaran kategori.
+              <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                Mencakup kebutuhan tempat tinggal, makanan pokok, tagihan rutin listrik/air/internet, dan transportasi harian.
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border)]">
+            {/* Pillar 2: Want */}
+            <div className="card-crisp p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-rose-600">
+                  👑 Keinginan (Want)
+                </span>
+                <StatusBadge variant={kakeibo?.want_pct > 30 ? "danger" : "success"}>
+                  Target ≤ 30%
+                </StatusBadge>
+              </div>
+              <div className="text-2xl font-bold tabular text-[var(--text-primary)]">
+                {bal(kakeibo?.want_spent ?? 0)}
+              </div>
+              <div className="text-xs text-[var(--text-muted)] font-medium">
+                Porsi Pengeluaran: <strong className="text-[var(--text-primary)]">{kakeibo?.want_pct ?? 0}%</strong>
+              </div>
+              <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                Mencakup gaya hidup, nongkrong, belanja pakaian, langganan hiburan, dan liburan fleksibel.
+              </p>
+            </div>
+
+            {/* Pillar 3: Saving */}
+            <div className="card-crisp p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">
+                  💎 Tabungan (Saving)
+                </span>
+                <StatusBadge variant={kakeibo?.saving_pct >= 20 ? "success" : "warning"}>
+                  Target ≥ 20%
+                </StatusBadge>
+              </div>
+              <div className="text-2xl font-bold tabular text-[var(--text-primary)]">
+                {bal(kakeibo?.saving_spent ?? 0)}
+              </div>
+              <div className="text-xs text-[var(--text-muted)] font-medium">
+                Porsi Alokasi: <strong className="text-[var(--text-primary)]">{kakeibo?.saving_pct ?? 0}%</strong>
+              </div>
+              <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                Dana darurat, tabungan tujuan masa depan, dan alokasi instrumen investasi saham/reksadana.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== CATEGORY ADD / EDIT MODAL ===================== */}
+      <Modal
+        open={catModalOpen}
+        onClose={() => setCatModalOpen(false)}
+        title={editingCategory ? "Ubah Pos Kategori" : "Tambah Pos Kategori Baru"}
+      >
+        <div className="space-y-4 pt-1 text-xs">
+          {catError && (
+            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500">
+              {catError}
+            </div>
+          )}
+
+          <div>
+            <label className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1">
+              Nama Pos Kategori
+            </label>
+            <input
+              type="text"
+              value={catName}
+              onChange={(e) => setCatName(e.target.value)}
+              placeholder="Contoh: Kopi & Cafe, Makanan, Gym"
+              className="w-full rounded-xl border border-[var(--border-structural)] bg-[var(--canvas-subtle)] px-3.5 py-2 text-xs font-semibold text-[var(--text-primary)] outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1">
+              Batas Pagu Anggaran (IDR per Bulan)
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={catBudget}
+              onChange={(e) => setCatBudget(formatNumberWithDots(e.target.value))}
+              placeholder="0 (Kosongkan jika tanpa limit)"
+              className="w-full rounded-xl border border-[var(--border-structural)] bg-[var(--canvas-subtle)] px-3.5 py-2 text-base font-bold tabular text-[var(--text-primary)] outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1.5">
+              Pilar Kakeibo
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCatIsPrimary(true)}
+                className={cn(
+                  "py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer text-center",
+                  catIsPrimary
+                    ? "bg-[#1E201E] text-white border-transparent"
+                    : "bg-[var(--canvas-subtle)] text-[var(--text-secondary)] border-[var(--border-structural)]"
+                )}
+              >
+                🍞 Kebutuhan Pokok (Need)
+              </button>
+              <button
+                type="button"
+                onClick={() => setCatIsPrimary(false)}
+                className={cn(
+                  "py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer text-center",
+                  !catIsPrimary
+                    ? "bg-[#1E201E] text-white border-transparent"
+                    : "bg-[var(--canvas-subtle)] text-[var(--text-secondary)] border-[var(--border-structural)]"
+                )}
+              >
+                👑 Keinginan (Want)
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1.5">
+              Ikon
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORY_ICONS.map((ic) => (
+                <button
+                  key={ic.id}
+                  type="button"
+                  onClick={() => setCatIcon(ic.id)}
+                  className={cn(
+                    "p-2 rounded-xl border flex items-center gap-1.5 cursor-pointer transition-colors text-xs",
+                    catIcon === ic.id
+                      ? "bg-[#1E201E] text-white border-transparent"
+                      : "bg-[var(--canvas-subtle)] text-[var(--text-secondary)] border-[var(--border-structural)]"
+                  )}
+                >
+                  <Icon name={ic.id as any} className="h-3.5 w-3.5" />
+                  <span>{ic.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-[var(--text-muted)] block mb-1.5">
+              Warna
+            </label>
+            <div className="flex items-center gap-2">
+              {CATEGORY_COLORS.map((clr) => (
+                <button
+                  key={clr}
+                  type="button"
+                  onClick={() => setCatColor(clr)}
+                  style={{ backgroundColor: clr }}
+                  className={cn(
+                    "h-6 w-6 rounded-full cursor-pointer transition-transform",
+                    catColor === clr ? "ring-2 ring-offset-2 ring-[#1E201E] scale-110" : "opacity-80 hover:opacity-100"
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--border-structural)]">
+            {editingCategory && (
+              <button
+                type="button"
+                disabled={deleteCategoryMutation.isPending}
+                onClick={() => {
+                  if (confirm(`Hapus kategori ${editingCategory.name}?`)) {
+                    deleteCategoryMutation.mutate(editingCategory.id);
+                  }
+                }}
+                className="text-xs text-rose-600 hover:underline font-semibold cursor-pointer"
+              >
+                Hapus
+              </button>
+            )}
+
+            <div className="flex gap-2 ml-auto">
               <button
                 type="button"
                 onClick={() => setCatModalOpen(false)}
-                className="px-4 py-2 rounded-xl border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-raised)] cursor-pointer"
+                className="btn-secondary py-2 px-3.5 rounded-xl text-xs"
               >
                 Batal
               </button>
@@ -936,18 +718,14 @@ export default function AnalyticsPage() {
                 type="button"
                 disabled={saveCategoryMutation.isPending}
                 onClick={() => saveCategoryMutation.mutate()}
-                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold shadow-xs disabled:opacity-50 cursor-pointer"
+                className="btn-charcoal py-2 px-4 rounded-xl text-xs font-semibold"
               >
-                {saveCategoryMutation.isPending
-                  ? "Menyimpan..."
-                  : editingCategory
-                  ? "Simpan Perubahan"
-                  : "Buat Kategori"}
+                {saveCategoryMutation.isPending ? "Menyimpan..." : "Simpan Kategori"}
               </button>
             </div>
           </div>
-        </Modal>
-      )}
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -104,17 +104,22 @@ Only 5 core persistence entities are permitted:
   - `GET /api/insights`: Visual category breakdown and cycle spending histogram.
   - `GET/POST /api/accounts`: Balances and quick movement.
 
-### 3. Anti-AI-Slop Visual & Interaction Standard
-- **No AI-Slop:** No rainbow gradients, no blurry purple glow dropshadows, no meaningless 0–100 health meters, no 24px-padded empty bubbly cards, and no slow bouncy animations.
-- **Craft & Density (Linear / Wise / Apple Card aesthetic):**
-  - Crisp typography (Inter, tabular figures for currency and dates).
-  - High-contrast neutral palette (`#FAFAF9` light / `#0F1012` dark), subtle 1px structural borders.
-  - Emerald green for Cash In, coral/rose for Cash Out, cobalt for Transfers.
-  - Tactile, rapid inputs: 1-screen quick capture, keyboard shortcuts (`N` for new), thumb-friendly numeric pad, 1-tap category chips.
-- **The 3-Screen Layout:**
-  1. **Pulse (Today):** Allowance, quick capture bar, recent activity timeline.
-  2. **Insights (Month):** Category budget progress bars, daily spending cadence.
-  3. **Accounts (Vault):** Physical bank/wallet cards, 1-tap transfer.
+### 3. Anti-AI-Slop Visual & Interaction Standard (Scandinavian Tactile Minimalist)
+- **Authoritative Standard:** All frontend implementations MUST strictly comply with [`/Users/enrico/project/UI_UX_DESIGN_STANDARD.md`](file:///Users/enrico/project/UI_UX_DESIGN_STANDARD.md).
+- **No AI-Slop:** No rainbow gradients, no blurry purple glow dropshadows, no meaningless 0–100 pseudo health meters, no 24px-padded empty bubbly cards, and no slow bouncy animations.
+- **Craft & Density (Linear / Scandinavian / Apple Card aesthetic):**
+  - Desktop floating container architecture (`rounded-[28px]`, `#F8F8F6` window, `#ECECE8` desktop canvas).
+  - Crisp typography (`tabular-nums` for all currency, percentages, counts, and dates).
+  - High-contrast neutral palette, subtle 1px structural borders (`#E5E5DF`).
+  - **Signature Spring Lime (`#66CC55`)** for active navigation pills, peak chart highlights, and primary positive actions.
+  - **Matte Charcoal (`#1E201E`)** for structural action buttons (`+ Catat Transaksi`, `+ Tambah Rekening`).
+  - **Pastel Status Badges:** Mint (Success/Income), Amber (Warning/Approaching Limit), Coral (Danger/Expense), Sky Blue (Transfer), Lavender (Investment).
+  - **Right Slide-Out Context Drawer (Sheet):** High-density inspection/editing drawer (Ref 6) replacing modal dialogs for row details.
+- **Core Screen Workbenches:**
+  1. **Pulse / Beranda (`/`):** 4-card top KPI strip, analytical takeaway banner, 2-column split (Activity table + Right Action Rail with "Lakukan Segera" queue and mini liquid vault).
+  2. **Ledger / Transaksi (`/ledger`):** Filter chip bar, dense data table with status pills, slide-out detail sheet, non-polluted cash flow totals.
+  3. **Insights / Analisis (`/insights`):** Daily cadence bar chart with Lime peak highlight, bullet benchmark category cards, Kakeibo 50/30/20 comparison.
+  4. **Accounts / Vault (`/accounts`):** Net worth & runway header, physical card style accounts, investment portfolio vault.
 
 ---
 
@@ -152,4 +157,14 @@ docker compose down
 - **NEVER print, cat, read, or output sensitive credentials, secret values, tokens, API keys, private keys, or passwords in tool outputs or terminal commands.**
 - **Inspecting Environment Files:** When inspecting `.env`, `runtime.env`, secrets files, or configuration files, agents **MUST extract ONLY variable names/keys** (e.g. `cut -d= -f1`, `awk -F= '{print $1}'`), NEVER the values.
 - **Handling Secrets:** If a secret is required in a configuration, CI/CD secret, or script, provide the variable name and instructions for the user to populate or set it, or use placeholders. Never dump plaintext secrets to the console, logs, or chat transcripts.
+
+---
+
+## 7. Production Isolation Guardrail (MANDATORY)
+
+- **Strict Production Protection:** Agents SHALL NOT directly connect to, SSH into, run commands on, or perform any actions against the production server UNLESS the user explicitly provides a direct request that explicitly says to connect to the production server.
+- **Local Development Exclusivity:** All problems, issues, and bugs reported by the user MUST be diagnosed, reproduced, tested, and resolved strictly within the local development environment.
+- **Pipeline-Driven Deployment Only:** Fixes MUST be deployed to the production server strictly through designated automated deployment pipelines or approved release scripts (`deploy_remote_release.sh`). Production issues must be resolved either through deployed code fixes or user interaction matching the latest implementation updates.
+- **No Manual Production Tampering:** NEVER manually edit code, alter environment files, or execute ad-hoc database modifications directly on the production host.
+- **Schema Migrations Mandatory:** Any database schema adjustments MUST be implemented via versioned schema migration scripts executed through the deployment workflow, never via manual or direct DDL execution on production databases.
 

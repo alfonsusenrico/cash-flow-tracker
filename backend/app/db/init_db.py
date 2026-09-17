@@ -188,7 +188,8 @@ def init_db_schema() -> None:
                 CREATE INDEX IF NOT EXISTS idx_accounts_instrument_symbol ON accounts(instrument_symbol) WHERE instrument_symbol IS NOT NULL;
                 CREATE INDEX IF NOT EXISTS idx_accounts_default_pocket ON accounts(default_pocket_id);
 
-                ALTER TABLE transactions ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64) NULL;
+                ALTER TABLE transactions ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(128) NULL;
+                ALTER TABLE transactions ALTER COLUMN idempotency_key TYPE VARCHAR(128);
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_tx_user_idempotency ON transactions(user_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
                 ALTER TABLE transactions DROP COLUMN IF EXISTS transfer_target_account_id;
             """)

@@ -68,7 +68,7 @@ def _ensure_internal_movement_categories(cur, user_id: str) -> tuple[str, str]:
 @router.post("")
 def create_movement(payload: MovementCreate, current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
-    from app.routers.transactions import _match_account_by_name
+    from app.routers.transactions import _match_account_by_name, resolve_effective_account
 
     if payload.source_account_id and payload.target_account_id and payload.source_account_id == payload.target_account_id:
         raise HTTPException(status_code=400, detail="Source and target accounts must be different")
@@ -84,45 +84,47 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
                 (user_id,),
             )
             accounts = cur.fetchall()
-            found_accounts = {str(r["id"]): r["name"] for r in accounts}
+            found_accounts = {str(r["id"]): r for r in accounts}
 
             # 1. Resolve source account
             source_id = None
+            matched_source = None
             if payload.source_account_id:
-                source_id = str(payload.source_account_id)
-                if source_id not in found_accounts:
+                sid = str(payload.source_account_id)
+                matched_source = found_accounts.get(sid)
+                if not matched_source:
                     raise HTTPException(status_code=404, detail="Source account not found")
             elif payload.source_account_name:
                 matched_source = _match_account_by_name(cur, user_id, payload.source_account_name, accounts)
                 if not matched_source:
                     raise HTTPException(status_code=400, detail=f"Source account '{payload.source_account_name}' could not be resolved")
-                if matched_source.get("default_pocket_id"):
-                    dpid = str(matched_source["default_pocket_id"])
-                    pocket = next((a for a in accounts if str(a["id"]) == dpid), None)
-                    if pocket:
-                        matched_source = pocket
-                source_id = str(matched_source["id"])
             else:
                 raise HTTPException(status_code=422, detail="Either source_account_id or source_account_name must be provided")
 
+            effective_source = resolve_effective_account(cur, user_id, matched_source, accounts)
+            if not effective_source:
+                raise HTTPException(status_code=404, detail="Effective source pocket not found")
+            source_id = str(effective_source["id"])
+
             # 2. Resolve target account
             target_id = None
+            matched_target = None
             if payload.target_account_id:
-                target_id = str(payload.target_account_id)
-                if target_id not in found_accounts:
+                tid = str(payload.target_account_id)
+                matched_target = found_accounts.get(tid)
+                if not matched_target:
                     raise HTTPException(status_code=404, detail="Target account not found")
             elif payload.target_account_name:
                 matched_target = _match_account_by_name(cur, user_id, payload.target_account_name, accounts)
                 if not matched_target:
                     raise HTTPException(status_code=400, detail=f"Target account '{payload.target_account_name}' could not be resolved")
-                if matched_target.get("default_pocket_id"):
-                    dpid = str(matched_target["default_pocket_id"])
-                    pocket = next((a for a in accounts if str(a["id"]) == dpid), None)
-                    if pocket:
-                        matched_target = pocket
-                target_id = str(matched_target["id"])
             else:
                 raise HTTPException(status_code=422, detail="Either target_account_id or target_account_name must be provided")
+
+            effective_target = resolve_effective_account(cur, user_id, matched_target, accounts)
+            if not effective_target:
+                raise HTTPException(status_code=404, detail="Effective target pocket not found")
+            target_id = str(effective_target["id"])
 
             if source_id == target_id:
                 raise HTTPException(status_code=400, detail="Source and target accounts must be different")
@@ -130,9 +132,14 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
             # 2. Get/seed internal movement categories
             expense_cat_id, income_cat_id = _ensure_internal_movement_categories(cur, user_id)
 
-            # 3. Idempotency keys if specified
-            out_key = f"{payload.idempotency_key}:out" if payload.idempotency_key else None
-            in_key = f"{payload.idempotency_key}:in" if payload.idempotency_key else None
+            # 3. Idempotency keys if specified (ensure total length never exceeds varchar(64) limit)
+            if payload.idempotency_key:
+                base_key = payload.idempotency_key[:58]
+                out_key = f"{base_key}:out"
+                in_key = f"{base_key}:in"
+            else:
+                out_key = None
+                in_key = None
 
             if payload.idempotency_key:
                 cur.execute(

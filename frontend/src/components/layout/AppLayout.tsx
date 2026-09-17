@@ -195,67 +195,64 @@ export default function AppLayout({ children }: AppLayoutProps) {
         openMovement: handleOpenMovement,
       }}
     >
-      <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)]">
-        {/* Desktop Persistent Left Sidebar */}
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={handleToggleSidebar}
-          onQuickAdd={() => handleOpenQuickAdd()}
-          onOpenSettings={() => setSettingsOpen(true)}
-        />
-
-        {/* Mobile Slide-Over Navigation Drawer */}
-        <MobileDrawer
-          open={mobileMenuOpen}
-          onClose={() => setMobileMenuOpen(false)}
-          onQuickAdd={() => {
-            setMobileMenuOpen(false);
-            handleOpenQuickAdd();
-          }}
-          onOpenSettings={() => {
-            setMobileMenuOpen(false);
-            setSettingsOpen(true);
-          }}
-        />
-
-        {/* Main Fluid Workbench */}
-        <div
-          className={cn(
-            "flex-1 flex flex-col min-w-0 transition-[margin] duration-200 ease-in-out",
-            sidebarCollapsed ? "lg:ml-[72px]" : "lg:ml-[260px]"
-          )}
-        >
-          <TopBar
-            onToggleMobileMenu={() => setMobileMenuOpen(true)}
+      <div className="app-desktop-canvas">
+        <div className="app-window-frame">
+          {/* Desktop Persistent Left Sidebar */}
+          <Sidebar
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={handleToggleSidebar}
             onQuickAdd={() => handleOpenQuickAdd()}
             onOpenSettings={() => setSettingsOpen(true)}
           />
 
-          {/* Fluid Full-Width Workspace Canvas (matching student-enrollment-analysis) */}
-          <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-12 min-w-0">
-            {children}
-          </main>
+          {/* Mobile Slide-Over Navigation Drawer */}
+          <MobileDrawer
+            open={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+            onQuickAdd={() => {
+              setMobileMenuOpen(false);
+              handleOpenQuickAdd();
+            }}
+            onOpenSettings={() => {
+              setMobileMenuOpen(false);
+              setSettingsOpen(true);
+            }}
+          />
+
+          {/* Main Fluid Workbench */}
+          <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
+            <TopBar
+              onToggleMobileMenu={() => setMobileMenuOpen(true)}
+              onQuickAdd={() => handleOpenQuickAdd()}
+              onOpenSettings={() => setSettingsOpen(true)}
+            />
+
+            {/* Fluid Workbench Canvas */}
+            <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-5 pb-24 lg:pb-8 min-w-0">
+              {children}
+            </main>
+          </div>
+
+          {/* Mobile Bottom Bar */}
+          <BottomNav onQuickAdd={() => handleOpenQuickAdd()} />
+
+          {/* Global Modals */}
+          <QuickCaptureModal
+            open={quickAddOpen}
+            onClose={() => setQuickAddOpen(false)}
+            defaultType={quickAddType}
+          />
+
+          <InternalMovementModal
+            open={movementOpen}
+            onClose={() => setMovementOpen(false)}
+          />
+
+          <SettingsModal
+            open={settingsOpen}
+            onClose={() => setSettingsOpen(false)}
+          />
         </div>
-
-        {/* Mobile Bottom Bar */}
-        <BottomNav onQuickAdd={() => handleOpenQuickAdd()} />
-
-        {/* Global Modals */}
-        <QuickCaptureModal
-          open={quickAddOpen}
-          onClose={() => setQuickAddOpen(false)}
-          defaultType={quickAddType}
-        />
-
-        <InternalMovementModal
-          open={movementOpen}
-          onClose={() => setMovementOpen(false)}
-        />
-
-        <SettingsModal
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-        />
       </div>
     </AppContext.Provider>
   );

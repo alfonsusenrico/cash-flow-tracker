@@ -481,6 +481,7 @@ def test_ingest_jago_single_pocket_out_emergency_fund():
     app.dependency_overrides[get_current_user] = lambda: mock_user
 
     jago_parent_id = str(uuid4())
+    main_pocket_id = str(uuid4())
     emergency_pocket_id = str(uuid4())
 
     payload = {
@@ -508,7 +509,8 @@ def test_ingest_jago_single_pocket_out_emergency_fund():
             ],
             [],  # user rules
             [
-                {"id": jago_parent_id, "name": "Bank Jago", "type": "bank", "default_funding_account_id": None, "parent_id": None},
+                {"id": jago_parent_id, "name": "Bank Jago", "type": "bank", "default_funding_account_id": None, "parent_id": None, "default_pocket_id": main_pocket_id},
+                {"id": main_pocket_id, "name": "Kantong Utama", "type": "bank", "default_funding_account_id": None, "parent_id": jago_parent_id},
                 {"id": emergency_pocket_id, "name": "Dana Darurat", "type": "bank", "default_funding_account_id": None, "parent_id": jago_parent_id},
             ],
         ]
@@ -531,7 +533,7 @@ def test_ingest_jago_single_pocket_out_emergency_fund():
         assert exp_args[1] == emergency_pocket_id  # resolved source pocket via synonym
         assert exp_args[3] == 500000
         inc_args = insert_calls[1][0][1]
-        assert inc_args[1] == jago_parent_id  # resolved target as parent Jago account
+        assert inc_args[1] == main_pocket_id  # resolved target to default pocket Kantong Utama
         assert inc_args[3] == 500000
 
 

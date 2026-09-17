@@ -295,3 +295,64 @@ def test_bearer_api_key_accounts_and_categories():
         assert len(cat_data["categories"]) == 1
         assert cat_data["categories"][0]["kind"] == "expense"
 
+
+def test_post_movement_auto_resolves_parent_to_default_pocket():
+    user_id = str(uuid4())
+    mock_user = {
+        "id": user_id,
+        "username": "tester",
+        "currency": "IDR",
+        "payday_day": 25,
+    }
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    bca_id = str(uuid4())
+    atm_id = str(uuid4())
+    gold_id = str(uuid4())
+    gopay_id = str(uuid4())
+    exp_cat_id = str(uuid4())
+    inc_cat_id = str(uuid4())
+    exp_tx_id = str(uuid4())
+    inc_tx_id = str(uuid4())
+
+    with patch("app.routers.movements.db_conn") as mock_conn:
+        cur = MagicMock()
+        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
+
+        cur.fetchall.side_effect = [
+            [
+                {"id": bca_id, "name": "BCA", "type": "bank", "parent_id": None, "default_pocket_id": atm_id},
+                {"id": atm_id, "name": "ATM", "type": "bank", "parent_id": bca_id, "default_pocket_id": None},
+                {"id": gold_id, "name": "Gold", "type": "bank", "parent_id": bca_id, "default_pocket_id": None},
+                {"id": gopay_id, "name": "GoPay", "type": "wallet", "parent_id": None, "default_pocket_id": None},
+            ],
+            [{"id": exp_cat_id, "kind": "expense"}, {"id": inc_cat_id, "kind": "income"}],
+        ]
+        cur.fetchone.side_effect = [
+            {"id": exp_tx_id},
+            {"id": inc_tx_id},
+        ]
+
+        client = TestClient(app, raise_server_exceptions=True)
+        res = client.post(
+            "/api/movements",
+            json={
+                "source_account_name": "BCA",
+                "target_account_name": "GoPay",
+                "amount": 100000,
+                "notes": "BCA ke GoPay",
+            },
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["ok"] is True
+        assert data["expense_transaction_id"] == exp_tx_id
+        assert data["income_transaction_id"] == inc_tx_id
+
+        # Verify expense transaction has account_id = ATM (not BCA!)
+        inserts = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
+        assert len(inserts) == 2
+        exp_args = inserts[0][0][1]
+        assert exp_args[1] == atm_id
+        inc_args = inserts[1][0][1]
+        assert inc_args[1] == gopay_id

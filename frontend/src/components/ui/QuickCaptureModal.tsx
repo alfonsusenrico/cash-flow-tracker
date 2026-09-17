@@ -244,7 +244,7 @@ export function QuickCaptureModal({
         </div>
 
         {/* Big Numeric Input with Live Math Indicator */}
-        <div className="relative rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 focus-within:ring-2 focus-within:ring-[var(--primary)]/30 focus-within:border-[var(--primary)] transition-all card-squircle">
+        <div className="relative card-crisp p-4 focus-within:ring-2 focus-within:ring-[var(--accent-lime)]/30 focus-within:border-[var(--border-strong)] transition-all">
           <div className="flex items-baseline justify-between">
             <span className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">
               Nominal (IDR)

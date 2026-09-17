@@ -29,7 +29,124 @@ body {
 
 .tabular { font-variant-numeric: tabular-nums; }
 
-/* Tactile Modern Buttons */
+/* Scandinavian Tactile UI Utilities */
+.app-desktop-canvas {
+  background-color: var(--canvas-desktop);
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0;
+}
+
+@media (min-width: 1024px) {
+  .app-desktop-canvas {
+    padding: 1rem 1.25rem 1.5rem;
+  }
+}
+
+.app-window-frame {
+  background-color: var(--canvas-app);
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+@media (min-width: 1024px) {
+  .app-window-frame {
+    max-width: 1640px;
+    min-height: calc(100vh - 2.5rem);
+    border-radius: var(--radius-window, 28px);
+    border: 1px solid var(--border-structural);
+    box-shadow: var(--shadow-window);
+  }
+}
+
+.card-crisp {
+  background-color: var(--canvas-card);
+  border: 1px solid var(--border-structural);
+  border-radius: var(--radius-card, 16px);
+  box-shadow: var(--shadow-xs);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card-crisp:hover {
+  border-color: var(--border-strong);
+}
+
+.takeaway-card {
+  background-color: #EBF7EE;
+  border: 1px solid #D0EBD5;
+  border-radius: var(--radius-card, 16px);
+}
+
+.dark .takeaway-card {
+  background-color: rgba(46, 125, 50, 0.15);
+  border-color: rgba(74, 222, 128, 0.25);
+}
+
+/* Tactile Signature Buttons */
+.btn-charcoal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--radius-btn, 12px);
+  background-color: var(--accent-dark);
+  color: var(--accent-dark-contrast);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.08);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  user-select: none;
+}
+
+.btn-charcoal:hover {
+  background-color: var(--accent-dark-hover);
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.12);
+}
+
+.btn-charcoal:active {
+  transform: scale(0.98);
+}
+
+.btn-charcoal:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-lime {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: var(--radius-btn, 12px);
+  background-color: var(--accent-lime);
+  color: var(--accent-lime-contrast);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  user-select: none;
+}
+
+.btn-lime:hover {
+  background-color: var(--accent-lime-hover);
+  filter: brightness(1.02);
+}
+
+.btn-lime:active {
+  transform: scale(0.98);
+}
+
 .btn-primary {
   display: inline-flex;
   align-items: center;
@@ -38,7 +155,7 @@ body {
   padding: 0.5rem 1rem;
   font-size: 0.75rem;
   font-weight: 600;
-  border-radius: var(--radius-btn, 8px);
+  border-radius: var(--radius-btn, 12px);
   background: var(--primary);
   color: var(--primary-contrast, #ffffff);
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -48,7 +165,6 @@ body {
 }
 .btn-primary:hover {
   background: var(--primary-hover);
-  filter: brightness(1.03);
 }
 .btn-primary:active {
   transform: scale(0.98);
@@ -331,3 +447,82 @@ html, body { overflow-x: clip; }
   font-weight: 600;
   transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* ===== FLAT WORKBENCH LAYOUT SYSTEM (Reference UI Redesign) ===== */
+
+/* KPI stat strip — unified row of metric cells */
+.kpi-strip {
+  display: grid;
+  border-bottom: 1px solid var(--border-structural);
+  background: var(--canvas-app);
+  flex-shrink: 0;
+}
+.kpi-strip.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.kpi-strip.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.kpi-strip.cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+@media (max-width: 1023px) {
+  .kpi-strip.cols-4 { grid-template-columns: repeat(2, 1fr); }
+  .kpi-strip.cols-3 { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 639px) {
+  .kpi-strip.cols-4,
+  .kpi-strip.cols-3 { grid-template-columns: repeat(2, 1fr); }
+}
+
+.kpi-cell {
+  padding: 18px 20px;
+  border-right: 1px solid var(--border-structural);
+  background: var(--canvas-app);
+  min-width: 0;
+}
+.kpi-cell:last-child { border-right: none; }
+@media (max-width: 1023px) {
+  /* In 2-col layout: 1st and 3rd cells lose right border, 2nd keeps it */
+  .kpi-strip.cols-4 .kpi-cell:nth-child(2n) { border-right: none; }
+  .kpi-strip.cols-4 .kpi-cell:nth-child(2n+1) { border-right: 1px solid var(--border-structural); }
+  .kpi-strip.cols-4 .kpi-cell:nth-child(1),
+  .kpi-strip.cols-4 .kpi-cell:nth-child(2) { border-bottom: 1px solid var(--border-structural); }
+}
+
+/* Flat workbench section — no elevation, subtle top border */
+.section-flat {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-divider);
+  background: transparent;
+  flex-shrink: 0;
+}
+.section-flat:last-child { border-bottom: none; }
+
+/* 2-column workbench split */
+.workbench-split {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.workbench-left {
+  flex: 1;
+  min-width: 0;
+  border-right: 1px solid var(--border-structural);
+  overflow-y: auto;
+}
+.workbench-right {
+  width: 320px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  background: var(--canvas-app);
+}
+@media (max-width: 1023px) {
+  .workbench-split { flex-direction: column; overflow: visible; }
+  .workbench-left { border-right: none; border-bottom: 1px solid var(--border-structural); overflow: visible; }
+  .workbench-right { width: 100%; overflow: visible; }
+}
+
+/* Right rail section */
+.rail-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-divider);
+  background: var(--canvas-app);
+}
+.rail-section:last-child { border-bottom: none; }

@@ -63,7 +63,7 @@ export function AccountSelectOptions({
             >
               {canShowParent && (
                 <option value={parentId}>
-                  {parentName} (Akun Induk)
+                  {parentName} {parent.default_pocket_name ? `(Default: ${parent.default_pocket_name})` : "(Akun Induk)"}
                   {formatBalance && parent.balance !== undefined
                     ? ` (${formatBalance(parent.balance)})`
                     : ""}
