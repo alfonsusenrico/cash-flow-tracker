@@ -80,8 +80,8 @@ def materialize(output_path: Path, allow_missing_critical: bool = False) -> None
 
     # 3. Optional Integrations
     for var_name in OPTIONAL_VARIABLES:
-        if var_name in os.environ:
-            val = os.environ[var_name].strip()
+        val = os.environ.get(var_name, "").strip()
+        if val:
             lines.append(f"{var_name}={val}\n")
 
     output_path.write_text("".join(lines), encoding="utf-8")
@@ -101,8 +101,10 @@ def main():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
-                if k.strip() not in os.environ:
-                    os.environ[k.strip()] = v.strip()
+                key = k.strip()
+                val = v.strip()
+                if key not in os.environ or not os.environ[key].strip():
+                    os.environ[key] = val
 
     try:
         materialize(args.output, allow_missing_critical=args.allow_missing)
