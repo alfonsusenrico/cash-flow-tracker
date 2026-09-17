@@ -25,14 +25,23 @@ require_value CI_COMMIT_SHA
 require_file RUNTIME_ENV_FILE
 require_file RELEASE_SOURCE_ARCHIVE
 
-deploy_port="${DEPLOY_SSH_PORT:-22}"
+deploy_port="${DEPLOY_SSH_PORT:-${DEPLOY_PORT:-22}}"
 target="${DEPLOY_USER}@${DEPLOY_HOST}"
 release_sha="${CI_COMMIT_SHA}"
 environment_root="${DEPLOY_ROOT%/}/production"
 compose_project="cashflow-production"
 
-ssh_opts="-p ${deploy_port} -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
-scp_opts="-P ${deploy_port} -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
+key_opt=""
+if [ -n "${DEPLOY_SSH_KEY_FILE:-}" ] && [ -f "${DEPLOY_SSH_KEY_FILE}" ]; then
+  key_opt="-i ${DEPLOY_SSH_KEY_FILE}"
+elif [ -f "${HOME:-}/.ssh/deploy_key" ]; then
+  key_opt="-i ${HOME}/.ssh/deploy_key"
+elif [ -f "/home/runner/.ssh/deploy_key" ]; then
+  key_opt="-i /home/runner/.ssh/deploy_key"
+fi
+
+ssh_opts="-p ${deploy_port} -o BatchMode=yes -o StrictHostKeyChecking=accept-new ${key_opt}"
+scp_opts="-P ${deploy_port} -o BatchMode=yes -o StrictHostKeyChecking=accept-new ${key_opt}"
 
 echo "🚀 Initiating remote deployment to ${target}:${deploy_port} [SHA: ${release_sha}]"
 

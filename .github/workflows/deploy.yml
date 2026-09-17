@@ -122,6 +122,8 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || '100.85.113.31' }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'enr1c0' }}
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || 22 }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_PORT || 22 }}
+          DEPLOY_SSH_KEY_FILE: ~/.ssh/deploy_key
           DEPLOY_ROOT: ${{ secrets.DEPLOY_ROOT || '/opt/cash-flow-tracker' }}
           CI_COMMIT_SHA: ${{ github.sha }}
           RUNTIME_ENV_FILE: runtime.env
