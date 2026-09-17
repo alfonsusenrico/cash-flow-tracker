@@ -15,47 +15,57 @@ FROM users
 ON CONFLICT (user_id, name, kind) DO UPDATE SET
   is_excluded_from_budget = TRUE;
 
--- 2. For any existing transfer transactions:
--- 2a. Insert the paired inbound income transaction for the target account
-INSERT INTO transactions (
-    user_id,
-    account_id,
-    category_id,
-    type,
-    amount,
-    notes,
-    date,
-    receipt_path,
-    kakeibo_type,
-    idempotency_key
-)
-SELECT 
-    t.user_id,
-    t.transfer_target_account_id,
-    c.id,
-    'income',
-    t.amount,
-    t.notes,
-    t.date,
-    t.receipt_path,
-    NULL,
-    'migrated-in-' || t.id::text
-FROM transactions t
-JOIN categories c ON c.user_id = t.user_id AND c.name = 'Internal Movement' AND c.kind = 'income'
-WHERE t.type = 'transfer'
-  AND t.transfer_target_account_id IS NOT NULL;
+-- 2. For any existing transfer transactions (safely handle if transfer_target_account_id exists):
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'transactions' 
+          AND column_name = 'transfer_target_account_id'
+    ) THEN
+        EXECUTE '
+            INSERT INTO transactions (
+                user_id,
+                account_id,
+                category_id,
+                type,
+                amount,
+                notes,
+                date,
+                receipt_path,
+                kakeibo_type,
+                idempotency_key
+            )
+            SELECT 
+                t.user_id,
+                t.transfer_target_account_id,
+                c.id,
+                ''income'',
+                t.amount,
+                t.notes,
+                t.date,
+                t.receipt_path,
+                NULL,
+                ''migrated-in-'' || t.id::text
+            FROM transactions t
+            JOIN categories c ON c.user_id = t.user_id AND c.name = ''Internal Movement'' AND c.kind = ''income''
+            WHERE t.type = ''transfer''
+              AND t.transfer_target_account_id IS NOT NULL;
 
--- 2b. Convert original transfer row into outbound expense transaction
-UPDATE transactions t
-SET type = 'expense',
-    category_id = c.id,
-    kakeibo_type = 'saving',
-    idempotency_key = COALESCE(t.idempotency_key, 'migrated-out-' || t.id::text)
-FROM categories c
-WHERE t.type = 'transfer'
-  AND c.user_id = t.user_id
-  AND c.name = 'Internal Movement'
-  AND c.kind = 'expense';
+            UPDATE transactions t
+            SET type = ''expense'',
+                category_id = c.id,
+                kakeibo_type = ''saving'',
+                idempotency_key = COALESCE(t.idempotency_key, ''migrated-out-'' || t.id::text)
+            FROM categories c
+            WHERE t.type = ''transfer''
+              AND c.user_id = t.user_id
+              AND c.name = ''Internal Movement''
+              AND c.kind = ''expense'';
+        ';
+    END IF;
+END $$;
 
 -- 3. Drop transfer_target_account_id constraint, index, and column
 DROP INDEX IF EXISTS idx_transactions_transfer_target;
