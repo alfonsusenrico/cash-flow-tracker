@@ -398,31 +398,86 @@ async def ingest_notifications(
                             if (tx_type == "transfer" or is_investment or parsed.investment_action)
                             else cat_res.get("kakeibo_type", "need")
                         )
-                        cur.execute(
-                            """
-                            INSERT INTO transactions (
-                                user_id, account_id, transfer_target_account_id, category_id, type, amount, notes, date, kakeibo_type
-                            ) VALUES (
-                                %s, %s, %s, %s, %s, %s, %s, %s, %s
-                            ) RETURNING id
-                            """,
-                            (
-                                user_id,
-                                source_account_id,
-                                transfer_target_id,
-                                cat_res.get("category_id"),
-                                tx_type,
-                                final_amount,
-                                notes_content,
-                                ev.post_time,
-                                kakeibo_val,
-                            ),
-                        )
-                        new_tx = cur.fetchone()
-                        if new_tx and isinstance(new_tx, dict):
-                            tx_id = new_tx.get("id")
-                            if tx_id:
-                                created_txs += 1
+                        if tx_type == "transfer":
+                            expense_cat = next((c for c in categories if c.get("name") == "Internal Movement" and c.get("kind") == "expense"), None)
+                            income_cat = next((c for c in categories if c.get("name") == "Internal Movement" and c.get("kind") == "income"), None)
+                            expense_cat_id = (expense_cat.get("id") if expense_cat else None) or cat_res.get("category_id")
+                            income_cat_id = (income_cat.get("id") if income_cat else None) or cat_res.get("category_id")
+
+                            if not expense_cat_id or not income_cat_id:
+                                from app.routers.movements import _ensure_internal_movement_categories
+                                exp_id, inc_id = _ensure_internal_movement_categories(cur, user_id)
+                                expense_cat_id = expense_cat_id or exp_id
+                                income_cat_id = income_cat_id or inc_id
+                            cur.execute(
+                                """
+                                INSERT INTO transactions (
+                                    user_id, account_id, category_id, type, amount, notes, date, kakeibo_type
+                                ) VALUES (
+                                    %s, %s, %s, 'expense', %s, %s, %s, %s
+                                ) RETURNING id
+                                """,
+                                (
+                                    user_id,
+                                    source_account_id,
+                                    expense_cat_id,
+                                    final_amount,
+                                    notes_content,
+                                    ev.post_time,
+                                    None,
+                                ),
+                            )
+                            new_tx = cur.fetchone()
+                            if new_tx and isinstance(new_tx, dict):
+                                tx_id = new_tx.get("id")
+                                if tx_id:
+                                    created_txs += 1
+                            if transfer_target_id:
+                                cur.execute(
+                                    """
+                                    INSERT INTO transactions (
+                                        user_id, account_id, category_id, type, amount, notes, date, kakeibo_type
+                                    ) VALUES (
+                                        %s, %s, %s, 'income', %s, %s, %s, %s
+                                    ) RETURNING id
+                                    """,
+                                    (
+                                        user_id,
+                                        transfer_target_id,
+                                        income_cat_id,
+                                        final_amount,
+                                        notes_content,
+                                        ev.post_time,
+                                        None,
+                                    ),
+                                )
+                                if cur.fetchone():
+                                    created_txs += 1
+                        else:
+                            cur.execute(
+                                """
+                                INSERT INTO transactions (
+                                    user_id, account_id, category_id, type, amount, notes, date, kakeibo_type
+                                ) VALUES (
+                                    %s, %s, %s, %s, %s, %s, %s, %s
+                                ) RETURNING id
+                                """,
+                                (
+                                    user_id,
+                                    source_account_id,
+                                    cat_res.get("category_id"),
+                                    tx_type,
+                                    final_amount,
+                                    notes_content,
+                                    ev.post_time,
+                                    kakeibo_val,
+                                ),
+                            )
+                            new_tx = cur.fetchone()
+                            if new_tx and isinstance(new_tx, dict):
+                                tx_id = new_tx.get("id")
+                                if tx_id:
+                                    created_txs += 1
 
                 # 5. Upsert notification event in lake
                 labelled_at = datetime.now(timezone.utc) if (ev.is_financial is not None or ev.event_class is not None) else None

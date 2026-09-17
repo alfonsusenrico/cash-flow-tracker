@@ -290,9 +290,11 @@ export default function OverviewPage() {
             ) : (
               <div className="divide-y divide-[var(--border)]">
                 {recentTxs.slice(0, 7).map((tx: any) => {
-                  const isIncome = tx.type === "income";
-                  const isTransfer = tx.type === "transfer";
-                  const isExpense = tx.type === "expense";
+                  const isMovement =
+                    tx.type === "transfer" ||
+                    tx.category_name === "Internal Movement" ||
+                    !!tx.is_excluded_from_budget;
+                  const isIncome = tx.type === "income" && !isMovement;
 
                   return (
                     <div
@@ -304,19 +306,19 @@ export default function OverviewPage() {
                         <div
                           className={cn(
                             "h-8 w-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0",
-                            isIncome
-                              ? "bg-emerald-500/10 text-emerald-500"
-                              : isTransfer
+                            isMovement
                               ? "bg-blue-500/10 text-blue-500"
+                              : isIncome
+                              ? "bg-emerald-500/10 text-emerald-500"
                               : "bg-rose-500/10 text-rose-500"
                           )}
                         >
                           <Icon
                             name={
-                              isIncome
-                                ? "arrow-down-left"
-                                : isTransfer
+                              isMovement
                                 ? "repeat"
+                                : isIncome
+                                ? "arrow-down-left"
                                 : "arrow-up-right"
                             }
                             className="h-4 w-4"
@@ -325,13 +327,13 @@ export default function OverviewPage() {
                         <div className="min-w-0">
                           <div className="text-xs font-semibold text-[var(--text)] group-hover:text-emerald-400 transition-colors truncate">
                             {tx.notes ||
-                              (isTransfer
+                              (isMovement
                                 ? "Pindah Saldo"
                                 : tx.category_name || "Umum")}
                           </div>
                           <div className="text-[11px] text-[var(--muted)] flex items-center gap-1.5 mt-0.5 truncate">
                             <span className="truncate">{tx.account_name}</span>
-                            {isTransfer && tx.transfer_target_account_name && (
+                            {tx.transfer_target_account_name && (
                               <>
                                 <span>&rarr;</span>
                                 <span className="truncate">
@@ -362,14 +364,14 @@ export default function OverviewPage() {
                         <div
                           className={cn(
                             "text-xs font-bold tabular tracking-tight",
-                            isIncome
-                              ? "text-emerald-500"
-                              : isTransfer
+                            isMovement
                               ? "text-blue-500"
+                              : isIncome
+                              ? "text-emerald-500"
                               : "text-rose-500"
                           )}
                         >
-                          {isIncome ? "+" : isExpense ? "-" : ""}
+                          {tx.type === "income" ? "+" : tx.type === "expense" ? "-" : ""}
                           {bal(tx.amount)}
                         </div>
                       </div>
@@ -706,7 +708,9 @@ export default function OverviewPage() {
               <div>
                 <div className="font-semibold text-sm text-[var(--text)]">
                   {selectedTx.notes ||
-                    (selectedTx.type === "transfer"
+                    (selectedTx.type === "transfer" ||
+                    selectedTx.category_name === "Internal Movement" ||
+                    selectedTx.is_excluded_from_budget
                       ? "Pindah Saldo"
                       : selectedTx.category_name || "Umum")}
                 </div>
@@ -717,10 +721,12 @@ export default function OverviewPage() {
               <div
                 className={cn(
                   "text-base font-bold tabular",
-                  selectedTx.type === "income"
-                    ? "text-emerald-500"
-                    : selectedTx.type === "transfer"
+                  selectedTx.type === "transfer" ||
+                  selectedTx.category_name === "Internal Movement" ||
+                  selectedTx.is_excluded_from_budget
                     ? "text-blue-500"
+                    : selectedTx.type === "income"
+                    ? "text-emerald-500"
                     : "text-rose-500"
                 )}
               >
@@ -765,10 +771,14 @@ export default function OverviewPage() {
             <div className="flex justify-between items-center py-2 border-b border-[var(--border)]">
               <span className="text-[var(--muted)]">Jenis Transaksi</span>
               <span className="font-semibold uppercase text-[var(--text)]">
-                {selectedTx.type === "income"
+                {selectedTx.type === "transfer" ||
+                selectedTx.category_name === "Internal Movement" ||
+                selectedTx.is_excluded_from_budget
+                  ? selectedTx.type === "income"
+                    ? "Pindah Saldo (Masuk)"
+                    : "Pindah Saldo (Keluar)"
+                  : selectedTx.type === "income"
                   ? "Uang Masuk"
-                  : selectedTx.type === "transfer"
-                  ? "Pindah Saldo"
                   : "Uang Keluar"}
               </span>
             </div>

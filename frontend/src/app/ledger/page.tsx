@@ -29,6 +29,7 @@ interface TransactionItem {
   date: string;
   receipt_path: string | null;
   created_at: string;
+  is_excluded_from_budget?: boolean;
 }
 
 export default function LedgerPage() {
@@ -110,12 +111,22 @@ export default function LedgerPage() {
   const totalCount = txData?.total ?? 0;
   const totalPages = Math.ceil(totalCount / pageSize);
 
-  // Compute page totals
+  // Compute page totals (excluding internal movements so totals reflect real cash flow)
   const pageInflow = transactions
-    .filter((t) => t.type === "income")
+    .filter(
+      (t) =>
+        t.type === "income" &&
+        !t.is_excluded_from_budget &&
+        t.category_name !== "Internal Movement"
+    )
     .reduce((sum, t) => sum + t.amount, 0);
   const pageOutflow = transactions
-    .filter((t) => t.type === "expense")
+    .filter(
+      (t) =>
+        t.type === "expense" &&
+        !t.is_excluded_from_budget &&
+        t.category_name !== "Internal Movement"
+    )
     .reduce((sum, t) => sum + t.amount, 0);
 
   // Open Edit Modal
@@ -391,6 +402,8 @@ export default function LedgerPage() {
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {transactions.map((tx) => {
+                  const isMovement =
+                    tx.category_name === "Internal Movement" || !!tx.is_excluded_from_budget;
                   const isIncome = tx.type === "income";
 
                   return (
@@ -413,18 +426,26 @@ export default function LedgerPage() {
                         <span
                           className={cn(
                             "px-2 py-0.5 rounded-md text-[10px] font-bold uppercase",
-                            isIncome
+                            isMovement
+                              ? "bg-blue-500/10 text-blue-500"
+                              : isIncome
                               ? "bg-income/10 text-income"
                               : "bg-expense/10 text-expense"
                           )}
                         >
-                          {isIncome ? "Uang Masuk" : "Uang Keluar"}
+                          {isMovement
+                            ? isIncome
+                              ? "Pindah Saldo (Masuk)"
+                              : "Pindah Saldo (Keluar)"
+                            : isIncome
+                            ? "Uang Masuk"
+                            : "Uang Keluar"}
                         </span>
                       </td>
 
                       {/* Notes / Description */}
                       <td className="py-3.5 px-4 font-medium text-[var(--text)] group-hover:text-income transition-colors max-w-xs truncate">
-                        {tx.notes || tx.category_name || "Umum"}
+                        {tx.notes || (isMovement ? "Pindah Saldo" : tx.category_name || "Umum")}
                       </td>
 
                       {/* Category */}
@@ -433,9 +454,9 @@ export default function LedgerPage() {
                           <span className="inline-flex items-center gap-1 text-[var(--text)] font-medium">
                             <span
                               className="h-2 w-2 rounded-full"
-                              style={{ backgroundColor: tx.category_color || "#3b82f6" }}
+                              style={{ backgroundColor: isMovement ? "#3b82f6" : tx.category_color || "#3b82f6" }}
                             />
-                            <span>{tx.category_name}</span>
+                            <span>{isMovement ? "Pindah Saldo" : tx.category_name}</span>
                           </span>
                         ) : (
                           <span className="text-[var(--muted)]">-</span>
@@ -466,7 +487,11 @@ export default function LedgerPage() {
                       <td
                         className={cn(
                           "py-3.5 px-4 text-right font-bold tabular whitespace-nowrap",
-                          isIncome ? "text-income" : "text-expense"
+                          isMovement
+                            ? "text-blue-500"
+                            : isIncome
+                            ? "text-income"
+                            : "text-expense"
                         )}
                       >
                         {isIncome ? "+" : "-"}

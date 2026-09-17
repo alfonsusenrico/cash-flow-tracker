@@ -143,15 +143,17 @@ def get_kakeibo_breakdown(
     end_utc: datetime,
     total_inflow: int,
 ) -> dict[str, Any]:
-    # 1. Expenses by pillar (transaction-level classification)
+    # 1. Expenses by pillar (transaction-level classification, excluding internal movements)
     cur.execute(
         """
         SELECT 
             COALESCE(t.kakeibo_type, 'need') AS pillar,
             COALESCE(SUM(t.amount), 0) AS total_amount
         FROM transactions t
+        LEFT JOIN categories c ON c.id = t.category_id
         WHERE t.user_id = %s 
           AND t.type = 'expense' 
+          AND COALESCE(c.is_excluded_from_budget, false) = false
           AND t.date >= %s AND t.date <= %s
         GROUP BY pillar
         """,
@@ -162,49 +164,29 @@ def get_kakeibo_breakdown(
     want_spent = pillar_map.get("want", 0)
     saving_expenses = pillar_map.get("saving", 0)
 
-    # 2. Saving transfers (fresh investments from operational accounts, goal funding, or explicitly marked saving)
+    # 2. Saving transfers (fresh investments or goal funding explicitly marked as saving)
     cur.execute(
         """
-        SELECT 
-            COALESCE(SUM(
-                CASE 
-                    -- Explicit saving or goal funding (excluding trades)
-                    WHEN (t.kakeibo_type = 'saving' OR t.goal_id IS NOT NULL)
-                         AND t.notes NOT LIKE '%%lot @%%'
-                         AND t.notes NOT LIKE '%%Stockbit%%'
-                    THEN t.amount
-                    -- Fresh capital: from non-investment operational account to investment account (excluding trades)
-                    WHEN (fa.type != 'investment' AND fa.instrument_type IS NULL AND fa.name NOT ILIKE '%%RDN%%')
-                         AND (ta.type = 'investment' OR ta.instrument_type IS NOT NULL)
-                         AND t.notes NOT LIKE '%%lot @%%'
-                         AND t.notes NOT LIKE '%%Stockbit: Stockbit%%'
-                    THEN t.amount
-                    -- Withdrawals: from investment account back to operational checking/cash
-                    WHEN (fa.type = 'investment' OR fa.instrument_type IS NOT NULL)
-                         AND (ta.type != 'investment' AND ta.instrument_type IS NULL)
-                         AND t.notes NOT LIKE '%%lot @%%'
-                         AND t.notes NOT LIKE '%%Stockbit: Stockbit%%'
-                    THEN -t.amount
-                    ELSE 0
-                END
-            ), 0) AS net_saving_transfers
+        SELECT
+            COALESCE(SUM(t.amount), 0) AS saving_transfers
         FROM transactions t
-        LEFT JOIN accounts fa ON fa.id = t.account_id
-        LEFT JOIN accounts ta ON ta.id = t.transfer_target_account_id
-        WHERE t.user_id = %s 
-          AND t.type = 'transfer' 
+        JOIN categories c ON c.id = t.category_id
+        WHERE t.user_id = %s
+          AND t.type = 'expense'
+          AND c.name = 'Internal Movement'
+          AND (t.kakeibo_type = 'saving' OR t.goal_id IS NOT NULL)
+          AND t.notes NOT LIKE '%%lot @%%'
+          AND t.notes NOT LIKE '%%Stockbit%%'
           AND t.date >= %s AND t.date <= %s
         """,
         (user_id, start_utc, end_utc),
     )
     st_row = cur.fetchone()
     if st_row:
-        net_saving_transfers = int(
-            st_row.get("net_saving_transfers")
-            or st_row.get("saving_transfers")
-            or (st_row[0] if isinstance(st_row, tuple) else 0)
-            or 0
-        )
+        if isinstance(st_row, dict):
+            net_saving_transfers = int(st_row.get("saving_transfers") or st_row.get("net_saving_transfers") or 0)
+        else:
+            net_saving_transfers = int(st_row[0])
     else:
         net_saving_transfers = 0
     saving_spent = max(0, saving_expenses + net_saving_transfers)
@@ -338,6 +320,7 @@ def calculate_ketahanan_dana(
           AND t.type = 'expense'
           AND t.date >= %s
           AND COALESCE(c.is_primary, TRUE) = TRUE
+          AND COALESCE(c.is_excluded_from_budget, false) = false
         """,
         (user_id, thirty_days_ago),
     )
@@ -457,11 +440,12 @@ def get_dashboard_overview(
             cur.execute(
                 """
                 SELECT
-                    COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS inflow,
-                    COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS outflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS outflow,
                     COUNT(*) AS tx_count
-                FROM transactions
-                WHERE user_id = %s AND date >= %s AND date <= %s
+                FROM transactions t
+                LEFT JOIN categories c ON c.id = t.category_id
+                WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
                 """,
                 (user_id, start_utc, end_utc),
             )
@@ -482,7 +466,7 @@ def get_dashboard_overview(
 
             # 4. Safe to spend today benchmark (from user monthly budget or category budgets)
             cur.execute(
-                "SELECT COALESCE(SUM(monthly_budget), 0) AS total_budget FROM categories WHERE user_id = %s AND is_archived = false AND kind = 'expense'",
+                "SELECT COALESCE(SUM(monthly_budget), 0) AS total_budget FROM categories WHERE user_id = %s AND is_archived = false AND kind = 'expense' AND is_excluded_from_budget = false",
                 (user_id,),
             )
             cat_budget = int(cur.fetchone()["total_budget"] or 0)
@@ -540,11 +524,12 @@ def get_dashboard_overview(
             cur.execute(
                 """
                 SELECT
-                    (date AT TIME ZONE %s)::date AS tx_day,
-                    COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income,
-                    COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expense
-                FROM transactions
-                WHERE user_id = %s AND date >= %s AND date <= %s
+                    (t.date AT TIME ZONE %s)::date AS tx_day,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS income,
+                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS expense
+                FROM transactions t
+                LEFT JOIN categories c ON c.id = t.category_id
+                WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
                 GROUP BY tx_day
                 ORDER BY tx_day ASC
                 """,
@@ -602,7 +587,7 @@ def get_dashboard_overview(
                 LEFT JOIN transactions t ON t.category_id = c.id 
                     AND t.type = 'expense' 
                     AND t.date >= %s AND t.date <= %s
-                WHERE c.user_id = %s AND c.is_archived = false AND c.kind = 'expense'
+                WHERE c.user_id = %s AND c.is_archived = false AND c.kind = 'expense' AND c.is_excluded_from_budget = false
                 GROUP BY c.id, c.name, c.icon, c.color, c.monthly_budget, c.is_primary, c.kakeibo_type
                 ORDER BY spent DESC, c.name ASC
                 """,
@@ -640,11 +625,12 @@ def get_dashboard_overview(
             cur.execute(
                 """
                 SELECT
-                    COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS inflow,
-                    COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS outflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS outflow,
                     COUNT(*) AS tx_count
-                FROM transactions
-                WHERE user_id = %s AND date >= %s AND date <= %s
+                FROM transactions t
+                LEFT JOIN categories c ON c.id = t.category_id
+                WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
                 """,
                 (user_id, prev_start_utc, prev_end_utc),
             )
@@ -673,7 +659,7 @@ def get_dashboard_overview(
                 LEFT JOIN transactions t ON t.category_id = c.id 
                     AND t.type = 'expense' 
                     AND t.date >= %s AND t.date <= %s
-                WHERE c.user_id = %s AND c.is_archived = false AND c.kind = 'expense'
+                WHERE c.user_id = %s AND c.is_archived = false AND c.kind = 'expense' AND c.is_excluded_from_budget = false
                 GROUP BY c.id, c.name
                 """,
                 (prev_start_utc, prev_end_utc, user_id),
@@ -811,11 +797,11 @@ def get_dashboard_overview(
                 SELECT 
                     t.id, t.account_id, sa.name AS account_name,
                     t.category_id, c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
-                    t.type, t.transfer_target_account_id, ta.name AS transfer_target_account_name,
-                    t.amount, t.notes, t.date, t.receipt_path
+                    t.type,
+                    t.amount, t.notes, t.date, t.receipt_path,
+                    COALESCE(c.is_excluded_from_budget, false) AS is_excluded_from_budget
                 FROM transactions t
                 JOIN accounts sa ON sa.id = t.account_id
-                LEFT JOIN accounts ta ON ta.id = t.transfer_target_account_id
                 LEFT JOIN categories c ON c.id = t.category_id
                 WHERE t.user_id = %s
                 ORDER BY t.date DESC, t.created_at DESC
@@ -833,12 +819,13 @@ def get_dashboard_overview(
                     "category_icon": r["category_icon"],
                     "category_color": r["category_color"],
                     "type": r["type"],
-                    "transfer_target_account_id": str(r["transfer_target_account_id"]) if r["transfer_target_account_id"] else None,
-                    "transfer_target_account_name": r["transfer_target_account_name"],
+                    "transfer_target_account_id": None,
+                    "transfer_target_account_name": None,
                     "amount": r["amount"],
                     "notes": r["notes"],
                     "date": r["date"].isoformat() if r["date"] else None,
                     "receipt_path": r["receipt_path"],
+                    "is_excluded_from_budget": bool(r.get("is_excluded_from_budget", False)),
                 }
                 for r in cur.fetchall()
             ]
@@ -934,7 +921,8 @@ def get_dashboard_analytics(
                     COUNT(*) AS tx_count,
                     COALESCE(SUM(t.amount), 0) AS total_spent
                 FROM transactions t
-                WHERE t.user_id = %s AND t.type = 'expense' AND t.date >= %s AND t.date <= %s
+                LEFT JOIN categories c ON c.id = t.category_id
+                WHERE t.user_id = %s AND t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND t.date >= %s AND t.date <= %s
                 GROUP BY dow
                 ORDER BY dow ASC
                 """,
@@ -965,11 +953,12 @@ def get_dashboard_analytics(
             cur.execute(
                 """
                 SELECT 
-                    (date AT TIME ZONE %s)::date AS tx_day,
-                    COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expense,
-                    COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income
-                FROM transactions
-                WHERE user_id = %s AND date >= %s AND date <= %s
+                    (t.date AT TIME ZONE %s)::date AS tx_day,
+                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS expense,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS income
+                FROM transactions t
+                LEFT JOIN categories c ON c.id = t.category_id
+                WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
                 GROUP BY tx_day
                 ORDER BY tx_day ASC
                 """,
@@ -1001,7 +990,7 @@ def get_dashboard_analytics(
                 LEFT JOIN transactions t ON t.category_id = c.id 
                     AND t.type = 'expense' 
                     AND t.date >= %s AND t.date <= %s
-                WHERE c.user_id = %s AND c.is_archived = false AND c.kind = 'expense'
+                WHERE c.user_id = %s AND c.is_archived = false AND c.kind = 'expense' AND c.is_excluded_from_budget = false
                 GROUP BY c.id, c.name, c.icon, c.color, c.monthly_budget, c.is_primary, c.kakeibo_type
                 ORDER BY spent DESC, c.name ASC
                 """,
@@ -1044,10 +1033,11 @@ def get_dashboard_analytics(
             cur.execute(
                 """
                 SELECT
-                    COALESCE(SUM(CASE WHEN date >= %s THEN amount ELSE 0 END), 0) AS spent_7d,
-                    COALESCE(SUM(CASE WHEN date >= %s THEN amount ELSE 0 END), 0) AS spent_30d
-                FROM transactions
-                WHERE user_id = %s AND type = 'expense' AND date >= %s
+                    COALESCE(SUM(CASE WHEN t.date >= %s THEN t.amount ELSE 0 END), 0) AS spent_7d,
+                    COALESCE(SUM(CASE WHEN t.date >= %s THEN t.amount ELSE 0 END), 0) AS spent_30d
+                FROM transactions t
+                LEFT JOIN categories c ON c.id = t.category_id
+                WHERE t.user_id = %s AND t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND t.date >= %s
                 """,
                 (now_utc - timedelta(days=7), now_utc - timedelta(days=30), user_id, now_utc - timedelta(days=30)),
             )
@@ -1062,10 +1052,11 @@ def get_dashboard_analytics(
             cur.execute(
                 """
                 SELECT
-                    COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS inflow,
-                    COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS outflow
-                FROM transactions
-                WHERE user_id = %s AND date >= %s AND date <= %s
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS outflow
+                FROM transactions t
+                LEFT JOIN categories c ON c.id = t.category_id
+                WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
                 """,
                 (user_id, start_utc, end_utc),
             )
@@ -1102,10 +1093,11 @@ def get_dashboard_analytics(
             cur.execute(
                 """
                 SELECT
-                    COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS inflow,
-                    COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS outflow
-                FROM transactions
-                WHERE user_id = %s AND date >= %s AND date <= %s
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS outflow
+                FROM transactions t
+                LEFT JOIN categories c ON c.id = t.category_id
+                WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
                 """,
                 (user_id, prev_start_utc, prev_end_utc),
             )
@@ -1134,7 +1126,7 @@ def get_dashboard_analytics(
                 LEFT JOIN transactions t ON t.category_id = c.id 
                     AND t.type = 'expense' 
                     AND t.date >= %s AND t.date <= %s
-                WHERE c.user_id = %s AND c.is_archived = false AND c.kind = 'expense'
+                WHERE c.user_id = %s AND c.is_archived = false AND c.kind = 'expense' AND c.is_excluded_from_budget = false
                 GROUP BY c.id, c.name
                 """,
                 (prev_start_utc, prev_end_utc, user_id),

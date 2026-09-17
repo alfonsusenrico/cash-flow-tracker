@@ -143,7 +143,6 @@ def init_db_schema() -> None:
                     goal_id UUID NULL REFERENCES goals(id) ON DELETE SET NULL,
                     obligation_id UUID NULL REFERENCES obligations(id) ON DELETE SET NULL,
                     type VARCHAR(20) NOT NULL,
-                    transfer_target_account_id UUID NULL REFERENCES accounts(id) ON DELETE SET NULL,
                     amount BIGINT NOT NULL,
                     notes TEXT NULL,
                     date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -157,7 +156,6 @@ def init_db_schema() -> None:
                 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
                 CREATE INDEX IF NOT EXISTS idx_transactions_goal ON transactions(goal_id);
                 CREATE INDEX IF NOT EXISTS idx_transactions_obligation ON transactions(obligation_id);
-                CREATE INDEX IF NOT EXISTS idx_transactions_transfer_target ON transactions(transfer_target_account_id);
 
                 CREATE TABLE IF NOT EXISTS api_keys (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

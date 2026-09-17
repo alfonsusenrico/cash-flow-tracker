@@ -156,11 +156,9 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
                 SELECT
                     t.id, t.type, t.amount, t.notes, t.date,
                     sa.name AS account_name,
-                    c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
-                    ta.name AS transfer_target_name
+                    c.name AS category_name, c.icon AS category_icon, c.color AS category_color
                 FROM transactions t
                 JOIN accounts sa ON sa.id = t.account_id
-                LEFT JOIN accounts ta ON ta.id = t.transfer_target_account_id
                 LEFT JOIN categories c ON c.id = t.category_id
                 WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
                 ORDER BY t.date DESC, t.created_at DESC
@@ -218,7 +216,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
                 "category_name": r["category_name"],
                 "category_icon": r["category_icon"],
                 "category_color": r["category_color"],
-                "transfer_target_name": r["transfer_target_name"],
+                "transfer_target_name": None,
             }
             for r in today_rows
         ],

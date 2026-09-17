@@ -155,12 +155,18 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
                     }
 
             # 4. Insert outbound expense transaction FIRST
+            target_acc = next((a for a in accounts if str(a["id"]) == target_id), None)
+            is_target_investment = bool(
+                target_acc and (target_acc.get("type") == "investment" or target_acc.get("instrument_type"))
+            )
+            kakeibo_val = "saving" if is_target_investment else None
+
             cur.execute(
                 """
                 INSERT INTO transactions (
                     user_id, account_id, category_id, type, amount, notes, date, kakeibo_type, idempotency_key
                 )
-                VALUES (%s, %s, %s, 'expense', %s, %s, %s, 'saving', %s)
+                VALUES (%s, %s, %s, 'expense', %s, %s, %s, %s, %s)
                 RETURNING id, created_at
                 """,
                 (
@@ -170,6 +176,7 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
                     payload.amount,
                     notes_val,
                     tx_date,
+                    kakeibo_val,
                     out_key,
                 ),
             )

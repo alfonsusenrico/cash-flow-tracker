@@ -238,7 +238,8 @@ def test_ingest_stockbit_routes_to_default_funding_account():
             None,  # existing_ev
             None,  # existing pocket check -> None (create new)
             {"id": bbri_pocket_id},  # created pocket
-            {"id": str(uuid4())},  # created tx
+            {"id": str(uuid4())},  # created expense tx
+            {"id": str(uuid4())},  # created income tx
             {"was_inserted": True},  # upsert event
         ]
 
@@ -246,7 +247,7 @@ def test_ingest_stockbit_routes_to_default_funding_account():
         res = client.post("/api/ingest/notifications", json=payload)
 
         assert res.status_code == 200
-        assert res.json()["created_transactions"] == 1
+        assert res.json()["created_transactions"] == 2
 
         pocket_insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO accounts" in str(c)]
         assert len(pocket_insert_calls) == 1
@@ -259,13 +260,14 @@ def test_ingest_stockbit_routes_to_default_funding_account():
         assert p_args[6] == 3320  # last_price from live quote
 
         insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
-        assert len(insert_calls) == 1
-        args = insert_calls[0][0][1]
-        assert args[1] == rdn_bca_id
-        assert args[2] == bbri_pocket_id  # targeted to BBRI pocket!
-        assert args[4] == "transfer"
-        assert args[5] == 3340000
-        assert args[8] is None  # Kakeibo decoupled for investment trades!
+        assert len(insert_calls) == 2
+        exp_args = insert_calls[0][0][1]
+        assert exp_args[1] == rdn_bca_id
+        assert exp_args[3] == 3340000
+
+        inc_args = insert_calls[1][0][1]
+        assert inc_args[1] == bbri_pocket_id  # targeted to BBRI pocket!
+        assert inc_args[3] == 3340000
 
 
 def test_ingest_stockbit_accumulates_existing_stock_pocket():
@@ -311,7 +313,8 @@ def test_ingest_stockbit_accumulates_existing_stock_pocket():
         cur.fetchone.side_effect = [
             None,  # existing_ev
             {"id": bbri_pocket_id, "units": 1000.0, "avg_buy_price": 3300, "last_price": 3300},  # existing pocket
-            {"id": str(uuid4())},  # created tx
+            {"id": str(uuid4())},  # created expense tx
+            {"id": str(uuid4())},  # created income tx
             {"was_inserted": True},  # upsert event
         ]
 
@@ -319,7 +322,7 @@ def test_ingest_stockbit_accumulates_existing_stock_pocket():
         res = client.post("/api/ingest/notifications", json=payload)
 
         assert res.status_code == 200
-        assert res.json()["created_transactions"] == 1
+        assert res.json()["created_transactions"] == 2
 
         update_calls = [c for c in cur.execute.call_args_list if "UPDATE accounts" in str(c)]
         assert len(update_calls) == 1
@@ -331,8 +334,8 @@ def test_ingest_stockbit_accumulates_existing_stock_pocket():
         assert u_args[4] == bbri_pocket_id
 
         insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
-        assert len(insert_calls) == 1
-        assert insert_calls[0][0][1][8] is None  # Kakeibo decoupled!
+        assert len(insert_calls) == 2
+        assert insert_calls[0][0][1][6] is None  # Kakeibo decoupled!
 
 
 def test_ingest_jago_pocket_transfer_resolves_child_pockets():
@@ -366,7 +369,10 @@ def test_ingest_jago_pocket_transfer_resolves_child_pockets():
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
         cur.fetchall.side_effect = [
-            [{"id": str(uuid4()), "name": "Internal Movement", "kind": "expense", "kakeibo_type": "need", "is_excluded_from_budget": True}],
+            [
+                {"id": str(uuid4()), "name": "Internal Movement", "kind": "expense", "kakeibo_type": "need", "is_excluded_from_budget": True},
+                {"id": str(uuid4()), "name": "Internal Movement", "kind": "income", "kakeibo_type": None, "is_excluded_from_budget": True},
+            ],
             [],
             [
                 {"id": jago_parent_id, "name": "Bank Jago", "type": "bank", "default_funding_account_id": None, "parent_id": None},
@@ -376,7 +382,8 @@ def test_ingest_jago_pocket_transfer_resolves_child_pockets():
         ]
         cur.fetchone.side_effect = [
             None,  # existing_ev check
-            {"id": str(uuid4())},  # created tx
+            {"id": str(uuid4())},  # created expense tx
+            {"id": str(uuid4())},  # created income tx
             {"was_inserted": True},  # upsert event
         ]
 
@@ -384,16 +391,19 @@ def test_ingest_jago_pocket_transfer_resolves_child_pockets():
         res = client.post("/api/ingest/notifications", json=payload)
 
         assert res.status_code == 200
-        assert res.json()["created_transactions"] == 1
+        assert res.json()["created_transactions"] == 2
 
         insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
-        assert len(insert_calls) == 1
-        args = insert_calls[0][0][1]
-        assert args[1] == main_pocket_id  # resolved source child pocket
-        assert args[2] == gopay_tabungan_id  # resolved target child pocket
-        assert args[4] == "transfer"
-        assert args[5] == 500000
-        assert args[8] is None  # Kakeibo decoupled for internal transfers!
+        assert len(insert_calls) == 2
+        exp_args = insert_calls[0][0][1]
+        assert exp_args[1] == main_pocket_id  # resolved source child pocket
+        assert exp_args[3] == 500000
+        assert exp_args[6] is None  # Kakeibo decoupled for internal transfers!
+
+        inc_args = insert_calls[1][0][1]
+        assert inc_args[1] == gopay_tabungan_id  # resolved target child pocket
+        assert inc_args[3] == 500000
+        assert inc_args[6] is None
 
 
 def test_ingest_jago_custom_pockets_transfer():
@@ -427,7 +437,10 @@ def test_ingest_jago_custom_pockets_transfer():
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
         cur.fetchall.side_effect = [
-            [],
+            [
+                {"id": str(uuid4()), "name": "Internal Movement", "kind": "expense", "kakeibo_type": "need", "is_excluded_from_budget": True},
+                {"id": str(uuid4()), "name": "Internal Movement", "kind": "income", "kakeibo_type": None, "is_excluded_from_budget": True},
+            ],
             [],
             [
                 {"id": jago_parent_id, "name": "Bank Jago", "type": "bank", "default_funding_account_id": None, "parent_id": None},
@@ -437,7 +450,8 @@ def test_ingest_jago_custom_pockets_transfer():
         ]
         cur.fetchone.side_effect = [
             None,  # existing_ev check
-            {"id": str(uuid4())},  # created tx
+            {"id": str(uuid4())},  # created expense tx
+            {"id": str(uuid4())},  # created income tx
             {"was_inserted": True},  # upsert event
         ]
 
@@ -445,16 +459,16 @@ def test_ingest_jago_custom_pockets_transfer():
         res = client.post("/api/ingest/notifications", json=payload)
 
         assert res.status_code == 200
-        assert res.json()["created_transactions"] == 1
+        assert res.json()["created_transactions"] == 2
 
         insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
-        assert len(insert_calls) == 1
-        args = insert_calls[0][0][1]
-        assert args[1] == jajan_pocket_id  # resolved source pocket
-        assert args[2] == tabungan_pocket_id  # resolved target pocket
-        assert args[4] == "transfer"
-        assert args[5] == 50000
-        assert args[8] is None  # Kakeibo decoupled!
+        assert len(insert_calls) == 2
+        exp_args = insert_calls[0][0][1]
+        assert exp_args[1] == jajan_pocket_id  # resolved source pocket
+        assert exp_args[3] == 50000
+        inc_args = insert_calls[1][0][1]
+        assert inc_args[1] == tabungan_pocket_id  # resolved target pocket
+        assert inc_args[3] == 50000
 
 
 def test_ingest_jago_single_pocket_out_emergency_fund():
@@ -488,7 +502,10 @@ def test_ingest_jago_single_pocket_out_emergency_fund():
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
         cur.fetchall.side_effect = [
-            [],  # categories
+            [
+                {"id": str(uuid4()), "name": "Internal Movement", "kind": "expense", "kakeibo_type": "need", "is_excluded_from_budget": True},
+                {"id": str(uuid4()), "name": "Internal Movement", "kind": "income", "kakeibo_type": None, "is_excluded_from_budget": True},
+            ],
             [],  # user rules
             [
                 {"id": jago_parent_id, "name": "Bank Jago", "type": "bank", "default_funding_account_id": None, "parent_id": None},
@@ -497,7 +514,8 @@ def test_ingest_jago_single_pocket_out_emergency_fund():
         ]
         cur.fetchone.side_effect = [
             None,  # existing_ev check
-            {"id": str(uuid4())},  # created tx
+            {"id": str(uuid4())},  # created expense tx
+            {"id": str(uuid4())},  # created income tx
             {"was_inserted": True},  # upsert event
         ]
 
@@ -505,15 +523,16 @@ def test_ingest_jago_single_pocket_out_emergency_fund():
         res = client.post("/api/ingest/notifications", json=payload)
 
         assert res.status_code == 200
-        assert res.json()["created_transactions"] == 1
+        assert res.json()["created_transactions"] == 2
 
         insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
-        assert len(insert_calls) == 1
-        args = insert_calls[0][0][1]
-        assert args[1] == emergency_pocket_id  # resolved source pocket via synonym
-        assert args[2] == jago_parent_id  # resolved target as parent Jago account
-        assert args[4] == "transfer"
-        assert args[5] == 500000
+        assert len(insert_calls) == 2
+        exp_args = insert_calls[0][0][1]
+        assert exp_args[1] == emergency_pocket_id  # resolved source pocket via synonym
+        assert exp_args[3] == 500000
+        inc_args = insert_calls[1][0][1]
+        assert inc_args[1] == jago_parent_id  # resolved target as parent Jago account
+        assert inc_args[3] == 500000
 
 
 def test_ingest_supported_apps_scope_verification():
