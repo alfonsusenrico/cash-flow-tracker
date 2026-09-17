@@ -32,8 +32,13 @@ environment_root="${DEPLOY_ROOT%/}/production"
 compose_project="cashflow-production"
 
 key_opt=""
-if [ -n "${DEPLOY_SSH_KEY_FILE:-}" ] && [ -f "${DEPLOY_SSH_KEY_FILE}" ]; then
-  key_opt="-i ${DEPLOY_SSH_KEY_FILE}"
+key_candidate="${DEPLOY_SSH_KEY_FILE:-}"
+case "$key_candidate" in
+  ~/*) key_candidate="${HOME:-/home/runner}/${key_candidate#\~/}" ;;
+esac
+
+if [ -n "$key_candidate" ] && [ -f "$key_candidate" ]; then
+  key_opt="-i $key_candidate"
 elif [ -f "${HOME:-}/.ssh/deploy_key" ]; then
   key_opt="-i ${HOME}/.ssh/deploy_key"
 elif [ -f "/home/runner/.ssh/deploy_key" ]; then
