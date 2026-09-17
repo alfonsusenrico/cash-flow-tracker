@@ -73,6 +73,15 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/deploy_key
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
+          cat << 'EOF' > ~/.ssh/config
+          Host *
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking accept-new
+            ConnectTimeout 15
+          EOF
+          chmod 600 ~/.ssh/config
 
       - name: Materialize Runtime Environment
         run: |
@@ -82,7 +91,7 @@ jobs:
           deploy_root="${{ secrets.DEPLOY_ROOT || '/opt/cash-flow-tracker' }}"
 
           # Fetch existing production runtime.env as seed if present
-          ssh -p "$deploy_port" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$deploy_user@$deploy_host" \
+          ssh -i ~/.ssh/deploy_key -p "$deploy_port" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 "$deploy_user@$deploy_host" \
             "cat $deploy_root/production/current/runtime.env" > /tmp/remote_seed.env 2>/dev/null || true
 
           if [ -s /tmp/remote_seed.env ]; then
