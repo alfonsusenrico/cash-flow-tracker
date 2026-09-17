@@ -76,7 +76,20 @@ jobs:
 
       - name: Materialize Runtime Environment
         run: |
-          python3 scripts/materialize_runtime_env.py --output runtime.env
+          deploy_host="${{ secrets.DEPLOY_HOST || '100.85.113.31' }}"
+          deploy_user="${{ secrets.DEPLOY_USER || 'enr1c0' }}"
+          deploy_port="${{ secrets.DEPLOY_PORT || 22 }}"
+          deploy_root="${{ secrets.DEPLOY_ROOT || '/opt/cash-flow-tracker' }}"
+
+          # Fetch existing production runtime.env as seed if present
+          ssh -p "$deploy_port" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$deploy_user@$deploy_host" \
+            "cat $deploy_root/production/current/runtime.env" > /tmp/remote_seed.env 2>/dev/null || true
+
+          if [ -s /tmp/remote_seed.env ]; then
+            python3 scripts/materialize_runtime_env.py --output runtime.env --env-file /tmp/remote_seed.env
+          else
+            python3 scripts/materialize_runtime_env.py --output runtime.env
+          fi
         env:
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
