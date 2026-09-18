@@ -90,8 +90,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
     setTheme(t);
     document.documentElement.classList.toggle("dark", t === "dark");
 
-    // Clean up any stale data-preset from previewing
+    // Clean up any stale previewing attributes
+    document.documentElement.removeAttribute("data-palette");
     document.documentElement.removeAttribute("data-preset");
+    localStorage.removeItem("theme_palette");
     localStorage.removeItem("theme_preset");
 
     setHideBalances(localStorage.getItem("hideBalances") === "1");

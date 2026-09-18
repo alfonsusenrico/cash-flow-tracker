@@ -60,23 +60,37 @@ def _clean_amount(raw: str) -> int | None:
     except ValueError:
         return None
 
-# 2. Bank Jago Pocket Transfers
+# 2. Bank Jago Pocket Transfers & Payments
 # 2a. Dual-Pocket Move: "Rp500.000 has been moved from your Main Pocket Pocket to your GoPay Tabungan Pocket."
+# "You've moved Rp350.000 from My Emergency Fund Pocket to your Subscriptions Pocket."
 JAGO_DUAL_POCKET_PATTERN = re.compile(
-    r"(?:You(?:\x27ve|\s+have)\s+moved|Kamu(?:\s+telah)?\s+memindahkan\s+)?(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)(?:\s+has been moved|\s+telah dipindahkan)?\s+(?:from your|dari)\s+(?P<source>.+?)\s+(?:Pocket|Kantong)\s+(?:to your|ke)\s+(?P<target>.+?)\s+(?:Pocket|Kantong)",
+    r"(?:You(?:\x27ve|\s+have)\s+moved|Kamu(?:\s+telah)?\s+memindahkan\s+)?(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)(?:\s+has been moved|\s+telah dipindahkan)?\s+(?:from(?:\s+your)?|dari)\s+(?P<source>.+?)\s+(?:Pocket|Kantong)\s+(?:to(?:\s+your)?|ke)\s+(?P<target>.+?)\s+(?:Pocket|Kantong)",
     re.IGNORECASE,
 )
 JAGO_POCKET_PATTERN = JAGO_DUAL_POCKET_PATTERN
 
 # 2b. Single-Pocket Outbound: "You've moved Rp500.000 out of your My Emergency Fund Pocket."
 JAGO_OUT_POCKET_PATTERN = re.compile(
-    r"(?:You(?:\x27ve|\s+have)\s+moved|Kamu(?:\s+telah)?\s+memindahkan\s+)?(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)(?:\s+has been moved|\s+telah dipindahkan)?\s+(?:out of your|keluar dari)\s+(?P<source>.+?)\s+(?:Pocket|Kantong)",
+    r"(?:You(?:\x27ve|\s+have)\s+moved|Kamu(?:\s+telah)?\s+memindahkan\s+)?(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)(?:\s+has been moved|\s+telah dipindahkan)?\s+(?:out of(?:\s+your)?|keluar dari)\s+(?P<source>.+?)\s+(?:Pocket|Kantong)",
     re.IGNORECASE,
 )
 
 # 2c. Single-Pocket Inbound: "You've moved Rp500.000 into your Tabungan Pocket."
 JAGO_IN_POCKET_PATTERN = re.compile(
-    r"(?:You(?:\x27ve|\s+have)\s+moved|Kamu(?:\s+telah)?\s+memindahkan\s+)?(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)(?:\s+has been moved|\s+telah dipindahkan)?\s+(?:into your|ke dalam|ke)\s+(?P<target>.+?)\s+(?:Pocket|Kantong)",
+    r"(?:You(?:\x27ve|\s+have)\s+moved|Kamu(?:\s+telah)?\s+memindahkan\s+)?(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)(?:\s+has been moved|\s+telah dipindahkan)?\s+(?:into(?:\s+your)?|ke dalam|ke)\s+(?P<target>.+?)\s+(?:Pocket|Kantong)",
+    re.IGNORECASE,
+)
+
+# 2d. Bank Jago Payment / Card Expense:
+# "You've paid Rp327.708 to Netflix"
+# "Payment of Rp327.708 to Midtrans using Subscriptions Pocket was successful."
+# "Pembayaran sebesar Rp327.708 ke Netflix berhasil"
+JAGO_PAYMENT_WITH_POCKET_PATTERN = re.compile(
+    r"(?:You(?:\x27ve|\s+have)\s+(?:paid|spent)|Kamu(?:\s+telah)?\s+membayar|Payment of|Pembayaran sebesar)\s+(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)\s+(?:to|at|ke)\s+(?P<merchant>.+?)\s+(?:using|from|menggunakan|dari)\s+(?:your\s+)?(?:kantong\s+)?(?P<pocket>.+?)(?:\s+(?:pocket|kantong))?(?:\s+was\s+successful|\s+berhasil|\.|\s*$)",
+    re.IGNORECASE,
+)
+JAGO_PAYMENT_SIMPLE_PATTERN = re.compile(
+    r"(?:You(?:\x27ve|\s+have)\s+(?:paid|spent)|Kamu(?:\s+telah)?\s+membayar|Payment of|Pembayaran sebesar)\s+(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)(?:\s+(?:to|at|ke)\s+(?P<merchant>[^\.\n]+))?",
     re.IGNORECASE,
 )
 
@@ -262,6 +276,59 @@ def parse_notification(
             raw_text=raw_content,
             package_name=clean_package,
         )
+
+    # 2d. Bank Jago Payment / Card Expense
+    if "jago" in clean_package.lower():
+        m_pocket = JAGO_PAYMENT_WITH_POCKET_PATTERN.search(raw_content)
+        if m_pocket:
+            amt = _clean_amount(m_pocket.group("amount"))
+            raw_merchant = m_pocket.group("merchant").strip()
+            clean_merchant = re.sub(
+                r"(?i)\s*(?:Need help\?.*|Contact Tanya Jago.*|was successful|berhasil|\.).*$",
+                "",
+                raw_merchant,
+            ).strip()
+            pocket = m_pocket.group("pocket").strip()
+            return ParsedNotification(
+                is_financial=True,
+                event_class="expense",
+                amount=amt,
+                currency="IDR",
+                direction="out",
+                source_pocket=pocket,
+                target_pocket=None,
+                counterparty=clean_merchant or "Bank Jago",
+                category_hint="Tagihan & Utilitas",
+                confidence=0.98,
+                raw_title=title,
+                raw_text=raw_content,
+                package_name=clean_package,
+            )
+
+        m_simple = JAGO_PAYMENT_SIMPLE_PATTERN.search(raw_content)
+        if m_simple:
+            amt = _clean_amount(m_simple.group("amount"))
+            raw_merchant = (m_simple.group("merchant") or "Bank Jago Payment").strip()
+            clean_merchant = re.sub(
+                r"(?i)\s*(?:Need help\?.*|Contact Tanya Jago.*|was successful|berhasil|\.).*$",
+                "",
+                raw_merchant,
+            ).strip()
+            return ParsedNotification(
+                is_financial=True,
+                event_class="expense",
+                amount=amt,
+                currency="IDR",
+                direction="out",
+                source_pocket=None,
+                target_pocket=None,
+                counterparty=clean_merchant or "Bank Jago",
+                category_hint="Tagihan & Utilitas",
+                confidence=0.95,
+                raw_title=title,
+                raw_text=raw_content,
+                package_name=clean_package,
+            )
 
     # Step 3: Bank Jago Inbound
     m = JAGO_INBOUND_PATTERN.search(raw_content)

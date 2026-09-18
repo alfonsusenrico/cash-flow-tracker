@@ -353,19 +353,28 @@ async def ingest_notifications(
                                         accounts.append(tgt_acc)
                                         child_accounts.append(tgt_acc)
 
-                            # Fallback: moving out of pocket -> destination defaults to parent account
-                            if src_acc and not tgt_acc:
-                                tgt_acc = matched_account
-                            # Fallback: moving into pocket -> source defaults to parent account
-                            elif tgt_acc and not src_acc:
-                                src_acc = matched_account
+                            if parsed.event_class == "expense":
+                                if src_acc and "id" in src_acc:
+                                    source_account_id = src_acc["id"]
+                                tx_type = "expense"
+                            elif parsed.event_class == "income":
+                                if tgt_acc and "id" in tgt_acc:
+                                    source_account_id = tgt_acc["id"]
+                                tx_type = "income"
+                            else:
+                                # Fallback: moving out of pocket -> destination defaults to parent account
+                                if src_acc and not tgt_acc:
+                                    tgt_acc = matched_account
+                                # Fallback: moving into pocket -> source defaults to parent account
+                                elif tgt_acc and not src_acc:
+                                    src_acc = matched_account
 
-                            if src_acc and "id" in src_acc:
-                                source_account_id = src_acc["id"]
-                            if tgt_acc and "id" in tgt_acc:
-                                transfer_target_id = tgt_acc["id"]
+                                if src_acc and "id" in src_acc:
+                                    source_account_id = src_acc["id"]
+                                if tgt_acc and "id" in tgt_acc:
+                                    transfer_target_id = tgt_acc["id"]
 
-                            tx_type = "transfer"
+                                tx_type = "transfer"
                         else:
                             is_internal_movement = (
                                 parsed.direction == "internal"

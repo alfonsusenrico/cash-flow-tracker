@@ -130,10 +130,10 @@ export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
         <button
           type="button"
           onClick={toggleTheme}
-          title={theme === "dark" ? "Ganti ke mode terang" : "Ganti ke mode gelap"}
+          title={theme === "dark" ? "Mode Gelap (Klik untuk Mode Terang)" : "Mode Terang (Klik untuk Mode Gelap)"}
           className="p-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors shadow-2xs"
         >
-          <Icon name={theme === "dark" ? "sun" : "moon"} className="h-4 w-4" />
+          <Icon name={theme === "dark" ? "moon" : "sun"} className="h-4 w-4" />
         </button>
 
         {/* Quick Add CTA */}
@@ -142,7 +142,7 @@ export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
             type="button"
             onClick={onQuickAdd}
             title="Catat Transaksi (N)"
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-btn bg-income hover:bg-income-hover text-white text-xs font-semibold shadow-2xs transition-all active:scale-95"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-btn bg-primary hover:bg-primary-hover text-primary-contrast text-xs font-semibold shadow-2xs transition-all active:scale-95"
           >
             <Icon name="plus" className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Catat</span>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,11 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAppCtx();
+  const [collapsedMenuOpen, setCollapsedMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!collapsed) setCollapsedMenuOpen(false);
+  }, [collapsed]);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -53,7 +59,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-[width] duration-200 ease-in-out lg:flex",
+        "fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-[var(--border)] bg-[var(--sidebar)] transition-[width] duration-200 ease-in-out lg:flex",
         collapsed ? "w-[72px]" : "w-[260px]"
       )}
     >
@@ -71,15 +77,15 @@ export function Sidebar({
                   "flex items-center gap-3 rounded-xl transition-all pressable group",
                   collapsed ? "h-10 justify-center px-0" : "px-3 py-2.5 text-xs font-medium",
                   active
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20 shadow-xs"
-                    : "text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
+                    ? "bg-primary text-primary-contrast font-bold shadow-xs"
+                    : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-text-active)]"
                 )}
               >
                 <Icon
                   name={item.icon}
                   className={cn(
                     "h-4 w-4 shrink-0 transition-transform group-hover:scale-110",
-                    active ? "text-emerald-500" : "text-[var(--muted)] group-hover:text-[var(--text)]"
+                    active ? "text-primary-contrast" : "text-[var(--sidebar-text)] group-hover:text-[var(--sidebar-text-active)]"
                   )}
                 />
                 {!collapsed && <span>{item.label}</span>}
@@ -95,7 +101,7 @@ export function Sidebar({
             onClick={onToggleCollapse}
             title={collapsed ? "Tampilkan menu samping" : "Sembunyikan menu samping"}
             className={cn(
-              "flex w-full items-center gap-3 rounded-xl transition-colors text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]",
+              "flex w-full items-center gap-3 rounded-xl transition-colors text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-text-active)]",
               collapsed ? "h-10 justify-center px-0" : "px-3 py-2 text-xs font-medium"
             )}
           >
@@ -111,16 +117,16 @@ export function Sidebar({
       {/* Footer Profile with Integrated Logout */}
       <div className="border-t border-[var(--border)] p-3">
         {!collapsed ? (
-          <div className="flex items-center justify-between p-2 rounded-xl bg-[var(--surface-raised)] border border-[var(--border)]/60 text-xs">
+          <div className="flex items-center justify-between p-2 rounded-xl bg-[var(--sidebar-hover)] border border-[var(--border)]/60 text-xs">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="h-7 w-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center shrink-0 text-xs uppercase">
+              <div className="h-7 w-7 rounded-lg bg-primary/20 text-primary font-bold flex items-center justify-center shrink-0 text-xs uppercase">
                 {user?.username ? user.username.slice(0, 2) : "CF"}
               </div>
               <div className="min-w-0">
-                <span className="block font-semibold text-[var(--text)] truncate">
+                <span className="block font-semibold text-[var(--sidebar-text-active)] truncate">
                   {user?.username || "User"}
                 </span>
-                <span className="block text-[10px] text-[var(--muted)] font-medium">
+                <span className="block text-[10px] text-[var(--sidebar-text)] font-medium">
                   {user?.currency || "IDR"} • Gajian Tgl {user?.payday_day || 25}
                 </span>
               </div>
@@ -131,7 +137,7 @@ export function Sidebar({
                   type="button"
                   onClick={onOpenSettings}
                   title="Pengaturan"
-                  className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors"
+                  className="p-1.5 rounded-lg text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active)] hover:text-[var(--sidebar-text-active)] transition-colors"
                 >
                   <Icon name="settings" className="h-3.5 w-3.5" />
                 </button>
@@ -147,31 +153,67 @@ export function Sidebar({
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-2">
-            <div
-              title={`${user?.username || "Pengguna"} (${user?.currency || "IDR"})`}
-              className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center text-xs uppercase cursor-default"
-            >
-              {user?.username ? user.username.slice(0, 2) : "CF"}
-            </div>
-            {onOpenSettings && (
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                title="Pengaturan"
-                className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)] transition-colors"
-              >
-                <Icon name="settings" className="h-3.5 w-3.5" />
-              </button>
-            )}
+          <div className="relative flex justify-center">
+            {/* Clickable Avatar Button */}
             <button
               type="button"
-              onClick={logout}
-              title="Keluar dari akun"
-              className="p-1.5 rounded-lg text-rose-500/80 hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+              onClick={() => setCollapsedMenuOpen((prev) => !prev)}
+              title={`${user?.username || "Pengguna"} — Menu Akun`}
+              className={cn(
+                "h-9 w-9 rounded-xl font-bold flex items-center justify-center text-xs uppercase transition-all pressable shadow-2xs",
+                collapsedMenuOpen
+                  ? "bg-primary text-primary-contrast ring-2 ring-primary/40 shadow-xs"
+                  : "bg-primary/20 text-primary hover:bg-primary/30"
+              )}
             >
-              <Icon name="logout" className="h-3.5 w-3.5" />
+              {user?.username ? user.username.slice(0, 2) : "CF"}
             </button>
+
+            {/* Floating Popover / FAB Menu */}
+            {collapsedMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setCollapsedMenuOpen(false)}
+                />
+                <div className="absolute left-[60px] bottom-0 z-50 w-52 rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-xl p-1.5 space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-2.5 py-2 border-b border-[var(--border)]">
+                    <span className="block text-xs font-bold text-[var(--text)] truncate">
+                      {user?.username || "Pengguna"}
+                    </span>
+                    <span className="block text-[10px] text-[var(--muted)] font-medium">
+                      {user?.currency || "IDR"} • Gajian Tgl {user?.payday_day || 25}
+                    </span>
+                  </div>
+
+                  {onOpenSettings && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCollapsedMenuOpen(false);
+                        onOpenSettings();
+                      }}
+                      className="flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors text-left"
+                    >
+                      <Icon name="settings" className="h-4 w-4 text-[var(--muted)]" />
+                      <span>Pengaturan</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCollapsedMenuOpen(false);
+                      logout();
+                    }}
+                    className="flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-rose-500 hover:bg-rose-500/10 transition-colors text-left"
+                  >
+                    <Icon name="logout" className="h-4 w-4 text-rose-500" />
+                    <span>Keluar dari Akun</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

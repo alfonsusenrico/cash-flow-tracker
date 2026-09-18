@@ -174,16 +174,18 @@ export default function OverviewPage() {
           <button
             type="button"
             onClick={() => setPayrollModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-blue-500/25 bg-blue-500/10 hover:bg-blue-500/20 text-xs font-bold text-blue-500 pressable shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] pressable shadow-2xs transition-all"
+            title="Alokasi Gaji Bulanan"
           >
-            <Icon name="calendar" className="h-3.5 w-3.5 text-blue-500 stroke-[2.5]" />
+            <Icon name="calendar" className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
             <span>Alokasi Gaji</span>
           </button>
 
           <button
             type="button"
             onClick={() => setRecurringModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] hover:bg-[var(--surface-raised)]/80 text-xs font-bold text-[var(--text)] pressable shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] pressable shadow-2xs transition-all"
+            title="Kelola Transaksi Rutin"
           >
             <Icon name="clock" className="h-3.5 w-3.5 text-[var(--muted)] stroke-[2.5]" />
             <span>Aturan Rutin</span>
@@ -191,10 +193,12 @@ export default function OverviewPage() {
 
           <Link
             href="/insights"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/10 hover:bg-indigo-500/20 text-xs font-bold text-indigo-500 pressable shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] pressable shadow-2xs transition-all group"
+            title="Buka Analisis Keuangan Lengkap"
           >
-            <Icon name="analysis" className="h-3.5 w-3.5 text-indigo-500 stroke-[2.5]" />
+            <Icon name="analysis" className="h-3.5 w-3.5 text-primary stroke-[2.5]" />
             <span>Analisis Lengkap</span>
+            <span className="text-[var(--muted)] text-[10px] transition-transform group-hover:translate-x-0.5">&rarr;</span>
           </Link>
         </div>
       </div>
@@ -397,7 +401,7 @@ export default function OverviewPage() {
                 <button
                   type="button"
                   onClick={() => handleOpenTransfer()}
-                  className="text-xs font-bold text-blue-500 hover:text-blue-400 cursor-pointer pressable"
+                  className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer pressable"
                 >
                   Pindah Saldo
                 </button>

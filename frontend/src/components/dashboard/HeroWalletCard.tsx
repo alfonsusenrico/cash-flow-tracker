@@ -76,10 +76,10 @@ export function HeroWalletCard({
             <span className="font-bold text-[var(--text)] tabular">{formattedLiquid}</span>
           </div>
           {investmentBalance > 0 && (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-500">
-              <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-600 dark:text-amber-400">
+              <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
               <span>Investasi:</span>
-              <span className="font-bold text-blue-600 dark:text-blue-400 tabular">{formattedInvest}</span>
+              <span className="font-bold text-amber-700 dark:text-amber-300 tabular">{formattedInvest}</span>
             </div>
           )}
         </div>
@@ -112,9 +112,9 @@ export function HeroWalletCard({
         <button
           type="button"
           onClick={() => (onOpenMovement ? onOpenMovement() : openMovement())}
-          className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-extrabold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 border border-indigo-500/30 shadow-xs hover:shadow-indigo-500/10 transition-all pressable"
+          className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-extrabold bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-xs hover:shadow-amber-500/10 transition-all pressable"
         >
-          <div className="h-5 w-5 rounded-lg bg-indigo-500 text-white flex items-center justify-center text-[10px] shadow-2xs">
+          <div className="h-5 w-5 rounded-lg bg-amber-500 text-white flex items-center justify-center text-[10px] shadow-2xs">
             <Icon name="repeat" className="h-3 w-3 stroke-[3]" />
           </div>
           <span>Pindah Saldo</span>

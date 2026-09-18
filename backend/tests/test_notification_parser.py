@@ -292,3 +292,67 @@ def test_stockbit_sell_match():
     assert parsed.price_per_unit == 10150
     assert parsed.investment_action == "sell"
 
+
+def test_bank_jago_pocket_movement_without_your():
+    text = "You've moved Rp350.000 from My Emergency Fund Pocket to your Subscriptions Pocket. Click here to see how to add money to Jago. Need help? Contact Tanya Jago at 1500 746."
+    parsed = parse_notification(
+        package_name="com.jago.digitalBanking",
+        title="Jago",
+        body_text=text,
+        big_text=text,
+    )
+    assert parsed.is_financial is True
+    assert parsed.event_class == "transfer"
+    assert parsed.amount == 350000
+    assert parsed.direction == "internal"
+    assert parsed.source_pocket == "My Emergency Fund"
+    assert parsed.target_pocket == "Subscriptions"
+    assert parsed.category_hint == "Internal Movement"
+
+
+def test_bank_jago_pocket_movement_return():
+    text = "You've moved Rp22.292 from Subscriptions Pocket to your My Emergency Fund Pocket."
+    parsed = parse_notification(
+        package_name="com.jago.digitalBanking",
+        title="Jago",
+        body_text=text,
+        big_text=text,
+    )
+    assert parsed.is_financial is True
+    assert parsed.event_class == "transfer"
+    assert parsed.amount == 22292
+    assert parsed.direction == "internal"
+    assert parsed.source_pocket == "Subscriptions"
+    assert parsed.target_pocket == "My Emergency Fund"
+
+
+def test_bank_jago_card_payment():
+    text = "You've paid Rp327.708 to Netflix. Need help? Contact Tanya Jago at 1500 746."
+    parsed = parse_notification(
+        package_name="com.jago.digitalBanking",
+        title="Jago",
+        body_text=text,
+        big_text=text,
+    )
+    assert parsed.is_financial is True
+    assert parsed.event_class == "expense"
+    assert parsed.amount == 327708
+    assert parsed.direction == "out"
+    assert "Netflix" in (parsed.counterparty or "")
+    assert parsed.category_hint == "Tagihan & Utilitas"
+
+
+def test_bank_jago_card_payment_with_pocket():
+    text = "Payment of Rp327.708 to Midtrans using Subscriptions Pocket was successful."
+    parsed = parse_notification(
+        package_name="com.jago.digitalBanking",
+        title="Jago",
+        body_text=text,
+        big_text=text,
+    )
+    assert parsed.is_financial is True
+    assert parsed.event_class == "expense"
+    assert parsed.amount == 327708
+    assert parsed.direction == "out"
+    assert parsed.source_pocket == "Subscriptions"
+    assert "Midtrans" in (parsed.counterparty or "")

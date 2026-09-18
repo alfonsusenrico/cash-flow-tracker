@@ -168,3 +168,20 @@ docker compose down
 - **No Manual Production Tampering:** NEVER manually edit code, alter environment files, or execute ad-hoc database modifications directly on the production host.
 - **Schema Migrations Mandatory:** Any database schema adjustments MUST be implemented via versioned schema migration scripts executed through the deployment workflow, never via manual or direct DDL execution on production databases.
 
+---
+
+## 8. Skill Usage Baseline Standard (Ponytail & Caveman)
+
+This project strictly adheres to the global Skill Usage Baseline Standard defined in `/Users/enrico/project/AGENTS.md`:
+
+1. **Ponytail (Anti-Bloat & Radical Simplicity):**
+   - **Default:** Always active (`full`) on all code generation, refactoring, and bug fixes.
+   - **Enforce the 7-Rung Ladder:** YAGNI $\rightarrow$ Project Reuse $\rightarrow$ Stdlib $\rightarrow$ Platform Native $\rightarrow$ Installed Deps $\rightarrow$ One-liner $\rightarrow$ Minimum code.
+   - **No Bloat:** In this project, keep the 5-table data model pristine. Reject any reintroduction of legacy abstractions (buckets, allocation engines, goal simulators).
+   - **Root-Cause Bug Fixing:** Grep all callers before touching shared functions; fix once at the source.
+   - **Diff Auditing:** Run `ponytail-review` on git diffs before concluding implementation tasks.
+
+2. **Caveman (Zero-Fluff High-Density Communication):**
+   - **Default:** Active during fast debugging and task execution loops.
+   - **Pattern:** `[target] [action] [root cause]. [next step].`
+   - **Exceptions:** Always revert to clear, complete prose for destructive database commands, security warnings, or OpenSpec strategy deliverables.

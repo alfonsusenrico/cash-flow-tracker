@@ -698,7 +698,7 @@ export default function AccountsPage() {
           >
             <Icon
               name="refresh-cw"
-              className={cn("h-3.5 w-3.5 text-blue-500 stroke-[2.5]", syncPricesMutation.isPending && "animate-spin")}
+              className={cn("h-3.5 w-3.5 text-[var(--muted)] stroke-[2.5]", syncPricesMutation.isPending && "animate-spin")}
             />
             <span>{syncPricesMutation.isPending ? "Sinkronisasi..." : "Sync Harga"}</span>
           </button>
@@ -706,10 +706,10 @@ export default function AccountsPage() {
           <button
             type="button"
             onClick={() => setPayrollModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 hover:bg-emerald-500/20 text-xs font-bold text-emerald-500 transition-all pressable shadow-2xs"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] transition-all pressable shadow-2xs"
             title="Buka Alokasi Gaji Bulanan"
           >
-            <Icon name="allocation" className="h-3.5 w-3.5 text-emerald-500 stroke-[2.5]" />
+            <Icon name="allocation" className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
             <span>Alokasi Gaji</span>
           </button>
 
@@ -719,7 +719,7 @@ export default function AccountsPage() {
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] transition-all pressable shadow-2xs"
             title="Kelola Transaksi Rutin & Otomatis"
           >
-            <Icon name="repeat" className="h-3.5 w-3.5 text-blue-500 stroke-[2.5]" />
+            <Icon name="repeat" className="h-3.5 w-3.5 text-[var(--muted)] stroke-[2.5]" />
             <span>Rutin</span>
           </button>
 
@@ -727,9 +727,9 @@ export default function AccountsPage() {
             type="button"
             onClick={() => handleOpenTransfer()}
             disabled={activeAccounts.length < 2}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl border border-indigo-500/25 bg-indigo-500/10 hover:bg-indigo-500/20 text-xs font-bold text-indigo-500 transition-all pressable shadow-2xs disabled:opacity-40"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-xs font-bold text-amber-600 dark:text-amber-400 transition-all pressable shadow-2xs disabled:opacity-40"
           >
-            <Icon name="move" className="h-3.5 w-3.5 text-indigo-500 stroke-[2.5]" />
+            <Icon name="move" className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 stroke-[2.5]" />
             <span>Pindah Saldo</span>
           </button>
 

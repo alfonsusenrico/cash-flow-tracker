@@ -30,6 +30,113 @@ interface TransactionItem {
   receipt_path: string | null;
   created_at: string;
   is_excluded_from_budget?: boolean;
+  partner_id?: string;
+  is_consolidated_transfer?: boolean;
+  target_account_name?: string;
+  target_account_id?: string;
+}
+
+function consolidateTransactions(
+  items: TransactionItem[],
+  enabled: boolean
+): TransactionItem[] {
+  if (!enabled) {
+    return items.map((t) => {
+      const isMovement =
+        t.category_name === "Internal Movement" ||
+        !!t.is_excluded_from_budget ||
+        (t.notes?.toLowerCase().includes("pindah saldo") ?? false);
+      if (isMovement && t.notes && t.notes.includes("→")) {
+        const parts = t.notes.split("→");
+        if (parts.length > 1) {
+          const target = parts[1].replace(/[()]/g, "").trim();
+          return { ...t, target_account_name: target };
+        }
+      }
+      return t;
+    });
+  }
+
+  const result: TransactionItem[] = [];
+  const consumed = new Set<string>();
+
+  for (let i = 0; i < items.length; i++) {
+    const t1 = items[i];
+    if (consumed.has(t1.id)) continue;
+
+    const isT1Movement =
+      t1.category_name === "Internal Movement" ||
+      !!t1.is_excluded_from_budget ||
+      (t1.notes?.toLowerCase().includes("pindah saldo") ?? false);
+
+    if (!isT1Movement) {
+      result.push(t1);
+      continue;
+    }
+
+    let bestIndex = -1;
+    let minDiffMs = Infinity;
+
+    for (let j = i + 1; j < items.length; j++) {
+      const t2 = items[j];
+      if (consumed.has(t2.id)) continue;
+
+      const isT2Movement =
+        t2.category_name === "Internal Movement" ||
+        !!t2.is_excluded_from_budget ||
+        (t2.notes?.toLowerCase().includes("pindah saldo") ?? false);
+
+      if (!isT2Movement) continue;
+      if (t1.type === t2.type) continue;
+      if (t1.amount !== t2.amount) continue;
+      if (t1.account_id === t2.account_id) continue;
+
+      const diffMs = Math.abs(new Date(t1.date).getTime() - new Date(t2.date).getTime());
+      if (diffMs <= 10 * 60 * 1000 && diffMs < minDiffMs) {
+        minDiffMs = diffMs;
+        bestIndex = j;
+        if (
+          t1.notes &&
+          t2.notes &&
+          (t1.notes === t2.notes || t1.notes.includes(t2.notes) || t2.notes.includes(t1.notes))
+        ) {
+          break;
+        }
+      }
+    }
+
+    if (bestIndex !== -1) {
+      const t2 = items[bestIndex];
+      consumed.add(t1.id);
+      consumed.add(t2.id);
+
+      const outTx = t1.type === "expense" ? t1 : t2;
+      const inTx = t1.type === "expense" ? t2 : t1;
+
+      result.push({
+        ...outTx,
+        partner_id: inTx.id,
+        is_consolidated_transfer: true,
+        account_name: outTx.account_name,
+        target_account_name: inTx.account_name,
+        target_account_id: inTx.account_id,
+      });
+    } else {
+      let parsedTarget: string | undefined;
+      if (t1.notes && t1.notes.includes("→")) {
+        const parts = t1.notes.split("→");
+        if (parts.length > 1) {
+          parsedTarget = parts[1].replace(/[()]/g, "").trim();
+        }
+      }
+      result.push({
+        ...t1,
+        target_account_name: parsedTarget,
+      });
+    }
+  }
+
+  return result;
 }
 
 export default function LedgerPage() {
@@ -52,6 +159,7 @@ export default function LedgerPage() {
   const [editAmount, setEditAmount] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [editAccountId, setEditAccountId] = useState("");
+  const [editTargetAccountId, setEditTargetAccountId] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
   const [editGoalId, setEditGoalId] = useState("");
   const [editObligationId, setEditObligationId] = useState("");
@@ -107,9 +215,17 @@ export default function LedgerPage() {
     queryFn: () => api.get(`/transactions?${queryParams}`),
   });
 
-  const transactions = txData?.transactions ?? [];
+  const transactions = useMemo(() => txData?.transactions ?? [], [txData?.transactions]);
   const totalCount = txData?.total ?? 0;
   const totalPages = Math.ceil(totalCount / pageSize);
+
+  // Consolidate paired internal movements into single visual entries in all-account ledger
+  const displayTransactions = useMemo(() => {
+    return consolidateTransactions(
+      transactions,
+      accountFilter === "all" && typeFilter === "all"
+    );
+  }, [transactions, accountFilter, typeFilter]);
 
   // Compute page totals (excluding internal movements so totals reflect real cash flow)
   const pageInflow = transactions
@@ -135,6 +251,7 @@ export default function LedgerPage() {
     setEditAmount(formatNumberWithDots(tx.amount));
     setEditNotes(tx.notes || "");
     setEditAccountId(tx.account_id);
+    setEditTargetAccountId(tx.target_account_id || "");
     setEditCategoryId(tx.category_id || "");
     setEditGoalId(tx.goal_id || "");
     setEditObligationId(tx.obligation_id || "");
@@ -142,13 +259,38 @@ export default function LedgerPage() {
     setEditError("");
   };
 
-  // Update mutation
+  // Update mutation (handles both normal transactions and synchronized paired movements)
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!editingTx) return;
       const amt = parseInt(editAmount.replace(/[^0-9]/g, ""), 10);
       if (!amt || amt <= 0) throw new Error("Nominal harus lebih dari 0");
       if (!editAccountId) throw new Error("Pilih rekening");
+
+      const isoDate = editDate
+        ? (localDatetimeToISO(editDate) || new Date(editDate).toISOString())
+        : undefined;
+
+      if (editingTx.is_consolidated_transfer && editingTx.partner_id) {
+        if (editTargetAccountId && editAccountId === editTargetAccountId) {
+          throw new Error("Rekening asal dan tujuan tidak boleh sama");
+        }
+        await Promise.all([
+          api.patch(`/transactions/${editingTx.id}`, {
+            amount: amt,
+            notes: editNotes.trim() || null,
+            account_id: editAccountId,
+            date: isoDate,
+          }),
+          api.patch(`/transactions/${editingTx.partner_id}`, {
+            amount: amt,
+            notes: editNotes.trim() || null,
+            account_id: editTargetAccountId || editingTx.target_account_id,
+            date: isoDate,
+          }),
+        ]);
+        return;
+      }
 
       return api.patch(`/transactions/${editingTx.id}`, {
         amount: amt,
@@ -157,7 +299,7 @@ export default function LedgerPage() {
         category_id: editCategoryId || null,
         goal_id: editGoalId || null,
         obligation_id: editObligationId || null,
-        date: editDate ? (localDatetimeToISO(editDate) || new Date(editDate).toISOString()) : undefined,
+        date: isoDate,
       });
     },
     onSuccess: () => {
@@ -174,9 +316,14 @@ export default function LedgerPage() {
     },
   });
 
-  // Delete mutation
+  // Delete mutation (handles single transaction and atomic paired movements)
   const deleteMutation = useMutation({
-    mutationFn: (txId: string) => api.del(`/transactions/${txId}`),
+    mutationFn: async (tx: TransactionItem) => {
+      await api.del(`/transactions/${tx.id}`);
+      if (tx.partner_id) {
+        await api.del(`/transactions/${tx.partner_id}`);
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions-ledger"] });
       qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
@@ -185,6 +332,9 @@ export default function LedgerPage() {
       qc.invalidateQueries({ queryKey: ["goals"] });
       qc.invalidateQueries({ queryKey: ["obligations"] });
       setEditingTx(null);
+    },
+    onError: (err: any) => {
+      setEditError(err?.message || "Gagal menghapus transaksi");
     },
   });
 
@@ -378,7 +528,7 @@ export default function LedgerPage() {
           <div className="py-20 text-center text-xs text-[var(--muted)] animate-pulse">
             Memuat riwayat transaksi...
           </div>
-        ) : transactions.length === 0 ? (
+        ) : displayTransactions.length === 0 ? (
           <div className="py-20 text-center space-y-2">
             <p className="text-sm font-semibold text-[var(--text)]">Belum ada transaksi ditemukan</p>
             <p className="text-xs text-[var(--muted)]">
@@ -401,9 +551,11 @@ export default function LedgerPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
-                {transactions.map((tx) => {
+                {displayTransactions.map((tx) => {
                   const isMovement =
-                    tx.category_name === "Internal Movement" || !!tx.is_excluded_from_budget;
+                    tx.category_name === "Internal Movement" ||
+                    !!tx.is_excluded_from_budget ||
+                    (tx.notes?.toLowerCase().includes("pindah saldo") ?? false);
                   const isIncome = tx.type === "income";
 
                   return (
@@ -423,24 +575,31 @@ export default function LedgerPage() {
 
                       {/* Type Badge */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span
-                          className={cn(
-                            "px-2 py-0.5 rounded-md text-[10px] font-bold uppercase",
-                            isMovement
-                              ? "bg-blue-500/10 text-blue-500"
+                        {tx.is_consolidated_transfer ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/10 text-sky-500 border border-sky-500/20 tracking-wide">
+                            <span className="text-xs leading-none">↔️</span>
+                            <span>Pindah Saldo</span>
+                          </span>
+                        ) : (
+                          <span
+                            className={cn(
+                              "px-2 py-0.5 rounded-md text-[10px] font-bold uppercase",
+                              isMovement
+                                ? "bg-sky-500/10 text-sky-500"
+                                : isIncome
+                                ? "bg-income/10 text-income"
+                                : "bg-expense/10 text-expense"
+                            )}
+                          >
+                            {isMovement
+                              ? isIncome
+                                ? "Pindah Saldo (Masuk)"
+                                : "Pindah Saldo (Keluar)"
                               : isIncome
-                              ? "bg-income/10 text-income"
-                              : "bg-expense/10 text-expense"
-                          )}
-                        >
-                          {isMovement
-                            ? isIncome
-                              ? "Pindah Saldo (Masuk)"
-                              : "Pindah Saldo (Keluar)"
-                            : isIncome
-                            ? "Uang Masuk"
-                            : "Uang Keluar"}
-                        </span>
+                              ? "Uang Masuk"
+                              : "Uang Keluar"}
+                          </span>
+                        )}
                       </td>
 
                       {/* Notes / Description */}
@@ -450,11 +609,15 @@ export default function LedgerPage() {
 
                       {/* Category */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        {tx.category_name ? (
-                          <span className="inline-flex items-center gap-1 text-[var(--text)] font-medium">
+                        {isMovement || tx.category_name ? (
+                          <span className="inline-flex items-center gap-1.5 text-[var(--text)] font-medium">
                             <span
                               className="h-2 w-2 rounded-full"
-                              style={{ backgroundColor: isMovement ? "#3b82f6" : tx.category_color || "#3b82f6" }}
+                              style={{
+                                backgroundColor: isMovement
+                                  ? "#0ea5e9"
+                                  : tx.category_color || "#3b82f6",
+                              }}
                             />
                             <span>{isMovement ? "Pindah Saldo" : tx.category_name}</span>
                           </span>
@@ -463,14 +626,24 @@ export default function LedgerPage() {
                         )}
                       </td>
 
-                      {/* Account */}
+                      {/* Account (Source) */}
                       <td className="py-3.5 px-4 whitespace-nowrap font-medium text-[var(--text)]">
                         {tx.account_name}
                       </td>
 
                       {/* Target Account or Linked Goal/Debt */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        {tx.goal_name ? (
+                        {tx.is_consolidated_transfer && tx.target_account_name ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-500">
+                            <span className="text-xs">→</span>
+                            <span>{tx.target_account_name}</span>
+                          </span>
+                        ) : tx.target_account_name ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-500">
+                            <span className="text-xs">{isIncome ? "←" : "→"}</span>
+                            <span>{tx.target_account_name}</span>
+                          </span>
+                        ) : tx.goal_name ? (
                           <span className="inline-flex items-center gap-1 text-[11px] text-emerald-500 font-semibold">
                             🎯 {tx.goal_name}
                           </span>
@@ -487,14 +660,16 @@ export default function LedgerPage() {
                       <td
                         className={cn(
                           "py-3.5 px-4 text-right font-bold tabular whitespace-nowrap",
-                          isMovement
-                            ? "text-blue-500"
+                          tx.is_consolidated_transfer
+                            ? "text-[var(--text)]"
+                            : isMovement
+                            ? "text-sky-500"
                             : isIncome
                             ? "text-income"
                             : "text-expense"
                         )}
                       >
-                        {isIncome ? "+" : "-"}
+                        {tx.is_consolidated_transfer ? "" : isIncome ? "+" : "-"}
                         {bal(tx.amount)}
                       </td>
 
@@ -555,7 +730,7 @@ export default function LedgerPage() {
         <Modal
           open={Boolean(editingTx)}
           onClose={() => setEditingTx(null)}
-          title="Ubah Transaksi"
+          title={editingTx.is_consolidated_transfer ? "Detail & Ubah Pindah Saldo" : "Ubah Transaksi"}
         >
           <div className="space-y-4 pt-2 text-xs">
             {editError && (
@@ -564,117 +739,198 @@ export default function LedgerPage() {
               </div>
             )}
 
-            <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1">Nominal Uang (IDR)</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={editAmount}
-                onChange={(e) => setEditAmount(formatNumberWithDots(e.target.value))}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
-              />
-            </div>
+            {editingTx.is_consolidated_transfer ? (
+              <>
+                <div className="p-3.5 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-500 space-y-1">
+                  <div className="flex items-center gap-1.5 font-semibold text-xs">
+                    <span className="text-sm">↔️</span>
+                    <span>Pemindahan Saldo Internal</span>
+                  </div>
+                  <p className="text-[11px] text-[var(--muted)]">
+                    Transaksi ini menghubungkan dua rekening (
+                    <span className="text-[var(--text)] font-semibold">{editingTx.account_name}</span> →{" "}
+                    <span className="text-[var(--text)] font-semibold">{editingTx.target_account_name || "Tujuan"}</span>
+                    ). Perubahan nominal atau penghapusan akan diterapkan secara bersamaan ke kedua rekening.
+                  </p>
+                </div>
 
-            <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1">Rekening / Dompet</label>
-              <select
-                value={editAccountId}
-                onChange={(e) => setEditAccountId(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-              >
-                <AccountSelectOptions accounts={accounts} formatBalance={bal} allowParentSelection={true} />
-              </select>
-            </div>
+                <div>
+                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Nominal Transfer (IDR)</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(formatNumberWithDots(e.target.value))}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
+                  />
+                </div>
 
-            <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1">Kategori</label>
-              <select
-                value={editCategoryId}
-                onChange={(e) => setEditCategoryId(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-              >
-                <option value="">Tanpa Kategori</option>
-                {categories
-                  .filter((c) => c.kind === editingTx.type)
-                  .map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-[var(--muted)] block mb-1">Rekening Asal (Sumber)</label>
+                    <select
+                      value={editAccountId}
+                      onChange={(e) => setEditAccountId(e.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)]"
+                    >
+                      <AccountSelectOptions accounts={accounts} formatBalance={bal} allowParentSelection={true} />
+                    </select>
+                  </div>
 
-            {/* Optional Goal Link */}
-            <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1">
-                Hubungkan ke Target Tabungan (Opsional)
-              </label>
-              <select
-                value={editGoalId}
-                onChange={(e) => {
-                  setEditGoalId(e.target.value);
-                  if (e.target.value) setEditObligationId("");
-                }}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-              >
-                <option value="">Tidak ada</option>
-                {goals.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    🎯 {g.name} ({bal(g.current_amount)} / {bal(g.target_amount)})
-                  </option>
-                ))}
-              </select>
-            </div>
+                  <div>
+                    <label className="text-xs font-medium text-[var(--muted)] block mb-1">Rekening Tujuan</label>
+                    <select
+                      value={editTargetAccountId}
+                      onChange={(e) => setEditTargetAccountId(e.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)]"
+                    >
+                      <AccountSelectOptions accounts={accounts} formatBalance={bal} allowParentSelection={true} />
+                    </select>
+                  </div>
+                </div>
 
-            {/* Optional Obligation Link */}
-            <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1">
-                Hubungkan ke Tagihan / Utang (Opsional)
-              </label>
-              <select
-                value={editObligationId}
-                onChange={(e) => {
-                  setEditObligationId(e.target.value);
-                  if (e.target.value) setEditGoalId("");
-                }}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-              >
-                <option value="">Tidak ada</option>
-                {obligations.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    💳 {o.name} ({bal(o.remaining_amount)} tersisa)
-                  </option>
-                ))}
-              </select>
-            </div>
+                <div>
+                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Tanggal & Waktu</label>
+                  <input
+                    type="datetime-local"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)]"
+                  />
+                </div>
 
-            <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1">Tanggal & Waktu</label>
-              <input
-                type="datetime-local"
-                value={editDate}
-                onChange={(e) => setEditDate(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-              />
-            </div>
+                <div>
+                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Catatan</label>
+                  <input
+                    type="text"
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    placeholder="Tambahkan catatan pemindahan..."
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)]"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Nominal Uang (IDR)</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(formatNumberWithDots(e.target.value))}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
+                  />
+                </div>
 
-            <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1">Catatan</label>
-              <input
-                type="text"
-                value={editNotes}
-                onChange={(e) => setEditNotes(e.target.value)}
-                placeholder="Tambahkan catatan..."
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-              />
-            </div>
+                <div>
+                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Rekening / Dompet</label>
+                  <select
+                    value={editAccountId}
+                    onChange={(e) => setEditAccountId(e.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+                  >
+                    <AccountSelectOptions accounts={accounts} formatBalance={bal} allowParentSelection={true} />
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Kategori</label>
+                  <select
+                    value={editCategoryId}
+                    onChange={(e) => setEditCategoryId(e.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+                  >
+                    <option value="">Tanpa Kategori</option>
+                    {categories
+                      .filter((c) => c.kind === editingTx.type)
+                      .map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* Optional Goal Link */}
+                <div>
+                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">
+                    Hubungkan ke Target Tabungan (Opsional)
+                  </label>
+                  <select
+                    value={editGoalId}
+                    onChange={(e) => {
+                      setEditGoalId(e.target.value);
+                      if (e.target.value) setEditObligationId("");
+                    }}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+                  >
+                    <option value="">Tidak ada</option>
+                    {goals.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        🎯 {g.name} ({bal(g.current_amount)} / {bal(g.target_amount)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Optional Obligation Link */}
+                <div>
+                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">
+                    Hubungkan ke Tagihan / Utang (Opsional)
+                  </label>
+                  <select
+                    value={editObligationId}
+                    onChange={(e) => {
+                      setEditObligationId(e.target.value);
+                      if (e.target.value) setEditGoalId("");
+                    }}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+                  >
+                    <option value="">Tidak ada</option>
+                    {obligations.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        💳 {o.name} ({bal(o.remaining_amount)} tersisa)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Tanggal & Waktu</label>
+                  <input
+                    type="datetime-local"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Catatan</label>
+                  <input
+                    type="text"
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    placeholder="Tambahkan catatan..."
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </div>
+              </>
+            )}
 
             <div className="pt-4 flex items-center justify-between border-t border-[var(--border)]">
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm("Hapus transaksi ini? Saldo rekening dan progres target terkait akan dikembalikan.")) {
-                    deleteMutation.mutate(editingTx.id);
+                  if (
+                    confirm(
+                      editingTx.is_consolidated_transfer
+                        ? "Hapus pemindahan saldo ini? Saldo kedua rekening akan dikembalikan."
+                        : "Hapus transaksi ini? Saldo rekening dan progres target terkait akan dikembalikan."
+                    )
+                  ) {
+                    deleteMutation.mutate(editingTx);
                   }
                 }}
                 disabled={deleteMutation.isPending}

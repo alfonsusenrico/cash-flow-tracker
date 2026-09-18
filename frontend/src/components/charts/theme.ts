@@ -1,15 +1,15 @@
 import { getCurrencyConfig } from "@/lib/utils";
 
 export const chartColors = {
-  income: "#10b981", // Emerald
-  incomeLight: "rgba(16, 185, 129, 0.15)",
-  expense: "#f43f5e", // Rose
-  expenseLight: "rgba(244, 63, 94, 0.15)",
-  transfer: "#3b82f6", // Blue
-  transferLight: "rgba(59, 130, 246, 0.15)",
-  warning: "#f59e0b", // Amber
-  accent: "#8b5cf6", // Purple
-  cyan: "#06b6d4",
+  income: "var(--color-income)",
+  incomeLight: "var(--color-income-soft)",
+  expense: "var(--color-expense)",
+  expenseLight: "var(--color-expense-soft)",
+  transfer: "var(--color-transfer)",
+  transferLight: "var(--color-transfer-soft)",
+  warning: "var(--color-warning)",
+  accent: "var(--color-transfer)",
+  cyan: "var(--color-kakeibo-need)",
   grid: "var(--border)",
   text: "var(--muted)",
 };

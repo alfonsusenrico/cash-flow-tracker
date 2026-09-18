@@ -43,6 +43,20 @@ module.exports = {
           soft: "var(--primary-soft)",
           contrast: "var(--primary-contrast)",
         },
+        emerald: {
+          50: "var(--color-income-soft)",
+          400: "var(--color-income)",
+          500: "var(--color-income)",
+          600: "var(--color-income-hover)",
+          700: "var(--color-income-hover)",
+        },
+        rose: {
+          50: "var(--color-expense-soft)",
+          400: "var(--color-expense)",
+          500: "var(--color-expense)",
+          600: "var(--color-expense-hover)",
+          700: "var(--color-expense-hover)",
+        },
       },
       fontFamily: {
         sans: ["var(--font-jakarta)", "Plus Jakarta Sans", "-apple-system", "BlinkMacSystemFont", "sans-serif"],

@@ -1,42 +1,59 @@
 /* Cash Flow Tracker — Modern Fintech Design System
- * Aesthetic: Kazz / Ivy Wallet / Copilot Money Dark Charcoal Slate Surfaces
+ * Theme Baseline: Coral Terminal (Vivid)
+ * Light: Crisp Technical Cool Gray Canvas + Hot Coral & Royal Violet Accents
+ * Dark: Calm Pitch Obsidian Canvas + Vibrant Hot Coral & Lavender Violet Accents
  * Typography: Modern Bauhaus Geometric Sans (Outfit) + Tabular Digits (Geist Mono)
  */
 
 :root {
-  /* Surfaces & Ink (Light: Refined Slate & Pure Card Surfaces) */
-  --color-paper: #F8F9FA;
+  /* Surfaces & Ink (Light Mode: Clean Technical Cool Gray) */
+  --color-paper: #E8ECEF;
+  --color-paper-2: #D8DFE5;
+  --color-paper-3: #C8D1DB;
   --color-surface: #FFFFFF;
-  --color-surface-raised: #F1F3F5;
-  --color-ink: #111418;
-  --color-ink-2: #4A5568;
-  --color-muted: #718096;
-  --color-rule: rgba(0, 0, 0, 0.075);
-  --color-rule-strong: rgba(0, 0, 0, 0.12);
+  --color-surface-raised: #D8DFE5;
+  --color-ink: #0A0D14;
+  --color-ink-2: #343E4E;
+  --color-muted: #5E6D82;
+  --color-rule: rgba(10, 13, 20, 0.09);
+  --color-rule-strong: rgba(10, 13, 20, 0.18);
 
-  /* Semantic Accents (Modern Pop) */
-  --color-income: #00D09C;
-  --color-income-hover: #00B887;
-  --color-income-soft: #E6FBF5;
-  --color-expense: #FF3B69;
-  --color-expense-hover: #E62A56;
-  --color-expense-soft: #FFF0F3;
-  --color-transfer: #6366F1;
-  --color-transfer-hover: #4F46E5;
-  --color-transfer-soft: #EEF2FF;
-  --color-warning: #FFB020;
-  --color-warning-soft: #FFF9EB;
-  --color-focus: #00D09C;
+  /* Primary Brand Action: Hot Coral Vivid */
+  --primary: #FF334B;
+  --primary-hover: #E02038;
+  --primary-soft: #FFE8EC;
+  --primary-contrast: #FFFFFF;
+
+  /* Semantic Movements */
+  --color-income: #059669;
+  --color-income-hover: #047857;
+  --color-income-soft: #ECFDF5;
+  --color-expense: #FF334B;
+  --color-expense-hover: #E02038;
+  --color-expense-soft: #FFE8EC;
+  --color-transfer: #7C3AED;
+  --color-transfer-hover: #6D28D9;
+  --color-transfer-soft: #F5F3FF;
+  --color-warning: #F59E0B;
+  --color-warning-soft: #FEF3C7;
+  --color-focus: #FF334B;
 
   /* Kakeibo 3-Pillar Tokens */
-  --color-kakeibo-need: #38BDF8;
-  --color-kakeibo-need-soft: #F0F9FF;
-  --color-kakeibo-want: #FF3B69;
-  --color-kakeibo-want-soft: #FFF0F3;
-  --color-kakeibo-saving: #00D09C;
-  --color-kakeibo-saving-soft: #E6FBF5;
+  --color-kakeibo-need: #7C3AED;
+  --color-kakeibo-need-soft: #F5F3FF;
+  --color-kakeibo-want: #FF334B;
+  --color-kakeibo-want-soft: #FFE8EC;
+  --color-kakeibo-saving: #059669;
+  --color-kakeibo-saving-soft: #ECFDF5;
 
-  /* System mappings */
+  /* Light Architectural Slate Desktop Sidebar */
+  --sidebar: #F0F3F6;
+  --sidebar-hover: #E2E8F0;
+  --sidebar-active: #D4DEE9;
+  --sidebar-text: #526071;
+  --sidebar-text-active: #090D14;
+
+  /* System Mappings */
   --bg: var(--color-paper);
   --surface: var(--color-surface);
   --surface-raised: var(--color-surface-raised);
@@ -46,26 +63,16 @@
   --text-secondary: var(--color-ink-2);
   --muted: var(--color-muted);
 
-  --primary: var(--color-income);
-  --primary-hover: var(--color-income-hover);
-  --primary-soft: var(--color-income-soft);
-  --primary-contrast: #FFFFFF;
   --danger: var(--color-expense);
   --danger-hover: var(--color-expense-hover);
   --danger-soft: var(--color-expense-soft);
 
-  --sidebar: #111418;
-  --sidebar-hover: #1A1E24;
-  --sidebar-active: #232830;
-  --sidebar-text: #9CA3AF;
-  --sidebar-text-active: #FFFFFF;
-
-  /* Typography: Plus Jakarta Sans + Tabular Numbers */
+  /* Typography */
   --font-display: var(--font-jakarta), "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-body: var(--font-jakarta), "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: var(--font-geist-mono), "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
 
-  /* Radii: Soft Consumer Fintech Curvature */
+  /* Radii */
   --radius-xs: 8px;
   --radius-sm: 10px;
   --radius-md: 14px;
@@ -77,44 +84,61 @@
   --radius-card: 24px;
   --radius-pill: 9999px;
 
-  /* Ambient Soft Shadows */
-  --shadow-sm: 0 2px 8px -1px rgba(0, 0, 0, 0.04), 0 1px 3px -1px rgba(0, 0, 0, 0.02);
-  --shadow-md: 0 10px 28px -4px rgba(0, 0, 0, 0.06), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
+  /* Shadows */
+  --shadow-sm: 0 2px 8px -1px rgba(8, 10, 14, 0.06);
+  --shadow-md: 0 10px 28px -4px rgba(8, 10, 14, 0.1);
 
   --sidebar-width: 220px;
   --topbar-height: 56px;
 }
 
 .dark {
-  /* Modern High-Energy Dark Charcoal Palette */
-  --color-paper: #0B0E14;
-  --color-surface: #131720;
-  --color-surface-raised: #1C2230;
+  /* Surfaces & Ink (Dark Mode: Calm Pitch Obsidian & Muted Slate) */
+  --color-paper: #050608;
+  --color-paper-2: #0B0E14;
+  --color-paper-3: #141822;
+  --color-surface: #0E1118;
+  --color-surface-raised: #181E2A;
   --color-ink: #F8FAFC;
   --color-ink-2: #94A3B8;
   --color-muted: #64748B;
   --color-rule: rgba(255, 255, 255, 0.08);
-  --color-rule-strong: rgba(255, 255, 255, 0.15);
+  --color-rule-strong: rgba(255, 255, 255, 0.16);
 
-  --color-income: #00D09C;
-  --color-income-hover: #33F0BA;
-  --color-income-soft: rgba(0, 208, 156, 0.16);
-  --color-expense: #FF3B69;
-  --color-expense-hover: #FF668B;
-  --color-expense-soft: rgba(255, 59, 105, 0.16);
-  --color-transfer: #6366F1;
-  --color-transfer-hover: #818CF8;
-  --color-transfer-soft: rgba(99, 102, 241, 0.16);
-  --color-warning: #FFB020;
-  --color-warning-soft: rgba(255, 176, 32, 0.16);
+  /* Primary Brand Action: Luminous Hot Coral */
+  --primary: #FF4757;
+  --primary-hover: #FF6675;
+  --primary-soft: rgba(255, 71, 87, 0.18);
+  --primary-contrast: #FFFFFF;
 
-  /* Kakeibo 3-Pillar Tokens in Dark Mode */
-  --color-kakeibo-need: #38BDF8;
-  --color-kakeibo-need-soft: rgba(56, 189, 248, 0.16);
-  --color-kakeibo-want: #FF3B69;
-  --color-kakeibo-want-soft: rgba(255, 59, 105, 0.16);
-  --color-kakeibo-saving: #00D09C;
-  --color-kakeibo-saving-soft: rgba(0, 208, 156, 0.16);
+  /* Semantic Movements */
+  --color-income: #10B981;
+  --color-income-hover: #34D399;
+  --color-income-soft: rgba(16, 185, 129, 0.16);
+  --color-expense: #FF4757;
+  --color-expense-hover: #FF6675;
+  --color-expense-soft: rgba(255, 71, 87, 0.18);
+  --color-transfer: #8B5CF6;
+  --color-transfer-hover: #A78BFA;
+  --color-transfer-soft: rgba(139, 92, 246, 0.18);
+  --color-warning: #FBBF24;
+  --color-warning-soft: rgba(251, 191, 36, 0.16);
+  --color-focus: #FF4757;
+
+  /* Kakeibo 3-Pillar Tokens */
+  --color-kakeibo-need: #8B5CF6;
+  --color-kakeibo-need-soft: rgba(139, 92, 246, 0.18);
+  --color-kakeibo-want: #FF4757;
+  --color-kakeibo-want-soft: rgba(255, 71, 87, 0.18);
+  --color-kakeibo-saving: #10B981;
+  --color-kakeibo-saving-soft: rgba(16, 185, 129, 0.16);
+
+  /* Pitch Obsidian Desktop Sidebar */
+  --sidebar: #020305;
+  --sidebar-hover: #0A0D14;
+  --sidebar-active: #121824;
+  --sidebar-text: #8092A8;
+  --sidebar-text-active: #F8FAFC;
 
   --bg: var(--color-paper);
   --surface: var(--color-surface);
@@ -125,12 +149,10 @@
   --text-secondary: var(--color-ink-2);
   --muted: var(--color-muted);
 
-  --sidebar: #0B0E14;
-  --sidebar-hover: #131720;
-  --sidebar-active: #1C2230;
-  --sidebar-text: #94A3B8;
-  --sidebar-text-active: #F8FAFC;
+  --danger: var(--color-expense);
+  --danger-hover: var(--color-expense-hover);
+  --danger-soft: var(--color-expense-soft);
 
-  --shadow-sm: 0 4px 14px -2px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 14px 36px -4px rgba(0, 0, 0, 0.7);
+  --shadow-sm: 0 4px 14px -2px rgba(0, 0, 0, 0.7);
+  --shadow-md: 0 14px 36px -4px rgba(0, 0, 0, 0.9);
 }
