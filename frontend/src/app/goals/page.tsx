@@ -363,10 +363,10 @@ export default function GoalsAndDebtsPage() {
   if (goalsLoading || obligationsLoading) {
     return (
       <div className="space-y-6 animate-pulse">
-        <div className="h-14 rounded-xl bg-[var(--border)]/30" />
+        <div className="h-16 rounded-2xl bg-[var(--border)]/30" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="h-44 card-crisp bg-[var(--surface-sunken)]" />
-          <div className="h-44 card-crisp bg-[var(--surface-sunken)]" />
+          <div className="h-44 rounded-3xl bg-[var(--border)]/30" />
+          <div className="h-44 rounded-3xl bg-[var(--border)]/30" />
         </div>
       </div>
     );
@@ -391,7 +391,7 @@ export default function GoalsAndDebtsPage() {
           <button
             type="button"
             onClick={handleOpenNewGoal}
-            className="btn-charcoal inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg shadow-2xs"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-btn bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-2xs transition-all active:scale-95"
           >
             <span className="font-bold text-sm leading-none">+</span>
             <span>Target Baru</span>
@@ -400,7 +400,7 @@ export default function GoalsAndDebtsPage() {
           <button
             type="button"
             onClick={handleOpenNewObligation}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] hover:bg-[var(--surface-sunken)] text-xs font-semibold text-[var(--text)] transition-colors shadow-2xs"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-btn bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-2xs transition-all active:scale-95"
           >
             <span className="font-bold text-sm leading-none">+</span>
             <span>Tagihan Baru</span>
@@ -420,19 +420,19 @@ export default function GoalsAndDebtsPage() {
           <button
             type="button"
             onClick={handleOpenNewGoal}
-            className="text-xs font-semibold text-[var(--text)] hover:underline"
+            className="text-xs font-semibold text-emerald-500 hover:underline"
           >
             + Tambah Target
           </button>
         </div>
 
         {activeGoals.length === 0 ? (
-          <div className="card-crisp p-8 text-center text-xs text-[var(--muted)] space-y-3">
+          <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center text-xs text-[var(--muted)] space-y-2">
             <p>Belum ada target tabungan aktif.</p>
             <button
               type="button"
               onClick={handleOpenNewGoal}
-              className="btn-charcoal inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg"
+              className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
             >
               Buat Target Pertama Anda
             </button>
@@ -442,7 +442,7 @@ export default function GoalsAndDebtsPage() {
             {activeGoals.map((g) => (
               <div
                 key={g.id}
-                className="card-crisp p-5 sm:p-6 space-y-4 flex flex-col justify-between group hover:border-[var(--border-strong)] transition-all"
+                className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 space-y-4 shadow-xs flex flex-col justify-between group hover:border-[var(--border-strong)] transition-all"
               >
                 <div>
                   <div className="flex items-center justify-between">
@@ -582,16 +582,16 @@ export default function GoalsAndDebtsPage() {
         </div>
 
         {activeObligations.length === 0 ? (
-          <div className="card-crisp p-8 text-center text-xs text-[var(--muted)] space-y-2">
+          <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center text-xs text-[var(--muted)] space-y-2">
             <p>Tidak ada tagihan atau utang aktif. Anda bebas utang!</p>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Debt Payoff Summary Banner */}
-            <div className="card-crisp p-5 sm:p-6 space-y-3">
+            <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 space-y-3 shadow-xs">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-bold">
+                  <div className="h-7 w-7 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-bold">
                     ⚡
                   </div>
                   <span className="text-xs font-bold uppercase tracking-wider text-[var(--text)]">
@@ -634,7 +634,7 @@ export default function GoalsAndDebtsPage() {
             {activeObligations.map((o) => (
               <div
                 key={o.id}
-                className="card-crisp p-5 sm:p-6 space-y-4 flex flex-col justify-between group hover:border-[var(--border-strong)] transition-all"
+                className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 space-y-4 shadow-xs flex flex-col justify-between group hover:border-[var(--border-strong)] transition-all"
               >
                 <div>
                   <div className="flex items-center justify-between">
