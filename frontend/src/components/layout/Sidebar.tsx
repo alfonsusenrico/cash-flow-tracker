@@ -57,26 +57,6 @@ export function Sidebar({
         collapsed ? "w-[72px]" : "w-[260px]"
       )}
     >
-      {/* Brand Header */}
-      <div className="h-16 flex items-center px-4 border-b border-[var(--border)] gap-3 shrink-0">
-        <div className="h-9 w-9 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-black text-sm shadow-[0_4px_12px_rgba(0,208,156,0.3)] shrink-0">
-          <Icon name="wallet" className="h-5 w-5 stroke-[2.5]" />
-        </div>
-        {!collapsed && (
-          <div className="min-w-0">
-            <div className="font-extrabold text-sm tracking-tight text-[var(--text)] flex items-center gap-1.5 leading-none">
-              <span>CashFlow</span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
-                PRO
-              </span>
-            </div>
-            <div className="text-[10px] text-[var(--muted)] font-medium mt-1 truncate">
-              Daily Money & Vault
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* Primary Navigation List */}
       <nav className="flex-1 flex flex-col justify-between px-3 pt-4 pb-3 overflow-y-auto">
         <div className="space-y-1">
