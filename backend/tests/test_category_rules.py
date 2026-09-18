@@ -9,7 +9,7 @@ SAMPLE_CATEGORIES = [
     {"id": uuid4(), "name": "Tagihan & Utilitas", "kind": "expense", "kakeibo_type": "need", "is_excluded_from_budget": False},
     {"id": uuid4(), "name": "Belanja", "kind": "expense", "kakeibo_type": "want", "is_excluded_from_budget": False},
     {"id": uuid4(), "name": "Kesehatan", "kind": "expense", "kakeibo_type": "need", "is_excluded_from_budget": False},
-    {"id": uuid4(), "name": "Internal Movement", "kind": "expense", "kakeibo_type": "saving", "is_excluded_from_budget": True},
+    {"id": uuid4(), "name": "Internal Movement", "kind": "expense", "kakeibo_type": None, "is_excluded_from_budget": True},
     {"id": uuid4(), "name": "Investasi", "kind": "expense", "kakeibo_type": "saving", "is_excluded_from_budget": True},
     {"id": uuid4(), "name": "Gaji", "kind": "income", "kakeibo_type": "need", "is_excluded_from_budget": False},
 ]

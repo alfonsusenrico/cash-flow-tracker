@@ -175,8 +175,9 @@ def get_kakeibo_breakdown(
           AND t.type = 'expense'
           AND c.name = 'Internal Movement'
           AND (t.kakeibo_type = 'saving' OR t.goal_id IS NOT NULL)
-          AND t.notes NOT LIKE '%%lot @%%'
-          AND t.notes NOT LIKE '%%Stockbit%%'
+          AND COALESCE(t.notes, '') NOT LIKE '%%lot @%%'
+          AND COALESCE(t.notes, '') NOT LIKE '%%Stockbit%%'
+          AND COALESCE(t.notes, '') NOT ILIKE '%%pre-auth%%'
           AND t.date >= %s AND t.date <= %s
         """,
         (user_id, start_utc, end_utc),

@@ -41,8 +41,8 @@ def _ensure_internal_movement_categories(cur, user_id: str) -> tuple[str, str]:
         cur.execute(
             """
             INSERT INTO categories (user_id, name, icon, color, kind, kakeibo_type, is_excluded_from_budget)
-            VALUES (%s, 'Internal Movement', 'arrows-right-left', '#3b82f6', 'expense', 'saving', TRUE)
-            ON CONFLICT (user_id, name, kind) DO UPDATE SET is_excluded_from_budget = TRUE
+            VALUES (%s, 'Internal Movement', 'arrows-right-left', '#3b82f6', 'expense', NULL, TRUE)
+            ON CONFLICT (user_id, name, kind) DO UPDATE SET is_excluded_from_budget = TRUE, kakeibo_type = NULL
             RETURNING id
             """,
             (user_id,),
@@ -55,7 +55,7 @@ def _ensure_internal_movement_categories(cur, user_id: str) -> tuple[str, str]:
             """
             INSERT INTO categories (user_id, name, icon, color, kind, kakeibo_type, is_excluded_from_budget)
             VALUES (%s, 'Internal Movement', 'arrows-right-left', '#3b82f6', 'income', NULL, TRUE)
-            ON CONFLICT (user_id, name, kind) DO UPDATE SET is_excluded_from_budget = TRUE
+            ON CONFLICT (user_id, name, kind) DO UPDATE SET is_excluded_from_budget = TRUE, kakeibo_type = NULL
             RETURNING id
             """,
             (user_id,),

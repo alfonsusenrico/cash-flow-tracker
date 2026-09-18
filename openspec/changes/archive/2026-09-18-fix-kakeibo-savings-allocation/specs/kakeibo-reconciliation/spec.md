@@ -1,9 +1,6 @@
-# kakeibo-reconciliation Specification
+# Spec Delta
 
-## Purpose
-TBD - created by archiving change portfolio-trade-kakeibo-reconciliation. Update Purpose after archive.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Portfolio Trade Exclusion from Kakeibo
 The system SHALL exclude investment trades (such as buying or selling stocks, mutual funds, or gold) and automated internal transfers from Kakeibo pillars so that trading turnover and inter-account movements do not inflate monthly savings or living expense metrics:
@@ -42,12 +39,3 @@ The system SHALL count only fresh net capital movements from operational account
 #### Scenario: User transfers funds between checking or e-wallet accounts
 - **WHEN** a user transfers money from Bank ATM to GoPay or between operational checking pockets
 - **THEN** the transfer amount SHALL NOT be counted as monthly savings
-
-### Requirement: Normalized 50/30/20 Allocation Proportions
-The system SHALL compute Kakeibo pillar percentages based on the total allocated living funds (`total_allocated = need_spent + want_spent + max(0, net_saving_spent)`) so that pillar proportions represent a cohesive 100% distribution.
-
-#### Scenario: Allocation percentages always sum to 100%
-- **WHEN** the dashboard calculates the 50/30/20 Kakeibo breakdown for the cycle
-- **THEN** `need_pct`, `want_pct`, and `saving_pct` SHALL be computed relative to `total_allocated`
-- **AND** the three percentages SHALL sum to 100% (within rounding)
-- **AND** no individual pillar percentage SHALL exceed 100% of the active allocation
