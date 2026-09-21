@@ -74,7 +74,7 @@ export function BurnCadenceChart({
         )}
       </div>
 
-      <div className="h-64 sm:h-72 w-full pt-2">
+      <div className="h-40 sm:h-72 w-full pt-2">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
             <CartesianGrid {...chartGridProps} />
@@ -133,16 +133,20 @@ export function BurnCadenceChart({
               />
             )}
             <Bar dataKey="expense" radius={[4, 4, 0, 0]}>
-              {data.map((entry, index) => {
-                const isOver = effectiveBenchmark > 0 && entry.expense > effectiveBenchmark;
-                return (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={isOver ? chartColors.expense : "var(--border-strong)"}
-                    opacity={entry.expense > 0 ? 0.9 : 0.3}
-                  />
-                );
-              })}
+              {(() => {
+                const maxExpense = Math.max(...data.map((d) => d.expense), 0);
+                return data.map((entry, index) => {
+                  const isOver = effectiveBenchmark > 0 && entry.expense > effectiveBenchmark;
+                  const isPeak = entry.expense > 0 && entry.expense === maxExpense;
+                  return (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={isOver ? chartColors.expense : isPeak ? "#66CC55" : "var(--border-strong)"}
+                      opacity={entry.expense > 0 ? 0.95 : 0.3}
+                    />
+                  );
+                });
+              })()}
             </Bar>
           </BarChart>
         </ResponsiveContainer>

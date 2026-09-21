@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
+import { MobileLedgerFeed } from "@/components/ledger/MobileLedgerFeed";
 
 interface TransactionItem {
   id: string;
@@ -154,6 +155,7 @@ export default function LedgerPage() {
   // Selected for Edit/Detail
   const [editingTx, setEditingTx] = useState<TransactionItem | null>(null);
   const [recurringModalOpen, setRecurringModalOpen] = useState(false);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 
   // Edit form state
   const [editAmount, setEditAmount] = useState("");
@@ -340,8 +342,8 @@ export default function LedgerPage() {
 
   return (
     <div className="space-y-6">
-      {/* 1. Header & Summary Ribbon */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[var(--border)]">
+      {/* 1. Header & Summary Ribbon (Desktop Only, Mobile uses streamlined topbar) */}
+      <div className="hidden sm:flex sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[var(--border)]">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
@@ -386,7 +388,34 @@ export default function LedgerPage() {
       <PendingScheduledBanner onOpenRulesManager={() => setRecurringModalOpen(true)} />
 
       {/* 2. Ledger Volume Summary Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Mobile 1-Row Summary Ribbon (< sm) */}
+      <div className="sm:hidden flex items-center justify-between p-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
+        <div className="flex-1 text-center">
+          <div className="text-[10px] uppercase font-bold text-[var(--muted)]">Masuk</div>
+          <div className="text-xs font-bold text-emerald-500 tabular mt-0.5">+{bal(pageInflow)}</div>
+        </div>
+        <div className="h-6 w-px bg-[var(--border)]" />
+        <div className="flex-1 text-center">
+          <div className="text-[10px] uppercase font-bold text-[var(--muted)]">Keluar</div>
+          <div className="text-xs font-bold text-rose-500 tabular mt-0.5">-{bal(pageOutflow)}</div>
+        </div>
+        <div className="h-6 w-px bg-[var(--border)]" />
+        <div className="flex-1 text-center">
+          <div className="text-[10px] uppercase font-bold text-[var(--muted)]">Net</div>
+          <div
+            className={cn(
+              "text-xs font-bold tabular mt-0.5",
+              pageInflow - pageOutflow >= 0 ? "text-emerald-500" : "text-rose-500"
+            )}
+          >
+            {pageInflow - pageOutflow >= 0 ? "+" : ""}
+            {bal(pageInflow - pageOutflow)}
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop 3-Card Summary (>= sm) */}
+      <div className="hidden sm:grid sm:grid-cols-3 gap-4">
         <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
           <span className="text-xs text-[var(--muted)] font-medium">Uang Masuk (Halaman Ini)</span>
           <div className="text-xl font-bold tabular tracking-tight text-emerald-500 mt-1 select-all">
@@ -413,11 +442,85 @@ export default function LedgerPage() {
         </div>
       </div>
 
-      {/* 3. Search & Filter Bar */}
-      <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+      {/* 3A. Mobile Search & Filter Toolbar (< lg) */}
+      <div className="lg:hidden space-y-2.5">
+        {/* Search Input Pill */}
+        <div className="relative">
+          <Icon
+            name="search"
+            className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+          />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(0);
+            }}
+            placeholder="Cari catatan, kategori, toko..."
+            className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] pl-10 pr-9 py-2.5 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:outline-none focus:border-income transition-colors shadow-2xs"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--muted)] hover:text-[var(--text)] p-1"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Horizontal Filter Chips & Filter Drawer Button */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {[
+            { key: "all", label: "Semua" },
+            { key: "expense", label: "Keluar" },
+            { key: "income", label: "Masuk" },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                setTypeFilter(key);
+                setPage(0);
+              }}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0 active:scale-95",
+                typeFilter === key
+                  ? "bg-[#1E201E] text-white shadow-2xs border border-white/10"
+                  : "bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] border border-[var(--border)]"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+
+          {/* Filter Drawer Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setFilterDrawerOpen(true)}
+            className={cn(
+              "ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-all shrink-0 active:scale-95",
+              accountFilter !== "all" || categoryFilter !== "all"
+                ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30"
+                : "bg-[var(--surface)] text-[var(--text)] border-[var(--border)] hover:bg-[var(--surface-raised)]"
+            )}
+          >
+            <Icon name="filter" className="h-3.5 w-3.5" />
+            <span>Filter</span>
+            {(accountFilter !== "all" || categoryFilter !== "all") && (
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* 3B. Desktop Search & Filter Bar (>= lg) */}
+      <div className="hidden lg:block p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs space-y-3">
+        <div className="grid grid-cols-12 gap-3 items-center">
           {/* Search Input */}
-          <div className="sm:col-span-6 relative">
+          <div className="col-span-6 relative">
             <Icon
               name="search"
               className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]"
@@ -444,7 +547,7 @@ export default function LedgerPage() {
           </div>
 
           {/* Account Filter */}
-          <div className="sm:col-span-3">
+          <div className="col-span-3">
             <select
               value={accountFilter}
               onChange={(e) => {
@@ -459,7 +562,7 @@ export default function LedgerPage() {
           </div>
 
           {/* Category Filter */}
-          <div className="sm:col-span-3">
+          <div className="col-span-3">
             <select
               value={categoryFilter}
               onChange={(e) => {
@@ -522,8 +625,44 @@ export default function LedgerPage() {
         </div>
       </div>
 
-      {/* 4. Ledger Data Table */}
-      <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-xs overflow-hidden">
+      {/* 4. Ledger Data Display */}
+      {/* Mobile Feed (< lg) */}
+      <div className="lg:hidden space-y-4">
+        <MobileLedgerFeed
+          transactions={displayTransactions}
+          onOpenEdit={handleOpenEdit}
+          bal={bal}
+          isLoading={isLoading}
+        />
+
+        {/* Mobile Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between p-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--muted)]">
+            <button
+              type="button"
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="px-3 py-1.5 rounded-xl border border-[var(--border)] hover:bg-[var(--surface-raised)] disabled:opacity-40 font-medium"
+            >
+              Sebelumnya
+            </button>
+            <span className="text-[11px] px-2 font-bold tabular text-[var(--text)]">
+              {page + 1} / {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              className="px-3 py-1.5 rounded-xl border border-[var(--border)] hover:bg-[var(--surface-raised)] disabled:opacity-40 font-medium"
+            >
+              Berikutnya
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Data Table (>= lg) */}
+      <div className="hidden lg:block rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-xs overflow-hidden">
         {isLoading ? (
           <div className="py-20 text-center text-xs text-[var(--muted)] animate-pulse">
             Memuat riwayat transaksi...
@@ -966,6 +1105,121 @@ export default function LedgerPage() {
         open={recurringModalOpen}
         onClose={() => setRecurringModalOpen(false)}
       />
+
+      {/* Mobile Bottom-Sheet Filter Drawer */}
+      <Modal
+        open={filterDrawerOpen}
+        onClose={() => setFilterDrawerOpen(false)}
+        title="Filter Transaksi"
+      >
+        <div className="space-y-4 pt-1 text-xs">
+          {/* Account Filter */}
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+              Rekening & Dompet
+            </label>
+            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountFilter("all");
+                  setPage(0);
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl font-medium border text-xs transition-all",
+                  accountFilter === "all"
+                    ? "bg-emerald-500 text-white border-emerald-500 font-bold"
+                    : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text)]"
+                )}
+              >
+                Semua Rekening
+              </button>
+              {accounts.map((acc: any) => (
+                <button
+                  key={acc.id}
+                  type="button"
+                  onClick={() => {
+                    setAccountFilter(acc.id);
+                    setPage(0);
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl font-medium border text-xs transition-all",
+                    accountFilter === acc.id
+                      ? "bg-emerald-500 text-white border-emerald-500 font-bold"
+                      : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text)]"
+                  )}
+                >
+                  {acc.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Category Filter */}
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+              Kategori
+            </label>
+            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryFilter("all");
+                  setPage(0);
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl font-medium border text-xs transition-all",
+                  categoryFilter === "all"
+                    ? "bg-emerald-500 text-white border-emerald-500 font-bold"
+                    : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text)]"
+                )}
+              >
+                Semua Kategori
+              </button>
+              {categories.map((cat: any) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => {
+                    setCategoryFilter(cat.id);
+                    setPage(0);
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl font-medium border text-xs transition-all",
+                    categoryFilter === cat.id
+                      ? "bg-emerald-500 text-white border-emerald-500 font-bold"
+                      : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text)]"
+                  )}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Drawer Actions */}
+          <div className="flex items-center gap-2 pt-3 border-t border-[var(--border)]">
+            <button
+              type="button"
+              onClick={() => {
+                setAccountFilter("all");
+                setCategoryFilter("all");
+                setPage(0);
+              }}
+              className="flex-1 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] font-semibold text-center hover:text-[var(--text)]"
+            >
+              Reset Filter
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterDrawerOpen(false)}
+              className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-center shadow-xs"
+            >
+              Terapkan
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

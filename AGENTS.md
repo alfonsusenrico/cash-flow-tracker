@@ -2,6 +2,46 @@
 
 This document records approved project standards, architecture decisions, and the mandatory execution workflow for **Cash Flow Tracker**. Future agents and pair-programming sessions MUST read `/Users/enrico/project/AGENTS.md`, `/Users/enrico/project/AI_PROJECT_DELIVERY_STANDARD.md`, and this file before performing meaningful work.
 
+<!-- owner-baseline:start -->
+## Owner development baseline
+
+This repository keeps its project-specific rules below. Apply the owner baseline
+at `/Users/enrico/project/AGENTS.md` when it is available. This bounded section
+preserves the critical universal rules when the repository is opened independently;
+it does not replace or weaken any project-specific instruction in this file.
+
+- Read `PROJECT_STATE.md` before meaningful work, reconcile it with current Git
+  and runtime state, and keep it concise and current at meaningful checkpoints.
+- In an OpenSpec project, use the installed native `core` profile and generated
+  integrations. Treat the CLI as authoritative for status, schemas, artifact
+  instructions, validation, synchronization, and archiving. Never hand-author or
+  imitate OpenSpec skills, commands, or prompts.
+- Use a current Graphify graph for unfamiliar architecture and cross-file tracing
+  when available; verify graph findings against source. Use direct reads or `rg`
+  for known files and symbols.
+- Optimize code for comprehension, correctness, and safe modification—not minimum
+  characters or lines. Follow the repository formatter for indentation, spacing,
+  wrapping, and blank lines; never compress readable code into dense one-liners.
+- Name code by enduring responsibility and domain meaning. Do not encode prompts,
+  discussions, tickets, iterations, or implementation chronology in identifiers.
+  Use a versioned name only when the version is a real coexistence or compatibility
+  contract, with an explicit migration and removal condition.
+- Keep comments that explain rationale, invariants, units, security, compatibility,
+  or external constraints. Remove narration, obvious restatements, commented-out
+  code, AI or skill branding, self-scores, and speculative TODOs.
+- Keep changes focused but complete. Run the repository's formatter, lint/type
+  checks, focused behavior tests, and applicable build or integration checks, then
+  review the final diff for dead code, duplication, dense expressions, useless
+  comments, accidental secrets, formatting churn, and unrequested behavior.
+- For affected UI, use deliberate project-specific design direction and verify
+  semantics, keyboard behavior, focus, contrast, zoom/reflow, responsive states,
+  and relevant WCAG 2.2 AA criteria. Design-review skills supplement rather than
+  replace browser and accessibility verification.
+- Report what changed, what passed, what failed or was not run, remaining risks,
+  and the next action. Never claim validation, deployment, or acceptance that did
+  not occur.
+<!-- owner-baseline:end -->
+
 ---
 
 ## 1. Purpose and Core Mission
@@ -12,18 +52,21 @@ This document records approved project standards, architecture decisions, and th
 
 ---
 
-## 2. Mandatory Spec-Driven Workflow (OpenSpec Standard)
+## 2. Mandatory Native OpenSpec Workflow
 
-No non-trivial implementation shall occur without an approved OpenSpec change. All work follows the 7-stage OpenSpec Core lifecycle:
+No non-trivial implementation shall occur without an approved OpenSpec change.
+Use the OpenSpec-generated core integrations and their current CLI instructions;
+the lifecycle below is this project's approval and verification policy around
+that native workflow, not a replacement implementation of OpenSpec.
 
 ```mermaid
 flowchart TD
-    A["1. Review Current Situation<br/>(Codebase & Working-Tree Audit)"] --> B["2. Scaffold Change<br/>(openspec new change &lt;name&gt;)"]
+    A["1. Review Current Situation<br/>(Codebase & Working-Tree Audit)"] --> B["2. Explore When Needed & Propose<br/>(native generated workflows)"]
     B --> C["3. Prepare Strategy & Artifacts<br/>(proposal.md, design.md, specs/, tasks.md)"]
     C --> D["4. User Review & Approval Gate<br/>(Explicit user confirmation required)"]
-    D --> E["5. Work Controller & Implementation<br/>(Execute tasks sequentially, update tasks.md)"]
+    D --> E["5. Native Apply & Update<br/>(Implement approved tasks; revise artifacts when decisions change)"]
     E --> F["6. Verify Approved Contract<br/>(Tests, lints, build, openspec validate)"]
-    F --> G["7. User Acceptance & Archive<br/>(openspec archive)"]
+    F --> G["7. User Acceptance, Sync & Archive<br/>(follow native status and instructions)"]
 ```
 
 ### Stage 1: Review Current Codebase Situation
@@ -32,8 +75,11 @@ flowchart TD
 - Document facts and authoritative requirements; never guess user intent.
 
 ### Stage 2: Scaffold OpenSpec Change
-- Initialize/maintain change under `openspec/changes/<change-name>/`.
-- Use schema `spec-driven` with `.openspec.yaml`.
+- Use the generated propose workflow to initialize and prepare the change.
+- Query native status and artifact instructions instead of constructing the
+  change, schema, dependency order, or prompts from memory.
+- Maintain the change under `openspec/changes/<change-name>/` using the project's
+  configured native schema.
 
 ### Stage 3: Prepare Strategy, Specs, and Implementation Plan
 Every change requires 4 foundational artifacts:
@@ -155,7 +201,10 @@ docker compose down
 ## 6. Security & Secrets Sanitization Guardrail (MANDATORY)
 
 - **NEVER print, cat, read, or output sensitive credentials, secret values, tokens, API keys, private keys, or passwords in tool outputs or terminal commands.**
-- **Inspecting Environment Files:** When inspecting `.env`, `runtime.env`, secrets files, or configuration files, agents **MUST extract ONLY variable names/keys** (e.g. `cut -d= -f1`, `awk -F= '{print $1}'`), NEVER the values.
+- **Inspecting Environment Files:** When inspection is necessary, use a
+  format-aware keys-only mechanism that emits only validated names and never
+  values, unmatched lines, or multiline continuations. Do not use delimiter-only
+  text extraction as a sanitizer and do not source an untrusted environment file.
 - **Handling Secrets:** If a secret is required in a configuration, CI/CD secret, or script, provide the variable name and instructions for the user to populate or set it, or use placeholders. Never dump plaintext secrets to the console, logs, or chat transcripts.
 
 ---
@@ -169,19 +218,3 @@ docker compose down
 - **Schema Migrations Mandatory:** Any database schema adjustments MUST be implemented via versioned schema migration scripts executed through the deployment workflow, never via manual or direct DDL execution on production databases.
 
 ---
-
-## 8. Skill Usage Baseline Standard (Ponytail & Caveman)
-
-This project strictly adheres to the global Skill Usage Baseline Standard defined in `/Users/enrico/project/AGENTS.md`:
-
-1. **Ponytail (Anti-Bloat & Radical Simplicity):**
-   - **Default:** Always active (`full`) on all code generation, refactoring, and bug fixes.
-   - **Enforce the 7-Rung Ladder:** YAGNI $\rightarrow$ Project Reuse $\rightarrow$ Stdlib $\rightarrow$ Platform Native $\rightarrow$ Installed Deps $\rightarrow$ One-liner $\rightarrow$ Minimum code.
-   - **No Bloat:** In this project, keep the 5-table data model pristine. Reject any reintroduction of legacy abstractions (buckets, allocation engines, goal simulators).
-   - **Root-Cause Bug Fixing:** Grep all callers before touching shared functions; fix once at the source.
-   - **Diff Auditing:** Run `ponytail-review` on git diffs before concluding implementation tasks.
-
-2. **Caveman (Zero-Fluff High-Density Communication):**
-   - **Default:** Active during fast debugging and task execution loops.
-   - **Pattern:** `[target] [action] [root cause]. [next step].`
-   - **Exceptions:** Always revert to clear, complete prose for destructive database commands, security warnings, or OpenSpec strategy deliverables.

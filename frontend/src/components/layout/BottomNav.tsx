@@ -19,36 +19,36 @@ export function BottomNav({ onQuickAdd }: BottomNavProps) {
 
   return (
     <div
-      className="lg:hidden fixed bottom-3 left-3 right-3 z-50 max-w-md mx-auto pointer-events-none"
+      className="lg:hidden fixed bottom-2.5 left-3 right-3 z-50 max-w-sm mx-auto pointer-events-none"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      <nav className="glass-dock rounded-full p-1.5 flex items-center justify-around pointer-events-auto border border-white/[0.08] shadow-2xl">
+      <nav className="glass-dock rounded-full p-1.5 flex items-center justify-between pointer-events-auto border border-[var(--border)]/60 bg-[var(--surface)]/95 backdrop-blur-xl shadow-2xl">
         {/* 1. Beranda / Pulse */}
         <Link
           href="/"
           className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all",
+            "flex flex-col sm:flex-row items-center justify-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all",
             isActive("/")
-              ? "bg-white/10 text-white font-semibold border border-white/10 shadow-xs"
+              ? "bg-[var(--accent-lime,#66CC55)] text-[#141814] font-bold shadow-xs"
               : "text-[var(--muted)] hover:text-[var(--text)]"
           )}
         >
           <Icon name="dashboard" className="h-4 w-4 shrink-0" />
-          <span className={cn("text-[11px]", !isActive("/") && "hidden sm:inline")}>Beranda</span>
+          <span className="text-[10px] sm:text-xs tracking-tight">Beranda</span>
         </Link>
 
         {/* 2. Transaksi / Ledger */}
         <Link
           href="/ledger"
           className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all",
+            "flex flex-col sm:flex-row items-center justify-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all",
             isActive("/ledger")
-              ? "bg-white/10 text-white font-semibold border border-white/10 shadow-xs"
+              ? "bg-[var(--accent-lime,#66CC55)] text-[#141814] font-bold shadow-xs"
               : "text-[var(--muted)] hover:text-[var(--text)]"
           )}
         >
           <Icon name="ledger" className="h-4 w-4 shrink-0" />
-          <span className={cn("text-[11px]", !isActive("/ledger") && "hidden sm:inline")}>Transaksi</span>
+          <span className="text-[10px] sm:text-xs tracking-tight">Transaksi</span>
         </Link>
 
         {/* Center Quick Add Trigger */}
@@ -57,37 +57,37 @@ export function BottomNav({ onQuickAdd }: BottomNavProps) {
           onClick={onQuickAdd}
           aria-label="Catat Transaksi Cepat"
           title="Catat Transaksi Cepat"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg active:scale-95 transition-transform shrink-0 cursor-pointer"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1E201E] text-white border border-white/10 shadow-lg active:scale-95 transition-transform shrink-0 cursor-pointer -my-1"
         >
-          <Icon name="plus" className="h-5 w-5" />
+          <Icon name="plus" className="h-5 w-5 text-[var(--accent-lime,#66CC55)]" />
         </button>
 
         {/* 3. Analisis / Insights */}
         <Link
           href="/insights"
           className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all",
+            "flex flex-col sm:flex-row items-center justify-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all",
             isActive("/insights")
-              ? "bg-white/10 text-white font-semibold border border-white/10 shadow-xs"
+              ? "bg-[var(--accent-lime,#66CC55)] text-[#141814] font-bold shadow-xs"
               : "text-[var(--muted)] hover:text-[var(--text)]"
           )}
         >
           <Icon name="analysis" className="h-4 w-4 shrink-0" />
-          <span className={cn("text-[11px]", !isActive("/insights") && "hidden sm:inline")}>Analisis</span>
+          <span className="text-[10px] sm:text-xs tracking-tight">Analisis</span>
         </Link>
 
         {/* 4. Rekening / Accounts */}
         <Link
           href="/accounts"
           className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all",
+            "flex flex-col sm:flex-row items-center justify-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all",
             isActive("/accounts")
-              ? "bg-white/10 text-white font-semibold border border-white/10 shadow-xs"
+              ? "bg-[var(--accent-lime,#66CC55)] text-[#141814] font-bold shadow-xs"
               : "text-[var(--muted)] hover:text-[var(--text)]"
           )}
         >
           <Icon name="credit-card" className="h-4 w-4 shrink-0" />
-          <span className={cn("text-[11px]", !isActive("/accounts") && "hidden sm:inline")}>Dompet</span>
+          <span className="text-[10px] sm:text-xs tracking-tight">Dompet</span>
         </Link>
       </nav>
     </div>

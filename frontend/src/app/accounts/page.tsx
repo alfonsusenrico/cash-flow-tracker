@@ -386,6 +386,25 @@ export default function AccountsPage() {
     });
   }, [activeAccounts, orderedAccountIds]);
 
+  const [mobileAccountFilter, setMobileAccountFilter] = useState<
+    "all" | "bank_wallet" | "cash" | "investment"
+  >("all");
+
+  const filteredMobileAccounts = useMemo(() => {
+    if (mobileAccountFilter === "bank_wallet") {
+      return topAccounts.filter((a) => a.type === "bank" || a.type === "wallet");
+    }
+    if (mobileAccountFilter === "cash") {
+      return topAccounts.filter((a) => a.type === "cash");
+    }
+    if (mobileAccountFilter === "investment") {
+      return topAccounts.filter(
+        (a) => a.type === "investment" || Boolean(a.instrument_type)
+      );
+    }
+    return topAccounts;
+  }, [topAccounts, mobileAccountFilter]);
+
   const netWorth = netWorthData?.net_worth ?? totalBalance;
   const totalAssets = netWorthData?.total_assets ?? totalBalance;
   const totalLiabilities = netWorthData?.total_liabilities ?? 0;
@@ -682,7 +701,51 @@ export default function AccountsPage() {
           </h1>
         </div>
 
-        <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
+        {/* Mobile Action Ribbon (< lg) */}
+        <div className="lg:hidden flex items-center justify-between gap-2 w-full pt-1">
+          <div className="flex items-center gap-1.5 flex-1">
+            <button
+              type="button"
+              onClick={handleOpenNewAccount}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-2xl bg-[#1E201E] text-white text-xs font-bold shadow-xs active:scale-95 transition-all border border-white/10"
+            >
+              <span className="text-sm leading-none text-[var(--accent-lime,#66CC55)] font-black">+</span>
+              <span>Rekening</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenTransfer()}
+              disabled={activeAccounts.length < 2}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] text-xs font-bold shadow-xs active:scale-95 transition-all disabled:opacity-40"
+            >
+              <Icon name="repeat" className="h-3.5 w-3.5 text-sky-500 stroke-[2.5]" />
+              <span>Pindah</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => syncPricesMutation.mutate()}
+              disabled={syncPricesMutation.isPending}
+              className="p-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-all active:scale-95"
+              title="Sync Harga"
+            >
+              <Icon name="refresh-cw" className={cn("h-4 w-4", syncPricesMutation.isPending && "animate-spin")} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setPayrollModalOpen(true)}
+              className="p-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-emerald-600 dark:text-emerald-400 transition-all active:scale-95"
+              title="Alokasi Gaji"
+            >
+              <Icon name="allocation" className="h-4 w-4 stroke-[2.5]" />
+            </button>
+          </div>
+        </div>
+
+        {/* Desktop Action Buttons (>= lg) */}
+        <div className="hidden lg:flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
           {syncMessage && (
             <span className="text-[11px] font-medium px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-fade-in">
               {syncMessage}
@@ -744,8 +807,10 @@ export default function AccountsPage() {
         </div>
       </div>
 
-      {/* 2. Executive Net Worth & Runway Hero Card */}
-      <div className="card-squircle relative overflow-hidden bg-gradient-to-br from-white via-slate-50 to-slate-100 text-slate-900 dark:from-[#1E2127] dark:via-[#14161A] dark:to-[#0D0E11] dark:text-white p-6 sm:p-7 shadow-xs dark:shadow-md border border-[var(--border-strong)]">
+      {/* ===================== DESKTOP COCKPIT (>= lg) ===================== */}
+      <div className="hidden lg:block space-y-6">
+        {/* 2. Executive Net Worth & Runway Hero Card */}
+        <div className="card-squircle relative overflow-hidden bg-gradient-to-br from-white via-slate-50 to-slate-100 text-slate-900 dark:from-[#1E2127] dark:via-[#14161A] dark:to-[#0D0E11] dark:text-white p-6 sm:p-7 shadow-xs dark:shadow-md border border-[var(--border-strong)]">
         <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 blur-3xl pointer-events-none" />
         <div className="absolute -left-16 -bottom-16 h-48 w-48 rounded-full bg-indigo-500/10 dark:bg-indigo-500/15 blur-3xl pointer-events-none" />
 
@@ -1557,6 +1622,486 @@ export default function AccountsPage() {
             </div>
           );
         })}
+      </div>
+      </div>
+
+      {/* ===================== MOBILE-NATIVE ACCOUNTS (< lg) ===================== */}
+      <div className="lg:hidden space-y-4">
+        {/* 1. Mobile Net Worth & Runway Hero Card */}
+        <div className="card-squircle p-4 sm:p-5 border border-[var(--border)] bg-[var(--surface)] space-y-3 shadow-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
+              Total Kekayaan Bersih
+            </span>
+            {runway && (
+              <span
+                className={cn(
+                  "text-[10px] px-2.5 py-0.5 rounded-full font-bold border inline-flex items-center gap-1.5 shadow-2xs tabular",
+                  totalAssets <= 0 || runway.status === "zero"
+                    ? "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"
+                    : runway.status === "healthy"
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                    : runway.status === "moderate"
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                    : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    runway.status === "healthy"
+                      ? "bg-emerald-500"
+                      : runway.status === "moderate"
+                      ? "bg-amber-500"
+                      : "bg-rose-500"
+                  )}
+                />
+                Ketahanan:{" "}
+                {totalAssets <= 0 || runway.status === "zero"
+                  ? "0 Hari"
+                  : runway.runway_months >= 99
+                  ? "> 12x Biaya Hidup"
+                  : `${runway.runway_months}x (${runway.runway_days > 365 ? "> 1 Thn" : `${runway.runway_days} Hari`})`}
+              </span>
+            )}
+          </div>
+
+          <div>
+            <div className="text-2xl sm:text-3xl font-black tracking-tight tabular text-[var(--text)] select-all">
+              {bal(animNetWorth)}
+            </div>
+            <p className="text-[11px] text-[var(--muted)] mt-0.5">
+              {totalAssets >= totalLiabilities
+                ? "Saldo kas mencukupi seluruh kewajiban"
+                : "Total kewajiban melebihi saldo kas"}
+            </p>
+          </div>
+
+          {/* Asset vs Liability Strip */}
+          <div className="flex items-center justify-between text-[11px] pt-2 border-t border-[var(--border)]/60 text-[var(--muted)] tabular">
+            <div>
+              <span className="text-[10px] text-[var(--muted)] block">Kas Tersedia</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">{bal(animTotalAssets)}</span>
+            </div>
+            <span className="text-[var(--border)]">•</span>
+            <div>
+              <span className="text-[10px] text-[var(--muted)] block">Cicilan & Utang</span>
+              <span className="font-bold text-rose-600 dark:text-rose-400">{bal(animTotalLiabilities)}</span>
+            </div>
+            <span className="text-[var(--border)]">•</span>
+            <div className="text-right">
+              <span className="text-[10px] text-[var(--muted)] block">Biaya Pokok</span>
+              <span className="font-bold text-[var(--text)]">
+                {bal(runway?.monthly_primary_expense ?? (runway?.daily_burn_rate ?? 0) * 30)}/bln
+              </span>
+            </div>
+          </div>
+
+          {/* Segmented Distribution Line */}
+          <div className="space-y-1 pt-1">
+            <div className="w-full h-1.5 rounded-full bg-[var(--border)]/60 overflow-hidden flex shadow-2xs">
+              {bankPct > 0 && <div style={{ width: `${bankPct}%` }} className="h-full bg-blue-500" />}
+              {walletPct > 0 && <div style={{ width: `${walletPct}%` }} className="h-full bg-emerald-500" />}
+              {cashPct > 0 && <div style={{ width: `${cashPct}%` }} className="h-full bg-amber-500" />}
+              {investPct > 0 && <div style={{ width: `${investPct}%` }} className="h-full bg-indigo-500" />}
+            </div>
+            <div className="flex items-center justify-between text-[9px] text-[var(--muted)] tabular font-medium">
+              <span>Bank {bankPct}%</span>
+              <span>Dompet {walletPct}%</span>
+              <span>Kas {cashPct}%</span>
+              <span>Investasi {investPct}%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Account Type Segmented Filter Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          {[
+            { id: "all", label: "Semua", count: topAccounts.length },
+            {
+              id: "bank_wallet",
+              label: "Bank & Dompet",
+              count: topAccounts.filter((a) => a.type === "bank" || a.type === "wallet").length,
+            },
+            { id: "cash", label: "Kas Tunai", count: topAccounts.filter((a) => a.type === "cash").length },
+            {
+              id: "investment",
+              label: "Investasi",
+              count: topAccounts.filter((a) => a.type === "investment" || Boolean(a.instrument_type)).length,
+            },
+          ].map((chip) => (
+            <button
+              key={chip.id}
+              type="button"
+              onClick={() => setMobileAccountFilter(chip.id as any)}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer",
+                mobileAccountFilter === chip.id
+                  ? "bg-[#1E201E] text-white shadow-xs border border-black dark:border-white/20"
+                  : "bg-[var(--surface-raised)] text-[var(--muted)] hover:text-[var(--text)] border border-[var(--border)]"
+              )}
+            >
+              <span>{chip.label}</span>
+              <span
+                className={cn(
+                  "text-[10px] px-1.5 py-0.2 rounded-full tabular font-semibold",
+                  mobileAccountFilter === chip.id
+                    ? "bg-white/20 text-white"
+                    : "bg-[var(--border)] text-[var(--muted)]"
+                )}
+              >
+                {chip.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* 3. Mobile Apple Wallet Account Cards */}
+        {filteredMobileAccounts.length === 0 ? (
+          <div className="py-10 text-center text-xs text-[var(--muted)] rounded-2xl border border-dashed border-[var(--border)]">
+            Tidak ada rekening di kategori ini.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredMobileAccounts.map((acc) => {
+              const hasChildren = acc.children && acc.children.length > 0;
+              const isExpanded = expandedAccounts[acc.id] !== false;
+
+              const parentPocketOrder = orderedPocketsByParent[acc.id];
+              const childPockets = parentPocketOrder
+                ? [...(acc.children ?? [])].sort((a, b) => {
+                    const idxA = parentPocketOrder.indexOf(a.id);
+                    const idxB = parentPocketOrder.indexOf(b.id);
+                    if (idxA === -1 && idxB === -1) return 0;
+                    if (idxA === -1) return 1;
+                    if (idxB === -1) return -1;
+                    return idxA - idxB;
+                  })
+                : (acc.children ?? []);
+
+              return (
+                <div
+                  key={`mobile-acc-${acc.id}`}
+                  className="card-squircle p-4 bg-[var(--surface)] border border-[var(--border)] shadow-xs space-y-3"
+                >
+                  {/* Card Header: Tag & Actions */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <span
+                        style={{
+                          backgroundColor: acc.color || "#3b82f6",
+                          color: getContrastTextColor(acc.color || "#3b82f6"),
+                        }}
+                        className="inline-flex items-center font-bold text-xs px-2.5 py-0.5 rounded-xl shadow-2xs max-w-full truncate"
+                        title={acc.name}
+                      >
+                        {acc.name}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                        {acc.type === "wallet"
+                          ? "DOMPET"
+                          : acc.type === "cash"
+                          ? "TUNAI"
+                          : acc.type === "investment"
+                          ? "INVESTASI"
+                          : "BANK"}
+                      </span>
+                      {acc.instrument_type && (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] bg-violet-500/15 text-violet-600 dark:text-violet-300 font-semibold uppercase">
+                          {INSTRUMENT_OPTIONS.find((o) => o.value === acc.instrument_type)?.label || acc.instrument_type}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {(acc.type === "investment" || Boolean(acc.instrument_type)) && !hasChildren && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTradePocket(acc);
+                              setTradeAction("buy");
+                              setTradeModalOpen(true);
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"
+                          >
+                            +Beli
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTradePocket(acc);
+                              setTradeAction("sell");
+                              setTradeModalOpen(true);
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-rose-500/15 text-[10px] font-bold text-rose-600 dark:text-rose-400"
+                          >
+                            −Jual
+                          </button>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditAccount(acc)}
+                        className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors"
+                        title="Ubah rekening"
+                      >
+                        <Icon name="edit" className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `Arsipkan rekening "${acc.name}"${hasChildren ? " beserta seluruh kantong di dalamnya" : ""}?`
+                            )
+                          ) {
+                            archiveMutation.mutate(acc.id);
+                          }
+                        }}
+                        className="p-1.5 rounded-lg text-[var(--muted)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                        title="Arsipkan rekening"
+                      >
+                        <Icon name="trash" className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Card Balance */}
+                  <div>
+                    <div className="text-xl sm:text-2xl font-black tabular tracking-tight text-[var(--text)] select-all">
+                      {bal(acc.balance)}
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-[var(--muted)]">
+                      {hasChildren ? (
+                        <span>Total akumulasi {acc.children!.length} kantong</span>
+                      ) : (
+                        <span>{acc.type === "cash" ? "Kas Tunai Fisik" : "Rekening Standalone"}</span>
+                      )}
+
+                      {acc.capital_gain !== null && acc.capital_gain !== undefined && (
+                        <span
+                          className={cn(
+                            "px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 border",
+                            acc.capital_gain >= 0
+                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25"
+                              : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25"
+                          )}
+                        >
+                          <span>{acc.capital_gain >= 0 ? "▲ +" : "▼ "}</span>
+                          <span>{bal(acc.capital_gain)} ({acc.capital_gain_pct ?? 0}%)</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expandable Pocket Accordion */}
+                  {hasChildren && (
+                    <div className="pt-2 border-t border-[var(--border)]/60">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpand(acc.id)}
+                        className="w-full py-2 px-3 rounded-xl bg-[var(--surface-raised)] hover:bg-[var(--surface-raised)]/80 flex items-center justify-between text-xs font-bold text-[var(--text)] border border-[var(--border)] transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Icon name="wallet" className="h-3.5 w-3.5 text-blue-500" />
+                          <span>Daftar Kantong ({acc.children!.length})</span>
+                        </span>
+                        <span className="text-[10px] text-[var(--muted)] font-bold">
+                          {isExpanded ? "▲ Tutup" : "▼ Buka"}
+                        </span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="space-y-2 mt-2 pt-1">
+                          {childPockets.map((pocket) => {
+                            const isInvestPocket =
+                              acc.type === "investment" ||
+                              pocket.type === "investment" ||
+                              Boolean(pocket.instrument_type);
+
+                            return (
+                              <div
+                                key={pocket.id}
+                                className="p-3 rounded-xl bg-[var(--surface-raised)]/50 border border-[var(--border)] space-y-2"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-bold text-xs text-[var(--text)] truncate">
+                                        {pocket.name}
+                                      </span>
+                                      {pocket.instrument_symbol && (
+                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-[var(--surface)] border border-[var(--border)] text-[var(--text)]">
+                                          {pocket.instrument_symbol}
+                                        </span>
+                                      )}
+                                      {pocket.instrument_type && (
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] uppercase bg-violet-500/15 text-violet-600 dark:text-violet-300 font-semibold">
+                                          {INSTRUMENT_OPTIONS.find((o) => o.value === pocket.instrument_type)?.label || pocket.instrument_type}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {pocket.units ? (
+                                      <div className="text-[10px] text-[var(--muted)] font-medium mt-0.5">
+                                        {pocket.units.toLocaleString("id-ID")}{" "}
+                                        {getInstrumentConfig(pocket.instrument_type).unitUnit}
+                                      </div>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="text-right shrink-0">
+                                    <div className="text-xs font-black tabular text-[var(--text)]">
+                                      {bal(pocket.balance)}
+                                    </div>
+                                    {pocket.capital_gain !== null && pocket.capital_gain !== undefined && (
+                                      <div
+                                        className={cn(
+                                          "text-[9px] font-bold tabular mt-0.5",
+                                          pocket.capital_gain >= 0
+                                            ? "text-emerald-600 dark:text-emerald-400"
+                                            : "text-rose-600 dark:text-rose-400"
+                                        )}
+                                      >
+                                        {pocket.capital_gain >= 0 ? "▲ +" : "▼ "}{bal(pocket.capital_gain)} ({pocket.capital_gain_pct ?? 0}%)
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Touch Actions */}
+                                <div className="pt-2 border-t border-[var(--border)]/50 flex items-center justify-between gap-1 text-[11px]">
+                                  <div className="flex items-center gap-1.5">
+                                    {isInvestPocket && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setTradePocket(pocket);
+                                            setTradeAction("buy");
+                                            setTradeModalOpen(true);
+                                          }}
+                                          className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                        >
+                                          +Beli
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setTradePocket(pocket);
+                                            setTradeAction("sell");
+                                            setTradeModalOpen(true);
+                                          }}
+                                          className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                                        >
+                                          −Jual
+                                        </button>
+                                      </>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenTransfer(pocket.id)}
+                                      className="flex items-center gap-1 text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:text-sky-500"
+                                    >
+                                      <Icon name="move" className="h-3 w-3 stroke-[2.5]" />
+                                      <span>Pindah</span>
+                                    </button>
+                                  </div>
+
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setReconcileAccount(pocket);
+                                        setActualBalStr(formatNumberWithDots(pocket.balance));
+                                        setReconcileNotes("");
+                                        setReconcileError("");
+                                      }}
+                                      className="p-1 rounded text-[var(--muted)] hover:text-emerald-500"
+                                      title="Sesuaikan Saldo"
+                                    >
+                                      <Icon name="check" className="h-3.5 w-3.5 text-emerald-500" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditAccount(pocket)}
+                                      className="p-1 rounded text-[var(--muted)] hover:text-[var(--text)]"
+                                      title="Ubah Nama"
+                                    >
+                                      <Icon name="edit" className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (confirm(`Arsipkan kantong "${pocket.name}"?`)) {
+                                          archiveMutation.mutate(pocket.id);
+                                        }
+                                      }}
+                                      className="p-1 rounded text-[var(--muted)] hover:text-rose-500"
+                                      title="Arsipkan"
+                                    >
+                                      <Icon name="trash" className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenNewPocket(acc)}
+                            className="w-full py-2 px-3 rounded-xl border border-dashed border-[var(--border)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--border-strong)] transition-all flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <span className="font-bold">+</span>
+                            <span>Tambah Kantong Baru</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Standalone Actions (if no child pockets) */}
+                  {!hasChildren && (
+                    <div className="pt-2.5 border-t border-[var(--border)]/60 flex items-center justify-between gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenNewPocket(acc)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--surface-raised)] hover:bg-[var(--border)]/50 text-[11px] font-semibold text-[var(--text)] border border-[var(--border)] transition-colors cursor-pointer"
+                      >
+                        <span>+ Kantong</span>
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReconcileAccount(acc);
+                            setActualBalStr(formatNumberWithDots(acc.balance));
+                            setReconcileNotes("");
+                            setReconcileError("");
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--text)] border border-transparent hover:border-[var(--border)] transition-colors cursor-pointer"
+                        >
+                          <Icon name="check" className="h-3 w-3 text-emerald-500 stroke-[2.5]" />
+                          <span>Sesuaikan</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenTransfer(acc.id)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 transition-colors cursor-pointer"
+                        >
+                          <Icon name="move" className="h-3 w-3 stroke-[2.5]" />
+                          <span>Pindah Saldo</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Transfer Modal */}

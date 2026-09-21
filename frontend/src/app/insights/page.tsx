@@ -226,8 +226,35 @@ export default function AnalyticsPage() {
       {/* ===================== TAB 1: SUMMARY & BUDGETS ===================== */}
       {activeTab === "summary" && (
         <div className="space-y-6">
-          {/* Burn Rate KPI Tiles */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Mobile Metric Strip (< lg) */}
+          <div className="lg:hidden grid grid-cols-3 gap-2">
+            <div className="p-2.5 rounded-2xl bg-rose-500/[0.04] border border-rose-500/20 flex flex-col justify-center min-h-[72px] space-y-1">
+              <div className="text-[10px] font-bold text-[var(--muted)] truncate">Rata 7 Hari</div>
+              <div className="text-xs sm:text-sm font-black tabular tracking-tight text-rose-500 truncate">
+                {bal(animBurn7d)}
+              </div>
+              <div className="text-[9px] text-[var(--muted)]">/ hari</div>
+            </div>
+
+            <div className="p-2.5 rounded-2xl bg-amber-500/[0.04] border border-amber-500/20 flex flex-col justify-center min-h-[72px] space-y-1">
+              <div className="text-[10px] font-bold text-[var(--muted)] truncate">Rata 30 Hari</div>
+              <div className="text-xs sm:text-sm font-black tabular tracking-tight text-amber-500 truncate">
+                {bal(animBurn30d)}
+              </div>
+              <div className="text-[9px] text-[var(--muted)]">/ hari</div>
+            </div>
+
+            <div className="p-2.5 rounded-2xl bg-indigo-500/[0.04] border border-indigo-500/20 flex flex-col justify-center min-h-[72px] space-y-1">
+              <div className="text-[10px] font-bold text-[var(--muted)] truncate">Proyeksi</div>
+              <div className="text-xs sm:text-sm font-black tabular tracking-tight text-[var(--text)] truncate">
+                {bal(animProjected)}
+              </div>
+              <div className="text-[9px] text-[var(--muted)]">estimasi</div>
+            </div>
+          </div>
+
+          {/* Desktop Burn Rate KPI Tiles (>= lg) */}
+          <div className="hidden lg:grid lg:grid-cols-3 gap-4">
             <div className="card-squircle bg-rose-500/[0.04] border-rose-500/20 p-5 space-y-2.5 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-[var(--muted)] font-bold">Rata-rata 7 Hari</span>
@@ -356,87 +383,243 @@ export default function AnalyticsPage() {
                 Belum ada data pengeluaran kategori.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead>
-                    <tr className="border-b border-[var(--border)] text-[var(--muted)] uppercase text-[10px] font-semibold">
-                      <th className="pb-3 font-semibold">Kategori</th>
-                      <th className="pb-3 font-semibold text-right">Terpakai</th>
-                      <th className="pb-3 font-semibold text-right">Batas Anggaran</th>
-                      <th className="pb-3 font-semibold text-right">Sisa Anggaran</th>
-                      <th className="pb-3 font-semibold text-right">Status</th>
-                      <th className="pb-3 font-semibold text-right w-16">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)]">
-                    {categories.map((cat: any) => {
-                      const hasBudget = cat.budget && cat.budget > 0;
-                      const isOver = cat.status === "over_budget";
-                      const isWarning = cat.status === "warning";
+              <>
+                {/* 1. Desktop 6-Column Data Table (>= lg) */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead>
+                      <tr className="border-b border-[var(--border)] text-[var(--muted)] uppercase text-[10px] font-semibold">
+                        <th className="pb-3 font-semibold">Kategori</th>
+                        <th className="pb-3 font-semibold text-right">Terpakai</th>
+                        <th className="pb-3 font-semibold text-right">Batas Anggaran</th>
+                        <th className="pb-3 font-semibold text-right">Sisa Anggaran</th>
+                        <th className="pb-3 font-semibold text-right">Status</th>
+                        <th className="pb-3 font-semibold text-right w-16">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border)]">
+                      {categories.map((cat: any) => {
+                        const hasBudget = cat.budget && cat.budget > 0;
+                        const isOver = cat.status === "over_budget";
+                        const isWarning = cat.status === "warning";
 
-                      return (
-                        <tr
-                          key={cat.id}
-                          className="hover:bg-[var(--surface-raised)]/50 transition-colors"
-                        >
-                          <td className="py-3.5 pr-4">
-                            <div className="flex items-center gap-2.5">
-                              <div
-                                className="h-7 w-7 rounded-lg flex items-center justify-center text-xs text-white shrink-0 shadow-2xs"
-                                style={{ backgroundColor: cat.color || "#3b82f6" }}
-                              >
-                                <Icon
-                                  name={cat.icon || "tag"}
-                                  className="h-3.5 w-3.5 text-white"
-                                />
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-semibold text-[var(--text)]">
-                                    {cat.name}
-                                  </span>
+                        return (
+                          <tr
+                            key={cat.id}
+                            className="hover:bg-[var(--surface-raised)]/50 transition-colors"
+                          >
+                            <td className="py-3.5 pr-4">
+                              <div className="flex items-center gap-2.5">
+                                <div
+                                  className="h-7 w-7 rounded-lg flex items-center justify-center text-xs text-white shrink-0 shadow-2xs"
+                                  style={{ backgroundColor: cat.color || "#3b82f6" }}
+                                >
+                                  <Icon
+                                    name={cat.icon || "tag"}
+                                    className="h-3.5 w-3.5 text-white"
+                                  />
                                 </div>
-                                {hasBudget && (
-                                  <div className="w-24 sm:w-36 h-1.5 rounded-full bg-[var(--border)]/60 overflow-hidden mt-1">
-                                    <div
-                                      style={{
-                                        width: `${Math.min(cat.percentage_used, 100)}%`,
-                                      }}
-                                      className={cn(
-                                        "h-full rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
-                                        isOver
-                                          ? "bg-rose-500 shadow-rose-500/30"
-                                          : isWarning
-                                          ? "bg-amber-500 shadow-amber-500/30"
-                                          : "bg-emerald-500 shadow-emerald-500/30"
-                                      )}
-                                    />
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-semibold text-[var(--text)]">
+                                      {cat.name}
+                                    </span>
                                   </div>
-                                )}
+                                  {hasBudget && (
+                                    <div className="w-24 sm:w-36 h-1.5 rounded-full bg-[var(--border)]/60 overflow-hidden mt-1">
+                                      <div
+                                        style={{
+                                          width: `${Math.min(cat.percentage_used, 100)}%`,
+                                        }}
+                                        className={cn(
+                                          "h-full rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                                          isOver
+                                            ? "bg-rose-500 shadow-rose-500/30"
+                                            : isWarning
+                                            ? "bg-amber-500 shadow-amber-500/30"
+                                            : "bg-emerald-500 shadow-emerald-500/30"
+                                        )}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          </td>
+                            </td>
 
-                          <td className="py-3.5 text-right font-bold tabular text-[var(--text)]">
-                            {bal(cat.spent)}
-                          </td>
+                            <td className="py-3.5 text-right font-bold tabular text-[var(--text)]">
+                              {bal(cat.spent)}
+                            </td>
 
-                          <td className="py-3.5 text-right text-[var(--muted)] tabular">
-                            <button
-                              type="button"
-                              onClick={() => openEditCategory(cat)}
-                              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-[var(--surface-raised)] text-[var(--text)] font-semibold border border-transparent hover:border-[var(--border)] transition-colors group/btn cursor-pointer"
-                              title="Klik untuk mengatur batas anggaran"
+                            <td className="py-3.5 text-right text-[var(--muted)] tabular">
+                              <button
+                                type="button"
+                                onClick={() => openEditCategory(cat)}
+                                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-[var(--surface-raised)] text-[var(--text)] font-semibold border border-transparent hover:border-[var(--border)] transition-colors group/btn cursor-pointer"
+                                title="Klik untuk mengatur batas anggaran"
+                              >
+                                <span>{hasBudget ? bal(cat.budget) : "Atur batas"}</span>
+                                <Icon
+                                  name="edit"
+                                  className="h-3 w-3 opacity-0 group-hover/btn:opacity-100 text-[var(--muted)] transition-opacity"
+                                />
+                              </button>
+                            </td>
+
+                            <td className="py-3.5 text-right tabular">
+                              {hasBudget ? (
+                                <span
+                                  className={cn(
+                                    "font-semibold",
+                                    cat.variance >= 0 ? "text-emerald-500" : "text-rose-500"
+                                  )}
+                                >
+                                  {cat.variance >= 0
+                                    ? `Sisa ${bal(cat.variance)}`
+                                    : `Lebih ${bal(Math.abs(cat.variance))}`}
+                                </span>
+                              ) : (
+                                <span className="text-[var(--muted)]">-</span>
+                              )}
+                            </td>
+
+                            <td className="py-3.5 text-right">
+                              <span
+                                className={cn(
+                                  "px-2 py-0.5 rounded-full text-[10px] font-bold tabular",
+                                  isOver
+                                    ? "bg-rose-500/10 text-rose-500 border border-rose-500/20"
+                                    : isWarning
+                                    ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                                    : hasBudget
+                                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                                    : "bg-[var(--surface-raised)] text-[var(--muted)]"
+                                )}
+                              >
+                                {isOver
+                                  ? `${cat.percentage_used}% Lewat`
+                                  : isWarning
+                                  ? `${cat.percentage_used}% Waspada`
+                                  : hasBudget
+                                  ? `${cat.percentage_used}% Aman`
+                                  : "Tanpa Batas"}
+                              </span>
+                            </td>
+
+                            <td className="py-3.5 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditCategory(cat)}
+                                  className="p-1.5 rounded-lg hover:bg-[var(--surface-raised)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
+                                  title="Edit kategori"
+                                >
+                                  <Icon name="edit" className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={deleteCategoryMutation.isPending}
+                                  onClick={() => {
+                                    if (
+                                      confirm(
+                                        `Yakin ingin menghapus atau mengarsipkan kategori "${cat.name}"?`
+                                      )
+                                    ) {
+                                      deleteCategoryMutation.mutate(cat.id);
+                                    }
+                                  }}
+                                  className="p-1.5 rounded-lg hover:bg-rose-500/10 text-[var(--muted)] hover:text-rose-500 transition-colors disabled:opacity-50 cursor-pointer"
+                                  title="Hapus kategori"
+                                >
+                                  <Icon name="trash" className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 2. Mobile Native Progress Cards (< lg) */}
+                <div className="lg:hidden space-y-3">
+                  {categories.map((cat: any) => {
+                    const hasBudget = cat.budget && cat.budget > 0;
+                    const isOver = cat.status === "over_budget";
+                    const isWarning = cat.status === "warning";
+
+                    return (
+                      <div
+                        key={`mobile-cat-${cat.id}`}
+                        className="p-3.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]/30 hover:bg-[var(--surface-raised)]/60 transition-colors space-y-2.5"
+                      >
+                        {/* Row 1: Icon + Name + Terpakai */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div
+                              className="h-8 w-8 rounded-xl flex items-center justify-center text-xs text-white shrink-0 shadow-2xs"
+                              style={{ backgroundColor: cat.color || "#3b82f6" }}
                             >
-                              <span>{hasBudget ? bal(cat.budget) : "Atur batas"}</span>
                               <Icon
-                                name="edit"
-                                className="h-3 w-3 opacity-0 group-hover/btn:opacity-100 text-[var(--muted)] transition-opacity"
+                                name={cat.icon || "tag"}
+                                className="h-4 w-4 text-white"
                               />
-                            </button>
-                          </td>
+                            </div>
+                            <span className="font-bold text-xs text-[var(--text)] truncate">
+                              {cat.name}
+                            </span>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-xs font-black tabular tracking-tight text-[var(--text)]">
+                              {bal(cat.spent)}
+                            </span>
+                            <div className="text-[9px] text-[var(--muted)] font-medium">Terpakai</div>
+                          </div>
+                        </div>
 
-                          <td className="py-3.5 text-right tabular">
+                        {/* Row 2: 6px Smooth Progress Bar (if budget set) */}
+                        {hasBudget && (
+                          <div className="w-full h-1.5 rounded-full bg-[var(--border)]/60 overflow-hidden">
+                            <div
+                              style={{
+                                width: `${Math.min(cat.percentage_used, 100)}%`,
+                              }}
+                              className={cn(
+                                "h-full rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                                isOver
+                                  ? "bg-rose-500 shadow-rose-500/30"
+                                  : isWarning
+                                  ? "bg-amber-500 shadow-amber-500/30"
+                                  : "bg-emerald-500 shadow-emerald-500/30"
+                              )}
+                            />
+                          </div>
+                        )}
+
+                        {/* Row 3: Status Badge & Remaining / Limit Info */}
+                        <div className="flex items-center justify-between gap-2 text-[11px] tabular">
+                          <span
+                            className={cn(
+                              "px-2 py-0.5 rounded-full text-[10px] font-bold tabular",
+                              isOver
+                                ? "bg-rose-500/10 text-rose-500 border border-rose-500/20"
+                                : isWarning
+                                ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                                : hasBudget
+                                ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                                : "bg-[var(--surface-raised)] text-[var(--muted)] border border-[var(--border)]"
+                            )}
+                          >
+                            {isOver
+                              ? `✕ ${cat.percentage_used}% Lewat`
+                              : isWarning
+                              ? `▲ ${cat.percentage_used}% Waspada`
+                              : hasBudget
+                              ? `● ${cat.percentage_used}% Aman`
+                              : "Tanpa Batas"}
+                          </span>
+
+                          <div className="text-right text-[11px] font-medium">
                             {hasBudget ? (
                               <span
                                 className={cn(
@@ -447,70 +630,50 @@ export default function AnalyticsPage() {
                                 {cat.variance >= 0
                                   ? `Sisa ${bal(cat.variance)}`
                                   : `Lebih ${bal(Math.abs(cat.variance))}`}
+                                <span className="text-[10px] text-[var(--muted)] font-normal ml-1">
+                                  / {bal(cat.budget)}
+                                </span>
                               </span>
                             ) : (
-                              <span className="text-[var(--muted)]">-</span>
+                              <span className="text-[var(--muted)] text-[10px]">Belum ada batas</span>
                             )}
-                          </td>
+                          </div>
+                        </div>
 
-                          <td className="py-3.5 text-right">
-                            <span
-                              className={cn(
-                                "px-2 py-0.5 rounded-full text-[10px] font-bold tabular",
-                                isOver
-                                  ? "bg-rose-500/10 text-rose-500 border border-rose-500/20"
-                                  : isWarning
-                                  ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
-                                  : hasBudget
-                                  ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                                  : "bg-[var(--surface-raised)] text-[var(--muted)]"
-                              )}
-                            >
-                              {isOver
-                                ? `${cat.percentage_used}% Lewat`
-                                : isWarning
-                                ? `${cat.percentage_used}% Waspada`
-                                : hasBudget
-                                ? `${cat.percentage_used}% Aman`
-                                : "Tanpa Batas"}
-                            </span>
-                          </td>
+                        {/* Row 4: Subtle Touch Actions */}
+                        <div className="border-t border-[var(--border)]/50 pt-2 flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditCategory(cat)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-[11px] font-semibold text-[var(--text)] border border-[var(--border)] transition-colors cursor-pointer"
+                          >
+                            <Icon name="edit" className="h-3 w-3 text-[var(--muted)]" />
+                            <span>{hasBudget ? "Ubah Batas" : "Atur Batas"}</span>
+                          </button>
 
-                          <td className="py-3.5 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                type="button"
-                                onClick={() => openEditCategory(cat)}
-                                className="p-1.5 rounded-lg hover:bg-[var(--surface-raised)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
-                                title="Edit kategori"
-                              >
-                                <Icon name="edit" className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={deleteCategoryMutation.isPending}
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      `Yakin ingin menghapus atau mengarsipkan kategori "${cat.name}"?`
-                                    )
-                                  ) {
-                                    deleteCategoryMutation.mutate(cat.id);
-                                  }
-                                }}
-                                className="p-1.5 rounded-lg hover:bg-rose-500/10 text-[var(--muted)] hover:text-rose-500 transition-colors disabled:opacity-50 cursor-pointer"
-                                title="Hapus kategori"
-                              >
-                                <Icon name="trash" className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                          <button
+                            type="button"
+                            disabled={deleteCategoryMutation.isPending}
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  `Yakin ingin menghapus atau mengarsipkan kategori "${cat.name}"?`
+                                )
+                              ) {
+                                deleteCategoryMutation.mutate(cat.id);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg text-[var(--muted)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors disabled:opacity-50 cursor-pointer"
+                            title="Hapus kategori"
+                          >
+                            <Icon name="trash" className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -542,9 +705,9 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
               {/* Card 1: Inflow Delta */}
-              <div className="cockpit-card p-4 space-y-2 border border-[var(--border)]">
+              <div className="cockpit-card p-3 sm:p-4 space-y-1.5 sm:space-y-2 border border-[var(--border)]">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-[var(--muted)]">Pemasukan</span>
                   <span
@@ -568,7 +731,7 @@ export default function AnalyticsPage() {
               </div>
 
               {/* Card 2: Outflow Delta */}
-              <div className="cockpit-card p-4 space-y-2 border border-[var(--border)]">
+              <div className="cockpit-card p-3 sm:p-4 space-y-1.5 sm:space-y-2 border border-[var(--border)]">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-[var(--muted)]">Pengeluaran</span>
                   <span
@@ -583,18 +746,18 @@ export default function AnalyticsPage() {
                     {comparison?.outflow_delta_pct ?? 0}%
                   </span>
                 </div>
-                <div className="text-xl font-bold text-[var(--text)] tabular">
+                <div className="text-base sm:text-xl font-bold text-[var(--text)] tabular truncate">
                   {bal(comparison?.total_outflow ?? 0)}
                 </div>
-                <div className="text-[10px] text-[var(--muted)]">
+                <div className="text-[10px] text-[var(--muted)] truncate">
                   Siklus lalu: {bal(comparison?.prev_outflow ?? 0)}
                 </div>
               </div>
 
               {/* Card 3: Net Cashflow Delta */}
-              <div className="cockpit-card p-4 space-y-2 border border-[var(--border)]">
+              <div className="cockpit-card p-3 sm:p-4 space-y-1.5 sm:space-y-2 border border-[var(--border)]">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--muted)]">Arus Kas Bersih</span>
+                  <span className="text-xs font-medium text-[var(--muted)]">Arus Kas</span>
                   <span
                     className={cn(
                       "text-[10px] font-bold px-1.5 py-0.5 rounded border",
@@ -609,7 +772,7 @@ export default function AnalyticsPage() {
                 </div>
                 <div
                   className={cn(
-                    "text-xl font-bold tabular",
+                    "text-base sm:text-xl font-bold tabular truncate",
                     (comparison?.net_cashflow ?? 0) >= 0
                       ? "text-emerald-500"
                       : "text-rose-500"
@@ -617,15 +780,15 @@ export default function AnalyticsPage() {
                 >
                   {bal(comparison?.net_cashflow ?? 0)}
                 </div>
-                <div className="text-[10px] text-[var(--muted)]">
+                <div className="text-[10px] text-[var(--muted)] truncate">
                   Siklus lalu: {bal(comparison?.prev_net_cashflow ?? 0)}
                 </div>
               </div>
 
               {/* Card 4: Savings Rate Delta */}
-              <div className="cockpit-card p-4 space-y-2 border border-[var(--border)]">
+              <div className="cockpit-card p-3 sm:p-4 space-y-1.5 sm:space-y-2 border border-[var(--border)]">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--muted)]">Rasio Tabungan</span>
+                  <span className="text-xs font-medium text-[var(--muted)]">Tabungan</span>
                   <span
                     className={cn(
                       "text-[10px] font-bold px-1.5 py-0.5 rounded border",
@@ -638,10 +801,10 @@ export default function AnalyticsPage() {
                     {comparison?.savings_rate_delta_pts ?? 0} pts
                   </span>
                 </div>
-                <div className="text-xl font-bold text-[var(--text)] tabular">
+                <div className="text-base sm:text-xl font-bold text-[var(--text)] tabular truncate">
                   {comparison?.savings_rate ?? 0}%
                 </div>
-                <div className="text-[10px] text-[var(--muted)]">
+                <div className="text-[10px] text-[var(--muted)] truncate">
                   Siklus lalu: {comparison?.prev_savings_rate ?? 0}%
                 </div>
               </div>

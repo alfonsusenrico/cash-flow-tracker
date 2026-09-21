@@ -5,7 +5,7 @@ import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
 
 interface TopBarProps {
-  onToggleMobileMenu: () => void;
+  onToggleMobileMenu?: () => void;
   onQuickAdd?: () => void;
   onOpenSettings?: () => void;
 }
@@ -18,7 +18,7 @@ const TITLES: Record<string, { title: string; subtitle: string }> = {
   "/goals": { title: "Target & Tagihan", subtitle: "Target Tabungan & Rencana Pembayaran" },
 };
 
-export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
+export function TopBar({ onQuickAdd, onOpenSettings }: TopBarProps) {
   const pathname = usePathname();
   const {
     hideBalances,
@@ -48,18 +48,9 @@ export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/90 px-4 sm:px-6 lg:px-8 backdrop-blur-md">
-      {/* Left: Mobile Hamburger + Breadcrumb/Title */}
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onToggleMobileMenu}
-          className="flex lg:hidden p-2 rounded-xl text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)] transition-colors"
-          title="Buka Menu"
-        >
-          <Icon name="menu" className="h-5 w-5" />
-        </button>
-
+    <header className="sticky top-0 z-30 flex h-14 sm:h-16 w-full items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/90 px-3 sm:px-6 lg:px-8 backdrop-blur-md">
+      {/* Left: Brand / Title */}
+      <div className="flex items-center gap-2.5">
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <span className="text-sm sm:text-base font-bold tracking-tight text-[var(--text)] leading-none">
@@ -121,7 +112,7 @@ export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
           type="button"
           onClick={toggleHideBalances}
           title={hideBalances ? "Tampilkan saldo" : "Sembunyikan saldo"}
-          className="p-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors shadow-2xs"
+          className="p-1.5 sm:p-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors shadow-2xs"
         >
           <Icon name={hideBalances ? "eye-off" : "eye"} className="h-4 w-4" />
         </button>
@@ -131,22 +122,34 @@ export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
           type="button"
           onClick={toggleTheme}
           title={theme === "dark" ? "Mode Gelap (Klik untuk Mode Terang)" : "Mode Terang (Klik untuk Mode Gelap)"}
-          className="p-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors shadow-2xs"
+          className="p-1.5 sm:p-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors shadow-2xs"
         >
           <Icon name={theme === "dark" ? "moon" : "sun"} className="h-4 w-4" />
         </button>
 
-        {/* Quick Add CTA */}
+        {/* Settings Toggle on Mobile & Tablet */}
+        {onOpenSettings && (
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            title="Pengaturan"
+            className="p-1.5 sm:p-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors shadow-2xs"
+          >
+            <Icon name="settings" className="h-4 w-4" />
+          </button>
+        )}
+
+        {/* Quick Add CTA - Desktop only to avoid mobile duplication */}
         {onQuickAdd && (
           <button
             type="button"
             onClick={onQuickAdd}
             title="Catat Transaksi (N)"
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-btn bg-primary hover:bg-primary-hover text-primary-contrast text-xs font-semibold shadow-2xs transition-all active:scale-95"
+            className="hidden md:flex items-center gap-1.5 px-3.5 py-1.5 rounded-btn bg-primary hover:bg-primary-hover text-primary-contrast text-xs font-semibold shadow-2xs transition-all active:scale-95"
           >
             <Icon name="plus" className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Catat</span>
-            <kbd className="hidden md:inline rounded bg-black/20 px-1 py-0.2 text-[9px] font-mono text-white/90">
+            <span>Catat</span>
+            <kbd className="rounded bg-black/20 px-1 py-0.2 text-[9px] font-mono text-white/90">
               N
             </kbd>
           </button>

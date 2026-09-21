@@ -16,6 +16,7 @@ import { MetricMatrixGrid } from "@/components/dashboard/MetricMatrixGrid";
 import { KakeiboPillarCards } from "@/components/dashboard/KakeiboPillarCards";
 import { NarrativeInsightCard } from "@/components/dashboard/NarrativeInsightCard";
 import { CategoryDonutChart } from "@/components/dashboard/CategoryDonutChart";
+import { MobileHomeView } from "@/components/dashboard/MobileHomeView";
 import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
 import { PayrollAllocationModal } from "@/components/recurring/PayrollAllocationModal";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
@@ -153,12 +154,30 @@ export default function OverviewPage() {
     : "Enrico";
 
   return (
-    <div className="w-full space-y-6 sm:space-y-7">
+    <div className="w-full">
       {/* 0. Pending Scheduled Due Banner */}
-      <PendingScheduledBanner />
+      <div className="mb-4 sm:mb-6">
+        <PendingScheduledBanner />
+      </div>
 
-      {/* 1. Welcoming Consumer Greeting & Quick Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+      {/* Mobile-Native Experience (Handheld Viewports < 1024px) */}
+      <div className="lg:hidden">
+        <MobileHomeView
+          dashboard={dashboard}
+          accounts={accounts}
+          onOpenCapture={(type) => openQuickAdd(type)}
+          onOpenTransfer={handleOpenTransfer}
+          onOpenPayroll={() => setPayrollModalOpen(true)}
+          onOpenRecurring={() => setRecurringModalOpen(true)}
+          onSelectTx={(tx) => setSelectedTx(tx)}
+          bal={bal}
+        />
+      </div>
+
+      {/* Desktop Command Center (>= 1024px) */}
+      <div className="hidden lg:block space-y-6 sm:space-y-7">
+        {/* 1. Welcoming Consumer Greeting & Quick Actions */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-[var(--text)]">
@@ -599,6 +618,7 @@ export default function OverviewPage() {
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {/* ===================== MODALS ===================== */}

@@ -156,6 +156,11 @@ export function QuickCaptureModal({
 
   const parsedAmount = parseAmount(amountStr);
 
+  const addFastAmount = (increment: number) => {
+    const next = (parsedAmount || 0) + increment;
+    setAmountStr(formatNumberWithDots(String(next)));
+  };
+
   const handleCategoryChange = (catId: string | null) => {
     setSelectedCategory(catId);
   };
@@ -271,6 +276,29 @@ export function QuickCaptureModal({
             }}
             className="mt-1 w-full bg-transparent text-3xl sm:text-4xl font-black tracking-tight text-[var(--text)] outline-none tabular placeholder:text-[var(--muted)]/30"
           />
+
+          {/* Quick Amount Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pt-2 scrollbar-none">
+            {[10_000, 20_000, 50_000, 100_000, 500_000].map((inc) => (
+              <button
+                key={inc}
+                type="button"
+                onClick={() => addFastAmount(inc)}
+                className="shrink-0 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-2.5 py-1 text-[11px] font-semibold tabular text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--border-strong)] active:scale-95 transition-all"
+              >
+                +{inc >= 1_000_000 ? `${inc / 1_000_000}M` : `${inc / 1_000}k`}
+              </button>
+            ))}
+            {parsedAmount > 0 && (
+              <button
+                type="button"
+                onClick={() => setAmountStr("")}
+                className="shrink-0 rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-400 hover:bg-red-500/20 active:scale-95 transition-all"
+              >
+                Reset
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Kakeibo 3-Way Chips (For Expense) */}
