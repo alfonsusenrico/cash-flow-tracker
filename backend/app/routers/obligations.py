@@ -67,19 +67,30 @@ def list_obligations(
     user_id = current_user["id"]
     with db_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT id, name, total_amount, remaining_amount, due_date, minimum_payment, notes, is_archived, created_at, updated_at
-                FROM obligations
-                WHERE user_id = %s AND (is_archived = false OR %s = true)
-                ORDER BY is_archived ASC, due_date ASC NULLS LAST, remaining_amount DESC
-                """,
-                (user_id, include_archived),
-            )
+            if include_archived:
+                cur.execute(
+                    """
+                    SELECT id, name, total_amount, remaining_amount, due_date, minimum_payment, notes, is_archived, created_at, updated_at
+                    FROM obligations
+                    WHERE user_id = %s
+                    ORDER BY is_archived ASC, due_date ASC NULLS LAST, remaining_amount DESC
+                    """,
+                    (user_id,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, name, total_amount, remaining_amount, due_date, minimum_payment, notes, is_archived, created_at, updated_at
+                    FROM obligations
+                    WHERE user_id = %s AND is_archived = false AND remaining_amount > 0
+                    ORDER BY due_date ASC NULLS LAST, remaining_amount DESC
+                    """,
+                    (user_id,),
+                )
             rows = cur.fetchall()
             obligations = [format_obligation_row(r) for r in rows]
 
-            active_obligations = [o for o in obligations if not o["is_archived"]]
+            active_obligations = [o for o in obligations if not o["is_archived"] and o["remaining_amount"] > 0]
             total_debt = sum(o["total_amount"] for o in active_obligations)
             total_remaining = sum(o["remaining_amount"] for o in active_obligations)
             total_paid = max(0, total_debt - total_remaining)
@@ -119,13 +130,14 @@ def create_obligation(payload: ObligationCreate, current_user: dict = Depends(ge
             if cur.fetchone():
                 raise HTTPException(status_code=409, detail="Obligation with this name already exists")
 
+            is_archived = payload.remaining_amount <= 0
             cur.execute(
                 """
-                INSERT INTO obligations (user_id, name, total_amount, remaining_amount, due_date, minimum_payment, notes)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO obligations (user_id, name, total_amount, remaining_amount, due_date, minimum_payment, notes, is_archived)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, name, total_amount, remaining_amount, due_date, minimum_payment, notes, is_archived, created_at, updated_at
                 """,
-                (user_id, name, payload.total_amount, payload.remaining_amount, d_date, payload.minimum_payment, payload.notes),
+                (user_id, name, payload.total_amount, payload.remaining_amount, d_date, payload.minimum_payment, payload.notes, is_archived),
             )
             row = cur.fetchone()
             conn.commit()
@@ -155,6 +167,11 @@ def update_obligation(
     if payload.remaining_amount is not None:
         updates.append("remaining_amount = %s")
         params.append(payload.remaining_amount)
+        if payload.is_archived is None:
+            if payload.remaining_amount <= 0:
+                updates.append("is_archived = TRUE")
+            else:
+                updates.append("is_archived = FALSE")
 
     if payload.due_date is not None:
         if payload.due_date == "":

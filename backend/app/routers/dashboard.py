@@ -343,7 +343,7 @@ def calculate_ketahanan_dana(
         """
         SELECT COALESCE(SUM(minimum_payment), 0) AS monthly_commitments
         FROM obligations
-        WHERE user_id = %s AND is_archived = FALSE
+        WHERE user_id = %s AND is_archived = FALSE AND remaining_amount > 0
         """,
         (user_id,),
     )
@@ -764,7 +764,7 @@ def get_dashboard_overview(
                 """
                 SELECT id, name, total_amount, remaining_amount, due_date, minimum_payment
                 FROM obligations
-                WHERE user_id = %s AND is_archived = false
+                WHERE user_id = %s AND is_archived = false AND remaining_amount > 0
                 ORDER BY due_date ASC NULLS LAST, remaining_amount DESC
                 LIMIT 4
                 """,
@@ -1230,7 +1230,7 @@ def get_dashboard_net_worth(current_user: dict = Depends(get_current_user)):
                 """
                 SELECT id, name, total_amount, remaining_amount, due_date, minimum_payment, notes
                 FROM obligations
-                WHERE user_id = %s AND is_archived = false
+                WHERE user_id = %s AND is_archived = false AND remaining_amount > 0
                 ORDER BY remaining_amount DESC
                 """,
                 (user_id,),

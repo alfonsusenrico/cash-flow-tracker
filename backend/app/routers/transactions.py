@@ -626,13 +626,25 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
             if obligation_id:
                 if payload.type == "expense":
                     cur.execute(
-                        "UPDATE obligations SET remaining_amount = GREATEST(0, remaining_amount - %s), updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (payload.amount, obligation_id, user_id),
+                        """
+                        UPDATE obligations
+                        SET remaining_amount = GREATEST(0, remaining_amount - %s),
+                            is_archived = CASE WHEN (remaining_amount - %s) <= 0 THEN true ELSE is_archived END,
+                            updated_at = NOW()
+                        WHERE id = %s AND user_id = %s
+                        """,
+                        (payload.amount, payload.amount, obligation_id, user_id),
                     )
                 elif payload.type == "income":
                     cur.execute(
-                        "UPDATE obligations SET remaining_amount = remaining_amount + %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (payload.amount, obligation_id, user_id),
+                        """
+                        UPDATE obligations
+                        SET remaining_amount = remaining_amount + %s,
+                            is_archived = CASE WHEN (remaining_amount + %s) > 0 THEN false ELSE is_archived END,
+                            updated_at = NOW()
+                        WHERE id = %s AND user_id = %s
+                        """,
+                        (payload.amount, payload.amount, obligation_id, user_id),
                     )
 
             # If investment trade action is specified, update the target instrument's units and avg_buy_price
@@ -787,13 +799,25 @@ def update_transaction(
             if old_tx["obligation_id"]:
                 if old_tx["type"] == "expense":
                     cur.execute(
-                        "UPDATE obligations SET remaining_amount = remaining_amount + %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (old_tx["amount"], str(old_tx["obligation_id"]), user_id),
+                        """
+                        UPDATE obligations
+                        SET remaining_amount = remaining_amount + %s,
+                            is_archived = CASE WHEN (remaining_amount + %s) > 0 THEN false ELSE is_archived END,
+                            updated_at = NOW()
+                        WHERE id = %s AND user_id = %s
+                        """,
+                        (old_tx["amount"], old_tx["amount"], str(old_tx["obligation_id"]), user_id),
                     )
                 elif old_tx["type"] == "income":
                     cur.execute(
-                        "UPDATE obligations SET remaining_amount = GREATEST(0, remaining_amount - %s), updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (old_tx["amount"], str(old_tx["obligation_id"]), user_id),
+                        """
+                        UPDATE obligations
+                        SET remaining_amount = GREATEST(0, remaining_amount - %s),
+                            is_archived = CASE WHEN (remaining_amount - %s) <= 0 THEN true ELSE is_archived END,
+                            updated_at = NOW()
+                        WHERE id = %s AND user_id = %s
+                        """,
+                        (old_tx["amount"], old_tx["amount"], str(old_tx["obligation_id"]), user_id),
                     )
 
             # 3. Determine new values (merging payload with old_tx)
@@ -906,13 +930,25 @@ def update_transaction(
             if new_obligation_id:
                 if new_type == "expense":
                     cur.execute(
-                        "UPDATE obligations SET remaining_amount = GREATEST(0, remaining_amount - %s), updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (new_amount, new_obligation_id, user_id),
+                        """
+                        UPDATE obligations
+                        SET remaining_amount = GREATEST(0, remaining_amount - %s),
+                            is_archived = CASE WHEN (remaining_amount - %s) <= 0 THEN true ELSE is_archived END,
+                            updated_at = NOW()
+                        WHERE id = %s AND user_id = %s
+                        """,
+                        (new_amount, new_amount, new_obligation_id, user_id),
                     )
                 elif new_type == "income":
                     cur.execute(
-                        "UPDATE obligations SET remaining_amount = remaining_amount + %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (new_amount, new_obligation_id, user_id),
+                        """
+                        UPDATE obligations
+                        SET remaining_amount = remaining_amount + %s,
+                            is_archived = CASE WHEN (remaining_amount + %s) > 0 THEN false ELSE is_archived END,
+                            updated_at = NOW()
+                        WHERE id = %s AND user_id = %s
+                        """,
+                        (new_amount, new_amount, new_obligation_id, user_id),
                     )
 
             conn.commit()
@@ -952,13 +988,25 @@ def delete_transaction(transaction_id: UUID, current_user: dict = Depends(get_cu
             if tx["obligation_id"]:
                 if tx["type"] == "expense":
                     cur.execute(
-                        "UPDATE obligations SET remaining_amount = remaining_amount + %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (tx["amount"], str(tx["obligation_id"]), user_id),
+                        """
+                        UPDATE obligations
+                        SET remaining_amount = remaining_amount + %s,
+                            is_archived = CASE WHEN (remaining_amount + %s) > 0 THEN false ELSE is_archived END,
+                            updated_at = NOW()
+                        WHERE id = %s AND user_id = %s
+                        """,
+                        (tx["amount"], tx["amount"], str(tx["obligation_id"]), user_id),
                     )
                 elif tx["type"] == "income":
                     cur.execute(
-                        "UPDATE obligations SET remaining_amount = GREATEST(0, remaining_amount - %s), updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (tx["amount"], str(tx["obligation_id"]), user_id),
+                        """
+                        UPDATE obligations
+                        SET remaining_amount = GREATEST(0, remaining_amount - %s),
+                            is_archived = CASE WHEN (remaining_amount - %s) <= 0 THEN true ELSE is_archived END,
+                            updated_at = NOW()
+                        WHERE id = %s AND user_id = %s
+                        """,
+                        (tx["amount"], tx["amount"], str(tx["obligation_id"]), user_id),
                     )
 
             cur.execute(

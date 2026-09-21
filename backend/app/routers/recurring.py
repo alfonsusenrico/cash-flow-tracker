@@ -540,10 +540,12 @@ def process_auto_post_due_rules(
                         cur.execute(
                             """
                             UPDATE obligations
-                            SET remaining_amount = GREATEST(0, remaining_amount - %s), updated_at = NOW()
+                            SET remaining_amount = GREATEST(0, remaining_amount - %s),
+                                is_archived = CASE WHEN (remaining_amount - %s) <= 0 THEN true ELSE is_archived END,
+                                updated_at = NOW()
                             WHERE id = %s AND user_id = %s
                             """,
-                            (rule["amount"], rule["obligation_id"], user_id),
+                            (rule["amount"], rule["amount"], rule["obligation_id"], user_id),
                         )
 
                 # Advance next_due_date
@@ -663,10 +665,12 @@ def execute_selected_rules(
                     cur.execute(
                         """
                         UPDATE obligations
-                        SET remaining_amount = GREATEST(0, remaining_amount - %s), updated_at = NOW()
+                        SET remaining_amount = GREATEST(0, remaining_amount - %s),
+                            is_archived = CASE WHEN (remaining_amount - %s) <= 0 THEN true ELSE is_archived END,
+                            updated_at = NOW()
                         WHERE id = %s AND user_id = %s
                         """,
-                        (rule["amount"], rule["obligation_id"], user_id),
+                        (rule["amount"], rule["amount"], rule["obligation_id"], user_id),
                     )
 
                 next_due = calculate_next_due_date(

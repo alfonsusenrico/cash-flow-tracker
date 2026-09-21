@@ -1,9 +1,6 @@
-# obligations-debt-tracker Specification
+# Spec Delta: Auto-Archive Paid-Off Debts and Obligations
 
-## Purpose
-TBD - created by archiving change personal-finance-dashboard-os. Update Purpose after archive.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Debt & Obligations Management
 The system SHALL support creating, editing, querying, and deleting recurring obligations and debts:
@@ -24,15 +21,6 @@ The system SHALL support creating, editing, querying, and deleting recurring obl
 #### Scenario: Direct update to zero remaining balance auto-archives
 - **WHEN** a user updates an obligation with `remaining_amount: 0`
 - **THEN** the system updates `remaining_amount` to 0 and automatically sets `is_archived` to `true`
-
-### Requirement: Payoff Progress & Estimated Timeline
-The system SHALL compute payoff progress and estimated payoff duration:
-1. `payoff_percentage`: `min(100, round(((total_amount - remaining_amount) / total_amount) * 100))`.
-2. `estimated_payoff_months`: `ceil(remaining_amount / max(1, minimum_payment))` when minimum payment is specified.
-
-#### Scenario: Viewing debt payoff status
-- **WHEN** a user views an obligation with 6,000,000 remaining out of 12,000,000 and minimum payment 1,000,000/month
-- **THEN** the card renders 50% paid off and indicates approximately 6 months remaining to payoff
 
 ### Requirement: Linking Ledger Payments to Obligations
 The transaction recording system SHALL support an optional `obligation_id`. Recording an expense with `obligation_id` SHALL decrement `obligations.remaining_amount`:

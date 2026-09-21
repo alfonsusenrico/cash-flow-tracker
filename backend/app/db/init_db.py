@@ -192,6 +192,11 @@ def init_db_schema() -> None:
                 ALTER TABLE transactions ALTER COLUMN idempotency_key TYPE VARCHAR(128);
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_tx_user_idempotency ON transactions(user_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
                 ALTER TABLE transactions DROP COLUMN IF EXISTS transfer_target_account_id;
+
+                -- Auto-archive any existing paid-off obligations
+                UPDATE obligations
+                SET is_archived = true, updated_at = NOW()
+                WHERE remaining_amount <= 0 AND is_archived = false;
             """)
             conn.commit()
 

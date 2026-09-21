@@ -891,3 +891,151 @@ def test_calculate_ketahanan_dana_deduplication():
     # Must equal parent balance (11,400,615), NOT double-counted with child (17,112,727)
     assert res["emergency_fund_balance"] == 11400615
 
+
+def test_obligation_auto_archive_and_reversal_in_transactions():
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+        from app.main import app
+        from app.services.auth import get_current_user
+
+        mock_user = {
+            "id": "11111111-2222-3333-4444-555555555555",
+            "username": "debt_tester",
+            "currency": "IDR",
+            "payday_day": 25,
+        }
+        app.dependency_overrides[get_current_user] = lambda: mock_user
+
+        with patch("app.routers.transactions.db_conn") as mock_tx_conn:
+            mock_cur = MagicMock()
+            mock_tx_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = mock_cur
+
+            # Mock account query for create_transaction
+            mock_cur.fetchone.side_effect = [
+                {"id": "acc-1", "name": "BCA", "parent_id": None, "type": "cash", "default_pocket_id": None}, # account
+                {"id": "cat-1", "name": "Cicilan"}, # category
+                {"id": "ob-1"}, # obligation check
+                {"kakeibo_type": "need", "is_primary": True}, # category kakeibo query
+                {"id": "tx-123", "created_at": datetime.datetime.now(datetime.timezone.utc)}, # insert returning
+            ]
+
+            with TestClient(app) as client:
+                # 1. Create transaction linked to obligation
+                res = client.post(
+                    "/api/transactions",
+                    json={
+                        "account_id": "11111111-1111-1111-1111-111111111111",
+                        "category_id": "22222222-2222-2222-2222-222222222222",
+                        "obligation_id": "33333333-3333-3333-3333-333333333333",
+                        "type": "expense",
+                        "amount": 500000,
+                        "date": "2026-09-21T08:00:00Z",
+                    },
+                )
+                assert res.status_code == 200
+
+                # Verify UPDATE obligations SQL includes is_archived case expression
+                update_calls = [
+                    call for call in mock_cur.execute.call_args_list
+                    if "UPDATE obligations" in str(call[0][0])
+                ]
+                assert len(update_calls) == 1
+                sql, params = update_calls[0][0][0], update_calls[0][0][1]
+                assert "is_archived = CASE WHEN (remaining_amount - %s) <= 0 THEN true ELSE is_archived END" in sql
+                assert params[0] == 500000
+                assert params[1] == 500000
+
+                # 2. Delete transaction linked to obligation
+                mock_cur.reset_mock()
+                mock_cur.fetchone.side_effect = None
+                mock_cur.fetchone.return_value = {
+                    "type": "expense",
+                    "amount": 500000,
+                    "goal_id": None,
+                    "obligation_id": "33333333-3333-3333-3333-333333333333",
+                }
+
+                res_del = client.delete("/api/transactions/44444444-4444-4444-4444-444444444444")
+                assert res_del.status_code == 200
+
+                # Verify deletion reverses obligation and un-archives if balance > 0
+                del_update_calls = [
+                    call for call in mock_cur.execute.call_args_list
+                    if "UPDATE obligations" in str(call[0][0])
+                ]
+                assert len(del_update_calls) == 1
+                del_sql, del_params = del_update_calls[0][0][0], del_update_calls[0][0][1]
+                assert "is_archived = CASE WHEN (remaining_amount + %s) > 0 THEN false ELSE is_archived END" in del_sql
+                assert del_params[0] == 500000
+                assert del_params[1] == 500000
+
+        app.dependency_overrides.clear()
+
+
+def test_list_and_update_obligations_auto_archive():
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+        from app.main import app
+        from app.services.auth import get_current_user
+
+        mock_user = {
+            "id": "11111111-2222-3333-4444-555555555555",
+            "username": "debt_tester",
+            "currency": "IDR",
+            "payday_day": 25,
+        }
+        app.dependency_overrides[get_current_user] = lambda: mock_user
+
+        with patch("app.routers.obligations.db_conn") as mock_ob_conn:
+            mock_cur = MagicMock()
+            mock_ob_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = mock_cur
+
+            # 1. Query active obligations
+            mock_cur.fetchall.return_value = [
+                {
+                    "id": "ob-active",
+                    "name": "Active Debt",
+                    "total_amount": 1000000,
+                    "remaining_amount": 500000,
+                    "due_date": None,
+                    "minimum_payment": 100000,
+                    "notes": None,
+                    "is_archived": False,
+                    "created_at": datetime.datetime.now(datetime.timezone.utc),
+                    "updated_at": datetime.datetime.now(datetime.timezone.utc),
+                }
+            ]
+
+            with TestClient(app) as client:
+                res = client.get("/api/obligations")
+                assert res.status_code == 200
+                data = res.json()
+                assert data["ok"] is True
+                assert len(data["obligations"]) == 1
+
+                # Verify SQL filtered for remaining_amount > 0 and is_archived = false
+                active_query_call = mock_cur.execute.call_args_list[0][0][0]
+                assert "is_archived = false AND remaining_amount > 0" in active_query_call
+
+                # 2. Update obligation to remaining_amount = 0 auto-archives
+                mock_cur.reset_mock()
+                mock_cur.fetchone.return_value = {
+                    "id": "ob-active",
+                    "name": "Active Debt",
+                    "total_amount": 1000000,
+                    "remaining_amount": 0,
+                    "due_date": None,
+                    "minimum_payment": 100000,
+                    "notes": None,
+                    "is_archived": True,
+                    "created_at": datetime.datetime.now(datetime.timezone.utc),
+                    "updated_at": datetime.datetime.now(datetime.timezone.utc),
+                }
+
+                res_patch = client.patch(
+                    "/api/obligations/33333333-3333-3333-3333-333333333333",
+                    json={"remaining_amount": 0},
+                )
+                assert res_patch.status_code == 200
+                patch_call = mock_cur.execute.call_args_list[0][0][0]
+                assert "is_archived = TRUE" in patch_call
+
+        app.dependency_overrides.clear()
