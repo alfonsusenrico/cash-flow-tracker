@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.core.config import settings
 from app.db.pool import db_conn
-from app.routers.accounts import get_accounts_with_balances
+from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.routers.pulse import get_cycle_window
 from app.services.auth import get_current_user
 
@@ -164,21 +164,39 @@ def get_kakeibo_breakdown(
     want_spent = pillar_map.get("want", 0)
     saving_expenses = pillar_map.get("saving", 0)
 
-    # 2. Saving transfers (fresh investments or goal funding explicitly marked as saving)
+    # 2. Net fresh saving across durably linked movements.
     cur.execute(
         """
         SELECT
-            COALESCE(SUM(t.amount), 0) AS saving_transfers
-        FROM transactions t
-        JOIN categories c ON c.id = t.category_id
-        WHERE t.user_id = %s
-          AND t.type = 'expense'
-          AND c.name = 'Internal Movement'
-          AND (t.kakeibo_type = 'saving' OR t.goal_id IS NOT NULL)
-          AND COALESCE(t.notes, '') NOT LIKE '%%lot @%%'
-          AND COALESCE(t.notes, '') NOT LIKE '%%Stockbit%%'
-          AND COALESCE(t.notes, '') NOT ILIKE '%%pre-auth%%'
-          AND t.date >= %s AND t.date <= %s
+            COALESCE(SUM(
+                CASE
+                    WHEN NOT (
+                        sa.type = 'investment' OR sa.instrument_type IS NOT NULL
+                        OR EXISTS (SELECT 1 FROM goal_accounts sga WHERE sga.account_id = sa.id)
+                    ) AND (
+                        da.type = 'investment' OR da.instrument_type IS NOT NULL
+                        OR EXISTS (SELECT 1 FROM goal_accounts dga WHERE dga.account_id = da.id)
+                    ) THEN outbound.amount
+                    WHEN (
+                        sa.type = 'investment' OR sa.instrument_type IS NOT NULL
+                        OR EXISTS (SELECT 1 FROM goal_accounts sga WHERE sga.account_id = sa.id)
+                    ) AND NOT (
+                        da.type = 'investment' OR da.instrument_type IS NOT NULL
+                        OR EXISTS (SELECT 1 FROM goal_accounts dga WHERE dga.account_id = da.id)
+                    ) THEN -outbound.amount
+                    ELSE 0
+                END
+            ), 0) AS saving_transfers
+        FROM transactions outbound
+        JOIN transactions inbound
+          ON inbound.movement_id = outbound.movement_id
+         AND inbound.movement_role = 'inbound'
+        JOIN accounts sa ON sa.id = outbound.account_id
+        JOIN accounts da ON da.id = inbound.account_id
+        WHERE outbound.user_id = %s
+          AND outbound.movement_role = 'outbound'
+          AND outbound.kakeibo_type = 'saving'
+          AND outbound.date >= %s AND outbound.date <= %s
         """,
         (user_id, start_utc, end_utc),
     )
@@ -406,15 +424,13 @@ def get_dashboard_overview(
 
     # 1. Accounts & Liquid Balances
     accounts = get_accounts_with_balances(user_id, include_archived=False)
-    top_accounts = [a for a in accounts if a.get("parent_id") is None]
-
-    liquid_accounts = [a for a in top_accounts if a.get("type") in ("cash", "bank", "ewallet", "wallet") and not a.get("instrument_type")]
-    investment_accounts = [a for a in top_accounts if a.get("type") == "investment" or a.get("instrument_type") is not None]
-
-    liquid_balance = sum(a["balance"] for a in liquid_accounts)
-    investment_balance = sum(a["balance"] for a in investment_accounts)
-    total_balance = sum(a["balance"] for a in top_accounts)
+    top_accounts = [account for account in accounts if account.get("parent_id") is None]
+    balance_summary = summarize_account_balances(accounts)
+    liquid_balance = balance_summary["liquid_balance"]
+    investment_balance = balance_summary["investment_balance"]
+    total_balance = balance_summary["total_balance"]
     liquid_net_worth = liquid_balance
+    reconciliation_pending = balance_summary["reconciliation_pending"]
 
     emergency_multiplier = int(current_user.get("emergency_fund_multiplier") or 6)
     monthly_spending_budget = current_user.get("monthly_spending_budget")
@@ -840,6 +856,7 @@ def get_dashboard_overview(
             "liquid_balance": liquid_balance,
             "investment_balance": investment_balance,
             "total_balance": total_balance,
+            "reconciliation_pending": reconciliation_pending,
             "total_inflow": total_inflow,
             "total_outflow": total_outflow,
             "net_cashflow": net_cashflow,

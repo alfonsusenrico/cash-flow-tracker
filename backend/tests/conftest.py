@@ -16,10 +16,13 @@ Usage:
 import os
 import subprocess
 import pathlib
+import sys
 from uuid import uuid4
 
 # Set default test environment variables before any app modules are imported
-os.environ.setdefault("DATABASE_URL", "postgresql://ledger:ledgerpass@localhost:5432/ledger_test")
+os.environ["DATABASE_URL"] = os.getenv(
+    "TEST_DATABASE_URL", "postgresql://ledger:ledgerpass@localhost:5432/ledger_test"
+)
 os.environ.setdefault("SESSION_SECRET", "test-secret-for-pytest")
 os.environ.setdefault("INVITE_CODE", "TESTCODE")
 os.environ.setdefault("COOKIE_SECURE", "false")
@@ -33,6 +36,14 @@ TEST_DB_URL = os.getenv(
     "postgresql://ledger:ledgerpass@localhost:5432/ledger_test",
 )
 MIGRATIONS_DIR = pathlib.Path(__file__).resolve().parents[2] / "db" / "migrations"
+
+
+@pytest.fixture(autouse=True)
+def clear_auth_overrides_after_test():
+    yield
+    app_module = sys.modules.get("app.main")
+    if app_module is not None:
+        app_module.app.dependency_overrides.clear()
 
 
 def _db_is_reachable(db_url: str) -> bool:
@@ -122,6 +133,7 @@ def auth_client(client: TestClient):
     """TestClient with a valid session cookie for a unique smoke user."""
     username = f"testuser_{uuid4().hex[:10]}"
     password = "testpassword1"
+    client.headers.update({"Origin": "https://testserver"})
     # Register
     res = client.post(
         "/auth/register",
@@ -139,7 +151,6 @@ def auth_client(client: TestClient):
         json={"username": username, "password": password},
     )
     assert res.status_code == 200, res.text
-    client.headers.update({"Origin": "https://testserver"})
     client._smoke_username = username
     return client
 

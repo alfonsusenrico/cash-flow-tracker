@@ -4,10 +4,42 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from fastapi import HTTPException
+import pytest
 
 from app.main import app
-from app.routers.recurring import calculate_next_due_date, format_recurring_rule_row
+from app.routers.recurring import (
+    _validate_rule_references,
+    calculate_next_due_date,
+    format_recurring_rule_row,
+)
 from app.services.auth import get_current_user
+
+
+@pytest.mark.parametrize(
+    ("source_type", "target_type"),
+    [("investment", "bank"), ("bank", "investment")],
+)
+def test_recurring_transfer_rejects_investment_position_endpoints(source_type, target_type):
+    cursor = MagicMock()
+    cursor.fetchone.side_effect = [
+        {"id": "source", "type": source_type, "instrument_type": "stock" if source_type == "investment" else None},
+        {"id": "target", "type": target_type, "instrument_type": "stock" if target_type == "investment" else None},
+    ]
+
+    with pytest.raises(HTTPException) as error:
+        _validate_rule_references(
+            cursor,
+            str(uuid4()),
+            rule_type="transfer",
+            source_id="source",
+            target_id="target",
+            category_id=None,
+            obligation_id=None,
+        )
+
+    assert error.value.status_code == 422
+    assert error.value.detail["code"] == "investment_trade_required"
 
 
 def test_calculate_next_due_date_monthly_day():
@@ -188,27 +220,30 @@ def test_api_payroll_batch_execute():
     try:
         client = TestClient(app)
 
-        with patch("app.routers.recurring.db_conn") as mock_conn:
+        with patch("app.routers.recurring.db_conn") as mock_conn, \
+             patch("app.routers.recurring._ensure_internal_movement_categories", return_value=("expense", "income")), \
+             patch("app.routers.recurring.lock_owned_accounts", return_value={
+                 src_id: {"id": src_id, "type": "bank", "is_savings": False},
+                 dst1_id: {"id": dst1_id, "type": "bank", "is_savings": False},
+                 dst2_id: {"id": dst2_id, "type": "bank", "is_savings": False},
+             }), \
+             patch("app.routers.recurring.ensure_sufficient_funds"), \
+             patch("app.routers.recurring.create_bilateral_movement", return_value={
+                 "movement_id": "movement", "expense_transaction_id": "out", "income_transaction_id": "in",
+             }):
             mock_cur = MagicMock()
             mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = mock_cur
 
-            # Internal movement categories lookup (expense, income)
-            # Account checks in execution order:
-            # Item 1: source check, target check, then rule fetch
-            # Item 2: source check, target check (no rule_id)
             mock_cur.fetchone.side_effect = [
-                {"id": str(uuid4())},  # internal movement expense category
-                {"id": str(uuid4())},  # internal movement income category
-                {"id": src_id},
-                {"id": dst1_id},
                 {
                     "id": rule1_id,
+                    "source_account_id": src_id,
+                    "target_account_id": dst1_id,
+                    "is_payroll_allocation": True,
                     "schedule_type": "payday",
                     "schedule_day": None,
                     "next_due_date": date(2026, 9, 25),
                 },
-                {"id": src_id},
-                {"id": dst2_id},
             ]
 
             resp = client.post(
@@ -235,5 +270,45 @@ def test_api_payroll_batch_execute():
             data = resp.json()
             assert data["ok"] is True
             assert data["allocated_items_count"] == 2
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_payroll_batch_rejects_investment_position_without_committing():
+    user_id = str(uuid4())
+    source_id = str(uuid4())
+    position_id = str(uuid4())
+    app.dependency_overrides[get_current_user] = lambda: {
+        "id": user_id,
+        "username": "tester",
+        "payday_day": 25,
+    }
+
+    try:
+        with patch("app.routers.recurring.db_conn") as mock_conn, \
+             patch("app.routers.recurring._ensure_internal_movement_categories", return_value=("expense", "income")), \
+             patch("app.routers.recurring.lock_owned_accounts", return_value={
+                 source_id: {"id": source_id, "type": "bank"},
+                 position_id: {"id": position_id, "type": "investment", "instrument_type": "stock"},
+             }), \
+             patch("app.routers.recurring.create_bilateral_movement") as create_movement:
+            cursor = MagicMock()
+            connection = mock_conn.return_value.__enter__.return_value
+            connection.cursor.return_value.__enter__.return_value = cursor
+            client = TestClient(app, raise_server_exceptions=True)
+
+            response = client.post(
+                "/api/recurring/payroll/execute",
+                json={"items": [{
+                    "source_account_id": source_id,
+                    "target_account_id": position_id,
+                    "amount": 1000,
+                }]},
+            )
+
+            assert response.status_code == 422
+            assert response.json()["detail"]["code"] == "investment_trade_required"
+            create_movement.assert_not_called()
+            connection.commit.assert_not_called()
     finally:
         app.dependency_overrides.clear()

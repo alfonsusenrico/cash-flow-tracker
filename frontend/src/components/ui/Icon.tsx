@@ -10,6 +10,7 @@ export type IconName =
   | "categories"
   | "dashboard"
   | "goals"
+  | "info"
   | "ledger"
   | "logout"
   | "moon"
@@ -37,6 +38,7 @@ interface IconProps extends SVGProps<SVGSVGElement> {
 }
 
 const paths: Record<string, ReactNode> = {
+  info: <><circle cx="12" cy="12" r="10" /><path d="M12 11v5" /><path d="M12 8h.01" /></>,
   accounts: <><path d="M4 10h16" /><path d="M6 10v8" /><path d="M10 10v8" /><path d="M14 10v8" /><path d="M18 10v8" /><path d="M3 18h18" /><path d="M12 3 4 8h16l-8-5Z" /></>,
   allocation: <><path d="M4 5h16" /><path d="M4 12h10" /><path d="M4 19h7" /><path d="m17 14 3 3-3 3" /><path d="M14 17h6" /></>,
   analysis: <><path d="M4 19V5" /><path d="M4 19h16" /><path d="m7 15 3-4 4 2 5-7" /></>,
@@ -68,6 +70,7 @@ const paths: Record<string, ReactNode> = {
   "chevron-left": <polyline points="15 18 9 12 15 6" />,
   "chevron-right": <polyline points="9 18 15 12 9 6" />,
   "chevron-down": <polyline points="6 9 12 15 18 9" />,
+  "more-horizontal": <><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></>,
   sparkles: <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z" />,
   palette: <><circle cx="13.5" cy="6.5" r=".5" fill="currentColor" /><circle cx="17.5" cy="10.5" r=".5" fill="currentColor" /><circle cx="8.5" cy="7.5" r=".5" fill="currentColor" /><circle cx="6.5" cy="12.5" r=".5" fill="currentColor" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" /></>,
   menu: <><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" /></>,

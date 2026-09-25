@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
 from app.services.auth import get_current_user
+from app.services.ledger_mutations import get_locked_ledger_balance, lock_owned_accounts
 from app.services.market_data import (
     get_instrument_quote,
     search_instruments,
@@ -85,6 +86,9 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
                     a.last_price_at,
                     a.color,
                     a.display_order,
+                    a.reconciliation_required,
+                    a.reconciliation_reason,
+                    a.reconciliation_event_id,
                     a.is_archived,
                     a.created_at,
                     (
@@ -158,6 +162,7 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
             "account_name": r.get("name"),
             "type": r.get("type"),
             "initial_balance": r.get("initial_balance", 0),
+            "own_balance": balance,
             "balance": balance,
             "current_balance": balance,
             "instrument_type": r.get("instrument_type"),
@@ -171,6 +176,10 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
             "cost_basis": total_cost_basis,
             "color": r.get("color") or "#3b82f6",
             "display_order": int(r.get("display_order") or 0),
+            "reconciliation_required": bool(r.get("reconciliation_required", False)),
+            "reconciliation_reason": r.get("reconciliation_reason"),
+            "reconciliation_event_id": str(r["reconciliation_event_id"]) if r.get("reconciliation_event_id") else None,
+            "reconciliation_discrepancy": min(0, ledger_balance),
             "is_archived": r.get("is_archived", False),
             "is_parent": False,
             "children": [],
@@ -208,6 +217,32 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
                     a["capital_gain_pct"] = round((parent_gain / total_child_cost) * 100, 2)
 
     return raw_accounts
+
+
+def summarize_account_balances(accounts: list[dict[str, Any]]) -> dict[str, int]:
+    liquid_balance = 0
+    investment_balance = 0
+    total_balance = 0
+    reconciliation_pending = 0
+
+    for account in accounts:
+        own_balance = int(account.get("own_balance", account["balance"]))
+        total_balance += own_balance
+        is_liquid = account.get("type") in {"cash", "bank", "ewallet", "wallet"} and not account.get("instrument_type")
+        if is_liquid:
+            if account.get("reconciliation_required") and own_balance < 0:
+                reconciliation_pending += -own_balance
+            else:
+                liquid_balance += own_balance
+        else:
+            investment_balance += own_balance
+
+    return {
+        "liquid_balance": liquid_balance,
+        "investment_balance": investment_balance,
+        "total_balance": total_balance,
+        "reconciliation_pending": reconciliation_pending,
+    }
 
 
 @router.get("/instruments/search")
@@ -288,6 +323,11 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
     default_funding_account_id = str(payload.default_funding_account_id) if payload.default_funding_account_id else None
     default_pocket_id = str(payload.default_pocket_id) if payload.default_pocket_id else None
 
+    if default_pocket_id:
+        raise HTTPException(status_code=400, detail="A new account cannot select a default pocket before its child pockets exist")
+    if default_funding_account_id and payload.type != "investment" and not payload.instrument_type:
+        raise HTTPException(status_code=400, detail="A default funding account is only valid for an investment account")
+
     # Determine initial values
     initial_bal = payload.initial_balance
     if payload.units and payload.avg_buy_price and initial_bal == 0:
@@ -330,11 +370,14 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
 
             if default_funding_account_id:
                 cur.execute(
-                    "SELECT id FROM accounts WHERE user_id = %s AND id = %s AND is_archived = false",
+                    "SELECT id, type, instrument_type FROM accounts WHERE user_id = %s AND id = %s AND is_archived = false",
                     (user_id, default_funding_account_id),
                 )
-                if not cur.fetchone():
+                funding_account = cur.fetchone()
+                if not funding_account:
                     raise HTTPException(status_code=404, detail="Default funding account not found")
+                if funding_account["type"] not in {"cash", "bank", "wallet", "ewallet"} or funding_account.get("instrument_type"):
+                    raise HTTPException(status_code=400, detail="Default funding account must be liquid")
 
             if default_pocket_id:
                 cur.execute(
@@ -502,30 +545,51 @@ async def update_account(
         updates.append("display_order = %s")
         params.append(payload.display_order)
 
-    if not updates:
+    if not updates and "default_pocket_id" not in payload.model_fields_set:
         raise HTTPException(status_code=400, detail="No fields to update")
 
     with db_conn() as conn:
         with conn.cursor() as cur:
             # Verify account exists
-            cur.execute("SELECT id, parent_id FROM accounts WHERE user_id = %s AND id = %s", (user_id, aid))
+            cur.execute("SELECT id, parent_id, type, instrument_type, default_pocket_id FROM accounts WHERE user_id = %s AND id = %s", (user_id, aid))
             curr_acc = cur.fetchone()
             if not curr_acc:
                 raise HTTPException(status_code=404, detail="Account not found")
 
             # Validate default_funding_account_id if provided
+            final_type = payload.type if payload.type is not None else curr_acc["type"]
+            final_instrument_type = (
+                payload.instrument_type
+                if "instrument_type" in payload.model_fields_set
+                else curr_acc.get("instrument_type")
+            )
+            final_parent_id = (
+                str(payload.parent_id) if payload.parent_id else None
+            ) if "parent_id" in payload.model_fields_set else (
+                str(curr_acc["parent_id"]) if curr_acc.get("parent_id") else None
+            )
+
             if "default_funding_account_id" in payload.model_fields_set and payload.default_funding_account_id is not None:
                 dfid = str(payload.default_funding_account_id)
+                if dfid == aid:
+                    raise HTTPException(status_code=400, detail="Account cannot be its own funding account")
                 cur.execute(
-                    "SELECT id FROM accounts WHERE user_id = %s AND id = %s AND is_archived = false",
+                    "SELECT id, type, instrument_type FROM accounts WHERE user_id = %s AND id = %s AND is_archived = false",
                     (user_id, dfid),
                 )
-                if not cur.fetchone():
+                funding_account = cur.fetchone()
+                if not funding_account:
                     raise HTTPException(status_code=404, detail="Default funding account not found")
+                if funding_account["type"] not in {"cash", "bank", "wallet", "ewallet"} or funding_account.get("instrument_type"):
+                    raise HTTPException(status_code=400, detail="Default funding account must be liquid")
+            elif final_type != "investment" and not final_instrument_type and curr_acc.get("default_funding_account_id") and "default_funding_account_id" not in payload.model_fields_set:
+                raise HTTPException(status_code=400, detail="Clear the default funding account before changing this account to a non-investment type")
 
             # Validate and update default_pocket_id if provided
             if "default_pocket_id" in payload.model_fields_set:
                 if payload.default_pocket_id is not None:
+                    if final_parent_id is not None:
+                        raise HTTPException(status_code=400, detail="Only a parent account can have a default pocket")
                     dpid = str(payload.default_pocket_id)
                     cur.execute(
                         "SELECT id FROM accounts WHERE user_id = %s AND id = %s AND parent_id = %s AND is_archived = false",
@@ -537,6 +601,8 @@ async def update_account(
                     params.append(dpid)
                 else:
                     updates.append("default_pocket_id = NULL")
+            elif curr_acc.get("default_pocket_id") and final_parent_id is not None:
+                raise HTTPException(status_code=400, detail="Clear the default pocket before making this account a child pocket")
 
             # Validate parent_id if being updated
             if "parent_id" in payload.model_fields_set and payload.parent_id is not None:
@@ -666,45 +732,41 @@ def reconcile_account(
     user_id = current_user["id"]
     aid = str(account_id)
 
-    # 1. Fetch current calculated balance
-    accounts = get_accounts_with_balances(user_id, include_archived=False)
-    account = next((a for a in accounts if a["id"] == aid), None)
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-
-    current_balance = account["balance"]
-    diff = payload.actual_balance - current_balance
-
-    if diff == 0:
-        return {
-            "ok": True,
-            "diff": 0,
-            "message": "Balance is already in sync",
-            "account": account,
-        }
-
     with db_conn() as conn:
         with conn.cursor() as cur:
+            lock_owned_accounts(cur, user_id, [aid])
+            current_balance = get_locked_ledger_balance(cur, user_id, aid)
+            diff = payload.actual_balance - current_balance
             tx_type = "income" if diff > 0 else "expense"
-            cur.execute(
-                "SELECT id FROM categories WHERE user_id = %s AND kind = %s AND (name ILIKE '%%penyesuaian%%' OR name ILIKE '%%adjustment%%') AND is_archived = false LIMIT 1",
-                (user_id, tx_type),
-            )
-            cat_row = cur.fetchone()
-            category_id = str(cat_row["id"]) if cat_row else None
-
             tx_amount = abs(diff)
-            tx_notes = payload.notes or "Balance Adjustment (Reconciliation)"
-
+            if diff:
+                cur.execute(
+                    "SELECT id FROM categories WHERE user_id = %s AND kind = %s AND (name ILIKE '%%penyesuaian%%' OR name ILIKE '%%adjustment%%') AND is_archived = false LIMIT 1",
+                    (user_id, tx_type),
+                )
+                cat_row = cur.fetchone()
+                category_id = str(cat_row["id"]) if cat_row else None
+                tx_notes = payload.notes or "Balance Adjustment (Reconciliation)"
+                cur.execute(
+                    """
+                    INSERT INTO transactions (
+                        user_id, account_id, category_id, type, amount, notes, date
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                    RETURNING id
+                    """,
+                    (user_id, aid, category_id, tx_type, tx_amount, tx_notes),
+                )
             cur.execute(
                 """
-                INSERT INTO transactions (
-                    user_id, account_id, category_id, type, amount, notes, date
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, NOW())
-                RETURNING id
+                UPDATE accounts
+                SET reconciliation_required = FALSE,
+                    reconciliation_reason = NULL,
+                    reconciliation_event_id = NULL,
+                    updated_at = NOW()
+                WHERE id = %s AND user_id = %s
                 """,
-                (user_id, aid, category_id, tx_type, tx_amount, tx_notes),
+                (aid, user_id),
             )
             conn.commit()
 
@@ -715,7 +777,11 @@ def reconcile_account(
     return {
         "ok": True,
         "diff": diff,
-        "message": f"Account reconciled with {tx_type} adjustment of {tx_amount}",
+        "message": (
+            f"Account reconciled with {tx_type} adjustment of {tx_amount}"
+            if diff
+            else "Balance is already in sync"
+        ),
         "account": updated_account,
     }
 

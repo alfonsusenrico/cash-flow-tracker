@@ -16,6 +16,9 @@ ON CONFLICT (user_id, name, kind) DO UPDATE SET
   is_excluded_from_budget = TRUE;
 
 -- 2. For any existing transfer transactions (safely handle if transfer_target_account_id exists):
+-- V1 does not create this field, but the transfer conversion below needs it before V15 runs.
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(128);
+
 DO $$
 BEGIN
     IF EXISTS (

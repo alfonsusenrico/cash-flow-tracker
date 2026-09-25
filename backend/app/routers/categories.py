@@ -24,6 +24,7 @@ class CategoryUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     icon: str | None = Field(default=None, max_length=50)
     color: str | None = Field(default=None, max_length=30)
+    kind: str | None = Field(default=None, pattern="^(expense|income)$")
     monthly_budget: int | None = Field(default=None, ge=0)
     is_primary: bool | None = None
     kakeibo_type: str | None = Field(default=None, pattern="^(need|want|saving)$")
@@ -70,7 +71,9 @@ def list_categories(
                 "kind": r["kind"],
                 "monthly_budget": r["monthly_budget"],
                 "is_primary": bool(r.get("is_primary", True)),
-                "kakeibo_type": r.get("kakeibo_type") or ("need" if r.get("is_primary", True) else "want"),
+                "kakeibo_type": (
+                    r.get("kakeibo_type") or ("need" if r.get("is_primary", True) else "want")
+                ) if r["kind"] == "expense" else None,
                 "is_archived": r["is_archived"],
                 "created_at": r["created_at"].isoformat() if r["created_at"] else None,
             }
@@ -83,7 +86,11 @@ def list_categories(
 def create_category(payload: CategoryCreate, current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
     name = payload.name.strip()
-    kakeibo_type = payload.kakeibo_type or ("need" if payload.is_primary else "want")
+    if payload.kind == "income" and (payload.monthly_budget is not None or payload.kakeibo_type is not None):
+        raise HTTPException(status_code=422, detail="Income categories cannot have an expense budget or Kakeibo pillar")
+    kakeibo_type = (
+        payload.kakeibo_type or ("need" if payload.is_primary else "want")
+    ) if payload.kind == "expense" else None
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -124,7 +131,9 @@ def create_category(payload: CategoryCreate, current_user: dict = Depends(get_cu
             "kind": cat["kind"],
             "monthly_budget": cat["monthly_budget"],
             "is_primary": bool(cat.get("is_primary", True)),
-            "kakeibo_type": cat.get("kakeibo_type") or ("need" if cat.get("is_primary", True) else "want"),
+            "kakeibo_type": (
+                cat.get("kakeibo_type") or ("need" if cat.get("is_primary", True) else "want")
+            ) if cat["kind"] == "expense" else None,
             "is_archived": cat["is_archived"],
             "created_at": cat["created_at"].isoformat(),
         },
@@ -150,15 +159,15 @@ def update_category(
     if payload.color is not None:
         updates.append("color = %s")
         params.append(payload.color)
+    if payload.kind is not None:
+        updates.append("kind = %s")
+        params.append(payload.kind)
     if "monthly_budget" in payload.model_fields_set:
         updates.append("monthly_budget = %s")
         params.append(payload.monthly_budget)
     if payload.is_primary is not None:
         updates.append("is_primary = %s")
         params.append(payload.is_primary)
-        if payload.kakeibo_type is None:
-            updates.append("kakeibo_type = %s")
-            params.append("need" if payload.is_primary else "want")
     if payload.kakeibo_type is not None:
         updates.append("kakeibo_type = %s")
         params.append(payload.kakeibo_type)
@@ -170,10 +179,33 @@ def update_category(
         raise HTTPException(status_code=400, detail="No fields to update")
 
     updates.append("updated_at = NOW()")
-    params.extend([user_id, cid])
 
     with db_conn() as conn:
         with conn.cursor() as cur:
+            cur.execute(
+                "SELECT kind FROM categories WHERE user_id = %s AND id = %s FOR UPDATE",
+                (user_id, cid),
+            )
+            current_category = cur.fetchone()
+            if not current_category:
+                raise HTTPException(status_code=404, detail="Category not found")
+            final_kind = payload.kind or current_category["kind"]
+            if final_kind == "income":
+                if payload.monthly_budget is not None or payload.kakeibo_type is not None:
+                    raise HTTPException(status_code=422, detail="Income categories cannot have an expense budget or Kakeibo pillar")
+                if payload.kind == "income":
+                    updates.extend(["monthly_budget = NULL", "kakeibo_type = NULL"])
+            elif payload.is_primary is not None and payload.kakeibo_type is None:
+                updates.append("kakeibo_type = %s")
+                params.append("need" if payload.is_primary else "want")
+            if payload.kind and payload.kind != current_category["kind"]:
+                cur.execute(
+                    "SELECT EXISTS (SELECT 1 FROM transactions WHERE category_id = %s AND type != %s) OR EXISTS (SELECT 1 FROM recurring_rules WHERE category_id = %s AND type != %s) AS has_incompatible_usage",
+                    (cid, payload.kind, cid, payload.kind),
+                )
+                if cur.fetchone()["has_incompatible_usage"]:
+                    raise HTTPException(status_code=409, detail="Category type cannot change while incompatible transactions or rules use it")
+            params.extend([user_id, cid])
             cur.execute(
                 f"""
                 UPDATE categories
@@ -198,7 +230,9 @@ def update_category(
             "kind": cat["kind"],
             "monthly_budget": cat["monthly_budget"],
             "is_primary": bool(cat.get("is_primary", True)),
-            "kakeibo_type": cat.get("kakeibo_type") or ("need" if cat.get("is_primary", True) else "want"),
+            "kakeibo_type": (
+                cat.get("kakeibo_type") or ("need" if cat.get("is_primary", True) else "want")
+            ) if cat["kind"] == "expense" else None,
             "is_archived": cat["is_archived"],
             "created_at": cat["created_at"].isoformat() if cat["created_at"] else None,
         },
@@ -213,17 +247,20 @@ def delete_category(category_id: UUID, current_user: dict = Depends(get_current_
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT COUNT(*) AS c FROM transactions WHERE category_id = %s",
-                (cid,),
+                """
+                SELECT EXISTS (SELECT 1 FROM transactions WHERE category_id = %s)
+                    OR EXISTS (SELECT 1 FROM recurring_rules WHERE category_id = %s) AS is_referenced
+                """,
+                (cid, cid),
             )
             row = cur.fetchone()
-            if row and row["c"] > 0:
+            if row and row["is_referenced"]:
                 cur.execute(
                     "UPDATE categories SET is_archived = TRUE, updated_at = NOW() WHERE user_id = %s AND id = %s",
                     (user_id, cid),
                 )
                 conn.commit()
-                return {"ok": True, "message": "Category archived because it has existing transactions"}
+                return {"ok": True, "message": "Category archived because it is referenced by ledger or recurring activity"}
 
             cur.execute(
                 "DELETE FROM categories WHERE user_id = %s AND id = %s RETURNING id",

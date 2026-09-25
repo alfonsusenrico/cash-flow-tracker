@@ -2,7 +2,6 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
@@ -10,6 +9,23 @@ from pydantic import BaseModel, Field
 from app.core.config import settings
 from app.db.pool import db_conn
 from app.services.auth import get_current_user
+from app.services.debt_allocations import (
+    DebtAllocation,
+    apply_allocations,
+    load_allocation_breakdowns,
+    load_allocation_rows,
+    lock_debts,
+    reverse_allocations,
+    validate_allocation_request,
+    validate_debt_capacity,
+)
+from app.services.ledger_mutations import ensure_sufficient_funds, get_locked_ledger_balance, lock_owned_accounts
+from app.services.receipts import (
+    build_receipt_relative_path,
+    prepare_receipt_payload,
+    remove_receipt_file,
+    store_receipt,
+)
 
 router = APIRouter(tags=["Transactions"])
 
@@ -25,14 +41,15 @@ class TransactionCreate(BaseModel):
     target_account_name: str | None = Field(default=None, max_length=100)
     goal_id: UUID | None = None
     obligation_id: UUID | None = None
+    obligation_allocations: list[DebtAllocation] | None = None
     notes: str | None = Field(default=None, max_length=500)
     date: datetime | None = None
     receipt_path: str | None = None
     idempotency_key: str | None = Field(default=None, max_length=64)
     kakeibo_type: str | None = Field(default=None, pattern="^(need|want|saving)$")
     investment_action: str | None = Field(default=None, pattern="^(buy|sell)$")
-    units: float | None = Field(default=None, ge=0)
-    price_per_unit: float | None = Field(default=None, ge=0)
+    units: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    price_per_unit: float | None = Field(default=None, gt=0, allow_inf_nan=False)
 
 
 class TransactionUpdate(BaseModel):
@@ -41,6 +58,7 @@ class TransactionUpdate(BaseModel):
     type: str | None = Field(default=None, pattern="^(expense|income)$")
     goal_id: UUID | None = None
     obligation_id: UUID | None = None
+    obligation_allocations: list[DebtAllocation] | None = None
     amount: int | None = Field(default=None, gt=0)
     notes: str | None = Field(default=None, max_length=500)
     date: datetime | None = None
@@ -87,8 +105,8 @@ def list_transactions(
                 conditions.append("t.goal_id = %s")
                 params.append(str(goal_id))
             if obligation_id:
-                conditions.append("t.obligation_id = %s")
-                params.append(str(obligation_id))
+                conditions.append("(t.obligation_id = %s OR EXISTS (SELECT 1 FROM transaction_obligation_allocations a WHERE a.transaction_id = t.id AND a.obligation_id = %s))")
+                params.extend([str(obligation_id), str(obligation_id)])
             if type:
                 if type == "transfer":
                     conditions.append("(t.type = 'transfer' OR c.name IN ('Internal Movement', 'Investasi') OR c.is_excluded_from_budget = true)")
@@ -107,8 +125,8 @@ def list_transactions(
                 params.append(to_date)
             if q:
                 search_pattern = f"%{q.strip()}%"
-                conditions.append("(t.notes ILIKE %s OR c.name ILIKE %s OR g.name ILIKE %s OR o.name ILIKE %s)")
-                params.extend([search_pattern, search_pattern, search_pattern, search_pattern])
+                conditions.append("(t.notes ILIKE %s OR c.name ILIKE %s OR g.name ILIKE %s OR o.name ILIKE %s OR EXISTS (SELECT 1 FROM transaction_obligation_allocations a JOIN obligations debt ON debt.id = a.obligation_id WHERE a.transaction_id = t.id AND debt.name ILIKE %s))")
+                params.extend([search_pattern] * 5)
 
             where_clause = " AND ".join(conditions)
 
@@ -145,9 +163,18 @@ def list_transactions(
                     t.notes,
                     t.date,
                     t.receipt_path,
+                    t.movement_id,
+                    t.movement_role,
+                    partner.id AS partner_id,
+                    partner.account_id AS movement_target_account_id,
+                    partner_account.name AS movement_target_account_name,
                     t.created_at
                 FROM transactions t
                 JOIN accounts sa ON sa.id = t.account_id
+                LEFT JOIN transactions partner
+                    ON partner.movement_id = t.movement_id
+                   AND partner.id != t.id
+                LEFT JOIN accounts partner_account ON partner_account.id = partner.account_id
                 LEFT JOIN categories c ON c.id = t.category_id
                 LEFT JOIN goals g ON g.id = t.goal_id
                 LEFT JOIN obligations o ON o.id = t.obligation_id
@@ -157,6 +184,7 @@ def list_transactions(
             """
             cur.execute(select_query, params + [limit, offset])
             rows = cur.fetchall()
+            allocation_breakdowns = load_allocation_breakdowns(cur, rows)
 
     return {
         "ok": True,
@@ -177,10 +205,14 @@ def list_transactions(
                 "goal_name": r["goal_name"],
                 "obligation_id": str(r["obligation_id"]) if r["obligation_id"] else None,
                 "obligation_name": r["obligation_name"],
+                "obligation_allocations": allocation_breakdowns[str(r["id"])],
                 "type": r["type"],
                 "kakeibo_type": r.get("kakeibo_type"),
-                "transfer_target_account_id": None,
-                "transfer_target_account_name": None,
+                "movement_id": str(r["movement_id"]) if r.get("movement_id") else None,
+                "movement_role": r.get("movement_role"),
+                "partner_id": str(r["partner_id"]) if r.get("partner_id") else None,
+                "transfer_target_account_id": str(r["movement_target_account_id"]) if r.get("movement_target_account_id") else None,
+                "transfer_target_account_name": r.get("movement_target_account_name"),
                 "amount": r["amount"],
                 "notes": r["notes"],
                 "date": r["date"].isoformat() if r["date"] else None,
@@ -441,6 +473,8 @@ def resolve_effective_account(
 
 @router.post("")
 def create_transaction(payload: TransactionCreate, current_user: dict = Depends(get_current_user)):
+    if payload.receipt_path is not None:
+        raise HTTPException(status_code=422, detail="Upload receipts through the owned transaction receipt endpoint")
     user_id = current_user["id"]
     tx_date = payload.date or datetime.now(timezone.utc)
 
@@ -448,6 +482,11 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
         with conn.cursor() as cur:
             # 1. Idempotency Check
             if payload.idempotency_key:
+                if payload.obligation_allocations is not None:
+                    cur.execute(
+                        "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                        (f"debt-payment:{user_id}:{payload.idempotency_key}",),
+                    )
                 cur.execute(
                     """
                     SELECT id, created_at, amount, type
@@ -488,8 +527,13 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 account_id = str(payload.account_id)
                 matched_source = next((a for a in accounts if str(a["id"]) == account_id), None)
                 if not matched_source:
-                    cur.execute("SELECT id, name, type, default_pocket_id, parent_id FROM accounts WHERE user_id = %s AND id = %s", (user_id, account_id))
-                    matched_source = cur.fetchone()
+                    cur.execute(
+                        "SELECT id, name, type, default_pocket_id, parent_id, is_archived FROM accounts WHERE user_id = %s AND id = %s",
+                        (user_id, account_id),
+                    )
+                    inactive_source = cur.fetchone()
+                    if inactive_source and not inactive_source["is_archived"]:
+                        matched_source = inactive_source
                 if not matched_source:
                     raise HTTPException(status_code=404, detail="Source account not found")
             elif payload.account_name:
@@ -511,55 +555,69 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
             if payload.target_account_id:
                 target_account_id = str(payload.target_account_id)
                 matched_target = next((a for a in accounts if str(a["id"]) == target_account_id), None)
-                if matched_target:
-                    effective_target = resolve_effective_account(cur, user_id, matched_target, accounts)
-                    if effective_target:
-                        matched_target = effective_target
-                        target_account_id = str(effective_target["id"])
+                if not matched_target:
+                    raise HTTPException(status_code=404, detail="Target account not found")
+                effective_target = resolve_effective_account(cur, user_id, matched_target, accounts)
+                if effective_target:
+                    matched_target = effective_target
+                    target_account_id = str(effective_target["id"])
             elif payload.target_account_name:
                 matched_target = _match_account_by_name(cur, user_id, payload.target_account_name, accounts)
-                if not matched_target and payload.investment_action == "buy":
-                    symbol = payload.target_account_name.strip().upper()
-                    cur.execute(
-                        """
-                        INSERT INTO accounts (user_id, name, type, instrument_type, instrument_symbol, units, avg_buy_price, default_funding_account_id)
-                        VALUES (%s, %s, 'investment', 'stock', %s, 0, 0, %s)
-                        RETURNING id, parent_id, name, type, instrument_type, instrument_symbol, default_funding_account_id, default_pocket_id
-                        """,
-                        (user_id, symbol, f"{symbol}.JK", account_id),
+                if not matched_target:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Target account '{payload.target_account_name}' could not be resolved",
                     )
-                    matched_target = cur.fetchone()
-                    if matched_target:
-                        accounts.append(matched_target)
-                if matched_target:
-                    effective_target = resolve_effective_account(cur, user_id, matched_target, accounts)
-                    if effective_target:
-                        matched_target = effective_target
-                    target_account_id = str(matched_target["id"])
+                effective_target = resolve_effective_account(cur, user_id, matched_target, accounts)
+                if effective_target:
+                    matched_target = effective_target
+                target_account_id = str(matched_target["id"])
 
             # Resolve category
             category_id = None
             if payload.category_id:
                 category_id = str(payload.category_id)
-                cur.execute("SELECT id FROM categories WHERE user_id = %s AND id = %s", (user_id, category_id))
-                if not cur.fetchone():
+                cur.execute(
+                    "SELECT id, kind FROM categories WHERE user_id = %s AND id = %s AND is_archived = FALSE",
+                    (user_id, category_id),
+                )
+                category = cur.fetchone()
+                if not category:
                     raise HTTPException(status_code=404, detail="Category not found")
+                if not payload.investment_action and category["kind"] != payload.type:
+                    raise HTTPException(status_code=400, detail="Category is incompatible with transaction type")
             elif payload.category_name:
                 matched_cat = _resolve_category_by_name(cur, user_id, payload.category_name, categories)
                 if matched_cat:
                     category_id = str(matched_cat["id"])
+                else:
+                    raise HTTPException(status_code=400, detail="Category could not be resolved")
+
+            if not payload.investment_action and (payload.target_account_id or payload.target_account_name):
+                raise HTTPException(status_code=400, detail="A target account is only valid for an investment trade")
+            if not payload.investment_action and (
+                matched_source.get("type") == "investment" or matched_source.get("instrument_type")
+            ):
+                raise HTTPException(status_code=422, detail="Investment positions can only be changed through a Beli/Jual trade")
 
             # Validate goal if provided
             goal_id = str(payload.goal_id) if payload.goal_id else None
             if goal_id:
-                cur.execute("SELECT id FROM goals WHERE user_id = %s AND id = %s", (user_id, goal_id))
+                cur.execute("SELECT id FROM goals WHERE user_id = %s AND id = %s AND is_archived = FALSE", (user_id, goal_id))
                 if not cur.fetchone():
                     raise HTTPException(status_code=404, detail="Goal not found")
 
             # Validate obligation if provided
             obligation_id = str(payload.obligation_id) if payload.obligation_id else None
+            allocation_values = validate_allocation_request(
+                payload.obligation_allocations,
+                amount=payload.amount,
+                obligation_id=payload.obligation_id,
+                transaction_type=payload.type,
+                investment_action=payload.investment_action,
+            )
             if obligation_id:
-                cur.execute("SELECT id FROM obligations WHERE user_id = %s AND id = %s", (user_id, obligation_id))
+                cur.execute("SELECT id FROM obligations WHERE user_id = %s AND id = %s AND is_archived = FALSE AND remaining_amount > 0", (user_id, obligation_id))
                 if not cur.fetchone():
                     raise HTTPException(status_code=404, detail="Obligation not found")
 
@@ -582,6 +640,98 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 if crow:
                     kakeibo_val = crow.get("kakeibo_type") or ("need" if crow.get("is_primary", True) else "want")
 
+            if payload.investment_action:
+                if target_account_id is None:
+                    raise HTTPException(status_code=400, detail="Investment trades require a target account")
+                if account_id == target_account_id:
+                    raise HTTPException(status_code=400, detail="Funding and investment accounts must be different")
+
+                trade_units = float(payload.units or 0)
+                trade_price = float(payload.price_per_unit or 0)
+                expected_amount = int(round(trade_units * trade_price))
+                if expected_amount <= 0 or expected_amount != payload.amount:
+                    raise HTTPException(status_code=400, detail="Trade amount must equal units multiplied by price per unit")
+
+                if payload.investment_action == "buy":
+                    funding_id = account_id
+                    position_id = target_account_id
+                else:
+                    position_id = account_id
+                    funding_id = target_account_id
+
+                locked = lock_owned_accounts(cur, user_id, [funding_id, position_id])
+                funding = locked[funding_id]
+                position = locked[position_id]
+                if funding.get("type") not in {"cash", "bank", "wallet", "ewallet"} or funding.get("instrument_type"):
+                    raise HTTPException(status_code=400, detail="Funding account must be a liquid account")
+                if position.get("type") != "investment" and not position.get("instrument_type"):
+                    raise HTTPException(status_code=400, detail="Position account must be an investment account")
+
+                old_units = float(position.get("units") or 0)
+                old_avg = float(position.get("avg_buy_price") or 0)
+                if payload.investment_action == "sell" and trade_units > old_units:
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "code": "insufficient_units",
+                            "required_units": trade_units,
+                            "available_units": old_units,
+                            "account_id": position_id,
+                        },
+                    )
+
+                from app.routers.movements import _ensure_internal_movement_categories
+                from app.services.ledger_mutations import create_bilateral_movement
+
+                expense_category_id, income_category_id = _ensure_internal_movement_categories(cur, user_id)
+                source_id = funding_id if payload.investment_action == "buy" else position_id
+                destination_id = position_id if payload.investment_action == "buy" else funding_id
+                result = create_bilateral_movement(
+                    cur,
+                    user_id=user_id,
+                    source_id=source_id,
+                    target_id=destination_id,
+                    amount=payload.amount,
+                    notes=payload.notes or f"Investment {payload.investment_action}",
+                    tx_date=tx_date,
+                    expense_category_id=expense_category_id,
+                    income_category_id=income_category_id,
+                    source_account=locked[source_id],
+                    target_account=locked[destination_id],
+                    idempotency_key=payload.idempotency_key,
+                    is_trade=True,
+                )
+
+                if payload.investment_action == "buy":
+                    new_units = old_units + trade_units
+                    new_avg = round(((old_units * old_avg) + (trade_units * trade_price)) / new_units)
+                    cur.execute(
+                        "UPDATE accounts SET units = %s, avg_buy_price = %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
+                        (new_units, new_avg, position_id, user_id),
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE accounts SET units = %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
+                        (old_units - trade_units, position_id, user_id),
+                    )
+                conn.commit()
+                return {
+                    "ok": True,
+                    "transaction_id": result["expense_transaction_id"],
+                    **result,
+                    "message": "Investment trade recorded successfully",
+                }
+
+            if payload.target_account_id or payload.target_account_name:
+                raise HTTPException(status_code=400, detail="Use the movement endpoint for account transfers")
+
+            if payload.type == "expense":
+                locked = lock_owned_accounts(cur, user_id, [account_id])
+                ensure_sufficient_funds(cur, user_id, locked[account_id], payload.amount)
+            if allocation_values:
+                debts = lock_debts(cur, user_id, [debt_id for debt_id, _ in allocation_values])
+                validate_debt_capacity(debts, allocation_values)
+
             # Insert transaction
             cur.execute(
                 """
@@ -602,25 +752,23 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     payload.amount,
                     payload.notes,
                     tx_date,
-                    payload.receipt_path,
+                    None,
                     kakeibo_val,
                     payload.idempotency_key,
                 ),
             )
             created = cur.fetchone()
 
-            # If linked to a goal, update goal's current_amount
-            if goal_id:
-                if payload.type == "income":
+            if allocation_values:
+                for debt_id, allocated_amount in allocation_values:
                     cur.execute(
-                        "UPDATE goals SET current_amount = current_amount + %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (payload.amount, goal_id, user_id),
+                        """
+                        INSERT INTO transaction_obligation_allocations (transaction_id, obligation_id, amount)
+                        VALUES (%s, %s, %s)
+                        """,
+                        (str(created["id"]), debt_id, allocated_amount),
                     )
-                elif payload.type == "expense":
-                    cur.execute(
-                        "UPDATE goals SET current_amount = GREATEST(0, current_amount - %s), updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (payload.amount, goal_id, user_id),
-                    )
+                apply_allocations(cur, user_id, allocation_values)
 
             # If linked to an obligation, update obligation's remaining_amount
             if obligation_id:
@@ -647,54 +795,6 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                         (payload.amount, payload.amount, obligation_id, user_id),
                     )
 
-            # If investment trade action is specified, update the target instrument's units and avg_buy_price
-            if payload.investment_action:
-                invest_acc_id = target_account_id if payload.investment_action == "buy" else account_id
-                if invest_acc_id:
-                    cur.execute(
-                        """
-                        SELECT id, name, type, instrument_type, instrument_symbol, units, avg_buy_price, last_price
-                        FROM accounts
-                        WHERE id = %s AND user_id = %s
-                        """,
-                        (invest_acc_id, user_id),
-                    )
-                    inv_acc = cur.fetchone()
-                    if inv_acc:
-                        old_units = float(inv_acc.get("units") or 0)
-                        old_avg = float(inv_acc.get("avg_buy_price") or 0)
-                        trade_units = float(payload.units or 0)
-                        trade_price = float(payload.price_per_unit or 0)
-
-                        if payload.investment_action == "buy":
-                            new_units = old_units + trade_units
-                            if new_units > 0 and trade_price > 0:
-                                new_avg = round(((old_units * old_avg) + (trade_units * trade_price)) / new_units)
-                            else:
-                                new_avg = old_avg or trade_price
-
-                            cur.execute(
-                                """
-                                UPDATE accounts
-                                SET units = %s,
-                                    avg_buy_price = %s,
-                                    updated_at = NOW()
-                                WHERE id = %s AND user_id = %s
-                                """,
-                                (new_units, new_avg, invest_acc_id, user_id),
-                            )
-                        elif payload.investment_action == "sell":
-                            new_units = max(0.0, old_units - trade_units)
-                            cur.execute(
-                                """
-                                UPDATE accounts
-                                SET units = %s,
-                                    updated_at = NOW()
-                                WHERE id = %s AND user_id = %s
-                                """,
-                                (new_units, invest_acc_id, user_id),
-                            )
-
             conn.commit()
 
     return {
@@ -719,9 +819,18 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                     t.obligation_id, o.name AS obligation_name,
                     t.type,
                     COALESCE(t.kakeibo_type, c.kakeibo_type, CASE WHEN COALESCE(c.is_primary, TRUE) THEN 'need' ELSE 'want' END) AS kakeibo_type,
-                    t.amount, t.notes, t.date, t.receipt_path, t.created_at
+                    t.amount, t.notes, t.date, t.receipt_path,
+                    t.movement_id, t.movement_role,
+                    partner.id AS partner_id,
+                    partner.account_id AS movement_target_account_id,
+                    partner_account.name AS movement_target_account_name,
+                    t.created_at
                 FROM transactions t
                 JOIN accounts sa ON sa.id = t.account_id
+                LEFT JOIN transactions partner
+                    ON partner.movement_id = t.movement_id
+                   AND partner.id != t.id
+                LEFT JOIN accounts partner_account ON partner_account.id = partner.account_id
                 LEFT JOIN categories c ON c.id = t.category_id
                 LEFT JOIN goals g ON g.id = t.goal_id
                 LEFT JOIN obligations o ON o.id = t.obligation_id
@@ -732,6 +841,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             r = cur.fetchone()
             if not r:
                 raise HTTPException(status_code=404, detail="Transaction not found")
+            allocation_breakdowns = load_allocation_breakdowns(cur, [r])
 
     return {
         "ok": True,
@@ -747,8 +857,14 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             "goal_name": r["goal_name"],
             "obligation_id": str(r["obligation_id"]) if r["obligation_id"] else None,
             "obligation_name": r["obligation_name"],
+            "obligation_allocations": allocation_breakdowns[tid],
             "type": r["type"],
             "kakeibo_type": r.get("kakeibo_type"),
+            "movement_id": str(r["movement_id"]) if r.get("movement_id") else None,
+            "movement_role": r.get("movement_role"),
+            "partner_id": str(r["partner_id"]) if r.get("partner_id") else None,
+            "transfer_target_account_id": str(r["movement_target_account_id"]) if r.get("movement_target_account_id") else None,
+            "transfer_target_account_name": r.get("movement_target_account_name"),
             "amount": r["amount"],
             "notes": r["notes"],
             "date": r["date"].isoformat() if r["date"] else None,
@@ -773,52 +889,23 @@ def update_transaction(
             cur.execute(
                 """
                 SELECT id, account_id, category_id, goal_id, obligation_id, type,
-                       amount, notes, date, receipt_path, kakeibo_type
+                       amount, notes, date, receipt_path, kakeibo_type, movement_id
                 FROM transactions
                 WHERE user_id = %s AND id = %s
+                FOR UPDATE
                 """,
                 (user_id, tid),
             )
             old_tx = cur.fetchone()
             if not old_tx:
                 raise HTTPException(status_code=404, detail="Transaction not found")
-
-            # 2. Reverse previous goal / obligation side-effects
-            if old_tx["goal_id"]:
-                if old_tx["type"] == "income":
-                    cur.execute(
-                        "UPDATE goals SET current_amount = GREATEST(0, current_amount - %s), updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (old_tx["amount"], str(old_tx["goal_id"]), user_id),
-                    )
-                elif old_tx["type"] == "expense":
-                    cur.execute(
-                        "UPDATE goals SET current_amount = current_amount + %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (old_tx["amount"], str(old_tx["goal_id"]), user_id),
-                    )
-
-            if old_tx["obligation_id"]:
-                if old_tx["type"] == "expense":
-                    cur.execute(
-                        """
-                        UPDATE obligations
-                        SET remaining_amount = remaining_amount + %s,
-                            is_archived = CASE WHEN (remaining_amount + %s) > 0 THEN false ELSE is_archived END,
-                            updated_at = NOW()
-                        WHERE id = %s AND user_id = %s
-                        """,
-                        (old_tx["amount"], old_tx["amount"], str(old_tx["obligation_id"]), user_id),
-                    )
-                elif old_tx["type"] == "income":
-                    cur.execute(
-                        """
-                        UPDATE obligations
-                        SET remaining_amount = GREATEST(0, remaining_amount - %s),
-                            is_archived = CASE WHEN (remaining_amount - %s) <= 0 THEN true ELSE is_archived END,
-                            updated_at = NOW()
-                        WHERE id = %s AND user_id = %s
-                        """,
-                        (old_tx["amount"], old_tx["amount"], str(old_tx["obligation_id"]), user_id),
-                    )
+            if old_tx.get("movement_id"):
+                raise HTTPException(status_code=409, detail="Linked movements must be edited through the movement endpoint")
+            old_allocation_rows = load_allocation_rows(cur, tid)
+            old_allocations = [
+                (str(row["obligation_id"]), int(row["amount"]))
+                for row in old_allocation_rows
+            ]
 
             # 3. Determine new values (merging payload with old_tx)
             new_amount = payload.amount if payload.amount is not None else old_tx["amount"]
@@ -848,10 +935,38 @@ def update_transaction(
             else:
                 new_goal_id = str(old_tx["goal_id"]) if old_tx["goal_id"] else None
 
-            if "obligation_id" in payload.model_fields_set:
+            allocation_field_set = "obligation_allocations" in payload.model_fields_set
+            legacy_field_set = "obligation_id" in payload.model_fields_set
+            if legacy_field_set:
                 new_obligation_id = str(payload.obligation_id) if payload.obligation_id else None
+            elif allocation_field_set:
+                new_obligation_id = None
             else:
                 new_obligation_id = str(old_tx["obligation_id"]) if old_tx["obligation_id"] else None
+
+            if allocation_field_set and payload.obligation_allocations is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"code": "invalid_debt_allocations", "message": "Kirim daftar pembagian tagihan atau daftar kosong untuk menghapusnya."},
+                )
+            if allocation_field_set:
+                requested_allocations = payload.obligation_allocations
+            elif legacy_field_set:
+                requested_allocations = None
+            elif old_allocations:
+                requested_allocations = [
+                    DebtAllocation(obligation_id=UUID(debt_id), amount=allocated_amount)
+                    for debt_id, allocated_amount in old_allocations
+                ]
+            else:
+                requested_allocations = None
+
+            new_allocations = validate_allocation_request(
+                requested_allocations,
+                amount=new_amount,
+                obligation_id=new_obligation_id,
+                transaction_type=new_type,
+            )
 
             new_notes = payload.notes if "notes" in payload.model_fields_set else old_tx["notes"]
             new_date = payload.date if payload.date is not None else old_tx["date"]
@@ -868,19 +983,88 @@ def update_transaction(
             else:
                 new_kakeibo_type = old_tx.get("kakeibo_type")
 
+            locked_account = None
+            if new_type == "expense":
+                locked_account = lock_owned_accounts(cur, user_id, [new_account_id])[new_account_id]
+
+            affected_debt_ids = [debt_id for debt_id, _ in old_allocations]
+            affected_debt_ids.extend(debt_id for debt_id, _ in new_allocations or [])
+            if old_tx["obligation_id"]:
+                affected_debt_ids.append(str(old_tx["obligation_id"]))
+            if new_obligation_id:
+                affected_debt_ids.append(new_obligation_id)
+            locked_debts = lock_debts(cur, user_id, affected_debt_ids)
+
+            if old_allocations:
+                reverse_allocations(cur, user_id, old_allocations)
+                for debt_id, allocated_amount in old_allocations:
+                    locked_debts[debt_id]["remaining_amount"] += allocated_amount
+                    locked_debts[debt_id]["is_archived"] = False
+            elif old_tx["obligation_id"]:
+                old_debt_id = str(old_tx["obligation_id"])
+                if old_tx["type"] == "expense":
+                    reverse_allocations(cur, user_id, [(old_debt_id, int(old_tx["amount"]))])
+                    locked_debts[old_debt_id]["remaining_amount"] += int(old_tx["amount"])
+                    locked_debts[old_debt_id]["is_archived"] = False
+                elif old_tx["type"] == "income":
+                    cur.execute(
+                        """
+                        UPDATE obligations
+                        SET remaining_amount = GREATEST(0, remaining_amount - %s),
+                            is_archived = CASE WHEN (remaining_amount - %s) <= 0 THEN true ELSE is_archived END,
+                            updated_at = NOW()
+                        WHERE id = %s AND user_id = %s
+                        """,
+                        (old_tx["amount"], old_tx["amount"], old_debt_id, user_id),
+                    )
+                    locked_debts[old_debt_id]["remaining_amount"] = max(
+                        0,
+                        int(locked_debts[old_debt_id]["remaining_amount"]) - int(old_tx["amount"]),
+                    )
+                    locked_debts[old_debt_id]["is_archived"] = locked_debts[old_debt_id]["remaining_amount"] == 0
+
+            if new_allocations:
+                validate_debt_capacity(
+                    locked_debts,
+                    new_allocations,
+                    previously_linked_ids=set(debt_id for debt_id, _ in old_allocations),
+                )
+
             # Validate accounts / categories / goals / obligations
             if new_category_id:
-                cur.execute("SELECT id FROM categories WHERE user_id = %s AND id = %s", (user_id, new_category_id))
-                if not cur.fetchone():
+                cur.execute(
+                    "SELECT id, kind FROM categories WHERE user_id = %s AND id = %s AND is_archived = FALSE",
+                    (user_id, new_category_id),
+                )
+                category = cur.fetchone()
+                if not category:
                     raise HTTPException(status_code=404, detail="Category not found")
+                if category["kind"] != new_type:
+                    raise HTTPException(status_code=400, detail="Category is incompatible with transaction type")
             if new_goal_id:
-                cur.execute("SELECT id FROM goals WHERE user_id = %s AND id = %s", (user_id, new_goal_id))
-                if not cur.fetchone():
+                cur.execute("SELECT id FROM goals WHERE user_id = %s AND id = %s AND is_archived = FALSE", (user_id, new_goal_id))
+                if not cur.fetchone() and new_goal_id != (str(old_tx["goal_id"]) if old_tx.get("goal_id") else None):
                     raise HTTPException(status_code=404, detail="Goal not found")
             if new_obligation_id:
-                cur.execute("SELECT id FROM obligations WHERE user_id = %s AND id = %s", (user_id, new_obligation_id))
-                if not cur.fetchone():
+                cur.execute("SELECT id FROM obligations WHERE user_id = %s AND id = %s AND is_archived = FALSE AND remaining_amount > 0", (user_id, new_obligation_id))
+                if not cur.fetchone() and new_obligation_id != (str(old_tx["obligation_id"]) if old_tx.get("obligation_id") else None):
                     raise HTTPException(status_code=404, detail="Obligation not found")
+
+            if new_type == "expense":
+                if locked_account.get("type") in {"cash", "bank", "wallet", "ewallet"} and not locked_account.get("instrument_type"):
+                    available = get_locked_ledger_balance(cur, user_id, new_account_id)
+                    if old_tx["type"] == "expense" and str(old_tx["account_id"]) == new_account_id:
+                        available += int(old_tx["amount"])
+                    if available < new_amount:
+                        raise HTTPException(
+                            status_code=409,
+                            detail={
+                                "code": "insufficient_funds",
+                                "required_amount": new_amount,
+                                "available_amount": available,
+                                "account_id": new_account_id,
+                            },
+                        )
 
             # 4. Update the transaction row
             cur.execute(
@@ -914,19 +1098,23 @@ def update_transaction(
                 ),
             )
 
-            # 5. Apply new goal / obligation side-effects
-            if new_goal_id:
-                if new_type == "income":
+            if old_allocations or new_allocations:
+                cur.execute(
+                    "DELETE FROM transaction_obligation_allocations WHERE transaction_id = %s",
+                    (tid,),
+                )
+                for debt_id, allocated_amount in new_allocations or []:
                     cur.execute(
-                        "UPDATE goals SET current_amount = current_amount + %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (new_amount, new_goal_id, user_id),
+                        """
+                        INSERT INTO transaction_obligation_allocations (transaction_id, obligation_id, amount)
+                        VALUES (%s, %s, %s)
+                        """,
+                        (tid, debt_id, allocated_amount),
                     )
-                elif new_type == "expense":
-                    cur.execute(
-                        "UPDATE goals SET current_amount = GREATEST(0, current_amount - %s), updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (new_amount, new_goal_id, user_id),
-                    )
+                if new_allocations:
+                    apply_allocations(cur, user_id, new_allocations)
 
+            # 5. Apply new obligation side-effect. Goal links are metadata only.
             if new_obligation_id:
                 if new_type == "expense":
                     cur.execute(
@@ -964,25 +1152,23 @@ def delete_transaction(transaction_id: UUID, current_user: dict = Depends(get_cu
         with conn.cursor() as cur:
             # Query transaction to reverse any goal/obligation side effects
             cur.execute(
-                "SELECT type, amount, goal_id, obligation_id FROM transactions WHERE user_id = %s AND id = %s",
+                "SELECT type, amount, goal_id, obligation_id, movement_id, receipt_path FROM transactions WHERE user_id = %s AND id = %s FOR UPDATE",
                 (user_id, tid),
             )
             tx = cur.fetchone()
             if not tx:
                 raise HTTPException(status_code=404, detail="Transaction not found")
+            if tx.get("movement_id"):
+                raise HTTPException(status_code=409, detail="Linked movements must be deleted through the movement endpoint")
 
-            # Reverse goal adjustment
-            if tx["goal_id"]:
-                if tx["type"] == "income":
-                    cur.execute(
-                        "UPDATE goals SET current_amount = GREATEST(0, current_amount - %s), updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (tx["amount"], str(tx["goal_id"]), user_id),
-                    )
-                elif tx["type"] == "expense":
-                    cur.execute(
-                        "UPDATE goals SET current_amount = current_amount + %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
-                        (tx["amount"], str(tx["goal_id"]), user_id),
-                    )
+            allocation_rows = load_allocation_rows(cur, tid)
+            allocations = [
+                (str(row["obligation_id"]), int(row["amount"]))
+                for row in allocation_rows
+            ]
+            if allocations:
+                lock_debts(cur, user_id, [debt_id for debt_id, _ in allocations])
+                reverse_allocations(cur, user_id, allocations)
 
             # Reverse obligation adjustment
             if tx["obligation_id"]:
@@ -1015,6 +1201,8 @@ def delete_transaction(transaction_id: UUID, current_user: dict = Depends(get_cu
             )
             conn.commit()
 
+    remove_receipt_file(tx.get("receipt_path"))
+
     return {"ok": True, "message": "Transaction deleted"}
 
 
@@ -1026,28 +1214,64 @@ async def upload_receipt(
 ):
     user_id = current_user["id"]
     tid = str(transaction_id)
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="Receipt file is empty")
-
-    receipts_dir = Path(settings.receipts_dir).expanduser().resolve()
-    user_receipts_dir = receipts_dir / str(user_id)
-    user_receipts_dir.mkdir(parents=True, exist_ok=True)
-
-    ext = Path(file.filename or "receipt.jpg").suffix or ".jpg"
-    filename = f"{tid}{ext}"
-    rel_path = f"{user_id}/{filename}"
-    full_path = user_receipts_dir / filename
-    full_path.write_bytes(content)
-
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE transactions SET receipt_path = %s WHERE id = %s AND user_id = %s RETURNING id",
-                (rel_path, tid, user_id),
+                "SELECT id FROM transactions WHERE id = %s AND user_id = %s",
+                (tid, user_id),
             )
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Transaction not found")
-            conn.commit()
+
+    max_bytes = max(1, settings.receipt_max_mb) * 1024 * 1024
+    chunks = []
+    total_bytes = 0
+    while total_bytes <= max_bytes:
+        chunk = await file.read(min(64 * 1024, max_bytes + 1 - total_bytes))
+        if not chunk:
+            break
+        chunks.append(chunk)
+        total_bytes += len(chunk)
+    if total_bytes > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Receipt file too large (max {settings.receipt_max_mb}MB)",
+        )
+    content = b"".join(chunks)
+    prepared = prepare_receipt_payload(
+        raw=content,
+        filename=file.filename,
+        content_type=file.content_type,
+        category="general",
+    )
+    rel_path = build_receipt_relative_path(
+        str(user_id),
+        tid,
+        prepared.category,
+        prepared.stored_ext,
+    )
+    try:
+        with db_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT receipt_path FROM transactions WHERE id = %s AND user_id = %s FOR UPDATE",
+                    (tid, user_id),
+                )
+                owned_transaction = cur.fetchone()
+                if not owned_transaction:
+                    raise HTTPException(status_code=404, detail="Transaction not found")
+                store_receipt(rel_path, prepared.content)
+                cur.execute(
+                    "UPDATE transactions SET receipt_path = %s, updated_at = NOW() WHERE id = %s AND user_id = %s RETURNING id",
+                    (rel_path, tid, user_id),
+                )
+                if not cur.fetchone():
+                    raise HTTPException(status_code=404, detail="Transaction not found")
+                conn.commit()
+    except Exception:
+        remove_receipt_file(rel_path)
+        raise
+
+    remove_receipt_file(owned_transaction.get("receipt_path"))
 
     return {"ok": True, "receipt_path": rel_path, "message": "Receipt uploaded successfully"}

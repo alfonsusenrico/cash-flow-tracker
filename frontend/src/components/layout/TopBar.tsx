@@ -7,7 +7,6 @@ import { Icon } from "@/components/ui/Icon";
 interface TopBarProps {
   onToggleMobileMenu?: () => void;
   onQuickAdd?: () => void;
-  onOpenSettings?: () => void;
 }
 
 const TITLES: Record<string, { title: string; subtitle: string }> = {
@@ -18,7 +17,7 @@ const TITLES: Record<string, { title: string; subtitle: string }> = {
   "/goals": { title: "Target & Tagihan", subtitle: "Target Tabungan & Rencana Pembayaran" },
 };
 
-export function TopBar({ onQuickAdd, onOpenSettings }: TopBarProps) {
+export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
   const pathname = usePathname();
   const {
     hideBalances,
@@ -48,12 +47,13 @@ export function TopBar({ onQuickAdd, onOpenSettings }: TopBarProps) {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 sm:h-16 w-full items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/90 px-3 sm:px-6 lg:px-8 backdrop-blur-md">
+    <header className="sticky top-0 z-30 flex min-h-14 w-full flex-wrap items-center justify-between gap-y-1.5 border-b border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1.5 backdrop-blur-md sm:h-16 sm:flex-nowrap sm:gap-y-0 sm:px-6 sm:py-0 lg:px-8">
       {/* Left: Brand / Title */}
-      <div className="flex items-center gap-2.5">
+      <div className="order-1 flex min-w-[9rem] flex-1 items-center gap-2.5 sm:flex-none">
+        {onToggleMobileMenu && <button type="button" onClick={onToggleMobileMenu} aria-label="Buka menu" title="Buka menu" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] lg:hidden"><Icon name="menu" className="h-4 w-4" /></button>}
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
-            <span className="text-sm sm:text-base font-bold tracking-tight text-[var(--text)] leading-none">
+            <span className="text-sm sm:text-base font-bold tracking-tight text-[var(--text)] leading-tight">
               {currentMeta.title}
             </span>
           </div>
@@ -64,12 +64,13 @@ export function TopBar({ onQuickAdd, onOpenSettings }: TopBarProps) {
       </div>
 
       {/* Center: Month & Year Statement Stepper */}
-      <div className="flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/60 px-2 py-1 text-xs">
+      <div className="order-3 flex min-h-10 basis-full items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/60 px-2 text-xs sm:order-2 sm:min-h-0 sm:basis-auto sm:py-1">
         <button
           type="button"
           onClick={() => setCycleOffset(cycleOffset - 1)}
+          aria-label="Bulan sebelumnya"
           title="Bulan Sebelumnya"
-          className="p-1 rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors"
+          className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors sm:min-h-6 sm:min-w-6"
         >
           <Icon name="chevron-left" className="h-3.5 w-3.5" />
         </button>
@@ -87,8 +88,9 @@ export function TopBar({ onQuickAdd, onOpenSettings }: TopBarProps) {
           type="button"
           disabled={cycleOffset >= 0}
           onClick={() => setCycleOffset(cycleOffset + 1)}
+          aria-label="Bulan berikutnya"
           title="Bulan Berikutnya"
-          className="p-1 rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+          className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors disabled:opacity-30 disabled:hover:bg-transparent sm:min-h-6 sm:min-w-6"
         >
           <Icon name="chevron-right" className="h-3.5 w-3.5" />
         </button>
@@ -97,6 +99,7 @@ export function TopBar({ onQuickAdd, onOpenSettings }: TopBarProps) {
           <button
             type="button"
             onClick={() => setCycleOffset(0)}
+            aria-label="Kembali ke bulan ini"
             title="Kembali ke bulan ini"
             className="ml-1 text-[11px] text-income hover:underline font-semibold"
           >
@@ -106,13 +109,14 @@ export function TopBar({ onQuickAdd, onOpenSettings }: TopBarProps) {
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="order-2 ml-auto flex shrink-0 items-center gap-1 sm:order-3 sm:gap-3">
         {/* Balance Privacy Eye */}
         <button
           type="button"
           onClick={toggleHideBalances}
+          aria-label={hideBalances ? "Tampilkan saldo" : "Sembunyikan saldo"}
           title={hideBalances ? "Tampilkan saldo" : "Sembunyikan saldo"}
-          className="p-1.5 sm:p-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors shadow-2xs"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors shadow-2xs"
         >
           <Icon name={hideBalances ? "eye-off" : "eye"} className="h-4 w-4" />
         </button>
@@ -121,23 +125,12 @@ export function TopBar({ onQuickAdd, onOpenSettings }: TopBarProps) {
         <button
           type="button"
           onClick={toggleTheme}
+          aria-label={theme === "dark" ? "Aktifkan mode terang" : "Aktifkan mode gelap"}
           title={theme === "dark" ? "Mode Gelap (Klik untuk Mode Terang)" : "Mode Terang (Klik untuk Mode Gelap)"}
-          className="p-1.5 sm:p-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors shadow-2xs"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors shadow-2xs"
         >
           <Icon name={theme === "dark" ? "moon" : "sun"} className="h-4 w-4" />
         </button>
-
-        {/* Settings Toggle on Mobile & Tablet */}
-        {onOpenSettings && (
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            title="Pengaturan"
-            className="p-1.5 sm:p-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors shadow-2xs"
-          >
-            <Icon name="settings" className="h-4 w-4" />
-          </button>
-        )}
 
         {/* Quick Add CTA - Desktop only to avoid mobile duplication */}
         {onQuickAdd && (
@@ -145,7 +138,7 @@ export function TopBar({ onQuickAdd, onOpenSettings }: TopBarProps) {
             type="button"
             onClick={onQuickAdd}
             title="Catat Transaksi (N)"
-            className="hidden md:flex items-center gap-1.5 px-3.5 py-1.5 rounded-btn bg-primary hover:bg-primary-hover text-primary-contrast text-xs font-semibold shadow-2xs transition-all active:scale-95"
+            className="hidden md:flex items-center gap-1.5 px-3.5 py-1.5 rounded-btn bg-primary hover:bg-primary-hover text-primary-contrast text-xs font-semibold shadow-2xs transition-[background-color,transform] active:scale-95"
           >
             <Icon name="plus" className="h-3.5 w-3.5" />
             <span>Catat</span>

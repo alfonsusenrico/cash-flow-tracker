@@ -11,6 +11,7 @@ interface HeroWalletCardProps {
   accountsCount: number;
   onOpenCapture: (type?: "expense" | "income") => void;
   onOpenMovement?: () => void;
+  canTransfer?: boolean;
 }
 
 export function HeroWalletCard({
@@ -20,6 +21,7 @@ export function HeroWalletCard({
   accountsCount,
   onOpenCapture,
   onOpenMovement,
+  canTransfer = true,
 }: HeroWalletCardProps) {
   const { hideBalances, setHideBalances, bal, openMovement } = useAppCtx();
 
@@ -112,7 +114,9 @@ export function HeroWalletCard({
         <button
           type="button"
           onClick={() => (onOpenMovement ? onOpenMovement() : openMovement())}
-          className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-extrabold bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-xs hover:shadow-amber-500/10 transition-all pressable"
+          disabled={!canTransfer}
+          title={canTransfer ? undefined : "Perlu dua rekening kas aktif untuk transfer"}
+          className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-extrabold bg-amber-500/10 enabled:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-xs transition-colors pressable disabled:cursor-not-allowed disabled:opacity-50"
         >
           <div className="h-5 w-5 rounded-lg bg-amber-500 text-white flex items-center justify-center text-[10px] shadow-2xs">
             <Icon name="repeat" className="h-3 w-3 stroke-[3]" />

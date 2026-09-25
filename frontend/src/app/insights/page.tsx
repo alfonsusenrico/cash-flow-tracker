@@ -3,10 +3,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
+import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { cn, formatNumberWithDots } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
 import { Modal } from "@/components/ui/Modal";
+import { FormSection } from "@/components/ui/FormField";
 import { BurnCadenceChart } from "@/components/dashboard/BurnCadenceChart";
 import { SpendingHeatmap } from "@/components/dashboard/SpendingHeatmap";
 import { NarrativeInsightCard } from "@/components/dashboard/NarrativeInsightCard";
@@ -37,6 +40,18 @@ const CATEGORY_COLORS = [
   "#64748b", // slate
 ];
 
+const CATEGORY_COLOR_NAMES: Record<string, string> = {
+  "#f97316": "Oranye",
+  "#10b981": "Emerald",
+  "#3b82f6": "Biru",
+  "#8b5cf6": "Ungu",
+  "#ec4899": "Merah muda",
+  "#ef4444": "Merah",
+  "#eab308": "Kuning",
+  "#14b8a6": "Teal",
+  "#64748b": "Abu-abu",
+};
+
 export default function AnalyticsPage() {
   const qc = useQueryClient();
   const { timeframe, cycleOffset, bal } = useAppCtx();
@@ -52,15 +67,19 @@ export default function AnalyticsPage() {
   const [catColor, setCatColor] = useState("#3b82f6");
   const [catBudget, setCatBudget] = useState("");
   const [catIsPrimary, setCatIsPrimary] = useState(true);
+  const [catKind, setCatKind] = useState<"expense" | "income">("expense");
+  const [catKakeiboType, setCatKakeiboType] = useState<"need" | "want" | "saving">("need");
   const [catError, setCatError] = useState("");
 
-  const openCreateCategory = () => {
+  const openCreateCategory = (kind: "expense" | "income" = "expense") => {
     setEditingCategory(null);
     setCatName("");
     setCatIcon("tag");
     setCatColor("#3b82f6");
     setCatBudget("");
     setCatIsPrimary(true);
+    setCatKind(kind);
+    setCatKakeiboType("need");
     setCatError("");
     setCatModalOpen(true);
   };
@@ -70,8 +89,11 @@ export default function AnalyticsPage() {
     setCatName(cat.name);
     setCatIcon(cat.icon || "tag");
     setCatColor(cat.color || "#3b82f6");
-    setCatBudget(cat.budget ? formatNumberWithDots(cat.budget) : "");
+    const monthlyBudget = cat.monthly_budget ?? cat.budget;
+    setCatBudget(monthlyBudget ? formatNumberWithDots(monthlyBudget) : "");
     setCatIsPrimary(cat.is_primary !== false);
+    setCatKind(cat.kind === "income" ? "income" : "expense");
+    setCatKakeiboType(cat.kakeibo_type === "want" || cat.kakeibo_type === "saving" ? cat.kakeibo_type : "need");
     setCatError("");
     setCatModalOpen(true);
   };
@@ -86,8 +108,10 @@ export default function AnalyticsPage() {
         name: catName.trim(),
         icon: catIcon,
         color: catColor,
-        monthly_budget: budgetVal,
+        kind: catKind,
+        monthly_budget: catKind === "expense" ? budgetVal : null,
         is_primary: catIsPrimary,
+        kakeibo_type: catKind === "expense" ? catKakeiboType : null,
       };
 
       if (editingCategory) {
@@ -95,14 +119,13 @@ export default function AnalyticsPage() {
       } else {
         return api.post("/categories", {
           ...payload,
-          kind: "expense",
+          kind: catKind,
         });
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["dashboard-analytics"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["categories"] });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      qc.invalidateQueries({ queryKey: queryKeys.categories });
       setCatModalOpen(false);
     },
     onError: (err: any) => {
@@ -113,9 +136,8 @@ export default function AnalyticsPage() {
   const deleteCategoryMutation = useMutation({
     mutationFn: async (id: string) => api.del(`/categories/${id}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["dashboard-analytics"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["categories"] });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      qc.invalidateQueries({ queryKey: queryKeys.categories });
       setCatModalOpen(false);
     },
     onError: (err: any) => {
@@ -123,13 +145,35 @@ export default function AnalyticsPage() {
     },
   });
 
+  const restoreCategoryMutation = useMutation({
+    mutationFn: async (id: string) => api.patch(`/categories/${id}`, { is_archived: false }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      qc.invalidateQueries({ queryKey: queryKeys.categories });
+    },
+    onError: (err: any) => {
+      setCatError(err?.message || "Gagal memulihkan kategori");
+    },
+  });
+
   const { data, isLoading } = useQuery<any>({
-    queryKey: ["dashboard-analytics", timeframe, cycleOffset],
+    queryKey: queryKeys.dashboard.analytics(timeframe, cycleOffset),
     queryFn: () =>
       api.get(
         `/dashboard/analytics?timeframe=${timeframe}&cycle_offset=${cycleOffset}`
       ),
   });
+
+  const { data: managedCategoriesData } = useQuery<{ categories: any[] }>({
+    queryKey: queryKeys.categoryManagement,
+    queryFn: () => api.get("/categories?include_archived=true"),
+  });
+  const incomeCategories = (managedCategoriesData?.categories ?? []).filter(
+    (category) => category.kind === "income" && !category.is_archived,
+  );
+  const archivedCategories = (managedCategoriesData?.categories ?? []).filter(
+    (category) => category.is_archived,
+  );
 
   const burnRate = data?.burn_rate;
   const targetProjected =
@@ -199,7 +243,7 @@ export default function AnalyticsPage() {
             type="button"
             onClick={() => setActiveTab("summary")}
             className={cn(
-              "px-4 py-2 rounded-xl text-xs font-bold transition-all pressable",
+              "px-4 py-2 rounded-xl text-xs font-bold transition-[background-color,color,transform] pressable",
               activeTab === "summary"
                 ? "bg-[var(--surface)] text-[var(--text)] shadow-xs border border-[var(--border)]"
                 : "text-[var(--muted)] hover:text-[var(--text)]"
@@ -211,7 +255,7 @@ export default function AnalyticsPage() {
             type="button"
             onClick={() => setActiveTab("compare")}
             className={cn(
-              "px-4 py-2 rounded-xl text-xs font-bold transition-all pressable flex items-center gap-1.5",
+              "px-4 py-2 rounded-xl text-xs font-bold transition-[background-color,color,transform] pressable flex items-center gap-1.5",
               activeTab === "compare"
                 ? "bg-[var(--surface)] text-[var(--text)] shadow-xs border border-[var(--border)]"
                 : "text-[var(--muted)] hover:text-[var(--text)]"
@@ -369,8 +413,8 @@ export default function AnalyticsPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={openCreateCategory}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
+                  onClick={() => openCreateCategory()}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold shadow-xs transition-[background-color,transform] active:scale-95 cursor-pointer"
                 >
                   <Icon name="plus" className="h-3.5 w-3.5" />
                   <span>Tambah Kategori</span>
@@ -432,7 +476,7 @@ export default function AnalyticsPage() {
                                           width: `${Math.min(cat.percentage_used, 100)}%`,
                                         }}
                                         className={cn(
-                                          "h-full rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                                          "h-full rounded-full transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
                                           isOver
                                             ? "bg-rose-500 shadow-rose-500/30"
                                             : isWarning
@@ -510,28 +554,21 @@ export default function AnalyticsPage() {
                                 <button
                                   type="button"
                                   onClick={() => openEditCategory(cat)}
+                                  aria-label={`Edit kategori ${cat.name}`}
                                   className="p-1.5 rounded-lg hover:bg-[var(--surface-raised)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
                                   title="Edit kategori"
                                 >
                                   <Icon name="edit" className="h-3.5 w-3.5" />
                                 </button>
-                                <button
-                                  type="button"
+                                <ConfirmActionButton
+                                  label={`Arsipkan kategori ${cat.name}`}
+                                  confirmation={`Yakin ingin mengarsipkan kategori "${cat.name}"?`}
+                                  onConfirm={() => deleteCategoryMutation.mutate(cat.id)}
                                   disabled={deleteCategoryMutation.isPending}
-                                  onClick={() => {
-                                    if (
-                                      confirm(
-                                        `Yakin ingin menghapus atau mengarsipkan kategori "${cat.name}"?`
-                                      )
-                                    ) {
-                                      deleteCategoryMutation.mutate(cat.id);
-                                    }
-                                  }}
                                   className="p-1.5 rounded-lg hover:bg-rose-500/10 text-[var(--muted)] hover:text-rose-500 transition-colors disabled:opacity-50 cursor-pointer"
-                                  title="Hapus kategori"
                                 >
                                   <Icon name="trash" className="h-3.5 w-3.5" />
-                                </button>
+                                </ConfirmActionButton>
                               </div>
                             </td>
                           </tr>
@@ -585,7 +622,7 @@ export default function AnalyticsPage() {
                                 width: `${Math.min(cat.percentage_used, 100)}%`,
                               }}
                               className={cn(
-                                "h-full rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                                "h-full rounded-full transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
                                 isOver
                                   ? "bg-rose-500 shadow-rose-500/30"
                                   : isWarning
@@ -651,23 +688,15 @@ export default function AnalyticsPage() {
                             <span>{hasBudget ? "Ubah Batas" : "Atur Batas"}</span>
                           </button>
 
-                          <button
-                            type="button"
+                          <ConfirmActionButton
+                            label={`Arsipkan kategori ${cat.name}`}
+                            confirmation={`Yakin ingin mengarsipkan kategori "${cat.name}"?`}
+                            onConfirm={() => deleteCategoryMutation.mutate(cat.id)}
                             disabled={deleteCategoryMutation.isPending}
-                            onClick={() => {
-                              if (
-                                confirm(
-                                  `Yakin ingin menghapus atau mengarsipkan kategori "${cat.name}"?`
-                                )
-                              ) {
-                                deleteCategoryMutation.mutate(cat.id);
-                              }
-                            }}
                             className="p-1.5 rounded-lg text-[var(--muted)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors disabled:opacity-50 cursor-pointer"
-                            title="Hapus kategori"
                           >
                             <Icon name="trash" className="h-3.5 w-3.5" />
-                          </button>
+                          </ConfirmActionButton>
                         </div>
                       </div>
                     );
@@ -676,6 +705,122 @@ export default function AnalyticsPage() {
               </>
             )}
           </div>
+
+          <section
+            aria-labelledby="income-category-heading"
+            className="cockpit-card space-y-4 border border-[var(--border)] p-5 shadow-xs sm:p-6"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 id="income-category-heading" className="text-base font-bold tracking-tight text-[var(--text)]">
+                  Kategori Pemasukan
+                </h2>
+                <p className="mt-0.5 text-xs text-[var(--muted)]">
+                  Kelola kategori yang tersedia saat mencatat pemasukan.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openCreateCategory("income")}
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 self-start rounded-xl bg-emerald-500 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-emerald-400 sm:self-auto"
+              >
+                <Icon name="plus" className="h-3.5 w-3.5" />
+                Tambah Kategori Pemasukan
+              </button>
+            </div>
+
+            {incomeCategories.length === 0 ? (
+              <p className="py-5 text-center text-xs text-[var(--muted)]">
+                Belum ada kategori pemasukan.
+              </p>
+            ) : (
+              <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {incomeCategories.map((category) => (
+                  <li
+                    key={category.id}
+                    className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                        style={{ color: category.color, backgroundColor: `${category.color}18` }}
+                      >
+                        <Icon name={category.icon || "tag"} className="h-4 w-4" />
+                      </span>
+                      <span className="truncate text-sm font-semibold text-[var(--text)]">
+                        {category.name}
+                        {category.is_archived && (
+                          <span className="ml-1 text-[10px] font-medium text-[var(--muted)]">(diarsipkan)</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        aria-label={`Ubah kategori ${category.name}`}
+                        onClick={() => openEditCategory(category)}
+                        className="min-h-9 min-w-9 rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--text)]"
+                      >
+                        <Icon name="edit" className="mx-auto h-3.5 w-3.5" />
+                      </button>
+                      {!category.is_archived && (
+                        <ConfirmActionButton
+                          label={`Arsipkan kategori ${category.name}`}
+                          confirmation={`Yakin ingin mengarsipkan kategori "${category.name}"?`}
+                          onConfirm={() => deleteCategoryMutation.mutate(category.id)}
+                          disabled={deleteCategoryMutation.isPending}
+                          className="min-h-9 min-w-9 rounded-lg text-[var(--muted)] transition-colors hover:bg-rose-500/10 hover:text-rose-500 disabled:opacity-50"
+                        >
+                          <Icon name="trash" className="mx-auto h-3.5 w-3.5" />
+                        </ConfirmActionButton>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {archivedCategories.length > 0 && (
+            <section
+              aria-labelledby="archived-category-heading"
+              className="cockpit-card space-y-4 border border-[var(--border)] p-5 shadow-xs sm:p-6"
+            >
+              <div>
+                <h2 id="archived-category-heading" className="text-base font-bold tracking-tight text-[var(--text)]">
+                  Kategori Diarsipkan
+                </h2>
+                <p className="mt-0.5 text-xs text-[var(--muted)]">
+                  Pulihkan kategori agar dapat dipilih kembali pada transaksi baru.
+                </p>
+              </div>
+              <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {archivedCategories.map((category) => (
+                  <li
+                    key={category.id}
+                    className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[var(--text)]">{category.name}</p>
+                      <p className="text-[10px] capitalize text-[var(--muted)]">
+                        {category.kind === "income" ? "Pemasukan" : "Pengeluaran"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Pulihkan kategori ${category.name}`}
+                      onClick={() => restoreCategoryMutation.mutate(category.id)}
+                      disabled={restoreCategoryMutation.isPending}
+                      className="min-h-9 shrink-0 rounded-lg border border-[var(--border)] px-3 text-xs font-semibold text-[var(--text)] transition-colors hover:bg-[var(--surface)] disabled:opacity-50"
+                    >
+                      Pulihkan
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
       )}
 
@@ -844,17 +989,17 @@ export default function AnalyticsPage() {
               <div className="h-3.5 w-full rounded-full bg-[var(--surface-raised)] border border-[var(--border)] flex overflow-hidden">
                 <div
                   style={{ width: `${Math.min(kakeibo?.need_pct ?? 0, 100)}%` }}
-                  className="bg-emerald-500 h-full transition-all"
+                  className="bg-emerald-500 h-full transition-[width] motion-reduce:transition-none"
                   title={`Kebutuhan: ${kakeibo?.need_pct ?? 0}%`}
                 />
                 <div
                   style={{ width: `${Math.min(kakeibo?.want_pct ?? 0, 100)}%` }}
-                  className="bg-blue-500 h-full transition-all"
+                  className="bg-blue-500 h-full transition-[width] motion-reduce:transition-none"
                   title={`Keinginan: ${kakeibo?.want_pct ?? 0}%`}
                 />
                 <div
                   style={{ width: `${Math.min(kakeibo?.saving_pct ?? 0, 100)}%` }}
-                  className="bg-purple-500 h-full transition-all"
+                  className="bg-purple-500 h-full transition-[width] motion-reduce:transition-none"
                   title={`Tabungan: ${kakeibo?.saving_pct ?? 0}%`}
                 />
               </div>
@@ -999,39 +1144,83 @@ export default function AnalyticsPage() {
               : "Tambah Kategori Baru"
           }
         >
-          <div className="space-y-4 pt-2 text-xs">
+          <form
+            className="space-y-4 pt-1 text-sm"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!saveCategoryMutation.isPending) saveCategoryMutation.mutate();
+            }}
+          >
             {catError && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-medium">
+              <div role="alert" aria-live="assertive" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-medium">
                 {catError}
               </div>
             )}
 
+            <FormSection title="Identitas kategori" description="Jenis kategori menentukan pilihan yang muncul saat mencatat transaksi." className="border-t-0 pt-0">
             <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1">
+              <label htmlFor="category-name" className="text-xs font-medium text-[var(--muted)] block mb-1">
                 Nama Kategori
               </label>
               <input
+                id="category-name"
+                name="name"
                 type="text"
+                required
+                maxLength={100}
                 value={catName}
                 onChange={(e) => setCatName(e.target.value)}
                 placeholder="Contoh: Langganan Streaming, Asuransi, dsb"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-semibold text-[var(--text)] focus:outline-hidden focus:border-emerald-500"
+                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-semibold text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
               />
             </div>
 
-            {/* Icon Picker */}
             <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1.5">
-                Ikon Kategori
-              </label>
-              <div className="grid grid-cols-5 gap-2">
+              <label htmlFor="category-kind" className="text-xs font-medium text-[var(--muted)] block mb-1">Jenis Kategori</label>
+              <select
+                id="category-kind"
+                name="kind"
+                value={catKind}
+                onChange={(event) => setCatKind(event.target.value as "expense" | "income")}
+                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+              >
+                <option value="expense">Pengeluaran</option>
+                <option value="income">Pemasukan</option>
+              </select>
+            </div>
+
+            {catKind === "expense" && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="category-kakeibo" className="text-xs font-medium text-[var(--muted)] block mb-1">Pilar Kakeibo bawaan</label>
+                  <select id="category-kakeibo" name="kakeibo_type" value={catKakeiboType} onChange={(event) => setCatKakeiboType(event.target.value as typeof catKakeiboType)} className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]">
+                    <option value="need">Kebutuhan</option>
+                    <option value="want">Keinginan</option>
+                    <option value="saving">Tabungan</option>
+                  </select>
+                </div>
+                <label htmlFor="category-primary" className="flex min-h-11 items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3">
+                  <input id="category-primary" name="is_primary" type="checkbox" checked={catIsPrimary} onChange={(event) => setCatIsPrimary(event.target.checked)} />
+                  <span className="text-xs font-medium text-[var(--text)]">Hitung sebagai pengeluaran utama</span>
+                </label>
+              </div>
+            )}
+            {catKind === "expense" && <p className="text-xs text-[var(--muted)]">Pengeluaran utama digunakan untuk memperkirakan biaya hidup dan ketahanan dana.</p>}
+            </FormSection>
+
+            <FormSection title="Tampilan kategori">
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-[var(--muted)]">Ikon kategori</p>
+              <div role="group" aria-label="Pilih ikon kategori" className="grid grid-cols-5 gap-2">
                 {CATEGORY_ICONS.map((ic) => (
                   <button
                     key={ic.id}
                     type="button"
                     onClick={() => setCatIcon(ic.id)}
+                    aria-pressed={catIcon === ic.id}
+                    aria-label={`Ikon ${ic.label}`}
                     className={cn(
-                      "flex flex-col items-center justify-center p-2 rounded-xl border transition-all cursor-pointer",
+                      "flex min-h-11 flex-col items-center justify-center rounded-xl border p-2 transition-[border-color,background-color,color] cursor-pointer",
                       catIcon === ic.id
                         ? "border-emerald-500 bg-emerald-500/10 text-emerald-500"
                         : "border-[var(--border)] bg-[var(--surface-raised)]/60 text-[var(--muted)] hover:text-[var(--text)]"
@@ -1044,20 +1233,19 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* Color Palette */}
             <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1.5">
-                Warna Kategori
-              </label>
-              <div className="flex items-center gap-2">
+              <p className="mb-1.5 text-xs font-medium text-[var(--muted)]">Warna kategori</p>
+              <div role="group" aria-label="Pilih warna kategori" className="flex flex-wrap items-center gap-2">
                 {CATEGORY_COLORS.map((c) => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => setCatColor(c)}
                     style={{ backgroundColor: c }}
+                    aria-pressed={catColor === c}
+                    aria-label={`Warna ${CATEGORY_COLOR_NAMES[c] ?? c}`}
                     className={cn(
-                      "h-7 w-7 rounded-full transition-transform cursor-pointer",
+                      "min-h-11 min-w-11 rounded-full border-4 border-[var(--surface)] transition-transform cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--text)]",
                       catColor === c
                         ? "ring-2 ring-offset-2 ring-offset-[var(--surface)] ring-emerald-500 scale-110"
                         : "opacity-80 hover:opacity-100 hover:scale-105"
@@ -1066,13 +1254,15 @@ export default function AnalyticsPage() {
                 ))}
               </div>
             </div>
+            </FormSection>
 
-            {/* Monthly Budget Input */}
-            <div>
-              <label className="text-xs font-medium text-[var(--muted)] block mb-1">
+            {catKind === "expense" && <FormSection title="Anggaran"><div>
+              <label htmlFor="category-monthly-budget" className="text-xs font-medium text-[var(--muted)] block mb-1">
                 Batas Anggaran Bulanan (IDR)
               </label>
               <input
+                id="category-monthly-budget"
+                name="monthly_budget"
                 type="text"
                 inputMode="numeric"
                 value={catBudget}
@@ -1080,12 +1270,12 @@ export default function AnalyticsPage() {
                   setCatBudget(formatNumberWithDots(e.target.value))
                 }
                 placeholder="Kosongkan jika tanpa batas"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-bold tabular text-[var(--text)] focus:outline-hidden focus:border-emerald-500"
+                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-semibold tabular text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
               />
               <p className="text-[11px] text-[var(--muted)] mt-1">
                 Batas pengeluaran bulanan untuk memantau disiplin anggaran kategori.
               </p>
-            </div>
+            </div></FormSection>}
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border)]">
               <button
@@ -1096,19 +1286,18 @@ export default function AnalyticsPage() {
                 Batal
               </button>
               <button
-                type="button"
+                type="submit"
                 disabled={saveCategoryMutation.isPending}
-                onClick={() => saveCategoryMutation.mutate()}
-                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold shadow-xs disabled:opacity-50 cursor-pointer"
+                className="min-h-11 rounded-xl bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50 cursor-pointer"
               >
                 {saveCategoryMutation.isPending
-                  ? "Menyimpan..."
+                  ? "Menyimpan…"
                   : editingCategory
                   ? "Simpan Perubahan"
                   : "Buat Kategori"}
               </button>
             </div>
-          </div>
+          </form>
         </Modal>
       )}
     </div>

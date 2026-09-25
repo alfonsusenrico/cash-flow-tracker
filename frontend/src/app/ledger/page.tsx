@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, uploadTransactionReceipt } from "@/lib/api";
 import { cn, formatNumberWithDots, localDatetimeToISO, toDatetimeLocal } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
@@ -11,6 +11,11 @@ import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import { MobileLedgerFeed } from "@/components/ledger/MobileLedgerFeed";
+import { InternalMovementModal } from "@/components/ui/InternalMovementModal";
+import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
+import { InfoHelp } from "@/components/ui/InfoHelp";
+import { queryKeys } from "@/lib/queryKeys";
+import { DebtAllocationEditor, allocationError, totalDebtPayments, type DebtAllocationValue } from "@/components/ui/DebtAllocationEditor";
 
 interface TransactionItem {
   id: string;
@@ -24,7 +29,9 @@ interface TransactionItem {
   goal_name: string | null;
   obligation_id: string | null;
   obligation_name: string | null;
+  obligation_allocations?: { obligation_id: string; obligation_name: string; amount: number }[];
   type: "expense" | "income";
+  kakeibo_type?: string | null;
   amount: number;
   notes: string | null;
   date: string;
@@ -35,6 +42,8 @@ interface TransactionItem {
   is_consolidated_transfer?: boolean;
   target_account_name?: string;
   target_account_id?: string;
+  movement_id?: string | null;
+  movement_role?: "outbound" | "inbound" | null;
 }
 
 function consolidateTransactions(
@@ -65,10 +74,7 @@ function consolidateTransactions(
     const t1 = items[i];
     if (consumed.has(t1.id)) continue;
 
-    const isT1Movement =
-      t1.category_name === "Internal Movement" ||
-      !!t1.is_excluded_from_budget ||
-      (t1.notes?.toLowerCase().includes("pindah saldo") ?? false);
+    const isT1Movement = Boolean(t1.movement_id);
 
     if (!isT1Movement) {
       result.push(t1);
@@ -76,33 +82,13 @@ function consolidateTransactions(
     }
 
     let bestIndex = -1;
-    let minDiffMs = Infinity;
-
     for (let j = i + 1; j < items.length; j++) {
       const t2 = items[j];
       if (consumed.has(t2.id)) continue;
 
-      const isT2Movement =
-        t2.category_name === "Internal Movement" ||
-        !!t2.is_excluded_from_budget ||
-        (t2.notes?.toLowerCase().includes("pindah saldo") ?? false);
-
-      if (!isT2Movement) continue;
-      if (t1.type === t2.type) continue;
-      if (t1.amount !== t2.amount) continue;
-      if (t1.account_id === t2.account_id) continue;
-
-      const diffMs = Math.abs(new Date(t1.date).getTime() - new Date(t2.date).getTime());
-      if (diffMs <= 10 * 60 * 1000 && diffMs < minDiffMs) {
-        minDiffMs = diffMs;
+      if (t2.movement_id === t1.movement_id && t2.movement_role !== t1.movement_role) {
         bestIndex = j;
-        if (
-          t1.notes &&
-          t2.notes &&
-          (t1.notes === t2.notes || t1.notes.includes(t2.notes) || t2.notes.includes(t1.notes))
-        ) {
-          break;
-        }
+        break;
       }
     }
 
@@ -123,17 +109,7 @@ function consolidateTransactions(
         target_account_id: inTx.account_id,
       });
     } else {
-      let parsedTarget: string | undefined;
-      if (t1.notes && t1.notes.includes("→")) {
-        const parts = t1.notes.split("→");
-        if (parts.length > 1) {
-          parsedTarget = parts[1].replace(/[()]/g, "").trim();
-        }
-      }
-      result.push({
-        ...t1,
-        target_account_name: parsedTarget,
-      });
+      result.push(t1);
     }
   }
 
@@ -159,38 +135,43 @@ export default function LedgerPage() {
 
   // Edit form state
   const [editAmount, setEditAmount] = useState("");
+  const [editType, setEditType] = useState<"expense" | "income">("expense");
+  const [editKakeiboType, setEditKakeiboType] = useState<"need" | "want" | "saving">("need");
+  const [editHasKakeiboOverride, setEditHasKakeiboOverride] = useState(false);
+  const [editReceipt, setEditReceipt] = useState<File | null>(null);
+  const [receiptRetryTransactionId, setReceiptRetryTransactionId] = useState<string | null>(null);
   const [editNotes, setEditNotes] = useState("");
   const [editAccountId, setEditAccountId] = useState("");
-  const [editTargetAccountId, setEditTargetAccountId] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
   const [editGoalId, setEditGoalId] = useState("");
   const [editObligationId, setEditObligationId] = useState("");
+  const [editDebtRows, setEditDebtRows] = useState<DebtAllocationValue[]>([]);
   const [editDate, setEditDate] = useState("");
   const [editError, setEditError] = useState("");
 
   // Fetch Accounts
   const { data: accountsData } = useQuery<{ accounts: any[] }>({
-    queryKey: ["accounts"],
+    queryKey: queryKeys.accounts,
     queryFn: () => api.get("/accounts"),
   });
   const accounts = accountsData?.accounts ?? [];
 
   // Fetch Categories
   const { data: categoriesData } = useQuery<{ categories: any[] }>({
-    queryKey: ["categories"],
+    queryKey: queryKeys.categories,
     queryFn: () => api.get("/categories"),
   });
   const categories = categoriesData?.categories ?? [];
 
   // Fetch Goals & Obligations
   const { data: goalsData } = useQuery<{ goals: any[] }>({
-    queryKey: ["goals"],
+    queryKey: queryKeys.goals,
     queryFn: () => api.get("/goals"),
   });
   const goals = goalsData?.goals ?? [];
 
   const { data: obligationsData } = useQuery<{ obligations: any[] }>({
-    queryKey: ["obligations"],
+    queryKey: queryKeys.obligations,
     queryFn: () => api.get("/obligations"),
   });
   const obligations = obligationsData?.obligations ?? [];
@@ -213,7 +194,7 @@ export default function LedgerPage() {
     total: number;
     transactions: TransactionItem[];
   }>({
-    queryKey: ["transactions-ledger", queryParams],
+    queryKey: queryKeys.transactions.ledger(queryParams),
     queryFn: () => api.get(`/transactions?${queryParams}`),
   });
 
@@ -251,14 +232,34 @@ export default function LedgerPage() {
   const handleOpenEdit = (tx: TransactionItem) => {
     setEditingTx(tx);
     setEditAmount(formatNumberWithDots(tx.amount));
+    setEditType(tx.type);
+    setEditKakeiboType(
+      tx.kakeibo_type === "want" || tx.kakeibo_type === "saving"
+        ? tx.kakeibo_type
+        : "need",
+    );
+    const originalCategory = categories.find((category) => category.id === tx.category_id);
+    setEditHasKakeiboOverride(Boolean(
+      tx.kakeibo_type && originalCategory?.kakeibo_type && tx.kakeibo_type !== originalCategory.kakeibo_type,
+    ));
+    setEditReceipt(null);
+    setReceiptRetryTransactionId(null);
     setEditNotes(tx.notes || "");
     setEditAccountId(tx.account_id);
-    setEditTargetAccountId(tx.target_account_id || "");
     setEditCategoryId(tx.category_id || "");
     setEditGoalId(tx.goal_id || "");
     setEditObligationId(tx.obligation_id || "");
+    setEditDebtRows(tx.type === "expense" ? (tx.obligation_allocations ?? (tx.obligation_id ? [{ obligation_id: tx.obligation_id, obligation_name: tx.obligation_name || "", amount: tx.amount }] : [])).map((item) => ({ obligation_id: item.obligation_id, obligation_name: item.obligation_name, amount: formatNumberWithDots(item.amount) })) : []);
     setEditDate(tx.date ? toDatetimeLocal(tx.date) : "");
     setEditError("");
+  };
+
+  const refreshTransactionViews = () => {
+    qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+    qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+    qc.invalidateQueries({ queryKey: queryKeys.accounts });
+    qc.invalidateQueries({ queryKey: queryKeys.goals });
+    qc.invalidateQueries({ queryKey: queryKeys.obligations });
   };
 
   // Update mutation (handles both normal transactions and synchronized paired movements)
@@ -273,44 +274,33 @@ export default function LedgerPage() {
         ? (localDatetimeToISO(editDate) || new Date(editDate).toISOString())
         : undefined;
 
-      if (editingTx.is_consolidated_transfer && editingTx.partner_id) {
-        if (editTargetAccountId && editAccountId === editTargetAccountId) {
-          throw new Error("Rekening asal dan tujuan tidak boleh sama");
-        }
-        await Promise.all([
-          api.patch(`/transactions/${editingTx.id}`, {
-            amount: amt,
-            notes: editNotes.trim() || null,
-            account_id: editAccountId,
-            date: isoDate,
-          }),
-          api.patch(`/transactions/${editingTx.partner_id}`, {
-            amount: amt,
-            notes: editNotes.trim() || null,
-            account_id: editTargetAccountId || editingTx.target_account_id,
-            date: isoDate,
-          }),
-        ]);
-        return;
-      }
-
-      return api.patch(`/transactions/${editingTx.id}`, {
+      const updated = await api.patch(`/transactions/${editingTx.id}`, {
+        type: editType,
         amount: amt,
         notes: editNotes.trim() || null,
         account_id: editAccountId,
         category_id: editCategoryId || null,
         goal_id: editGoalId || null,
-        obligation_id: editObligationId || null,
+        obligation_id: editType === "income" ? (editObligationId || null) : editDebtRows.length === 1 ? editDebtRows[0].obligation_id : null,
+        ...(editType === "expense" && editDebtRows.length > 1 ? { obligation_allocations: editDebtRows.map((row) => ({ obligation_id: row.obligation_id, amount: Number(row.amount.replace(/\./g, "")) })) } : {}),
+        kakeibo_type: editType === "expense" ? editKakeiboType : null,
         date: isoDate,
       });
+      if (editReceipt) {
+        try {
+          await uploadTransactionReceipt(editingTx.id, editReceipt);
+        } catch (uploadError) {
+          setReceiptRetryTransactionId(editingTx.id);
+          refreshTransactionViews();
+          throw new Error(
+            `Perubahan tersimpan, tetapi bukti gagal diunggah: ${uploadError instanceof Error ? uploadError.message : "unggahan gagal"}`,
+          );
+        }
+      }
+      return updated;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transactions-ledger"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-analytics"] });
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["goals"] });
-      qc.invalidateQueries({ queryKey: ["obligations"] });
+      refreshTransactionViews();
       setEditingTx(null);
     },
     onError: (err: any) => {
@@ -318,21 +308,38 @@ export default function LedgerPage() {
     },
   });
 
+  const retryReceiptMutation = useMutation({
+    mutationFn: async () => {
+      if (!receiptRetryTransactionId || !editReceipt) {
+        throw new Error("Pilih bukti transaksi untuk diunggah ulang");
+      }
+      return uploadTransactionReceipt(receiptRetryTransactionId, editReceipt);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      setReceiptRetryTransactionId(null);
+      setEditingTx(null);
+    },
+    onError: (error: Error) => {
+      setEditError(`Perubahan tetap tersimpan, tetapi bukti belum terunggah: ${error.message}`);
+    },
+  });
+
   // Delete mutation (handles single transaction and atomic paired movements)
   const deleteMutation = useMutation({
     mutationFn: async (tx: TransactionItem) => {
-      await api.del(`/transactions/${tx.id}`);
-      if (tx.partner_id) {
-        await api.del(`/transactions/${tx.partner_id}`);
+      if (tx.movement_id) {
+        await api.del(`/movements/${tx.movement_id}`);
+      } else {
+        await api.del(`/transactions/${tx.id}`);
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transactions-ledger"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-analytics"] });
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["goals"] });
-      qc.invalidateQueries({ queryKey: ["obligations"] });
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      qc.invalidateQueries({ queryKey: queryKeys.accounts });
+      qc.invalidateQueries({ queryKey: queryKeys.goals });
+      qc.invalidateQueries({ queryKey: queryKeys.obligations });
       setEditingTx(null);
     },
     onError: (err: any) => {
@@ -457,7 +464,7 @@ export default function LedgerPage() {
               setSearchQuery(e.target.value);
               setPage(0);
             }}
-            placeholder="Cari catatan, kategori, toko..."
+            placeholder="Cari catatan, kategori, toko…"
             className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] pl-10 pr-9 py-2.5 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:outline-none focus:border-income transition-colors shadow-2xs"
           />
           {searchQuery && (
@@ -486,7 +493,7 @@ export default function LedgerPage() {
                 setPage(0);
               }}
               className={cn(
-                "px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0 active:scale-95",
+                "px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-[background-color,color,transform] shrink-0 active:scale-95",
                 typeFilter === key
                   ? "bg-[#1E201E] text-white shadow-2xs border border-white/10"
                   : "bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] border border-[var(--border)]"
@@ -501,7 +508,7 @@ export default function LedgerPage() {
             type="button"
             onClick={() => setFilterDrawerOpen(true)}
             className={cn(
-              "ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-all shrink-0 active:scale-95",
+              "ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-[background-color,border-color,color,transform] shrink-0 active:scale-95",
               accountFilter !== "all" || categoryFilter !== "all"
                 ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30"
                 : "bg-[var(--surface)] text-[var(--text)] border-[var(--border)] hover:bg-[var(--surface-raised)]"
@@ -532,7 +539,7 @@ export default function LedgerPage() {
                 setSearchQuery(e.target.value);
                 setPage(0);
               }}
-              placeholder="Cari catatan, kategori, toko, target..."
+              placeholder="Cari catatan, kategori, toko, target…"
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] pl-10 pr-4 py-2 text-xs text-[var(--text)] placeholder-[var(--muted)] focus:outline-none focus:border-income transition-colors"
             />
             {searchQuery && (
@@ -665,7 +672,7 @@ export default function LedgerPage() {
       <div className="hidden lg:block rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-xs overflow-hidden">
         {isLoading ? (
           <div className="py-20 text-center text-xs text-[var(--muted)] animate-pulse">
-            Memuat riwayat transaksi...
+            Memuat riwayat transaksi…
           </div>
         ) : displayTransactions.length === 0 ? (
           <div className="py-20 text-center space-y-2">
@@ -786,6 +793,13 @@ export default function LedgerPage() {
                           <span className="inline-flex items-center gap-1 text-[11px] text-emerald-500 font-semibold">
                             🎯 {tx.goal_name}
                           </span>
+                        ) : (tx.obligation_allocations?.length ?? 0) > 1 ? (
+                          <span className="block max-w-52 text-[11px] text-rose-500">
+                            <span className="block font-semibold">💳 {tx.obligation_allocations?.length} tagihan</span>
+                            <span className="block truncate text-[var(--muted)]" title={tx.obligation_allocations?.map((item) => `${item.obligation_name}: ${bal(item.amount)}`).join(" · ")}>
+                              {tx.obligation_allocations?.map((item) => `${item.obligation_name} ${bal(item.amount)}`).join(" · ")}
+                            </span>
+                          </span>
                         ) : tx.obligation_name ? (
                           <span className="inline-flex items-center gap-1 text-[11px] text-rose-500 font-semibold">
                             💳 {tx.obligation_name}
@@ -864,125 +878,136 @@ export default function LedgerPage() {
         )}
       </div>
 
-      {/* 5. Transaction Edit Modal */}
-      {editingTx && (
+      <InternalMovementModal
+        open={Boolean(editingTx?.movement_id)}
+        onClose={() => setEditingTx(null)}
+        editingMovement={editingTx?.movement_id ? {
+          id: editingTx.movement_id,
+          sourceAccountId: editingTx.account_id,
+          targetAccountId: editingTx.target_account_id ?? "",
+          amount: editingTx.amount,
+          notes: editingTx.notes,
+          date: editingTx.date,
+        } : null}
+      />
+
+      {/* 5. Ordinary transaction edit modal */}
+      {editingTx && !editingTx.movement_id && (
         <Modal
           open={Boolean(editingTx)}
           onClose={() => setEditingTx(null)}
-          title={editingTx.is_consolidated_transfer ? "Detail & Ubah Pindah Saldo" : "Ubah Transaksi"}
+          title="Ubah Transaksi"
         >
-          <div className="space-y-4 pt-2 text-xs">
+          <form
+            className="space-y-4 pt-2 text-xs"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (editType === "expense") {
+                if (editDebtRows.some((row) => !row.obligation_id || editDebtRows.filter((item) => item.obligation_id === row.obligation_id).length > 1)) {
+                  setEditError("Pilih tagihan yang berbeda untuk setiap baris.");
+                  document.getElementById("ledger-edit-debt-0")?.focus();
+                  return;
+                }
+                const amount = Number(editAmount.replace(/\./g, ""));
+                const originalAmounts = Object.fromEntries((editingTx.obligation_allocations ?? []).map((item) => [item.obligation_id, item.amount]));
+                const splitError = allocationError(editDebtRows, amount, obligations, originalAmounts);
+                if (splitError) {
+                  setEditError(splitError);
+                  (document.getElementById("ledger-edit-debt-0-amount") || document.getElementById("ledger-edit-edit-amounts"))?.focus();
+                  return;
+                }
+              }
+              if (!updateMutation.isPending) updateMutation.mutate();
+            }}
+          >
             {editError && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-medium">
+              <div role="alert" aria-live="assertive" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-medium">
                 {editError}
               </div>
             )}
+            {receiptRetryTransactionId === editingTx.id && (
+              <button
+                type="button"
+                disabled={retryReceiptMutation.isPending || !editReceipt}
+                onClick={() => retryReceiptMutation.mutate()}
+                className="min-h-11 rounded-xl border border-[var(--border-strong)] px-4 text-sm font-semibold text-[var(--text)] disabled:opacity-50"
+              >
+                {retryReceiptMutation.isPending ? "Mengunggah…" : "Coba unggah bukti lagi"}
+              </button>
+            )}
 
-            {editingTx.is_consolidated_transfer ? (
-              <>
-                <div className="p-3.5 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-500 space-y-1">
-                  <div className="flex items-center gap-1.5 font-semibold text-xs">
-                    <span className="text-sm">↔️</span>
-                    <span>Pemindahan Saldo Internal</span>
-                  </div>
-                  <p className="text-[11px] text-[var(--muted)]">
-                    Transaksi ini menghubungkan dua rekening (
-                    <span className="text-[var(--text)] font-semibold">{editingTx.account_name}</span> →{" "}
-                    <span className="text-[var(--text)] font-semibold">{editingTx.target_account_name || "Tujuan"}</span>
-                    ). Perubahan nominal atau penghapusan akan diterapkan secara bersamaan ke kedua rekening.
-                  </p>
-                </div>
-
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Jenis transaksi">
+                  {(["expense", "income"] as const).map((candidate) => (
+                    <button
+                      key={candidate}
+                      type="button"
+                      aria-pressed={editType === candidate}
+                      onClick={() => {
+                        setEditType(candidate);
+                        setEditCategoryId("");
+                        setEditHasKakeiboOverride(false);
+                        if (candidate === "income") { setEditGoalId(""); setEditDebtRows([]); }
+                      }}
+                      className={cn(
+                        "min-h-11 rounded-xl border px-3 text-sm font-semibold",
+                        editType === candidate
+                          ? "border-[var(--text)] bg-[var(--text)] text-[var(--surface)]"
+                          : "border-[var(--border)] bg-[var(--surface-raised)] text-[var(--muted)]",
+                      )}
+                    >
+                      {candidate === "expense" ? "Pengeluaran" : "Pemasukan"}
+                    </button>
+                  ))}
+            </div>
                 <div>
-                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Nominal Transfer (IDR)</label>
+                  <label htmlFor="ledger-edit-amount" className="text-xs font-medium text-[var(--muted)] block mb-1">{editType === "expense" && editDebtRows.some((row) => row.obligation_id) ? "Total bayar (IDR)" : "Nominal Uang (IDR)"}</label>
                   <input
+                    id="ledger-edit-amount"
+                    name="amount"
                     type="text"
                     inputMode="numeric"
+                    required
                     value={editAmount}
-                    onChange={(e) => setEditAmount(formatNumberWithDots(e.target.value))}
-                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-[var(--muted)] block mb-1">Rekening Asal (Sumber)</label>
-                    <select
-                      value={editAccountId}
-                      onChange={(e) => setEditAccountId(e.target.value)}
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)]"
-                    >
-                      <AccountSelectOptions accounts={accounts} formatBalance={bal} allowParentSelection={true} />
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-medium text-[var(--muted)] block mb-1">Rekening Tujuan</label>
-                    <select
-                      value={editTargetAccountId}
-                      onChange={(e) => setEditTargetAccountId(e.target.value)}
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)]"
-                    >
-                      <AccountSelectOptions accounts={accounts} formatBalance={bal} allowParentSelection={true} />
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Tanggal & Waktu</label>
-                  <input
-                    type="datetime-local"
-                    value={editDate}
-                    onChange={(e) => setEditDate(e.target.value)}
-                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)]"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Catatan</label>
-                  <input
-                    type="text"
-                    value={editNotes}
-                    onChange={(e) => setEditNotes(e.target.value)}
-                    placeholder="Tambahkan catatan pemindahan..."
-                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)]"
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <div>
-                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Nominal Uang (IDR)</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={editAmount}
+                    readOnly={editType === "expense" && editDebtRows.some((row) => row.obligation_id)}
                     onChange={(e) => setEditAmount(formatNumberWithDots(e.target.value))}
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Rekening / Dompet</label>
+                  <label htmlFor="ledger-edit-account" className="text-xs font-medium text-[var(--muted)] block mb-1">{editType === "expense" ? "Bayar dari" : "Masuk ke"}</label>
                   <select
+                    id="ledger-edit-account"
+                    name="account_id"
+                    required
                     value={editAccountId}
                     onChange={(e) => setEditAccountId(e.target.value)}
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
                   >
-                    <AccountSelectOptions accounts={accounts} formatBalance={bal} allowParentSelection={true} />
+                    <AccountSelectOptions accounts={accounts} formatBalance={bal} allowParentSelection={true} liquidOnly />
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Kategori</label>
+                  <label htmlFor="ledger-edit-category" className="text-xs font-medium text-[var(--muted)] block mb-1">Kategori</label>
                   <select
+                    id="ledger-edit-category"
+                    name="category_id"
                     value={editCategoryId}
-                    onChange={(e) => setEditCategoryId(e.target.value)}
+                    onChange={(event) => {
+                      const nextCategoryId = event.target.value;
+                      setEditCategoryId(nextCategoryId);
+                      if (editType === "expense" && !editHasKakeiboOverride) {
+                        const category = categories.find((item) => item.id === nextCategoryId);
+                        const pillar = category?.kakeibo_type;
+                        setEditKakeiboType(pillar === "want" || pillar === "saving" ? pillar : "need");
+                      }
+                    }}
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
                   >
                     <option value="">Tanpa Kategori</option>
                     {categories
-                      .filter((c) => c.kind === editingTx.type)
+                      .filter((c) => c.kind === editType && !c.is_archived)
                       .map((cat) => (
                         <option key={cat.id} value={cat.id}>
                           {cat.name}
@@ -991,34 +1016,59 @@ export default function LedgerPage() {
                   </select>
                 </div>
 
+                {editType === "expense" && (
+                  <div>
+                    <div className="mb-1 flex items-center gap-1">
+                      <label htmlFor="ledger-edit-kakeibo" className="text-xs font-medium text-[var(--muted)]">Pilar Kakeibo</label>
+                      <InfoHelp label="Pilar Kakeibo">Mengikuti pilar kategori, kecuali Anda memilih pilar lain untuk transaksi ini.</InfoHelp>
+                    </div>
+                    <select id="ledger-edit-kakeibo" name="kakeibo_type" value={editKakeiboType} onChange={(event) => { setEditKakeiboType(event.target.value as typeof editKakeiboType); setEditHasKakeiboOverride(true); }} className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]">
+                      <option value="need">Kebutuhan</option>
+                      <option value="want">Keinginan</option>
+                      <option value="saving">Tabungan</option>
+                    </select>
+                  </div>
+                )}
+
                 {/* Optional Goal Link */}
                 <div>
-                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">
-                    Hubungkan ke Target Tabungan (Opsional)
+                  <label htmlFor="ledger-edit-goal" className="text-xs font-medium text-[var(--muted)] block mb-1">
+                    Kaitkan ke target (opsional)
                   </label>
                   <select
+                    id="ledger-edit-goal"
+                    name="goal_id"
                     value={editGoalId}
                     onChange={(e) => {
                       setEditGoalId(e.target.value);
-                      if (e.target.value) setEditObligationId("");
+                      if (e.target.value) { setEditObligationId(""); setEditDebtRows([]); }
                     }}
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
                   >
                     <option value="">Tidak ada</option>
-                    {goals.map((g) => (
+                    {goals.filter((goal) => !goal.is_archived).map((g) => (
                       <option key={g.id} value={g.id}>
                         🎯 {g.name} ({bal(g.current_amount)} / {bal(g.target_amount)})
                       </option>
                     ))}
                   </select>
+                  {editGoalId && <p className="mt-1 text-xs text-[var(--muted)]">Kaitan ini tidak menambah progres target. Target terhubung rekening mengikuti saldonya.</p>}
                 </div>
 
-                {/* Optional Obligation Link */}
-                <div>
-                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">
-                    Hubungkan ke Tagihan / Utang (Opsional)
+                {editType === "expense" ? <DebtAllocationEditor idPrefix="ledger-edit" debts={obligations} rows={editDebtRows} total={Number(editAmount.replace(/\./g, "")) || 0} currency={bal} originalAmounts={Object.fromEntries((editingTx.obligation_allocations ?? []).map((item) => [item.obligation_id, item.amount]))} onChange={(rows) => {
+                  setEditDebtRows(rows);
+                  if (rows.length) setEditGoalId("");
+                  if (rows.some((row) => row.obligation_id)) {
+                    setEditAmount(formatNumberWithDots(totalDebtPayments(rows)));
+                  }
+                  setEditError("");
+                }} /> : <div>
+                  <label htmlFor="ledger-edit-obligation" className="text-xs font-medium text-[var(--muted)] block mb-1">
+                    Kaitkan ke tagihan / utang (opsional)
                   </label>
                   <select
+                    id="ledger-edit-obligation"
+                    name="obligation_id"
                     value={editObligationId}
                     onChange={(e) => {
                       setEditObligationId(e.target.value);
@@ -1027,18 +1077,22 @@ export default function LedgerPage() {
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
                   >
                     <option value="">Tidak ada</option>
-                    {obligations.map((o) => (
+                    {obligations.filter((obligation) => !obligation.is_archived && obligation.remaining_amount > 0).map((o) => (
                       <option key={o.id} value={o.id}>
                         💳 {o.name} ({bal(o.remaining_amount)} tersisa)
                       </option>
                     ))}
                   </select>
-                </div>
+                  {editObligationId && <p className="mt-1 text-xs text-[var(--muted)]">Pemasukan ini menambah kembali sisa tagihan.</p>}
+                </div>}
 
                 <div>
-                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Tanggal & Waktu</label>
+                  <label htmlFor="ledger-edit-date" className="text-xs font-medium text-[var(--muted)] block mb-1">Tanggal & Waktu</label>
                   <input
+                    id="ledger-edit-date"
+                    name="date"
                     type="datetime-local"
+                    required
                     value={editDate}
                     onChange={(e) => setEditDate(e.target.value)}
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
@@ -1046,37 +1100,38 @@ export default function LedgerPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-[var(--muted)] block mb-1">Catatan</label>
+                  <label htmlFor="ledger-edit-notes" className="text-xs font-medium text-[var(--muted)] block mb-1">Catatan</label>
                   <input
+                    id="ledger-edit-notes"
+                    name="notes"
                     type="text"
+                    autoComplete="off"
                     value={editNotes}
                     onChange={(e) => setEditNotes(e.target.value)}
-                    placeholder="Tambahkan catatan..."
+                    placeholder="Tambahkan catatan…"
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
                   />
                 </div>
-              </>
-            )}
 
+                <div>
+                  <label htmlFor="edit-transaction-receipt" className="text-xs font-medium text-[var(--muted)] block mb-1">Ganti / tambahkan bukti</label>
+                  <input id="edit-transaction-receipt" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setEditReceipt(event.target.files?.[0] ?? null)} className="block min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)]" />
+                  {editingTx.receipt_path && <p className="mt-1 text-[10px] text-[var(--muted)]">Bukti saat ini akan diganti hanya setelah unggahan baru berhasil.</p>}
+                </div>
             <div className="pt-4 flex items-center justify-between border-t border-[var(--border)]">
-              <button
-                type="button"
-                onClick={() => {
-                  if (
-                    confirm(
-                      editingTx.is_consolidated_transfer
-                        ? "Hapus pemindahan saldo ini? Saldo kedua rekening akan dikembalikan."
-                        : "Hapus transaksi ini? Saldo rekening dan progres target terkait akan dikembalikan."
-                    )
-                  ) {
-                    deleteMutation.mutate(editingTx);
-                  }
-                }}
+              <ConfirmActionButton
+                label={editingTx.is_consolidated_transfer ? "Hapus pemindahan saldo" : "Hapus transaksi"}
+                confirmation={editingTx.is_consolidated_transfer
+                  ? "Hapus pemindahan saldo ini? Saldo kedua rekening akan dikembalikan."
+                  : (editingTx.obligation_allocations?.length ?? 0) > 0
+                    ? "Hapus pembayaran ini? Saldo rekening diperbarui dan seluruh pembagian tagihan dikembalikan."
+                  : "Hapus transaksi ini? Saldo rekening akan diperbarui."}
+                onConfirm={() => deleteMutation.mutate(editingTx)}
                 disabled={deleteMutation.isPending}
-                className="px-3.5 py-2 rounded-btn bg-rose-500/10 text-rose-500 border border-rose-500/20 font-semibold hover:bg-rose-500/20 disabled:opacity-50 transition-all active:scale-95"
+                className="min-h-11 rounded-xl border border-rose-500/25 bg-rose-500/10 px-3.5 font-semibold text-rose-600 hover:bg-rose-500/20 disabled:opacity-50"
               >
-                {deleteMutation.isPending ? "Menghapus..." : "Hapus"}
-              </button>
+                {deleteMutation.isPending ? "Menghapus…" : "Hapus"}
+              </ConfirmActionButton>
 
               <div className="flex gap-2">
                 <button
@@ -1087,16 +1142,15 @@ export default function LedgerPage() {
                   Batal
                 </button>
                 <button
-                  type="button"
+                  type="submit"
                   disabled={updateMutation.isPending}
-                  onClick={() => updateMutation.mutate()}
                   className="btn-primary"
                 >
-                  {updateMutation.isPending ? "Menyimpan..." : "Simpan Perubahan"}
+                  {updateMutation.isPending ? "Menyimpan…" : "Simpan Perubahan"}
                 </button>
               </div>
             </div>
-          </div>
+          </form>
         </Modal>
       )}
 
@@ -1115,20 +1169,21 @@ export default function LedgerPage() {
         <div className="space-y-4 pt-1 text-xs">
           {/* Account Filter */}
           <div className="space-y-2">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+            <p className="text-xs font-semibold text-[var(--muted)]">
               Rekening & Dompet
-            </label>
-            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1">
+            </p>
+            <div role="group" aria-label="Filter rekening dan dompet" className="flex flex-wrap gap-2">
               <button
                 type="button"
+                aria-pressed={accountFilter === "all"}
                 onClick={() => {
                   setAccountFilter("all");
                   setPage(0);
                 }}
                 className={cn(
-                  "px-3 py-1.5 rounded-xl font-medium border text-xs transition-all",
+                  "min-h-11 rounded-xl border px-3 text-xs font-medium transition-colors",
                   accountFilter === "all"
-                    ? "bg-emerald-500 text-white border-emerald-500 font-bold"
+                    ? "border-[var(--text)] bg-[var(--text)] font-semibold text-[var(--surface)]"
                     : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text)]"
                 )}
               >
@@ -1138,14 +1193,15 @@ export default function LedgerPage() {
                 <button
                   key={acc.id}
                   type="button"
+                  aria-pressed={accountFilter === acc.id}
                   onClick={() => {
                     setAccountFilter(acc.id);
                     setPage(0);
                   }}
                   className={cn(
-                    "px-3 py-1.5 rounded-xl font-medium border text-xs transition-all",
+                    "min-h-11 rounded-xl border px-3 text-xs font-medium transition-colors",
                     accountFilter === acc.id
-                      ? "bg-emerald-500 text-white border-emerald-500 font-bold"
+                      ? "border-[var(--text)] bg-[var(--text)] font-semibold text-[var(--surface)]"
                       : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text)]"
                   )}
                 >
@@ -1157,20 +1213,21 @@ export default function LedgerPage() {
 
           {/* Category Filter */}
           <div className="space-y-2">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+            <p className="text-xs font-semibold text-[var(--muted)]">
               Kategori
-            </label>
-            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-1">
+            </p>
+            <div role="group" aria-label="Filter kategori" className="flex flex-wrap gap-2">
               <button
                 type="button"
+                aria-pressed={categoryFilter === "all"}
                 onClick={() => {
                   setCategoryFilter("all");
                   setPage(0);
                 }}
                 className={cn(
-                  "px-3 py-1.5 rounded-xl font-medium border text-xs transition-all",
+                  "min-h-11 rounded-xl border px-3 text-xs font-medium transition-colors",
                   categoryFilter === "all"
-                    ? "bg-emerald-500 text-white border-emerald-500 font-bold"
+                    ? "border-[var(--text)] bg-[var(--text)] font-semibold text-[var(--surface)]"
                     : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text)]"
                 )}
               >
@@ -1180,14 +1237,15 @@ export default function LedgerPage() {
                 <button
                   key={cat.id}
                   type="button"
+                  aria-pressed={categoryFilter === cat.id}
                   onClick={() => {
                     setCategoryFilter(cat.id);
                     setPage(0);
                   }}
                   className={cn(
-                    "px-3 py-1.5 rounded-xl font-medium border text-xs transition-all",
+                    "min-h-11 rounded-xl border px-3 text-xs font-medium transition-colors",
                     categoryFilter === cat.id
-                      ? "bg-emerald-500 text-white border-emerald-500 font-bold"
+                      ? "border-[var(--text)] bg-[var(--text)] font-semibold text-[var(--surface)]"
                       : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text)]"
                   )}
                 >

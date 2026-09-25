@@ -13,6 +13,11 @@ from app.routers.transactions import resolve_effective_account
 from app.services.auth import get_current_user
 from app.services.category_rules import resolve_category_for_notification
 from app.services.market_data import get_instrument_quote
+from app.services.ledger_mutations import (
+    create_bilateral_movement,
+    get_locked_ledger_balance,
+    lock_owned_accounts,
+)
 from app.services.notification_parser import parse_notification
 
 router = APIRouter(tags=["Notification Ingestion"])
@@ -162,13 +167,50 @@ async def ingest_notifications(
                 cat_res = resolve_category_for_notification(parsed, categories, user_rules)
                 parsed_summary["resolved_category"] = cat_res
 
-                # 3. Check existing event & transaction linkage
+                # 3. Claim the event before any account, position, or ledger effect.
                 cur.execute(
-                    "SELECT id, transaction_id FROM notification_events WHERE user_id = %s AND payload_hash = %s",
-                    (user_id, ev.payload_hash),
+                    """
+                    INSERT INTO notification_events (
+                        user_id, device_id, package_name, app_label,
+                        notification_key, notification_id, channel_id, category,
+                        title, body_text, big_text, sub_text, summary_text,
+                        post_time, payload_hash, raw_extras, source_version,
+                        is_financial, event_class, expected_amount, expected_direction,
+                        expected_counterparty, label_notes, labelled_at, parsed_summary
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    )
+                    ON CONFLICT (user_id, payload_hash) DO NOTHING
+                    RETURNING id
+                    """,
+                    (
+                        user_id, ev.device_id, ev.package_name, ev.app_label,
+                        ev.notification_key, ev.notification_id, ev.channel_id, ev.category,
+                        ev.title, ev.body_text, ev.big_text, ev.sub_text, ev.summary_text,
+                        ev.post_time, ev.payload_hash, extras_json, ev.source_version,
+                        parsed.is_financial if ev.is_financial is None else ev.is_financial,
+                        parsed.event_class if ev.event_class is None else ev.event_class,
+                        final_amount if ev.expected_amount is None else ev.expected_amount,
+                        parsed.direction if ev.expected_direction is None else ev.expected_direction,
+                        parsed.counterparty if ev.expected_counterparty is None else ev.expected_counterparty,
+                        cat_res.get("category_name") if ev.label_notes is None else ev.label_notes,
+                        datetime.now(timezone.utc) if (ev.is_financial is not None or ev.event_class is not None) else None,
+                        json.dumps(parsed_summary, default=str),
+                    ),
                 )
-                existing_ev = cur.fetchone()
-                tx_id = existing_ev.get("transaction_id") if (isinstance(existing_ev, dict)) else None
+                claimed = cur.fetchone()
+                if not claimed:
+                    cur.execute(
+                        "SELECT id, transaction_id FROM notification_events WHERE user_id = %s AND payload_hash = %s FOR UPDATE",
+                        (user_id, ev.payload_hash),
+                    )
+                    cur.fetchone()
+                    updated += 1
+                    continue
+                event_id = str(claimed["id"])
+                tx_id = None
+                inserted += 1
 
                 # 4. Auto-create ledger transaction if it is a settled transaction with a valid amount
                 if tx_id is None and parsed.is_financial and parsed.event_class != "noise" and final_amount and final_amount > 0:
@@ -421,7 +463,7 @@ async def ingest_notifications(
                             if (tx_type == "transfer" or is_investment or parsed.investment_action)
                             else cat_res.get("kakeibo_type", "need")
                         )
-                        if tx_type == "transfer":
+                        if tx_type == "transfer" and transfer_target_id:
                             expense_cat = next((c for c in categories if c.get("name") == "Internal Movement" and c.get("kind") == "expense"), None)
                             income_cat = next((c for c in categories if c.get("name") == "Internal Movement" and c.get("kind") == "income"), None)
                             expense_cat_id = (expense_cat.get("id") if expense_cat else None) or cat_res.get("category_id")
@@ -432,51 +474,56 @@ async def ingest_notifications(
                                 exp_id, inc_id = _ensure_internal_movement_categories(cur, user_id)
                                 expense_cat_id = expense_cat_id or exp_id
                                 income_cat_id = income_cat_id or inc_id
-                            cur.execute(
-                                """
-                                INSERT INTO transactions (
-                                    user_id, account_id, category_id, type, amount, notes, date, kakeibo_type
-                                ) VALUES (
-                                    %s, %s, %s, 'expense', %s, %s, %s, %s
-                                ) RETURNING id
-                                """,
-                                (
-                                    user_id,
-                                    source_account_id,
-                                    expense_cat_id,
-                                    final_amount,
-                                    notes_content,
-                                    ev.post_time,
-                                    None,
-                                ),
+                            locked = lock_owned_accounts(
+                                cur,
+                                user_id,
+                                [str(source_account_id), str(transfer_target_id)],
                             )
-                            new_tx = cur.fetchone()
-                            if new_tx and isinstance(new_tx, dict):
-                                tx_id = new_tx.get("id")
-                                if tx_id:
-                                    created_txs += 1
-                            if transfer_target_id:
+                            source_account = locked[str(source_account_id)]
+                            source_balance = get_locked_ledger_balance(
+                                cur,
+                                user_id,
+                                str(source_account_id),
+                            )
+                            movement = create_bilateral_movement(
+                                cur,
+                                user_id=user_id,
+                                source_id=str(source_account_id),
+                                target_id=str(transfer_target_id),
+                                amount=final_amount,
+                                notes=notes_content,
+                                tx_date=ev.post_time,
+                                expense_category_id=str(expense_cat_id),
+                                income_category_id=str(income_cat_id),
+                                source_account=locked[str(source_account_id)],
+                                target_account=locked[str(transfer_target_id)],
+                                idempotency_key=f"notification:{ev.payload_hash}",
+                                is_trade=bool(is_investment or parsed.investment_action),
+                                allow_negative=True,
+                            )
+                            tx_id = movement["expense_transaction_id"]
+                            created_txs += 2
+                            if (
+                                source_account.get("type") in {"cash", "bank", "ewallet", "wallet"}
+                                and not source_account.get("instrument_type")
+                                and source_balance < final_amount
+                            ):
                                 cur.execute(
                                     """
-                                    INSERT INTO transactions (
-                                        user_id, account_id, category_id, type, amount, notes, date, kakeibo_type
-                                    ) VALUES (
-                                        %s, %s, %s, 'income', %s, %s, %s, %s
-                                    ) RETURNING id
+                                    UPDATE accounts
+                                    SET reconciliation_required = TRUE,
+                                        reconciliation_reason = 'settled_notification_negative_balance',
+                                        reconciliation_event_id = %s,
+                                        updated_at = NOW()
+                                    WHERE id = %s AND user_id = %s
                                     """,
-                                    (
-                                        user_id,
-                                        transfer_target_id,
-                                        income_cat_id,
-                                        final_amount,
-                                        notes_content,
-                                        ev.post_time,
-                                        None,
-                                    ),
+                                    (event_id, str(source_account_id), user_id),
                                 )
-                                if cur.fetchone():
-                                    created_txs += 1
                         else:
+                            locked = lock_owned_accounts(cur, user_id, [str(source_account_id)])
+                            pre_balance = get_locked_ledger_balance(cur, user_id, str(source_account_id))
+                            if tx_type == "transfer":
+                                tx_type = "expense"
                             cur.execute(
                                 """
                                 INSERT INTO transactions (
@@ -501,46 +548,31 @@ async def ingest_notifications(
                                 tx_id = new_tx.get("id")
                                 if tx_id:
                                     created_txs += 1
+                            if tx_type == "expense" and pre_balance < final_amount:
+                                cur.execute(
+                                    """
+                                    UPDATE accounts
+                                    SET reconciliation_required = TRUE,
+                                        reconciliation_reason = 'settled_notification_negative_balance',
+                                        reconciliation_event_id = %s,
+                                        updated_at = NOW()
+                                    WHERE id = %s AND user_id = %s
+                                    """,
+                                    (event_id, str(source_account_id), user_id),
+                                )
 
-                # 5. Upsert notification event in lake
+                # 5. Attach the logical result to the claimed event.
                 labelled_at = datetime.now(timezone.utc) if (ev.is_financial is not None or ev.event_class is not None) else None
-                upsert_sql = """
-                    INSERT INTO notification_events (
-                        user_id, device_id, package_name, app_label,
-                        notification_key, notification_id, channel_id, category,
-                        title, body_text, big_text, sub_text, summary_text,
-                        post_time, payload_hash, raw_extras, source_version,
-                        is_financial, event_class, expected_amount, expected_direction,
-                        expected_counterparty, label_notes, labelled_at,
-                        parsed_summary, transaction_id
-                    ) VALUES (
-                        %s, %s, %s, %s,
-                        %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s,
-                        %s, %s, %s, %s,
-                        %s, %s, %s,
-                        %s, %s
-                    )
-                    ON CONFLICT (user_id, payload_hash) DO UPDATE SET
-                        is_financial = COALESCE(EXCLUDED.is_financial, notification_events.is_financial),
-                        event_class = COALESCE(EXCLUDED.event_class, notification_events.event_class),
-                        expected_amount = COALESCE(EXCLUDED.expected_amount, notification_events.expected_amount),
-                        expected_direction = COALESCE(EXCLUDED.expected_direction, notification_events.expected_direction),
-                        expected_counterparty = COALESCE(EXCLUDED.expected_counterparty, notification_events.expected_counterparty),
-                        label_notes = COALESCE(EXCLUDED.label_notes, notification_events.label_notes),
-                        parsed_summary = COALESCE(EXCLUDED.parsed_summary, notification_events.parsed_summary),
-                        transaction_id = COALESCE(notification_events.transaction_id, EXCLUDED.transaction_id),
-                        updated_at = NOW()
-                    RETURNING (xmax = 0) AS was_inserted;
-                """
                 cur.execute(
-                    upsert_sql,
+                    """
+                    UPDATE notification_events
+                    SET is_financial = %s, event_class = %s, expected_amount = %s,
+                        expected_direction = %s, expected_counterparty = %s,
+                        label_notes = %s, labelled_at = %s, parsed_summary = %s,
+                        transaction_id = %s, updated_at = NOW()
+                    WHERE id = %s AND user_id = %s
+                    """,
                     (
-                        user_id, ev.device_id, ev.package_name, ev.app_label,
-                        ev.notification_key, ev.notification_id, ev.channel_id, ev.category,
-                        ev.title, ev.body_text, ev.big_text, ev.sub_text, ev.summary_text,
-                        ev.post_time, ev.payload_hash, extras_json, ev.source_version,
                         parsed.is_financial if ev.is_financial is None else ev.is_financial,
                         parsed.event_class if ev.event_class is None else ev.event_class,
                         final_amount if ev.expected_amount is None else ev.expected_amount,
@@ -550,13 +582,10 @@ async def ingest_notifications(
                         labelled_at,
                         json.dumps(parsed_summary, default=str),
                         tx_id,
+                        event_id,
+                        user_id,
                     ),
                 )
-                res = cur.fetchone()
-                if res and res["was_inserted"]:
-                    inserted += 1
-                else:
-                    updated += 1
 
         conn.commit()
 

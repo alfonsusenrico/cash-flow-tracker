@@ -30,7 +30,12 @@ def get_client_ip(req: Request) -> str:
     return "unknown"
 
 
-def register_user(username: str, password: str, invite_code: str) -> dict[str, Any]:
+def register_user(
+    username: str,
+    password: str,
+    invite_code: str,
+    name: str | None = None,
+) -> dict[str, Any]:
     username = username.strip().lower()
     if not username:
         raise HTTPException(status_code=400, detail="Username is required")
@@ -54,11 +59,11 @@ def register_user(username: str, password: str, invite_code: str) -> dict[str, A
 
             cur.execute(
                 """
-                INSERT INTO users (username, password_hash, invite_code)
-                VALUES (%s, %s, %s)
-                RETURNING id, username, payday_day, currency, created_at
+                INSERT INTO users (username, name, password_hash, invite_code)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id, username, name, payday_day, currency, created_at
                 """,
-                (username, password_hash, invite_code),
+                (username, name.strip() if name else None, password_hash, invite_code),
             )
             user = cur.fetchone()
             user_id = str(user["id"])
@@ -79,6 +84,7 @@ def register_user(username: str, password: str, invite_code: str) -> dict[str, A
     return {
         "id": user_id,
         "username": user["username"],
+        "name": user.get("name") or user["username"],
         "payday_day": user["payday_day"],
         "currency": user["currency"],
         "api_key": plain_key,

@@ -217,7 +217,14 @@ def test_account_color_display_order_and_reordering():
 
             # 4. Test update account color and display_order
             cur.fetchone.side_effect = None
-            cur.fetchone.return_value = {"id": acc1_id, "parent_id": None}
+            cur.fetchone.return_value = {
+                "id": acc1_id,
+                "parent_id": None,
+                "type": "bank",
+                "instrument_type": None,
+                "default_pocket_id": None,
+                "default_funding_account_id": None,
+            }
             cur.fetchall.return_value = [
                 {
                     "id": acc1_id,
@@ -380,6 +387,5 @@ def test_user_settings_and_currency_rates():
             assert "USD" in rates_json["rates"]
 
     app.dependency_overrides.clear()
-
 
 

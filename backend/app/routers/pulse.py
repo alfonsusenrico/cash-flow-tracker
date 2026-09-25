@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 
 from app.core.config import settings
 from app.db.pool import db_conn
-from app.routers.accounts import get_accounts_with_balances
+from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.services.auth import get_current_user
 
 router = APIRouter(tags=["Pulse & Insights"])
@@ -83,10 +83,11 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
         with conn.cursor() as cur:
             # 1. Accounts & Liquid Balances
             accs = get_accounts_with_balances(user_id, include_archived=False)
-            top_accs = [a for a in accs if a.get("parent_id") is None]
-            liquid_balance = sum(a["balance"] for a in top_accs if a.get("type") in ("cash", "bank", "ewallet", "wallet") and not a.get("instrument_type"))
-            investment_balance = sum(a["balance"] for a in top_accs if a.get("type") == "investment" or a.get("instrument_type") is not None)
-            total_balance = sum(a["balance"] for a in top_accs)
+            balance_summary = summarize_account_balances(accs)
+            liquid_balance = balance_summary["liquid_balance"]
+            investment_balance = balance_summary["investment_balance"]
+            total_balance = balance_summary["total_balance"]
+            reconciliation_pending = balance_summary["reconciliation_pending"]
 
             # 2. Today's spent (living expenses only: excludes internal movement & investments)
             cur.execute(
@@ -195,7 +196,10 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
     return {
         "ok": True,
         "currency": current_user.get("currency", "IDR"),
-        "total_liquid_balance": total_balance,
+        "total_liquid_balance": liquid_balance,
+        "investment_balance": investment_balance,
+        "total_net_worth": total_balance,
+        "reconciliation_pending": reconciliation_pending,
         "today_spent": today_spent,
         "safe_to_spend_today": safe_to_spend_today,
         "cycle_spent": cycle_spent,

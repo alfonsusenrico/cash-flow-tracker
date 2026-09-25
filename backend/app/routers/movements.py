@@ -6,6 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
+from app.services.ledger_mutations import (
+    create_bilateral_movement,
+    ensure_generic_movement_accounts,
+    lock_owned_accounts,
+)
 from app.services.auth import get_current_user
 
 router = APIRouter(prefix="/movements", tags=["Movements"])
@@ -20,6 +25,14 @@ class MovementCreate(BaseModel):
     notes: str | None = Field(default=None, max_length=500)
     date: datetime | None = None
     idempotency_key: str | None = Field(default=None, max_length=64)
+
+
+class MovementUpdate(BaseModel):
+    source_account_id: UUID
+    target_account_id: UUID
+    amount: int = Field(gt=0)
+    notes: str | None = Field(default=None, max_length=500)
+    date: datetime | None = None
 
 
 def _ensure_internal_movement_categories(cur, user_id: str) -> tuple[str, str]:
@@ -129,10 +142,10 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
             if source_id == target_id:
                 raise HTTPException(status_code=400, detail="Source and target accounts must be different")
 
-            # 2. Get/seed internal movement categories
+            # 3. Get/seed internal movement categories
             expense_cat_id, income_cat_id = _ensure_internal_movement_categories(cur, user_id)
 
-            # 3. Idempotency keys if specified (ensure total length never exceeds varchar(64) limit)
+            # 3. Idempotency keys if specified.
             if payload.idempotency_key:
                 base_key = payload.idempotency_key[:58]
                 out_key = f"{base_key}:out"
@@ -143,7 +156,7 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
 
             if payload.idempotency_key:
                 cur.execute(
-                    "SELECT id FROM transactions WHERE user_id = %s AND idempotency_key = %s",
+                    "SELECT id, movement_id FROM transactions WHERE user_id = %s AND idempotency_key = %s",
                     (user_id, out_key),
                 )
                 existing_out = cur.fetchone()
@@ -155,68 +168,102 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
                     existing_in = cur.fetchone()
                     return {
                         "ok": True,
+                        "movement_id": str(existing_out["movement_id"]) if existing_out.get("movement_id") else None,
                         "expense_transaction_id": str(existing_out["id"]),
                         "income_transaction_id": str(existing_in["id"]) if existing_in else None,
                         "idempotent": True,
                         "message": "Movement already recorded (idempotent)",
                     }
 
-            # 4. Insert outbound expense transaction FIRST
-            target_acc = next((a for a in accounts if str(a["id"]) == target_id), None)
-            is_target_investment = bool(
-                target_acc and (target_acc.get("type") == "investment" or target_acc.get("instrument_type"))
+            locked = lock_owned_accounts(cur, user_id, [source_id, target_id])
+            ensure_generic_movement_accounts(locked[source_id], locked[target_id])
+            result = create_bilateral_movement(
+                cur,
+                user_id=user_id,
+                source_id=source_id,
+                target_id=target_id,
+                amount=payload.amount,
+                notes=notes_val,
+                tx_date=tx_date,
+                expense_category_id=expense_cat_id,
+                income_category_id=income_cat_id,
+                source_account=locked[source_id],
+                target_account=locked[target_id],
+                idempotency_key=payload.idempotency_key,
             )
-            kakeibo_val = "saving" if is_target_investment else None
-
-            cur.execute(
-                """
-                INSERT INTO transactions (
-                    user_id, account_id, category_id, type, amount, notes, date, kakeibo_type, idempotency_key
-                )
-                VALUES (%s, %s, %s, 'expense', %s, %s, %s, %s, %s)
-                RETURNING id, created_at
-                """,
-                (
-                    user_id,
-                    source_id,
-                    expense_cat_id,
-                    payload.amount,
-                    notes_val,
-                    tx_date,
-                    kakeibo_val,
-                    out_key,
-                ),
-            )
-            out_row = cur.fetchone()
-            expense_id = str(out_row["id"])
-
-            # 5. Insert inbound income transaction SECOND
-            cur.execute(
-                """
-                INSERT INTO transactions (
-                    user_id, account_id, category_id, type, amount, notes, date, kakeibo_type, idempotency_key
-                )
-                VALUES (%s, %s, %s, 'income', %s, %s, %s, NULL, %s)
-                RETURNING id, created_at
-                """,
-                (
-                    user_id,
-                    target_id,
-                    income_cat_id,
-                    payload.amount,
-                    notes_val,
-                    tx_date,
-                    in_key,
-                ),
-            )
-            in_row = cur.fetchone()
-            income_id = str(in_row["id"])
 
             conn.commit()
 
     return {
         "ok": True,
-        "expense_transaction_id": expense_id,
-        "income_transaction_id": income_id,
-        "message": f"Moved {payload.amount} from {found_accounts[source_id]} to {found_accounts[target_id]}",
+        **result,
+        "message": f"Moved {payload.amount} from {effective_source['name']} to {effective_target['name']}",
     }
+
+
+@router.patch("/{movement_id}")
+def update_movement(
+    movement_id: UUID,
+    payload: MovementUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user["id"]
+    source_id = str(payload.source_account_id)
+    target_id = str(payload.target_account_id)
+    if source_id == target_id:
+        raise HTTPException(status_code=400, detail="Source and target accounts must be different")
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, movement_role FROM transactions WHERE user_id = %s AND movement_id = %s FOR UPDATE",
+                (user_id, str(movement_id)),
+            )
+            movement_rows = cur.fetchall()
+            if {row["movement_role"] for row in movement_rows} != {"outbound", "inbound"}:
+                raise HTTPException(status_code=404, detail="Movement not found")
+            locked = lock_owned_accounts(cur, user_id, [source_id, target_id])
+            ensure_generic_movement_accounts(locked[source_id], locked[target_id])
+            from app.services.ledger_mutations import ensure_sufficient_funds
+
+            ensure_sufficient_funds(
+                cur,
+                user_id,
+                locked[source_id],
+                payload.amount,
+                exclude_movement_id=str(movement_id),
+            )
+            tx_date = payload.date or datetime.now(timezone.utc)
+            notes = payload.notes.strip() if payload.notes else "Internal Movement"
+            from app.services.ledger_mutations import movement_kakeibo
+
+            kakeibo = movement_kakeibo(locked[source_id], locked[target_id])
+            cur.execute(
+                """
+                UPDATE transactions
+                SET account_id = CASE movement_role WHEN 'outbound' THEN %s::uuid ELSE %s::uuid END,
+                    amount = %s, notes = %s, date = %s,
+                    kakeibo_type = CASE movement_role WHEN 'outbound' THEN %s ELSE NULL END,
+                    updated_at = NOW()
+                WHERE user_id = %s AND movement_id = %s
+                """,
+                (source_id, target_id, payload.amount, notes, tx_date, kakeibo, user_id, str(movement_id)),
+            )
+            conn.commit()
+    return {"ok": True, "movement_id": str(movement_id)}
+
+
+@router.delete("/{movement_id}")
+def delete_movement(movement_id: UUID, current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM transactions WHERE user_id = %s AND movement_id = %s RETURNING id",
+                (user_id, str(movement_id)),
+            )
+            deleted = cur.fetchall()
+            if len(deleted) != 2:
+                raise HTTPException(status_code=404, detail="Movement not found")
+            conn.commit()
+    return {"ok": True, "movement_id": str(movement_id)}

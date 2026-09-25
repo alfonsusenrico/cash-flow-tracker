@@ -275,27 +275,31 @@ def test_transaction_kakeibo_support():
             cat_id = str(uuid.uuid4())
 
             mock_cur.fetchone.side_effect = [
-                {"id": acc_id},  # validate source account
-                {"id": cat_id},  # validate category
-                {"id": tx_id, "created_at": datetime.now(timezone.utc)},  # inserted tx
+                {"id": cat_id, "kind": "expense"},
+                {"id": tx_id, "created_at": datetime.now(timezone.utc)},
             ]
-
-            with TestClient(app) as client:
-                res = client.post(
-                    "/api/transactions",
-                    json={
-                        "account_id": acc_id,
-                        "category_id": cat_id,
-                        "type": "expense",
-                        "amount": 45_000,
-                        "notes": "Latte",
-                        "kakeibo_type": "want",
-                    },
-                )
-                assert res.status_code == 200
-                data = res.json()
-                assert data["ok"] is True
-                assert data["transaction_id"] == tx_id
+            mock_cur.fetchall.side_effect = [
+                [{"id": acc_id, "name": "Cash", "parent_id": None, "type": "cash", "default_pocket_id": None}],
+                [],
+            ]
+            with patch("app.routers.transactions.lock_owned_accounts", return_value={acc_id: {"id": acc_id, "type": "cash"}}), \
+                 patch("app.routers.transactions.ensure_sufficient_funds", return_value=50000):
+                with TestClient(app) as client:
+                    res = client.post(
+                        "/api/transactions",
+                        json={
+                            "account_id": acc_id,
+                            "category_id": cat_id,
+                            "type": "expense",
+                            "amount": 45_000,
+                            "notes": "Latte",
+                            "kakeibo_type": "want",
+                        },
+                    )
+                    assert res.status_code == 200
+                    data = res.json()
+                    assert data["ok"] is True
+                    assert data["transaction_id"] == tx_id
 
         app.dependency_overrides.clear()
 
@@ -356,4 +360,3 @@ def test_burn_rate_cycle_forecast_and_unrounded_projection():
                 assert "cycle_end_date" in burn
 
         app.dependency_overrides.clear()
-

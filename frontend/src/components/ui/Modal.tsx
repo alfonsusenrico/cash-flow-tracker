@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useId, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
@@ -13,35 +13,77 @@ interface ModalProps {
 
 export function Modal({ open, onClose, title, children, wide }: ModalProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const onCloseRef = useRef(onClose);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useLayoutEffect(() => {
     if (!open) return;
-    const handler = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const dialog = ref.current;
+    const focusableSelector =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const isDesktop =
+      typeof window.matchMedia !== "function" ||
+      window.matchMedia("(min-width: 640px)").matches;
+    const preferred = isDesktop
+      ? dialog?.querySelector<HTMLElement>("[data-autofocus]")
+      : null;
+    const firstFocusable = dialog?.querySelector<HTMLElement>(focusableSelector);
+    (preferred ?? firstFocusable ?? dialog)?.focus();
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector));
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     document.addEventListener("keydown", handler);
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handler);
+      previouslyFocused?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center overflow-y-auto bg-black/60 p-0 sm:p-4 backdrop-blur-xs transition-opacity"
+      className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto overscroll-contain bg-black/60 p-0 backdrop-blur-xs transition-opacity motion-reduce:transition-none sm:items-center sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className={cn(
           "w-full overflow-y-auto border-t sm:border border-[var(--border)] bg-[var(--surface)] shadow-2xl",
           "rounded-t-[28px] sm:rounded-[var(--radius-card,20px)] max-h-[90dvh] sm:max-h-[calc(100dvh-48px)]",
-          "animate-in slide-in-from-bottom-5 sm:fade-in duration-200 ease-out",
+          "animate-in slide-in-from-bottom-5 duration-200 ease-out motion-reduce:animate-none motion-reduce:transition-none sm:fade-in",
           wide ? "sm:max-w-2xl" : "sm:max-w-md"
         )}
       >
@@ -51,12 +93,13 @@ export function Modal({ open, onClose, title, children, wide }: ModalProps) {
         </div>
 
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-[var(--border)]">
-          <h2 id="modal-title" className="font-bold text-sm sm:text-base tracking-tight text-[var(--text)]">
+          <h2 id={titleId} className="font-bold text-sm sm:text-base tracking-tight text-[var(--text)]">
             {title}
           </h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-xl text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors text-lg leading-none"
+            type="button"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-lg leading-none text-[var(--muted)] transition-colors hover:bg-[var(--surface-raised)] hover:text-[var(--text)] motion-reduce:transition-none"
             aria-label="Tutup"
           >
             ✕

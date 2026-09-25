@@ -114,6 +114,11 @@ echo "🔨 Building Docker images for ${compose_project}..."
 docker compose --project-name "$compose_project" --env-file "$runtime_env" build
 
 # D. Run database migrations (fails safely before replacing running containers)
+echo "🔍 Validating Flyway history and checking for the expected V14 checksum correction..."
+python3 "$source_dir/scripts/flyway_v14_preflight.py" \
+  --project-name "$compose_project" \
+  --env-file "$runtime_env"
+
 echo "🗄️ Running Flyway database migrations..."
 docker compose --project-name "$compose_project" --env-file "$runtime_env" run --rm migrate
 

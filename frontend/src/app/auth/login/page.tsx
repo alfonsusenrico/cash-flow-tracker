@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
+const REGISTRATION_PASSWORD_MIN_LENGTH = 8;
+
 export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [error, setError] = useState("");
@@ -46,14 +48,17 @@ export default function LoginPage() {
         });
         window.location.replace(getSafeRedirectTarget());
       } else {
+        const password = String(fd.get("password") ?? "");
+        if (password.length < REGISTRATION_PASSWORD_MIN_LENGTH) {
+          throw new Error(`Kata sandi minimal ${REGISTRATION_PASSWORD_MIN_LENGTH} karakter`);
+        }
         await api.post("/auth/register", {
           username: fd.get("username"),
-          password: fd.get("password"),
-          full_name: fd.get("full_name") || undefined,
+          password,
+          name: fd.get("full_name") || undefined,
           invite_code: fd.get("invite_code"),
         });
-        setMode("login");
-        setError("Pendaftaran berhasil! Silakan masuk ke akun Anda.");
+        window.location.replace(getSafeRedirectTarget());
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Terjadi kesalahan, silakan coba lagi");
@@ -64,7 +69,7 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-[var(--bg)] text-[var(--text)] px-4">
-      <div className="w-full max-w-sm p-8 bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm">
+      <div className="w-full max-w-sm rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm sm:p-8">
         <h1 className="text-2xl font-bold mb-1 text-center tracking-tight">CashFlow</h1>
         <p className="text-center text-xs text-[var(--muted)] mb-6">
           {mode === "login" ? "Masuk ke akun Anda" : "Buat akun baru"}
@@ -74,13 +79,13 @@ export default function LoginPage() {
           {mode === "register" && (
             <div>
               <label className="block text-xs font-medium text-[var(--muted)] mb-1" htmlFor="full_name">
-                Nama Lengkap (opsional)
+                Nama Tampilan
               </label>
               <input
                 id="full_name"
                 name="full_name"
                 autoComplete="name"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs font-medium text-[var(--text)] outline-none focus:ring-2 focus:ring-income/30 transition-all"
+                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
               />
             </div>
           )}
@@ -93,7 +98,8 @@ export default function LoginPage() {
               name="username"
               autoComplete="username"
               required
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs font-medium text-[var(--text)] outline-none focus:ring-2 focus:ring-income/30 transition-all"
+              minLength={mode === "register" ? 6 : undefined}
+              className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
             />
           </div>
           <div>
@@ -106,8 +112,15 @@ export default function LoginPage() {
               type="password"
               autoComplete={mode === "login" ? "current-password" : "new-password"}
               required
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs font-medium text-[var(--text)] outline-none focus:ring-2 focus:ring-income/30 transition-all"
+              minLength={mode === "register" ? REGISTRATION_PASSWORD_MIN_LENGTH : undefined}
+              aria-describedby={mode === "register" ? "password-help" : undefined}
+              className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
             />
+            {mode === "register" && (
+              <p id="password-help" className="mt-1 text-[11px] text-[var(--muted)]">
+                Minimal {REGISTRATION_PASSWORD_MIN_LENGTH} karakter.
+              </p>
+            )}
           </div>
           {mode === "register" && (
             <div>
@@ -119,13 +132,13 @@ export default function LoginPage() {
                 name="invite_code"
                 autoComplete="off"
                 required
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs font-medium text-[var(--text)] outline-none focus:ring-2 focus:ring-income/30 transition-all"
+                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
               />
             </div>
           )}
 
           {error && (
-            <p className={`text-xs font-medium ${error.includes("berhasil") ? "text-income" : "text-expense"}`}>
+            <p role="alert" className="text-xs font-medium text-expense">
               {error}
             </p>
           )}
@@ -133,9 +146,9 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-income hover:bg-income-hover text-white font-semibold py-2.5 text-xs shadow-xs transition-all active:scale-[0.98] disabled:opacity-50"
+            className="min-h-11 w-full rounded-xl bg-[#1E201E] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#313631] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-50"
           >
-            {loading ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar Akun"}
+            {loading ? "Memproses…" : mode === "login" ? "Masuk" : "Daftar Akun"}
           </button>
         </form>
 
@@ -145,7 +158,7 @@ export default function LoginPage() {
               Belum punya akun?{" "}
               <button
                 onClick={() => { setMode("register"); setError(""); }}
-                className="text-income hover:underline font-semibold"
+                className="min-h-11 font-semibold text-[var(--text)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
               >
                 Daftar sekarang
               </button>
@@ -155,7 +168,7 @@ export default function LoginPage() {
               Sudah punya akun?{" "}
               <button
                 onClick={() => { setMode("login"); setError(""); }}
-                className="text-income hover:underline font-semibold"
+                className="min-h-11 font-semibold text-[var(--text)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
               >
                 Masuk di sini
               </button>

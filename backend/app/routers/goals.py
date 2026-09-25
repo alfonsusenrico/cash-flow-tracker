@@ -35,6 +35,24 @@ class GoalUpdate(BaseModel):
     account_ids: list[UUID] | None = None
 
 
+class GoalProgressAdjustment(BaseModel):
+    amount: int
+
+
+def _validate_goal_accounts(cur, user_id: str, account_ids: list[UUID]) -> list[str]:
+    requested = list(dict.fromkeys(str(account_id) for account_id in account_ids))
+    if not requested:
+        return []
+    cur.execute(
+        "SELECT id FROM accounts WHERE user_id = %s AND id = ANY(%s) AND is_archived = FALSE",
+        (user_id, requested),
+    )
+    found = {str(row["id"]) for row in cur.fetchall()}
+    if found != set(requested):
+        raise HTTPException(status_code=404, detail="One or more linked accounts were not found")
+    return requested
+
+
 def get_goal_accounts_map(
     conn,
     user_id: str,
@@ -217,13 +235,7 @@ def create_goal(payload: GoalCreate, current_user: dict = Depends(get_current_us
             if cur.fetchone():
                 raise HTTPException(status_code=409, detail="Goal with this name already exists")
 
-            valid_account_ids: list[str] = []
-            if payload.account_ids:
-                cur.execute(
-                    "SELECT id FROM accounts WHERE user_id = %s AND id = ANY(%s)",
-                    (user_id, [str(aid) for aid in payload.account_ids]),
-                )
-                valid_account_ids = [str(r["id"]) for r in cur.fetchall()]
+            valid_account_ids = _validate_goal_accounts(cur, user_id, payload.account_ids)
 
             # If is_emergency is False but name contains "darurat" or "emergency", default to True
             is_emergency = payload.is_emergency
@@ -236,7 +248,16 @@ def create_goal(payload: GoalCreate, current_user: dict = Depends(get_current_us
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, name, target_amount, current_amount, target_date, color, icon, is_emergency, is_archived, created_at, updated_at
                 """,
-                (user_id, name, payload.target_amount, payload.current_amount, t_date, payload.color, payload.icon, is_emergency),
+                (
+                    user_id,
+                    name,
+                    payload.target_amount,
+                    0 if valid_account_ids else payload.current_amount,
+                    t_date,
+                    payload.color,
+                    payload.icon,
+                    is_emergency,
+                ),
             )
             row = cur.fetchone()
             goal_id = str(row["id"])
@@ -314,11 +335,24 @@ def update_goal(
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id FROM goals WHERE id = %s AND user_id = %s",
+                "SELECT id, current_amount FROM goals WHERE id = %s AND user_id = %s",
                 (str(goal_id), user_id),
             )
-            if not cur.fetchone():
+            existing_goal = cur.fetchone()
+            if not existing_goal:
                 raise HTTPException(status_code=404, detail="Goal not found")
+
+            new_account_ids = None
+            if payload.account_ids is not None:
+                new_account_ids = _validate_goal_accounts(cur, user_id, payload.account_ids)
+            else:
+                cur.execute("SELECT account_id FROM goal_accounts WHERE goal_id = %s", (str(goal_id),))
+                new_account_ids = [str(row["account_id"]) for row in cur.fetchall()]
+            if payload.current_amount is not None and new_account_ids:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Account-backed goal progress is derived from linked account balances",
+                )
 
             if updates:
                 updates.append("updated_at = NOW()")
@@ -348,13 +382,8 @@ def update_goal(
                     "DELETE FROM goal_accounts WHERE goal_id = %s",
                     (str(goal_id),),
                 )
-                if payload.account_ids:
-                    cur.execute(
-                        "SELECT id FROM accounts WHERE user_id = %s AND id = ANY(%s)",
-                        (user_id, [str(aid) for aid in payload.account_ids]),
-                    )
-                    valid_account_ids = [str(r["id"]) for r in cur.fetchall()]
-                    for acc_id in valid_account_ids:
+                if new_account_ids:
+                    for acc_id in new_account_ids:
                         cur.execute(
                             """
                             INSERT INTO goal_accounts (goal_id, account_id)
@@ -368,6 +397,47 @@ def update_goal(
         goal_accounts_map = get_goal_accounts_map(conn, user_id, [str(goal_id)])
         linked_accounts = goal_accounts_map.get(str(goal_id), [])
         return {"ok": True, "goal": format_goal_row(row, linked_accounts)}
+
+
+@router.post("/{goal_id}/adjust")
+def adjust_goal_progress(
+    goal_id: UUID,
+    payload: GoalProgressAdjustment,
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user["id"]
+    if payload.amount == 0:
+        raise HTTPException(status_code=422, detail="Adjustment amount must not be zero")
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT g.id, g.current_amount
+                FROM goals g
+                WHERE g.id = %s AND g.user_id = %s AND g.is_archived = FALSE
+                FOR UPDATE
+                """,
+                (str(goal_id), user_id),
+            )
+            goal = cur.fetchone()
+            if not goal:
+                raise HTTPException(status_code=404, detail="Goal not found")
+            cur.execute("SELECT 1 FROM goal_accounts WHERE goal_id = %s LIMIT 1", (str(goal_id),))
+            if cur.fetchone():
+                raise HTTPException(
+                    status_code=409,
+                    detail="Account-backed goal progress cannot be adjusted directly",
+                )
+            new_amount = int(goal["current_amount"]) + payload.amount
+            if new_amount < 0:
+                raise HTTPException(status_code=409, detail="Goal progress cannot be negative")
+            cur.execute(
+                "UPDATE goals SET current_amount = %s, updated_at = NOW() WHERE id = %s RETURNING current_amount",
+                (new_amount, str(goal_id)),
+            )
+            updated = cur.fetchone()
+            conn.commit()
+    return {"ok": True, "goal_id": str(goal_id), "current_amount": int(updated["current_amount"])}
 
 
 @router.delete("/{goal_id}")

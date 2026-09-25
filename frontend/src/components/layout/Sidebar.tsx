@@ -136,8 +136,9 @@ export function Sidebar({
                 <button
                   type="button"
                   onClick={onOpenSettings}
+                  aria-label="Pengaturan"
                   title="Pengaturan"
-                  className="p-1.5 rounded-lg text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active)] hover:text-[var(--sidebar-text-active)] transition-colors"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active)] hover:text-[var(--sidebar-text-active)] focus-visible:outline-2 focus-visible:outline-[var(--primary)] transition-colors"
                 >
                   <Icon name="settings" className="h-3.5 w-3.5" />
                 </button>
@@ -252,7 +253,9 @@ export function MobileDrawer({
   return (
     <div className="fixed inset-0 z-50 flex lg:hidden">
       {/* Backdrop */}
-      <div
+      <button
+        type="button"
+        aria-label="Tutup menu navigasi"
         className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
         onClick={onClose}
       />
@@ -265,7 +268,8 @@ export function MobileDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--surface-raised)]"
+            aria-label="Tutup menu"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-raised)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
           >
             <Icon name="close" className="h-5 w-5" />
           </button>
@@ -318,8 +322,9 @@ export function MobileDrawer({
                 <button
                   type="button"
                   onClick={onOpenSettings}
+                  aria-label="Pengaturan"
                   title="Pengaturan"
-                  className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--primary)] transition-colors"
                 >
                   <Icon name="settings" className="h-4 w-4" />
                 </button>

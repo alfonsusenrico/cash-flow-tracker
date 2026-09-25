@@ -1,4 +1,5 @@
 import React from "react";
+import { isLiquidAccountChoice } from "@/lib/accountOptions";
 
 export interface AccountOptionItem {
   id?: string;
@@ -18,6 +19,7 @@ interface Props {
   formatBalance?: (n: number) => string;
   allowParentSelection?: boolean;
   excludeAccountId?: string;
+  liquidOnly?: boolean;
 }
 
 export function AccountSelectOptions({
@@ -25,27 +27,46 @@ export function AccountSelectOptions({
   formatBalance,
   allowParentSelection = false,
   excludeAccountId,
+  liquidOnly = false,
 }: Props) {
   const getId = (a: AccountOptionItem) => (a.id || a.account_id || "") as string;
   const getName = (a: AccountOptionItem) => (a.name || a.account_name || "") as string;
 
   // Top-level accounts have parent_id null or undefined
-  const topAccounts = accounts.filter((a) => !a.parent_id);
+  const topAccounts = accounts.filter((account) => !account.parent_id);
+  const hasAvailableAccount = accounts
+    .flatMap((account) => [account, ...(account.children ?? [])])
+    .some((account) => getId(account) && getId(account) !== excludeAccountId && (!liquidOnly || isLiquidAccountChoice(account)));
+
+  if (liquidOnly && !hasAvailableAccount) {
+    return (
+      <option value="">
+        {excludeAccountId
+          ? "Tidak ada rekening lain yang tersedia"
+          : "Tidak ada rekening likuid yang tersedia"}
+      </option>
+    );
+  }
 
   return (
     <>
       {topAccounts.map((parent) => {
         const parentId = getId(parent);
         const parentName = getName(parent);
-        const rawChildren =
+        const childrenByParent =
           parent.children && parent.children.length > 0
             ? parent.children
             : accounts.filter((a) => a.parent_id === parentId);
+        const rawChildren = liquidOnly
+          ? childrenByParent.filter(isLiquidAccountChoice)
+          : childrenByParent;
         const children = excludeAccountId
           ? rawChildren.filter((c) => getId(c) !== excludeAccountId)
           : rawChildren;
         const hasChildren = rawChildren.length > 0;
-        const canShowParent = allowParentSelection && parentId !== excludeAccountId;
+        const canShowParent = allowParentSelection && parentId !== excludeAccountId && (!liquidOnly || isLiquidAccountChoice(parent));
+
+        if (liquidOnly && !canShowParent && children.length === 0) return null;
 
         if (hasChildren) {
           if (!canShowParent && children.length === 0) {

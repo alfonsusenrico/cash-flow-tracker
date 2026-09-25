@@ -4,11 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { cn, formatNumberWithDots } from "@/lib/utils";
+import { queryKeys } from "@/lib/queryKeys";
+import { cn } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
 import { Modal } from "@/components/ui/Modal";
-import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
+import { InternalMovementModal } from "@/components/ui/InternalMovementModal";
+import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
+import { listLiquidAccountChoices } from "@/lib/accountOptions";
 
 import { HeroWalletCard } from "@/components/dashboard/HeroWalletCard";
 import { DailyBudgetBar } from "@/components/dashboard/DailyBudgetBar";
@@ -33,12 +36,9 @@ export default function OverviewPage() {
   // Transfer state
   const [transferFrom, setTransferFrom] = useState("");
   const [transferTo, setTransferTo] = useState("");
-  const [transferAmount, setTransferAmount] = useState("");
-  const [transferNotes, setTransferNotes] = useState("");
-  const [transferError, setTransferError] = useState("");
 
   const { data: dashboard, isLoading } = useQuery<any>({
-    queryKey: ["dashboard-overview", timeframe, cycleOffset],
+    queryKey: queryKeys.dashboard.overview(timeframe, cycleOffset),
     queryFn: () =>
       api.get(
         `/dashboard/overview?timeframe=${timeframe}&cycle_offset=${cycleOffset}`
@@ -47,58 +47,29 @@ export default function OverviewPage() {
   });
 
   const { data: accountsData } = useQuery<{ accounts: any[] }>({
-    queryKey: ["accounts"],
+    queryKey: queryKeys.accounts,
     queryFn: () => api.get("/accounts"),
   });
 
   const accounts = accountsData?.accounts ?? [];
+  const liquidAccounts = listLiquidAccountChoices(accounts).filter((account) => !account.is_archived);
+  const canTransfer = liquidAccounts.length >= 2;
 
   const handleOpenTransfer = (sourceId?: string) => {
-    const allSelectable = accounts;
-    if (allSelectable.length < 2) {
-      alert("Anda membutuhkan minimal 2 rekening atau kantong untuk melakukan pindah saldo.");
-      return;
-    }
-    const from = sourceId || allSelectable[0].id;
-    const to = allSelectable.find((a) => a.id !== from)?.id || allSelectable[1].id;
+    if (!canTransfer) return;
+    const from = liquidAccounts.some((account) => account.id === sourceId) ? sourceId! : liquidAccounts[0].id;
+    const to = liquidAccounts.find((account) => account.id !== from)!.id;
     setTransferFrom(from);
     setTransferTo(to);
-    setTransferAmount("");
-    setTransferNotes("");
-    setTransferError("");
     setTransferModalOpen(true);
   };
-
-  const transferMutation = useMutation({
-    mutationFn: async () => {
-      const amt = parseInt(transferAmount.replace(/[^0-9]/g, ""), 10);
-      if (!amt || amt <= 0) throw new Error("Masukkan nominal uang yang valid");
-      if (!transferFrom || !transferTo) throw new Error("Pilih rekening asal dan tujuan");
-      if (transferFrom === transferTo) throw new Error("Rekening asal dan tujuan harus berbeda");
-
-      return api.post("/movements", {
-        source_account_id: transferFrom,
-        target_account_id: transferTo,
-        amount: amt,
-        notes: transferNotes.trim() || null,
-        date: new Date().toISOString(),
-      });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      setTransferModalOpen(false);
-    },
-    onError: (err: any) => {
-      setTransferError(err?.message || "Pindah saldo gagal");
-    },
-  });
 
   const deleteTxMutation = useMutation({
     mutationFn: (txId: string) => api.del(`/transactions/${txId}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      qc.invalidateQueries({ queryKey: queryKeys.accounts });
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
       setSelectedTx(null);
     },
   });
@@ -167,6 +138,7 @@ export default function OverviewPage() {
           accounts={accounts}
           onOpenCapture={(type) => openQuickAdd(type)}
           onOpenTransfer={handleOpenTransfer}
+          canTransfer={canTransfer}
           onOpenPayroll={() => setPayrollModalOpen(true)}
           onOpenRecurring={() => setRecurringModalOpen(true)}
           onSelectTx={(tx) => setSelectedTx(tx)}
@@ -193,7 +165,7 @@ export default function OverviewPage() {
           <button
             type="button"
             onClick={() => setPayrollModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] pressable shadow-2xs transition-all"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] pressable shadow-2xs transition-[background-color,transform]"
             title="Alokasi Gaji Bulanan"
           >
             <Icon name="calendar" className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
@@ -203,7 +175,7 @@ export default function OverviewPage() {
           <button
             type="button"
             onClick={() => setRecurringModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] pressable shadow-2xs transition-all"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] pressable shadow-2xs transition-[background-color,transform]"
             title="Kelola Transaksi Rutin"
           >
             <Icon name="clock" className="h-3.5 w-3.5 text-[var(--muted)] stroke-[2.5]" />
@@ -212,7 +184,7 @@ export default function OverviewPage() {
 
           <Link
             href="/insights"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] pressable shadow-2xs transition-all group"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] pressable shadow-2xs transition-[background-color,transform] group"
             title="Buka Analisis Keuangan Lengkap"
           >
             <Icon name="analysis" className="h-3.5 w-3.5 text-primary stroke-[2.5]" />
@@ -232,6 +204,8 @@ export default function OverviewPage() {
             investmentBalance={kpis?.investment_balance ?? 0}
             accountsCount={accounts.length}
             onOpenCapture={(type) => openQuickAdd(type)}
+            onOpenMovement={() => handleOpenTransfer()}
+            canTransfer={canTransfer}
           />
         </div>
 
@@ -420,7 +394,9 @@ export default function OverviewPage() {
                 <button
                   type="button"
                   onClick={() => handleOpenTransfer()}
-                  className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer pressable"
+                  disabled={!canTransfer}
+                  title={canTransfer ? undefined : "Perlu dua rekening kas aktif untuk transfer"}
+                  className="text-xs font-bold text-amber-600 dark:text-amber-400 enabled:hover:underline enabled:cursor-pointer pressable disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Pindah Saldo
                 </button>
@@ -441,7 +417,7 @@ export default function OverviewPage() {
                 return (
                   <div
                     key={acc.id}
-                    className="p-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]/50 hover:bg-[var(--surface-raised)] transition-all space-y-1.5"
+                    className="p-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]/50 hover:bg-[var(--surface-raised)] transition-colors space-y-1.5"
                   >
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2 truncate">
@@ -487,7 +463,7 @@ export default function OverviewPage() {
                           backgroundColor:
                             acc.color || (isInvest ? "#3b82f6" : "#10b981"),
                         }}
-                        className="h-full rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                        className="h-full rounded-full transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
                       />
                     </div>
                   </div>
@@ -550,7 +526,7 @@ export default function OverviewPage() {
                             width: `${Math.min(g.percentage, 100)}%`,
                             backgroundColor: g.color || "#10b981",
                           }}
-                          className="h-full rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                          className="h-full rounded-full transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
                         />
                       </div>
                       <div className="flex items-center justify-between text-[10px] text-[var(--muted)]">
@@ -604,7 +580,7 @@ export default function OverviewPage() {
                           style={{
                             width: `${Math.min(o.payoff_percentage, 100)}%`,
                           }}
-                          className="h-full rounded-full bg-rose-500 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                          className="h-full rounded-full bg-rose-500 transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
                         />
                       </div>
                       <div className="flex items-center justify-between text-[10px] text-[var(--muted)]">
@@ -623,102 +599,12 @@ export default function OverviewPage() {
 
       {/* ===================== MODALS ===================== */}
 
-      {/* Transfer Modal */}
-      <Modal
+      <InternalMovementModal
         open={transferModalOpen}
         onClose={() => setTransferModalOpen(false)}
-        title="Pindah Saldo Antar Rekening"
-      >
-        <div className="space-y-4 pt-2">
-          {transferError && (
-            <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-500">
-              {transferError}
-            </div>
-          )}
-
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] block mb-1">
-              Dari Rekening / Dompet
-            </label>
-            <select
-              value={transferFrom}
-              onChange={(e) => setTransferFrom(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-            >
-              <AccountSelectOptions
-                accounts={accounts}
-                formatBalance={bal}
-                allowParentSelection={true}
-              />
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] block mb-1">
-              Ke Rekening Tujuan
-            </label>
-            <select
-              value={transferTo}
-              onChange={(e) => setTransferTo(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-            >
-              <AccountSelectOptions
-                accounts={accounts}
-                formatBalance={bal}
-                allowParentSelection={true}
-                excludeAccountId={transferFrom}
-              />
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] block mb-1">
-              Nominal Uang (IDR)
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={transferAmount}
-              onChange={(e) =>
-                setTransferAmount(formatNumberWithDots(e.target.value))
-              }
-              placeholder="Contoh: 500.000"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] block mb-1">
-              Catatan (opsional)
-            </label>
-            <input
-              type="text"
-              value={transferNotes}
-              onChange={(e) => setTransferNotes(e.target.value)}
-              placeholder="Contoh: Tarik tunai atau top-up e-wallet"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-            />
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setTransferModalOpen(false)}
-              className="flex-1 rounded-xl border border-[var(--border)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-raised)]"
-            >
-              Batal
-            </button>
-            <button
-              type="button"
-              disabled={transferMutation.isPending}
-              onClick={() => transferMutation.mutate()}
-              className="flex-1 rounded-xl bg-blue-500 text-white py-2 text-xs font-semibold hover:bg-blue-600 disabled:opacity-50"
-            >
-              {transferMutation.isPending ? "Memproses..." : "Selesaikan Transfer"}
-            </button>
-          </div>
-        </div>
-      </Modal>
+        defaultSourceAccountId={transferFrom}
+        defaultTargetAccountId={transferTo}
+      />
 
       {/* Transaction Detail & Delete Modal */}
       {selectedTx && (
@@ -815,18 +701,15 @@ export default function OverviewPage() {
               >
                 Tutup
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm("Hapus transaksi ini?")) {
-                    deleteTxMutation.mutate(selectedTx.id);
-                  }
-                }}
+              <ConfirmActionButton
+                label="Hapus transaksi"
+                confirmation="Hapus transaksi ini? Saldo akun akan diperbarui."
+                onConfirm={() => deleteTxMutation.mutate(selectedTx.id)}
                 disabled={deleteTxMutation.isPending}
                 className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20 font-semibold hover:bg-rose-500/20 cursor-pointer"
               >
                 {deleteTxMutation.isPending ? "Menghapus..." : "Hapus Transaksi"}
-              </button>
+              </ConfirmActionButton>
             </div>
           </div>
         </Modal>

@@ -19,6 +19,7 @@ from app.routers.movements import router as movements_router
 from app.routers.obligations import router as obligations_router
 from app.routers.pulse import router as pulse_router
 from app.routers.recurring import router as recurring_router
+from app.routers.recurring import process_due_recurring_rules
 from app.routers.transactions import router as transactions_router
 
 _SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
@@ -80,6 +81,23 @@ async def _daily_price_sync_loop():
                 logger.info(f"Daily price sync completed: {res}")
         except asyncio.CancelledError:
             break
+
+
+async def _recurring_scheduler_loop():
+    await asyncio.sleep(15)
+    while True:
+        try:
+            result = await asyncio.to_thread(process_due_recurring_rules, limit=20)
+            if result["processed_count"]:
+                logger.info("Recurring scheduler processed %s occurrence(s)", result["processed_count"])
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.warning("Recurring scheduler error: %s", exc)
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            break
         except Exception as e:
             logger.warning(f"Daily price sync error: {e}")
         try:
@@ -97,10 +115,12 @@ async def lifespan(_: FastAPI):
     except Exception as e:
         print(f"Schema init warning (handled by migrations): {e}")
     sync_task = asyncio.create_task(_daily_price_sync_loop())
+    recurring_task = asyncio.create_task(_recurring_scheduler_loop())
     try:
         yield
     finally:
         sync_task.cancel()
+        recurring_task.cancel()
         close_db_pool()
 
 
@@ -159,4 +179,8 @@ for prefix in ("", "/api", "/v1"):
 
 @app.exception_handler(HTTPException)
 def http_exc_handler(_, exc: HTTPException):
-    return JSONResponse(status_code=exc.status_code, content={"ok": False, "detail": exc.detail})
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"ok": False, "detail": exc.detail},
+        headers=exc.headers,
+    )

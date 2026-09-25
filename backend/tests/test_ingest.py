@@ -51,8 +51,7 @@ def test_ingest_notifications_success():
     with patch("app.routers.ingest.db_conn") as mock_conn:
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
-        # Upsert returns was_inserted = True
-        cur.fetchone.return_value = {"was_inserted": True}
+        cur.fetchone.return_value = {"id": str(uuid4())}
 
         client = TestClient(app, raise_server_exceptions=True)
         res = client.post("/api/ingest/notifications", json=payload)
@@ -91,8 +90,7 @@ def test_ingest_notifications_deduplicate_update():
     with patch("app.routers.ingest.db_conn") as mock_conn:
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
-        # Upsert returns was_inserted = False (updated existing)
-        cur.fetchone.return_value = {"was_inserted": False}
+        cur.fetchone.side_effect = [None, {"id": str(uuid4()), "transaction_id": None}]
 
         client = TestClient(app, raise_server_exceptions=True)
         res = client.post("/api/ingest/notifications", json=payload)
@@ -221,8 +219,14 @@ def test_ingest_stockbit_routes_to_default_funding_account():
         ]
     }
 
+    locked = {
+        rdn_bca_id: {"id": rdn_bca_id, "type": "bank"},
+        bbri_pocket_id: {"id": bbri_pocket_id, "type": "investment", "instrument_type": "stock"},
+    }
     with patch("app.routers.ingest.db_conn") as mock_conn, \
-         patch("app.routers.ingest.get_instrument_quote", return_value={"price": 3320}):
+         patch("app.routers.ingest.get_instrument_quote", return_value={"price": 3320}), \
+         patch("app.routers.ingest.get_locked_ledger_balance", return_value=10_000_000), \
+         patch("app.routers.ingest.lock_owned_accounts", return_value=locked):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
@@ -235,12 +239,11 @@ def test_ingest_stockbit_routes_to_default_funding_account():
             ],
         ]
         cur.fetchone.side_effect = [
-            None,  # existing_ev
+            {"id": str(uuid4())},  # claimed event
             None,  # existing pocket check -> None (create new)
             {"id": bbri_pocket_id},  # created pocket
             {"id": str(uuid4())},  # created expense tx
             {"id": str(uuid4())},  # created income tx
-            {"was_inserted": True},  # upsert event
         ]
 
         client = TestClient(app, raise_server_exceptions=True)
@@ -263,11 +266,11 @@ def test_ingest_stockbit_routes_to_default_funding_account():
         assert len(insert_calls) == 2
         exp_args = insert_calls[0][0][1]
         assert exp_args[1] == rdn_bca_id
-        assert exp_args[3] == 3340000
+        assert exp_args[4] == 3340000
 
         inc_args = insert_calls[1][0][1]
         assert inc_args[1] == bbri_pocket_id  # targeted to BBRI pocket!
-        assert inc_args[3] == 3340000
+        assert inc_args[4] == 3340000
 
 
 def test_ingest_stockbit_accumulates_existing_stock_pocket():
@@ -296,8 +299,14 @@ def test_ingest_stockbit_accumulates_existing_stock_pocket():
         ]
     }
 
+    locked = {
+        rdn_bca_id: {"id": rdn_bca_id, "type": "bank"},
+        bbri_pocket_id: {"id": bbri_pocket_id, "type": "investment", "instrument_type": "stock"},
+    }
     with patch("app.routers.ingest.db_conn") as mock_conn, \
-         patch("app.routers.ingest.get_instrument_quote", return_value={"price": 3410}):
+         patch("app.routers.ingest.get_instrument_quote", return_value={"price": 3410}), \
+         patch("app.routers.ingest.get_locked_ledger_balance", return_value=10_000_000), \
+         patch("app.routers.ingest.lock_owned_accounts", return_value=locked):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
@@ -311,11 +320,10 @@ def test_ingest_stockbit_accumulates_existing_stock_pocket():
         ]
         # Existing pocket has 1,000 shares @ Rp 3.300
         cur.fetchone.side_effect = [
-            None,  # existing_ev
+            {"id": str(uuid4())},  # claimed event
             {"id": bbri_pocket_id, "units": 1000.0, "avg_buy_price": 3300, "last_price": 3300},  # existing pocket
             {"id": str(uuid4())},  # created expense tx
             {"id": str(uuid4())},  # created income tx
-            {"was_inserted": True},  # upsert event
         ]
 
         client = TestClient(app, raise_server_exceptions=True)
@@ -335,7 +343,7 @@ def test_ingest_stockbit_accumulates_existing_stock_pocket():
 
         insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
         assert len(insert_calls) == 2
-        assert insert_calls[0][0][1][6] is None  # Kakeibo decoupled!
+        assert insert_calls[0][0][1][8] is None  # Kakeibo decoupled!
 
 
 def test_ingest_jago_pocket_transfer_resolves_child_pockets():
@@ -364,7 +372,13 @@ def test_ingest_jago_pocket_transfer_resolves_child_pockets():
         ]
     }
 
-    with patch("app.routers.ingest.db_conn") as mock_conn:
+    locked = {
+        main_pocket_id: {"id": main_pocket_id, "type": "bank", "is_savings": False},
+        gopay_tabungan_id: {"id": gopay_tabungan_id, "type": "bank", "is_savings": True},
+    }
+    with patch("app.routers.ingest.db_conn") as mock_conn, \
+         patch("app.routers.ingest.get_locked_ledger_balance", return_value=10_000_000), \
+         patch("app.routers.ingest.lock_owned_accounts", return_value=locked):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
@@ -381,10 +395,9 @@ def test_ingest_jago_pocket_transfer_resolves_child_pockets():
             ],
         ]
         cur.fetchone.side_effect = [
-            None,  # existing_ev check
+            {"id": str(uuid4())},  # claimed event
             {"id": str(uuid4())},  # created expense tx
             {"id": str(uuid4())},  # created income tx
-            {"was_inserted": True},  # upsert event
         ]
 
         client = TestClient(app, raise_server_exceptions=True)
@@ -397,13 +410,12 @@ def test_ingest_jago_pocket_transfer_resolves_child_pockets():
         assert len(insert_calls) == 2
         exp_args = insert_calls[0][0][1]
         assert exp_args[1] == main_pocket_id  # resolved source child pocket
-        assert exp_args[3] == 500000
-        assert exp_args[6] is None  # Kakeibo decoupled for internal transfers!
+        assert exp_args[4] == 500000
+        assert exp_args[8] == "saving"
 
         inc_args = insert_calls[1][0][1]
         assert inc_args[1] == gopay_tabungan_id  # resolved target child pocket
-        assert inc_args[3] == 500000
-        assert inc_args[6] is None
+        assert inc_args[4] == 500000
 
 
 def test_ingest_jago_custom_pockets_transfer():
@@ -432,7 +444,13 @@ def test_ingest_jago_custom_pockets_transfer():
         ]
     }
 
-    with patch("app.routers.ingest.db_conn") as mock_conn:
+    locked = {
+        jajan_pocket_id: {"id": jajan_pocket_id, "type": "bank", "is_savings": False},
+        tabungan_pocket_id: {"id": tabungan_pocket_id, "type": "bank", "is_savings": True},
+    }
+    with patch("app.routers.ingest.db_conn") as mock_conn, \
+         patch("app.routers.ingest.get_locked_ledger_balance", return_value=10_000_000), \
+         patch("app.routers.ingest.lock_owned_accounts", return_value=locked):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
@@ -449,10 +467,9 @@ def test_ingest_jago_custom_pockets_transfer():
             ],
         ]
         cur.fetchone.side_effect = [
-            None,  # existing_ev check
+            {"id": str(uuid4())},  # claimed event
             {"id": str(uuid4())},  # created expense tx
             {"id": str(uuid4())},  # created income tx
-            {"was_inserted": True},  # upsert event
         ]
 
         client = TestClient(app, raise_server_exceptions=True)
@@ -465,10 +482,10 @@ def test_ingest_jago_custom_pockets_transfer():
         assert len(insert_calls) == 2
         exp_args = insert_calls[0][0][1]
         assert exp_args[1] == jajan_pocket_id  # resolved source pocket
-        assert exp_args[3] == 50000
+        assert exp_args[4] == 50000
         inc_args = insert_calls[1][0][1]
         assert inc_args[1] == tabungan_pocket_id  # resolved target pocket
-        assert inc_args[3] == 50000
+        assert inc_args[4] == 50000
 
 
 def test_ingest_jago_single_pocket_out_emergency_fund():
@@ -498,7 +515,13 @@ def test_ingest_jago_single_pocket_out_emergency_fund():
         ]
     }
 
-    with patch("app.routers.ingest.db_conn") as mock_conn:
+    locked = {
+        emergency_pocket_id: {"id": emergency_pocket_id, "type": "bank", "is_savings": True},
+        main_pocket_id: {"id": main_pocket_id, "type": "bank", "is_savings": False},
+    }
+    with patch("app.routers.ingest.db_conn") as mock_conn, \
+         patch("app.routers.ingest.get_locked_ledger_balance", return_value=10_000_000), \
+         patch("app.routers.ingest.lock_owned_accounts", return_value=locked):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
@@ -515,10 +538,9 @@ def test_ingest_jago_single_pocket_out_emergency_fund():
             ],
         ]
         cur.fetchone.side_effect = [
-            None,  # existing_ev check
+            {"id": str(uuid4())},  # claimed event
             {"id": str(uuid4())},  # created expense tx
             {"id": str(uuid4())},  # created income tx
-            {"was_inserted": True},  # upsert event
         ]
 
         client = TestClient(app, raise_server_exceptions=True)
@@ -531,10 +553,10 @@ def test_ingest_jago_single_pocket_out_emergency_fund():
         assert len(insert_calls) == 2
         exp_args = insert_calls[0][0][1]
         assert exp_args[1] == emergency_pocket_id  # resolved source pocket via synonym
-        assert exp_args[3] == 500000
+        assert exp_args[4] == 500000
         inc_args = insert_calls[1][0][1]
         assert inc_args[1] == main_pocket_id  # resolved target to default pocket Kantong Utama
-        assert inc_args[3] == 500000
+        assert inc_args[4] == 500000
 
 
 def test_ingest_supported_apps_scope_verification():
@@ -569,4 +591,3 @@ def test_ingest_supported_apps_scope_verification():
     p6 = parse_notification("com.stockbit.android", "Order Matched", "Pembelian 5 lot BBRI match di harga Rp3.350")
     assert p6.is_financial is True
     assert p6.amount == 5 * 100 * 3350
-

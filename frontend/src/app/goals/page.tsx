@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
 import { cn, formatNumberWithDots, parseNumberFromDots } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Modal } from "@/components/ui/Modal";
+import { FormSection } from "@/components/ui/FormField";
+import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { Icon } from "@/components/ui/Icon";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 
@@ -47,6 +50,14 @@ interface ObligationItem {
   created_at: string;
 }
 
+const GOAL_COLORS = [
+  { value: "#10b981", label: "Hijau" },
+  { value: "#3b82f6", label: "Biru" },
+  { value: "#f59e0b", label: "Amber" },
+  { value: "#8b5cf6", label: "Ungu" },
+  { value: "#ec4899", label: "Merah muda" },
+];
+
 export default function GoalsAndDebtsPage() {
   const qc = useQueryClient();
   const { bal, currency } = useAppCtx();
@@ -69,6 +80,7 @@ export default function GoalsAndDebtsPage() {
   const [goalIcon, setGoalIcon] = useState("target");
   const [goalIsEmergency, setGoalIsEmergency] = useState(false);
   const [goalAccountIds, setGoalAccountIds] = useState<string[]>([]);
+  const [goalBackingConfirmed, setGoalBackingConfirmed] = useState(false);
   const [goalError, setGoalError] = useState("");
 
   // Obligation Form
@@ -79,16 +91,19 @@ export default function GoalsAndDebtsPage() {
   const [obMinPayment, setObMinPayment] = useState("");
   const [obNotes, setObNotes] = useState("");
   const [obError, setObError] = useState("");
+  const obNameRef = useRef<HTMLInputElement>(null);
+  const obTotalRef = useRef<HTMLInputElement>(null);
+  const obRemainingRef = useRef<HTMLInputElement>(null);
+  const obDueDateRef = useRef<HTMLInputElement>(null);
 
   // Action Form (Deposit / Payoff)
   const [actionAccount, setActionAccount] = useState("");
-  const [depositTargetAccount, setDepositTargetAccount] = useState("");
   const [actionAmount, setActionAmount] = useState("");
   const [actionError, setActionError] = useState("");
 
   // Queries
   const { data: goalsData, isLoading: goalsLoading } = useQuery<{ ok: boolean; goals: GoalItem[]; summary: any }>({
-    queryKey: ["goals"],
+    queryKey: queryKeys.goals,
     queryFn: () => api.get("/goals"),
   });
 
@@ -97,17 +112,25 @@ export default function GoalsAndDebtsPage() {
     obligations: ObligationItem[];
     summary: any;
   }>({
-    queryKey: ["obligations"],
+    queryKey: queryKeys.obligations,
     queryFn: () => api.get("/obligations"),
   });
 
   const { data: accountsData } = useQuery<{ accounts: any[] }>({
-    queryKey: ["accounts"],
+    queryKey: queryKeys.accounts,
     queryFn: () => api.get("/accounts"),
   });
 
   const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData?.accounts]);
   const topAccounts = useMemo(() => accounts.filter((a: any) => !a.parent_id), [accounts]);
+  const obligationTotalValue = parseNumberFromDots(obTotal);
+  const obligationRemainingValue = obRemaining.trim()
+    ? parseNumberFromDots(obRemaining)
+    : obligationTotalValue;
+  const remainingExceedsTotal =
+    Boolean(obRemaining.trim()) &&
+    obligationTotalValue > 0 &&
+    obligationRemainingValue > obligationTotalValue;
 
   // Deduplicated map of all accounts & child pockets by ID
   const accountsMap = useMemo(() => {
@@ -145,6 +168,12 @@ export default function GoalsAndDebtsPage() {
   const obligations = obligationsData?.obligations ?? [];
   const activeObligations = obligations.filter((o) => !o.is_archived);
   const obligationsSummary = obligationsData?.summary;
+  const startingGoalAccountIds = editingGoal
+    ? editingGoal.account_ids ?? editingGoal.linked_accounts?.map((account) => account.id) ?? []
+    : [];
+  const goalBackingChanged =
+    [...goalAccountIds].map(String).sort().join(",") !==
+    [...startingGoalAccountIds].map(String).sort().join(",");
 
   // Open Create Goal
   const handleOpenNewGoal = () => {
@@ -157,6 +186,7 @@ export default function GoalsAndDebtsPage() {
     setGoalIcon("target");
     setGoalIsEmergency(false);
     setGoalAccountIds([]);
+    setGoalBackingConfirmed(false);
     setGoalError("");
     setGoalModalOpen(true);
   };
@@ -172,6 +202,7 @@ export default function GoalsAndDebtsPage() {
     setGoalIcon(g.icon);
     setGoalIsEmergency(Boolean(g.is_emergency));
     setGoalAccountIds(g.account_ids || g.linked_accounts?.map((a) => a.id) || []);
+    setGoalBackingConfirmed(false);
     setGoalError("");
     setGoalModalOpen(true);
   };
@@ -229,15 +260,27 @@ export default function GoalsAndDebtsPage() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["goals"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-net-worth"] });
+      qc.invalidateQueries({ queryKey: queryKeys.goals });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       setGoalModalOpen(false);
     },
     onError: (err: any) => {
       setGoalError(err?.message || "Operasi gagal");
     },
   });
+
+  const handleSaveGoal = () => {
+    if (goalBackingChanged && !goalBackingConfirmed) {
+      setGoalBackingConfirmed(true);
+      return;
+    }
+    saveGoalMutation.mutate();
+  };
+
+  const updateGoalAccountIds = (update: (current: string[]) => string[]) => {
+    setGoalBackingConfirmed(false);
+    setGoalAccountIds(update);
+  };
 
   const saveObligationMutation = useMutation({
     mutationFn: async () => {
@@ -247,6 +290,8 @@ export default function GoalsAndDebtsPage() {
       if (total <= 0) throw new Error("Total nominal harus lebih dari 0");
       const remaining = obRemaining ? parseNumberFromDots(obRemaining) : total;
       const minPay = obMinPayment ? parseNumberFromDots(obMinPayment) : null;
+      if (remaining < 0) throw new Error("Sisa tagihan tidak boleh negatif");
+      if (remaining > total) throw new Error("Sisa tagihan tidak boleh melebihi total tagihan");
 
       if (editingObligation) {
         return api.patch(`/obligations/${editingObligation.id}`, {
@@ -269,67 +314,53 @@ export default function GoalsAndDebtsPage() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["obligations"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-net-worth"] });
+      qc.invalidateQueries({ queryKey: queryKeys.obligations });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       setObligationModalOpen(false);
     },
     onError: (err: any) => {
       setObError(err?.message || "Operasi gagal");
+      const message = String(err?.message || "").toLowerCase();
+      if (message.includes("sisa") || message.includes("remaining")) obRemainingRef.current?.focus();
+      else if (message.includes("total")) obTotalRef.current?.focus();
+      else if (message.includes("tempo") || message.includes("date")) obDueDateRef.current?.focus();
+      else obNameRef.current?.focus();
     },
   });
 
   const archiveGoalMutation = useMutation({
     mutationFn: (id: string) => api.del(`/goals/${id}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["goals"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
+      qc.invalidateQueries({ queryKey: queryKeys.goals });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
     },
   });
 
   const archiveObligationMutation = useMutation({
     mutationFn: (id: string) => api.del(`/obligations/${id}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["obligations"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-net-worth"] });
+      qc.invalidateQueries({ queryKey: queryKeys.obligations });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
     },
   });
 
-  // Deposit into Goal Mutation
+  // Standalone goals are adjusted as progress records, not financial transactions.
   const depositGoalMutation = useMutation({
     mutationFn: async () => {
       if (!depositGoal) return;
       const amt = parseNumberFromDots(actionAmount);
       if (amt <= 0) throw new Error("Masukkan nominal yang valid");
-      const accId = actionAccount || accounts[0]?.id;
-      if (!accId) throw new Error("Pilih rekening sumber");
-
-      const hasLinked = depositGoal.linked_accounts && depositGoal.linked_accounts.length > 0;
-      const targetAccId = hasLinked
-        ? (depositTargetAccount || depositGoal.linked_accounts![0].id)
-        : null;
-
-      if (hasLinked && accId === targetAccId) {
-        throw new Error("Rekening sumber dan rekening tujuan tidak boleh sama");
+      if (depositGoal.linked_accounts?.length) {
+        throw new Error("Progres target ini mengikuti saldo rekening terhubung");
       }
-
-      return api.post("/transactions", {
-        account_id: targetAccId || accId,
-        type: "income",
-        amount: amt,
-        goal_id: depositGoal.id,
-        notes: `Setor tabungan: ${depositGoal.name}`,
-        date: new Date().toISOString(),
-      });
+      return api.post(`/goals/${depositGoal.id}/adjust`, { amount: amt });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["goals"] });
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
+      qc.invalidateQueries({ queryKey: queryKeys.goals });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       setDepositGoal(null);
     },
-    onError: (err: any) => setActionError(err?.message || "Setor tabungan gagal"),
+    onError: (err: any) => setActionError(err?.message || "Gagal mencatat progres target"),
   });
 
   // Payoff Obligation Mutation
@@ -351,10 +382,9 @@ export default function GoalsAndDebtsPage() {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["obligations"] });
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-net-worth"] });
+      qc.invalidateQueries({ queryKey: queryKeys.obligations });
+      qc.invalidateQueries({ queryKey: queryKeys.accounts });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       setPayObligation(null);
     },
     onError: (err: any) => setActionError(err?.message || "Pembayaran gagal"),
@@ -391,7 +421,7 @@ export default function GoalsAndDebtsPage() {
           <button
             type="button"
             onClick={handleOpenNewGoal}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-btn bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-2xs transition-all active:scale-95"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-btn bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-2xs transition-[background-color,transform] active:scale-95"
           >
             <span className="font-bold text-sm leading-none">+</span>
             <span>Target Baru</span>
@@ -400,7 +430,7 @@ export default function GoalsAndDebtsPage() {
           <button
             type="button"
             onClick={handleOpenNewObligation}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-btn bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-2xs transition-all active:scale-95"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-btn bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-2xs transition-[background-color,transform] active:scale-95"
           >
             <span className="font-bold text-sm leading-none">+</span>
             <span>Tagihan Baru</span>
@@ -442,7 +472,7 @@ export default function GoalsAndDebtsPage() {
             {activeGoals.map((g) => (
               <div
                 key={g.id}
-                className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 space-y-4 shadow-xs flex flex-col justify-between group hover:border-[var(--border-strong)] transition-all"
+                className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 space-y-4 shadow-xs flex flex-col justify-between group hover:border-[var(--border-strong)] transition-colors"
               >
                 <div>
                   <div className="flex items-center justify-between">
@@ -461,25 +491,23 @@ export default function GoalsAndDebtsPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => handleOpenEditGoal(g)}
-                        className="p-1 rounded hover:bg-[var(--surface-raised)] text-[var(--muted)] hover:text-[var(--text)]"
+                        aria-label={`Ubah target ${g.name}`}
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
                       >
                         <Icon name="edit" className="h-3.5 w-3.5" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm(`Arsipkan target "${g.name}"?`)) {
-                            archiveGoalMutation.mutate(g.id);
-                          }
-                        }}
-                        className="p-1 rounded hover:bg-rose-500/10 text-[var(--muted)] hover:text-rose-500"
+                      <ConfirmActionButton
+                        label={`Arsipkan target ${g.name}`}
+                        confirmation={`Arsipkan target "${g.name}"?`}
+                        onConfirm={() => archiveGoalMutation.mutate(g.id)}
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[var(--muted)] hover:bg-rose-500/10 hover:text-rose-600"
                       >
                         <Icon name="trash" className="h-3.5 w-3.5" />
-                      </button>
+                      </ConfirmActionButton>
                     </div>
                   </div>
 
@@ -500,7 +528,7 @@ export default function GoalsAndDebtsPage() {
                         width: `${Math.min(g.percentage_completed, 100)}%`,
                         backgroundColor: g.color || "#10b981",
                       }}
-                      className="h-full rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                      className="h-full rounded-full transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
                     />
                   </div>
 
@@ -541,19 +569,23 @@ export default function GoalsAndDebtsPage() {
                     <span className="text-[11px] text-[var(--muted)]">Tanpa tenggat waktu</span>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDepositGoal(g);
-                      setActionAccount(accounts[0]?.id || "");
-                      setDepositTargetAccount(g.linked_accounts?.[0]?.id || "");
-                      setActionAmount("");
-                      setActionError("");
-                    }}
-                    className="flex items-center gap-1 font-semibold text-emerald-500 hover:text-emerald-400"
-                  >
-                    <span>+ Tambah Tabungan</span>
-                  </button>
+                  {g.linked_accounts?.length ? (
+                    <span className="text-right text-[11px] text-[var(--muted)]">
+                      Otomatis dari saldo rekening
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDepositGoal(g);
+                        setActionAmount("");
+                        setActionError("");
+                      }}
+                      className="flex min-h-11 items-center gap-1 font-semibold text-emerald-600 hover:text-emerald-500"
+                    >
+                      <span>+ Catat Progres</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -589,8 +621,8 @@ export default function GoalsAndDebtsPage() {
           <div className="space-y-4">
             {/* Debt Payoff Summary Banner */}
             <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 space-y-3 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <div className="flex min-w-0 items-center gap-2">
                   <div className="h-7 w-7 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-bold">
                     ⚡
                   </div>
@@ -603,8 +635,8 @@ export default function GoalsAndDebtsPage() {
                 </span>
               </div>
 
-              <div className="flex items-baseline justify-between pt-1">
-                <div>
+              <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-end sm:justify-between">
+                <div className="min-w-0">
                   <div className="text-2xl sm:text-3xl font-bold tabular tracking-tight text-rose-500 select-all">
                     {bal(obligationsSummary?.total_remaining ?? 0)}
                   </div>
@@ -612,7 +644,7 @@ export default function GoalsAndDebtsPage() {
                     Sisa dari total tagihan {bal(obligationsSummary?.total_debt ?? 0)}
                   </div>
                 </div>
-                <div className="text-right text-xs text-[var(--muted)]">
+                <div className="min-w-0 text-left text-xs text-[var(--muted)] sm:text-right">
                   <div>{bal(obligationsSummary?.total_paid ?? 0)} terbayar</div>
                   <div className="text-[10px] text-[var(--text-secondary)]">
                     Cicilan Min: {bal(obligationsSummary?.total_minimum_monthly ?? 0)}/bln
@@ -625,7 +657,7 @@ export default function GoalsAndDebtsPage() {
                   style={{
                     width: `${Math.min(obligationsSummary?.overall_payoff_percentage ?? 0, 100)}%`,
                   }}
-                  className="h-full rounded-full bg-rose-500 transition-all"
+                  className="h-full rounded-full bg-rose-500 transition-[width] motion-reduce:transition-none"
                 />
               </div>
             </div>
@@ -634,7 +666,7 @@ export default function GoalsAndDebtsPage() {
             {activeObligations.map((o) => (
               <div
                 key={o.id}
-                className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 space-y-4 shadow-xs flex flex-col justify-between group hover:border-[var(--border-strong)] transition-all"
+                className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 space-y-4 shadow-xs flex flex-col justify-between group hover:border-[var(--border-strong)] transition-colors"
               >
                 <div>
                   <div className="flex items-center justify-between">
@@ -642,30 +674,28 @@ export default function GoalsAndDebtsPage() {
                       {o.name}
                     </h3>
 
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => handleOpenEditObligation(o)}
-                        className="p-1 rounded hover:bg-[var(--surface-raised)] text-[var(--muted)] hover:text-[var(--text)]"
+                        aria-label={`Ubah tagihan ${o.name}`}
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
                       >
                         <Icon name="edit" className="h-3.5 w-3.5" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm(`Arsipkan tagihan "${o.name}"?`)) {
-                            archiveObligationMutation.mutate(o.id);
-                          }
-                        }}
-                        className="p-1 rounded hover:bg-rose-500/10 text-[var(--muted)] hover:text-rose-500"
+                      <ConfirmActionButton
+                        label={`Arsipkan tagihan ${o.name}`}
+                        confirmation={`Arsipkan tagihan "${o.name}"?`}
+                        onConfirm={() => archiveObligationMutation.mutate(o.id)}
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[var(--muted)] hover:bg-rose-500/10 hover:text-rose-600"
                       >
                         <Icon name="trash" className="h-3.5 w-3.5" />
-                      </button>
+                      </ConfirmActionButton>
                     </div>
                   </div>
 
                   {/* Amounts */}
-                  <div className="mt-4 flex items-baseline justify-between">
+                  <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                     <span className="text-xl sm:text-2xl font-bold tabular tracking-tight text-rose-500 select-all">
                       {bal(o.remaining_amount)}
                     </span>
@@ -678,7 +708,7 @@ export default function GoalsAndDebtsPage() {
                   <div className="w-full h-2 rounded-full bg-[var(--border)]/60 overflow-hidden mt-2">
                     <div
                       style={{ width: `${Math.min(o.payoff_percentage, 100)}%` }}
-                      className="h-full rounded-full bg-rose-500 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                      className="h-full rounded-full bg-rose-500 transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
                     />
                   </div>
 
@@ -726,16 +756,25 @@ export default function GoalsAndDebtsPage() {
         onClose={() => setGoalModalOpen(false)}
         title={editingGoal ? "Ubah Target Tabungan" : "Buat Target Tabungan Baru"}
       >
-        <div className="space-y-4 pt-2 text-xs">
+        <form
+          className="space-y-4 pt-2 text-xs"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!saveGoalMutation.isPending) handleSaveGoal();
+          }}
+        >
           {goalError && (
-            <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-500">
+            <div role="alert" aria-live="assertive" className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-500">
               {goalError}
             </div>
           )}
 
+          <FormSection title="Target" className="border-t-0 pt-0">
           <div>
-            <label className="font-medium text-[var(--muted)] block mb-1">Nama Target</label>
+            <label htmlFor="goal-name" className="font-medium text-[var(--muted)] block mb-1">Nama Target</label>
             <input
+              id="goal-name"
+              name="name"
               type="text"
               value={goalName}
               onChange={(e) => setGoalName(e.target.value)}
@@ -746,7 +785,7 @@ export default function GoalsAndDebtsPage() {
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="font-medium text-[var(--muted)]">Target Nominal</label>
+              <label htmlFor="goal-target-amount" className="font-medium text-[var(--muted)]">Target Nominal</label>
               {currency === "USD" && parseNumberFromDots(goalTarget) > 0 && (
                 <span className="text-[11px] font-bold text-emerald-500 tabular">
                   ≈ {bal(parseNumberFromDots(goalTarget))}
@@ -754,6 +793,8 @@ export default function GoalsAndDebtsPage() {
               )}
             </div>
             <input
+              id="goal-target-amount"
+              name="target_amount"
               type="text"
               inputMode="numeric"
               value={goalTarget}
@@ -763,15 +804,14 @@ export default function GoalsAndDebtsPage() {
             />
           </div>
 
-          {/* Linked Accounts Checklist */}
+          </FormSection>
+
+          <FormSection title="Sumber progres" description="Tanpa rekening, progres diatur manual. Dengan rekening, progres mengikuti saldonya tanpa menghitung rekening induk dan kantong dua kali.">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="font-medium text-[var(--muted)] block">Hubungkan Rekening / Kantong (Opsional)</label>
+              <span className="font-medium text-[var(--muted)] block">Hubungkan rekening / kantong (opsional)</span>
               <span className="text-[11px] text-[var(--muted)] font-medium">{goalAccountIds.length} dipilih</span>
             </div>
-            <p className="text-[11px] text-[var(--muted)] mb-2 leading-relaxed">
-              Pilih satu atau beberapa rekening (misal RDPU Bibit, Deposito, Emas). Saldo target akan otomatis mengikuti akumulasi saldo rekening yang dipilih secara real-time.
-            </p>
             <div className="space-y-1.5 max-h-52 overflow-y-auto rounded-xl border border-[var(--border)] p-2 bg-[var(--surface-raised)]/50">
               {topAccounts.length === 0 ? (
                 <p className="text-[11px] text-[var(--muted)] p-2">Belum ada rekening aktif.</p>
@@ -792,14 +832,14 @@ export default function GoalsAndDebtsPage() {
 
                   const handleParentToggle = (checked: boolean) => {
                     if (checked) {
-                      setGoalAccountIds((prev) => {
+                      updateGoalAccountIds((prev) => {
                         const set = new Set(prev);
                         set.add(accId);
                         childIds.forEach((cid: string) => set.add(cid));
                         return Array.from(set);
                       });
                     } else {
-                      setGoalAccountIds((prev) => {
+                      updateGoalAccountIds((prev) => {
                         const set = new Set(prev);
                         set.delete(accId);
                         childIds.forEach((cid: string) => set.delete(cid));
@@ -809,7 +849,7 @@ export default function GoalsAndDebtsPage() {
                   };
 
                   const handleChildToggle = (childId: string, checked: boolean) => {
-                    setGoalAccountIds((prev) => {
+                    updateGoalAccountIds((prev) => {
                       const set = new Set(prev);
                       if (checked) {
                         set.add(childId);
@@ -937,7 +977,7 @@ export default function GoalsAndDebtsPage() {
           ) : (
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="font-medium text-[var(--muted)]">Nominal Awal Terkumpul</label>
+                <label htmlFor="goal-current-amount" className="font-medium text-[var(--muted)]">Progres awal (tanpa transaksi)</label>
                 {currency === "USD" && parseNumberFromDots(goalCurrent) > 0 && (
                   <span className="text-[11px] font-bold text-emerald-500 tabular">
                     ≈ {bal(parseNumberFromDots(goalCurrent))}
@@ -945,6 +985,8 @@ export default function GoalsAndDebtsPage() {
                 )}
               </div>
               <input
+                id="goal-current-amount"
+                name="current_amount"
                 type="text"
                 inputMode="numeric"
                 value={goalCurrent}
@@ -952,12 +994,17 @@ export default function GoalsAndDebtsPage() {
                 placeholder="0"
                 className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] font-bold tabular"
               />
+              <p className="mt-1 text-xs text-[var(--muted)]">Nilai ini hanya mencatat progres target; saldo rekening tidak berubah.</p>
             </div>
           )}
+          </FormSection>
 
+          <FormSection title="Pengaturan tambahan">
           <div>
-            <label className="font-medium text-[var(--muted)] block mb-1">Target Tanggal Selesai (Opsional)</label>
+            <label htmlFor="goal-target-date" className="font-medium text-[var(--muted)] block mb-1">Target Tanggal Selesai (Opsional)</label>
             <input
+              id="goal-target-date"
+              name="target_date"
               type="date"
               value={goalDate}
               onChange={(e) => setGoalDate(e.target.value)}
@@ -966,18 +1013,20 @@ export default function GoalsAndDebtsPage() {
           </div>
 
           <div>
-            <label className="font-medium text-[var(--muted)] block mb-1">Warna Label</label>
-            <div className="flex items-center gap-2">
-              {["#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899"].map((c) => (
+            <span className="font-medium text-[var(--muted)] block mb-1">Warna Label</span>
+            <div role="group" aria-label="Pilih warna target" className="flex flex-wrap items-center gap-2">
+              {GOAL_COLORS.map((color) => (
                 <button
-                  key={c}
+                  key={color.value}
                   type="button"
-                  onClick={() => setGoalColor(c)}
+                  onClick={() => setGoalColor(color.value)}
+                  aria-label={`Warna ${color.label}`}
+                  aria-pressed={goalColor === color.value}
                   className={cn(
-                    "h-6 w-6 rounded-full border-2 transition-transform",
-                    goalColor === c ? "scale-110 border-white" : "border-transparent"
+                    "min-h-11 min-w-11 rounded-full border-4 border-[var(--surface)] transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--text)]",
+                    goalColor === color.value ? "scale-105 ring-2 ring-[var(--text)]" : "opacity-80 hover:opacity-100"
                   )}
-                  style={{ backgroundColor: c }}
+                  style={{ backgroundColor: color.value }}
                 />
               ))}
             </div>
@@ -987,6 +1036,8 @@ export default function GoalsAndDebtsPage() {
           <div className="p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/60 space-y-1">
             <label className="flex items-center gap-2.5 cursor-pointer select-none">
               <input
+                id="goal-emergency"
+                name="is_emergency"
                 type="checkbox"
                 checked={goalIsEmergency}
                 onChange={(e) => setGoalIsEmergency(e.target.checked)}
@@ -997,9 +1048,21 @@ export default function GoalsAndDebtsPage() {
               </span>
             </label>
             <p className="text-[11px] text-[var(--muted)] pl-6.5 leading-relaxed">
-              Saldo rekening/kantong yang terhubung ke target ini akan dihitung secara langsung sebagai cadangan <strong>Ketahanan Dana</strong> pada ringkasan keuangan.
+              {goalAccountIds.length > 0
+                ? "Saldo rekening yang terhubung akan dihitung sebagai cadangan Ketahanan Dana."
+                : "Progres manual target ini akan dihitung sebagai cadangan Ketahanan Dana."}
             </p>
           </div>
+          </FormSection>
+
+          {goalBackingChanged && goalBackingConfirmed && (
+            <p role="alert" aria-live="polite" className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-[11px] text-[var(--text)]">
+              {goalAccountIds.length > 0
+                ? "Setelah disimpan, progres akan mengikuti saldo rekening terhubung; nominal progres manual tidak menjadi sumber perhitungan."
+                : "Setelah disimpan, progres kembali menjadi nilai manual dan tidak lagi mengikuti saldo rekening."}
+              {" "}Pilih “{editingGoal ? "Konfirmasi & simpan" : "Konfirmasi & buat target"}” untuk melanjutkan.
+            </p>
+          )}
 
           <div className="flex gap-2 pt-2">
             <button
@@ -1010,15 +1073,18 @@ export default function GoalsAndDebtsPage() {
               Batal
             </button>
             <button
-              type="button"
+              type="submit"
               disabled={saveGoalMutation.isPending}
-              onClick={() => saveGoalMutation.mutate()}
-              className="flex-1 rounded-xl bg-emerald-600 text-white py-2 text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50"
+              className="min-h-11 flex-1 rounded-xl bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50"
             >
-              {saveGoalMutation.isPending ? "Menyimpan..." : editingGoal ? "Simpan Perubahan" : "Buat Target"}
+              {saveGoalMutation.isPending
+                ? "Menyimpan…"
+                : goalBackingChanged && goalBackingConfirmed
+                ? editingGoal ? "Konfirmasi & simpan" : "Konfirmasi & buat target"
+                : editingGoal ? "Simpan Perubahan" : "Buat Target"}
             </button>
           </div>
-        </div>
+        </form>
       </Modal>
 
       {/* Obligation Create/Edit Modal */}
@@ -1027,16 +1093,30 @@ export default function GoalsAndDebtsPage() {
         onClose={() => setObligationModalOpen(false)}
         title={editingObligation ? "Ubah Tagihan" : "Tambah Tagihan / Utang Baru"}
       >
-        <div className="space-y-4 pt-2 text-xs">
+        <form
+          className="space-y-4 pt-2 text-xs"
+          onSubmit={(event) => {
+            event.preventDefault();
+            saveObligationMutation.mutate();
+          }}
+        >
           {obError && (
-            <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-500">
+            <div role="alert" aria-live="assertive" className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-500">
               {obError}
             </div>
           )}
 
+          <p className="text-xs leading-relaxed text-[var(--muted)]">
+            Tagihan otomatis diarsipkan saat sisa mencapai nol dan aktif kembali jika saldo dikoreksi.
+          </p>
+
+          <FormSection title="Jumlah tagihan" description="Sisa saat ini menentukan progres pelunasan. Kosong berarti belum ada pembayaran." className="border-t-0 pt-0">
           <div>
-            <label className="font-medium text-[var(--muted)] block mb-1">Nama Tagihan / Utang</label>
+            <label htmlFor="obligation-name" className="font-medium text-[var(--muted)] block mb-1">Nama Tagihan / Utang</label>
             <input
+              ref={obNameRef}
+              id="obligation-name"
+              name="name"
               type="text"
               value={obName}
               onChange={(e) => setObName(e.target.value)}
@@ -1046,8 +1126,11 @@ export default function GoalsAndDebtsPage() {
           </div>
 
           <div>
-            <label className="font-medium text-[var(--muted)] block mb-1">Total Tagihan / Pinjaman (IDR)</label>
+            <label htmlFor="obligation-total" className="font-medium text-[var(--muted)] block mb-1">Total Tagihan / Pinjaman (IDR)</label>
             <input
+              ref={obTotalRef}
+              id="obligation-total"
+              name="total_amount"
               type="text"
               inputMode="numeric"
               value={obTotal}
@@ -1058,20 +1141,39 @@ export default function GoalsAndDebtsPage() {
           </div>
 
           <div>
-            <label className="font-medium text-[var(--muted)] block mb-1">Sisa Tagihan Saat Ini (IDR)</label>
-            <input
+            <label htmlFor="obligation-remaining" className="font-medium text-[var(--muted)] block mb-1">Sisa Tagihan Saat Ini (IDR)</label>
+          <input
+              ref={obRemainingRef}
+              id="obligation-remaining"
+              name="remaining_amount"
               type="text"
               inputMode="numeric"
               value={obRemaining}
               onChange={(e) => setObRemaining(formatNumberWithDots(e.target.value))}
+              aria-invalid={remainingExceedsTotal || undefined}
+              aria-describedby={remainingExceedsTotal ? "obligation-remaining-error" : undefined}
               placeholder="Kosongkan jika sama dengan total"
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] tabular"
             />
+            {remainingExceedsTotal && (
+              <p id="obligation-remaining-error" role="alert" className="mt-1 text-[11px] font-medium text-rose-600">
+                Sisa tagihan tidak boleh melebihi total tagihan.
+              </p>
+            )}
           </div>
+          {obligationTotalValue > 0 && !remainingExceedsTotal && (
+            <div role="status" className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-xs text-[var(--text)]">
+              Sudah dibayar: {bal(Math.max(0, obligationTotalValue - obligationRemainingValue))} · Sisa: {bal(obligationRemainingValue)}
+            </div>
+          )}
+          </FormSection>
 
+          <FormSection title="Rencana pembayaran">
           <div>
-            <label className="font-medium text-[var(--muted)] block mb-1">Cicilan Minimal per Bulan (Opsional)</label>
+            <label htmlFor="obligation-minimum-payment" className="font-medium text-[var(--muted)] block mb-1">Cicilan Minimal per Bulan (Opsional)</label>
             <input
+              id="obligation-minimum-payment"
+              name="minimum_payment"
               type="text"
               inputMode="numeric"
               value={obMinPayment}
@@ -1082,14 +1184,30 @@ export default function GoalsAndDebtsPage() {
           </div>
 
           <div>
-            <label className="font-medium text-[var(--muted)] block mb-1">Jatuh Tempo (Opsional)</label>
+            <label htmlFor="obligation-due-date" className="font-medium text-[var(--muted)] block mb-1">Jatuh Tempo (Opsional)</label>
             <input
+              ref={obDueDateRef}
+              id="obligation-due-date"
+              name="due_date"
               type="date"
               value={obDueDate}
               onChange={(e) => setObDueDate(e.target.value)}
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
             />
           </div>
+
+          <div>
+            <label htmlFor="obligation-notes" className="font-medium text-[var(--muted)] block mb-1">Catatan (Opsional)</label>
+            <textarea
+              id="obligation-notes"
+              name="notes"
+              rows={2}
+              value={obNotes}
+              onChange={(event) => setObNotes(event.target.value)}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+            />
+          </div>
+          </FormSection>
 
           <div className="flex gap-2 pt-2">
             <button
@@ -1100,68 +1218,43 @@ export default function GoalsAndDebtsPage() {
               Batal
             </button>
             <button
-              type="button"
+              type="submit"
               disabled={saveObligationMutation.isPending}
-              onClick={() => saveObligationMutation.mutate()}
-              className="flex-1 rounded-xl bg-rose-600 text-white py-2 text-xs font-semibold hover:bg-rose-700 disabled:opacity-50"
+              className="min-h-11 flex-1 rounded-xl bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50"
             >
-              {saveObligationMutation.isPending ? "Menyimpan..." : editingObligation ? "Simpan Perubahan" : "Tambah Tagihan"}
+              {saveObligationMutation.isPending ? "Menyimpan…" : editingObligation ? "Simpan Perubahan" : "Tambah Tagihan"}
             </button>
           </div>
-        </div>
+        </form>
       </Modal>
 
-      {/* Goal Deposit Modal */}
+      {/* Standalone goal progress adjustment */}
       {depositGoal && (
         <Modal
           open={Boolean(depositGoal)}
           onClose={() => setDepositGoal(null)}
-          title={`Setor Tabungan: ${depositGoal.name}`}
+          title={`Catat Progres: ${depositGoal.name}`}
         >
-          <div className="space-y-4 pt-2 text-xs">
+          <form
+            className="space-y-4 pt-2 text-xs"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!depositGoalMutation.isPending) depositGoalMutation.mutate();
+            }}
+          >
             {actionError && (
-              <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-500">
+              <div role="alert" aria-live="assertive" className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-500">
                 {actionError}
               </div>
             )}
 
-            <div>
-              <label className="font-medium text-[var(--muted)] block mb-1">Dari Rekening / Dompet</label>
-              <select
-                value={actionAccount}
-                onChange={(e) => setActionAccount(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-              >
-                <AccountSelectOptions
-                  accounts={accounts}
-                  formatBalance={bal}
-                  allowParentSelection={true}
-                  excludeAccountId={depositTargetAccount}
-                />
-              </select>
-            </div>
-
-            {depositGoal.linked_accounts && depositGoal.linked_accounts.length > 0 && (
-              <div>
-                <label className="font-medium text-[var(--muted)] block mb-1">Ke Rekening Simpanan (Tujuan)</label>
-                <select
-                  value={depositTargetAccount}
-                  onChange={(e) => setDepositTargetAccount(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-                >
-                  <AccountSelectOptions
-                    accounts={depositGoal.linked_accounts}
-                    formatBalance={bal}
-                    allowParentSelection={true}
-                    excludeAccountId={actionAccount}
-                  />
-                </select>
-              </div>
-            )}
+            <p className="rounded-xl border border-sky-500/25 bg-sky-500/10 p-3 leading-relaxed text-sky-700 dark:text-sky-300">
+              Ini hanya memperbarui angka progres target. Tidak ada transaksi dan tidak ada saldo rekening yang berubah.
+            </p>
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="font-medium text-[var(--muted)]">Nominal Setoran</label>
+                <label htmlFor="goal-progress-adjustment" className="font-medium text-[var(--muted)]">Tambahan Progres</label>
                 {currency === "USD" && parseNumberFromDots(actionAmount) > 0 && (
                   <span className="text-[11px] font-bold text-emerald-500 tabular">
                     ≈ {bal(parseNumberFromDots(actionAmount))}
@@ -1169,6 +1262,8 @@ export default function GoalsAndDebtsPage() {
                 )}
               </div>
               <input
+                id="goal-progress-adjustment"
+                name="amount"
                 type="text"
                 inputMode="numeric"
                 value={actionAmount}
@@ -1187,15 +1282,14 @@ export default function GoalsAndDebtsPage() {
                 Batal
               </button>
               <button
-                type="button"
+                type="submit"
                 disabled={depositGoalMutation.isPending}
-                onClick={() => depositGoalMutation.mutate()}
-                className="flex-1 rounded-xl bg-emerald-600 text-white py-2 text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                className="flex-1 rounded-xl bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 dark:text-[#062A1E] disabled:opacity-50"
               >
-                {depositGoalMutation.isPending ? "Memproses..." : "Setor Sekarang"}
+                {depositGoalMutation.isPending ? "Menyimpan…" : "Simpan Progres"}
               </button>
             </div>
-          </div>
+          </form>
         </Modal>
       )}
 
@@ -1206,16 +1300,24 @@ export default function GoalsAndDebtsPage() {
           onClose={() => setPayObligation(null)}
           title={`Bayar Tagihan: ${payObligation.name}`}
         >
-          <div className="space-y-4 pt-2 text-xs">
+          <form
+            className="space-y-4 pt-2 text-xs"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!payObligationMutation.isPending) payObligationMutation.mutate();
+            }}
+          >
             {actionError && (
-              <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-500">
+              <div role="alert" aria-live="assertive" className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-500">
                 {actionError}
               </div>
             )}
 
             <div>
-              <label className="font-medium text-[var(--muted)] block mb-1">Bayar dari Rekening / Dompet</label>
+              <label htmlFor="obligation-payment-account" className="font-medium text-[var(--muted)] block mb-1">Bayar dari Rekening / Dompet</label>
               <select
+                id="obligation-payment-account"
+                name="account_id"
                 value={actionAccount}
                 onChange={(e) => setActionAccount(e.target.value)}
                 className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
@@ -1226,7 +1328,7 @@ export default function GoalsAndDebtsPage() {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="font-medium text-[var(--muted)]">Nominal Pembayaran</label>
+                <label htmlFor="obligation-payment-amount" className="font-medium text-[var(--muted)]">Nominal Pembayaran</label>
                 {currency === "USD" && parseNumberFromDots(actionAmount) > 0 && (
                   <span className="text-[11px] font-bold text-emerald-500 tabular">
                     ≈ {bal(parseNumberFromDots(actionAmount))}
@@ -1234,6 +1336,8 @@ export default function GoalsAndDebtsPage() {
                 )}
               </div>
               <input
+                id="obligation-payment-amount"
+                name="amount"
                 type="text"
                 inputMode="numeric"
                 value={actionAmount}
@@ -1252,15 +1356,14 @@ export default function GoalsAndDebtsPage() {
                 Batal
               </button>
               <button
-                type="button"
+                type="submit"
                 disabled={payObligationMutation.isPending}
-                onClick={() => payObligationMutation.mutate()}
                 className="flex-1 rounded-xl bg-rose-600 text-white py-2 text-xs font-semibold hover:bg-rose-700 disabled:opacity-50"
               >
-                {payObligationMutation.isPending ? "Memproses..." : "Catat Pembayaran"}
+                {payObligationMutation.isPending ? "Memproses…" : "Catat Pembayaran"}
               </button>
             </div>
-          </div>
+          </form>
         </Modal>
       )}
     </div>

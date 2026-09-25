@@ -1,0 +1,7 @@
+# Multi-debt payment verification — 2026-09-24
+
+The implementation was checked in the uncommitted local worktree on `fix/financial-integrity-and-forms` based on `06c922c`. The latest isolated PostgreSQL 16 backend suite passed 171/171 tests, including allocation creation, edit/reversal, overpayment, concurrency, rollback, idempotency, and legacy single-debt behavior. The current frontend suite passed 75/75 tests; type-check, lint, production build, strict OpenSpec validation, and `git diff --check` passed.
+
+An authenticated local Chrome session used a disposable synthetic account with two debts and one expense allocated across both. At 390px mobile width, the Quick Capture split editor exposed two debt selectors and two amount fields with distinct accessible names in Chrome's accessibility tree, plus a live allocated/unallocated summary. The ledger showed one saved expense; its edit form reloaded both allocations. The form was also inspected at 1280px desktop, 320px mobile, and 640px reflow width without document-level horizontal overflow. Escape and focus-restoration checks passed for the shared transaction dialog. The disposable account and fixtures were deleted at the end of each run.
+
+The browser and accessibility-tree observations are spot checks, not a WCAG conformance claim or a substitute for a real screen-reader session. No production data or environment was accessed. User acceptance, OpenSpec sync, and archive have not occurred.

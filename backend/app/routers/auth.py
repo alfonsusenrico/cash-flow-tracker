@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
@@ -7,9 +7,11 @@ from app.db.pool import db_conn
 from app.services.auth import (
     authenticate_user,
     generate_api_key,
+    get_client_ip,
     get_current_user,
     register_user,
 )
+from app.services.state import rate_limiter
 
 router = APIRouter(tags=["Auth"])
 
@@ -18,6 +20,7 @@ class RegisterRequest(BaseModel):
     username: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=6)
     invite_code: str
+    name: str | None = Field(default=None, max_length=150)
 
 
 class LoginRequest(BaseModel):
@@ -31,7 +34,7 @@ from app.services.market_data import get_usdidr_rate
 class SettingsUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=150)
     payday_day: int | None = Field(default=None, ge=1, le=31)
-    currency: str | None = Field(default=None, max_length=10)
+    currency: Literal["IDR", "USD"] | None = None
     emergency_fund_multiplier: int | None = Field(default=None, ge=1, le=36)
     monthly_spending_budget: int | None = Field(default=None, ge=0)
 
@@ -52,7 +55,14 @@ async def get_currency_rates():
 
 @router.post("/register")
 def register(payload: RegisterRequest, request: Request, response: Response):
-    user = register_user(payload.username, payload.password, payload.invite_code)
+    client_key = f"register:client:{get_client_ip(request)}"
+    if rate_limiter.exceeded(client_key, settings.register_rate_limit, settings.register_rate_window):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many attempts. Please try again later.",
+            headers={"Retry-After": str(settings.register_rate_window)},
+        )
+    user = register_user(payload.username, payload.password, payload.invite_code, payload.name)
     # Store session
     request.session["user_id"] = user["id"]
     request.session["username"] = user["username"]
@@ -61,7 +71,28 @@ def register(payload: RegisterRequest, request: Request, response: Response):
 
 @router.post("/login")
 def login(payload: LoginRequest, request: Request):
+    client_ip = get_client_ip(request)
+    normalized_username = payload.username.strip().lower()
+    client_key = f"login:client:{client_ip}"
+    user_key = f"login:user:{normalized_username}"
+    exceeded = rate_limiter.exceeded(
+        client_key,
+        settings.login_rate_limit,
+        settings.login_rate_window,
+    )
+    exceeded = rate_limiter.exceeded(
+        user_key,
+        settings.login_user_rate_limit,
+        settings.login_rate_window,
+    ) or exceeded
+    if exceeded:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many attempts. Please try again later.",
+            headers={"Retry-After": str(settings.login_rate_window)},
+        )
     user = authenticate_user(payload.username, payload.password)
+    rate_limiter.reset(user_key)
     request.session["user_id"] = user["id"]
     request.session["username"] = user["username"]
     return {"ok": True, "user": user}
@@ -86,6 +117,8 @@ def update_settings(payload: SettingsUpdate, current_user: dict = Depends(get_cu
     params = []
 
     if payload.name is not None:
+        if not payload.name.strip():
+            raise HTTPException(status_code=422, detail="Display name cannot be empty")
         updates.append("name = %s")
         params.append(payload.name.strip())
     if payload.payday_day is not None:

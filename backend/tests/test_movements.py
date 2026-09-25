@@ -3,9 +3,67 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from fastapi import HTTPException
+import pytest
 
 from app.main import app
 from app.services.auth import get_current_user
+from app.services.ledger_mutations import create_bilateral_movement
+
+
+def test_generic_bilateral_movement_rejects_investment_positions_before_writes():
+    cursor = MagicMock()
+    source_id = str(uuid4())
+    position_id = str(uuid4())
+
+    with pytest.raises(HTTPException) as error:
+        create_bilateral_movement(
+            cursor,
+            user_id=str(uuid4()),
+            source_id=source_id,
+            target_id=position_id,
+            amount=1000,
+            notes="Generic transfer",
+            tx_date=datetime.now(timezone.utc),
+            expense_category_id=str(uuid4()),
+            income_category_id=str(uuid4()),
+            source_account={"id": source_id, "type": "bank"},
+            target_account={"id": position_id, "type": "investment", "instrument_type": "stock"},
+        )
+
+    assert error.value.status_code == 422
+    assert error.value.detail["code"] == "investment_trade_required"
+    cursor.execute.assert_not_called()
+
+
+def test_investment_trade_movement_allows_position_endpoint():
+    cursor = MagicMock()
+    source_id = str(uuid4())
+    position_id = str(uuid4())
+    cursor.fetchone.side_effect = [
+        {"id": str(uuid4())},
+        {"id": str(uuid4())},
+    ]
+
+    with patch("app.services.ledger_mutations.ensure_sufficient_funds"):
+        result = create_bilateral_movement(
+            cursor,
+            user_id=str(uuid4()),
+            source_id=source_id,
+            target_id=position_id,
+            amount=1000,
+            notes="Investment buy",
+            tx_date=datetime.now(timezone.utc),
+            expense_category_id=str(uuid4()),
+            income_category_id=str(uuid4()),
+            source_account={"id": source_id, "type": "bank"},
+            target_account={"id": position_id, "type": "investment", "instrument_type": "stock"},
+            is_trade=True,
+        )
+
+    assert result["movement_id"]
+    inserts = [call for call in cursor.execute.call_args_list if "INSERT INTO transactions" in call.args[0]]
+    assert len(inserts) == 2
 
 
 def test_post_movement_creates_two_transactions():
@@ -25,7 +83,13 @@ def test_post_movement_creates_two_transactions():
     exp_tx_id = str(uuid4())
     inc_tx_id = str(uuid4())
 
-    with patch("app.routers.movements.db_conn") as mock_conn:
+    locked_accounts = {
+        src_id: {"id": src_id, "name": "BCA", "type": "bank", "is_savings": False},
+        dst_id: {"id": dst_id, "name": "Jago", "type": "bank", "is_savings": False},
+    }
+    with patch("app.routers.movements.db_conn") as mock_conn, \
+         patch("app.routers.movements.lock_owned_accounts", return_value=locked_accounts), \
+         patch("app.services.ledger_mutations.ensure_sufficient_funds", return_value=500000):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
@@ -65,13 +129,13 @@ def test_post_movement_creates_two_transactions():
         exp_args = inserts[0][0][1]
         assert exp_args[1] == src_id
         assert exp_args[2] == exp_cat_id
-        assert exp_args[3] == 250000
+        assert exp_args[4] == 250000
 
         assert "'income'" in inserts[1][0][0]
         inc_args = inserts[1][0][1]
         assert inc_args[1] == dst_id
         assert inc_args[2] == inc_cat_id
-        assert inc_args[3] == 250000
+        assert inc_args[4] == 250000
 
     app.dependency_overrides.clear()
 
@@ -122,7 +186,11 @@ def test_default_pocket_routing():
         "idempotency_key": "test_pocket_route_key_999",
     }
 
-    with patch("app.routers.transactions.db_conn") as mock_conn:
+    with patch("app.routers.transactions.db_conn") as mock_conn, \
+         patch("app.routers.transactions.lock_owned_accounts", return_value={
+             default_pocket_id: {"id": default_pocket_id, "type": "bank"},
+         }), \
+         patch("app.routers.transactions.ensure_sufficient_funds", return_value=500000):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
@@ -315,7 +383,13 @@ def test_post_movement_auto_resolves_parent_to_default_pocket():
     exp_tx_id = str(uuid4())
     inc_tx_id = str(uuid4())
 
-    with patch("app.routers.movements.db_conn") as mock_conn:
+    locked_accounts = {
+        atm_id: {"id": atm_id, "name": "ATM", "type": "bank", "is_savings": False},
+        gopay_id: {"id": gopay_id, "name": "GoPay", "type": "wallet", "is_savings": False},
+    }
+    with patch("app.routers.movements.db_conn") as mock_conn, \
+         patch("app.routers.movements.lock_owned_accounts", return_value=locked_accounts), \
+         patch("app.services.ledger_mutations.ensure_sufficient_funds", return_value=500000):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 

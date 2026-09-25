@@ -11,6 +11,7 @@ import { InternalMovementModal } from "@/components/ui/InternalMovementModal";
 import { SettingsModal } from "@/components/ui/SettingsModal";
 import { api, ApiError } from "@/lib/api";
 import { cn, setCurrencyConfig, fmtMoney as globalFmtMoney, convertAmount as globalConvertAmount } from "@/lib/utils";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface AppCtxType {
   hideBalances: boolean;
@@ -129,12 +130,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }, []);
 
   const { data: userData, error: userError, isLoading: userLoading } = useQuery<{ ok: boolean; user: any }>({
-    queryKey: ["auth-me"],
+    queryKey: queryKeys.auth.me,
     queryFn: () => api.get("/auth/me"),
   });
 
   const { data: ratesData } = useQuery<{ ok: boolean; usdidr: number }>({
-    queryKey: ["currency-rates"],
+    queryKey: queryKeys.auth.currencyRates,
     queryFn: () => api.get("/auth/currency/rates"),
     staleTime: 60 * 60 * 1000,
   });
@@ -230,7 +231,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <TopBar
             onToggleMobileMenu={() => setMobileMenuOpen(true)}
             onQuickAdd={() => handleOpenQuickAdd()}
-            onOpenSettings={() => setSettingsOpen(true)}
           />
 
           {/* Fluid Full-Width Workspace Canvas */}

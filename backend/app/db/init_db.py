@@ -61,6 +61,9 @@ def init_db_schema() -> None:
                     last_price_at TIMESTAMPTZ NULL,
                     color VARCHAR(30) NOT NULL DEFAULT '#3b82f6',
                     display_order INT NOT NULL DEFAULT 0,
+                    reconciliation_required BOOLEAN NOT NULL DEFAULT FALSE,
+                    reconciliation_reason VARCHAR(100) NULL,
+                    reconciliation_event_id UUID NULL,
                     is_archived BOOLEAN NOT NULL DEFAULT FALSE,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -147,6 +150,8 @@ def init_db_schema() -> None:
                     notes TEXT NULL,
                     date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     receipt_path VARCHAR(255) NULL,
+                    movement_id UUID NULL,
+                    movement_role VARCHAR(10) NULL,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     CONSTRAINT chk_tx_amount_positive CHECK (amount > 0)
@@ -156,6 +161,15 @@ def init_db_schema() -> None:
                 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
                 CREATE INDEX IF NOT EXISTS idx_transactions_goal ON transactions(goal_id);
                 CREATE INDEX IF NOT EXISTS idx_transactions_obligation ON transactions(obligation_id);
+
+                CREATE TABLE IF NOT EXISTS transaction_obligation_allocations (
+                    transaction_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+                    obligation_id UUID NOT NULL REFERENCES obligations(id) ON DELETE RESTRICT,
+                    amount BIGINT NOT NULL CHECK (amount > 0),
+                    PRIMARY KEY (transaction_id, obligation_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_transaction_obligation_allocations_obligation
+                    ON transaction_obligation_allocations(obligation_id);
 
                 CREATE TABLE IF NOT EXISTS api_keys (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -184,14 +198,63 @@ def init_db_schema() -> None:
                 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS display_order INT NOT NULL DEFAULT 0;
                 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS default_funding_account_id UUID NULL REFERENCES accounts(id) ON DELETE SET NULL;
                 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS default_pocket_id UUID NULL REFERENCES accounts(id) ON DELETE SET NULL;
+                ALTER TABLE accounts ADD COLUMN IF NOT EXISTS reconciliation_required BOOLEAN NOT NULL DEFAULT FALSE;
+                ALTER TABLE accounts ADD COLUMN IF NOT EXISTS reconciliation_reason VARCHAR(100) NULL;
+                ALTER TABLE accounts ADD COLUMN IF NOT EXISTS reconciliation_event_id UUID NULL;
                 CREATE INDEX IF NOT EXISTS idx_accounts_display_order ON accounts(user_id, display_order);
                 CREATE INDEX IF NOT EXISTS idx_accounts_instrument_symbol ON accounts(instrument_symbol) WHERE instrument_symbol IS NOT NULL;
                 CREATE INDEX IF NOT EXISTS idx_accounts_default_pocket ON accounts(default_pocket_id);
 
                 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(128) NULL;
                 ALTER TABLE transactions ALTER COLUMN idempotency_key TYPE VARCHAR(128);
+                ALTER TABLE transactions ADD COLUMN IF NOT EXISTS movement_id UUID NULL;
+                ALTER TABLE transactions ADD COLUMN IF NOT EXISTS movement_role VARCHAR(10) NULL;
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_tx_user_idempotency ON transactions(user_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_transactions_movement_role ON transactions(movement_id, movement_role) WHERE movement_id IS NOT NULL;
+                CREATE INDEX IF NOT EXISTS idx_transactions_movement_id ON transactions(movement_id) WHERE movement_id IS NOT NULL;
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'chk_transactions_movement_role'
+                    ) THEN
+                        ALTER TABLE transactions
+                        ADD CONSTRAINT chk_transactions_movement_role
+                        CHECK (
+                            (movement_id IS NULL AND movement_role IS NULL)
+                            OR (
+                                movement_id IS NOT NULL
+                                AND movement_role IN ('outbound', 'inbound')
+                            )
+                        );
+                    END IF;
+                END $$;
                 ALTER TABLE transactions DROP COLUMN IF EXISTS transfer_target_account_id;
+
+                DO $$
+                BEGIN
+                    IF to_regclass('public.recurring_rules') IS NOT NULL THEN
+                        CREATE TABLE IF NOT EXISTS recurring_executions (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            recurring_rule_id UUID NOT NULL REFERENCES recurring_rules(id) ON DELETE CASCADE,
+                            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            scheduled_for DATE NOT NULL,
+                            status VARCHAR(20) NOT NULL,
+                            error_code VARCHAR(100) NULL,
+                            error_detail TEXT NULL,
+                            transaction_id UUID NULL REFERENCES transactions(id) ON DELETE SET NULL,
+                            movement_id UUID NULL,
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                            CONSTRAINT uq_recurring_execution_occurrence
+                                UNIQUE (recurring_rule_id, scheduled_for),
+                            CONSTRAINT chk_recurring_execution_status
+                                CHECK (status IN ('processing', 'succeeded', 'failed'))
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_recurring_executions_user_status
+                            ON recurring_executions(user_id, status, scheduled_for DESC);
+                    END IF;
+                END $$;
 
                 -- Auto-archive any existing paid-off obligations
                 UPDATE obligations

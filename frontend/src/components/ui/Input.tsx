@@ -14,7 +14,7 @@ export function Input({ label, error, className, id, ...props }: InputProps) {
         id={inputId}
         {...props}
         className={cn(
-          "w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm bg-[var(--surface)] text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)]",
+          "min-h-11 w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm bg-[var(--surface)] text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]",
           error && "border-[var(--danger)]",
           className
         )}
@@ -37,7 +37,7 @@ export function Select({ label, className, id, children, ...props }: SelectProps
         id={inputId}
         {...props}
         className={cn(
-          "w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm bg-[var(--surface)] text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)]",
+          "min-h-11 w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm bg-[var(--surface)] text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]",
           className
         )}
       >

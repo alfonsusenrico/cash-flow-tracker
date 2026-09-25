@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Icon } from "@/components/ui/Icon";
 import { formatNumberWithDots } from "@/lib/utils";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface Props {
   open: boolean;
@@ -29,14 +30,14 @@ export function SettingsModal({ open, onClose }: Props) {
 
   // Fetch current user settings
   const { data: userData } = useQuery<{ ok: boolean; user: any }>({
-    queryKey: ["auth-me"],
+    queryKey: queryKeys.auth.me,
     queryFn: () => api.get("/auth/me"),
     enabled: open,
   });
 
   // Fetch currency rates
   const { data: ratesData } = useQuery<{ ok: boolean; usdidr: number }>({
-    queryKey: ["currency-rates"],
+    queryKey: queryKeys.auth.currencyRates,
     queryFn: () => api.get("/auth/currency/rates"),
     enabled: open,
   });
@@ -47,17 +48,25 @@ export function SettingsModal({ open, onClose }: Props) {
 
   // Fetch API key metadata
   const { data: apiKeyData } = useQuery<{ ok: boolean; api_key: ApiKeyMetadata | null }>({
-    queryKey: ["auth-api-key"],
+    queryKey: queryKeys.auth.apiKey,
     queryFn: getApiKeyInfo,
     enabled: open,
   });
+
+  const persistedUser = userData?.user || user;
+  const persistedName = persistedUser?.name;
+  const persistedUsername = persistedUser?.username;
+  const persistedPaydayDay = persistedUser?.payday_day;
+  const persistedCurrency = persistedUser?.currency;
+  const persistedMultiplier = persistedUser?.emergency_fund_multiplier;
+  const persistedBudget = persistedUser?.monthly_spending_budget;
 
   const rotateKeyMut = useMutation({
     mutationFn: rotateApiKey,
     onSuccess: (data) => {
       setNewPlainKey(data.api_key);
       setShowRotateConfirm(false);
-      qc.invalidateQueries({ queryKey: ["auth-api-key"] });
+      qc.invalidateQueries({ queryKey: queryKeys.auth.apiKey });
     },
     onError: (e: Error) => setErr(e.message || "Gagal memperbarui kunci API"),
   });
@@ -71,13 +80,12 @@ export function SettingsModal({ open, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    const u = userData?.user || user;
-    if (u) {
-      setName(u.name || u.username || "");
-      if (u.payday_day) setDay(String(u.payday_day));
-      if (u.currency) setCurrency(u.currency.toUpperCase());
-      if (u.emergency_fund_multiplier) setMultiplier(String(u.emergency_fund_multiplier));
-      if (u.monthly_spending_budget) setMonthlyBudget(formatNumberWithDots(u.monthly_spending_budget));
+    if (persistedUsername) {
+      setName(persistedName || persistedUsername);
+      if (persistedPaydayDay) setDay(String(persistedPaydayDay));
+      if (persistedCurrency) setCurrency(persistedCurrency.toUpperCase());
+      if (persistedMultiplier) setMultiplier(String(persistedMultiplier));
+      if (persistedBudget != null) setMonthlyBudget(formatNumberWithDots(persistedBudget));
       else setMonthlyBudget("");
     }
     setShowRotateConfirm(false);
@@ -85,32 +93,35 @@ export function SettingsModal({ open, onClose }: Props) {
     setCopiedKey(false);
     setErr("");
     setMsg("");
-  }, [open, userData, user]);
+  }, [open, persistedName, persistedUsername, persistedPaydayDay, persistedCurrency, persistedMultiplier, persistedBudget]);
 
   const settingsMut = useMutation({
     mutationFn: () => {
       const cleanBudget = monthlyBudget.trim().replace(/[^0-9]/g, "");
       const budgetVal = cleanBudget ? parseInt(cleanBudget, 10) : null;
+      const paydayDay = parseInt(day, 10);
+      const emergencyMultiplier = parseInt(multiplier, 10);
+      if (!name.trim()) throw new Error("Nama tampilan wajib diisi");
+      if (paydayDay < 1 || paydayDay > 31) throw new Error("Tanggal gajian harus antara 1 dan 31");
+      if (emergencyMultiplier < 1 || emergencyMultiplier > 36) throw new Error("Target dana darurat harus antara 1 dan 36 bulan");
+      if (currency !== "IDR" && currency !== "USD") throw new Error("Mata uang yang didukung hanya IDR dan USD");
       return api.patch("/auth/settings", {
-        name: name.trim() || undefined,
-        payday_day: parseInt(day, 10),
-        currency: currency.trim().toUpperCase(),
-        emergency_fund_multiplier: parseInt(multiplier, 10) || 6,
+        name: name.trim(),
+        payday_day: paydayDay,
+        currency,
+        emergency_fund_multiplier: emergencyMultiplier,
         monthly_spending_budget: budgetVal,
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["auth-me"] });
-      qc.invalidateQueries({ queryKey: ["currency-rates"] });
-      qc.invalidateQueries({ queryKey: ["pulse"] });
-      qc.invalidateQueries({ queryKey: ["insights"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-analytics"] });
-      qc.invalidateQueries({ queryKey: ["goals"] });
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["ledger"] });
-      qc.invalidateQueries({ queryKey: ["recurring-rules"] });
-      qc.invalidateQueries({ queryKey: ["pending-scheduled-transactions"] });
+      qc.invalidateQueries({ queryKey: queryKeys.auth.all });
+      qc.invalidateQueries({ queryKey: queryKeys.pulse });
+      qc.invalidateQueries({ queryKey: queryKeys.insights });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      qc.invalidateQueries({ queryKey: queryKeys.goals });
+      qc.invalidateQueries({ queryKey: queryKeys.accounts });
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      qc.invalidateQueries({ queryKey: queryKeys.recurring.all });
       setMsg("Pengaturan berhasil disimpan.");
       setTimeout(() => {
         setMsg("");
@@ -124,14 +135,20 @@ export function SettingsModal({ open, onClose }: Props) {
 
   return (
     <Modal open={open} onClose={onClose} title="Pengaturan Akun & Keuangan">
-      <div className="space-y-5 pt-1 text-xs">
+      <form
+        className="space-y-5 pt-1 text-xs"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!settingsMut.isPending) settingsMut.mutate();
+        }}
+      >
         {err && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-medium">
+          <div role="alert" aria-live="assertive" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-medium">
             {err}
           </div>
         )}
         {msg && (
-          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium">
+          <div role="status" aria-live="polite" className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium">
             {msg}
           </div>
         )}
@@ -158,10 +175,12 @@ export function SettingsModal({ open, onClose }: Props) {
           </div>
 
           <div>
-            <label className="block text-[11px] font-medium text-[var(--muted)] mb-1">
+            <label htmlFor="settings-display-name" className="block text-[11px] font-medium text-[var(--muted)] mb-1">
               Nama Tampilan (Display Name)
             </label>
             <Input
+              id="settings-display-name"
+              name="name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -176,12 +195,14 @@ export function SettingsModal({ open, onClose }: Props) {
           <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
             Siklus Keuangan & Mata Uang
           </h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-medium text-[var(--text)] mb-1">
+              <label htmlFor="settings-payday-day" className="block text-xs font-medium text-[var(--text)] mb-1">
                 Tanggal Gajian (1–31)
               </label>
               <Input
+                id="settings-payday-day"
+                name="payday_day"
                 type="number"
                 min={1}
                 max={31}
@@ -195,13 +216,15 @@ export function SettingsModal({ open, onClose }: Props) {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[var(--text)] mb-1">
+              <label htmlFor="settings-currency" className="block text-xs font-medium text-[var(--text)] mb-1">
                 Mata Uang Utama
               </label>
               <select
+                id="settings-currency"
+                name="currency"
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs font-semibold text-[var(--text)] focus:outline-hidden"
+                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-semibold text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
               >
                 <option value="IDR">IDR (Indonesian Rupiah)</option>
                 <option value="USD">USD (United States Dollar)</option>
@@ -209,7 +232,7 @@ export function SettingsModal({ open, onClose }: Props) {
               <p className="text-[10px] text-[var(--muted)] mt-1 tabular font-medium">
                 {ratesData?.usdidr
                   ? `Kurs: 1 USD ≈ Rp ${ratesData.usdidr.toLocaleString("id-ID")}`
-                  : "Kurs: 1 USD ≈ Rp 16.500"}
+                  : "Kurs belum tersedia"}
               </p>
             </div>
           </div>
@@ -224,7 +247,7 @@ export function SettingsModal({ open, onClose }: Props) {
           <div className="space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[var(--text)]">
+                <label htmlFor="settings-emergency-multiplier" className="text-xs font-medium text-[var(--text)]">
                   Target Ketahanan Dana (Bulan)
                 </label>
                 <span className="text-[11px] font-bold text-income tabular">
@@ -232,6 +255,8 @@ export function SettingsModal({ open, onClose }: Props) {
                 </span>
               </div>
               <Input
+                id="settings-emergency-multiplier"
+                name="emergency_fund_multiplier"
                 type="number"
                 min={1}
                 max={36}
@@ -245,10 +270,12 @@ export function SettingsModal({ open, onClose }: Props) {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[var(--text)] mb-1">
+              <label htmlFor="settings-monthly-budget" className="block text-xs font-medium text-[var(--text)] mb-1">
                 Batas Belanja Operasional Bulanan (IDR)
               </label>
               <Input
+                id="settings-monthly-budget"
+                name="monthly_spending_budget"
                 type="text"
                 inputMode="numeric"
                 value={monthlyBudget}
@@ -263,7 +290,14 @@ export function SettingsModal({ open, onClose }: Props) {
           </div>
         </section>
 
-        {/* Kunci API (Aplikasi Mobile & Bot) */}
+        <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] pt-3">
+          <Button type="button" variant="secondary" size="sm" onClick={onClose}>Batal</Button>
+          <Button type="submit" variant="primary" size="sm" disabled={settingsMut.isPending}>
+            {settingsMut.isPending ? "Menyimpan…" : "Simpan pengaturan"}
+          </Button>
+        </div>
+      </form>
+
         <section className="space-y-3 pt-3 border-t border-[var(--border)]">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
@@ -285,6 +319,7 @@ export function SettingsModal({ open, onClose }: Props) {
               <div className="flex items-center gap-2">
                 <input
                   type="text"
+                  aria-label="Kunci API baru"
                   readOnly
                   value={newPlainKey}
                   className="flex-1 font-mono text-xs p-2 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] select-all"
@@ -356,7 +391,7 @@ export function SettingsModal({ open, onClose }: Props) {
                       disabled={rotateKeyMut.isPending}
                       className="bg-rose-600 hover:bg-rose-700 text-white"
                     >
-                      {rotateKeyMut.isPending ? "Membuat..." : "Ya, Buat Kunci Baru"}
+                      {rotateKeyMut.isPending ? "Membuat…" : "Ya, Buat Kunci Baru"}
                     </Button>
                   </div>
                 </div>
@@ -376,25 +411,6 @@ export function SettingsModal({ open, onClose }: Props) {
           )}
         </section>
 
-        {/* Action Footer */}
-        <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border)]">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={onClose}
-          >
-            Batal
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => settingsMut.mutate()}
-            disabled={settingsMut.isPending}
-          >
-            {settingsMut.isPending ? "Menyimpan..." : "Simpan Pengaturan"}
-          </Button>
-        </div>
-      </div>
     </Modal>
   );
 }

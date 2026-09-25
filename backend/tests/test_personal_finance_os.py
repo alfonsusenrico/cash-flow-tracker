@@ -911,16 +911,21 @@ def test_obligation_auto_archive_and_reversal_in_transactions():
 
             # Mock account query for create_transaction
             mock_cur.fetchone.side_effect = [
-                {"id": "acc-1", "name": "BCA", "parent_id": None, "type": "cash", "default_pocket_id": None}, # account
-                {"id": "cat-1", "name": "Cicilan"}, # category
+                {"id": "cat-1", "kind": "expense"}, # category
                 {"id": "ob-1"}, # obligation check
                 {"kakeibo_type": "need", "is_primary": True}, # category kakeibo query
                 {"id": "tx-123", "created_at": datetime.datetime.now(datetime.timezone.utc)}, # insert returning
             ]
+            mock_cur.fetchall.side_effect = [
+                [{"id": "11111111-1111-1111-1111-111111111111", "name": "BCA", "parent_id": None, "type": "cash", "default_pocket_id": None}],
+                [],
+            ]
 
             with TestClient(app) as client:
                 # 1. Create transaction linked to obligation
-                res = client.post(
+                with patch("app.routers.transactions.lock_owned_accounts", return_value={"11111111-1111-1111-1111-111111111111": {"id": "11111111-1111-1111-1111-111111111111", "type": "cash"}}), \
+                     patch("app.routers.transactions.ensure_sufficient_funds", return_value=500000):
+                    res = client.post(
                     "/api/transactions",
                     json={
                         "account_id": "11111111-1111-1111-1111-111111111111",
@@ -930,7 +935,7 @@ def test_obligation_auto_archive_and_reversal_in_transactions():
                         "amount": 500000,
                         "date": "2026-09-21T08:00:00Z",
                     },
-                )
+                    )
                 assert res.status_code == 200
 
                 # Verify UPDATE obligations SQL includes is_archived case expression
@@ -947,6 +952,8 @@ def test_obligation_auto_archive_and_reversal_in_transactions():
                 # 2. Delete transaction linked to obligation
                 mock_cur.reset_mock()
                 mock_cur.fetchone.side_effect = None
+                mock_cur.fetchall.side_effect = None
+                mock_cur.fetchall.return_value = []
                 mock_cur.fetchone.return_value = {
                     "type": "expense",
                     "amount": 500000,
@@ -1035,7 +1042,12 @@ def test_list_and_update_obligations_auto_archive():
                     json={"remaining_amount": 0},
                 )
                 assert res_patch.status_code == 200
-                patch_call = mock_cur.execute.call_args_list[0][0][0]
-                assert "is_archived = TRUE" in patch_call
+                update_call = next(
+                    call for call in mock_cur.execute.call_args_list
+                    if "UPDATE obligations" in str(call[0][0])
+                )
+                update_sql, update_params = update_call[0]
+                assert "is_archived = %s" in update_sql
+                assert update_params[2] == 0
 
         app.dependency_overrides.clear()

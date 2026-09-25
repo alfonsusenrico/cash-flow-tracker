@@ -318,17 +318,24 @@ def test_record_investment_buy_trade_accumulates_units_and_weighted_average_pric
     funding_id = str(uuid4())
     bbri_id = str(uuid4())
 
-    with patch("app.routers.transactions.db_conn") as mock_conn:
+    locked = {
+        funding_id: {"id": funding_id, "type": "bank", "instrument_type": None},
+        bbri_id: {"id": bbri_id, "type": "investment", "instrument_type": "stock", "units": 1400.0, "avg_buy_price": 3340},
+    }
+    with patch("app.routers.transactions.db_conn") as mock_conn, \
+         patch("app.routers.transactions.lock_owned_accounts", return_value=locked), \
+         patch("app.routers.movements._ensure_internal_movement_categories", return_value=("expense-cat", "income-cat")), \
+         patch("app.services.ledger_mutations.create_bilateral_movement", return_value={"movement_id": "movement", "expense_transaction_id": "out", "income_transaction_id": "in"}):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
-        # Validate funding account, validate target account, insert tx, fetch invest account
-        cur.fetchone.side_effect = [
-            {"id": funding_id},  # source account check
-            {"id": bbri_id},     # target account check
-            {"id": str(uuid4())}, # category Investasi check (optional)
-            {"id": str(uuid4()), "created_at": datetime.datetime.now(datetime.timezone.utc)},  # tx insert
-            {"id": bbri_id, "units": 1400.0, "avg_buy_price": 3340, "last_price": 3340},  # invest_acc query
+        cur.fetchone.return_value = {"id": str(uuid4())}
+        cur.fetchall.side_effect = [
+            [
+                {"id": funding_id, "name": "RDN", "type": "bank", "parent_id": None, "instrument_type": None, "default_pocket_id": None},
+                {"id": bbri_id, "name": "BBRI", "type": "investment", "parent_id": None, "instrument_type": "stock", "default_pocket_id": None},
+            ],
+            [],
         ]
 
         client = TestClient(app, raise_server_exceptions=True)
@@ -367,15 +374,24 @@ def test_record_investment_sell_trade_decrements_units():
     funding_id = str(uuid4())
     bbri_id = str(uuid4())
 
-    with patch("app.routers.transactions.db_conn") as mock_conn:
+    locked = {
+        funding_id: {"id": funding_id, "type": "bank", "instrument_type": None},
+        bbri_id: {"id": bbri_id, "type": "investment", "instrument_type": "stock", "units": 1400.0, "avg_buy_price": 3340},
+    }
+    with patch("app.routers.transactions.db_conn") as mock_conn, \
+         patch("app.routers.transactions.lock_owned_accounts", return_value=locked), \
+         patch("app.routers.movements._ensure_internal_movement_categories", return_value=("expense-cat", "income-cat")), \
+         patch("app.services.ledger_mutations.create_bilateral_movement", return_value={"movement_id": "movement", "expense_transaction_id": "out", "income_transaction_id": "in"}):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
-        cur.fetchone.side_effect = [
-            {"id": bbri_id},      # source account check
-            {"id": str(uuid4())},  # Investasi category lookup
-            {"id": str(uuid4()), "created_at": datetime.datetime.now(datetime.timezone.utc)},  # tx insert
-            {"id": bbri_id, "units": 1400.0, "avg_buy_price": 3340, "last_price": 3500},  # invest_acc query
+        cur.fetchone.return_value = {"id": str(uuid4())}
+        cur.fetchall.side_effect = [
+            [
+                {"id": funding_id, "name": "RDN", "type": "bank", "parent_id": None, "instrument_type": None, "default_pocket_id": None},
+                {"id": bbri_id, "name": "BBRI", "type": "investment", "parent_id": None, "instrument_type": "stock", "default_pocket_id": None},
+            ],
+            [],
         ]
 
         client = TestClient(app, raise_server_exceptions=True)
@@ -384,6 +400,7 @@ def test_record_investment_sell_trade_decrements_units():
             json={
                 "type": "income",
                 "account_id": bbri_id,
+                "target_account_id": funding_id,
                 "amount": 1750000,
                 "investment_action": "sell",
                 "units": 500.0,
@@ -413,14 +430,18 @@ def test_record_investment_buy_trade_by_account_names():
     bbri_id = str(uuid4())
     invest_cat_id = str(uuid4())
 
-    with patch("app.routers.transactions.db_conn") as mock_conn:
+    locked = {
+        rdn_id: {"id": rdn_id, "type": "bank", "instrument_type": None},
+        bbri_id: {"id": bbri_id, "type": "investment", "instrument_type": "stock", "units": 1000.0, "avg_buy_price": 3500},
+    }
+    with patch("app.routers.transactions.db_conn") as mock_conn, \
+         patch("app.routers.transactions.lock_owned_accounts", return_value=locked), \
+         patch("app.routers.movements._ensure_internal_movement_categories", return_value=("expense-cat", "income-cat")), \
+         patch("app.services.ledger_mutations.create_bilateral_movement", return_value={"movement_id": "movement", "expense_transaction_id": "out", "income_transaction_id": "in"}):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
-        cur.fetchone.side_effect = [
-            {"id": str(uuid4()), "created_at": datetime.datetime.now(datetime.timezone.utc)},  # tx insert
-            {"id": bbri_id, "units": 1000.0, "avg_buy_price": 3500, "last_price": 3500},  # invest_acc query
-        ]
+        cur.fetchone.return_value = {"kakeibo_type": None, "is_primary": False}
         cur.fetchall.side_effect = [
             [
                 {"id": rdn_id, "name": "RDN BCA", "type": "bank", "parent_id": None, "instrument_type": None, "instrument_symbol": None, "default_funding_account_id": None},
@@ -458,7 +479,7 @@ def test_record_investment_buy_trade_by_account_names():
     app.dependency_overrides.clear()
 
 
-def test_record_investment_buy_auto_provisions_new_stock_ticker():
+def test_record_investment_buy_rejects_unknown_stock_ticker():
     from uuid import uuid4
     from app.main import app
     from app.services.auth import get_current_user
@@ -505,25 +526,12 @@ def test_record_investment_buy_auto_provisions_new_stock_ticker():
                 "price_per_unit": 3000.0,
             },
         )
-        assert res.status_code == 200
-        assert res.json()["ok"] is True
+        assert res.status_code == 400
+        assert "could not be resolved" in res.json()["detail"]
 
-        # Check account was provisioned
         provision_calls = [c for c in cur.execute.call_args_list if "INSERT INTO accounts" in str(c)]
-        assert len(provision_calls) == 1
-        p_args = provision_calls[0][0][1]
-        assert p_args[1] == "TLKM"
-        assert p_args[2] == "TLKM.JK"
-
-        # Check units updated
-        update_calls = [c for c in cur.execute.call_args_list if "UPDATE accounts" in str(c)]
-        assert len(update_calls) == 1
-        u_args = update_calls[0][0][1]
-        assert u_args[0] == 1000.0
-        assert u_args[1] == 3000.0
-        assert u_args[2] == new_stock_id
+        assert len(provision_calls) == 0
 
     app.dependency_overrides.clear()
-
 
 

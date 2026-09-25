@@ -28,7 +28,11 @@ def test_create_transaction_by_name():
         "idempotency_key": "test_gopay_key_123",
     }
 
-    with patch("app.routers.transactions.db_conn") as mock_conn:
+    with patch("app.routers.transactions.db_conn") as mock_conn, \
+         patch("app.routers.transactions.lock_owned_accounts", return_value={
+             gopay_id: {"id": gopay_id, "type": "wallet"},
+         }), \
+         patch("app.routers.transactions.ensure_sufficient_funds", return_value=100000):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
@@ -89,7 +93,13 @@ def test_create_jago_pocket_movement():
         "idempotency_key": "jago_pocket_transfer_key_456",
     }
 
-    with patch("app.routers.movements.db_conn") as mock_conn:
+    locked_accounts = {
+        emergency_pocket_id: {"id": emergency_pocket_id, "type": "bank", "is_savings": True},
+        jago_parent_id: {"id": jago_parent_id, "type": "bank", "is_savings": False},
+    }
+    with patch("app.routers.movements.db_conn") as mock_conn, \
+         patch("app.routers.movements.lock_owned_accounts", return_value=locked_accounts), \
+         patch("app.services.ledger_mutations.ensure_sufficient_funds", return_value=1000000):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
@@ -123,11 +133,11 @@ def test_create_jago_pocket_movement():
         # First call is expense (outbound)
         assert insert_calls[0][0][1][1] == emergency_pocket_id
         assert insert_calls[0][0][1][2] == exp_cat_id
-        assert insert_calls[0][0][1][3] == 500000
+        assert insert_calls[0][0][1][4] == 500000
         # Second call is income (inbound)
         assert insert_calls[1][0][1][1] == jago_parent_id
         assert insert_calls[1][0][1][2] == inc_cat_id
-        assert insert_calls[1][0][1][3] == 500000
+        assert insert_calls[1][0][1][4] == 500000
 
 
 def test_create_transaction_idempotent_replay():
@@ -226,7 +236,11 @@ def test_create_transaction_routes_to_default_pocket():
     gold_id = str(uuid4())
     food_cat_id = str(uuid4())
 
-    with patch("app.routers.transactions.db_conn") as mock_conn:
+    with patch("app.routers.transactions.db_conn") as mock_conn, \
+         patch("app.routers.transactions.lock_owned_accounts", return_value={
+             atm_id: {"id": atm_id, "type": "bank"},
+         }), \
+         patch("app.routers.transactions.ensure_sufficient_funds", return_value=1000000):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 

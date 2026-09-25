@@ -8,6 +8,7 @@ import { Icon } from "@/components/ui/Icon";
 interface MobileHomeViewProps {
   dashboard: any;
   accounts: any[];
+  canTransfer: boolean;
   onOpenCapture: (type?: "expense" | "income") => void;
   onOpenTransfer: (sourceId?: string) => void;
   onOpenPayroll: () => void;
@@ -19,6 +20,7 @@ interface MobileHomeViewProps {
 export function MobileHomeView({
   dashboard,
   accounts,
+  canTransfer,
   onOpenCapture,
   onOpenTransfer,
   onOpenPayroll,
@@ -137,7 +139,9 @@ export function MobileHomeView({
         <button
           type="button"
           onClick={() => onOpenTransfer()}
-          className="flex-1 flex flex-col items-center gap-1.5 group cursor-pointer active:scale-95 transition-transform"
+          disabled={!canTransfer}
+          title={canTransfer ? undefined : "Perlu dua rekening kas aktif untuk transfer"}
+          className="flex-1 flex flex-col items-center gap-1.5 group cursor-pointer active:scale-95 transition-transform disabled:cursor-not-allowed disabled:opacity-50"
         >
           <div className="w-14 h-14 rounded-2xl bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] flex items-center justify-center shadow-2xs group-hover:bg-[var(--surface)]">
             <Icon name="repeat" className="h-5 w-5 text-sky-500 stroke-[2.5]" />
@@ -205,11 +209,14 @@ export function MobileHomeView({
               : "bg-gradient-to-br from-[#1E201E] to-[#2B2D2B] text-white border-zinc-700/40";
 
             return (
-              <div
+              <button
+                type="button"
                 key={acc.id}
                 onClick={() => onOpenTransfer(acc.id)}
+                disabled={!canTransfer || isInvest || Boolean(acc.is_archived)}
+                aria-label={`Transfer dari ${acc.name}`}
                 className={cn(
-                  "snap-start shrink-0 w-[200px] p-3.5 rounded-2xl border shadow-sm flex flex-col justify-between h-[108px] cursor-pointer active:scale-98 transition-all relative overflow-hidden",
+                  "snap-start shrink-0 w-[200px] p-3.5 rounded-2xl border shadow-sm flex flex-col justify-between h-[108px] text-left enabled:cursor-pointer enabled:active:scale-98 transition-transform relative overflow-hidden disabled:cursor-default",
                   cardBg
                 )}
               >
@@ -239,7 +246,7 @@ export function MobileHomeView({
                     {bal(acc.balance)}
                   </div>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>

@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from psycopg.errors import ForeignKeyViolation
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
@@ -120,6 +121,8 @@ def create_obligation(payload: ObligationCreate, current_user: dict = Depends(ge
             d_date = datetime.date.fromisoformat(payload.due_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid due_date format, expected YYYY-MM-DD")
+    if payload.remaining_amount > payload.total_amount:
+        raise HTTPException(status_code=422, detail="Remaining amount cannot exceed total amount")
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -152,69 +155,73 @@ def update_obligation(
     current_user: dict = Depends(get_current_user),
 ):
     user_id = current_user["id"]
-    updates = []
-    params = []
-
-    if payload.name is not None:
-        name = payload.name.strip()
-        updates.append("name = %s")
-        params.append(name)
-
-    if payload.total_amount is not None:
-        updates.append("total_amount = %s")
-        params.append(payload.total_amount)
-
-    if payload.remaining_amount is not None:
-        updates.append("remaining_amount = %s")
-        params.append(payload.remaining_amount)
-        if payload.is_archived is None:
-            if payload.remaining_amount <= 0:
-                updates.append("is_archived = TRUE")
-            else:
-                updates.append("is_archived = FALSE")
-
-    if payload.due_date is not None:
-        if payload.due_date == "":
-            updates.append("due_date = NULL")
-        else:
-            try:
-                d_date = datetime.date.fromisoformat(payload.due_date)
-                updates.append("due_date = %s")
-                params.append(d_date)
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid due_date format")
-
-    if payload.minimum_payment is not None:
-        updates.append("minimum_payment = %s")
-        params.append(payload.minimum_payment)
-
-    if payload.notes is not None:
-        updates.append("notes = %s")
-        params.append(payload.notes)
-
-    if payload.is_archived is not None:
-        updates.append("is_archived = %s")
-        params.append(payload.is_archived)
-
-    if not updates:
+    if not payload.model_fields_set:
         raise HTTPException(status_code=400, detail="No fields to update")
-
-    updates.append("updated_at = NOW()")
 
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                f"""
-                UPDATE obligations
-                SET {", ".join(updates)}
+                """
+                SELECT id, name, total_amount, remaining_amount, due_date, minimum_payment,
+                       notes, is_archived, created_at, updated_at
+                FROM obligations
                 WHERE id = %s AND user_id = %s
-                RETURNING id, name, total_amount, remaining_amount, due_date, minimum_payment, notes, is_archived, created_at, updated_at
+                FOR UPDATE
                 """,
-                (*params, str(obligation_id), user_id),
+                (str(obligation_id), user_id),
+            )
+            old = cur.fetchone()
+            if not old:
+                raise HTTPException(status_code=404, detail="Obligation not found")
+
+            total = payload.total_amount if payload.total_amount is not None else int(old["total_amount"])
+            remaining = (
+                payload.remaining_amount
+                if payload.remaining_amount is not None
+                else int(old["remaining_amount"])
+            )
+            if remaining > total:
+                raise HTTPException(status_code=422, detail="Remaining amount cannot exceed total amount")
+
+            due_date = old["due_date"]
+            if "due_date" in payload.model_fields_set:
+                if not payload.due_date:
+                    due_date = None
+                else:
+                    try:
+                        due_date = datetime.date.fromisoformat(payload.due_date)
+                    except ValueError:
+                        raise HTTPException(status_code=400, detail="Invalid due_date format")
+
+            archived = bool(old["is_archived"])
+            if payload.remaining_amount is not None:
+                archived = remaining == 0
+            if payload.is_archived is not None:
+                archived = payload.is_archived or remaining == 0
+
+            cur.execute(
+                """
+                UPDATE obligations
+                SET name = %s, total_amount = %s, remaining_amount = %s,
+                    due_date = %s, minimum_payment = %s, notes = %s,
+                    is_archived = %s, updated_at = NOW()
+                WHERE id = %s AND user_id = %s
+                RETURNING id, name, total_amount, remaining_amount, due_date,
+                          minimum_payment, notes, is_archived, created_at, updated_at
+                """,
+                (
+                    payload.name.strip() if payload.name is not None else old["name"],
+                    total,
+                    remaining,
+                    due_date,
+                    payload.minimum_payment if "minimum_payment" in payload.model_fields_set else old["minimum_payment"],
+                    payload.notes if "notes" in payload.model_fields_set else old["notes"],
+                    archived,
+                    str(obligation_id),
+                    user_id,
+                ),
             )
             row = cur.fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Obligation not found")
             conn.commit()
             return {"ok": True, "obligation": format_obligation_row(row)}
 
@@ -229,10 +236,16 @@ def delete_obligation(
     with db_conn() as conn:
         with conn.cursor() as cur:
             if hard_delete:
-                cur.execute(
-                    "DELETE FROM obligations WHERE id = %s AND user_id = %s RETURNING id",
-                    (str(obligation_id), user_id),
-                )
+                try:
+                    cur.execute(
+                        "DELETE FROM obligations WHERE id = %s AND user_id = %s RETURNING id",
+                        (str(obligation_id), user_id),
+                    )
+                except ForeignKeyViolation as error:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Hapus atau pindahkan pembayaran yang terkait sebelum menghapus tagihan ini secara permanen.",
+                    ) from error
             else:
                 cur.execute(
                     """

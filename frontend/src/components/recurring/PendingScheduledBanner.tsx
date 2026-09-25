@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
 import { fmtMoney } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { RecurringRule } from "@/types/recurring";
@@ -14,21 +14,9 @@ interface Props {
 export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
   const qc = useQueryClient();
 
-  // 1. Silently trigger auto-post processing for due rules on initial mount
-  useEffect(() => {
-    api.post("/recurring/process-due", {}).then((res: any) => {
-      if (res?.processed_count > 0) {
-        qc.invalidateQueries({ queryKey: ["accounts"] });
-        qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-        qc.invalidateQueries({ queryKey: ["transactions"] });
-        qc.invalidateQueries({ queryKey: ["obligations"] });
-      }
-    }).catch(() => {});
-  }, [qc]);
-
-  // 2. Fetch pending rules requiring manual confirmation
+  // Automatic execution is owned by the server scheduler; the client only lists manual confirmations.
   const { data } = useQuery<{ ok: boolean; pending_count: number; rules: RecurringRule[] }>({
-    queryKey: ["recurring-pending"],
+    queryKey: queryKeys.recurring.pending,
     queryFn: () => api.get("/recurring/pending"),
     refetchInterval: 30000,
   });
@@ -41,12 +29,11 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
       return api.post("/recurring/execute", { rule_ids: ruleIds });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["recurring-pending"] });
-      qc.invalidateQueries({ queryKey: ["recurring-rules"] });
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["obligations"] });
+      qc.invalidateQueries({ queryKey: queryKeys.recurring.all });
+      qc.invalidateQueries({ queryKey: queryKeys.accounts });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      qc.invalidateQueries({ queryKey: queryKeys.obligations });
     },
   });
 
@@ -81,7 +68,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
             <button
               type="button"
               onClick={onOpenRulesManager}
-              className="px-3 py-2 rounded-xl border border-amber-500/30 bg-white/40 dark:bg-black/20 text-xs font-semibold hover:bg-amber-500/20 transition-all text-amber-700 dark:text-amber-300"
+              className="min-h-11 px-3 py-2 rounded-xl border border-amber-500/30 bg-white/40 dark:bg-black/20 text-xs font-semibold hover:bg-amber-500/20 transition-colors motion-reduce:transition-none text-amber-700 dark:text-amber-300"
             >
               Kelola Aturan
             </button>
@@ -91,13 +78,19 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
             type="button"
             disabled={executeMutation.isPending}
             onClick={() => executeMutation.mutate(pendingRules.map((r) => r.id))}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all active:scale-95 shadow-xs disabled:opacity-50"
+            className="min-h-11 flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-[background-color,transform] active:scale-95 shadow-xs disabled:opacity-50 motion-reduce:transition-none"
           >
             <Icon name="check" className="h-3.5 w-3.5" />
-            <span>{executeMutation.isPending ? "Mencatat..." : "Konfirmasi & Catat Semua"}</span>
+            <span>{executeMutation.isPending ? "Mencatat…" : "Konfirmasi & Catat Semua"}</span>
           </button>
         </div>
       </div>
+
+      {executeMutation.error && (
+        <p role="alert" className="text-xs font-medium text-rose-700 dark:text-rose-300">
+          {executeMutation.error.message || "Transaksi gagal dicatat. Periksa saldo dan coba lagi."}
+        </p>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1 border-t border-amber-500/15">
         {pendingRules.map((rule) => {
@@ -121,8 +114,8 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                   type="button"
                   disabled={executeMutation.isPending}
                   onClick={() => executeMutation.mutate([rule.id])}
-                  className="p-1 rounded-lg hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-colors"
-                  title="Catat transaksi ini"
+                  aria-label={`Catat ${rule.name}`}
+                  className="min-h-11 min-w-11 p-1 rounded-lg hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-colors motion-reduce:transition-none"
                 >
                   <Icon name="check" className="h-3.5 w-3.5" />
                 </button>

@@ -234,6 +234,8 @@ npm run lint
 npm run build
 
 # Docker Orchestration
+# Preflight before local startup; repair aligns V14 only and allows only independently verified pending versions.
+python3 scripts/flyway_v14_preflight.py --project-name cash-flow-tracker
 docker compose up -d
 docker compose build api && docker compose up -d --no-deps api
 docker compose down

@@ -16,6 +16,7 @@ export interface LedgerTxItem {
   goal_name: string | null;
   obligation_id: string | null;
   obligation_name: string | null;
+  obligation_allocations?: { obligation_id: string; obligation_name: string; amount: number }[];
   type: "expense" | "income";
   amount: number;
   notes: string | null;
@@ -165,10 +166,11 @@ export function MobileLedgerFeed({
                 const isIncome = tx.type === "income" && !isMovement;
 
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={tx.id}
                     onClick={() => onOpenEdit(tx)}
-                    className="p-3 flex items-center justify-between hover:bg-[var(--surface-raised)]/60 active:bg-[var(--surface-raised)] transition-all cursor-pointer group"
+                    className="w-full p-3 text-left flex items-center justify-between hover:bg-[var(--surface-raised)]/60 active:bg-[var(--surface-raised)] transition-all cursor-pointer group focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--primary)]"
                   >
                     {/* Left: Icon + Description */}
                     <div className="flex items-center gap-3 min-w-0 pr-2">
@@ -213,6 +215,7 @@ export function MobileLedgerFeed({
                               <span className="truncate">{tx.category_name}</span>
                             </>
                           )}
+                          {(tx.obligation_allocations?.length ?? 0) > 1 && <span>• {tx.obligation_allocations?.length} tagihan</span>}
                           {tx.kakeibo_type && (
                             <>
                               <span>•</span>
@@ -222,6 +225,11 @@ export function MobileLedgerFeed({
                             </>
                           )}
                         </div>
+                        {(tx.obligation_allocations?.length ?? 0) > 1 && (
+                          <div className="mt-1 truncate text-[10px] tabular-nums text-[var(--muted)]" title={tx.obligation_allocations?.map((item) => `${item.obligation_name}: ${bal(item.amount)}`).join(" · ")}>
+                            {tx.obligation_allocations?.map((item) => `${item.obligation_name} ${bal(item.amount)}`).join(" · ")}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -251,7 +259,7 @@ export function MobileLedgerFeed({
                         </span>
                       )}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

@@ -3,15 +3,21 @@
 import { useState, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
 import { cn, fmtMoney, formatNumberWithDots, parseNumberFromDots, formatDecimalInput, parseDecimal, parseUnits } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Modal } from "@/components/ui/Modal";
-import { Icon } from "@/components/ui/Icon";
+import { MonetaryInput } from "@/components/ui/FormField";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
+import { Icon } from "@/components/ui/Icon";
+import { InternalMovementModal } from "@/components/ui/InternalMovementModal";
+import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
+import { AccountOptions } from "@/components/ui/AccountOptions";
 import { PayrollAllocationModal } from "@/components/recurring/PayrollAllocationModal";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { InvestmentTradeModal } from "@/components/ui/InvestmentTradeModal";
+import { listLiquidAccountChoices } from "@/lib/accountOptions";
 
 function getContrastTextColor(hexColor?: string): string {
   if (!hexColor || !hexColor.startsWith("#")) return "#FFFFFF";
@@ -20,8 +26,12 @@ function getContrastTextColor(hexColor?: string): string {
   const r = parseInt(hex.length === 3 ? hex[0] + hex[0] : hex.slice(0, 2), 16);
   const g = parseInt(hex.length === 3 ? hex[1] + hex[1] : hex.slice(2, 4), 16);
   const b = parseInt(hex.length === 3 ? hex[2] + hex[2] : hex.slice(4, 6), 16);
-  const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-  return luminance > 150 ? "#0F172A" : "#FFFFFF";
+  const linear = (channel: number) => {
+    const value = channel / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+  return luminance > 0.179 ? "#000000" : "#FFFFFF";
 }
 
 const ACCOUNT_TAG_COLORS = [
@@ -106,9 +116,6 @@ export default function AccountsPage() {
   // Transfer form
   const [fromAccountId, setFromAccountId] = useState("");
   const [toAccountId, setToAccountId] = useState("");
-  const [transferAmount, setTransferAmount] = useState("");
-  const [transferNotes, setTransferNotes] = useState("");
-  const [transferError, setTransferError] = useState("");
 
   // Instrument Options
   const INSTRUMENT_OPTIONS = [
@@ -156,9 +163,9 @@ export default function AccountsPage() {
         return {
           unitsLabel: "Nominal Pokok Deposito (IDR)",
           unitsPlaceholder: "Contoh: 10.000.000",
-          unitsHint: "Nominal dana yang didepositokan",
-          priceLabel: "Bunga / Imbal Hasil p.a (%)",
-          pricePlaceholder: "Contoh: 5",
+          unitsHint: "Masukkan pokok pada nilai pembukaan di bawah",
+          priceLabel: "",
+          pricePlaceholder: "",
           totalLabel: "Total Pokok Deposito (IDR)",
           unitUnit: "IDR",
         };
@@ -221,9 +228,8 @@ export default function AccountsPage() {
       return api.post<{ ok: boolean; symbols_checked: number; accounts_updated: number }>("/accounts/sync-prices");
     },
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-net-worth"] });
+      qc.invalidateQueries({ queryKey: queryKeys.accounts });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       setSyncMessage(`Sync selesai: ${data.accounts_updated} akun diperbarui`);
       setTimeout(() => setSyncMessage(null), 4000);
     },
@@ -248,9 +254,8 @@ export default function AccountsPage() {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-net-worth"] });
+      qc.invalidateQueries({ queryKey: queryKeys.accounts });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       setValuationAccount(null);
     },
     onError: (err: any) => {
@@ -310,10 +315,23 @@ export default function AccountsPage() {
     mutationFn: async (accountIds: string[]) => {
       return api.post("/accounts/reorder", { account_ids: accountIds });
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["accounts"] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.accounts });
+      setOrderedAccountIds(null);
+      setOrderedPocketsByParent({});
+      setOrderError("");
+      setOrderStatus("Urutan rekening tersimpan.");
+    },
+    onError: () => {
+      setOrderedAccountIds(null);
+      setOrderedPocketsByParent({});
+      setOrderError("Urutan gagal disimpan. Coba lagi.");
+      setOrderStatus("");
     },
   });
+  const [orderError, setOrderError] = useState("");
+  const [orderStatus, setOrderStatus] = useState("");
+  const [accountActionError, setAccountActionError] = useState("");
 
   // Pocket form
   const [pocketModalOpen, setPocketModalOpen] = useState(false);
@@ -340,37 +358,41 @@ export default function AccountsPage() {
     mutationFn: async () => {
       if (!reconcileAccount) return;
       const clean = actualBalStr.trim().replace(/[^0-9]/g, "");
-      const actual = clean ? parseInt(clean, 10) : 0;
+      if (!clean) throw new Error("Masukkan saldo aktual sebelum menyesuaikan rekening.");
+      const actual = parseInt(clean, 10);
       return api.post(`/accounts/${reconcileAccount.id}/reconcile`, {
         actual_balance: actual,
         notes: reconcileNotes.trim() || null,
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-net-worth"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-analytics"] });
-      qc.invalidateQueries({ queryKey: ["transactions-ledger"] });
+      qc.invalidateQueries({ queryKey: queryKeys.accounts });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
       setReconcileAccount(null);
     },
     onError: (err: any) => {
       setReconcileError(err?.message || "Gagal menyesuaikan saldo");
+      document.getElementById("reconcile-actual-balance")?.focus();
     },
   });
 
   const { data: accountsData, isLoading: accountsLoading } = useQuery<AccountsResponse>({
-    queryKey: ["accounts"],
+    queryKey: queryKeys.accounts,
     queryFn: () => api.get("/accounts"),
   });
 
   const { data: netWorthData, isLoading: netWorthLoading } = useQuery<NetWorthResponse>({
-    queryKey: ["dashboard-net-worth"],
+    queryKey: queryKeys.dashboard.netWorth,
     queryFn: () => api.get("/dashboard/net-worth"),
   });
 
   const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData?.accounts]);
   const activeAccounts = useMemo(() => accounts.filter((a) => !a.is_archived), [accounts]);
+  const liquidAccounts = useMemo(
+    () => listLiquidAccountChoices(activeAccounts).filter((account) => !account.is_archived),
+    [activeAccounts],
+  );
   const totalBalance = accountsData?.total_balance ?? 0;
 
   const topAccounts = useMemo(() => {
@@ -385,6 +407,7 @@ export default function AccountsPage() {
       return idxA - idxB;
     });
   }, [activeAccounts, orderedAccountIds]);
+  const totalPocketCount = topAccounts.reduce((count, account) => count + (account.children?.length ?? 0), 0);
 
   const [mobileAccountFilter, setMobileAccountFilter] = useState<
     "all" | "bank_wallet" | "cash" | "investment"
@@ -416,20 +439,20 @@ export default function AccountsPage() {
 
   // Open Transfer modal preselected
   const handleOpenTransfer = (sourceAccId?: string) => {
-    const transactable = activeAccounts;
+    const transactable = liquidAccounts;
     if (transactable.length < 2) {
-      alert("Anda membutuhkan minimal 2 rekening atau kantong untuk melakukan pindah saldo.");
       return;
     }
-    const source = sourceAccId || transactable[0].id;
+    const source = transactable.some((account) => account.id === sourceAccId)
+      ? sourceAccId!
+      : transactable[0].id;
     const dest = transactable.find((a) => a.id !== source)?.id || transactable[1].id;
     setFromAccountId(source);
     setToAccountId(dest);
-    setTransferAmount("");
-    setTransferNotes("");
-    setTransferError("");
     setTransferModalOpen(true);
   };
+  const canTransferFrom = (accountId: string) =>
+    liquidAccounts.length >= 2 && liquidAccounts.some((account) => account.id === accountId);
 
   // Open Add Account modal
   const handleOpenNewAccount = () => {
@@ -494,13 +517,20 @@ export default function AccountsPage() {
       if (!name) throw new Error("Nama kantong wajib diisi");
       const initBal = parseNumberFromDots(pocketInitBal);
       const isInvest = pocketIsInvestment;
-      const pUnitsNum = isInvest && pocketUnits.trim() ? parseUnits(pocketUnits.trim()) : undefined;
-      const pAvgPriceNum = isInvest && pocketAvgBuyPrice.trim() ? parseDecimal(pocketAvgBuyPrice.trim()) : undefined;
-      const pTickerSymbol = isInvest && pocketTicker.trim() ? pocketTicker.trim().toUpperCase() : undefined;
+      const tracksUnits = isInvest && pocketInstrumentType !== "deposit";
+      const pUnitsNum = tracksUnits && pocketUnits.trim() ? parseUnits(pocketUnits.trim()) : undefined;
+      const pAvgPriceNum = tracksUnits && pocketAvgBuyPrice.trim() ? parseDecimal(pocketAvgBuyPrice.trim()) : undefined;
+      const pTickerSymbol = tracksUnits && pocketTicker.trim() ? pocketTicker.trim().toUpperCase() : undefined;
+      let pocketType = pocketParentAccount.type;
+      if (isInvest) {
+        pocketType = "investment";
+      } else if (pocketType === "investment") {
+        pocketType = "bank";
+      }
 
       return api.post("/accounts", {
         name,
-        type: isInvest ? "investment" : pocketParentAccount.type,
+        type: pocketType,
         parent_id: pocketParentAccount.id,
         initial_balance: initBal,
         instrument_type: isInvest ? pocketInstrumentType : null,
@@ -510,40 +540,18 @@ export default function AccountsPage() {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-net-worth"] });
+      qc.invalidateQueries({ queryKey: queryKeys.accounts });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       setPocketModalOpen(false);
     },
     onError: (err: any) => {
-      setPocketError(err?.message || "Gagal membuat kantong");
-    },
-  });
-
-  // Transfer Mutation
-  const transferMutation = useMutation({
-    mutationFn: async () => {
-      const amt = parseInt(transferAmount.replace(/[^0-9]/g, ""), 10);
-      if (!amt || amt <= 0) throw new Error("Masukkan nominal uang yang valid");
-      if (!fromAccountId || !toAccountId) throw new Error("Pilih rekening asal dan tujuan");
-      if (fromAccountId === toAccountId) throw new Error("Rekening asal dan tujuan harus berbeda");
-
-      return api.post("/movements", {
-        source_account_id: fromAccountId,
-        target_account_id: toAccountId,
-        amount: amt,
-        notes: transferNotes.trim() || null,
-        date: new Date().toISOString(),
-      });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-net-worth"] });
-      setTransferModalOpen(false);
-    },
-    onError: (err: any) => {
-      setTransferError(err?.message || "Pindah saldo gagal");
+      const message = err?.message || "Gagal membuat kantong";
+      setPocketError(message);
+      if (/nama kantong|pocket name/i.test(message)) {
+        document.getElementById("pocket-name")?.focus();
+      } else if (/saldo|initial_balance/i.test(message)) {
+        document.getElementById("pocket-initial-balance")?.focus();
+      }
     },
   });
 
@@ -559,20 +567,35 @@ export default function AccountsPage() {
       const isInvestTop = !isEditingPocket && accType === "investment";
       const hasInstrument = isEditingPocket ? isInvestPocket : (isInvestTop && !accIsMultiInstrument);
 
-      const unitsNum = hasInstrument && accUnits.trim() ? parseUnits(accUnits.trim()) : null;
-      const avgPriceNum = hasInstrument && accAvgBuyPrice.trim() ? parseDecimal(accAvgBuyPrice.trim()) : null;
-      const tickerSymbol = hasInstrument && accTicker.trim() ? accTicker.trim().toUpperCase() : null;
+      const tracksUnits = hasInstrument && accInstrumentType !== "deposit";
+      const unitsNum = tracksUnits && accUnits.trim() ? parseUnits(accUnits.trim()) : null;
+      const avgPriceNum = tracksUnits && accAvgBuyPrice.trim() ? parseDecimal(accAvgBuyPrice.trim()) : null;
+      const tickerSymbol = hasInstrument && accInstrumentType !== "deposit" && accTicker.trim()
+        ? accTicker.trim().toUpperCase()
+        : null;
 
       const defaultFunding = !isEditingPocket && accType === "investment" && accDefaultFundingId.trim() ? accDefaultFundingId.trim() : null;
+      const openingBalance = accType === "investment" && accIsMultiInstrument ? 0 : initBal;
+      let savedType = accType;
+      if (isEditingPocket && editingAccount) {
+        savedType = editingAccount.type;
+        if (isInvestPocket) {
+          savedType = "investment";
+        } else if (savedType === "investment") {
+          savedType = "bank";
+        }
+      }
 
       if (editingAccount) {
         return api.patch(`/accounts/${editingAccount.id}`, {
           name,
-          type: isEditingPocket ? (isInvestPocket ? "investment" : editingAccount.type) : accType,
+          type: savedType,
           instrument_type: hasInstrument ? accInstrumentType : null,
           instrument_symbol: tickerSymbol,
-          units: unitsNum,
-          avg_buy_price: avgPriceNum,
+          ...(!(hasInstrument && accInstrumentType === "deposit" && editingAccount.instrument_type === "deposit") ? {
+            units: unitsNum,
+            avg_buy_price: avgPriceNum,
+          } : {}),
           ...(!isEditingPocket ? {
             color: accColor,
             default_funding_account_id: accType === "investment" ? defaultFunding : null,
@@ -583,7 +606,7 @@ export default function AccountsPage() {
         return api.post("/accounts", {
           name,
           type: accType,
-          initial_balance: initBal,
+          initial_balance: openingBalance,
           instrument_type: hasInstrument ? accInstrumentType : null,
           instrument_symbol: tickerSymbol,
           units: unitsNum,
@@ -594,13 +617,20 @@ export default function AccountsPage() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-net-worth"] });
+      qc.invalidateQueries({ queryKey: queryKeys.accounts });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       setAccountModalOpen(false);
     },
     onError: (err: any) => {
-      setAccError(err?.message || "Operation failed");
+      const message = err?.message || "Gagal menyimpan rekening";
+      setAccError(message);
+      if (/nama rekening|account name/i.test(message)) {
+        document.getElementById("account-name")?.focus();
+      } else if (/kantong default|default pocket/i.test(message)) {
+        document.getElementById("account-default-pocket")?.focus();
+      } else if (/saldo|initial_balance/i.test(message)) {
+        document.getElementById("account-initial-balance")?.focus();
+      }
     },
   });
 
@@ -610,10 +640,11 @@ export default function AccountsPage() {
       return api.del(`/accounts/${accId}`);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-overview"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-net-worth"] });
+      qc.invalidateQueries({ queryKey: queryKeys.accounts });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      setAccountActionError("");
     },
+    onError: (error: Error) => setAccountActionError(error.message || "Rekening gagal diarsipkan. Coba lagi."),
   });
 
   if (accountsLoading || netWorthLoading) {
@@ -682,10 +713,261 @@ export default function AccountsPage() {
   const cashPct = Math.round((Math.max(0, cashTotal) / positiveAssets) * 100);
   const investPct = Math.round((Math.max(0, investTotal) / positiveAssets) * 100);
 
+  const accountNameError = /nama rekening|account name/i.test(accError) ? accError : undefined;
+  const accountBalanceError = /saldo|initial_balance/i.test(accError) ? accError : undefined;
+  const defaultPocketError = /kantong default|default pocket/i.test(accError) ? accError : undefined;
+  const pocketNameError = /nama kantong|pocket name/i.test(pocketError) ? pocketError : undefined;
+  const pocketBalanceError = /saldo|initial_balance/i.test(pocketError) ? pocketError : undefined;
+
+  const orderedChildren = (account: AccountItem) => {
+    const children = account.children ?? [];
+    const order = orderedPocketsByParent[account.id];
+    if (!order) return children;
+    return [...children].sort((left, right) => order.indexOf(left.id) - order.indexOf(right.id));
+  };
+
+  const submitOrder = (ids: string[], parentId?: string) => {
+    setOrderError("");
+    setOrderStatus("");
+    if (parentId) {
+      setOrderedPocketsByParent((current) => ({ ...current, [parentId]: ids }));
+    } else {
+      setOrderedAccountIds(ids);
+    }
+    reorderMutation.mutate(ids);
+  };
+
+  const moveId = (ids: string[], id: string, destination: number, parentId?: string) => {
+    const source = ids.indexOf(id);
+    if (source < 0 || destination < 0 || destination >= ids.length || source === destination) return;
+    const next = [...ids];
+    next.splice(source, 1);
+    next.splice(destination, 0, id);
+    submitOrder(next, parentId);
+  };
+
+  const openTrade = (account: AccountItem, action: "buy" | "sell") => {
+    setTradePocket(account);
+    setTradeAction(action);
+    setTradeModalOpen(true);
+  };
+
+  const openReconciliation = (account: AccountItem) => {
+    setReconcileAccount(account);
+    setActualBalStr(formatNumberWithDots(account.balance));
+    setReconcileNotes("");
+    setReconcileError("");
+  };
+
+  const actionClass = "inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-50";
+
+  const renderAccountGroup = (account: AccountItem, viewport: "desktop" | "mobile") => {
+    const children = orderedChildren(account);
+    const hasChildren = children.length > 0;
+    const expanded = expandedAccounts[account.id] !== false;
+    const topIndex = topAccounts.findIndex((item) => item.id === account.id);
+    const isPosition = !hasChildren && Boolean(
+      account.instrument_type || account.instrument_symbol || account.units !== null && account.units !== undefined ||
+      account.avg_buy_price !== null && account.avg_buy_price !== undefined ||
+      account.last_price !== null && account.last_price !== undefined
+    );
+    const kind = account.type === "wallet" ? "Dompet digital" : account.type === "cash" ? "Tunai" : account.type === "investment" ? "Investasi" : "Bank";
+
+    return (
+      <section
+        key={account.id}
+        aria-label={`Rekening ${account.name}`}
+        onDragOver={(event) => {
+          event.preventDefault();
+          if (draggedAccountId && draggedAccountId !== account.id) setDragOverAccountId(account.id);
+        }}
+        onDragLeave={() => setDragOverAccountId(null)}
+        onDrop={(event) => {
+          event.preventDefault();
+          if (draggedAccountId && draggedAccountId !== account.id) {
+            moveId(topAccounts.map((item) => item.id), draggedAccountId, topIndex);
+          }
+          setDraggedAccountId(null);
+          setDragOverAccountId(null);
+        }}
+        className={cn(
+          "flex h-[28rem] min-h-0 flex-col scroll-mt-20 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs",
+          dragOverAccountId === account.id && "ring-2 ring-[var(--primary)]",
+          draggedAccountId === account.id && "opacity-50"
+        )}
+      >
+        <div className="flex shrink-0 flex-col gap-3 p-4 sm:p-5">
+          <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="flex min-w-0 items-start gap-2.5">
+            <span
+              draggable
+              aria-hidden="true"
+              onDragStart={(event) => {
+                setDraggedAccountId(account.id);
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", account.id);
+              }}
+              onDragEnd={() => {
+                setDraggedAccountId(null);
+                setDragOverAccountId(null);
+              }}
+              className="hidden cursor-grab select-none pt-2 text-lg text-[var(--muted)] lg:inline-flex"
+              title="Geser untuk mengubah urutan rekening"
+            >
+              ⋮⋮
+            </span>
+            <div className="min-w-0 space-y-2">
+              <h2 className="text-base font-bold leading-snug">
+                <span
+                  style={{ backgroundColor: account.color || "#3b82f6", color: getContrastTextColor(account.color || "#3b82f6") }}
+                  className="inline-block max-w-full break-words rounded-lg px-3 py-1.5"
+                >
+                  {account.name}
+                </span>
+              </h2>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--muted)]">
+                <span>{kind}</span>
+                {hasChildren && <span className="inline-flex items-center gap-0.5">{children.length} kantong <button type="button" onClick={() => toggleExpand(account.id)} aria-label={`${expanded ? "Tutup" : "Buka"} kantong ${account.name}`} aria-expanded={expanded} aria-controls={expanded ? `pockets-${viewport}-${account.id}` : undefined} title={expanded ? "Tutup kantong" : "Buka kantong"} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg hover:bg-[var(--surface-raised)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]"><Icon name="chevron-down" className={cn("h-4 w-4 transition-transform", !expanded && "-rotate-90")} /></button></span>}
+                {account.instrument_symbol && <span>{account.instrument_symbol}</span>}
+                {account.instrument_type && <span>{INSTRUMENT_OPTIONS.find((option) => option.value === account.instrument_type)?.label}</span>}
+                {account.default_funding_account_name && <span>RDN: {account.default_funding_account_name}</span>}
+              </div>
+            </div>
+          </div>
+          <div className="flex max-w-[55%] shrink-0 flex-wrap justify-end gap-1.5">
+            {isPosition ? (
+              <>
+                <button type="button" onClick={() => openTrade(account, "buy")} className={cn(actionClass, "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300")}>Beli</button>
+                <button type="button" onClick={() => openTrade(account, "sell")} className={cn(actionClass, "bg-rose-500/15 text-rose-700 dark:text-rose-300")}>Jual</button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleOpenNewPocket(account)}
+                aria-label={`Tambah kantong ${account.name}`}
+                title="Tambah kantong"
+                className={cn(actionClass, "min-w-11 bg-[var(--text)] px-2 text-[var(--surface)]")}
+              >
+                <Icon name="plus" className="h-4 w-4" />
+              </button>
+            )}
+            <AccountOptions name={account.name} iconOnly>
+              {canTransferFrom(account.id) && (
+                <button type="button" onClick={() => handleOpenTransfer(account.id)}>
+                  Pindah Saldo
+                </button>
+              )}
+              {isPosition && <button type="button" onClick={() => handleOpenValuation(account)}>Update Nilai</button>}
+              {!hasChildren && <button type="button" onClick={() => openReconciliation(account)}>Sesuaikan Saldo</button>}
+              <button type="button" onClick={() => handleOpenEditAccount(account)}>Ubah rekening</button>
+              <button type="button" onClick={() => moveId(topAccounts.map((item) => item.id), account.id, topIndex - 1)} disabled={topIndex === 0 || reorderMutation.isPending}>Naikkan urutan</button>
+              <button type="button" onClick={() => moveId(topAccounts.map((item) => item.id), account.id, topIndex + 1)} disabled={topIndex === topAccounts.length - 1 || reorderMutation.isPending}>Turunkan urutan</button>
+              <ConfirmActionButton label={`Arsipkan rekening ${account.name}`} confirmation={`Arsipkan rekening "${account.name}"${hasChildren ? " beserta seluruh kantong di dalamnya" : ""}?`} onConfirm={() => archiveMutation.mutate(account.id)} className="text-rose-600 dark:text-rose-400">Arsipkan rekening</ConfirmActionButton>
+            </AccountOptions>
+          </div>
+          </div>
+          <div className="min-w-0 pl-0 lg:pl-6">
+            <div className="break-words text-2xl font-extrabold tabular-nums tracking-tight text-[var(--text)] sm:text-3xl">
+              {bal(account.balance)}
+            </div>
+            {account.capital_gain !== null && account.capital_gain !== undefined && (
+              <p className={cn("text-xs font-semibold tabular-nums", account.capital_gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                Capital Gain: {account.capital_gain >= 0 ? "+" : ""}{bal(account.capital_gain)} ({account.capital_gain_pct ?? 0}%)
+              </p>
+            )}
+            {!hasChildren && isPosition && (account.last_price || account.avg_buy_price) && (
+              <p className="text-xs text-[var(--muted)] tabular-nums">
+                {account.last_price ? `Pasar ${fmtMoney(account.last_price)}` : ""}
+                {account.last_price && account.avg_buy_price ? " · " : ""}
+                {account.avg_buy_price ? `Modal beli ${fmtMoney(account.avg_buy_price)}` : ""}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {hasChildren && expanded && (
+          <div
+            id={`pockets-${viewport}-${account.id}`}
+            role="region"
+            aria-label={`${children.length} kantong ${account.name}`}
+            tabIndex={0}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-[var(--border)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--primary)]"
+          >
+            {children.map((pocket, index) => {
+              const position = pocket.type === "investment" || Boolean(pocket.instrument_type);
+              return (
+                <div
+                  key={pocket.id}
+                  role="group"
+                  aria-label={`Kantong ${pocket.name}`}
+                  onDragOver={(event) => {
+                    if (!draggedPocketId) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (draggedPocketId !== pocket.id) setDragOverPocketId(pocket.id);
+                  }}
+                  onDragLeave={(event) => {
+                    if (!draggedPocketId) return;
+                    event.stopPropagation();
+                    setDragOverPocketId(null);
+                  }}
+                  onDrop={(event) => {
+                    if (!draggedPocketId) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (draggedPocketId !== pocket.id) {
+                      moveId(children.map((item) => item.id), draggedPocketId, index, account.id);
+                    }
+                    setDraggedPocketId(null);
+                    setDragOverPocketId(null);
+                  }}
+                  className={cn("grid gap-2 border-b border-[var(--border)] px-4 py-3 last:border-b-0 sm:px-5", dragOverPocketId === pocket.id && "bg-[var(--surface-raised)] ring-2 ring-inset ring-[var(--primary)]", draggedPocketId === pocket.id && "opacity-50")}
+                >
+                  <div className="flex min-w-0 items-start justify-between gap-2.5">
+                  <div className="flex min-w-0 items-start gap-2.5">
+                    <span draggable aria-hidden="true" onDragStart={(event) => { event.stopPropagation(); setDraggedPocketId(pocket.id); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", pocket.id); }} onDragEnd={(event) => { event.stopPropagation(); setDraggedPocketId(null); setDragOverPocketId(null); }} className="hidden cursor-grab select-none pt-1 text-base text-[var(--muted)] lg:inline-flex" title="Geser untuk mengubah urutan kantong">⋮⋮</span>
+                    <div className="min-w-0 space-y-1">
+                      <h3 className="break-words text-sm font-semibold text-[var(--text)]">{pocket.name}</h3>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--muted)]">
+                        {pocket.instrument_symbol && <span>{pocket.instrument_symbol}</span>}
+                        {pocket.instrument_type && <span>{INSTRUMENT_OPTIONS.find((option) => option.value === pocket.instrument_type)?.label}</span>}
+                        {pocket.units ? <span className="tabular-nums">{pocket.units.toLocaleString("id-ID")} {getInstrumentConfig(pocket.instrument_type).unitUnit}{pocket.instrument_type === "stock" ? ` (${(pocket.units / 100).toLocaleString("id-ID")} lot)` : ""}</span> : null}
+                      </div>
+                    </div>
+                  </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {position ? <>
+                        <button type="button" onClick={() => openTrade(pocket, "buy")} className={cn(actionClass, "bg-emerald-500/15 px-2.5 text-emerald-700 dark:text-emerald-300")}>Beli</button>
+                        <button type="button" onClick={() => openTrade(pocket, "sell")} className={cn(actionClass, "bg-rose-500/15 px-2.5 text-rose-700 dark:text-rose-300")}>Jual</button>
+                      </> : <button type="button" onClick={() => handleOpenTransfer(pocket.id)} disabled={!canTransferFrom(pocket.id)} aria-label={`Pindah saldo ${pocket.name}`} title="Pindah saldo" className={cn(actionClass, "min-w-11 bg-[var(--surface-raised)] px-2 text-[var(--text)]")}><Icon name="repeat" className="h-4 w-4" /></button>}
+                      <AccountOptions name={pocket.name} iconOnly>
+                        {position && <button type="button" onClick={() => handleOpenValuation(pocket)}>Update Nilai</button>}
+                        <button type="button" onClick={() => openReconciliation(pocket)}>Sesuaikan Saldo</button>
+                        <button type="button" onClick={() => handleOpenEditAccount(pocket)}>Ubah kantong</button>
+                        <button type="button" onClick={() => moveId(children.map((item) => item.id), pocket.id, index - 1, account.id)} disabled={index === 0 || reorderMutation.isPending}>Naikkan urutan</button>
+                        <button type="button" onClick={() => moveId(children.map((item) => item.id), pocket.id, index + 1, account.id)} disabled={index === children.length - 1 || reorderMutation.isPending}>Turunkan urutan</button>
+                        <ConfirmActionButton label={`Arsipkan kantong ${pocket.name}`} confirmation={`Arsipkan kantong "${pocket.name}"?`} onConfirm={() => archiveMutation.mutate(pocket.id)} className="text-rose-600 dark:text-rose-400">Arsipkan kantong</ConfirmActionButton>
+                      </AccountOptions>
+                    </div>
+                  </div>
+                  <div className="min-w-0 pl-0 lg:pl-7">
+                    <div className="break-words text-base font-bold tabular-nums text-[var(--text)]">{bal(pocket.balance)}</div>
+                    {pocket.capital_gain !== null && pocket.capital_gain !== undefined && <div className={cn("text-xs font-medium tabular-nums", pocket.capital_gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>Capital Gain {pocket.capital_gain >= 0 ? "+" : ""}{bal(pocket.capital_gain)} ({pocket.capital_gain_pct ?? 0}%)</div>}
+                    {(pocket.last_price || pocket.avg_buy_price) && <div className="mt-1 flex flex-wrap gap-x-3 text-xs tabular-nums text-[var(--muted)]">{pocket.last_price ? <span>Pasar {fmtMoney(pocket.last_price)}</span> : null}{pocket.avg_buy_price ? <span>Modal beli {fmtMoney(pocket.avg_buy_price)}</span> : null}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* 1. Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[var(--border)]">
+      <div className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-2 lg:flex-row lg:items-center">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
@@ -693,7 +975,7 @@ export default function AccountsPage() {
             </span>
             <span className="h-1 w-1 rounded-full bg-[var(--muted)]" />
             <span className="text-xs text-[var(--text-secondary)]">
-              {topAccounts.length} Rekening Utama ({activeAccounts.length} Total Kantong)
+              {topAccounts.length} Rekening Utama ({totalPocketCount} Kantong)
             </span>
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)] mt-1">
@@ -707,7 +989,7 @@ export default function AccountsPage() {
             <button
               type="button"
               onClick={handleOpenNewAccount}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-2xl bg-[#1E201E] text-white text-xs font-bold shadow-xs active:scale-95 transition-all border border-white/10"
+              className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-[#1E201E] px-3 text-xs font-bold text-white shadow-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
             >
               <span className="text-sm leading-none text-[var(--accent-lime,#66CC55)] font-black">+</span>
               <span>Rekening</span>
@@ -715,8 +997,8 @@ export default function AccountsPage() {
             <button
               type="button"
               onClick={() => handleOpenTransfer()}
-              disabled={activeAccounts.length < 2}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] text-xs font-bold shadow-xs active:scale-95 transition-all disabled:opacity-40"
+              disabled={liquidAccounts.length < 2}
+              className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-xs font-bold text-[var(--text)] shadow-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-40"
             >
               <Icon name="repeat" className="h-3.5 w-3.5 text-sky-500 stroke-[2.5]" />
               <span>Pindah</span>
@@ -728,7 +1010,8 @@ export default function AccountsPage() {
               type="button"
               onClick={() => syncPricesMutation.mutate()}
               disabled={syncPricesMutation.isPending}
-              className="p-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-all active:scale-95"
+              aria-label={syncPricesMutation.isPending ? "Menyinkronkan harga pasar" : "Sinkronkan harga pasar"}
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
               title="Sync Harga"
             >
               <Icon name="refresh-cw" className={cn("h-4 w-4", syncPricesMutation.isPending && "animate-spin")} />
@@ -736,7 +1019,8 @@ export default function AccountsPage() {
             <button
               type="button"
               onClick={() => setPayrollModalOpen(true)}
-              className="p-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-emerald-600 dark:text-emerald-400 transition-all active:scale-95"
+              aria-label="Buka alokasi gaji"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] dark:text-emerald-400"
               title="Alokasi Gaji"
             >
               <Icon name="allocation" className="h-4 w-4 stroke-[2.5]" />
@@ -756,20 +1040,20 @@ export default function AccountsPage() {
             type="button"
             onClick={() => syncPricesMutation.mutate()}
             disabled={syncPricesMutation.isPending}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] transition-all pressable shadow-2xs disabled:opacity-50"
+            className="flex min-h-11 items-center gap-1.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3.5 text-xs font-bold text-[var(--text)] shadow-2xs hover:bg-[var(--surface-raised)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-50"
             title="Sinkronisasi harga pasar saham/investasi terkini"
           >
             <Icon
               name="refresh-cw"
               className={cn("h-3.5 w-3.5 text-[var(--muted)] stroke-[2.5]", syncPricesMutation.isPending && "animate-spin")}
             />
-            <span>{syncPricesMutation.isPending ? "Sinkronisasi..." : "Sync Harga"}</span>
+            <span>{syncPricesMutation.isPending ? "Sinkronisasi…" : "Sync Harga"}</span>
           </button>
 
           <button
             type="button"
             onClick={() => setPayrollModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] transition-all pressable shadow-2xs"
+            className="flex min-h-11 items-center gap-1.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3.5 text-xs font-bold text-[var(--text)] shadow-2xs hover:bg-[var(--surface-raised)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
             title="Buka Alokasi Gaji Bulanan"
           >
             <Icon name="allocation" className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
@@ -779,7 +1063,7 @@ export default function AccountsPage() {
           <button
             type="button"
             onClick={() => setRecurringModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] transition-all pressable shadow-2xs"
+            className="flex min-h-11 items-center gap-1.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3.5 text-xs font-bold text-[var(--text)] shadow-2xs hover:bg-[var(--surface-raised)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
             title="Kelola Transaksi Rutin & Otomatis"
           >
             <Icon name="repeat" className="h-3.5 w-3.5 text-[var(--muted)] stroke-[2.5]" />
@@ -789,8 +1073,8 @@ export default function AccountsPage() {
           <button
             type="button"
             onClick={() => handleOpenTransfer()}
-            disabled={activeAccounts.length < 2}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-xs font-bold text-amber-600 dark:text-amber-400 transition-all pressable shadow-2xs disabled:opacity-40"
+            disabled={liquidAccounts.length < 2}
+            className="flex min-h-11 items-center gap-1.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 text-xs font-bold text-amber-700 shadow-2xs hover:bg-amber-500/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-40 dark:text-amber-400"
           >
             <Icon name="move" className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 stroke-[2.5]" />
             <span>Pindah Saldo</span>
@@ -799,7 +1083,7 @@ export default function AccountsPage() {
           <button
             type="button"
             onClick={handleOpenNewAccount}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-black shadow-xs pressable"
+            className="flex min-h-11 items-center gap-1.5 rounded-2xl bg-[#1E201E] px-4 text-xs font-black text-white shadow-xs hover:bg-[#343834] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
           >
             <span className="font-black text-sm leading-none">+</span>
             <span>Rekening Baru</span>
@@ -923,708 +1207,40 @@ export default function AccountsPage() {
           {bankPct > 0 && (
             <div
               style={{ width: `${bankPct}%` }}
-              className="h-full bg-blue-500 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+              className="h-full bg-blue-500 transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
             />
           )}
           {walletPct > 0 && (
             <div
               style={{ width: `${walletPct}%` }}
-              className="h-full bg-emerald-500 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+              className="h-full bg-emerald-500 transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
             />
           )}
           {cashPct > 0 && (
             <div
               style={{ width: `${cashPct}%` }}
-              className="h-full bg-amber-500 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+              className="h-full bg-amber-500 transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
             />
           )}
           {investPct > 0 && (
             <div
               style={{ width: `${investPct}%` }}
-              className="h-full bg-indigo-500 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+              className="h-full bg-indigo-500 transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
             />
           )}
         </div>
       </div>
 
-      {/* 4. Realistic Digital Bank Account & Pocket Cards with Visual Drag-and-Drop */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {topAccounts.map((acc) => {
-          const hasChildren = acc.children && acc.children.length > 0;
-          const isExpanded = expandedAccounts[acc.id] !== false;
-
-          return (
-            <div
-              key={acc.id}
-              draggable
-              onDragStart={(e) => {
-                setDraggedAccountId(acc.id);
-                e.dataTransfer.effectAllowed = "move";
-                e.dataTransfer.setData("text/plain", acc.id);
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = "move";
-                if (dragOverAccountId !== acc.id) {
-                  setDragOverAccountId(acc.id);
-                }
-              }}
-              onDragLeave={() => {
-                if (dragOverAccountId === acc.id) {
-                  setDragOverAccountId(null);
-                }
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOverAccountId(null);
-                if (!draggedAccountId || draggedAccountId === acc.id) {
-                  setDraggedAccountId(null);
-                  return;
-                }
-                const currentOrder = topAccounts.map((a) => a.id);
-                const fromIndex = currentOrder.indexOf(draggedAccountId);
-                const toIndex = currentOrder.indexOf(acc.id);
-                if (fromIndex !== -1 && toIndex !== -1) {
-                  const newOrder = [...currentOrder];
-                  const [moved] = newOrder.splice(fromIndex, 1);
-                  newOrder.splice(toIndex, 0, moved);
-                  setOrderedAccountIds(newOrder);
-                  reorderMutation.mutate(newOrder);
-                }
-                setDraggedAccountId(null);
-              }}
-              onDragEnd={() => {
-                setDraggedAccountId(null);
-                setDragOverAccountId(null);
-              }}
-              className={cn(
-                "card-squircle relative overflow-hidden p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between cursor-grab active:cursor-grabbing group bg-[var(--surface)] text-[var(--text)]",
-                draggedAccountId === acc.id && "opacity-40 scale-[0.98]",
-                dragOverAccountId === acc.id && "ring-2 ring-emerald-500 ring-offset-2 border-emerald-500"
-              )}
-            >
-              <div>
-                {/* Card Top: Prominent Tagged Name & Quick Actions */}
-                <div className="flex items-start justify-between gap-3 min-h-[50px]">
-                  <div className="space-y-1 min-w-0">
-                    {/* Prominent Account Name Tag */}
-                    <div>
-                      <span
-                        style={{
-                          backgroundColor: acc.color || "#3b82f6",
-                          color: getContrastTextColor(acc.color || "#3b82f6"),
-                        }}
-                        className="inline-flex items-center font-bold text-sm sm:text-base px-3 py-0.5 rounded-xl shadow-2xs max-w-full truncate tracking-tight"
-                        title={acc.name}
-                      >
-                        {acc.name}
-                      </span>
-                    </div>
-
-                    {/* Account Type and Badges */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                        {acc.type === "wallet"
-                          ? "DOMPET DIGITAL"
-                          : acc.type === "cash"
-                          ? "UANG TUNAI"
-                          : acc.type === "investment"
-                          ? "INVESTASI"
-                          : "BANK"}
-                      </span>
-                      {acc.instrument_type && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-violet-500/15 text-violet-600 dark:text-violet-300 font-semibold uppercase">
-                          {INSTRUMENT_OPTIONS.find((o) => o.value === acc.instrument_type)?.label || acc.instrument_type}
-                        </span>
-                      )}
-                      {acc.instrument_symbol && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] font-bold">
-                          {acc.instrument_symbol}
-                        </span>
-                      )}
-                      {acc.default_funding_account_name && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/15 text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1">
-                          <Icon name="credit-card" className="h-2.5 w-2.5" />
-                          <span>RDN: {acc.default_funding_account_name}</span>
-                        </span>
-                      )}
-                      {hasChildren && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/15 text-blue-600 dark:text-blue-400 font-semibold">
-                          {acc.children!.length} Kantong
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Action Icons */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    {(acc.type === "investment" || Boolean(acc.instrument_type)) && !hasChildren && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setTradePocket(acc);
-                            setTradeAction("buy");
-                            setTradeModalOpen(true);
-                          }}
-                          className="px-2 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 transition-colors flex items-center gap-1"
-                          title="Catat Pembelian"
-                        >
-                          <span>+Beli</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setTradePocket(acc);
-                            setTradeAction("sell");
-                            setTradeModalOpen(true);
-                          }}
-                          className="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-[11px] font-semibold text-rose-600 dark:text-rose-400 transition-colors flex items-center gap-1"
-                          title="Catat Penjualan"
-                        >
-                          <span>−Jual</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenValuation(acc);
-                          }}
-                          className="px-2 py-1 rounded-lg bg-[var(--surface-raised)] hover:bg-[var(--border)]/50 text-[11px] font-semibold text-[var(--muted)] border border-[var(--border)] transition-colors flex items-center gap-1"
-                          title="Update Nilai Pasar (Valuation)"
-                        >
-                          <Icon name="trending-up" className="h-3 w-3" />
-                          <span>Nilai</span>
-                        </button>
-                      </>
-                    )}
-                    {acc.type === "investment" && hasChildren && acc.children && acc.children.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTradePocket(acc.children![0]);
-                          setTradeAction("buy");
-                          setTradeModalOpen(true);
-                        }}
-                        className="px-2 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 transition-colors flex items-center gap-1"
-                        title="Catat Pembelian instrumen"
-                      >
-                        <span>+ Beli</span>
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenNewPocket(acc);
-                      }}
-                      className="px-2 py-1 rounded-lg bg-[var(--surface-raised)] hover:bg-[var(--border)]/50 text-[11px] font-semibold text-[var(--text)] border border-[var(--border)] transition-colors flex items-center gap-1"
-                      title="Tambah kantong baru di rekening ini"
-                    >
-                      <span>+ Kantong</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenEditAccount(acc);
-                      }}
-                      className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors"
-                      title="Ubah rekening"
-                    >
-                      <Icon name="edit" className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (confirm(`Arsipkan rekening "${acc.name}"${hasChildren ? " beserta seluruh kantong di dalamnya" : ""}?`)) {
-                          archiveMutation.mutate(acc.id);
-                        }
-                      }}
-                      className="p-1.5 rounded-lg text-[var(--muted)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
-                      title="Arsipkan rekening"
-                    >
-                      <Icon name="trash" className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Card Middle: Balance & Status Row (Consistent height for perfect grid alignment) */}
-                <div className="mt-3 min-h-[58px] flex flex-col justify-end">
-                  <div className="text-2xl sm:text-3xl font-extrabold tabular tracking-tight text-[var(--text)] select-all leading-none">
-                    {bal(acc.balance)}
-                  </div>
-
-                  {/* Sub-line: Total Kantong and Capital Gain in a single aligned row */}
-                  <div className="mt-1.5 flex items-center justify-between gap-2 min-h-[22px]">
-                    {hasChildren ? (
-                      <span className="text-[11px] text-[var(--muted)] font-medium truncate">
-                        Total akumulasi {acc.children!.length} kantong
-                      </span>
-                    ) : (acc.last_price || acc.avg_buy_price) ? (
-                      <div className="text-[10px] text-[var(--muted)] flex items-center gap-2 truncate">
-                        {acc.last_price ? <span>Pasar: <strong className="text-[var(--text)] font-semibold">{fmtMoney(acc.last_price)}</strong></span> : null}
-                        {acc.avg_buy_price ? <span>Modal: <strong className="text-[var(--text)] font-semibold">{fmtMoney(acc.avg_buy_price)}</strong></span> : null}
-                      </div>
-                    ) : (
-                      <span className="text-[11px] text-[var(--muted)] font-medium">
-                        {acc.type === "cash" ? "Kas Tunai Fisik" : "Rekening Standalone"}
-                      </span>
-                    )}
-
-                    {acc.capital_gain !== null && acc.capital_gain !== undefined && (
-                      <span
-                        className={cn(
-                          "px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 border shrink-0",
-                          acc.capital_gain >= 0
-                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25"
-                            : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25"
-                        )}
-                      >
-                        <span>{acc.capital_gain >= 0 ? "▲" : "▼"}</span>
-                        <span>Capital Gain: {acc.capital_gain >= 0 ? "+" : ""}{bal(acc.capital_gain)} ({acc.capital_gain_pct ?? 0}%)</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Child Pockets Accordion */}
-                {hasChildren && (
-                  <div className="mt-3 pt-3 border-t border-[var(--border)] space-y-2">
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleExpand(acc.id);
-                      }}
-                      className="flex items-center justify-between cursor-pointer py-0.5 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--text)] transition-colors select-none"
-                    >
-                      <span>Daftar Kantong ({acc.children!.length})</span>
-                      <span className="text-[10px]">{isExpanded ? "▲ Tutup" : "▼ Lihat"}</span>
-                    </div>
-
-                    {isExpanded && (
-                      <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
-                        {(() => {
-                          const parentPocketOrder = orderedPocketsByParent[acc.id];
-                          const childPockets = parentPocketOrder
-                            ? [...(acc.children ?? [])].sort((a, b) => {
-                                const idxA = parentPocketOrder.indexOf(a.id);
-                                const idxB = parentPocketOrder.indexOf(b.id);
-                                if (idxA === -1 && idxB === -1) return 0;
-                                if (idxA === -1) return 1;
-                                if (idxB === -1) return -1;
-                                return idxA - idxB;
-                              })
-                            : (acc.children ?? []);
-
-                          return childPockets.map((pocket) => {
-                            const isInvestPocket = acc.type === "investment" || pocket.type === "investment" || Boolean(pocket.instrument_type);
-
-                            const pocketDragHandlers = {
-                              draggable: true,
-                              onDragStart: (e: React.DragEvent) => {
-                                e.stopPropagation();
-                                setDraggedPocketId(pocket.id);
-                                e.dataTransfer.effectAllowed = "move";
-                                e.dataTransfer.setData("text/plain", pocket.id);
-                              },
-                              onDragOver: (e: React.DragEvent) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                e.dataTransfer.dropEffect = "move";
-                                if (dragOverPocketId !== pocket.id) {
-                                  setDragOverPocketId(pocket.id);
-                                }
-                              },
-                              onDragLeave: (e: React.DragEvent) => {
-                                e.stopPropagation();
-                                if (dragOverPocketId === pocket.id) {
-                                  setDragOverPocketId(null);
-                                }
-                              },
-                              onDrop: (e: React.DragEvent) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setDragOverPocketId(null);
-                                if (!draggedPocketId || draggedPocketId === pocket.id) {
-                                  setDraggedPocketId(null);
-                                  return;
-                                }
-                                const currentOrder = childPockets.map((p) => p.id);
-                                const fromIndex = currentOrder.indexOf(draggedPocketId);
-                                const toIndex = currentOrder.indexOf(pocket.id);
-                                if (fromIndex !== -1 && toIndex !== -1) {
-                                  const newOrder = [...currentOrder];
-                                  const [moved] = newOrder.splice(fromIndex, 1);
-                                  newOrder.splice(toIndex, 0, moved);
-                                  setOrderedPocketsByParent((prev) => ({
-                                    ...prev,
-                                    [acc.id]: newOrder,
-                                  }));
-                                  reorderMutation.mutate(newOrder);
-                                }
-                                setDraggedPocketId(null);
-                              },
-                              onDragEnd: (e: React.DragEvent) => {
-                                e.stopPropagation();
-                                setDraggedPocketId(null);
-                                setDragOverPocketId(null);
-                              },
-                            };
-
-                            if (isInvestPocket) {
-                              return (
-                                <div
-                                  key={pocket.id}
-                                  {...pocketDragHandlers}
-                                  className={cn(
-                                    "p-2.5 rounded-xl bg-[var(--surface-raised)] hover:bg-[var(--surface-raised)]/90 border border-[var(--border)] text-[var(--text)] transition-all space-y-1.5 group/pocket cursor-grab active:cursor-grabbing",
-                                    draggedPocketId === pocket.id && "opacity-40 scale-[0.98]",
-                                    dragOverPocketId === pocket.id && "ring-2 ring-emerald-500/80 border-emerald-500"
-                                  )}
-                                >
-                                  {/* Top Row: Identification on Left, Balance & Gain on Right */}
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-1.5 flex-wrap">
-                                        <div
-                                          className="cursor-grab active:cursor-grabbing text-[var(--muted)]/40 hover:text-[var(--muted)] transition-colors shrink-0"
-                                          title="Tahan & geser untuk mengubah urutan"
-                                        >
-                                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                                            <circle cx="9" cy="6" r="1.5" />
-                                            <circle cx="15" cy="6" r="1.5" />
-                                            <circle cx="9" cy="12" r="1.5" />
-                                            <circle cx="15" cy="12" r="1.5" />
-                                            <circle cx="9" cy="18" r="1.5" />
-                                            <circle cx="15" cy="18" r="1.5" />
-                                          </svg>
-                                        </div>
-                                        <span className="font-bold text-xs truncate text-[var(--text)]">{pocket.name}</span>
-                                        {pocket.instrument_symbol && (
-                                          <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-[var(--surface)] border border-[var(--border)] text-[var(--text)]">
-                                            {pocket.instrument_symbol}
-                                          </span>
-                                        )}
-                                        {pocket.instrument_type && (
-                                          <span className="px-1.5 py-0.5 rounded text-[9px] uppercase bg-violet-500/15 text-violet-600 dark:text-violet-300 font-semibold">
-                                            {INSTRUMENT_OPTIONS.find((o) => o.value === pocket.instrument_type)?.label || pocket.instrument_type}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {pocket.units ? (
-                                        <div className="text-[11px] text-[var(--muted)] mt-0.5 font-medium pl-5">
-                                          {pocket.units.toLocaleString("id-ID")} {getInstrumentConfig(pocket.instrument_type).unitUnit}
-                                          {pocket.instrument_type === "stock" && (
-                                            <span className="ml-1 text-[var(--text)] font-semibold">
-                                              ({(pocket.units / 100).toLocaleString("id-ID")} lot)
-                                            </span>
-                                          )}
-                                        </div>
-                                      ) : null}
-                                    </div>
-
-                                    <div className="text-right shrink-0">
-                                      <div className="text-xs sm:text-sm font-extrabold text-[var(--text)] tabular">
-                                        {bal(pocket.balance)}
-                                      </div>
-                                      {pocket.capital_gain !== null && pocket.capital_gain !== undefined && (
-                                        <div
-                                          className={cn(
-                                            "text-[10px] font-bold tabular mt-0.5",
-                                            pocket.capital_gain >= 0
-                                              ? "text-emerald-600 dark:text-emerald-400"
-                                              : "text-rose-600 dark:text-rose-400"
-                                          )}
-                                        >
-                                          {pocket.capital_gain >= 0 ? "▲ +" : "▼ "}{fmtMoney(pocket.capital_gain)} ({pocket.capital_gain_pct ?? 0}%)
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  {/* Middle Row: Full-width Price Comparison Pill */}
-                                  {(pocket.last_price || pocket.avg_buy_price) && (
-                                    <div className="px-2 py-1 rounded-lg bg-[var(--surface)] border border-[var(--border)]/70 text-[10px] flex items-center justify-between gap-2 flex-wrap">
-                                      {pocket.last_price ? (
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-[var(--muted)] text-[9px] uppercase font-semibold">Pasar:</span>
-                                          <span className="font-bold tabular text-[var(--text)]">
-                                            {fmtMoney(pocket.last_price)}
-                                          </span>
-                                          <span className="text-[9px] text-[var(--muted)]">
-                                            /{getInstrumentConfig(pocket.instrument_type).unitUnit}
-                                          </span>
-                                        </div>
-                                      ) : <div />}
-
-                                      {pocket.avg_buy_price ? (
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-[var(--muted)] text-[9px] uppercase font-semibold">Modal Beli:</span>
-                                          <span className="font-bold tabular text-[var(--text)]">
-                                            {fmtMoney(pocket.avg_buy_price)}
-                                          </span>
-                                          <span className="text-[9px] text-[var(--muted)]">
-                                            /{getInstrumentConfig(pocket.instrument_type).unitUnit}
-                                          </span>
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                  )}
-
-                                  {/* Bottom Row: Action Controls Bar (Full width, seamless) */}
-                                  <div className="pt-1.5 border-t border-[var(--border)]/60 flex items-center justify-between gap-2">
-                                    {/* Left: Trade Actions */}
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setTradePocket(pocket);
-                                          setTradeAction("buy");
-                                          setTradeModalOpen(true);
-                                        }}
-                                        className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 transition-all pressable flex items-center gap-0.5"
-                                        title="Catat Pembelian"
-                                      >
-                                        <span>+ Beli</span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setTradePocket(pocket);
-                                          setTradeAction("sell");
-                                          setTradeModalOpen(true);
-                                        }}
-                                        className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-600 dark:text-rose-400 border border-rose-500/20 transition-all pressable flex items-center gap-0.5"
-                                        title="Catat Penjualan"
-                                      >
-                                        <span>− Jual</span>
-                                      </button>
-                                    </div>
-
-                                    {/* Right: Management Icons */}
-                                    <div className="flex items-center gap-0.5">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleOpenValuation(pocket);
-                                        }}
-                                        className="p-1 rounded-md hover:bg-[var(--surface)] text-[var(--muted)] hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
-                                        title="Update Nilai Pasar (Valuation)"
-                                      >
-                                        <Icon name="trending-up" className="h-3 w-3" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setReconcileAccount(pocket);
-                                          setActualBalStr(formatNumberWithDots(pocket.balance));
-                                          setReconcileNotes("");
-                                          setReconcileError("");
-                                        }}
-                                        className="p-1 rounded-md hover:bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-                                        title="Sesuaikan Saldo"
-                                      >
-                                        <Icon name="check" className="h-3 w-3" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleOpenTransfer(pocket.id);
-                                        }}
-                                        className="p-1 rounded-md hover:bg-[var(--surface)] text-[var(--muted)] hover:text-blue-500 transition-colors"
-                                        title="Pindah Saldo"
-                                      >
-                                        <Icon name="move" className="h-3 w-3" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleOpenEditAccount(pocket);
-                                        }}
-                                        className="p-1 rounded-md hover:bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-                                        title="Ubah Nama Kantong"
-                                      >
-                                        <Icon name="edit" className="h-3 w-3" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (confirm(`Arsipkan kantong "${pocket.name}"?`)) {
-                                            archiveMutation.mutate(pocket.id);
-                                          }
-                                        }}
-                                        className="p-1 rounded-md hover:bg-rose-500/20 text-[var(--muted)] hover:text-rose-500 transition-colors"
-                                        title="Arsipkan Kantong"
-                                      >
-                                        <Icon name="trash" className="h-3 w-3" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            }
-
-                            // Non-investment (regular) pocket
-                            return (
-                              <div
-                                key={pocket.id}
-                                {...pocketDragHandlers}
-                                className={cn(
-                                  "p-2 rounded-lg bg-[var(--surface-raised)] hover:bg-[var(--surface-raised)]/90 border border-[var(--border)] text-[var(--text)] transition-all space-y-1.5 group/pocket cursor-grab active:cursor-grabbing",
-                                  draggedPocketId === pocket.id && "opacity-40 scale-[0.98]",
-                                  dragOverPocketId === pocket.id && "ring-2 ring-emerald-500/80 border-emerald-500"
-                                )}
-                              >
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <div
-                                      className="cursor-grab active:cursor-grabbing text-[var(--muted)]/40 hover:text-[var(--muted)] transition-colors shrink-0"
-                                      title="Tahan & geser untuk mengubah urutan"
-                                    >
-                                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                                        <circle cx="9" cy="6" r="1.5" />
-                                        <circle cx="15" cy="6" r="1.5" />
-                                        <circle cx="9" cy="12" r="1.5" />
-                                        <circle cx="15" cy="12" r="1.5" />
-                                        <circle cx="9" cy="18" r="1.5" />
-                                        <circle cx="15" cy="18" r="1.5" />
-                                      </svg>
-                                    </div>
-                                    <span className="font-semibold text-xs text-[var(--text)] truncate">{pocket.name}</span>
-                                  </div>
-                                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular shrink-0">
-                                    {bal(pocket.balance)}
-                                  </span>
-                                </div>
-                                <div className="pt-1 border-t border-[var(--border)]/60 flex items-center justify-between gap-2 text-xs">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleOpenTransfer(pocket.id);
-                                    }}
-                                    className="flex items-center gap-1 font-bold text-[10px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"
-                                  >
-                                    <Icon name="move" className="h-2.5 w-2.5 stroke-[2.5]" />
-                                    <span>Pindah Saldo</span>
-                                  </button>
-                                  <div className="flex items-center gap-0.5">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setReconcileAccount(pocket);
-                                        setActualBalStr(formatNumberWithDots(pocket.balance));
-                                        setReconcileNotes("");
-                                        setReconcileError("");
-                                      }}
-                                      className="p-0.5 rounded hover:bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-                                      title="Sesuaikan Saldo"
-                                    >
-                                      <Icon name="check" className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleOpenEditAccount(pocket);
-                                      }}
-                                      className="p-0.5 rounded hover:bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-                                      title="Ubah Nama Kantong"
-                                    >
-                                      <Icon name="edit" className="h-3 w-3" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (confirm(`Arsipkan kantong "${pocket.name}"?`)) {
-                                          archiveMutation.mutate(pocket.id);
-                                        }
-                                      }}
-                                      className="p-0.5 rounded hover:bg-rose-500/20 text-[var(--muted)] hover:text-rose-500 transition-colors"
-                                      title="Arsipkan Kantong"
-                                    >
-                                      <Icon name="trash" className="h-3 w-3" />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          });
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Card Bottom CTA (for Standalone accounts) */}
-              {!hasChildren && (
-                <div className="pt-3 border-t border-[var(--border)] flex items-center justify-between text-xs mt-4">
-                  <span className="text-[11px] text-[var(--muted)] font-medium">
-                    Saldo Awal: {bal(acc.initial_balance)}
-                  </span>
-                  <div className="flex items-center gap-2.5">
-                    {acc.type === "investment" && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenValuation(acc);
-                        }}
-                        className="flex items-center gap-1 font-semibold text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-500"
-                      >
-                        <Icon name="trending-up" className="h-3 w-3" />
-                        <span>Update Nilai</span>
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setReconcileAccount(acc);
-                        setActualBalStr(formatNumberWithDots(acc.balance));
-                        setReconcileNotes("");
-                        setReconcileError("");
-                      }}
-                      className="flex items-center gap-1 font-bold text-xs text-[var(--muted)] hover:text-[var(--text)] transition-all pressable"
-                    >
-                      <Icon name="check" className="h-3 w-3 text-emerald-500 stroke-[2.5]" />
-                      <span>Sesuaikan</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenTransfer(acc.id);
-                      }}
-                      className="flex items-center gap-1 font-bold text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 transition-all pressable"
-                    >
-                      <Icon name="move" className="h-3 w-3 stroke-[2.5]" />
-                      <span>Pindah Saldo</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+      <div className="grid gap-3 xl:grid-cols-2 2xl:grid-cols-3 xl:items-stretch">
+        {(orderError || accountActionError) && <p role="alert" className="col-span-full rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-300">{orderError || accountActionError}</p>}
+        <p role="status" className="sr-only">{orderStatus}</p>
+        {topAccounts.length === 0 ? (
+          <div className="col-span-full rounded-2xl border border-dashed border-[var(--border)] p-6 text-sm text-[var(--muted)]">
+            Belum ada rekening. Tambahkan rekening untuk mulai mencatat saldo.
+          </div>
+        ) : topAccounts.map((account) => renderAccountGroup(account, "desktop"))}
       </div>
       </div>
-
       {/* ===================== MOBILE-NATIVE ACCOUNTS (< lg) ===================== */}
       <div className="lg:hidden space-y-4">
         {/* 1. Mobile Net Worth & Runway Hero Card */}
@@ -1735,7 +1351,7 @@ export default function AccountsPage() {
               type="button"
               onClick={() => setMobileAccountFilter(chip.id as any)}
               className={cn(
-                "px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer",
+                "flex min-h-11 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]",
                 mobileAccountFilter === chip.id
                   ? "bg-[#1E201E] text-white shadow-xs border border-black dark:border-white/20"
                   : "bg-[var(--surface-raised)] text-[var(--muted)] hover:text-[var(--text)] border border-[var(--border)]"
@@ -1756,431 +1372,22 @@ export default function AccountsPage() {
           ))}
         </div>
 
-        {/* 3. Mobile Apple Wallet Account Cards */}
+        {(orderError || accountActionError) && <p role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-300">{orderError || accountActionError}</p>}
+        <p role="status" className="sr-only">{orderStatus}</p>
         {filteredMobileAccounts.length === 0 ? (
-          <div className="py-10 text-center text-xs text-[var(--muted)] rounded-2xl border border-dashed border-[var(--border)]">
-            Tidak ada rekening di kategori ini.
+          <div className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-sm text-[var(--muted)]">
+            {topAccounts.length === 0 ? "Belum ada rekening. Tambahkan rekening untuk mulai mencatat saldo." : "Tidak ada rekening di kategori ini."}
           </div>
         ) : (
-          <div className="space-y-3">
-            {filteredMobileAccounts.map((acc) => {
-              const hasChildren = acc.children && acc.children.length > 0;
-              const isExpanded = expandedAccounts[acc.id] !== false;
-
-              const parentPocketOrder = orderedPocketsByParent[acc.id];
-              const childPockets = parentPocketOrder
-                ? [...(acc.children ?? [])].sort((a, b) => {
-                    const idxA = parentPocketOrder.indexOf(a.id);
-                    const idxB = parentPocketOrder.indexOf(b.id);
-                    if (idxA === -1 && idxB === -1) return 0;
-                    if (idxA === -1) return 1;
-                    if (idxB === -1) return -1;
-                    return idxA - idxB;
-                  })
-                : (acc.children ?? []);
-
-              return (
-                <div
-                  key={`mobile-acc-${acc.id}`}
-                  className="card-squircle p-4 bg-[var(--surface)] border border-[var(--border)] shadow-xs space-y-3"
-                >
-                  {/* Card Header: Tag & Actions */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-wrap min-w-0">
-                      <span
-                        style={{
-                          backgroundColor: acc.color || "#3b82f6",
-                          color: getContrastTextColor(acc.color || "#3b82f6"),
-                        }}
-                        className="inline-flex items-center font-bold text-xs px-2.5 py-0.5 rounded-xl shadow-2xs max-w-full truncate"
-                        title={acc.name}
-                      >
-                        {acc.name}
-                      </span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                        {acc.type === "wallet"
-                          ? "DOMPET"
-                          : acc.type === "cash"
-                          ? "TUNAI"
-                          : acc.type === "investment"
-                          ? "INVESTASI"
-                          : "BANK"}
-                      </span>
-                      {acc.instrument_type && (
-                        <span className="px-1.5 py-0.2 rounded text-[9px] bg-violet-500/15 text-violet-600 dark:text-violet-300 font-semibold uppercase">
-                          {INSTRUMENT_OPTIONS.find((o) => o.value === acc.instrument_type)?.label || acc.instrument_type}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      {(acc.type === "investment" || Boolean(acc.instrument_type)) && !hasChildren && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTradePocket(acc);
-                              setTradeAction("buy");
-                              setTradeModalOpen(true);
-                            }}
-                            className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"
-                          >
-                            +Beli
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTradePocket(acc);
-                              setTradeAction("sell");
-                              setTradeModalOpen(true);
-                            }}
-                            className="px-2 py-0.5 rounded-lg bg-rose-500/15 text-[10px] font-bold text-rose-600 dark:text-rose-400"
-                          >
-                            −Jual
-                          </button>
-                        </>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditAccount(acc)}
-                        className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors"
-                        title="Ubah rekening"
-                      >
-                        <Icon name="edit" className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (
-                            confirm(
-                              `Arsipkan rekening "${acc.name}"${hasChildren ? " beserta seluruh kantong di dalamnya" : ""}?`
-                            )
-                          ) {
-                            archiveMutation.mutate(acc.id);
-                          }
-                        }}
-                        className="p-1.5 rounded-lg text-[var(--muted)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
-                        title="Arsipkan rekening"
-                      >
-                        <Icon name="trash" className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Card Balance */}
-                  <div>
-                    <div className="text-xl sm:text-2xl font-black tabular tracking-tight text-[var(--text)] select-all">
-                      {bal(acc.balance)}
-                    </div>
-                    <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-[var(--muted)]">
-                      {hasChildren ? (
-                        <span>Total akumulasi {acc.children!.length} kantong</span>
-                      ) : (
-                        <span>{acc.type === "cash" ? "Kas Tunai Fisik" : "Rekening Standalone"}</span>
-                      )}
-
-                      {acc.capital_gain !== null && acc.capital_gain !== undefined && (
-                        <span
-                          className={cn(
-                            "px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 border",
-                            acc.capital_gain >= 0
-                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25"
-                              : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25"
-                          )}
-                        >
-                          <span>{acc.capital_gain >= 0 ? "▲ +" : "▼ "}</span>
-                          <span>{bal(acc.capital_gain)} ({acc.capital_gain_pct ?? 0}%)</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Expandable Pocket Accordion */}
-                  {hasChildren && (
-                    <div className="pt-2 border-t border-[var(--border)]/60">
-                      <button
-                        type="button"
-                        onClick={() => toggleExpand(acc.id)}
-                        className="w-full py-2 px-3 rounded-xl bg-[var(--surface-raised)] hover:bg-[var(--surface-raised)]/80 flex items-center justify-between text-xs font-bold text-[var(--text)] border border-[var(--border)] transition-colors cursor-pointer"
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <Icon name="wallet" className="h-3.5 w-3.5 text-blue-500" />
-                          <span>Daftar Kantong ({acc.children!.length})</span>
-                        </span>
-                        <span className="text-[10px] text-[var(--muted)] font-bold">
-                          {isExpanded ? "▲ Tutup" : "▼ Buka"}
-                        </span>
-                      </button>
-
-                      {isExpanded && (
-                        <div className="space-y-2 mt-2 pt-1">
-                          {childPockets.map((pocket) => {
-                            const isInvestPocket =
-                              acc.type === "investment" ||
-                              pocket.type === "investment" ||
-                              Boolean(pocket.instrument_type);
-
-                            return (
-                              <div
-                                key={pocket.id}
-                                className="p-3 rounded-xl bg-[var(--surface-raised)]/50 border border-[var(--border)] space-y-2"
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className="font-bold text-xs text-[var(--text)] truncate">
-                                        {pocket.name}
-                                      </span>
-                                      {pocket.instrument_symbol && (
-                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-[var(--surface)] border border-[var(--border)] text-[var(--text)]">
-                                          {pocket.instrument_symbol}
-                                        </span>
-                                      )}
-                                      {pocket.instrument_type && (
-                                        <span className="px-1.5 py-0.2 rounded text-[9px] uppercase bg-violet-500/15 text-violet-600 dark:text-violet-300 font-semibold">
-                                          {INSTRUMENT_OPTIONS.find((o) => o.value === pocket.instrument_type)?.label || pocket.instrument_type}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {pocket.units ? (
-                                      <div className="text-[10px] text-[var(--muted)] font-medium mt-0.5">
-                                        {pocket.units.toLocaleString("id-ID")}{" "}
-                                        {getInstrumentConfig(pocket.instrument_type).unitUnit}
-                                      </div>
-                                    ) : null}
-                                  </div>
-
-                                  <div className="text-right shrink-0">
-                                    <div className="text-xs font-black tabular text-[var(--text)]">
-                                      {bal(pocket.balance)}
-                                    </div>
-                                    {pocket.capital_gain !== null && pocket.capital_gain !== undefined && (
-                                      <div
-                                        className={cn(
-                                          "text-[9px] font-bold tabular mt-0.5",
-                                          pocket.capital_gain >= 0
-                                            ? "text-emerald-600 dark:text-emerald-400"
-                                            : "text-rose-600 dark:text-rose-400"
-                                        )}
-                                      >
-                                        {pocket.capital_gain >= 0 ? "▲ +" : "▼ "}{bal(pocket.capital_gain)} ({pocket.capital_gain_pct ?? 0}%)
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Touch Actions */}
-                                <div className="pt-2 border-t border-[var(--border)]/50 flex items-center justify-between gap-1 text-[11px]">
-                                  <div className="flex items-center gap-1.5">
-                                    {isInvestPocket && (
-                                      <>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setTradePocket(pocket);
-                                            setTradeAction("buy");
-                                            setTradeModalOpen(true);
-                                          }}
-                                          className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                                        >
-                                          +Beli
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setTradePocket(pocket);
-                                            setTradeAction("sell");
-                                            setTradeModalOpen(true);
-                                          }}
-                                          className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400"
-                                        >
-                                          −Jual
-                                        </button>
-                                      </>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenTransfer(pocket.id)}
-                                      className="flex items-center gap-1 text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:text-sky-500"
-                                    >
-                                      <Icon name="move" className="h-3 w-3 stroke-[2.5]" />
-                                      <span>Pindah</span>
-                                    </button>
-                                  </div>
-
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setReconcileAccount(pocket);
-                                        setActualBalStr(formatNumberWithDots(pocket.balance));
-                                        setReconcileNotes("");
-                                        setReconcileError("");
-                                      }}
-                                      className="p-1 rounded text-[var(--muted)] hover:text-emerald-500"
-                                      title="Sesuaikan Saldo"
-                                    >
-                                      <Icon name="check" className="h-3.5 w-3.5 text-emerald-500" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenEditAccount(pocket)}
-                                      className="p-1 rounded text-[var(--muted)] hover:text-[var(--text)]"
-                                      title="Ubah Nama"
-                                    >
-                                      <Icon name="edit" className="h-3.5 w-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (confirm(`Arsipkan kantong "${pocket.name}"?`)) {
-                                          archiveMutation.mutate(pocket.id);
-                                        }
-                                      }}
-                                      className="p-1 rounded text-[var(--muted)] hover:text-rose-500"
-                                      title="Arsipkan"
-                                    >
-                                      <Icon name="trash" className="h-3.5 w-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-
-                          <button
-                            type="button"
-                            onClick={() => handleOpenNewPocket(acc)}
-                            className="w-full py-2 px-3 rounded-xl border border-dashed border-[var(--border)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--border-strong)] transition-all flex items-center justify-center gap-1 cursor-pointer"
-                          >
-                            <span className="font-bold">+</span>
-                            <span>Tambah Kantong Baru</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Standalone Actions (if no child pockets) */}
-                  {!hasChildren && (
-                    <div className="pt-2.5 border-t border-[var(--border)]/60 flex items-center justify-between gap-2 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenNewPocket(acc)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--surface-raised)] hover:bg-[var(--border)]/50 text-[11px] font-semibold text-[var(--text)] border border-[var(--border)] transition-colors cursor-pointer"
-                      >
-                        <span>+ Kantong</span>
-                      </button>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReconcileAccount(acc);
-                            setActualBalStr(formatNumberWithDots(acc.balance));
-                            setReconcileNotes("");
-                            setReconcileError("");
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--text)] border border-transparent hover:border-[var(--border)] transition-colors cursor-pointer"
-                        >
-                          <Icon name="check" className="h-3 w-3 text-emerald-500 stroke-[2.5]" />
-                          <span>Sesuaikan</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenTransfer(acc.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 transition-colors cursor-pointer"
-                        >
-                          <Icon name="move" className="h-3 w-3 stroke-[2.5]" />
-                          <span>Pindah Saldo</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <div className="grid gap-3">{filteredMobileAccounts.map((account) => renderAccountGroup(account, "mobile"))}</div>
         )}
       </div>
-
-      {/* Transfer Modal */}
-      <Modal
+      <InternalMovementModal
         open={transferModalOpen}
         onClose={() => setTransferModalOpen(false)}
-        title="Pindah Saldo Antar Rekening"
-      >
-        <div className="space-y-4 pt-2">
-          {transferError && (
-            <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-500">
-              {transferError}
-            </div>
-          )}
-
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] block mb-1">Dari Rekening / Kantong</label>
-            <select
-              value={fromAccountId}
-              onChange={(e) => setFromAccountId(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-            >
-              <AccountSelectOptions accounts={activeAccounts} formatBalance={bal} allowParentSelection={true} />
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] block mb-1">Ke Rekening / Kantong Tujuan</label>
-            <select
-              value={toAccountId}
-              onChange={(e) => setToAccountId(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-            >
-              <AccountSelectOptions accounts={activeAccounts} formatBalance={bal} allowParentSelection={true} />
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] block mb-1">Nominal Uang (IDR)</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={transferAmount}
-              onChange={(e) => setTransferAmount(formatNumberWithDots(e.target.value))}
-              placeholder="Contoh: 500.000"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] block mb-1">Catatan (opsional)</label>
-            <input
-              type="text"
-              value={transferNotes}
-              onChange={(e) => setTransferNotes(e.target.value)}
-              placeholder="Contoh: Top-up saldo atau tarik tunai ATM"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
-            />
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setTransferModalOpen(false)}
-              className="flex-1 rounded-xl border border-[var(--border)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-raised)]"
-            >
-              Batal
-            </button>
-            <button
-              type="button"
-              disabled={transferMutation.isPending}
-              onClick={() => transferMutation.mutate()}
-              className="flex-1 rounded-xl bg-transfer text-white py-2 text-xs font-semibold hover:bg-blue-600 disabled:opacity-50"
-            >
-              {transferMutation.isPending ? "Memproses..." : "Selesaikan Transfer"}
-            </button>
-          </div>
-        </div>
-      </Modal>
+        defaultSourceAccountId={fromAccountId}
+        defaultTargetAccountId={toAccountId}
+      />
 
       {/* Add / Edit Account Modal */}
       <Modal
@@ -2194,31 +1401,41 @@ export default function AccountsPage() {
             : "Tambah Rekening Baru"
         }
       >
-        <div className="space-y-4 pt-2 text-xs">
+        <form
+          className="space-y-4 pt-2 text-xs [&_input]:min-h-11 [&_select]:min-h-11"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!saveAccountMutation.isPending) saveAccountMutation.mutate();
+          }}
+        >
           {accError && (
-            <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-500">
+            <div role="alert" className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-600">
               {accError}
             </div>
           )}
 
           <div>
-            <label className="font-medium text-[var(--muted)] block mb-1">
+            <label htmlFor="account-name" className="font-medium text-[var(--muted)] block mb-1">
               {editingAccount?.parent_id ? "Nama Kantong" : "Nama Rekening"}
             </label>
             <input
+              id="account-name"
+              name="name"
               type="text"
+              required
               value={accName}
               onChange={(e) => setAccName(e.target.value)}
+              aria-invalid={Boolean(accountNameError) || undefined}
+              aria-describedby={accountNameError ? "account-name-error" : undefined}
               placeholder="Contoh: BCA Utama, Bibit, Binance, GoPay"
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
             />
+            {accountNameError && <p id="account-name-error" className="mt-1 text-xs text-rose-600">{accountNameError}</p>}
           </div>
 
           {!editingAccount?.parent_id && (
             <div className="space-y-2">
-              <label className="font-medium text-[var(--muted)] block">
-                Warna Tag Rekening
-              </label>
+              <p className="font-medium text-[var(--muted)] block">Warna tag rekening</p>
               <div className="flex items-center gap-2 flex-wrap">
                 {ACCOUNT_TAG_COLORS.map((col) => {
                   const isSelected = accColor.toLowerCase() === col.hex.toLowerCase();
@@ -2227,8 +1444,10 @@ export default function AccountsPage() {
                       key={col.hex}
                       type="button"
                       onClick={() => setAccColor(col.hex)}
+                      aria-label={`Warna ${col.name}`}
+                      aria-pressed={isSelected}
                       className={cn(
-                        "h-7 w-7 rounded-full transition-transform flex items-center justify-center text-white",
+                        "min-h-11 min-w-11 rounded-full transition-transform flex items-center justify-center text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--text)]",
                         isSelected
                           ? "ring-2 ring-offset-2 ring-[var(--text)] scale-110"
                           : "hover:scale-105 opacity-80 hover:opacity-100"
@@ -2237,7 +1456,7 @@ export default function AccountsPage() {
                       title={col.name}
                     >
                       {isSelected && <Icon name="check" className="h-3.5 w-3.5" />}
-                    </button>
+                                    </button>
                   );
                 })}
               </div>
@@ -2262,8 +1481,10 @@ export default function AccountsPage() {
           {!editingAccount?.parent_id ? (
             <>
               <div>
-                <label className="font-medium text-[var(--muted)] block mb-1">Jenis Rekening</label>
+                <label htmlFor="account-type" className="font-medium text-[var(--muted)] block mb-1">Jenis rekening</label>
                 <select
+                  id="account-type"
+                  name="type"
                   value={accType}
                   onChange={(e) => setAccType(e.target.value as any)}
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
@@ -2277,21 +1498,26 @@ export default function AccountsPage() {
 
               {editingAccount && !editingAccount.parent_id && editingAccount.children && editingAccount.children.length > 0 && (
                 <div>
-                  <label className="font-medium text-[var(--muted)] block mb-1">
+                  <label htmlFor="account-default-pocket" className="font-medium text-[var(--muted)] block mb-1">
                     Kantong Default (Penerima Notifikasi Otomatis)
                   </label>
                   <select
+                    id="account-default-pocket"
+                    name="default_pocket_id"
                     value={accDefaultPocketId}
                     onChange={(e) => setAccDefaultPocketId(e.target.value)}
+                    aria-invalid={Boolean(defaultPocketError) || undefined}
+                    aria-describedby={defaultPocketError ? "account-default-pocket-error" : undefined}
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
                   >
                     <option value="">Tanpa Kantong Default (Gunakan Rekening Induk)</option>
-                    {editingAccount.children.map((child) => (
+                    {editingAccount.children.filter((child) => !child.is_archived).map((child) => (
                       <option key={child.id} value={child.id}>
                         {child.name} ({bal(child.balance)})
                       </option>
                     ))}
                   </select>
+                  {defaultPocketError && <p id="account-default-pocket-error" className="mt-1 text-xs text-rose-600">{defaultPocketError}</p>}
                   <p className="text-[10px] text-[var(--muted)] mt-1">
                     Transaksi mobile tanpa rincian kantong akan otomatis dialokasikan ke kantong default ini.
                   </p>
@@ -2301,13 +1527,14 @@ export default function AccountsPage() {
               {accType === "investment" && (
                 <div className="space-y-3">
                   <div>
-                    <label className="font-medium text-[var(--muted)] block mb-1.5">Model Akun Investasi</label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <p className="font-medium text-[var(--muted)] block mb-1.5">Model akun investasi</p>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <button
                         type="button"
                         onClick={() => setAccIsMultiInstrument(true)}
+                        aria-pressed={accIsMultiInstrument}
                         className={cn(
-                          "p-2.5 rounded-xl border text-left transition-all",
+                          "min-h-11 p-2.5 rounded-xl border text-left transition-[border-color,background-color,color]",
                           accIsMultiInstrument
                             ? "bg-violet-600/15 border-violet-500 text-white shadow-xs"
                             : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
@@ -2325,8 +1552,9 @@ export default function AccountsPage() {
                       <button
                         type="button"
                         onClick={() => setAccIsMultiInstrument(false)}
+                        aria-pressed={!accIsMultiInstrument}
                         className={cn(
-                          "p-2.5 rounded-xl border text-left transition-all",
+                          "min-h-11 p-2.5 rounded-xl border text-left transition-[border-color,background-color,color]",
                           !accIsMultiInstrument
                             ? "bg-violet-600/15 border-violet-500 text-white shadow-xs"
                             : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
@@ -2350,7 +1578,7 @@ export default function AccountsPage() {
                   )}
 
                   <div className="pt-2 border-t border-[var(--border)]">
-                    <label className="font-medium text-[var(--muted)] flex items-center justify-between mb-1.5">
+                    <label htmlFor="account-default-funding" className="font-medium text-[var(--muted)] flex items-center justify-between mb-1.5">
                       <span className="flex items-center gap-1.5 font-bold text-xs text-[var(--text)]">
                         <Icon name="credit-card" className="h-3.5 w-3.5 text-blue-400" />
                         <span>Sumber Dana / RDN Default</span>
@@ -2358,18 +1586,20 @@ export default function AccountsPage() {
                       <span className="text-[10px] text-[var(--muted)]">Opsional</span>
                     </label>
                     <select
+                      id="account-default-funding"
+                      name="default_funding_account_id"
                       value={accDefaultFundingId}
                       onChange={(e) => setAccDefaultFundingId(e.target.value)}
                       className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
                     >
                       <option value="">-- Tanpa RDN / Sumber Default --</option>
-                      {accounts
-                        .filter((a) => a.id !== editingAccount?.id && (a.type === "bank" || a.type === "wallet" || a.type === "cash"))
-                        .map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name} ({a.type.toUpperCase()})
-                          </option>
-                        ))}
+                      <AccountSelectOptions
+                        accounts={activeAccounts}
+                        liquidOnly
+                        allowParentSelection
+                        excludeAccountId={editingAccount?.id}
+                        formatBalance={fmtMoney}
+                      />
                     </select>
                     <p className="text-[10px] text-[var(--muted)] mt-1 leading-relaxed">
                       Notifikasi beli/jual dari broker (misal Stockbit) akan otomatis mendebit rekening ini tanpa memotong budget belanja harian.
@@ -2381,13 +1611,14 @@ export default function AccountsPage() {
           ) : (
             /* Editing a child pocket */
             <div>
-              <label className="font-medium text-[var(--muted)] block mb-1.5">Tipe Kantong</label>
-              <div className="grid grid-cols-2 gap-2">
+              <p className="font-medium text-[var(--muted)] block mb-1.5">Tipe kantong</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => setAccIsMultiInstrument(true)}
+                  aria-pressed={accIsMultiInstrument}
                   className={cn(
-                    "px-3 py-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5",
+                    "min-h-11 px-3 rounded-xl border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
                     accIsMultiInstrument
                       ? "bg-blue-600 text-white border-blue-500 shadow-xs"
                       : "bg-[var(--surface-raised)] text-[var(--muted)] border-[var(--border)] hover:text-[var(--text)]"
@@ -2399,8 +1630,9 @@ export default function AccountsPage() {
                 <button
                   type="button"
                   onClick={() => setAccIsMultiInstrument(false)}
+                  aria-pressed={!accIsMultiInstrument}
                   className={cn(
-                    "px-3 py-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5",
+                    "min-h-11 px-3 rounded-xl border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
                     !accIsMultiInstrument
                       ? "bg-violet-600 text-white border-violet-500 shadow-xs"
                       : "bg-[var(--surface-raised)] text-[var(--muted)] border-[var(--border)] hover:text-[var(--text)]"
@@ -2418,15 +1650,16 @@ export default function AccountsPage() {
             (editingAccount?.parent_id && !accIsMultiInstrument)) && (
             <div className="space-y-3 p-3.5 rounded-2xl bg-violet-500/5 border border-violet-500/20">
               <div>
-                <label className="font-medium text-[var(--muted)] block mb-1.5">Tipe Instrumen</label>
-                <div className="grid grid-cols-3 gap-1.5">
+                <p className="font-medium text-[var(--muted)] block mb-1.5">Tipe instrumen</p>
+                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                   {INSTRUMENT_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
                       type="button"
                       onClick={() => setAccInstrumentType(opt.value)}
+                      aria-pressed={accInstrumentType === opt.value}
                       className={cn(
-                        "px-2 py-1.5 rounded-xl border text-xs font-semibold transition-all",
+                        "min-h-11 px-2 rounded-xl border text-xs font-semibold transition-colors",
                         accInstrumentType === opt.value
                           ? "bg-violet-600 text-white border-violet-500 shadow-xs"
                           : "bg-[var(--surface-raised)] text-[var(--muted)] border-[var(--border)] hover:text-[var(--text)]"
@@ -2438,13 +1671,15 @@ export default function AccountsPage() {
                 </div>
               </div>
 
-              <div className="relative">
-                <label className="font-medium text-[var(--muted)] flex items-center justify-between mb-1">
+              {accInstrumentType !== "deposit" && <div className="relative">
+                <label htmlFor="account-ticker" className="font-medium text-[var(--muted)] flex items-center justify-between mb-1">
                   <span>Simbol Ticker / Kode (Yahoo Finance)</span>
                   <span className="text-[10px] text-[var(--muted)]">Opsional</span>
                 </label>
                 <div className="relative">
                   <input
+                    id="account-ticker"
+                    name="instrument_symbol"
                     type="text"
                     value={accTicker}
                     onChange={(e) => handleSearchTicker(e.target.value, false)}
@@ -2464,8 +1699,9 @@ export default function AccountsPage() {
                 {tickerSuggestions.length > 0 && (
                   <div className="absolute z-50 left-0 right-0 mt-1 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl overflow-hidden max-h-48 overflow-y-auto">
                     {tickerSuggestions.map((item) => (
-                      <div
+                      <button
                         key={item.symbol}
+                        type="button"
                         onClick={() => {
                           setAccTicker(item.symbol);
                           if (!accName || accName === "BCA Utama") {
@@ -2476,7 +1712,7 @@ export default function AccountsPage() {
                           }
                           setTickerSuggestions([]);
                         }}
-                        className="p-2.5 hover:bg-[var(--surface-raised)] cursor-pointer border-b border-[var(--border)]/50 last:border-0 flex items-center justify-between text-xs"
+                        className="flex min-h-11 w-full items-center justify-between border-b border-[var(--border)]/50 p-2.5 text-left text-xs hover:bg-[var(--surface-raised)] last:border-0"
                       >
                         <div>
                           <span className="font-bold text-violet-400">{item.symbol}</span>
@@ -2485,21 +1721,23 @@ export default function AccountsPage() {
                         <span className="text-[10px] uppercase text-[var(--muted)] px-1.5 py-0.5 rounded bg-[var(--surface-raised)] font-medium">
                           {item.exchange || item.type}
                         </span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
-              </div>
+              </div>}
 
-              {(() => {
+              {accInstrumentType !== "deposit" && (() => {
                 const aCfg = getInstrumentConfig(accInstrumentType);
                 return (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="font-medium text-[var(--muted)] block mb-1">
+                      <label htmlFor="account-units" className="font-medium text-[var(--muted)] block mb-1">
                         {aCfg.unitsLabel}
                       </label>
                       <input
+                        id="account-units"
+                        name="units"
                         type="text"
                         inputMode="decimal"
                         value={accUnits}
@@ -2517,10 +1755,12 @@ export default function AccountsPage() {
                       <p className="text-[10px] text-[var(--muted)] mt-0.5">{aCfg.unitsHint}</p>
                     </div>
                     <div>
-                      <label className="font-medium text-[var(--muted)] block mb-1">
+                      <label htmlFor="account-average-price" className="font-medium text-[var(--muted)] block mb-1">
                         {aCfg.priceLabel}
                       </label>
                       <input
+                        id="account-average-price"
+                        name="avg_buy_price"
                         type="text"
                         inputMode="decimal"
                         value={accAvgBuyPrice}
@@ -2543,24 +1783,26 @@ export default function AccountsPage() {
             </div>
           )}
 
-          {!editingAccount && (
-            <div>
-              <label className="font-medium text-[var(--muted)] block mb-1">
-                {accType === "investment"
-                  ? accIsMultiInstrument
-                    ? "Saldo Kas / RDN Awal (IDR - Opsional)"
-                    : getInstrumentConfig(accInstrumentType).totalLabel
-                  : "Saldo Awal (IDR)"}
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={accInitBal}
-                onChange={(e) => setAccInitBal(formatNumberWithDots(e.target.value))}
-                placeholder="0"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] tabular font-bold"
-              />
-            </div>
+          {!editingAccount && !(accType === "investment" && accIsMultiInstrument) && (
+            <MonetaryInput
+              id="account-initial-balance"
+              name="initial_balance"
+              label={accType === "investment" ? getInstrumentConfig(accInstrumentType).totalLabel : "Saldo Awal (IDR)"}
+              value={accInitBal}
+              onChange={setAccInitBal}
+              error={accountBalanceError}
+              description={accType === "investment" && accInstrumentType === "deposit"
+                ? "Pokok deposito saat pembukaan. Imbal hasil tahunan belum dihitung otomatis."
+                : accType === "investment"
+                ? "Nilai pembukaan posisi; unit dan harga beli dipakai sebagai dasar modal jika keduanya diisi. Beli/Jual berikutnya dicatat lewat transaksi investasi."
+                : "Saldo pembukaan rekening, bukan transaksi baru di buku kas."}
+            />
+          )}
+
+          {!editingAccount && accType === "investment" && accIsMultiInstrument && (
+            <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-xs leading-relaxed text-[var(--muted)]">
+              Platform ini hanya mengelompokkan kantong. Setelah dibuat, tambahkan kantong kas/RDN untuk saldo dana dan kantong instrumen untuk posisi investasi.
+            </p>
           )}
 
           <div className="flex gap-2 pt-2">
@@ -2572,19 +1814,18 @@ export default function AccountsPage() {
               Batal
             </button>
             <button
-              type="button"
+              type="submit"
               disabled={saveAccountMutation.isPending}
-              onClick={() => saveAccountMutation.mutate()}
-              className="flex-1 rounded-xl bg-income text-white py-2 text-xs font-semibold hover:bg-emerald-600 disabled:opacity-50"
+              className="min-h-11 flex-1 rounded-xl bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50"
             >
               {saveAccountMutation.isPending
-                ? "Menyimpan..."
+                ? "Menyimpan…"
                 : editingAccount
                 ? "Simpan Perubahan"
                 : "Tambah Rekening"}
             </button>
           </div>
-        </div>
+        </form>
       </Modal>
 
       {/* Pocket Modal */}
@@ -2594,19 +1835,30 @@ export default function AccountsPage() {
           onClose={() => setPocketModalOpen(false)}
           title={`Tambah Kantong di ${pocketParentAccount.name}`}
         >
-          <div className="space-y-4 pt-2 text-xs">
+          <form
+            className="space-y-4 pt-2 text-xs [&_input]:min-h-11 [&_select]:min-h-11"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!savePocketMutation.isPending) savePocketMutation.mutate();
+            }}
+          >
             {pocketError && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-medium">
+              <div role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 font-medium">
                 {pocketError}
               </div>
             )}
 
             <div>
-              <label className="font-medium text-[var(--muted)] block mb-1">Nama Kantong</label>
+              <label htmlFor="pocket-name" className="font-medium text-[var(--muted)] block mb-1">Nama kantong</label>
               <input
+                id="pocket-name"
+                name="name"
                 type="text"
+                required
                 value={pocketName}
                 onChange={(e) => setPocketName(e.target.value)}
+                aria-invalid={Boolean(pocketNameError) || undefined}
+                aria-describedby={pocketNameError ? "pocket-name-error" : undefined}
                 placeholder={
                   pocketParentAccount.type === "investment"
                     ? "Contoh: Bibit RDPU, Saham BBCA, Bareksa Sukuk"
@@ -2614,16 +1866,18 @@ export default function AccountsPage() {
                 }
                 className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
               />
+              {pocketNameError && <p id="pocket-name-error" className="mt-1 text-xs text-rose-600">{pocketNameError}</p>}
             </div>
 
             <div>
-              <label className="font-medium text-[var(--muted)] block mb-1.5">Tipe Kantong</label>
-              <div className="grid grid-cols-2 gap-2">
+              <p className="font-medium text-[var(--muted)] block mb-1.5">Tipe kantong</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => setPocketIsInvestment(false)}
+                  aria-pressed={!pocketIsInvestment}
                   className={cn(
-                    "px-3 py-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5",
+                    "min-h-11 px-3 rounded-xl border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
                     !pocketIsInvestment
                       ? "bg-blue-600 text-white border-blue-500 shadow-xs"
                       : "bg-[var(--surface-raised)] text-[var(--muted)] border-[var(--border)] hover:text-[var(--text)]"
@@ -2635,8 +1889,9 @@ export default function AccountsPage() {
                 <button
                   type="button"
                   onClick={() => setPocketIsInvestment(true)}
+                  aria-pressed={pocketIsInvestment}
                   className={cn(
-                    "px-3 py-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5",
+                    "min-h-11 px-3 rounded-xl border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
                     pocketIsInvestment
                       ? "bg-violet-600 text-white border-violet-500 shadow-xs"
                       : "bg-[var(--surface-raised)] text-[var(--muted)] border-[var(--border)] hover:text-[var(--text)]"
@@ -2656,15 +1911,16 @@ export default function AccountsPage() {
             {pocketIsInvestment && (
               <div className="space-y-3 p-3.5 rounded-2xl bg-violet-500/5 border border-violet-500/20">
                 <div>
-                  <label className="font-medium text-[var(--muted)] block mb-1.5">Tipe Instrumen</label>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <p className="font-medium text-[var(--muted)] block mb-1.5">Tipe instrumen</p>
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                     {INSTRUMENT_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
                         type="button"
                         onClick={() => setPocketInstrumentType(opt.value)}
+                        aria-pressed={pocketInstrumentType === opt.value}
                         className={cn(
-                          "px-2 py-1.5 rounded-xl border text-xs font-semibold transition-all",
+                          "min-h-11 px-2 rounded-xl border text-xs font-semibold transition-colors",
                           pocketInstrumentType === opt.value
                             ? "bg-violet-600 text-white border-violet-500 shadow-xs"
                             : "bg-[var(--surface-raised)] text-[var(--muted)] border-[var(--border)] hover:text-[var(--text)]"
@@ -2676,13 +1932,15 @@ export default function AccountsPage() {
                   </div>
                 </div>
 
-                <div className="relative">
-                  <label className="font-medium text-[var(--muted)] flex items-center justify-between mb-1">
+                {pocketInstrumentType !== "deposit" && <div className="relative">
+                  <label htmlFor="pocket-ticker" className="font-medium text-[var(--muted)] flex items-center justify-between mb-1">
                     <span>Simbol Ticker / Kode (Yahoo Finance)</span>
                     <span className="text-[10px] text-[var(--muted)]">Opsional</span>
                   </label>
                   <div className="relative">
                     <input
+                      id="pocket-ticker"
+                      name="instrument_symbol"
                       type="text"
                       value={pocketTicker}
                       onChange={(e) => handleSearchTicker(e.target.value, true)}
@@ -2702,8 +1960,9 @@ export default function AccountsPage() {
                   {pocketTickerSuggestions.length > 0 && (
                     <div className="absolute z-50 left-0 right-0 mt-1 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl overflow-hidden max-h-48 overflow-y-auto">
                       {pocketTickerSuggestions.map((item) => (
-                        <div
+                        <button
                           key={item.symbol}
+                          type="button"
                           onClick={() => {
                             setPocketTicker(item.symbol);
                             if (!pocketName) {
@@ -2714,7 +1973,7 @@ export default function AccountsPage() {
                             }
                             setPocketTickerSuggestions([]);
                           }}
-                          className="p-2.5 hover:bg-[var(--surface-raised)] cursor-pointer border-b border-[var(--border)]/50 last:border-0 flex items-center justify-between text-xs"
+                          className="flex min-h-11 w-full items-center justify-between border-b border-[var(--border)]/50 p-2.5 text-left text-xs hover:bg-[var(--surface-raised)] last:border-0"
                         >
                           <div>
                             <span className="font-bold text-violet-400">{item.symbol}</span>
@@ -2723,21 +1982,23 @@ export default function AccountsPage() {
                           <span className="text-[10px] uppercase text-[var(--muted)] px-1.5 py-0.5 rounded bg-[var(--surface-raised)] font-medium">
                             {item.exchange || item.type}
                           </span>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
-                </div>
+                </div>}
 
-                {(() => {
+                {pocketInstrumentType !== "deposit" && (() => {
                   const pCfg = getInstrumentConfig(pocketInstrumentType);
                   return (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="font-medium text-[var(--muted)] block mb-1">
+                        <label htmlFor="pocket-units" className="font-medium text-[var(--muted)] block mb-1">
                           {pCfg.unitsLabel}
                         </label>
                         <input
+                          id="pocket-units"
+                          name="units"
                           type="text"
                           inputMode="decimal"
                           value={pocketUnits}
@@ -2755,10 +2016,12 @@ export default function AccountsPage() {
                         <p className="text-[10px] text-[var(--muted)] mt-0.5">{pCfg.unitsHint}</p>
                       </div>
                       <div>
-                        <label className="font-medium text-[var(--muted)] block mb-1">
+                        <label htmlFor="pocket-average-price" className="font-medium text-[var(--muted)] block mb-1">
                           {pCfg.priceLabel}
                         </label>
                         <input
+                          id="pocket-average-price"
+                          name="avg_buy_price"
                           type="text"
                           inputMode="decimal"
                           value={pocketAvgBuyPrice}
@@ -2781,21 +2044,19 @@ export default function AccountsPage() {
               </div>
             )}
 
-            <div>
-              <label className="font-medium text-[var(--muted)] block mb-1">
-                {pocketIsInvestment
-                  ? getInstrumentConfig(pocketInstrumentType).totalLabel
-                  : "Saldo Awal Kantong (IDR)"}
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={pocketInitBal}
-                onChange={(e) => setPocketInitBal(formatNumberWithDots(e.target.value))}
-                placeholder="0"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] tabular font-bold"
-              />
-            </div>
+            <MonetaryInput
+              id="pocket-initial-balance"
+              name="initial_balance"
+              label={pocketIsInvestment ? getInstrumentConfig(pocketInstrumentType).totalLabel : "Saldo Awal Kantong (IDR)"}
+              value={pocketInitBal}
+              onChange={setPocketInitBal}
+              error={pocketBalanceError}
+              description={pocketIsInvestment && pocketInstrumentType === "deposit"
+                ? "Pokok deposito saat pembukaan. Imbal hasil tahunan belum dihitung otomatis."
+                : pocketIsInvestment
+                ? "Nilai pembukaan instrumen; perubahan unit berikutnya dicatat melalui Beli/Jual."
+                : "Saldo pembukaan kantong, bukan pemindahan saldo atau transaksi baru."}
+            />
 
             <div className="flex gap-2 pt-2">
               <button
@@ -2806,15 +2067,14 @@ export default function AccountsPage() {
                 Batal
               </button>
               <button
-                type="button"
+                type="submit"
                 disabled={savePocketMutation.isPending}
-                onClick={() => savePocketMutation.mutate()}
-                className="flex-1 rounded-xl bg-income text-white py-2 text-xs font-semibold hover:bg-emerald-600 disabled:opacity-50"
+                className="min-h-11 flex-1 rounded-xl bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50"
               >
-                {savePocketMutation.isPending ? "Menyimpan..." : "Buat Kantong"}
+                {savePocketMutation.isPending ? "Menyimpan…" : "Buat Kantong"}
               </button>
             </div>
-          </div>
+          </form>
         </Modal>
       )}
 
@@ -2825,9 +2085,15 @@ export default function AccountsPage() {
           onClose={() => setValuationAccount(null)}
           title={`Update Nilai: ${valuationAccount.name}`}
         >
-          <div className="space-y-4 pt-2 text-xs">
+          <form
+            className="space-y-4 pt-2 text-xs [&_input]:min-h-11 [&_select]:min-h-11"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!valuationMutation.isPending) valuationMutation.mutate();
+            }}
+          >
             {valError && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-medium">
+              <div role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 font-medium">
                 {valError}
               </div>
             )}
@@ -2854,10 +2120,12 @@ export default function AccountsPage() {
             </div>
 
             <div>
-              <label className="font-medium text-[var(--muted)] block mb-1">
+              <label htmlFor="valuation-current-value" className="font-medium text-[var(--muted)] block mb-1">
                 Nilai Pasar Terkini (IDR)
               </label>
               <input
+                id="valuation-current-value"
+                name="current_balance"
                 type="text"
                 inputMode="numeric"
                 value={valCurrentBalStr}
@@ -2871,10 +2139,12 @@ export default function AccountsPage() {
             </div>
 
             <div>
-              <label className="font-medium text-[var(--muted)] block mb-1">
+              <label htmlFor="valuation-cost-basis" className="font-medium text-[var(--muted)] block mb-1">
                 Total Modal Terinvestasi / Harga Beli (IDR)
               </label>
               <input
+                id="valuation-cost-basis"
+                name="cost_basis"
                 type="text"
                 inputMode="numeric"
                 value={valCostBasisStr}
@@ -2911,10 +2181,12 @@ export default function AccountsPage() {
             })()}
 
             <div>
-              <label className="font-medium text-[var(--muted)] block mb-1">
+              <label htmlFor="valuation-notes" className="font-medium text-[var(--muted)] block mb-1">
                 Catatan (Opsional)
               </label>
               <input
+                id="valuation-notes"
+                name="notes"
                 type="text"
                 value={valNotes}
                 onChange={(e) => setValNotes(e.target.value)}
@@ -2932,15 +2204,14 @@ export default function AccountsPage() {
                 Batal
               </button>
               <button
-                type="button"
+                type="submit"
                 disabled={valuationMutation.isPending}
-                onClick={() => valuationMutation.mutate()}
                 className="btn-primary flex-1"
               >
-                {valuationMutation.isPending ? "Menyimpan..." : "Simpan Nilai Baru"}
+                {valuationMutation.isPending ? "Menyimpan…" : "Simpan Nilai Baru"}
               </button>
             </div>
-          </div>
+          </form>
         </Modal>
       )}
       {reconcileAccount && (
@@ -2949,9 +2220,15 @@ export default function AccountsPage() {
           onClose={() => setReconcileAccount(null)}
           title={`Sesuaikan Saldo: ${reconcileAccount.name}`}
         >
-          <div className="space-y-4 pt-2 text-xs">
+          <form
+            className="space-y-4 pt-2 text-xs"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!reconcileMutation.isPending) reconcileMutation.mutate();
+            }}
+          >
             {reconcileError && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-medium">
+              <div role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 font-medium">
                 {reconcileError}
               </div>
             )}
@@ -2967,22 +2244,19 @@ export default function AccountsPage() {
               </span>
             </div>
 
-            <div>
-              <label className="font-medium text-[var(--muted)] block mb-1">
-                Saldo Sebenarnya di Bank / Dompet (IDR)
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={actualBalStr}
-                onChange={(e) => setActualBalStr(formatNumberWithDots(e.target.value))}
-                placeholder="Contoh: 10.000.000"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
-              />
-            </div>
+            <MonetaryInput
+              id="reconcile-actual-balance"
+              name="actual_balance"
+              label="Saldo Sebenarnya di Bank / Dompet (IDR)"
+              value={actualBalStr}
+              onChange={(value) => { setActualBalStr(value); setReconcileError(""); }}
+              placeholder="Contoh: 10.000.000"
+              error={reconcileError}
+              className="text-base"
+            />
 
             {/* Calculated variance preview */}
-            {(() => {
+            {actualBalStr.trim() && (() => {
               const actual = parseNumberFromDots(actualBalStr);
               const diff = actual - reconcileAccount.balance;
               return (
@@ -3007,10 +2281,12 @@ export default function AccountsPage() {
             })()}
 
             <div>
-              <label className="font-medium text-[var(--muted)] block mb-1">
+              <label htmlFor="reconcile-notes" className="font-medium text-[var(--muted)] block mb-1">
                 Catatan Penyesuaian (Opsional)
               </label>
               <input
+                id="reconcile-notes"
+                name="notes"
                 type="text"
                 value={reconcileNotes}
                 onChange={(e) => setReconcileNotes(e.target.value)}
@@ -3028,15 +2304,14 @@ export default function AccountsPage() {
                 Batal
               </button>
               <button
-                type="button"
+                type="submit"
                 disabled={reconcileMutation.isPending}
-                onClick={() => reconcileMutation.mutate()}
                 className="btn-primary flex-1"
               >
-                {reconcileMutation.isPending ? "Menyesuaikan..." : "Konfirmasi & Sesuaikan Saldo"}
+                {reconcileMutation.isPending ? "Menyesuaikan…" : "Konfirmasi & Sesuaikan Saldo"}
               </button>
             </div>
-          </div>
+          </form>
         </Modal>
       )}
 

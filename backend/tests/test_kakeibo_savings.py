@@ -53,11 +53,12 @@ def test_kakeibo_breakdown_excludes_liquid_moves_and_preauth():
     assert res["saving_spent"] == 0
     assert res["total_allocated"] == 951903 + 70400
 
-    # Verify query uses COALESCE on notes and excludes pre-auth
+    # Savings attribution follows linked bilateral movement roles, not note text.
     query_call = cur.execute.call_args_list[1]
     query_sql = query_call[0][0]
-    assert "COALESCE(t.notes, '') NOT LIKE" in query_sql
-    assert "COALESCE(t.notes, '') NOT ILIKE '%%pre-auth%%'" in query_sql
+    assert "outbound.movement_role = 'outbound'" in query_sql
+    assert "inbound.movement_role = 'inbound'" in query_sql
+    assert "outbound.kakeibo_type = 'saving'" in query_sql
 
 
 def test_kakeibo_breakdown_includes_true_saving_transfers():
