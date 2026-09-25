@@ -1284,6 +1284,177 @@ def test_legacy_unlinked_transaction_rows_are_not_paired_by_heuristics(auth_clie
     assert target_row["transfer_target_account_id"] is None
 
 
+def test_confirmed_merge_links_existing_transactions_without_changing_balances(auth_client):
+    from app.db.pool import db_conn
+
+    source_id = _create_account(auth_client, name=f"Merge source {uuid4().hex[:8]}", balance=1_000)
+    target_id = _create_account(auth_client, name=f"Merge target {uuid4().hex[:8]}", balance=0)
+    expense_date = "2026-09-20T10:00:27Z"
+    income_date = "2026-09-20T10:02:45Z"
+    expense_response = auth_client.post(
+        "/api/transactions",
+        json={"type": "expense", "account_id": source_id, "amount": 300, "notes": "Paid by bank", "date": expense_date},
+    )
+    income_response = auth_client.post(
+        "/api/transactions",
+        json={"type": "income", "account_id": target_id, "amount": 300, "notes": "Received by wallet", "date": income_date},
+    )
+    assert expense_response.status_code == income_response.status_code == 200
+    expense_id = expense_response.json()["transaction_id"]
+    income_id = income_response.json()["transaction_id"]
+    logical_before = auth_client.get("/api/transactions?logical_movements=true&limit=1").json()["total"]
+
+    with db_conn() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE transactions SET receipt_path = %s WHERE id = %s",
+                ("receipts/merge-test.jpg", expense_id),
+            )
+            connection.commit()
+            cursor.execute(
+                """
+                SELECT id, account_id, type, amount, notes, date, receipt_path
+                FROM transactions WHERE id = ANY(%s) ORDER BY id
+                """,
+                ([expense_id, income_id],),
+            )
+            before = cursor.fetchall()
+
+    merged = auth_client.post(
+        "/api/movements/merge",
+        json={"expense_transaction_id": expense_id, "income_transaction_id": income_id},
+    )
+    assert merged.status_code == 200, merged.text
+    movement_id = merged.json()["movement_id"]
+
+    with db_conn() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, account_id, type, amount, notes, date, receipt_path,
+                       movement_id, movement_role, category_id
+                FROM transactions WHERE id = ANY(%s) ORDER BY id
+                """,
+                ([expense_id, income_id],),
+            )
+            after = cursor.fetchall()
+            cursor.execute(
+                "SELECT name, kind, is_excluded_from_budget FROM categories WHERE id = ANY(%s)",
+                ([str(row["category_id"]) for row in after],),
+            )
+            categories = cursor.fetchall()
+
+    assert [{key: row[key] for key in before[0]} for row in after] == before
+    assert {str(row["movement_id"]) for row in after} == {movement_id}
+    assert {row["movement_role"] for row in after} == {"outbound", "inbound"}
+    assert {(row["name"], row["kind"], row["is_excluded_from_budget"]) for row in categories} == {
+        ("Internal Movement", "expense", True),
+        ("Internal Movement", "income", True),
+    }
+    logical_after = auth_client.get("/api/transactions?logical_movements=true&limit=1").json()["total"]
+    assert logical_after == logical_before - 1
+    inbound_search = auth_client.get(
+        "/api/transactions",
+        params={"logical_movements": "true", "q": "Received by wallet"},
+    )
+    assert inbound_search.status_code == 200
+    assert income_id in {row["id"] for row in inbound_search.json()["transactions"]}
+
+
+def test_confirmed_merge_rejects_invalid_or_already_linked_rows(auth_client):
+    source_id = _create_account(auth_client, name=f"Merge reject source {uuid4().hex[:8]}", balance=1_000)
+    target_id = _create_account(auth_client, name=f"Merge reject target {uuid4().hex[:8]}", balance=0)
+    outgoing = auth_client.post(
+        "/api/transactions",
+        json={"type": "expense", "account_id": source_id, "amount": 200},
+    )
+    incoming = auth_client.post(
+        "/api/transactions",
+        json={"type": "income", "account_id": target_id, "amount": 100},
+    )
+    assert outgoing.status_code == incoming.status_code == 200
+    out_id = outgoing.json()["transaction_id"]
+    in_id = incoming.json()["transaction_id"]
+    payload = {"expense_transaction_id": out_id, "income_transaction_id": in_id}
+
+    unequal = auth_client.post("/api/movements/merge", json=payload)
+    assert unequal.status_code == 422
+    assert auth_client.get(f"/api/transactions/{out_id}").json()["transaction"]["movement_id"] is None
+
+    corrected = auth_client.patch(f"/api/transactions/{in_id}", json={"amount": 200})
+    assert corrected.status_code == 200, corrected.text
+    merged = auth_client.post("/api/movements/merge", json=payload)
+    assert merged.status_code == 200, merged.text
+    replay = auth_client.post("/api/movements/merge", json=payload)
+    assert replay.status_code == 409
+
+
+def test_confirmed_merge_rejects_goal_link_without_partial_classification(auth_client):
+    source_id = _create_account(auth_client, name=f"Merge goal source {uuid4().hex[:8]}", balance=1_000)
+    target_id = _create_account(auth_client, name=f"Merge goal target {uuid4().hex[:8]}", balance=0)
+    goal = auth_client.post(
+        "/api/goals",
+        json={"name": f"Merge guard {uuid4().hex[:8]}", "target_amount": 1_000},
+    )
+    assert goal.status_code == 200, goal.text
+    goal_id = goal.json()["goal"]["id"]
+    outgoing = auth_client.post(
+        "/api/transactions",
+        json={"type": "expense", "account_id": source_id, "amount": 100, "goal_id": goal_id},
+    )
+    incoming = auth_client.post(
+        "/api/transactions",
+        json={"type": "income", "account_id": target_id, "amount": 100},
+    )
+    assert outgoing.status_code == incoming.status_code == 200
+    out_id = outgoing.json()["transaction_id"]
+    in_id = incoming.json()["transaction_id"]
+
+    rejected = auth_client.post(
+        "/api/movements/merge",
+        json={"expense_transaction_id": out_id, "income_transaction_id": in_id},
+    )
+
+    assert rejected.status_code == 409
+    for transaction_id in (out_id, in_id):
+        transaction = auth_client.get(f"/api/transactions/{transaction_id}").json()["transaction"]
+        assert transaction["movement_id"] is None
+        assert transaction["category_name"] != "Internal Movement"
+
+
+def test_concurrent_confirmed_merge_claims_one_pair_only(auth_client):
+    from app.main import app
+
+    source_id = _create_account(auth_client, name=f"Merge race source {uuid4().hex[:8]}", balance=1_000)
+    target_id = _create_account(auth_client, name=f"Merge race target {uuid4().hex[:8]}", balance=0)
+    outgoing = auth_client.post(
+        "/api/transactions",
+        json={"type": "expense", "account_id": source_id, "amount": 100},
+    )
+    incoming = auth_client.post(
+        "/api/transactions",
+        json={"type": "income", "account_id": target_id, "amount": 100},
+    )
+    assert outgoing.status_code == incoming.status_code == 200
+    payload = {
+        "expense_transaction_id": outgoing.json()["transaction_id"],
+        "income_transaction_id": incoming.json()["transaction_id"],
+    }
+    clients = [TestClient(app, base_url="https://testserver") for _ in range(2)]
+    for client in clients:
+        client.headers["Origin"] = "https://testserver"
+        client.cookies.update(auth_client.cookies)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(executor.map(lambda client: client.post("/api/movements/merge", json=payload), clients))
+
+    assert sorted(response.status_code for response in responses) == [200, 409]
+    outgoing_row = auth_client.get(f"/api/transactions/{payload['expense_transaction_id']}").json()["transaction"]
+    incoming_row = auth_client.get(f"/api/transactions/{payload['income_transaction_id']}").json()["transaction"]
+    assert outgoing_row["movement_id"] == incoming_row["movement_id"]
+    assert outgoing_row["movement_id"] is not None
+
+
 def test_rejected_movement_update_preserves_both_existing_legs(auth_client):
     from app.db.pool import db_conn
 

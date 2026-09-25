@@ -13,6 +13,7 @@ Financial input behavior is currently spread across duplicated modals with diffe
 - Complete category management with income/expense kind, Kakeibo pillar, primary/optional status, budget, icon, color, and archive behavior.
 - Align registration and settings fields with backend persistence, supported currency values, validation, and active query invalidation.
 - Complete goal, obligation, account, trade, payroll, and ledger edit forms with the fields and constraints required by their domain contracts.
+- Show editable seconds in transaction and movement date-time fields on create and edit while leaving compact ledger date displays unchanged.
 - Give every form associated labels, stable names, appropriate autocomplete/input modes, field-level errors, live submission feedback, keyboard submission, and focus movement to the first invalid field.
 - Upgrade shared dialogs with initial focus, focus containment, Escape handling, focus restoration, unique accessible names, scroll containment, and reduced-motion behavior.
 - Expose selection state and accessible names for icon-only, color, category, account, and segmented-choice controls.
@@ -26,7 +27,7 @@ Financial input behavior is currently spread across duplicated modals with diffe
 
 ### Modified Capabilities
 
-- `transaction-ledger-management`: Completes quick capture and ledger editing, including receipts, classification, and one canonical movement form.
+- `transaction-ledger-management`: Completes quick capture and ledger editing, including receipts, classification, seconds-precise date entry, and one canonical movement form.
 - `automated-transactions`: Completes recurring-rule create/edit scheduling controls and type-correct selections.
 - `payroll-allocation-flow`: Makes payroll inclusion explicit and aligns allocation validation and feedback with the shared form contract.
 - `custom-category-management`: Exposes every persisted category attribute and filters category choices by transaction type.

@@ -8,6 +8,7 @@ The current ledger passes its automated suite but still permits several paths th
 
 - Replace synthetic goal-deposit income with explicit goal progress behavior: account-backed goals derive progress only from linked account balances, while standalone goals accept progress adjustments without ledger transactions.
 - Persist a durable bilateral movement identifier and provide atomic create, update, and delete operations for both halves of a movement.
+- Restore a bounded, display-only match for unique legacy internal-movement pairs less than 30 seconds apart, and let the owner explicitly link two eligible ledger rows as one durable movement after confirmation. Automatic matching never writes linkage.
 - Settle investment buys and sales between the funding account and instrument position atomically, validate trade quantities, and reject overselling.
 - Restrict investment-position balance changes to the investment trade flow; generic movements, recurring transfers, and payroll allocations SHALL use liquid accounts only.
 - Prevent manual expenses, movements, payroll allocations, and recurring executions from making liquid accounts negative; settled notification ingestion remains recordable and flags the account for reconciliation.
@@ -30,7 +31,7 @@ The current ledger passes its automated suite but still permits several paths th
 
 ### Modified Capabilities
 
-- `transaction-ledger-management`: Replaces heuristic transfer pairing with durable linkage and atomic bilateral mutation contracts.
+- `transaction-ledger-management`: Uses durable linkage for canonical movements, bounded display-only matching for legacy rows, and confirmed atomic reconciliation of two eligible rows.
 - `financial-goals-tracker`: Separates standalone progress adjustments from account-backed progress and prohibits synthetic goal cash flow.
 - `investment-trade-recording`: Requires correct funding-account settlement and validates positive, available trade units.
 - `automated-transactions`: Makes auto-posting server-owned, occurrence-idempotent, ownership-safe, and balance-safe.
@@ -46,6 +47,6 @@ The current ledger passes its automated suite but still permits several paths th
 
 - Backend routers: transactions, movements, accounts, goals, obligations, recurring, dashboard/pulse, ingest, auth, and receipt handling.
 - PostgreSQL migrations: durable movement linkage, recurring occurrence identity/status, reconciliation-needed account state, clean-schema V14 compatibility, and a guarded one-time V14 checksum repair in the approved release path.
-- Frontend consumers: goal actions, ledger movement mutations, trade settlement errors, recurring/payroll status, and reconciliation warnings.
+- Frontend consumers: goal actions, ledger movement mutations and two-row selection, trade settlement errors, recurring/payroll status, and reconciliation warnings.
 - Tests: database-backed regression coverage for atomicity, concurrency, ownership, insufficient funds, overselling, scheduling, and storage validation.
 - No production access or manual schema changes; migrations remain idempotent and release-pipeline driven.

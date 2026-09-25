@@ -7,7 +7,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import LedgerPage from "./page";
 
 vi.mock("@/lib/api", () => ({
-  api: { get: vi.fn(), patch: vi.fn(), del: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() },
   createMovement: vi.fn(),
   deleteMovement: vi.fn(),
   updateMovement: vi.fn(),
@@ -39,15 +39,16 @@ const transaction = {
   kakeibo_type: "need",
   amount: 25_000,
   notes: "Makan siang",
-  date: "2026-09-20T12:00:00.000Z",
+  date: "2026-09-20T12:00:27.000Z",
   receipt_path: "old-receipt.jpg",
   created_at: "2026-09-20T12:00:00.000Z",
 };
 type MovementTransaction = typeof transaction & {
   movement_id: string;
-  movement_role: "outbound";
-  target_account_id: string;
-  is_consolidated_transfer: boolean;
+  movement_role: "outbound" | "inbound";
+  target_account_id?: string;
+  transfer_target_account_id?: string;
+  is_consolidated_transfer?: boolean;
 };
 let currentTransactions: Array<typeof transaction | MovementTransaction> = [transaction];
 
@@ -85,6 +86,8 @@ describe("Ledger edit receipt recovery", () => {
     );
 
     await user.click((await screen.findAllByRole("button", { name: "Ubah" }))[0]);
+    expect(screen.getByLabelText("Tanggal & Waktu")).toHaveAttribute("step", "1");
+    expect((screen.getByLabelText("Tanggal & Waktu") as HTMLInputElement).value).toMatch(/:27(?:\.000)?$/);
     await user.upload(
       screen.getByLabelText("Ganti / tambahkan bukti"),
       new File(["receipt"], "receipt.jpg", { type: "image/jpeg" }),
@@ -227,6 +230,39 @@ describe("Ledger edit receipt recovery", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.transactions.all });
   });
 
+  it("uses the source partner when editing a filtered inbound movement", async () => {
+    currentTransactions = [{
+      ...transaction,
+      id: "movement-in",
+      account_id: "account-2",
+      account_name: "Jago",
+      category_name: "Internal Movement",
+      type: "income",
+      movement_id: "movement-1",
+      movement_role: "inbound",
+      transfer_target_account_id: "account-1",
+    }];
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [
+        { id: "account-1", name: "BCA", type: "bank", balance: 100_000 },
+        { id: "account-2", name: "Jago", type: "bank", balance: 50_000 },
+      ] };
+      if (path === "/categories") return { categories: [] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      if (path.startsWith("/transactions?")) return { ok: true, total: 1, transactions: currentTransactions };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
+
+    await user.click((await screen.findAllByRole("button", { name: "Ubah" }))[0]);
+    expect(await screen.findByRole("dialog", { name: "Ubah pindah saldo" })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Dari rekening" })).toHaveValue("account-1");
+    expect(screen.getByRole("combobox", { name: "Ke rekening" })).toHaveValue("account-2");
+  });
+
   it("uses the new category pillar unless the user explicitly overrides it", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -249,5 +285,91 @@ describe("Ledger edit receipt recovery", () => {
       category_id: "category-2",
       kakeibo_type: "need",
     })));
+  });
+});
+
+describe("Ledger movement confirmation", () => {
+  it("requires explicit confirmation before linking two selected transactions", async () => {
+    const incoming = {
+      ...transaction,
+      id: "transaction-2",
+      account_id: "account-2",
+      account_name: "Jago",
+      category_name: "Transfer diterima",
+      type: "income",
+      notes: "Masuk rekening",
+      date: "2026-09-20T12:02:45.000Z",
+      receipt_path: null,
+    };
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [
+        { id: "account-1", name: "BCA", type: "bank", balance: 100_000 },
+        { id: "account-2", name: "Jago", type: "bank", balance: 25_000 },
+      ] };
+      if (path === "/categories") return { categories: [] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      if (path.startsWith("/transactions?")) {
+        const offset = new URLSearchParams(path.split("?")[1]).get("offset");
+        return { ok: true, total: 51, transactions: offset === "0" ? [transaction] : [incoming] };
+      }
+      if (path === "/transactions/transaction-1") return { transaction };
+      if (path === "/transactions/transaction-2") return { transaction: incoming };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    vi.mocked(api.post).mockResolvedValue({ ok: true });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
+
+    await user.click(await screen.findByRole("button", { name: "Pilih 2 transaksi" }));
+    await user.click(screen.getByRole("button", { name: "Pilih transaksi Makan siang" }));
+    await user.click(screen.getAllByRole("button", { name: "Berikutnya" }).at(-1)!);
+    await user.click(await screen.findByRole("button", { name: "Pilih transaksi Masuk rekening" }));
+    await user.click(screen.getByRole("button", { name: "Gabungkan sebagai Pindah Saldo" }));
+
+    const confirmation = await screen.findByRole("dialog", { name: "Gabungkan sebagai Pindah Saldo" });
+    expect(within(confirmation).getByText(/Saldo rekening tidak berubah/)).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+    await user.click(within(confirmation).getByRole("button", { name: "Ya, gabungkan" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/movements/merge", {
+      expense_transaction_id: "transaction-1",
+      income_transaction_id: "transaction-2",
+    }));
+  });
+
+  it("keeps the confirmation open and explains a rejected merge", async () => {
+    const incoming = {
+      ...transaction,
+      id: "transaction-2",
+      account_id: "account-2",
+      account_name: "Jago",
+      type: "income",
+      notes: "Masuk rekening",
+    };
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [] };
+      if (path === "/categories") return { categories: [] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      if (path.startsWith("/transactions?")) return { ok: true, total: 2, transactions: [transaction, incoming] };
+      if (path === "/transactions/transaction-1") return { transaction };
+      if (path === "/transactions/transaction-2") return { transaction: incoming };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    vi.mocked(api.post).mockRejectedValue(new Error("A linked transaction cannot be merged"));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
+
+    await user.click(await screen.findByRole("button", { name: "Pilih 2 transaksi" }));
+    await user.click(screen.getByRole("button", { name: "Pilih transaksi Makan siang" }));
+    await user.click(screen.getByRole("button", { name: "Pilih transaksi Masuk rekening" }));
+    await user.click(screen.getByRole("button", { name: "Gabungkan sebagai Pindah Saldo" }));
+    const confirmation = await screen.findByRole("dialog", { name: "Gabungkan sebagai Pindah Saldo" });
+    await user.click(within(confirmation).getByRole("button", { name: "Ya, gabungkan" }));
+
+    expect(await within(confirmation).findByRole("alert")).toHaveTextContent("A linked transaction cannot be merged");
+    expect(confirmation).toBeVisible();
   });
 });

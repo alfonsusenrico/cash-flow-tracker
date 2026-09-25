@@ -81,6 +81,23 @@ describe("QuickCaptureModal", () => {
     })));
   });
 
+  it("submits the selected transaction time with seconds", async () => {
+    const user = userEvent.setup();
+    renderQuickCapture();
+    await user.selectOptions(await screen.findByRole("combobox", { name: "Kategori" }), "need-category");
+    await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "1000");
+    const date = screen.getByLabelText("Waktu Transaksi");
+    expect(date).toHaveAttribute("step", "1");
+    fireEvent.change(date, { target: { value: "2026-09-20T12:00:27" } });
+    await user.click(screen.getByRole("button", { name: "Simpan Transaksi" }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/transactions", expect.objectContaining({
+      date: expect.any(String),
+    })));
+    const payload = vi.mocked(api.post).mock.calls[0][1] as { date: string };
+    expect(new Date(payload.date).toISOString()).toBe(new Date("2026-09-20T12:00:27").toISOString());
+  });
+
   it("filters categories after switching transaction type and keeps the form accessible", async () => {
     const user = userEvent.setup();
     const { container } = renderQuickCapture();

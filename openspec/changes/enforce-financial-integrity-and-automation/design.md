@@ -16,7 +16,7 @@ See `proposal.md` for motivation. The active FastAPI routers write directly thro
 **Non-Goals:**
 
 - Introduce full double-entry accounting, multi-currency settlement, overdraft products, or credit-card accounts.
-- Infer links between legacy transfer rows whose relationship is not provable.
+- Persist inferred links between legacy rows without owner confirmation.
 - Repair historical user balances automatically or connect to production during implementation.
 - Redesign the forms covered by the companion UI change.
 
@@ -32,7 +32,11 @@ Ordered locking by account UUID prevents deadlocks when concurrent operations to
 
 Add nullable `movement_id UUID` and `movement_role` (`outbound` or `inbound`) to transactions, with a unique constraint on `(movement_id, movement_role)` when non-null. Canonical movement creation generates one ID and inserts exactly one row for each role. Server endpoints update and delete by movement ID while validating ownership.
 
-Legacy rows remain `movement_id = NULL`. The frontend must show them independently rather than guess pairs. A heuristic backfill was rejected because equal amounts and nearby timestamps cannot prove identity.
+Legacy rows remain `movement_id = NULL` unless the owner confirms two rows as one movement. The ledger may render a unique legacy pair as one inferred display row when both are explicitly identifiable as internal movements, have opposite directions and equal amounts on distinct accounts, and are less than 30 seconds apart. Matching is mutual and unique across the eligible page window. Inferred rows never receive a movement ID or paired mutation controls. Broad `is_excluded_from_budget` matching is rejected because it can include unrelated investment or budget-excluded cash flow. An ambiguous or unmatched row stays independent. A heuristic database backfill remains rejected because proximity cannot prove identity.
+
+The two-row ledger selection action sends transaction IDs to a server-owned confirmation endpoint. In one database transaction the endpoint locks both rows in stable ID order, verifies tenant ownership and eligibility, and rejects linked, same-direction, unequal-amount, same-account, investment-position, debt-allocated, goal-linked, or recurring-linked rows. It assigns one UUID and outbound/inbound roles, changes both categories to the owned Internal Movement categories, applies canonical movement Kakeibo classification, and preserves IDs, amounts, accounts, dates, notes, receipts, and event references. The confirmation preview discloses that cash-flow and budget classification changes; no balances change. Concurrent attempts on either row fail cleanly after locks are acquired. Existing linked movement edit/delete continues to use the canonical atomic API.
+
+Ledger selection keeps up to two IDs across pagination/filter changes and fetches current details before confirmation so stale rows cannot be linked silently. The server revalidates everything on submit. Automatic display matching is read-only; it never authorizes paired edit/delete. Linked movements remain one logical row even when their two legs fall on different raw pages; transaction list pagination must not split a confirmed logical movement.
 
 ### 3. Non-negative policy at locked source accounts
 
@@ -82,7 +86,7 @@ Changing V14 intentionally changes its checksum for databases that already appli
 
 ## Risks / Trade-offs
 
-- **[Legacy movement rows remain unconsolidated]** → Preserve truth and provide explicit unpaired presentation instead of risky inferred linkage.
+- **[Legacy display inference may be wrong]** → Require a unique sub-30-second match among explicit movement candidates, mark it as inferred, keep all writes independent, and offer owner-confirmed durable conversion.
 - **[Derived balance checks can be expensive]** → Lock only affected accounts, reuse indexed transaction aggregation, and measure query plans before considering cached balances.
 - **[Scheduler runs in multiple API processes]** → Use row locks plus a unique occurrence constraint; correctness does not depend on one process.
 - **[Filesystem and database cannot share a transaction]** → Use verify-first writes, deterministic cleanup order, and regression tests for each failure boundary.
@@ -95,7 +99,7 @@ Changing V14 intentionally changes its checksum for databases that already appli
 
 1. Make V14 compatible with clean and historical schemas, then have the approved release script perform a guarded one-time checksum repair only for databases with the expected V14 mismatch and no unrelated anomaly. Verify that any not-yet-applied validation entries exactly match pending Flyway history. Validate both clean history and the pre-existing V14 path.
 2. Add nullable movement linkage, reconciliation state, and recurring execution structures through an idempotent startup migration with indexes and constraints.
-3. Leave legacy transfers unlinked; do not attempt heuristic backfill.
+3. Leave legacy transfers unlinked by default; add only read-only bounded display inference and owner-confirmed atomic conversion.
 4. Deploy canonical mutation and validation services, then route manual movements and trades through them.
 5. Route recurring, payroll, and ingestion paths through the same services and enable the server scheduler only after occurrence uniqueness is active.
 6. Switch goal progress semantics and receipt/auth boundary behavior after their regression tests pass.

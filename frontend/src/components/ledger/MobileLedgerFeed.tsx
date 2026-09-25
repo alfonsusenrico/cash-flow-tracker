@@ -26,6 +26,8 @@ export interface LedgerTxItem {
   is_excluded_from_budget?: boolean;
   partner_id?: string;
   is_consolidated_transfer?: boolean;
+  is_inferred_transfer?: boolean;
+  movement_id?: string | null;
   target_account_name?: string;
   target_account_id?: string;
   kakeibo_type?: string | null;
@@ -36,6 +38,8 @@ interface MobileLedgerFeedProps {
   onOpenEdit: (tx: LedgerTxItem) => void;
   bal: (amount: number) => string;
   isLoading?: boolean;
+  selectionMode?: boolean;
+  selectedIds?: string[];
 }
 
 export function MobileLedgerFeed({
@@ -43,6 +47,8 @@ export function MobileLedgerFeed({
   onOpenEdit,
   bal,
   isLoading,
+  selectionMode = false,
+  selectedIds = [],
 }: MobileLedgerFeedProps) {
   // Group transactions by YYYY-MM-DD
   const grouped = useMemo(() => {
@@ -56,6 +62,7 @@ export function MobileLedgerFeed({
 
       const isMovement =
         tx.is_consolidated_transfer ||
+        tx.is_inferred_transfer ||
         tx.category_name === "Internal Movement" ||
         !!tx.is_excluded_from_budget ||
         (tx.notes?.toLowerCase().includes("pindah saldo") ?? false);
@@ -160,6 +167,7 @@ export function MobileLedgerFeed({
               {group.items.map((tx) => {
                 const isMovement =
                   tx.is_consolidated_transfer ||
+                  tx.is_inferred_transfer ||
                   tx.category_name === "Internal Movement" ||
                   !!tx.is_excluded_from_budget ||
                   (tx.notes?.toLowerCase().includes("pindah saldo") ?? false);
@@ -170,7 +178,13 @@ export function MobileLedgerFeed({
                     type="button"
                     key={tx.id}
                     onClick={() => onOpenEdit(tx)}
-                    className="w-full p-3 text-left flex items-center justify-between hover:bg-[var(--surface-raised)]/60 active:bg-[var(--surface-raised)] transition-all cursor-pointer group focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--primary)]"
+                    aria-label={selectionMode ? `Pilih transaksi ${tx.notes || tx.category_name || tx.id}` : undefined}
+                    aria-pressed={selectionMode ? selectedIds.includes(tx.id) : undefined}
+                    disabled={selectionMode && (Boolean(tx.movement_id) || (selectedIds.length === 2 && !selectedIds.includes(tx.id)))}
+                    className={cn(
+                      "w-full p-3 text-left flex items-center justify-between hover:bg-[var(--surface-raised)]/60 active:bg-[var(--surface-raised)] transition-colors cursor-pointer group focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--primary)] disabled:opacity-40",
+                      selectionMode && selectedIds.includes(tx.id) && "bg-sky-500/10",
+                    )}
                   >
                     {/* Left: Icon + Description */}
                     <div className="flex items-center gap-3 min-w-0 pr-2">
@@ -235,6 +249,7 @@ export function MobileLedgerFeed({
 
                     {/* Right: Nominal */}
                     <div className="text-right shrink-0">
+                      {selectionMode && <span className="block text-[10px] font-semibold text-sky-500">{selectedIds.includes(tx.id) ? "Dipilih" : "Pilih"}</span>}
                       <div
                         className={cn(
                           "text-xs font-bold tabular tracking-tight",
@@ -255,7 +270,7 @@ export function MobileLedgerFeed({
 
                       {isMovement && (
                         <span className="inline-block mt-0.5 text-[9px] font-bold uppercase tracking-wider text-sky-500 bg-sky-500/10 px-1.5 py-0.2 rounded">
-                          Transfer
+                          {tx.is_inferred_transfer ? "Perkiraan transfer" : "Transfer"}
                         </span>
                       )}
                     </div>

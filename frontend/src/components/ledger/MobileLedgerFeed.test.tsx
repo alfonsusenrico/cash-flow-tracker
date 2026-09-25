@@ -41,4 +41,23 @@ describe("MobileLedgerFeed", () => {
     expect(onOpenEdit).toHaveBeenCalledWith(payment);
     expect(onOpenEdit).toHaveBeenCalledTimes(1);
   });
+
+  it("exposes selected state and lets a keyboard user choose an unlinked row", async () => {
+    const onSelect = vi.fn();
+    render(
+      <MobileLedgerFeed
+        transactions={[payment]}
+        onOpenEdit={onSelect}
+        selectionMode
+        selectedIds={[payment.id]}
+        bal={(amount) => `Rp ${amount.toLocaleString("id-ID")}`}
+      />,
+    );
+
+    const row = screen.getByRole("button", { name: /Bayar dua kartu/ });
+    expect(row).toHaveAttribute("aria-pressed", "true");
+    row.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(onSelect).toHaveBeenCalledWith(payment);
+  });
 });

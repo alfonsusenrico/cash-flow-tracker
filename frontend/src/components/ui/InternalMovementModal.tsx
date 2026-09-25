@@ -232,6 +232,7 @@ export function InternalMovementModal({
             id="movement-date"
             name="date"
             type="datetime-local"
+            step={1}
             value={txDate}
             onChange={(e) => setTxDate(e.target.value)}
             className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"

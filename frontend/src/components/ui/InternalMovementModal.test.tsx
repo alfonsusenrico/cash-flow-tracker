@@ -53,7 +53,7 @@ describe("InternalMovementModal", () => {
             targetAccountId: "account-target",
             amount: 500,
             notes: "Move savings",
-            date: "2026-09-20T12:00:00.000Z",
+            date: "2026-09-20T12:00:27.000Z",
           }}
         />
       </QueryClientProvider>,
@@ -61,6 +61,8 @@ describe("InternalMovementModal", () => {
 
     expect(await screen.findByRole("dialog", { name: "Ubah pindah saldo" })).toBeVisible();
     expect(screen.queryByRole("option", { name: /Stock/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Waktu Pemindahan")).toHaveAttribute("step", "1");
+    expect((screen.getByLabelText("Waktu Pemindahan") as HTMLInputElement).value).toMatch(/:27(?:\.000)?$/);
 
     await user.clear(screen.getByRole("textbox", { name: "Nominal (IDR)" }));
     await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "750");
@@ -80,7 +82,7 @@ describe("InternalMovementModal", () => {
     );
     const [, payload] = vi.mocked(updateMovement).mock.calls[0];
     expect(payload.date).toBeDefined();
-    expect(new Date(payload.date!).toISOString()).toBe("2026-09-20T12:00:00.000Z");
+    expect(new Date(payload.date!).toISOString()).toBe("2026-09-20T12:00:27.000Z");
   });
 
   it("submits the same movement payload when an entry point provides account defaults", async () => {

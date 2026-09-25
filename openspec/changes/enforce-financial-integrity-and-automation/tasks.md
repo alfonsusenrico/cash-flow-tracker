@@ -11,6 +11,7 @@
 - [x] 2.2 Implement canonical account locking, derived-balance calculation, structured insufficient-funds errors, and shared atomic mutation helpers; verify unit and concurrent database tests cover ordered locks, exact-balance success, insufficient-balance rejection, and rollback.
 - [x] 2.3 Implement canonical bilateral movement creation, retrieval, update, and deletion with immutable server-generated linkage; verify API tests prove exactly two linked roles and all-or-nothing edit/delete behavior.
 - [x] 2.4 Update transaction list/detail contracts to expose movement identity and remove heuristic pairing assumptions; verify legacy unlinked transactions remain independent in API fixtures.
+- [x] 2.5 Add a tenant-owned, atomic two-transaction conversion operation for confirmed manual movement linking; verify database tests cover successful preservation of balances/IDs/dates/receipts, classification effects, rejection of ineligible rows, concurrent claims, and rollback.
 
 ## 3. Manual Financial Operations
 
@@ -38,6 +39,7 @@
 - [x] 6.1 Correct Pulse and dashboard liquid, investment, aggregate, and reconciliation-pending calculations; verify fixtures with mixed account types return separately labeled exact totals.
 - [x] 6.2 Update frontend API types and affected consumers for movement identity, structured financial errors, recurring occurrence status, goal adjustment, and reconciliation warnings without implementing the separate form redesign; verify frontend type-check, Vitest, and production build pass.
 - [x] 6.3 Remove or quarantine obsolete backend balance/receipt paths only after confirming no active caller remains; verify `rg` finds one canonical implementation per responsibility and the backend suite remains green.
+- [x] 6.4 Restore display-only unique legacy movement pairing under 30 seconds, keep ambiguous and linked rows distinct, add two-row selection and a detailed confirmation in desktop/mobile ledger, and preserve linked movement rendering across pagination; verify frontend and API tests cover 29/30-second boundaries, duplicate candidates, filters/pages, confirmation, and rejection feedback.
 
 ## 7. Full Verification and Handoff
 

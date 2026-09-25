@@ -16,9 +16,15 @@ The application SHALL provide one canonical transaction-capture form that suppor
 ### Requirement: Complete Ledger Editing
 The transaction detail form SHALL expose every safely editable transaction property, including type where compatible, account, category, classification, date, notes, goal or obligation association, and receipt. Movement rows SHALL delegate source, target, amount, notes, and date changes to the canonical atomic movement operation.
 
+Transaction capture, movement create/edit, and ordinary ledger edit SHALL show and allow editing seconds in their date-time control. Opening an existing record SHALL retain its stored second value, and submitting an unchanged control SHALL NOT silently round the timestamp to the minute. Compact ledger date/time display SHALL remain unchanged.
+
 #### Scenario: Editing transaction classification
 - **WHEN** a user changes a normal expense from `need` to `want`
 - **THEN** the updated classification is persisted and affected analytics refresh
+
+#### Scenario: Editing a timestamp with seconds
+- **WHEN** a user opens an existing transaction or movement recorded at 12:34:27
+- **THEN** the form shows 12:34:27 and submitting preserves that second rather than changing it to 12:34:00
 
 ### Requirement: Consistent Post-Mutation Refresh
 After a successful financial form mutation, every active view whose displayed data changed SHALL refresh using the canonical cache identity for that resource.

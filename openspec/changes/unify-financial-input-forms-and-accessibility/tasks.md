@@ -14,6 +14,7 @@
 - [x] 2.2 Add recoverable receipt attachment to transaction create and edit flows, preserving the saved transaction when upload fails; verify valid upload, invalid-file feedback, replacement, and retry tests pass.
 - [x] 2.3 Make `InternalMovementModal` the only movement form, add canonical edit support, exclude investment positions from generic account choices with a Beli/Jual explanation, and route Home, Accounts, global navigation, and ledger entry points through it; verify all entry-point tests submit the same payload and no duplicate active movement form remains.
 - [x] 2.4 Complete ordinary ledger editing for compatible type, account, category, Kakeibo, date, notes, goal/obligation, and receipt fields while delegating linked movements to the movement API; verify mutation and refresh tests cover both paths.
+- [x] 2.5 Preserve and expose seconds in Quick Capture, movement create/edit, and ordinary ledger edit date-time controls without changing compact ledger display; verify nonzero seconds survive opening and saving in unit/component tests and a local browser check.
 
 ## 3. Recurring, Payroll, and Category Forms
 

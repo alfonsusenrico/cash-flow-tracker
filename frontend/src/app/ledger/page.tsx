@@ -16,6 +16,7 @@ import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { InfoHelp } from "@/components/ui/InfoHelp";
 import { queryKeys } from "@/lib/queryKeys";
 import { DebtAllocationEditor, allocationError, totalDebtPayments, type DebtAllocationValue } from "@/components/ui/DebtAllocationEditor";
+import { consolidateLedgerMovements } from "@/lib/ledgerMovements";
 
 interface TransactionItem {
   id: string;
@@ -44,76 +45,9 @@ interface TransactionItem {
   target_account_id?: string;
   movement_id?: string | null;
   movement_role?: "outbound" | "inbound" | null;
-}
-
-function consolidateTransactions(
-  items: TransactionItem[],
-  enabled: boolean
-): TransactionItem[] {
-  if (!enabled) {
-    return items.map((t) => {
-      const isMovement =
-        t.category_name === "Internal Movement" ||
-        !!t.is_excluded_from_budget ||
-        (t.notes?.toLowerCase().includes("pindah saldo") ?? false);
-      if (isMovement && t.notes && t.notes.includes("→")) {
-        const parts = t.notes.split("→");
-        if (parts.length > 1) {
-          const target = parts[1].replace(/[()]/g, "").trim();
-          return { ...t, target_account_name: target };
-        }
-      }
-      return t;
-    });
-  }
-
-  const result: TransactionItem[] = [];
-  const consumed = new Set<string>();
-
-  for (let i = 0; i < items.length; i++) {
-    const t1 = items[i];
-    if (consumed.has(t1.id)) continue;
-
-    const isT1Movement = Boolean(t1.movement_id);
-
-    if (!isT1Movement) {
-      result.push(t1);
-      continue;
-    }
-
-    let bestIndex = -1;
-    for (let j = i + 1; j < items.length; j++) {
-      const t2 = items[j];
-      if (consumed.has(t2.id)) continue;
-
-      if (t2.movement_id === t1.movement_id && t2.movement_role !== t1.movement_role) {
-        bestIndex = j;
-        break;
-      }
-    }
-
-    if (bestIndex !== -1) {
-      const t2 = items[bestIndex];
-      consumed.add(t1.id);
-      consumed.add(t2.id);
-
-      const outTx = t1.type === "expense" ? t1 : t2;
-      const inTx = t1.type === "expense" ? t2 : t1;
-
-      result.push({
-        ...outTx,
-        partner_id: inTx.id,
-        is_consolidated_transfer: true,
-        account_name: outTx.account_name,
-        target_account_name: inTx.account_name,
-        target_account_id: inTx.account_id,
-      });
-    } else {
-      result.push(t1);
-    }
-  }
-
-  return result;
+  transfer_target_account_id?: string | null;
+  transfer_target_account_name?: string | null;
+  is_inferred_transfer?: boolean;
 }
 
 export default function LedgerPage() {
@@ -127,6 +61,11 @@ export default function LedgerPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [page, setPage] = useState(0);
   const pageSize = 50;
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedTransactions, setSelectedTransactions] = useState<TransactionItem[]>([]);
+  const [mergePreview, setMergePreview] = useState<TransactionItem[] | null>(null);
+  const [mergeError, setMergeError] = useState("");
+  const [preparingMerge, setPreparingMerge] = useState(false);
 
   // Selected for Edit/Detail
   const [editingTx, setEditingTx] = useState<TransactionItem | null>(null);
@@ -181,12 +120,15 @@ export default function LedgerPage() {
     const p = new URLSearchParams();
     p.set("limit", pageSize.toString());
     p.set("offset", (page * pageSize).toString());
+    if (!selectionMode && !searchQuery.trim() && accountFilter === "all" && typeFilter === "all" && categoryFilter === "all") {
+      p.set("logical_movements", "true");
+    }
     if (searchQuery.trim()) p.set("q", searchQuery.trim());
     if (typeFilter !== "all") p.set("type", typeFilter);
     if (accountFilter !== "all") p.set("account_id", accountFilter);
     if (categoryFilter !== "all") p.set("category_id", categoryFilter);
     return p.toString();
-  }, [searchQuery, typeFilter, accountFilter, categoryFilter, page]);
+  }, [searchQuery, typeFilter, accountFilter, categoryFilter, page, selectionMode]);
 
   // Fetch Transactions
   const { data: txData, isLoading } = useQuery<{
@@ -204,11 +146,11 @@ export default function LedgerPage() {
 
   // Consolidate paired internal movements into single visual entries in all-account ledger
   const displayTransactions = useMemo(() => {
-    return consolidateTransactions(
+    return consolidateLedgerMovements(
       transactions,
-      accountFilter === "all" && typeFilter === "all"
+      !selectionMode && accountFilter === "all" && typeFilter === "all" && categoryFilter === "all"
     );
-  }, [transactions, accountFilter, typeFilter]);
+  }, [transactions, accountFilter, typeFilter, categoryFilter, selectionMode]);
 
   // Compute page totals (excluding internal movements so totals reflect real cash flow)
   const pageInflow = transactions
@@ -230,6 +172,15 @@ export default function LedgerPage() {
 
   // Open Edit Modal
   const handleOpenEdit = (tx: TransactionItem) => {
+    if (tx.is_inferred_transfer && tx.partner_id) {
+      const partner = transactions.find((item) => item.id === tx.partner_id);
+      if (partner) {
+        setSelectionMode(true);
+        setSelectedTransactions([tx, partner]);
+        setMergeError("");
+      }
+      return;
+    }
     setEditingTx(tx);
     setEditAmount(formatNumberWithDots(tx.amount));
     setEditType(tx.type);
@@ -344,6 +295,64 @@ export default function LedgerPage() {
     },
     onError: (err: any) => {
       setEditError(err?.message || "Gagal menghapus transaksi");
+    },
+  });
+
+  const toggleSelection = (tx: TransactionItem) => {
+    if (tx.movement_id) return;
+    setMergeError("");
+    setSelectedTransactions((selected) => {
+      if (selected.some((item) => item.id === tx.id)) {
+        return selected.filter((item) => item.id !== tx.id);
+      }
+      return selected.length < 2 ? [...selected, tx] : selected;
+    });
+  };
+
+  const prepareMerge = async () => {
+    if (selectedTransactions.length !== 2) return;
+    setPreparingMerge(true);
+    setMergeError("");
+    try {
+      const details = await Promise.all(selectedTransactions.map(async (tx) => {
+        const response = await api.get<{ transaction: TransactionItem }>(`/transactions/${tx.id}`);
+        return response.transaction;
+      }));
+      const expense = details.find((tx) => tx.type === "expense");
+      const income = details.find((tx) => tx.type === "income");
+      if (!expense || !income || expense.movement_id || income.movement_id ||
+          expense.amount !== income.amount || expense.account_id === income.account_id) {
+        throw new Error("Pilih satu uang keluar dan satu uang masuk dengan nominal sama dari rekening berbeda.");
+      }
+      setMergePreview([expense, income]);
+    } catch (error) {
+      setMergeError(error instanceof Error ? error.message : "Gagal memeriksa transaksi terpilih.");
+    } finally {
+      setPreparingMerge(false);
+    }
+  };
+
+  const mergeMutation = useMutation({
+    mutationFn: async () => {
+      if (!mergePreview) throw new Error("Pilih dua transaksi terlebih dahulu.");
+      return api.post("/movements/merge", {
+        expense_transaction_id: mergePreview[0].id,
+        income_transaction_id: mergePreview[1].id,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      qc.invalidateQueries({ queryKey: queryKeys.categories });
+      qc.invalidateQueries({ queryKey: queryKeys.insights });
+      setMergePreview(null);
+      setSelectedTransactions([]);
+      setSelectionMode(false);
+      setPage(0);
+      setMergeError("");
+    },
+    onError: (error: Error) => {
+      setMergeError(error.message);
     },
   });
 
@@ -633,11 +642,42 @@ export default function LedgerPage() {
       </div>
 
       {/* 4. Ledger Data Display */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs">
+        <button
+          type="button"
+          onClick={() => {
+            setSelectionMode((enabled) => !enabled);
+            setSelectedTransactions([]);
+            setMergeError("");
+            setPage(0);
+          }}
+          aria-pressed={selectionMode}
+          className="min-h-10 rounded-lg border border-[var(--border)] px-3 font-semibold text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+        >
+          {selectionMode ? "Selesai memilih" : "Pilih 2 transaksi"}
+        </button>
+        {selectionMode && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[var(--muted)] tabular-nums">{selectedTransactions.length}/2 dipilih</span>
+            <button
+              type="button"
+              disabled={selectedTransactions.length !== 2 || preparingMerge}
+              onClick={prepareMerge}
+              className="min-h-10 rounded-lg bg-[#1E201E] px-3 font-semibold text-white disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+            >
+              {preparingMerge ? "Memeriksa…" : "Gabungkan sebagai Pindah Saldo"}
+            </button>
+          </div>
+        )}
+        {mergeError && !mergePreview && <p role="alert" className="w-full text-rose-500">{mergeError}</p>}
+      </div>
       {/* Mobile Feed (< lg) */}
       <div className="lg:hidden space-y-4">
         <MobileLedgerFeed
           transactions={displayTransactions}
-          onOpenEdit={handleOpenEdit}
+          onOpenEdit={selectionMode ? toggleSelection : handleOpenEdit}
+          selectionMode={selectionMode}
+          selectedIds={selectedTransactions.map((item) => item.id)}
           bal={bal}
           isLoading={isLoading}
         />
@@ -686,6 +726,7 @@ export default function LedgerPage() {
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="border-b border-[var(--border)] text-[var(--muted)] uppercase text-[10px] bg-[var(--surface-raised)]/40">
+                  {selectionMode && <th className="py-3 px-3 font-semibold">Pilih</th>}
                   <th className="py-3 px-4 font-semibold">Tanggal</th>
                   <th className="py-3 px-4 font-semibold">Jenis</th>
                   <th className="py-3 px-4 font-semibold">Keterangan / Catatan</th>
@@ -707,9 +748,26 @@ export default function LedgerPage() {
                   return (
                     <tr
                       key={tx.id}
-                      onClick={() => handleOpenEdit(tx)}
+                      onClick={() => selectionMode ? toggleSelection(tx) : handleOpenEdit(tx)}
                       className="hover:bg-[var(--surface-raised)]/60 transition-colors cursor-pointer group"
                     >
+                      {selectionMode && (
+                        <td className="px-3 py-3.5">
+                          <button
+                            type="button"
+                            aria-label={`Pilih transaksi ${tx.notes || tx.category_name || tx.id}`}
+                            aria-pressed={selectedTransactions.some((item) => item.id === tx.id)}
+                            disabled={Boolean(tx.movement_id) || (selectedTransactions.length === 2 && !selectedTransactions.some((item) => item.id === tx.id))}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleSelection(tx);
+                            }}
+                            className="min-h-9 min-w-9 rounded-lg border border-[var(--border)] font-semibold text-[var(--text)] aria-pressed:bg-sky-500/15 aria-pressed:text-sky-500 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                          >
+                            {selectedTransactions.some((item) => item.id === tx.id) ? "✓" : "+"}
+                          </button>
+                        </td>
+                      )}
                       {/* Date */}
                       <td className="py-3.5 px-4 text-[var(--muted)] whitespace-nowrap">
                         {new Date(tx.date).toLocaleDateString("id-ID", {
@@ -721,10 +779,10 @@ export default function LedgerPage() {
 
                       {/* Type Badge */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        {tx.is_consolidated_transfer ? (
+                        {tx.is_consolidated_transfer || tx.is_inferred_transfer ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/10 text-sky-500 border border-sky-500/20 tracking-wide">
                             <span className="text-xs leading-none">↔️</span>
-                            <span>Pindah Saldo</span>
+                            <span>{tx.is_inferred_transfer ? "Pindah Saldo (perkiraan)" : "Pindah Saldo"}</span>
                           </span>
                         ) : (
                           <span
@@ -779,7 +837,7 @@ export default function LedgerPage() {
 
                       {/* Target Account or Linked Goal/Debt */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        {tx.is_consolidated_transfer && tx.target_account_name ? (
+                        {(tx.is_consolidated_transfer || tx.is_inferred_transfer) && tx.target_account_name ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-500">
                             <span className="text-xs">→</span>
                             <span>{tx.target_account_name}</span>
@@ -813,7 +871,7 @@ export default function LedgerPage() {
                       <td
                         className={cn(
                           "py-3.5 px-4 text-right font-bold tabular whitespace-nowrap",
-                          tx.is_consolidated_transfer
+                          tx.is_consolidated_transfer || tx.is_inferred_transfer
                             ? "text-[var(--text)]"
                             : isMovement
                             ? "text-sky-500"
@@ -822,13 +880,13 @@ export default function LedgerPage() {
                             : "text-expense"
                         )}
                       >
-                        {tx.is_consolidated_transfer ? "" : isIncome ? "+" : "-"}
+                        {tx.is_consolidated_transfer || tx.is_inferred_transfer ? "" : isIncome ? "+" : "-"}
                         {bal(tx.amount)}
                       </td>
 
                       {/* Action */}
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <button
+                        {!selectionMode && <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -837,7 +895,7 @@ export default function LedgerPage() {
                           className="px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface)] text-[11px]"
                         >
                           Ubah
-                        </button>
+                        </button>}
                       </td>
                     </tr>
                   );
@@ -878,13 +936,70 @@ export default function LedgerPage() {
         )}
       </div>
 
+      <Modal
+        open={Boolean(mergePreview)}
+        onClose={() => {
+          if (!mergeMutation.isPending) setMergePreview(null);
+        }}
+        title="Gabungkan sebagai Pindah Saldo"
+      >
+        {mergePreview && (
+          <div className="space-y-4 text-sm">
+            <p className="text-[var(--muted)]">
+              Kedua transaksi akan menjadi satu pindah saldo. Saldo rekening tidak berubah, tetapi kategori serta ringkasan pemasukan, pengeluaran, dan Kakeibo akan berubah.
+            </p>
+            <div className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+              {mergePreview.map((tx) => (
+                <div key={tx.id} className="space-y-1 px-3 py-3">
+                  <div className="flex items-center justify-between gap-3 font-semibold text-[var(--text)]">
+                    <span>{tx.type === "expense" ? "Keluar dari" : "Masuk ke"} {tx.account_name}</span>
+                    <span className="tabular-nums">{bal(tx.amount)}</span>
+                  </div>
+                  <p className="text-xs text-[var(--muted)]">
+                    {new Date(tx.date).toLocaleString("id-ID", {
+                      day: "2-digit", month: "2-digit", year: "numeric",
+                      hour: "2-digit", minute: "2-digit", second: "2-digit",
+                    })}
+                    {tx.category_name ? ` · ${tx.category_name}` : ""}
+                  </p>
+                  {tx.notes && <p className="text-xs text-[var(--muted)]">{tx.notes}</p>}
+                </div>
+              ))}
+            </div>
+            {mergeError && <p role="alert" className="text-xs text-rose-500">{mergeError}</p>}
+            <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--border)] pt-4">
+              <button
+                type="button"
+                disabled={mergeMutation.isPending}
+                onClick={() => setMergePreview(null)}
+                className="min-h-11 rounded-xl border border-[var(--border)] px-4 font-semibold text-[var(--text)]"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={mergeMutation.isPending}
+                onClick={() => mergeMutation.mutate()}
+                className="min-h-11 rounded-xl bg-[#1E201E] px-4 font-semibold text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+              >
+                {mergeMutation.isPending ? "Menggabungkan…" : "Ya, gabungkan"}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       <InternalMovementModal
         open={Boolean(editingTx?.movement_id)}
         onClose={() => setEditingTx(null)}
         editingMovement={editingTx?.movement_id ? {
           id: editingTx.movement_id,
-          sourceAccountId: editingTx.account_id,
-          targetAccountId: editingTx.target_account_id ?? "",
+          sourceAccountId: editingTx.movement_role === "inbound"
+            ? editingTx.transfer_target_account_id ?? ""
+            : editingTx.account_id,
+          targetAccountId: editingTx.movement_role === "inbound"
+            ? editingTx.account_id
+            : editingTx.target_account_id ?? editingTx.transfer_target_account_id ?? "",
           amount: editingTx.amount,
           notes: editingTx.notes,
           date: editingTx.date,
@@ -1092,6 +1207,7 @@ export default function LedgerPage() {
                     id="ledger-edit-date"
                     name="date"
                     type="datetime-local"
+                    step={1}
                     required
                     value={editDate}
                     onChange={(e) => setEditDate(e.target.value)}

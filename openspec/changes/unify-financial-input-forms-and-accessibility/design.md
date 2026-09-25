@@ -74,6 +74,10 @@ The current backend uses `avg_buy_price` as a per-unit cost in account valuation
 
 Audit every active input form and remove helper text that only repeats a label, section heading, or obvious interaction. Keep short, persistent labels and units. For unusual concepts such as derived goal progress, investment-only trade paths, and debt allocation, place concise explanation behind an information button next to the relevant label or section title. The help opens on click/tap, keyboard activation, and optional hover; Escape and outside activation dismiss it, and focus remains predictable. Associate the help with its field or group for assistive technology. Do not make essential validation, irreversible consequences, transaction status, or errors hover-only: show those inline when relevant. Reuse one help primitive rather than one-off tooltip implementations.
 
+### 12. Seconds-precise financial timestamps
+
+The shared local date-time formatter includes seconds instead of truncating at minutes. Quick Capture, Internal Movement create/edit, and ledger edit use a one-second input step and round-trip the visible local second with the existing timezone-aware API conversion. The compact ledger display does not gain seconds. Focused tests cover existing nonzero seconds and creation with an explicitly selected second; mobile browser verification checks that the control exposes and preserves the seconds field.
+
 ## Risks / Trade-offs
 
 - **[Backend integrity APIs land after form work]** → Sequence shared primitives and non-contract UI first, then wire goal, movement, trade, and receipt forms only against the approved backend contract.

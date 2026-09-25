@@ -76,6 +76,7 @@ def list_transactions(
     from_date: datetime | None = None,
     to_date: datetime | None = None,
     q: str | None = None,
+    logical_movements: bool = False,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     current_user: dict = Depends(get_current_user),
@@ -128,6 +129,23 @@ def list_transactions(
                 conditions.append("(t.notes ILIKE %s OR c.name ILIKE %s OR g.name ILIKE %s OR o.name ILIKE %s OR EXISTS (SELECT 1 FROM transaction_obligation_allocations a JOIN obligations debt ON debt.id = a.obligation_id WHERE a.transaction_id = t.id AND debt.name ILIKE %s))")
                 params.extend([search_pattern] * 5)
 
+            # Filtered views retain individual legs: either side may match independently.
+            if logical_movements and not any((
+                account_id, category_id, goal_id, obligation_id, type,
+                kakeibo_type, from_date, to_date, q,
+            )):
+                conditions.append(
+                    """(
+                        t.movement_role IS DISTINCT FROM 'inbound'
+                        OR NOT EXISTS (
+                            SELECT 1 FROM transactions outbound
+                            WHERE outbound.user_id = t.user_id
+                              AND outbound.movement_id = t.movement_id
+                              AND outbound.movement_role = 'outbound'
+                        )
+                    )"""
+                )
+
             where_clause = " AND ".join(conditions)
 
             # Count total matching
@@ -173,6 +191,7 @@ def list_transactions(
                 JOIN accounts sa ON sa.id = t.account_id
                 LEFT JOIN transactions partner
                     ON partner.movement_id = t.movement_id
+                   AND partner.user_id = t.user_id
                    AND partner.id != t.id
                 LEFT JOIN accounts partner_account ON partner_account.id = partner.account_id
                 LEFT JOIN categories c ON c.id = t.category_id

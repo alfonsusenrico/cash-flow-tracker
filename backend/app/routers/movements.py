@@ -1,15 +1,17 @@
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
 from app.services.ledger_mutations import (
+    LIQUID_ACCOUNT_TYPES,
     create_bilateral_movement,
     ensure_generic_movement_accounts,
     lock_owned_accounts,
+    movement_kakeibo,
 )
 from app.services.auth import get_current_user
 
@@ -35,10 +37,24 @@ class MovementUpdate(BaseModel):
     date: datetime | None = None
 
 
+class MovementMerge(BaseModel):
+    expense_transaction_id: UUID
+    income_transaction_id: UUID
+
+
 def _ensure_internal_movement_categories(cur, user_id: str) -> tuple[str, str]:
     """Ensures both expense and income categories for 'Internal Movement' exist.
     Returns (expense_category_id, income_category_id).
     """
+    cur.execute(
+        """
+        UPDATE categories
+        SET is_excluded_from_budget = TRUE, kakeibo_type = NULL
+        WHERE user_id = %s AND name = 'Internal Movement' AND is_archived = FALSE
+          AND (is_excluded_from_budget = FALSE OR kakeibo_type IS NOT NULL)
+        """,
+        (user_id,),
+    )
     cur.execute(
         """
         SELECT id, kind FROM categories
@@ -198,6 +214,108 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
         "ok": True,
         **result,
         "message": f"Moved {payload.amount} from {effective_source['name']} to {effective_target['name']}",
+    }
+
+
+@router.post("/merge")
+def merge_transactions_as_movement(
+    payload: MovementMerge,
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user["id"]
+    expense_id = str(payload.expense_transaction_id)
+    income_id = str(payload.income_transaction_id)
+    if expense_id == income_id:
+        raise HTTPException(status_code=422, detail="Choose two different transactions")
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT t.id, t.type, t.account_id, t.amount, t.movement_id,
+                       t.goal_id, t.obligation_id, t.recurring_rule_id,
+                       EXISTS (
+                           SELECT 1 FROM transaction_obligation_allocations a
+                           WHERE a.transaction_id = t.id
+                       ) AS has_debt_allocations
+                FROM transactions t
+                WHERE t.user_id = %s AND t.id = ANY(%s)
+                ORDER BY t.id
+                FOR UPDATE OF t
+                """,
+                (user_id, [expense_id, income_id]),
+            )
+            rows = {str(row["id"]): row for row in cur.fetchall()}
+            if len(rows) != 2:
+                raise HTTPException(status_code=404, detail="Transaction not found")
+
+            expense = rows[expense_id]
+            income = rows[income_id]
+            if expense["type"] != "expense" or income["type"] != "income":
+                raise HTTPException(
+                    status_code=422,
+                    detail="Choose one outgoing and one incoming transaction",
+                )
+            if expense["amount"] <= 0 or expense["amount"] != income["amount"]:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Both transactions must have the same positive amount",
+                )
+            source_id = str(expense["account_id"])
+            target_id = str(income["account_id"])
+            if source_id == target_id:
+                raise HTTPException(status_code=422, detail="Accounts must be different")
+            if any(
+                row["movement_id"]
+                or row["goal_id"]
+                or row["obligation_id"]
+                or row["recurring_rule_id"]
+                or row["has_debt_allocations"]
+                for row in (expense, income)
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="A linked, scheduled, goal, or debt transaction cannot be merged",
+                )
+
+            accounts = lock_owned_accounts(cur, user_id, [source_id, target_id])
+            ensure_generic_movement_accounts(accounts[source_id], accounts[target_id])
+            if any(account["type"] not in LIQUID_ACCOUNT_TYPES for account in accounts.values()):
+                raise HTTPException(status_code=422, detail="Both accounts must be liquid")
+
+            expense_category_id, income_category_id = _ensure_internal_movement_categories(cur, user_id)
+            movement_id = str(uuid4())
+            cur.execute(
+                """
+                UPDATE transactions
+                SET movement_id = %s, movement_role = 'outbound',
+                    category_id = %s, kakeibo_type = %s
+                WHERE user_id = %s AND id = %s
+                """,
+                (
+                    movement_id,
+                    expense_category_id,
+                    movement_kakeibo(accounts[source_id], accounts[target_id]),
+                    user_id,
+                    expense_id,
+                ),
+            )
+            cur.execute(
+                """
+                UPDATE transactions
+                SET movement_id = %s, movement_role = 'inbound',
+                    category_id = %s, kakeibo_type = NULL
+                WHERE user_id = %s AND id = %s
+                """,
+                (movement_id, income_category_id, user_id, income_id),
+            )
+            conn.commit()
+
+    return {
+        "ok": True,
+        "movement_id": movement_id,
+        "expense_transaction_id": expense_id,
+        "income_transaction_id": income_id,
     }
 
 

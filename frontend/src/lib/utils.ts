@@ -98,13 +98,13 @@ export function toDatetimeLocal(value?: string | Date | null): string {
   const source = value ? new Date(value) : new Date();
   if (Number.isNaN(source.getTime())) return "";
   const local = new Date(source.getTime() - source.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+  return local.toISOString().slice(0, 19);
 }
 
 /**
  * Convert a `<input type="datetime-local">` value (interpreted by the browser as local time)
  * into an ISO 8601 UTC timestamp suitable for the API. JavaScript already parses
- * "YYYY-MM-DDTHH:mm" as local time, so we just rely on `toISOString()` for the conversion.
+ * "YYYY-MM-DDTHH:mm:ss" as local time, so we just rely on `toISOString()` for the conversion.
  *
  * Returns an empty string for empty / unparseable input so callers can decide whether to
  * fall back to the server default.
@@ -117,8 +117,8 @@ export function fromDatetimeLocal(value: string): string {
 }
 
 /**
- * Converts a datetime-local string (e.g. "2026-09-17T10:00") into a timezone-aware
- * ISO 8601 string including the client's local offset (e.g. "2026-09-17T10:00:00+07:00").
+ * Converts a datetime-local string (e.g. "2026-09-17T10:00:27") into a timezone-aware
+ * ISO 8601 string including the client's local offset (e.g. "2026-09-17T10:00:27+07:00").
  */
 export function localDatetimeToISO(value: string): string {
   if (!value) return "";
