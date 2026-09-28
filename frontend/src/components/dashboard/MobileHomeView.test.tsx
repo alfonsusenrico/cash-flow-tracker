@@ -4,12 +4,13 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { api, createMovement } from "@/lib/api";
-import { InternalMovementModal } from "@/components/ui/InternalMovementModal";
+import { QuickCaptureModal } from "@/components/ui/QuickCaptureModal";
 import { MobileHomeView } from "./MobileHomeView";
 
 vi.mock("@/lib/api", () => ({
-  api: { get: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn() },
   createMovement: vi.fn(),
+  uploadTransactionReceipt: vi.fn(),
 }));
 
 const accounts = [
@@ -52,7 +53,13 @@ describe("mobile Home transfer entry points", () => {
   });
 
   it("uses the canonical movement payload from the mobile Home action", async () => {
-    vi.mocked(api.get).mockResolvedValue({ accounts });
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts };
+      if (path === "/categories") return { categories: [] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      throw new Error(`Unexpected GET ${path}`);
+    });
     vi.mocked(createMovement).mockResolvedValue({
       ok: true,
       movement_id: "movement-home",
@@ -75,15 +82,21 @@ describe("mobile Home transfer entry points", () => {
           onSelectTx={vi.fn()}
           bal={(amount) => `Rp ${amount}`}
         />
-        <InternalMovementModal open={sourceId !== null} onClose={() => setSourceId(null)} defaultSourceAccountId={sourceId ?? undefined} />
+        <QuickCaptureModal
+          open={sourceId !== null}
+          onClose={() => setSourceId(null)}
+          defaultType="movement"
+          defaultSourceAccountId={sourceId ?? undefined}
+        />
       </>;
     }
     const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><HomeMovement /></QueryClientProvider>);
 
     await user.click(screen.getByRole("button", { name: "Transfer dari Cash" }));
-    expect(await screen.findByRole("dialog", { name: "Pindah saldo" })).toBeVisible();
-    await user.selectOptions(screen.getByRole("combobox", { name: "Ke rekening" }), "bank");
+    expect(await screen.findByRole("dialog", { name: "Catat transaksi" })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Dari rekening" })).toHaveValue("cash");
+    expect(screen.getByRole("combobox", { name: "Ke rekening" })).toHaveValue("bank");
     await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "300");
     await user.click(screen.getByRole("button", { name: "Pindahkan Saldo" }));
 

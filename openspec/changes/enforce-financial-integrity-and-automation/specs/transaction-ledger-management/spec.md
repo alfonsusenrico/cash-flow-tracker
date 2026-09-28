@@ -11,8 +11,9 @@ The application SHALL persist and present each bilateral internal movement as on
 5. Creating, editing, or deleting the logical movement SHALL atomically create, update, or delete both records through a server-owned movement operation.
 6. In the all-accounts ledger, two unlinked rows identified as internal movements SHALL render as one inferred row when they have opposite directions, equal positive amounts, different accounts, timestamps less than 30 seconds apart, and exactly one mutually eligible partner in the loaded ledger page. This match SHALL be display-only and SHALL NOT assign a movement identifier or enable atomic pair edit/delete.
 7. A linked movement SHALL never be matched heuristically with an unlinked row, and ambiguous or incomplete legacy rows SHALL remain separate.
-8. The user SHALL be able to select exactly two unlinked transactions, including transactions not categorized as internal movements, and request a confirmed conversion into one durable internal movement. Selection SHALL survive ledger pagination and filters.
-9. Before conversion, the UI SHALL show both accounts, amounts, dates with seconds, and the change in cash-flow classification. The server SHALL atomically verify same owner, one income and one expense, equal positive amounts, different eligible liquid accounts, no existing movement linkage, and no financial association that conversion would corrupt; it SHALL set the shared movement identifier, roles, and internal-movement classifications without creating or deleting transactions or changing balances. Rejected conversion SHALL leave both records unchanged.
+8. The user SHALL be able to select exactly two unlinked transactions, including transactions not categorized as internal movements, by holding an eligible ledger row for one second and then clicking rows. The ledger SHALL display a concise hold instruction and current selection count. The first hold SHALL enter selection mode and select that row; holding a uniquely inferred movement row SHALL select both underlying records together. Subsequent clicks SHALL toggle rows or inferred pairs, selection SHALL stop at two underlying records, and unselecting the final selection SHALL exit selection mode. A short click outside selection mode SHALL continue to open the record for editing. Selection SHALL survive ledger pagination and filters.
+9. The ledger SHALL NOT show a dedicated merge-entry button. The desktop ledger SHALL NOT show a row-level `Gabungkan` action or an `Aksi` column. Once exactly two records are selected, the UI SHALL show a viewport-fixed `Jadikan Pindah Saldo` action. Confirmed linked movements SHALL remain consolidated and visibly marked as `Tergabung`; uniquely inferred legacy pairs SHALL remain consolidated while selecting. Inferred and unlinked rows SHALL NOT display `perkiraan` or `Belum tertaut` labels.
+10. The `Jadikan Pindah Saldo` action SHALL fetch current transaction details and directly submit a pair with equal amounts, without an additional confirmation preview. If one income and one expense have different amounts, the UI SHALL NOT call the conversion endpoint and SHALL show a centered, dimmed warning modal with a single `Ok` button. For eligible equal-value rows, the server SHALL atomically verify same owner, one income and one expense, equal positive amounts, different eligible liquid accounts, no existing movement linkage, and no financial association that conversion would corrupt; it SHALL set the shared movement identifier, roles, and internal-movement classifications without creating or deleting transactions or changing balances. Rejected conversion SHALL leave both records unchanged.
 
 #### Scenario: Viewing a durably linked movement
 - **WHEN** the user views the all-accounts ledger after moving funds between two accounts
@@ -34,8 +35,36 @@ The application SHALL persist and present each bilateral internal movement as on
 - **WHEN** unlinked rows are exactly 30 seconds apart or one row has multiple eligible partners
 - **THEN** the ledger keeps the rows separate for explicit selection
 
+#### Scenario: Selecting transactions by holding a ledger row
+- **WHEN** the user holds an eligible row for one second
+- **THEN** the ledger enters selection mode and highlights that row, subsequent row clicks add or remove selections up to two, and removing the last selection exits selection mode
+
+#### Scenario: Editing with a short click
+- **WHEN** the user clicks a row without entering selection mode
+- **THEN** the existing edit flow opens for that record
+
+#### Scenario: Keeping inferred pairs consolidated during selection
+- **WHEN** the user enters selection mode while the all-accounts ledger contains a uniquely inferred legacy pair
+- **THEN** the pair remains one `Pindah Saldo` row without a `perkiraan` or `Belum tertaut` label
+
+#### Scenario: Selecting an inferred pair as a unit
+- **WHEN** the user holds a uniquely inferred legacy movement row for one second
+- **THEN** both underlying transaction records are selected together and the ledger continues to show one row
+
+#### Scenario: Keeping durable movement status during selection
+- **WHEN** the user enters selection mode while the ledger contains a durably linked movement
+- **THEN** that movement remains one consolidated row visibly marked `Tergabung`
+
+#### Scenario: Converting two equal-value transactions directly
+- **WHEN** exactly one eligible expense and one eligible income from different accounts are selected and their current amounts match
+- **THEN** the floating `Jadikan Pindah Saldo` action submits the conversion without a confirmation preview, both existing records receive one shared movement identifier and internal-movement classification atomically, and their balances and original timestamps remain unchanged
+
+#### Scenario: Rejecting unequal transaction amounts before conversion
+- **WHEN** the selected expense and income have different amounts
+- **THEN** the conversion endpoint is not called and a centered dim-background warning modal displays a single `Ok` button
+
 #### Scenario: Confirming two uncategorized transactions as a movement
-- **WHEN** the user selects one eligible expense and one eligible income from different accounts and confirms the conversion
+- **WHEN** the user selects one eligible expense and one eligible income from different accounts and activates the floating conversion action
 - **THEN** both existing records receive one shared movement identifier and internal-movement classification atomically, their balances and original timestamps remain unchanged, and subsequent ledger views show one durable movement
 
 #### Scenario: Rejecting an unsafe manual conversion

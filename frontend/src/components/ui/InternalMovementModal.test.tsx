@@ -2,12 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, createMovement, updateMovement } from "@/lib/api";
+import { api, deleteMovement, updateMovement } from "@/lib/api";
 import { InternalMovementModal } from "./InternalMovementModal";
 
 vi.mock("@/lib/api", () => ({
   api: { get: vi.fn() },
-  createMovement: vi.fn(),
   deleteMovement: vi.fn(),
   updateMovement: vi.fn(),
 }));
@@ -27,12 +26,6 @@ describe("InternalMovementModal", () => {
       movement_id: "movement-1",
       expense_transaction_id: "out-1",
       income_transaction_id: "in-1",
-    });
-    vi.mocked(createMovement).mockResolvedValue({
-      ok: true,
-      movement_id: "movement-2",
-      expense_transaction_id: "out-2",
-      income_transaction_id: "in-2",
     });
   });
 
@@ -85,8 +78,7 @@ describe("InternalMovementModal", () => {
     expect(new Date(payload.date!).toISOString()).toBe("2026-09-20T12:00:27.000Z");
   });
 
-  it("submits the same movement payload when an entry point provides account defaults", async () => {
-    const user = userEvent.setup();
+  it("does not expose a creation form without an existing movement", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
@@ -96,21 +88,13 @@ describe("InternalMovementModal", () => {
         <InternalMovementModal
           open
           onClose={() => {}}
-          defaultSourceAccountId="account-source"
-          defaultTargetAccountId="account-target"
+          editingMovement={null}
         />
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByRole("combobox", { name: "Dari rekening" })).toHaveValue("account-source");
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Ke rekening" })).toHaveValue("account-target"));
-    await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "300");
-    await user.click(screen.getByRole("button", { name: "Pindahkan Saldo" }));
-
-    await waitFor(() => expect(createMovement).toHaveBeenCalledWith(expect.objectContaining({
-      source_account_id: "account-source",
-      target_account_id: "account-target",
-      amount: 300,
-    })));
+    expect(screen.queryByRole("dialog", { name: "Ubah pindah saldo" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pindahkan Saldo" })).not.toBeInTheDocument();
+    expect(deleteMovement).not.toHaveBeenCalled();
   });
 });

@@ -27,10 +27,18 @@ const payment: LedgerTxItem = {
   created_at: "2026-09-24T08:00:00Z",
 };
 
+const holdHandlers = {
+  onHoldSelect: vi.fn(),
+  onHoldPointerDown: vi.fn(),
+  onHoldPointerMove: vi.fn(),
+  onHoldPointerEnd: vi.fn(),
+  onHoldContextMenu: vi.fn(),
+};
+
 describe("MobileLedgerFeed", () => {
   it("shows one cash row with the allocation breakdown and opens it by keyboard", async () => {
     const onOpenEdit = vi.fn();
-    render(<MobileLedgerFeed transactions={[payment]} onOpenEdit={onOpenEdit} bal={(amount) => `Rp ${amount.toLocaleString("id-ID")}`} />);
+    render(<MobileLedgerFeed transactions={[payment]} onOpenEdit={onOpenEdit} {...holdHandlers} bal={(amount) => `Rp ${amount.toLocaleString("id-ID")}`} />);
 
     const transaction = screen.getByRole("button", { name: /Bayar dua kartu/ });
     expect(screen.getByText(/Kartu A Rp 60.000 · Kartu B Rp 40.000/)).toBeInTheDocument();
@@ -48,6 +56,7 @@ describe("MobileLedgerFeed", () => {
       <MobileLedgerFeed
         transactions={[payment]}
         onOpenEdit={onSelect}
+        {...holdHandlers}
         selectionMode
         selectedIds={[payment.id]}
         bal={(amount) => `Rp ${amount.toLocaleString("id-ID")}`}
@@ -66,6 +75,7 @@ describe("MobileLedgerFeed", () => {
       <MobileLedgerFeed
         transactions={[{ ...payment, movement_id: "movement-1", is_consolidated_transfer: true }]}
         onOpenEdit={vi.fn()}
+        {...holdHandlers}
         selectionMode
         selectedIds={[]}
         bal={(amount) => `Rp ${amount.toLocaleString("id-ID")}`}
@@ -76,19 +86,21 @@ describe("MobileLedgerFeed", () => {
     expect(screen.getByRole("button")).toBeDisabled();
   });
 
-  it("keeps a selected inbound leg visible when filters reveal its inferred pair", () => {
+  it("keeps an inferred movement row selected without unlinked-status copy", () => {
     render(
       <MobileLedgerFeed
         transactions={[{ ...payment, is_inferred_transfer: true, partner_id: "incoming-1" }]}
         onOpenEdit={vi.fn()}
+        {...holdHandlers}
         selectionMode
-        selectedIds={["incoming-1"]}
+        selectedIds={[payment.id, "incoming-1"]}
         bal={(amount) => `Rp ${amount.toLocaleString("id-ID")}`}
       />,
     );
 
-    expect(screen.getByText("1/2 dipilih")).toBeInTheDocument();
-    expect(screen.getByRole("button")).toHaveAttribute("aria-pressed", "mixed");
+    expect(screen.getByText("Transfer")).toBeInTheDocument();
+    expect(screen.queryByText(/perkiraan|belum tertaut/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button")).toBeEnabled();
   });
 });

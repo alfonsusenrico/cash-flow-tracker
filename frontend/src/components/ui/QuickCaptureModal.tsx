@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, uploadTransactionReceipt } from "@/lib/api";
+import { api, createMovement, uploadTransactionReceipt, type CreateMovementPayload } from "@/lib/api";
 import { cn, fmtMoney, formatNumberWithDots, localDatetimeToISO, toDatetimeLocal } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
@@ -11,7 +11,14 @@ import { FormSection, PendingSubmitButton } from "@/components/ui/FormField";
 import { InfoHelp } from "@/components/ui/InfoHelp";
 import { DebtAllocationEditor, allocationError, totalDebtPayments, type DebtAllocationValue } from "@/components/ui/DebtAllocationEditor";
 import { queryKeys } from "@/lib/queryKeys";
+import { movementFormSchema } from "@/lib/movementFormSchema";
 import { z } from "zod";
+
+type QuickCaptureMode = "expense" | "income" | "movement";
+type MovementField = "sourceAccountId" | "targetAccountId" | "amount" | "date" | "notes";
+type QuickCaptureSubmission =
+  | { kind: "movement"; payload: CreateMovementPayload }
+  | { kind: "transaction" };
 
 const quickCaptureSchema = z
   .object({
@@ -38,23 +45,33 @@ interface QuickCaptureModalProps {
   open: boolean;
   onClose: () => void;
   defaultAccountId?: string;
-  defaultType?: "expense" | "income";
+  defaultSourceAccountId?: string;
+  defaultTargetAccountId?: string;
+  defaultType?: QuickCaptureMode;
 }
 
 export function QuickCaptureModal({
   open,
   onClose,
   defaultAccountId,
+  defaultSourceAccountId,
+  defaultTargetAccountId,
   defaultType = "expense",
 }: QuickCaptureModalProps) {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const accountRef = useRef<HTMLSelectElement>(null);
   const categoryRef = useRef<HTMLSelectElement>(null);
+  const sourceAccountRef = useRef<HTMLSelectElement>(null);
+  const targetAccountRef = useRef<HTMLSelectElement>(null);
+  const dateRef = useRef<HTMLInputElement>(null);
 
-  const [type, setType] = useState<"expense" | "income">(defaultType);
+  const [type, setType] = useState<QuickCaptureMode>(defaultType);
   const [amountStr, setAmountStr] = useState("");
   const [selectedAccount, setSelectedAccount] = useState(defaultAccountId ?? "");
+  const [movementSourceAccountId, setMovementSourceAccountId] = useState(defaultSourceAccountId ?? "");
+  const [movementTargetAccountId, setMovementTargetAccountId] = useState(defaultTargetAccountId ?? "");
+  const [movementFieldErrors, setMovementFieldErrors] = useState<Partial<Record<MovementField, string>>>({});
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [kakeiboType, setKakeiboType] = useState<"need" | "want" | "saving">("need");
   const [hasKakeiboOverride, setHasKakeiboOverride] = useState(false);
@@ -97,7 +114,12 @@ export function QuickCaptureModal({
   });
 
   const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData?.accounts]);
-  const liquidAccounts = useMemo(() => listLiquidAccountChoices(accounts), [accounts]);
+  const activeAccounts = useMemo(() => accounts.filter((account: any) => !account.is_archived), [accounts]);
+  const liquidAccounts = useMemo(() => listLiquidAccountChoices(activeAccounts), [activeAccounts]);
+  const liquidAccountIds = useMemo(
+    () => liquidAccounts.map((account: any) => String(account.id ?? account.account_id ?? "")),
+    [liquidAccounts],
+  );
   const categories = useMemo(() => categoriesData?.categories ?? [], [categoriesData?.categories]);
   const goals = useMemo(() => goalsData?.goals ?? [], [goalsData?.goals]);
   const obligations = useMemo(() => obligationsData?.obligations ?? [], [obligationsData?.obligations]);
@@ -112,6 +134,7 @@ export function QuickCaptureModal({
 
   // Filter categories by type
   const availableCategories = useMemo(() => {
+    if (type === "movement") return [];
     return categories.filter((c: any) => c.kind === type && !c.is_archived);
   }, [categories, type]);
 
@@ -123,11 +146,42 @@ export function QuickCaptureModal({
     }
   }, [defaultAccountId, liquidAccounts, selectedAccount]);
 
+  useEffect(() => {
+    if (!open || liquidAccountIds.length === 0) return;
+    setMovementSourceAccountId((current) => {
+      if (liquidAccountIds.includes(current)) return current;
+      if (defaultSourceAccountId && liquidAccountIds.includes(defaultSourceAccountId)) {
+        return defaultSourceAccountId;
+      }
+      return liquidAccountIds[0];
+    });
+  }, [defaultSourceAccountId, liquidAccountIds, open]);
+
+  useEffect(() => {
+    if (!open || liquidAccountIds.length === 0) return;
+    let sourceId = liquidAccountIds[0];
+    if (liquidAccountIds.includes(movementSourceAccountId)) {
+      sourceId = movementSourceAccountId;
+    } else if (defaultSourceAccountId && liquidAccountIds.includes(defaultSourceAccountId)) {
+      sourceId = defaultSourceAccountId;
+    }
+    setMovementTargetAccountId((current) => {
+      if (liquidAccountIds.includes(current) && current !== sourceId) return current;
+      if (defaultTargetAccountId && liquidAccountIds.includes(defaultTargetAccountId) && defaultTargetAccountId !== sourceId) {
+        return defaultTargetAccountId;
+      }
+      return liquidAccountIds.find((accountId) => accountId !== sourceId) ?? "";
+    });
+  }, [defaultSourceAccountId, defaultTargetAccountId, liquidAccountIds, movementSourceAccountId, open]);
+
   // Sync default type when opened
   useEffect(() => {
     if (open) {
       setType(defaultType);
       setAmountStr("");
+      setMovementSourceAccountId(defaultSourceAccountId ?? "");
+      setMovementTargetAccountId(defaultTargetAccountId ?? "");
+      setMovementFieldErrors({});
       setNotes("");
       setTxDate(toDatetimeLocal(new Date()));
       setErr("");
@@ -141,7 +195,7 @@ export function QuickCaptureModal({
       setReceipt(null);
       setSavedTransactionId(null);
     }
-  }, [open, defaultType]);
+  }, [defaultSourceAccountId, defaultTargetAccountId, open, defaultType]);
 
   // Parse numeric amount or math expression (CSP-safe, no eval / Function)
   const parseAmount = (val: string): number => {
@@ -216,10 +270,19 @@ export function QuickCaptureModal({
     }
   };
 
-  const handleTypeChange = (nextType: "expense" | "income") => {
+  const handleTypeChange = (nextType: QuickCaptureMode) => {
     setType(nextType);
     setSelectedCategory(null);
     setHasKakeiboOverride(false);
+    setErr("");
+    setMovementFieldErrors({});
+    if (nextType === "movement") {
+      setSelectedGoalId("");
+      setSelectedObligationId("");
+      setDebtRows([]);
+      setKakeiboType("need");
+      return;
+    }
     if (nextType === "income") {
       setSelectedGoalId("");
       setSelectedObligationId("");
@@ -230,10 +293,18 @@ export function QuickCaptureModal({
   };
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (submission: QuickCaptureSubmission) => {
+      if (submission.kind === "movement") {
+        const movement = await createMovement(submission.payload);
+        return { kind: "movement" as const, movement };
+      }
       if (savedTransactionId && receipt) {
         await uploadTransactionReceipt(savedTransactionId, receipt);
-        return { ok: true, transaction_id: savedTransactionId };
+        return {
+          kind: "transaction" as const,
+          transaction: { ok: true, transaction_id: savedTransactionId },
+          receiptWarning: undefined,
+        };
       }
       if (parsedAmount <= 0) throw new Error("Masukkan nominal yang valid");
       if (!selectedAccount) throw new Error("Pilih rekening / dompet");
@@ -257,7 +328,8 @@ export function QuickCaptureModal({
           await uploadTransactionReceipt(created.transaction_id, receipt);
         } catch (uploadError) {
           return {
-            ...created,
+            kind: "transaction" as const,
+            transaction: created,
             receiptWarning:
               uploadError instanceof Error
                 ? uploadError.message
@@ -265,7 +337,7 @@ export function QuickCaptureModal({
           };
         }
       }
-      return created;
+      return { kind: "transaction" as const, transaction: created, receiptWarning: undefined };
     },
     onSuccess: (result) => {
       setIsSuccess(true);
@@ -276,9 +348,9 @@ export function QuickCaptureModal({
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       qc.invalidateQueries({ queryKey: queryKeys.goals });
       qc.invalidateQueries({ queryKey: queryKeys.obligations });
-      if ("receiptWarning" in result) {
+      if (result.kind === "transaction" && result.receiptWarning) {
         setIsSuccess(false);
-        setSavedTransactionId(result.transaction_id);
+        setSavedTransactionId(result.transaction.transaction_id);
         setErr(`Transaksi tersimpan, tetapi bukti belum terunggah: ${result.receiptWarning}`);
         return;
       }
@@ -291,6 +363,8 @@ export function QuickCaptureModal({
       setErr(e.message || "Gagal menyimpan transaksi");
       if (e.message?.includes("nominal")) {
         inputRef.current?.focus();
+      } else if (type === "movement") {
+        sourceAccountRef.current?.focus();
       } else {
         accountRef.current?.focus();
       }
@@ -300,6 +374,58 @@ export function QuickCaptureModal({
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (mutation.isPending || isSuccess) return;
+
+    if (type === "movement") {
+      setErr("");
+      setMovementFieldErrors({});
+      const movementValidation = movementFormSchema.safeParse({
+        sourceAccountId: movementSourceAccountId,
+        targetAccountId: movementTargetAccountId,
+        amount: parsedAmount,
+        date: txDate,
+        notes: notes.trim(),
+      });
+      if (!movementValidation.success) {
+        const issue = movementValidation.error.issues[0];
+        const field = issue.path[0] as MovementField;
+        setMovementFieldErrors({ [field]: issue.message });
+        if (field === "amount") inputRef.current?.focus();
+        else if (field === "sourceAccountId") sourceAccountRef.current?.focus();
+        else if (field === "targetAccountId") targetAccountRef.current?.focus();
+        else if (field === "date") dateRef.current?.focus();
+        return;
+      }
+      if (liquidAccountIds.length < 2) {
+        const message = "Tambahkan rekening likuid lain untuk memindahkan saldo.";
+        setMovementFieldErrors({ targetAccountId: message });
+        targetAccountRef.current?.focus();
+        return;
+      }
+      if (!liquidAccountIds.includes(movementValidation.data.sourceAccountId)) {
+        const message = "Pilih rekening sumber yang masih aktif.";
+        setMovementFieldErrors({ sourceAccountId: message });
+        sourceAccountRef.current?.focus();
+        return;
+      }
+      if (!liquidAccountIds.includes(movementValidation.data.targetAccountId)) {
+        const message = "Pilih rekening tujuan yang masih aktif.";
+        setMovementFieldErrors({ targetAccountId: message });
+        targetAccountRef.current?.focus();
+        return;
+      }
+      mutation.mutate({
+        kind: "movement",
+        payload: {
+          source_account_id: movementValidation.data.sourceAccountId,
+          target_account_id: movementValidation.data.targetAccountId,
+          amount: movementValidation.data.amount,
+          notes: movementValidation.data.notes || null,
+          date: localDatetimeToISO(movementValidation.data.date) || new Date().toISOString(),
+        },
+      });
+      return;
+    }
+
     const validation = quickCaptureSchema.safeParse({
       type,
       amount: parsedAmount,
@@ -316,6 +442,7 @@ export function QuickCaptureModal({
       if (issue.path[0] === "amount") inputRef.current?.focus();
       else if (issue.path[0] === "categoryId") categoryRef.current?.focus();
       else if (issue.path[0] === "goalId") document.getElementById("quick-capture-goal")?.focus();
+      else if (issue.path[0] === "transactionDate") dateRef.current?.focus();
       else accountRef.current?.focus();
       return;
     }
@@ -330,22 +457,32 @@ export function QuickCaptureModal({
       (document.getElementById("quick-capture-debt-0-amount") || document.getElementById("quick-capture-edit-amounts"))?.focus();
       return;
     }
-    mutation.mutate();
+    mutation.mutate({ kind: "transaction" });
   };
+
+  let submitLabel = "Simpan Transaksi";
+  if (type === "movement") {
+    submitLabel = "Pindahkan Saldo";
+  } else if (savedTransactionId && receipt) {
+    submitLabel = "Coba Unggah Lagi";
+  }
+  const successLabel = type === "movement" ? "✓ Berhasil dipindahkan" : "✓ Tersimpan!";
 
   return (
     <Modal open={open} onClose={onClose} title="Catat transaksi">
       <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-        <div className="flex rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-1" role="group" aria-label="Jenis transaksi">
+        <div className="grid grid-cols-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-1" role="group" aria-label="Jenis catatan">
           <button
             type="button"
             onClick={() => handleTypeChange("expense")}
             aria-pressed={type === "expense"}
+            disabled={mutation.isPending || isSuccess}
             className={cn(
-              "min-h-11 flex-1 rounded-lg px-3 text-sm font-semibold transition-colors motion-reduce:transition-none",
+              "min-h-11 rounded-lg px-1 text-xs font-semibold transition-colors motion-reduce:transition-none sm:px-2 sm:text-sm",
               type === "expense"
                 ? "bg-[var(--text)] text-[var(--surface)] shadow-sm"
-                : "text-[var(--muted)] hover:text-[var(--text)]"
+                : "text-[var(--muted)] hover:text-[var(--text)]",
+              "disabled:cursor-not-allowed disabled:opacity-70",
             )}
           >
             Pengeluaran
@@ -354,14 +491,31 @@ export function QuickCaptureModal({
             type="button"
             onClick={() => handleTypeChange("income")}
             aria-pressed={type === "income"}
+            disabled={mutation.isPending || isSuccess}
             className={cn(
-              "min-h-11 flex-1 rounded-lg px-3 text-sm font-semibold transition-colors motion-reduce:transition-none",
+              "min-h-11 rounded-lg px-1 text-xs font-semibold transition-colors motion-reduce:transition-none sm:px-2 sm:text-sm",
               type === "income"
                 ? "bg-[var(--text)] text-[var(--surface)] shadow-sm"
-                : "text-[var(--muted)] hover:text-[var(--text)]"
+                : "text-[var(--muted)] hover:text-[var(--text)]",
+              "disabled:cursor-not-allowed disabled:opacity-70",
             )}
           >
             Pemasukan
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTypeChange("movement")}
+            aria-pressed={type === "movement"}
+            disabled={mutation.isPending || isSuccess}
+            className={cn(
+              "min-h-11 rounded-lg px-1 text-xs font-semibold transition-colors motion-reduce:transition-none sm:px-2 sm:text-sm",
+              type === "movement"
+                ? "bg-[var(--text)] text-[var(--surface)] shadow-sm"
+                : "text-[var(--muted)] hover:text-[var(--text)]",
+              "disabled:cursor-not-allowed disabled:opacity-70",
+            )}
+          >
+            Perpindahan
           </button>
         </div>
 
@@ -384,7 +538,10 @@ export function QuickCaptureModal({
             placeholder="0"
             value={amountStr}
             readOnly={Boolean(hasSelectedDebt)}
+            aria-invalid={movementFieldErrors.amount ? true : undefined}
+            aria-describedby={movementFieldErrors.amount ? "quick-capture-amount-error" : undefined}
             onChange={(e) => {
+              setMovementFieldErrors((current) => ({ ...current, amount: undefined }));
               const val = e.target.value;
               if (!/[+\-*/]/.test(val)) {
                 setAmountStr(formatNumberWithDots(val));
@@ -394,6 +551,11 @@ export function QuickCaptureModal({
             }}
             className="mt-1 w-full bg-transparent text-3xl font-bold tracking-tight text-[var(--text)] outline-none tabular placeholder:text-[var(--muted)]/50 sm:text-4xl"
           />
+          {movementFieldErrors.amount && (
+            <p id="quick-capture-amount-error" className="mt-1 text-xs text-rose-600 dark:text-rose-400" role="alert">
+              {movementFieldErrors.amount}
+            </p>
+          )}
 
           {/* Quick Amount Chips */}
           {!hasSelectedDebt && <div className="flex flex-wrap items-center gap-1.5 pt-2">
@@ -419,45 +581,113 @@ export function QuickCaptureModal({
           </div>}
         </div>
 
-        <FormSection title="Rincian transaksi">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label htmlFor="quick-capture-account" className="block text-[11px] font-medium text-[var(--muted)] mb-1">
-              {type === "expense" ? "Bayar dari" : "Masuk ke"}
-            </label>
-            <select
-              ref={accountRef}
-              id="quick-capture-account"
-              name="account_id"
-              value={selectedAccount}
-              onChange={(e) => setSelectedAccount(e.target.value)}
-              className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30 focus-visible:border-[var(--primary)]"
-            >
-              <AccountSelectOptions accounts={accounts} formatBalance={fmtMoney} allowParentSelection={true} liquidOnly />
-            </select>
+        <FormSection title={type === "movement" ? "Arah perpindahan" : "Rincian transaksi"}>
+        {type === "movement" ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="quick-capture-source-account" className="mb-1 block text-[11px] font-medium text-[var(--muted)]">
+                Dari rekening
+              </label>
+              <select
+                ref={sourceAccountRef}
+                id="quick-capture-source-account"
+                name="source_account_id"
+                value={movementSourceAccountId}
+                aria-invalid={movementFieldErrors.sourceAccountId ? true : undefined}
+                aria-describedby={movementFieldErrors.sourceAccountId ? "quick-capture-source-error" : undefined}
+                onChange={(event) => {
+                  setMovementSourceAccountId(event.target.value);
+                  setMovementFieldErrors((current) => ({ ...current, sourceAccountId: undefined }));
+                }}
+                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:border-[var(--primary)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+              >
+                <option value="">Pilih rekening</option>
+                <AccountSelectOptions accounts={activeAccounts} formatBalance={fmtMoney} allowParentSelection liquidOnly />
+              </select>
+              {movementFieldErrors.sourceAccountId && (
+                <p id="quick-capture-source-error" className="mt-1 text-xs text-rose-600 dark:text-rose-400" role="alert">
+                  {movementFieldErrors.sourceAccountId}
+                </p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="quick-capture-target-account" className="mb-1 block text-[11px] font-medium text-[var(--muted)]">
+                Ke rekening
+              </label>
+              <select
+                ref={targetAccountRef}
+                id="quick-capture-target-account"
+                name="target_account_id"
+                value={movementTargetAccountId}
+                aria-invalid={movementFieldErrors.targetAccountId ? true : undefined}
+                aria-describedby={movementFieldErrors.targetAccountId ? "quick-capture-target-error" : undefined}
+                onChange={(event) => {
+                  setMovementTargetAccountId(event.target.value);
+                  setMovementFieldErrors((current) => ({ ...current, targetAccountId: undefined }));
+                }}
+                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:border-[var(--primary)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+              >
+                <option value="">Pilih rekening</option>
+                <AccountSelectOptions
+                  accounts={activeAccounts}
+                  formatBalance={fmtMoney}
+                  allowParentSelection
+                  excludeAccountId={movementSourceAccountId}
+                  liquidOnly
+                />
+              </select>
+              {movementFieldErrors.targetAccountId && (
+                <p id="quick-capture-target-error" className="mt-1 text-xs text-rose-600 dark:text-rose-400" role="alert">
+                  {movementFieldErrors.targetAccountId}
+                </p>
+              )}
+              {liquidAccountIds.length < 2 && (
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  Tambahkan rekening likuid lain untuk memindahkan saldo.
+                </p>
+              )}
+            </div>
           </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="quick-capture-account" className="mb-1 block text-[11px] font-medium text-[var(--muted)]">
+                {type === "expense" ? "Bayar dari" : "Masuk ke"}
+              </label>
+              <select
+                ref={accountRef}
+                id="quick-capture-account"
+                name="account_id"
+                value={selectedAccount}
+                onChange={(event) => setSelectedAccount(event.target.value)}
+                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30 focus-visible:border-[var(--primary)]"
+              >
+                <AccountSelectOptions accounts={activeAccounts} formatBalance={fmtMoney} allowParentSelection liquidOnly />
+              </select>
+            </div>
 
-          <div>
-            <label htmlFor="quick-capture-category" className="block text-[11px] font-medium text-[var(--muted)] mb-1">
-              Kategori
-            </label>
-            <select
-              ref={categoryRef}
-              id="quick-capture-category"
-              name="category_id"
-              value={selectedCategory || ""}
-              onChange={(e) => handleCategoryChange(e.target.value || null)}
-              className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30 focus-visible:border-[var(--primary)]"
-            >
-              <option value="">Pilih Kategori…</option>
-              {availableCategories.map((c: any) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <div>
+              <label htmlFor="quick-capture-category" className="mb-1 block text-[11px] font-medium text-[var(--muted)]">
+                Kategori
+              </label>
+              <select
+                ref={categoryRef}
+                id="quick-capture-category"
+                name="category_id"
+                value={selectedCategory || ""}
+                onChange={(event) => handleCategoryChange(event.target.value || null)}
+                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30 focus-visible:border-[var(--primary)]"
+              >
+                <option value="">Pilih Kategori…</option>
+                {availableCategories.map((category: any) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
+        )}
         {type === "expense" && (
           <fieldset className="space-y-2">
             <legend className="text-xs font-medium text-[var(--muted)]">Pilar Kakeibo <InfoHelp label="Pilar Kakeibo">Mengikuti pilar kategori, kecuali Anda memilih pilar lain untuk transaksi ini.</InfoHelp></legend>
@@ -487,20 +717,31 @@ export function QuickCaptureModal({
         )}
         </FormSection>
 
-        <FormSection title="Detail tambahan">
+        <FormSection title={type === "movement" ? "Waktu dan catatan" : "Detail tambahan"}>
         <div>
           <label htmlFor="quick-capture-date" className="block text-[11px] font-medium text-[var(--muted)] mb-1">
-            Waktu Transaksi
+            {type === "movement" ? "Waktu Pemindahan" : "Waktu Transaksi"}
           </label>
           <input
+            ref={dateRef}
             id="quick-capture-date"
             name="date"
             type="datetime-local"
             step={1}
             value={txDate}
-            onChange={(e) => setTxDate(e.target.value)}
+            aria-invalid={movementFieldErrors.date ? true : undefined}
+            aria-describedby={movementFieldErrors.date ? "quick-capture-date-error" : undefined}
+            onChange={(event) => {
+              setTxDate(event.target.value);
+              setMovementFieldErrors((current) => ({ ...current, date: undefined }));
+            }}
             className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30 focus-visible:border-[var(--primary)]"
           />
+          {movementFieldErrors.date && (
+            <p id="quick-capture-date-error" className="mt-1 text-xs text-rose-600 dark:text-rose-400" role="alert">
+              {movementFieldErrors.date}
+            </p>
+          )}
         </div>
 
         {/* Optional Link to Goal or Debt */}
@@ -561,12 +802,22 @@ export function QuickCaptureModal({
             autoComplete="off"
             placeholder="Catatan transaksi (opsional, misal: Makan siang, kopi)"
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            aria-invalid={movementFieldErrors.notes ? true : undefined}
+            aria-describedby={movementFieldErrors.notes ? "quick-capture-notes-error" : undefined}
+            onChange={(event) => {
+              setNotes(event.target.value);
+              setMovementFieldErrors((current) => ({ ...current, notes: undefined }));
+            }}
             className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
           />
+          {movementFieldErrors.notes && (
+            <p id="quick-capture-notes-error" className="mt-1 text-xs text-rose-600 dark:text-rose-400" role="alert">
+              {movementFieldErrors.notes}
+            </p>
+          )}
         </div>
 
-        <div>
+        {type !== "movement" && <div>
           <label htmlFor="quick-capture-receipt" className="block text-[11px] font-medium text-[var(--muted)] mb-1">
             Bukti transaksi (opsional)
           </label>
@@ -578,7 +829,7 @@ export function QuickCaptureModal({
             className="block min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--text)] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[var(--surface)]"
           />
           <p className="mt-1 text-[10px] text-[var(--muted)]">JPG, PNG, WebP, atau PDF. Transaksi tetap tersimpan jika unggahan gagal.</p>
-        </div>
+        </div>}
         </FormSection>
 
         {err && (
@@ -598,7 +849,7 @@ export function QuickCaptureModal({
           </button>
           <PendingSubmitButton
             pending={mutation.isPending}
-            pendingLabel="Menyimpan…"
+            pendingLabel={type === "movement" ? "Memindahkan…" : "Menyimpan…"}
             disabled={parsedAmount <= 0 || isSuccess}
             className={cn(
               "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold transition-colors motion-reduce:transition-none",
@@ -613,10 +864,10 @@ export function QuickCaptureModal({
                 <svg className="w-4 h-4 stroke-[3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
-                ✓ Tersimpan!
+                {successLabel}
               </span>
             ) : (
-              savedTransactionId ? "Coba Unggah Lagi" : "Simpan Transaksi"
+              submitLabel
             )}
           </PendingSubmitButton>
         </div>

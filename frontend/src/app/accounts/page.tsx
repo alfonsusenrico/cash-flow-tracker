@@ -10,14 +10,12 @@ import { Modal } from "@/components/ui/Modal";
 import { MonetaryInput } from "@/components/ui/FormField";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { Icon } from "@/components/ui/Icon";
-import { InternalMovementModal } from "@/components/ui/InternalMovementModal";
 import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { AccountOptions } from "@/components/ui/AccountOptions";
 import { PayrollAllocationModal } from "@/components/recurring/PayrollAllocationModal";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { InvestmentTradeModal } from "@/components/ui/InvestmentTradeModal";
-import { listLiquidAccountChoices } from "@/lib/accountOptions";
 
 function getContrastTextColor(hexColor?: string): string {
   if (!hexColor || !hexColor.startsWith("#")) return "#FFFFFF";
@@ -102,7 +100,6 @@ export default function AccountsPage() {
   const { bal } = useAppCtx();
 
   // Modals state
-  const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [payrollModalOpen, setPayrollModalOpen] = useState(false);
   const [recurringModalOpen, setRecurringModalOpen] = useState(false);
@@ -112,10 +109,6 @@ export default function AccountsPage() {
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
   const [tradePocket, setTradePocket] = useState<AccountItem | null>(null);
   const [tradeAction, setTradeAction] = useState<"buy" | "sell">("buy");
-
-  // Transfer form
-  const [fromAccountId, setFromAccountId] = useState("");
-  const [toAccountId, setToAccountId] = useState("");
 
   // Instrument Options
   const INSTRUMENT_OPTIONS = [
@@ -389,10 +382,6 @@ export default function AccountsPage() {
 
   const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData?.accounts]);
   const activeAccounts = useMemo(() => accounts.filter((a) => !a.is_archived), [accounts]);
-  const liquidAccounts = useMemo(
-    () => listLiquidAccountChoices(activeAccounts).filter((account) => !account.is_archived),
-    [activeAccounts],
-  );
   const totalBalance = accountsData?.total_balance ?? 0;
 
   const topAccounts = useMemo(() => {
@@ -436,23 +425,6 @@ export default function AccountsPage() {
   const animNetWorth = useAnimatedCounter(netWorth);
   const animTotalAssets = useAnimatedCounter(totalAssets);
   const animTotalLiabilities = useAnimatedCounter(totalLiabilities);
-
-  // Open Transfer modal preselected
-  const handleOpenTransfer = (sourceAccId?: string) => {
-    const transactable = liquidAccounts;
-    if (transactable.length < 2) {
-      return;
-    }
-    const source = transactable.some((account) => account.id === sourceAccId)
-      ? sourceAccId!
-      : transactable[0].id;
-    const dest = transactable.find((a) => a.id !== source)?.id || transactable[1].id;
-    setFromAccountId(source);
-    setToAccountId(dest);
-    setTransferModalOpen(true);
-  };
-  const canTransferFrom = (accountId: string) =>
-    liquidAccounts.length >= 2 && liquidAccounts.some((account) => account.id === accountId);
 
   // Open Add Account modal
   const handleOpenNewAccount = () => {
@@ -852,11 +824,6 @@ export default function AccountsPage() {
               </button>
             )}
             <AccountOptions name={account.name} iconOnly>
-              {canTransferFrom(account.id) && (
-                <button type="button" onClick={() => handleOpenTransfer(account.id)}>
-                  Pindah Saldo
-                </button>
-              )}
               {isPosition && <button type="button" onClick={() => handleOpenValuation(account)}>Update Nilai</button>}
               {!hasChildren && <button type="button" onClick={() => openReconciliation(account)}>Sesuaikan Saldo</button>}
               <button type="button" onClick={() => handleOpenEditAccount(account)}>Ubah rekening</button>
@@ -936,10 +903,10 @@ export default function AccountsPage() {
                     </div>
                   </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      {position ? <>
+                      {position && <>
                         <button type="button" onClick={() => openTrade(pocket, "buy")} className={cn(actionClass, "bg-emerald-500/15 px-2.5 text-emerald-700 dark:text-emerald-300")}>Beli</button>
                         <button type="button" onClick={() => openTrade(pocket, "sell")} className={cn(actionClass, "bg-rose-500/15 px-2.5 text-rose-700 dark:text-rose-300")}>Jual</button>
-                      </> : <button type="button" onClick={() => handleOpenTransfer(pocket.id)} disabled={!canTransferFrom(pocket.id)} aria-label={`Pindah saldo ${pocket.name}`} title="Pindah saldo" className={cn(actionClass, "min-w-11 bg-[var(--surface-raised)] px-2 text-[var(--text)]")}><Icon name="repeat" className="h-4 w-4" /></button>}
+                      </>}
                       <AccountOptions name={pocket.name} iconOnly>
                         {position && <button type="button" onClick={() => handleOpenValuation(pocket)}>Update Nilai</button>}
                         <button type="button" onClick={() => openReconciliation(pocket)}>Sesuaikan Saldo</button>
@@ -985,23 +952,14 @@ export default function AccountsPage() {
 
         {/* Mobile Action Ribbon (< lg) */}
         <div className="lg:hidden flex items-center justify-between gap-2 w-full pt-1">
-          <div className="flex items-center gap-1.5 flex-1">
+          <div className="flex flex-1 items-center gap-1.5">
             <button
               type="button"
               onClick={handleOpenNewAccount}
-              className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-[#1E201E] px-3 text-xs font-bold text-white shadow-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+              className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-[#1E201E] px-3 text-xs font-bold text-white shadow-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
             >
               <span className="text-sm leading-none text-[var(--accent-lime,#66CC55)] font-black">+</span>
               <span>Rekening</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleOpenTransfer()}
-              disabled={liquidAccounts.length < 2}
-              className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-xs font-bold text-[var(--text)] shadow-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-40"
-            >
-              <Icon name="repeat" className="h-3.5 w-3.5 text-sky-500 stroke-[2.5]" />
-              <span>Pindah</span>
             </button>
           </div>
 
@@ -1068,16 +1026,6 @@ export default function AccountsPage() {
           >
             <Icon name="repeat" className="h-3.5 w-3.5 text-[var(--muted)] stroke-[2.5]" />
             <span>Rutin</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleOpenTransfer()}
-            disabled={liquidAccounts.length < 2}
-            className="flex min-h-11 items-center gap-1.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 text-xs font-bold text-amber-700 shadow-2xs hover:bg-amber-500/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-40 dark:text-amber-400"
-          >
-            <Icon name="move" className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 stroke-[2.5]" />
-            <span>Pindah Saldo</span>
           </button>
 
           <button
@@ -1382,13 +1330,6 @@ export default function AccountsPage() {
           <div className="grid gap-3">{filteredMobileAccounts.map((account) => renderAccountGroup(account, "mobile"))}</div>
         )}
       </div>
-      <InternalMovementModal
-        open={transferModalOpen}
-        onClose={() => setTransferModalOpen(false)}
-        defaultSourceAccountId={fromAccountId}
-        defaultTargetAccountId={toAccountId}
-      />
-
       {/* Add / Edit Account Modal */}
       <Modal
         open={accountModalOpen}

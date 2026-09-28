@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
 import { Modal } from "@/components/ui/Modal";
-import { InternalMovementModal } from "@/components/ui/InternalMovementModal";
 import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { listLiquidAccountChoices } from "@/lib/accountOptions";
 
@@ -25,17 +24,12 @@ import { PayrollAllocationModal } from "@/components/recurring/PayrollAllocation
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 
 export default function OverviewPage() {
-  const { timeframe, cycleOffset, openQuickAdd, user, bal } = useAppCtx();
+  const { timeframe, cycleOffset, openQuickAdd, openMovement, user, bal } = useAppCtx();
   const qc = useQueryClient();
 
-  const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [payrollModalOpen, setPayrollModalOpen] = useState(false);
   const [recurringModalOpen, setRecurringModalOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState<any>(null);
-
-  // Transfer state
-  const [transferFrom, setTransferFrom] = useState("");
-  const [transferTo, setTransferTo] = useState("");
 
   const { data: dashboard, isLoading } = useQuery<any>({
     queryKey: queryKeys.dashboard.overview(timeframe, cycleOffset),
@@ -59,9 +53,7 @@ export default function OverviewPage() {
     if (!canTransfer) return;
     const from = liquidAccounts.some((account) => account.id === sourceId) ? sourceId! : liquidAccounts[0].id;
     const to = liquidAccounts.find((account) => account.id !== from)!.id;
-    setTransferFrom(from);
-    setTransferTo(to);
-    setTransferModalOpen(true);
+    openMovement(from, to);
   };
 
   const deleteTxMutation = useMutation({
@@ -598,13 +590,6 @@ export default function OverviewPage() {
       </div>
 
       {/* ===================== MODALS ===================== */}
-
-      <InternalMovementModal
-        open={transferModalOpen}
-        onClose={() => setTransferModalOpen(false)}
-        defaultSourceAccountId={transferFrom}
-        defaultTargetAccountId={transferTo}
-      />
 
       {/* Transaction Detail & Delete Modal */}
       {selectedTx && (

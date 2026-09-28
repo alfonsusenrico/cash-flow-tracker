@@ -28,9 +28,13 @@ Use React Hook Form with feature-level Zod schemas for transaction capture, move
 
 Shared primitives accept standard identifiers, descriptions, error IDs, and refs instead of owning business state. This avoids a universal mega-form abstraction while eliminating repeated semantics.
 
-### 2. One canonical component per financial action
+### 2. Quick Capture owns financial entry modes
 
-Keep `QuickCaptureModal` as the canonical transaction capture surface and `InternalMovementModal` as the canonical movement surface, extracting form bodies only where desktop/mobile containers genuinely differ. Home, Accounts, and global triggers pass defaults into these components rather than render separate forms. Remove unused legacy `TransactionModal` and `ExportModal` only after confirming no runtime import remains; export itself is not added by this change.
+Extend `QuickCaptureModal` with three modes: `Pengeluaran`, `Pemasukan`, and `Perpindahan`. Expense and income continue to submit through the transaction API. Perpindahan reuses the movement fields and client validation, then submits through the existing atomic movement API; it must not create a normal transaction or include category, Kakeibo, goal, obligation, or receipt fields. Both movement accounts must be eligible liquid accounts and distinct, and the existing positive-amount, notes, and seconds-precise date behavior remains in force.
+
+Keep the shared mode selector keyboard-operable and expose the selected mode programmatically. Preserve compatible shared amount, note, and date values when changing modes, but keep account selection separate (one account for income/expense, source and target for movement) and never submit stale mode-specific values. Retain movement editing and deletion through `InternalMovementModal` and the canonical atomic edit/delete operations; it is no longer a movement-creation entry point. Reuse movement field validation rather than maintaining divergent movement rules.
+
+Home movement shortcuts open Quick Capture directly in Perpindahan mode. Remove the dedicated transfer controls on the Accounts page (account menu, pocket action, and page-level desktop/mobile controls); the existing Quick Capture entry point remains available there. Remove unused legacy `TransactionModal` and `ExportModal` only after confirming no runtime import remains; export itself is not added by this change.
 
 Ledger editing uses a transaction edit form for ordinary entries and calls the canonical movement edit contract for linked movements. Investment trades remain a focused form because unit and price semantics differ from ordinary transactions.
 
@@ -85,13 +89,14 @@ The shared local date-time formatter includes seconds instead of truncating at m
 - **[Custom focus trapping can miss edge cases]** → Test nested interactive content, disabled controls, no-focusable-content fallback, focus restoration, and mobile sheets.
 - **[Two-step receipt upload can partially succeed]** → Present the transaction as saved and the attachment as retryable; never resubmit the transaction automatically.
 - **[More explicit controls can increase visual density]** → Reveal type-specific fields conditionally while preserving all values and accessible relationships.
+- **[Mode changes can leak unrelated form values]** → Keep per-mode fields and payload adapters explicit; verify switching modes cannot submit stale transaction-only or movement-only data.
 - **[Removing captions can hide important meaning]** → Classify each caption as redundant, optional guidance, or essential state; retain essential state visibly and verify help via keyboard, touch, and screen reader.
 - **[Added test dependencies increase maintenance]** → Pin them in the existing lockfile and limit setup to affected component behavior.
 
 ## Migration Plan
 
 1. Add query-key factories, semantic form primitives, error summary, and enhanced Modal with focused regression tests.
-2. Consolidate movement entry points and Quick Capture while preserving current routes.
+2. Move movement creation into Quick Capture's Perpindahan mode, route Home shortcuts and global movement triggers to it, remove Accounts-page transfer controls, and preserve atomic movement edit/delete behavior.
 3. Complete transaction edit and receipt controls after integrity endpoints are available.
 4. Migrate recurring, payroll, category, goal, obligation, account, trade, registration, and settings forms feature by feature.
 5. Remove confirmed-dead and replaced form code, then run repository searches for stale query keys and duplicate action forms.

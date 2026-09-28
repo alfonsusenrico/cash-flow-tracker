@@ -7,11 +7,12 @@ import { Sidebar, MobileDrawer } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { QuickCaptureModal } from "@/components/ui/QuickCaptureModal";
-import { InternalMovementModal } from "@/components/ui/InternalMovementModal";
 import { SettingsModal } from "@/components/ui/SettingsModal";
 import { api, ApiError } from "@/lib/api";
 import { cn, setCurrencyConfig, fmtMoney as globalFmtMoney, convertAmount as globalConvertAmount } from "@/lib/utils";
 import { queryKeys } from "@/lib/queryKeys";
+
+type QuickCaptureMode = "expense" | "income" | "movement";
 
 interface AppCtxType {
   hideBalances: boolean;
@@ -34,7 +35,7 @@ interface AppCtxType {
   bal: (n: number, overrideCurrency?: "IDR" | "USD") => string;
   convertAmount: (amountInIDR: number) => number;
   openQuickAdd: (type?: "expense" | "income") => void;
-  openMovement: () => void;
+  openMovement: (sourceAccountId?: string, targetAccountId?: string) => void;
 }
 
 const AppContext = createContext<AppCtxType>({
@@ -73,16 +74,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [quickAddType, setQuickAddType] = useState<"expense" | "income">("expense");
-  const [movementOpen, setMovementOpen] = useState(false);
+  const [quickAddDefaultType, setQuickAddDefaultType] = useState<QuickCaptureMode>("expense");
+  const [movementDefaults, setMovementDefaults] = useState({ sourceAccountId: "", targetAccountId: "" });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleOpenQuickAdd = (type?: "expense" | "income") => {
+    const defaultType = type ?? quickAddType;
     if (type) setQuickAddType(type);
+    setMovementDefaults({ sourceAccountId: "", targetAccountId: "" });
+    setQuickAddDefaultType(defaultType);
     setQuickAddOpen(true);
   };
 
-  const handleOpenMovement = () => {
-    setMovementOpen(true);
+  const handleOpenMovement = (sourceAccountId?: string, targetAccountId?: string) => {
+    setMovementDefaults({
+      sourceAccountId: sourceAccountId ?? "",
+      targetAccountId: targetAccountId ?? "",
+    });
+    setQuickAddDefaultType("movement");
+    setQuickAddOpen(true);
   };
 
   useEffect(() => {
@@ -121,6 +131,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
           return;
         }
         e.preventDefault();
+        setMovementDefaults({ sourceAccountId: "", targetAccountId: "" });
+        setQuickAddDefaultType("expense");
         setQuickAddOpen(true);
       }
     };
@@ -246,12 +258,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
         <QuickCaptureModal
           open={quickAddOpen}
           onClose={() => setQuickAddOpen(false)}
-          defaultType={quickAddType}
-        />
-
-        <InternalMovementModal
-          open={movementOpen}
-          onClose={() => setMovementOpen(false)}
+          defaultType={quickAddDefaultType}
+          defaultSourceAccountId={movementDefaults.sourceAccountId}
+          defaultTargetAccountId={movementDefaults.targetAccountId}
         />
 
         <SettingsModal

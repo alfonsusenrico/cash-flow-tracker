@@ -39,11 +39,19 @@ Icon-only actions and visual color, icon, category, account, and segmented-choic
 - **THEN** each choice announces its name and current selected state
 
 ### Requirement: Canonical Responsive Form Behavior
-Each financial action SHALL have one canonical state and validation contract reused by desktop modal and mobile bottom-sheet presentations. Entry points MAY choose different responsive layouts but SHALL expose equivalent fields, defaults, errors, and results.
+Each financial action SHALL have one canonical state and validation contract reused by desktop modal and mobile bottom-sheet presentations. Entry points MAY choose different responsive layouts but SHALL expose equivalent fields, defaults, errors, and results. Quick Capture SHALL expose keyboard-operable `Pengeluaran`, `Pemasukan`, and `Perpindahan` choices with programmatically exposed selected state. Selecting Perpindahan SHALL show movement-specific source and destination controls and use the atomic movement contract without submitting fields from another mode.
 
-#### Scenario: Opening transfer from different screens
-- **WHEN** the user opens internal movement from Home, Accounts, or global navigation
-- **THEN** each entry point uses the same fields, date behavior, validation, and submission contract
+#### Scenario: Opening movement capture from Home or global navigation
+- **WHEN** the user opens movement capture from a Home shortcut or the global movement action
+- **THEN** Quick Capture opens with Perpindahan selected and exposes the same fields, date behavior, validation, and submission contract
+
+#### Scenario: Operating Quick Capture modes with a keyboard
+- **WHEN** a keyboard user moves among the three Quick Capture choices and selects Perpindahan
+- **THEN** the selected state is announced, movement fields become available, and expense/income-only fields are not submitted
+
+#### Scenario: Using movement capture on mobile
+- **WHEN** a user selects Perpindahan in Quick Capture's mobile bottom sheet
+- **THEN** source, destination, amount, timestamp, notes, errors, and submission remain available through the same accessible movement contract
 
 ### Requirement: Investment Position Choices Match Trade-Only Contract
 Generic movement, recurring-transfer, and payroll-allocation forms SHALL offer only eligible liquid accounts as source or destination. They SHALL explain that investment positions are changed through Beli/Jual, while liquid investment-funding accounts remain selectable.

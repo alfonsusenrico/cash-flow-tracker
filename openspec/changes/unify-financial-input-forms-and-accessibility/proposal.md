@@ -6,7 +6,8 @@ Financial input behavior is currently spread across duplicated modals with diffe
 
 ## What Changes
 
-- Establish one shared contract and component path for transaction capture, internal movement, account selection, monetary entry, dates, validation feedback, and submission state.
+- Establish one shared Quick Capture surface with `Pengeluaran`, `Pemasukan`, and `Perpindahan` modes, using the existing transaction and bilateral movement contracts.
+- Remove dedicated transfer controls from the Accounts page; retain Home movement shortcuts by routing them to Quick Capture in `Perpindahan` mode.
 - Remove or consolidate duplicate and obsolete transaction, movement, and export forms so each action has one maintained implementation across entry points.
 - Make Quick Capture inherit the selected category's Kakeibo classification unless the user deliberately overrides it, and expose receipt attachment through the supported receipt API.
 - Complete recurring-rule management with create, edit, deactivate, delete, weekday selection, type-correct categories, explicit payroll inclusion, and clear auto-post behavior.
@@ -27,7 +28,7 @@ Financial input behavior is currently spread across duplicated modals with diffe
 
 ### Modified Capabilities
 
-- `transaction-ledger-management`: Completes quick capture and ledger editing, including receipts, classification, seconds-precise date entry, and one canonical movement form.
+- `transaction-ledger-management`: Completes quick capture and ledger editing, including receipts, classification, seconds-precise date entry, and movement creation from the `Perpindahan` mode while retaining atomic movement editing.
 - `automated-transactions`: Completes recurring-rule create/edit scheduling controls and type-correct selections.
 - `payroll-allocation-flow`: Makes payroll inclusion explicit and aligns allocation validation and feedback with the shared form contract.
 - `custom-category-management`: Exposes every persisted category attribute and filters category choices by transaction type.
@@ -40,7 +41,7 @@ Financial input behavior is currently spread across duplicated modals with diffe
 ## Impact
 
 - Shared frontend primitives: Modal, Input, MoneyInput, account/category selectors, errors, buttons, and form state helpers.
-- Feature UI: authentication, settings, quick capture, ledger, accounts, goals, obligations, investments, categories, recurring rules, and payroll allocation.
+- Feature UI: authentication, settings, quick capture, ledger, accounts, goals, obligations, investments, categories, recurring rules, and payroll allocation. Quick Capture routes movement mode through the existing movement API; no database or backend contract change is required.
 - Query cache keys and mutations are normalized so successful writes refresh the screens that display the changed data.
 - Backend request models receive only compatibility and validation alignment required by the completed forms; core financial settlement changes remain owned by the separate integrity change.
 - Verification adds component/integration tests plus keyboard, focus, responsive, and automated accessibility checks for affected forms.

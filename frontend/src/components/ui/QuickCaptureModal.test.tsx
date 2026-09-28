@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
-import { api, uploadTransactionReceipt } from "@/lib/api";
+import { api, createMovement, uploadTransactionReceipt } from "@/lib/api";
 import { QuickCaptureModal } from "./QuickCaptureModal";
 
 vi.mock("@/lib/api", () => ({
@@ -11,10 +11,11 @@ vi.mock("@/lib/api", () => ({
     get: vi.fn(),
     post: vi.fn(),
   },
+  createMovement: vi.fn(),
   uploadTransactionReceipt: vi.fn(),
 }));
 
-function renderQuickCapture() {
+function renderQuickCapture(props: { defaultType?: "expense" | "income" | "movement" } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -24,7 +25,7 @@ function renderQuickCapture() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <QuickCaptureModal open onClose={() => {}} />
+      <QuickCaptureModal open onClose={() => {}} {...props} />
     </QueryClientProvider>,
   );
 }
@@ -52,6 +53,12 @@ describe("QuickCaptureModal", () => {
       throw new Error(`Unexpected GET ${path}`);
     });
     vi.mocked(api.post).mockResolvedValue({ ok: true, transaction_id: "transaction-1" });
+    vi.mocked(createMovement).mockResolvedValue({
+      ok: true,
+      movement_id: "movement-1",
+      expense_transaction_id: "movement-out",
+      income_transaction_id: "movement-in",
+    });
     vi.mocked(uploadTransactionReceipt).mockResolvedValue({ ok: true, receipt_path: "receipt.jpg" });
   });
 
@@ -301,6 +308,111 @@ describe("QuickCaptureModal", () => {
       expect.objectContaining({ name: "receipt.jpg" }),
     ));
     expect(api.post).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates an internal movement from the shared form without transaction-only fields", async () => {
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") {
+        return { accounts: [
+          { id: "cash-a", name: "Cash A", type: "cash", balance: 100_000 },
+          { id: "cash-b", name: "Bank B", type: "bank", balance: 0 },
+          { id: "stock", name: "Stock", type: "investment", balance: 500_000 },
+        ] };
+      }
+      if (path === "/categories") {
+        return { categories: [{ id: "need-category", name: "Makan", kind: "expense", kakeibo_type: "need" }] };
+      }
+      if (path === "/goals") return { goals: [{ id: "goal-1", name: "Dana Darurat", is_archived: false }] };
+      if (path === "/obligations") return { obligations: [] };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    const user = userEvent.setup();
+    const { container } = renderQuickCapture();
+
+    await user.selectOptions(await screen.findByRole("combobox", { name: "Kategori" }), "need-category");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Kaitkan ke target (opsional)" }), "goal-1");
+    await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "15000");
+    await user.type(screen.getByRole("textbox", { name: "Catatan (opsional)" }), "Move savings");
+    await user.click(screen.getByRole("button", { name: "Perpindahan" }));
+
+    expect(screen.getByRole("textbox", { name: "Nominal (IDR)" })).toHaveValue("15.000");
+    expect(screen.getByRole("textbox", { name: "Catatan (opsional)" })).toHaveValue("Move savings");
+    expect(screen.getByRole("combobox", { name: "Dari rekening" })).toHaveValue("cash-a");
+    expect(screen.getByRole("combobox", { name: "Ke rekening" })).toHaveValue("cash-b");
+    expect(screen.queryByRole("combobox", { name: "Kategori" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Kaitkan ke target (opsional)" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Bukti transaksi (opsional)")).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Stock/ })).not.toBeInTheDocument();
+    expect((await axe(container.ownerDocument.body)).violations).toHaveLength(0);
+
+    const dateInput = screen.getByLabelText("Waktu Pemindahan");
+    expect(dateInput).toHaveAttribute("step", "1");
+    fireEvent.change(dateInput, { target: { value: "2026-09-20T12:00:27" } });
+    await user.click(screen.getByRole("button", { name: "Pindahkan Saldo" }));
+
+    await waitFor(() => expect(createMovement).toHaveBeenCalledWith(expect.objectContaining({
+      source_account_id: "cash-a",
+      target_account_id: "cash-b",
+      amount: 15_000,
+      notes: "Move savings",
+    })));
+    const payload = vi.mocked(createMovement).mock.calls[0][0];
+    expect(new Date(payload.date!).toISOString()).toBe(new Date("2026-09-20T12:00:27").toISOString());
+    expect(api.post).not.toHaveBeenCalled();
+    expect(uploadTransactionReceipt).not.toHaveBeenCalled();
+  });
+
+  it("focuses and explains the destination when fewer than two liquid accounts exist", async () => {
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") {
+        return { accounts: [
+          { id: "cash-a", name: "Cash A", type: "cash", balance: 100_000 },
+          { id: "stock", name: "Stock", type: "investment", balance: 500_000 },
+        ] };
+      }
+      if (path === "/categories") return { categories: [] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    const user = userEvent.setup();
+    renderQuickCapture({ defaultType: "movement" });
+
+    await user.type(await screen.findByRole("textbox", { name: "Nominal (IDR)" }), "1000");
+    const targetSelect = screen.getByRole("combobox", { name: "Ke rekening" });
+    expect(targetSelect).toHaveValue("");
+    expect(screen.queryByRole("option", { name: /Stock/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Pindahkan Saldo" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Pilih rekening tujuan");
+    expect(targetSelect).toHaveFocus();
+    expect(createMovement).not.toHaveBeenCalled();
+  });
+
+  it("rejects a zero amount without creating a movement", async () => {
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") {
+        return { accounts: [
+          { id: "cash-a", name: "Cash A", type: "cash", balance: 100_000 },
+          { id: "cash-b", name: "Bank B", type: "bank", balance: 0 },
+          { id: "stock", name: "Stock", type: "investment", balance: 500_000 },
+        ] };
+      }
+      if (path === "/categories") return { categories: [] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    renderQuickCapture({ defaultType: "movement" });
+
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Dari rekening" })).toHaveValue("cash-a"));
+    const amountInput = screen.getByRole("textbox", { name: "Nominal (IDR)" });
+    fireEvent.submit(document.querySelector("form")!);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Masukkan nominal yang valid");
+    expect(amountInput).toHaveFocus();
+    expect(createMovement).not.toHaveBeenCalled();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it("retains values and focuses the account after a financial rejection", async () => {

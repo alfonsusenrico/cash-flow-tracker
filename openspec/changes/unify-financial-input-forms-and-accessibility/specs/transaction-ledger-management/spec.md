@@ -13,6 +13,27 @@ The application SHALL provide one canonical transaction-capture form that suppor
 - **WHEN** a user records a transaction with a valid receipt
 - **THEN** the transaction is created and the receipt is attached through the supported receipt contract with visible success or failure feedback
 
+### Requirement: Internal Movement Capture Mode
+The canonical Quick Capture form SHALL offer `Pengeluaran`, `Pemasukan`, and `Perpindahan` modes. Perpindahan SHALL collect a positive amount, distinct eligible liquid source and destination accounts, timestamp with seconds, and optional notes, and SHALL submit through the existing atomic movement creation contract rather than the ordinary transaction endpoint. It SHALL NOT submit transaction-only category, Kakeibo, goal, obligation, or receipt fields. Movement creation SHALL preserve the existing bilateral account-balance and consolidated-ledger behavior.
+
+The Accounts page SHALL NOT expose dedicated transfer controls in account menus, pocket actions, or page-level desktop/mobile actions. Home movement shortcuts SHALL open Quick Capture in Perpindahan mode. Movement editing and deletion from ledger detail SHALL continue to use the atomic movement edit/delete contract.
+
+#### Scenario: Creating an internal movement from Quick Capture
+- **WHEN** a user selects `Perpindahan`, chooses two different eligible liquid accounts, enters a positive amount, and saves
+- **THEN** the client calls the existing atomic movement creation contract with source, destination, amount, date, and optional notes, and creates no ordinary transaction request
+
+#### Scenario: Rejecting an invalid movement selection
+- **WHEN** a user selects the same account as source and destination, or does not provide two eligible accounts or a positive amount
+- **THEN** the form identifies the invalid field, focuses the first invalid control, and sends no movement request
+
+#### Scenario: Opening movement capture from Home
+- **WHEN** the user activates a Home movement shortcut
+- **THEN** Quick Capture opens with `Perpindahan` selected and exposes the canonical movement fields
+
+#### Scenario: Editing an existing ledger movement
+- **WHEN** a user opens a consolidated movement row and edits it
+- **THEN** the existing atomic movement edit flow updates both linked records while the ledger continues to show one consolidated row
+
 ### Requirement: Complete Ledger Editing
 The transaction detail form SHALL expose every safely editable transaction property, including type where compatible, account, category, classification, date, notes, goal or obligation association, and receipt. Movement rows SHALL delegate source, target, amount, notes, and date changes to the canonical atomic movement operation.
 

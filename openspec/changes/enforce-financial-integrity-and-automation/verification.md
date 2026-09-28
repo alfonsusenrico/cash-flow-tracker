@@ -24,3 +24,14 @@ The first sticky implementation assumed a 56px mobile header; Chrome measured 10
 ## Limits and next action
 
 Physical touch, real screen-reader behavior, and actual browser-toolbar zoom remain unverified. The older financial-integrity evidence/review tasks are not closed by this focused correction. The configured CI/release workflow runs on `main`; a topic-branch push does not provide a CI result or authorize production release. Owner testing and a separately authorized release remain next.
+
+## Owner screenshot follow-up (2026-09-28)
+
+The owner reported that entering selection mode split inferred legacy movement rows and added a `Belum tertaut` label, and requested removal of the `perkiraan` qualifier. The current topic branch now keeps uniquely inferred pairs consolidated during selection, selects both underlying records when the pair row is held, and removes both labels. Durable movements retain `Tergabung` in selection mode. Frontend type-check, lint, host production build, strict OpenSpec validation, and `git diff --check` passed. The local frontend image was rebuilt and only the frontend container was recreated; `/auth/login` returned HTTP 200 and other local services were unchanged. Automated frontend tests and browser interaction checks were not run; owner testing is pending.
+
+## Owner interaction revision and regression verification — 2026-09-28
+
+- Replaced the merge toolbar/action and `Aksi` column with one-second hold-to-select, brighter selected rows, click-to-toggle, a maximum of two selections, and a viewport-fixed `Jadikan Pindah Saldo` action. Equal-value selections convert directly; unequal values show a centered warning with only `Ok` and do not call the merge endpoint. Short click still opens edit.
+- Confirmed movements remain consolidated, visibly marked, and non-selectable; inferred pairs remain consolidated and select both underlying records. The misleading inferred/unlinked labels are absent. Removed the duplicate mobile `Tergabung` indicator while retaining one durable-link badge.
+- Focused desktop/mobile ledger tests pass 14/14; the complete frontend suite passes 106/106. Type-check, lint, production build, strict OpenSpec validation, and `git diff --check` pass. The local Docker API health endpoint returns healthy; this final source state was host-built but not rebuilt into Docker during this checkpoint.
+- The test harness uses a bubbling `MouseEvent` with pointer event names because JSDOM has no native `PointerEvent`; this preserves the `button` property required by the production handler. Real touch, assistive-technology, and actual browser-zoom checks remain open. No production action occurred in this checkpoint.

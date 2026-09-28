@@ -8,7 +8,7 @@ The current ledger passes its automated suite but still permits several paths th
 
 - Replace synthetic goal-deposit income with explicit goal progress behavior: account-backed goals derive progress only from linked account balances, while standalone goals accept progress adjustments without ledger transactions.
 - Persist a durable bilateral movement identifier and provide atomic create, update, and delete operations for both halves of a movement.
-- Restore a bounded, display-only match for unique legacy internal-movement pairs less than 30 seconds apart, and let the owner explicitly link two eligible ledger rows as one durable movement after confirmation. Automatic matching never writes linkage.
+- Restore a bounded, display-only match for unique legacy internal-movement pairs less than 30 seconds apart, and let the owner explicitly link two eligible ledger rows as one durable movement. A one-second row hold starts selection, and a fixed action directly links equal-value rows; unequal values are rejected in a one-button warning. Automatic matching never writes linkage.
 - Settle investment buys and sales between the funding account and instrument position atomically, validate trade quantities, and reject overselling.
 - Restrict investment-position balance changes to the investment trade flow; generic movements, recurring transfers, and payroll allocations SHALL use liquid accounts only.
 - Prevent manual expenses, movements, payroll allocations, and recurring executions from making liquid accounts negative; settled notification ingestion remains recordable and flags the account for reconciliation.

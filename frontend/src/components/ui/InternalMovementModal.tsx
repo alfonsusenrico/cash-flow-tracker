@@ -2,20 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, createMovement, deleteMovement, updateMovement } from "@/lib/api";
+import { api, deleteMovement, updateMovement } from "@/lib/api";
 import { cn, fmtMoney, formatNumberWithDots, localDatetimeToISO, toDatetimeLocal } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { FormSection } from "@/components/ui/FormField";
 import { queryKeys } from "@/lib/queryKeys";
 import { listLiquidAccountChoices } from "@/lib/accountOptions";
+import { movementFormSchema } from "@/lib/movementFormSchema";
 
 interface InternalMovementModalProps {
   open: boolean;
   onClose: () => void;
-  defaultSourceAccountId?: string;
-  defaultTargetAccountId?: string;
-  editingMovement?: {
+  editingMovement: {
     id: string;
     sourceAccountId: string;
     targetAccountId: string;
@@ -28,15 +27,13 @@ interface InternalMovementModalProps {
 export function InternalMovementModal({
   open,
   onClose,
-  defaultSourceAccountId,
-  defaultTargetAccountId,
   editingMovement,
 }: InternalMovementModalProps) {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [sourceAccountId, setSourceAccountId] = useState(defaultSourceAccountId ?? "");
-  const [targetAccountId, setTargetAccountId] = useState(defaultTargetAccountId ?? "");
+  const [sourceAccountId, setSourceAccountId] = useState(editingMovement?.sourceAccountId ?? "");
+  const [targetAccountId, setTargetAccountId] = useState(editingMovement?.targetAccountId ?? "");
   const [amountStr, setAmountStr] = useState("");
   const [notes, setNotes] = useState("");
   const [txDate, setTxDate] = useState(() => toDatetimeLocal(new Date()));
@@ -78,8 +75,8 @@ export function InternalMovementModal({
 
   useEffect(() => {
     if (open) {
-      const requestedSource = editingMovement?.sourceAccountId ?? defaultSourceAccountId ?? "";
-      const requestedTarget = editingMovement?.targetAccountId ?? defaultTargetAccountId ?? "";
+      const requestedSource = editingMovement?.sourceAccountId ?? "";
+      const requestedTarget = editingMovement?.targetAccountId ?? "";
       const getAccountId = (account: any) => String(account.id ?? account.account_id ?? "");
       const sourceId = liquidAccounts.some((account) => getAccountId(account) === requestedSource)
         ? requestedSource
@@ -96,7 +93,7 @@ export function InternalMovementModal({
       setIsSuccess(false);
       setConfirmDelete(false);
     }
-  }, [defaultSourceAccountId, defaultTargetAccountId, editingMovement, liquidAccounts, open]);
+  }, [editingMovement, liquidAccounts, open]);
 
   const parsedAmount = useMemo(() => {
     const raw = amountStr.replace(/[^0-9]/g, "");
@@ -105,22 +102,24 @@ export function InternalMovementModal({
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (parsedAmount <= 0) throw new Error("Masukkan nominal yang valid");
-      if (!sourceAccountId || !targetAccountId) throw new Error("Pilih rekening sumber dan tujuan");
-      if (sourceAccountId === targetAccountId) throw new Error("Rekening sumber dan tujuan tidak boleh sama");
-
-      const isoDate = localDatetimeToISO(txDate) || new Date().toISOString();
+      if (!editingMovement) throw new Error("Pemindahan saldo tidak ditemukan");
+      const validation = movementFormSchema.safeParse({
+        sourceAccountId,
+        targetAccountId,
+        amount: parsedAmount,
+        date: txDate,
+        notes: notes.trim(),
+      });
+      if (!validation.success) throw new Error(validation.error.issues[0].message);
 
       const payload = {
-        source_account_id: sourceAccountId,
-        target_account_id: targetAccountId,
-        amount: parsedAmount,
-        notes: notes.trim() || null,
-        date: isoDate,
+        source_account_id: validation.data.sourceAccountId,
+        target_account_id: validation.data.targetAccountId,
+        amount: validation.data.amount,
+        notes: validation.data.notes || null,
+        date: localDatetimeToISO(validation.data.date) || new Date().toISOString(),
       };
-      return editingMovement
-        ? updateMovement(editingMovement.id, payload)
-        : createMovement(payload);
+      return updateMovement(editingMovement.id, payload);
     },
     onSuccess: () => {
       setIsSuccess(true);
@@ -157,7 +156,7 @@ export function InternalMovementModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={editingMovement ? "Ubah pindah saldo" : "Pindah saldo"}>
+    <Modal open={open && Boolean(editingMovement)} onClose={onClose} title="Ubah pindah saldo">
       <form onSubmit={handleSubmit} className="space-y-4 pt-1">
         <FormSection title="Arah pemindahan" description="Saldo berpindah antar-rekening likuid. Ini bukan pemasukan atau pengeluaran; posisi investasi berubah melalui Beli/Jual." className="border-t-0 pt-0">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -299,12 +298,12 @@ export function InternalMovementModal({
                 <svg className="w-4 h-4 stroke-[3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
-                ✓ {editingMovement ? "Perubahan Tersimpan" : "Berhasil Dipindahkan!"}
+                ✓ Perubahan Tersimpan
               </span>
             ) : mutation.isPending ? (
               "Memproses…"
             ) : (
-              editingMovement ? "Simpan Perubahan" : "Pindahkan Saldo"
+              "Simpan Perubahan"
             )}
           </button>
         </div>

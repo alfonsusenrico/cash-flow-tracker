@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, updateMovement, uploadTransactionReceipt } from "@/lib/api";
@@ -52,6 +52,20 @@ type MovementTransaction = typeof transaction & {
 };
 let currentTransactions: Array<typeof transaction | MovementTransaction> = [transaction];
 
+const longPressRow = async (row: HTMLElement) => {
+  vi.useFakeTimers();
+  try {
+    // JSDOM lacks PointerEvent, so MouseEvent preserves the pointer button fields React uses.
+    fireEvent(row, new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: 20, clientY: 20 }));
+    await act(async () => vi.advanceTimersByTime(1000));
+    fireEvent(row, new MouseEvent("pointerup", { bubbles: true, button: 0, clientX: 20, clientY: 20 }));
+    fireEvent.click(row);
+    await act(async () => vi.advanceTimersByTime(750));
+  } finally {
+    vi.useRealTimers();
+  }
+};
+
 describe("Ledger edit receipt recovery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -85,7 +99,7 @@ describe("Ledger edit receipt recovery", () => {
       </QueryClientProvider>,
     );
 
-    await user.click((await screen.findAllByRole("button", { name: "Ubah" }))[0]);
+    await user.click(await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ }));
     expect(screen.getByLabelText("Tanggal & Waktu")).toHaveAttribute("step", "1");
     expect((screen.getByLabelText("Tanggal & Waktu") as HTMLInputElement).value).toMatch(/:27(?:\.000)?$/);
     await user.upload(
@@ -136,7 +150,7 @@ describe("Ledger edit receipt recovery", () => {
     const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
     expect(await screen.findByText(/2 tagihan/)).toBeInTheDocument();
-    await user.click((await screen.findAllByRole("button", { name: "Ubah" }))[0]);
+    await user.click(await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ }));
     expect(screen.getByRole("option", { name: "Kartu A (tersimpan)" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Total bayar (IDR)" })).toHaveValue("100.000");
     expect(screen.getByText("Dibayar Rp 60.000")).toBeInTheDocument();
@@ -171,7 +185,7 @@ describe("Ledger edit receipt recovery", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
-    await user.click((await screen.findAllByRole("button", { name: "Ubah" }))[0]);
+    await user.click(await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ }));
     await user.click(screen.getByRole("button", { name: "Hapus transaksi" }));
     const confirmation = screen.getByRole("group", { name: /seluruh pembagian tagihan dikembalikan/ });
     await user.click(within(confirmation).getByRole("button", { name: "Batal" }));
@@ -215,7 +229,7 @@ describe("Ledger edit receipt recovery", () => {
     const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
 
-    await user.click((await screen.findAllByRole("button", { name: "Ubah" }))[0]);
+    await user.click(await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ }));
     expect(await screen.findByRole("dialog", { name: "Ubah pindah saldo" })).toBeVisible();
     await user.clear(screen.getByRole("textbox", { name: "Nominal (IDR)" }));
     await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "30000");
@@ -257,7 +271,7 @@ describe("Ledger edit receipt recovery", () => {
     const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
 
-    await user.click((await screen.findAllByRole("button", { name: "Ubah" }))[0]);
+    await user.click(await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ }));
     expect(await screen.findByRole("dialog", { name: "Ubah pindah saldo" })).toBeVisible();
     expect(screen.getByRole("combobox", { name: "Dari rekening" })).toHaveValue("account-1");
     expect(screen.getByRole("combobox", { name: "Ke rekening" })).toHaveValue("account-2");
@@ -270,7 +284,7 @@ describe("Ledger edit receipt recovery", () => {
     const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
 
-    await user.click((await screen.findAllByRole("button", { name: "Ubah" }))[0]);
+    await user.click(await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ }));
     const category = screen.getByRole("combobox", { name: "Kategori" });
     const pillar = screen.getByRole("combobox", { name: "Pilar Kakeibo" });
     await user.selectOptions(category, "category-2");
@@ -288,11 +302,16 @@ describe("Ledger edit receipt recovery", () => {
   });
 });
 
-describe("Ledger movement confirmation", () => {
-  it("keeps a linked movement as one non-selectable row while choosing transactions", async () => {
+describe("Ledger movement selection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("keeps a linked movement consolidated and visibly marked while selecting", async () => {
     const outbound = {
       ...transaction,
       id: "movement-out",
+      notes: "Pindah tabungan",
       category_name: "Internal Movement",
       movement_id: "movement-1",
       movement_role: "outbound",
@@ -315,26 +334,26 @@ describe("Ledger movement confirmation", () => {
       if (path === "/obligations") return { obligations: [] };
       if (path.startsWith("/transactions?")) {
         const isLogical = new URLSearchParams(path.split("?")[1]).get("logical_movements") === "true";
-        return { ok: true, total: isLogical ? 1 : 2, transactions: isLogical ? [outbound] : [outbound, inbound] };
+        return { ok: true, total: isLogical ? 2 : 3, transactions: isLogical ? [outbound, transaction] : [outbound, inbound, transaction] };
       }
       throw new Error(`Unexpected GET ${path}`);
     });
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
 
-    await user.click(await screen.findByRole("button", { name: "Gabungkan transaksi" }));
+    await longPressRow(await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ }));
 
     expect(screen.getByText("Tergabung")).toBeInTheDocument();
-    expect(screen.getAllByText("Pindah Saldo")).toHaveLength(2);
+    expect(screen.getAllByText("Pindah Saldo").length).toBeGreaterThan(0);
     expect(screen.queryByText("Pindah Saldo (Masuk)")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Pilih transaksi/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Gabungkan transaksi" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Aksi" })).not.toBeInTheDocument();
     expect(vi.mocked(api.get).mock.calls.filter(([path]) => path.startsWith("/transactions?")).every(
       ([path]) => new URLSearchParams(path.split("?")[1]).get("logical_movements") === "true",
     )).toBe(true);
   });
 
-  it("keeps a unique legacy pair together and selects both records", async () => {
+  it("keeps inferred legacy pairs consolidated while selecting both records as one row", async () => {
     const outbound = { ...transaction, category_name: "Internal Movement", notes: "Pindah tabungan" };
     const inbound = {
       ...outbound,
@@ -342,6 +361,7 @@ describe("Ledger movement confirmation", () => {
       account_id: "account-2",
       account_name: "Jago",
       type: "income",
+      notes: "Internal Movement",
       date: "2026-09-20T12:00:45.000Z",
     };
     vi.mocked(api.get).mockImplementation(async (path) => {
@@ -362,24 +382,19 @@ describe("Ledger movement confirmation", () => {
     const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
 
-    expect(await screen.findByRole("button", { name: "Gabungkan", exact: true })).toBeInTheDocument();
-    await user.click(await screen.findByRole("button", { name: "Gabungkan transaksi" }));
-    expect(screen.getByText("Pindah Saldo (perkiraan)")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Pilih pasangan perkiraan Pindah tabungan" }));
-    expect(screen.getByText("2/2 dipilih")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Gabungkan sebagai Pindah Saldo" })).toBeEnabled();
-    await user.click(screen.getByRole("button", { name: "Pilih pasangan perkiraan Pindah tabungan" }));
-    await user.selectOptions(screen.getByDisplayValue("Semua Rekening"), "account-2");
-    await user.click(await screen.findByRole("button", { name: "Pilih transaksi Pindah tabungan" }));
-    await user.selectOptions(screen.getByDisplayValue("Jago"), "all");
-    const partialPair = await screen.findByRole("button", { name: "Pilih pasangan perkiraan Pindah tabungan" });
-    expect(partialPair).toHaveAttribute("aria-pressed", "mixed");
-    expect(partialPair).toBeEnabled();
-    await user.click(partialPair);
-    expect(screen.getByText("0/2 dipilih")).toBeInTheDocument();
+    expect((await screen.findAllByText("Pindah Saldo")).length).toBeGreaterThan(0);
+    await longPressRow(await screen.findByRole("row", { name: /Buka atau ubah: Pindah tabungan/ }));
+    expect(screen.getAllByRole("row", { name: /Dipilih: Pindah tabungan/ })).toHaveLength(1);
+    expect(screen.getByText("2/2 dipilih · klik baris untuk mengubah pilihan")).toBeInTheDocument();
+    expect(screen.queryByText(/perkiraan|belum tertaut/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Jadikan Pindah Saldo" })).toBeEnabled();
+    await user.click(screen.getByRole("row", { name: /Dipilih: Pindah tabungan/ }));
+    expect(screen.queryByRole("button", { name: "Jadikan Pindah Saldo" })).not.toBeInTheDocument();
+    expect(screen.getByText("Tahan baris 1 detik untuk mulai memilih")).toBeInTheDocument();
+    expect(screen.getAllByRole("row", { name: /Buka atau ubah: Pindah tabungan/ })).toHaveLength(1);
   });
 
-  it("requires explicit confirmation before linking two selected transactions", async () => {
+  it("links equal-value selected transactions directly without a confirmation preview", async () => {
     const incoming = {
       ...transaction,
       id: "transaction-2",
@@ -412,23 +427,19 @@ describe("Ledger movement confirmation", () => {
     const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
 
-    await user.click(await screen.findByRole("button", { name: "Gabungkan transaksi" }));
-    await user.click(screen.getByRole("button", { name: "Pilih transaksi Makan siang" }));
+    await longPressRow(await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ }));
     await user.click(screen.getAllByRole("button", { name: "Berikutnya" }).at(-1)!);
-    await user.click(await screen.findByRole("button", { name: "Pilih transaksi Masuk rekening" }));
-    await user.click(screen.getByRole("button", { name: "Gabungkan sebagai Pindah Saldo" }));
+    await user.click(await screen.findByRole("row", { name: /Belum dipilih: Masuk rekening/ }));
+    await user.click(screen.getByRole("button", { name: "Jadikan Pindah Saldo" }));
 
-    const confirmation = await screen.findByRole("dialog", { name: "Gabungkan sebagai Pindah Saldo" });
-    expect(within(confirmation).getByText(/Saldo rekening tidak berubah/)).toBeInTheDocument();
-    expect(api.post).not.toHaveBeenCalled();
-    await user.click(within(confirmation).getByRole("button", { name: "Ya, gabungkan" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/movements/merge", {
       expense_transaction_id: "transaction-1",
       income_transaction_id: "transaction-2",
     }));
+    expect(screen.queryByRole("dialog", { name: "Gabungkan sebagai Pindah Saldo" })).not.toBeInTheDocument();
   });
 
-  it("keeps the confirmation open and explains a rejected merge", async () => {
+  it("rejects different amounts with a centered single-button warning without calling the endpoint", async () => {
     const incoming = {
       ...transaction,
       id: "transaction-2",
@@ -436,6 +447,7 @@ describe("Ledger movement confirmation", () => {
       account_name: "Jago",
       type: "income",
       notes: "Masuk rekening",
+      amount: 40_000,
     };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { accounts: [] };
@@ -447,19 +459,19 @@ describe("Ledger movement confirmation", () => {
       if (path === "/transactions/transaction-2") return { transaction: incoming };
       throw new Error(`Unexpected GET ${path}`);
     });
-    vi.mocked(api.post).mockRejectedValue(new Error("A linked transaction cannot be merged"));
+    vi.mocked(api.post).mockResolvedValue({ ok: true });
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
 
-    await user.click(await screen.findByRole("button", { name: "Gabungkan transaksi" }));
-    await user.click(screen.getByRole("button", { name: "Pilih transaksi Makan siang" }));
-    await user.click(screen.getByRole("button", { name: "Pilih transaksi Masuk rekening" }));
-    await user.click(screen.getByRole("button", { name: "Gabungkan sebagai Pindah Saldo" }));
-    const confirmation = await screen.findByRole("dialog", { name: "Gabungkan sebagai Pindah Saldo" });
-    await user.click(within(confirmation).getByRole("button", { name: "Ya, gabungkan" }));
+    await longPressRow(await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ }));
+    await user.click(await screen.findByRole("row", { name: /Belum dipilih: Masuk rekening/ }));
+    await user.click(screen.getByRole("button", { name: "Jadikan Pindah Saldo" }));
+    const warning = await screen.findByRole("dialog", { name: "Nominal tidak sama" });
 
-    expect(await within(confirmation).findByRole("alert")).toHaveTextContent("A linked transaction cannot be merged");
-    expect(confirmation).toBeVisible();
+    expect(within(warning).getByRole("alert")).toHaveTextContent("Pindah saldo hanya dapat dibuat jika nominalnya sama");
+    expect(within(warning).getAllByRole("button")).toHaveLength(1);
+    expect(within(warning).getByRole("button", { name: "Ok" })).toBeVisible();
+    expect(api.post).not.toHaveBeenCalled();
   });
 });

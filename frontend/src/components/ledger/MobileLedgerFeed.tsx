@@ -1,6 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import {
+  useMemo,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 
@@ -36,6 +41,11 @@ export interface LedgerTxItem {
 interface MobileLedgerFeedProps {
   transactions: LedgerTxItem[];
   onOpenEdit: (tx: LedgerTxItem) => void;
+  onHoldSelect: (tx: LedgerTxItem) => void;
+  onHoldPointerDown: (tx: LedgerTxItem, event: ReactPointerEvent<HTMLElement>) => void;
+  onHoldPointerMove: (event: ReactPointerEvent<HTMLElement>) => void;
+  onHoldPointerEnd: () => void;
+  onHoldContextMenu: (event: ReactMouseEvent<HTMLElement>) => void;
   bal: (amount: number) => string;
   isLoading?: boolean;
   selectionMode?: boolean;
@@ -45,6 +55,11 @@ interface MobileLedgerFeedProps {
 export function MobileLedgerFeed({
   transactions,
   onOpenEdit,
+  onHoldSelect,
+  onHoldPointerDown,
+  onHoldPointerMove,
+  onHoldPointerEnd,
+  onHoldContextMenu,
   bal,
   isLoading,
   selectionMode = false,
@@ -172,20 +187,33 @@ export function MobileLedgerFeed({
                   !!tx.is_excluded_from_budget ||
                   (tx.notes?.toLowerCase().includes("pindah saldo") ?? false);
                 const isIncome = tx.type === "income" && !isMovement;
-                const selectionIds = tx.is_inferred_transfer && tx.partner_id ? [tx.id, tx.partner_id] : [tx.id];
-                const selectedCount = selectionIds.filter((id) => selectedIds.includes(id)).length;
-                const isSelected = selectedCount === selectionIds.length;
-                const isPartiallySelected = selectedCount > 0 && !isSelected;
-                const selectionPressed = isPartiallySelected ? "mixed" : isSelected;
-                let selectionLabel = "Pilih";
-                if (tx.movement_id) {
-                  selectionLabel = "Tergabung";
-                } else if (isSelected) {
+                const rowSelectionIds = tx.is_inferred_transfer && tx.partner_id
+                  ? [tx.id, tx.partner_id]
+                  : [tx.id];
+                const selectedRowCount = rowSelectionIds.filter((id) => selectedIds.includes(id)).length;
+                const isSelected = selectedRowCount > 0;
+                let selectionLabel: string | null = null;
+                if (!tx.movement_id && selectedRowCount === rowSelectionIds.length) {
                   selectionLabel = "Dipilih";
-                } else if (isPartiallySelected) {
-                  selectionLabel = `${selectedCount}/2 dipilih`;
-                } else if (tx.is_inferred_transfer) {
-                  selectionLabel = "Pilih pasangan";
+                } else if (!tx.movement_id && selectedRowCount > 0) {
+                  selectionLabel = `${selectedRowCount}/${rowSelectionIds.length} dipilih`;
+                }
+                const selectedIdsOutsideRow = selectedIds.length - selectedRowCount;
+                const selectionBlocked =
+                  selectionMode &&
+                  !tx.movement_id &&
+                  selectedRowCount === 0 &&
+                  selectedIdsOutsideRow + rowSelectionIds.length > 2;
+                const selectionDisabled = selectionMode && (Boolean(tx.movement_id) || selectionBlocked);
+                const movementStatus = tx.movement_id
+                  ? "Tergabung"
+                  : "Transfer";
+                let selectionPressed: boolean | "mixed" | undefined;
+                if (selectionMode && !tx.movement_id) {
+                  selectionPressed = isSelected;
+                  if (selectedRowCount > 0 && selectedRowCount < rowSelectionIds.length) {
+                    selectionPressed = "mixed";
+                  }
                 }
 
                 return (
@@ -193,18 +221,26 @@ export function MobileLedgerFeed({
                     type="button"
                     key={tx.id}
                     onClick={() => onOpenEdit(tx)}
-                    aria-label={selectionMode && !tx.movement_id
-                      ? `${tx.is_inferred_transfer ? "Pilih pasangan perkiraan" : "Pilih transaksi"} ${tx.notes || tx.category_name || tx.id}`
+                    onPointerDown={(event) => onHoldPointerDown(tx, event)}
+                    onPointerMove={onHoldPointerMove}
+                    onPointerUp={onHoldPointerEnd}
+                    onPointerCancel={onHoldPointerEnd}
+                    onContextMenu={onHoldContextMenu}
+                    onKeyDown={(event: ReactKeyboardEvent<HTMLButtonElement>) => {
+                      if (event.key !== " " || selectionMode || tx.movement_id) return;
+                      event.preventDefault();
+                      onHoldSelect(tx);
+                    }}
+                    aria-label={selectionMode
+                      ? tx.movement_id
+                        ? `Transaksi sudah tergabung: ${tx.notes || tx.category_name || tx.id}`
+                        : `${isSelected ? "Batalkan pilihan" : "Pilih transaksi"} ${tx.notes || tx.category_name || tx.id}`
                       : undefined}
-                    aria-pressed={selectionMode ? selectionPressed : undefined}
-                    disabled={selectionMode && (
-                      Boolean(tx.movement_id) ||
-                      (selectedIds.length === 2 && selectedCount === 0) ||
-                      (Boolean(tx.is_inferred_transfer) && selectedIds.length > 0 && selectedCount === 0)
-                    )}
+                    aria-pressed={selectionPressed}
+                    disabled={selectionDisabled}
                     className={cn(
-                      "w-full scroll-mt-[calc(var(--app-topbar-height,4rem)+var(--ledger-toolbar-height,8rem)+0.5rem)] p-3 text-left flex items-center justify-between hover:bg-[var(--surface-raised)]/60 active:bg-[var(--surface-raised)] transition-colors cursor-pointer group focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--primary)] disabled:cursor-default",
-                      selectionMode && selectedCount > 0 && "bg-sky-500/10",
+                      "w-full select-none touch-pan-y p-3 text-left flex items-center justify-between hover:bg-[var(--surface-raised)]/60 active:bg-[var(--surface-raised)] transition-colors cursor-pointer group focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--primary)] disabled:cursor-default disabled:hover:bg-transparent",
+                      selectionMode && isSelected && "bg-[#66CC55]/15 outline outline-1 -outline-offset-1 outline-[#66CC55]/60",
                     )}
                   >
                     {/* Left: Icon + Description */}
@@ -270,8 +306,8 @@ export function MobileLedgerFeed({
 
                     {/* Right: Nominal */}
                     <div className="text-right shrink-0">
-                      {selectionMode && (
-                        <span className="block text-[10px] font-semibold text-[var(--text)]">
+                      {selectionLabel && (
+                        <span className={cn("block text-[10px] font-semibold", isSelected ? "text-sky-500" : "text-[var(--muted)]")}>
                           {selectionLabel}
                         </span>
                       )}
@@ -295,7 +331,7 @@ export function MobileLedgerFeed({
 
                       {isMovement && (
                         <span className="inline-block mt-0.5 text-[9px] font-bold uppercase tracking-wider text-sky-500 bg-sky-500/10 px-1.5 py-0.2 rounded">
-                          {tx.is_inferred_transfer ? "Perkiraan transfer" : "Transfer"}
+                          {movementStatus}
                         </span>
                       )}
                     </div>

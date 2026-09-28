@@ -1,5 +1,12 @@
 # Form verification — 2026-09-24
 
+## Quick Capture movement mode — 2026-09-28
+
+- Added `Perpindahan` to the shared Quick Capture mode selector and submit it through the existing atomic movement-create API. The mode presents only active liquid source/destination accounts, prevents selecting the same account, keeps amount/date/notes, and omits transaction-only category, Kakeibo, goal/debt, and receipt fields. Account/page transfer controls were removed; Home shortcuts and the global movement action route into this same form with account defaults when available. Ledger movement editing/deletion remains on the edit-only `InternalMovementModal`.
+- Five focused frontend suites passed (37/37 tests): Quick Capture, global AppLayout entry, Home movement shortcut, Accounts page, and ledger movement edit. After bringing the revised ledger selection behavior and its tests into the same worktree, the full frontend suite passes 106/106; type-check, lint, production build, strict validation of both active changes, and `git diff --check` pass. No backend/API contract or schema changed.
+- The initial combined frontend run had five ledger-selection failures. Test-only causes were JSDOM's missing native `PointerEvent`, ambiguous row fixtures/queries, and uncleared mock calls; the remaining failure exposed a duplicate mobile `Tergabung` indicator. These were corrected, and the exact ledger suites now pass 14/14. The pointer test helper dispatches bubbling mouse events with pointer event names so the production handler receives the required button fields. Actual physical-device, real 200% zoom, and VoiceOver/TalkBack checks remain open; this is not a WCAG conformance claim.
+- Backend suite: 130 passed / 48 skipped. The skipped database-backed tests were not run against an isolated integration database in this checkpoint. Local `/api/health` is healthy. The frontend source passed the host production build; the container was not rebuilt after the final duplicate-indicator cleanup.
+
 ## Debt-payment layout correction — 2026-09-25
 
 - An owner screenshot exposed a nested responsive-grid defect: Quick Capture put the goal selector and debt editor into half-width columns, while debt rows attempted a three-column layout inside the narrow editor. The goal and debt controls now stack at full modal width; each debt row places the selector beside its remove action and its amount on a separate full-width line. Amount shortcuts wrap instead of clipping in a horizontal scroller. Allocation validation and API payloads did not change.

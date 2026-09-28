@@ -3,10 +3,10 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, createMovement } from "@/lib/api";
+import { api } from "@/lib/api";
 import AccountsPage from "./page";
 
-vi.mock("@/lib/api", () => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() }, createMovement: vi.fn() }));
+vi.mock("@/lib/api", () => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() } }));
 vi.mock("@/components/layout/AppLayout", () => ({
   useAppCtx: () => ({ bal: (amount: number) => `Rp ${amount.toLocaleString("id-ID")}` }),
 }));
@@ -45,15 +45,9 @@ describe("account and pocket forms", () => {
       return { ok: true, rules: [], accounts: [], results: [] };
     });
     vi.mocked(api.post).mockResolvedValue({ ok: true });
-    vi.mocked(createMovement).mockResolvedValue({
-      ok: true,
-      movement_id: "movement-1",
-      expense_transaction_id: "movement-out",
-      income_transaction_id: "movement-in",
-    });
   });
 
-  it("routes an account transfer through the canonical movement payload", async () => {
+  it("removes dedicated transfer controls from account actions", async () => {
     const liquid = [
       { id: "cash-a", name: "Cash A", type: "cash", initial_balance: 1000, balance: 1000, is_archived: false, children: [] },
       { id: "cash-b", name: "Cash B", type: "bank", initial_balance: 0, balance: 0, is_archived: false, children: [] },
@@ -67,19 +61,10 @@ describe("account and pocket forms", () => {
     renderAccounts();
     const cash = (await screen.findAllByRole("region", { name: "Rekening Cash A" }))[0];
     expect(within(cash).getByRole("button", { name: "Tambah kantong Cash A" })).toBeInTheDocument();
+    expect(within(cash).queryByRole("button", { name: /pindah saldo/i })).not.toBeInTheDocument();
     await user.click(within(cash).getByRole("button", { name: "Opsi Cash A" }));
-    await user.click(within(screen.getByRole("group", { name: "Opsi Cash A" })).getByRole("button", { name: "Pindah Saldo" }));
-    const dialog = screen.getByRole("dialog", { name: "Pindah saldo" });
-    expect(within(dialog).getByRole("combobox", { name: "Dari rekening" })).toHaveValue("cash-a");
-    expect(within(dialog).getByRole("combobox", { name: "Ke rekening" })).toHaveValue("cash-b");
-    expect(within(dialog).queryByRole("option", { name: /Broker/ })).not.toBeInTheDocument();
-    await user.type(within(dialog).getByRole("textbox", { name: "Nominal (IDR)" }), "500");
-    await user.click(within(dialog).getByRole("button", { name: "Pindahkan Saldo" }));
-    await waitFor(() => expect(createMovement).toHaveBeenCalledWith(expect.objectContaining({
-      source_account_id: "cash-a",
-      target_account_id: "cash-b",
-      amount: 500,
-    })));
+    expect(within(screen.getByRole("group", { name: "Opsi Cash A" })).queryByRole("button", { name: /pindah saldo/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /pindah saldo/i })).not.toBeInTheDocument();
   });
 
   it("offers the same add-pocket primary action on a liquid account without pockets", async () => {
@@ -359,7 +344,7 @@ describe("account and pocket forms", () => {
     expect(within(shares).getByRole("button", { name: "Beli" })).toBeInTheDocument();
     expect(within(shares).getByRole("button", { name: "Jual" })).toBeInTheDocument();
     expect(within(rdn).queryByRole("button", { name: "Beli" })).not.toBeInTheDocument();
-    expect(within(rdn).getByRole("button", { name: "Pindah saldo RDN" })).toBeInTheDocument();
+    expect(within(rdn).queryByRole("button", { name: /pindah saldo/i })).not.toBeInTheDocument();
     await user.click(within(shares).getByRole("button", { name: "Opsi BBCA" }));
     const options = screen.getByRole("group", { name: "Opsi BBCA" });
     expect(within(options).getByRole("button", { name: "Update Nilai" })).toBeInTheDocument();

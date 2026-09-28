@@ -7,19 +7,19 @@ import AppLayout, { useAppCtx } from "./AppLayout";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
 vi.mock("@/lib/api", () => ({
-  api: { get: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn() },
   ApiError: class extends Error {},
   createMovement: vi.fn(),
+  uploadTransactionReceipt: vi.fn(),
 }));
 vi.mock("./Sidebar", () => ({ Sidebar: () => null, MobileDrawer: () => null }));
 vi.mock("./TopBar", () => ({ TopBar: () => null }));
 vi.mock("./BottomNav", () => ({ BottomNav: () => null }));
-vi.mock("@/components/ui/QuickCaptureModal", () => ({ QuickCaptureModal: () => null }));
 vi.mock("@/components/ui/SettingsModal", () => ({ SettingsModal: () => null }));
 
 function MovementTrigger() {
   const { openMovement } = useAppCtx();
-  return <button type="button" onClick={openMovement}>Global movement</button>;
+  return <button type="button" onClick={() => openMovement()}>Global movement</button>;
 }
 
 describe("global movement entry point", () => {
@@ -41,6 +41,9 @@ describe("global movement entry point", () => {
         { id: "cash-b", name: "Cash B", type: "bank", balance: 0 },
         { id: "stock", name: "Stock", type: "investment", balance: 5000 },
       ] };
+      if (path === "/categories") return { categories: [] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
       throw new Error(`Unexpected GET ${path}`);
     });
     vi.mocked(createMovement).mockResolvedValue({
@@ -51,7 +54,7 @@ describe("global movement entry point", () => {
     });
   });
 
-  it("submits the canonical movement payload from shared navigation context", async () => {
+  it("opens Quick Capture in movement mode from shared navigation context", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
@@ -63,9 +66,11 @@ describe("global movement entry point", () => {
     );
 
     await user.click(await screen.findByRole("button", { name: "Global movement" }));
-    expect(await screen.findByRole("dialog", { name: "Pindah saldo" })).toBeVisible();
+    expect(await screen.findByRole("dialog", { name: "Catat transaksi" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Perpindahan" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByRole("option", { name: /Stock/ })).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Ke rekening" })).toHaveValue("cash-b"));
+    expect(await screen.findByRole("combobox", { name: "Dari rekening" })).toHaveValue("cash-a");
+    expect(screen.getByRole("combobox", { name: "Ke rekening" })).toHaveValue("cash-b");
     await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "300");
     await user.click(screen.getByRole("button", { name: "Pindahkan Saldo" }));
 
@@ -74,5 +79,6 @@ describe("global movement entry point", () => {
       target_account_id: "cash-b",
       amount: 300,
     })));
+    expect(api.post).not.toHaveBeenCalled();
   });
 });
