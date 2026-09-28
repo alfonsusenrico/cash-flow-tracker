@@ -172,18 +172,39 @@ export function MobileLedgerFeed({
                   !!tx.is_excluded_from_budget ||
                   (tx.notes?.toLowerCase().includes("pindah saldo") ?? false);
                 const isIncome = tx.type === "income" && !isMovement;
+                const selectionIds = tx.is_inferred_transfer && tx.partner_id ? [tx.id, tx.partner_id] : [tx.id];
+                const selectedCount = selectionIds.filter((id) => selectedIds.includes(id)).length;
+                const isSelected = selectedCount === selectionIds.length;
+                const isPartiallySelected = selectedCount > 0 && !isSelected;
+                const selectionPressed = isPartiallySelected ? "mixed" : isSelected;
+                let selectionLabel = "Pilih";
+                if (tx.movement_id) {
+                  selectionLabel = "Tergabung";
+                } else if (isSelected) {
+                  selectionLabel = "Dipilih";
+                } else if (isPartiallySelected) {
+                  selectionLabel = `${selectedCount}/2 dipilih`;
+                } else if (tx.is_inferred_transfer) {
+                  selectionLabel = "Pilih pasangan";
+                }
 
                 return (
                   <button
                     type="button"
                     key={tx.id}
                     onClick={() => onOpenEdit(tx)}
-                    aria-label={selectionMode ? `Pilih transaksi ${tx.notes || tx.category_name || tx.id}` : undefined}
-                    aria-pressed={selectionMode ? selectedIds.includes(tx.id) : undefined}
-                    disabled={selectionMode && (Boolean(tx.movement_id) || (selectedIds.length === 2 && !selectedIds.includes(tx.id)))}
+                    aria-label={selectionMode && !tx.movement_id
+                      ? `${tx.is_inferred_transfer ? "Pilih pasangan perkiraan" : "Pilih transaksi"} ${tx.notes || tx.category_name || tx.id}`
+                      : undefined}
+                    aria-pressed={selectionMode ? selectionPressed : undefined}
+                    disabled={selectionMode && (
+                      Boolean(tx.movement_id) ||
+                      (selectedIds.length === 2 && selectedCount === 0) ||
+                      (Boolean(tx.is_inferred_transfer) && selectedIds.length > 0 && selectedCount === 0)
+                    )}
                     className={cn(
-                      "w-full p-3 text-left flex items-center justify-between hover:bg-[var(--surface-raised)]/60 active:bg-[var(--surface-raised)] transition-colors cursor-pointer group focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--primary)] disabled:opacity-40",
-                      selectionMode && selectedIds.includes(tx.id) && "bg-sky-500/10",
+                      "w-full scroll-mt-[calc(var(--app-topbar-height,4rem)+var(--ledger-toolbar-height,8rem)+0.5rem)] p-3 text-left flex items-center justify-between hover:bg-[var(--surface-raised)]/60 active:bg-[var(--surface-raised)] transition-colors cursor-pointer group focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--primary)] disabled:cursor-default",
+                      selectionMode && selectedCount > 0 && "bg-sky-500/10",
                     )}
                   >
                     {/* Left: Icon + Description */}
@@ -249,7 +270,11 @@ export function MobileLedgerFeed({
 
                     {/* Right: Nominal */}
                     <div className="text-right shrink-0">
-                      {selectionMode && <span className="block text-[10px] font-semibold text-sky-500">{selectedIds.includes(tx.id) ? "Dipilih" : "Pilih"}</span>}
+                      {selectionMode && (
+                        <span className="block text-[10px] font-semibold text-[var(--text)]">
+                          {selectionLabel}
+                        </span>
+                      )}
                       <div
                         className={cn(
                           "text-xs font-bold tabular tracking-tight",

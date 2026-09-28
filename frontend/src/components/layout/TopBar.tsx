@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
@@ -18,6 +19,7 @@ const TITLES: Record<string, { title: string; subtitle: string }> = {
 };
 
 export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
+  const headerRef = useRef<HTMLElement>(null);
   const pathname = usePathname();
   const {
     hideBalances,
@@ -27,6 +29,26 @@ export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
     cycleOffset,
     setCycleOffset,
   } = useAppCtx();
+
+  useEffect(() => {
+    const header = headerRef.current;
+    const workbench = header?.parentElement;
+    if (!header || !workbench) return;
+
+    const updateHeaderHeight = () => {
+      workbench.style.setProperty("--app-topbar-height", `${header.getBoundingClientRect().height}px`);
+    };
+    updateHeaderHeight();
+    window.addEventListener("resize", updateHeaderHeight);
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateHeaderHeight) : null;
+    observer?.observe(header);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateHeaderHeight);
+      workbench.style.removeProperty("--app-topbar-height");
+    };
+  }, []);
 
   const currentMeta = TITLES[pathname] || {
     title: "Beranda",
@@ -47,7 +69,7 @@ export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex min-h-14 w-full flex-wrap items-center justify-between gap-y-1.5 border-b border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1.5 backdrop-blur-md sm:h-16 sm:flex-nowrap sm:gap-y-0 sm:px-6 sm:py-0 lg:px-8">
+    <header ref={headerRef} className="sticky top-0 z-30 flex min-h-14 w-full flex-wrap items-center justify-between gap-y-1.5 border-b border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1.5 backdrop-blur-md sm:h-16 sm:flex-nowrap sm:gap-y-0 sm:px-6 sm:py-0 lg:px-8">
       {/* Left: Brand / Title */}
       <div className="order-1 flex min-w-[9rem] flex-1 items-center gap-2.5 sm:flex-none">
         {onToggleMobileMenu && <button type="button" onClick={onToggleMobileMenu} aria-label="Buka menu" title="Buka menu" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] lg:hidden"><Icon name="menu" className="h-4 w-4" /></button>}

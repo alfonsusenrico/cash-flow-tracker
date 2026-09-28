@@ -60,4 +60,35 @@ describe("MobileLedgerFeed", () => {
     await userEvent.keyboard("{Enter}");
     expect(onSelect).toHaveBeenCalledWith(payment);
   });
+
+  it("marks an existing movement as linked instead of offering selection", () => {
+    render(
+      <MobileLedgerFeed
+        transactions={[{ ...payment, movement_id: "movement-1", is_consolidated_transfer: true }]}
+        onOpenEdit={vi.fn()}
+        selectionMode
+        selectedIds={[]}
+        bal={(amount) => `Rp ${amount.toLocaleString("id-ID")}`}
+      />,
+    );
+
+    expect(screen.getByText("Tergabung")).toBeInTheDocument();
+    expect(screen.getByRole("button")).toBeDisabled();
+  });
+
+  it("keeps a selected inbound leg visible when filters reveal its inferred pair", () => {
+    render(
+      <MobileLedgerFeed
+        transactions={[{ ...payment, is_inferred_transfer: true, partner_id: "incoming-1" }]}
+        onOpenEdit={vi.fn()}
+        selectionMode
+        selectedIds={["incoming-1"]}
+        bal={(amount) => `Rp ${amount.toLocaleString("id-ID")}`}
+      />,
+    );
+
+    expect(screen.getByText("1/2 dipilih")).toBeInTheDocument();
+    expect(screen.getByRole("button")).toHaveAttribute("aria-pressed", "mixed");
+    expect(screen.getByRole("button")).toBeEnabled();
+  });
 });

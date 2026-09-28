@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, uploadTransactionReceipt } from "@/lib/api";
 import { cn, formatNumberWithDots, localDatetimeToISO, toDatetimeLocal } from "@/lib/utils";
@@ -51,6 +51,7 @@ interface TransactionItem {
 }
 
 export default function LedgerPage() {
+  const selectionToolbarRef = useRef<HTMLDivElement>(null);
   const qc = useQueryClient();
   const { openQuickAdd, bal } = useAppCtx();
 
@@ -66,6 +67,26 @@ export default function LedgerPage() {
   const [mergePreview, setMergePreview] = useState<TransactionItem[] | null>(null);
   const [mergeError, setMergeError] = useState("");
   const [preparingMerge, setPreparingMerge] = useState(false);
+
+  useEffect(() => {
+    const toolbar = selectionToolbarRef.current;
+    const ledger = toolbar?.parentElement;
+    if (!toolbar || !ledger) return;
+
+    const updateToolbarHeight = () => {
+      ledger.style.setProperty("--ledger-toolbar-height", `${toolbar.getBoundingClientRect().height}px`);
+    };
+    updateToolbarHeight();
+    window.addEventListener("resize", updateToolbarHeight);
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateToolbarHeight) : null;
+    observer?.observe(toolbar);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateToolbarHeight);
+      ledger.style.removeProperty("--ledger-toolbar-height");
+    };
+  }, []);
 
   // Selected for Edit/Detail
   const [editingTx, setEditingTx] = useState<TransactionItem | null>(null);
@@ -120,7 +141,7 @@ export default function LedgerPage() {
     const p = new URLSearchParams();
     p.set("limit", pageSize.toString());
     p.set("offset", (page * pageSize).toString());
-    if (!selectionMode && !searchQuery.trim() && accountFilter === "all" && typeFilter === "all" && categoryFilter === "all") {
+    if (!searchQuery.trim() && accountFilter === "all" && typeFilter === "all" && categoryFilter === "all") {
       p.set("logical_movements", "true");
     }
     if (searchQuery.trim()) p.set("q", searchQuery.trim());
@@ -128,7 +149,7 @@ export default function LedgerPage() {
     if (accountFilter !== "all") p.set("account_id", accountFilter);
     if (categoryFilter !== "all") p.set("category_id", categoryFilter);
     return p.toString();
-  }, [searchQuery, typeFilter, accountFilter, categoryFilter, page, selectionMode]);
+  }, [searchQuery, typeFilter, accountFilter, categoryFilter, page]);
 
   // Fetch Transactions
   const { data: txData, isLoading } = useQuery<{
@@ -148,9 +169,9 @@ export default function LedgerPage() {
   const displayTransactions = useMemo(() => {
     return consolidateLedgerMovements(
       transactions,
-      !selectionMode && accountFilter === "all" && typeFilter === "all" && categoryFilter === "all"
+      accountFilter === "all" && typeFilter === "all" && categoryFilter === "all"
     );
-  }, [transactions, accountFilter, typeFilter, categoryFilter, selectionMode]);
+  }, [transactions, accountFilter, typeFilter, categoryFilter]);
 
   // Compute page totals (excluding internal movements so totals reflect real cash flow)
   const pageInflow = transactions
@@ -301,6 +322,18 @@ export default function LedgerPage() {
   const toggleSelection = (tx: TransactionItem) => {
     if (tx.movement_id) return;
     setMergeError("");
+    if (tx.is_inferred_transfer && tx.partner_id) {
+      const partner = transactions.find((item) => item.id === tx.partner_id);
+      if (!partner) return;
+      setSelectedTransactions((selected) => {
+        const pairIds = [tx.id, partner.id];
+        if (selected.some((item) => pairIds.includes(item.id))) {
+          return selected.filter((item) => !pairIds.includes(item.id));
+        }
+        return selected.length === 0 ? [tx, partner] : selected;
+      });
+      return;
+    }
     setSelectedTransactions((selected) => {
       if (selected.some((item) => item.id === tx.id)) {
         return selected.filter((item) => item.id !== tx.id);
@@ -642,7 +675,7 @@ export default function LedgerPage() {
       </div>
 
       {/* 4. Ledger Data Display */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs">
+      <div ref={selectionToolbarRef} className="sticky top-[var(--app-topbar-height,4rem)] z-20 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs shadow-xs">
         <button
           type="button"
           onClick={() => {
@@ -652,18 +685,18 @@ export default function LedgerPage() {
             setPage(0);
           }}
           aria-pressed={selectionMode}
-          className="min-h-10 rounded-lg border border-[var(--border)] px-3 font-semibold text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+          className="min-h-10 rounded-lg border border-[var(--border)] px-3 font-semibold text-[var(--text)] hover:bg-[var(--surface-raised)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
         >
-          {selectionMode ? "Selesai memilih" : "Pilih 2 transaksi"}
+          {selectionMode ? "Selesai memilih" : "Gabungkan transaksi"}
         </button>
         {selectionMode && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[var(--muted)] tabular-nums">{selectedTransactions.length}/2 dipilih</span>
+            <span aria-live="polite" className="text-[var(--muted)] tabular-nums">{selectedTransactions.length}/2 dipilih</span>
             <button
               type="button"
               disabled={selectedTransactions.length !== 2 || preparingMerge}
               onClick={prepareMerge}
-              className="min-h-10 rounded-lg bg-[#1E201E] px-3 font-semibold text-white disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+              className="min-h-10 rounded-lg bg-[#1E201E] px-3 font-semibold text-white hover:bg-[#303330] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
             >
               {preparingMerge ? "Memeriksa…" : "Gabungkan sebagai Pindah Saldo"}
             </button>
@@ -744,28 +777,50 @@ export default function LedgerPage() {
                     !!tx.is_excluded_from_budget ||
                     (tx.notes?.toLowerCase().includes("pindah saldo") ?? false);
                   const isIncome = tx.type === "income";
+                  const selectionIds = tx.is_inferred_transfer && tx.partner_id ? [tx.id, tx.partner_id] : [tx.id];
+                  const selectedCount = selectedTransactions.filter((item) => selectionIds.includes(item.id)).length;
+                  const isSelected = selectedCount === selectionIds.length;
+                  const isPartiallySelected = selectedCount > 0 && !isSelected;
+                  const inferredPairUnavailable = tx.is_inferred_transfer && selectedTransactions.length > 0 && selectedCount === 0;
+                  let selectionLabel = "+";
+                  if (isSelected) {
+                    selectionLabel = "✓";
+                  } else if (isPartiallySelected) {
+                    selectionLabel = `${selectedCount}/2`;
+                  } else if (tx.is_inferred_transfer) {
+                    selectionLabel = "Pilih pasangan";
+                  }
 
                   return (
                     <tr
                       key={tx.id}
                       onClick={() => selectionMode ? toggleSelection(tx) : handleOpenEdit(tx)}
-                      className="hover:bg-[var(--surface-raised)]/60 transition-colors cursor-pointer group"
+                      className={cn(
+                        "hover:bg-[var(--surface-raised)]/60 transition-colors group",
+                        selectionMode && tx.movement_id ? "cursor-default" : "cursor-pointer",
+                      )}
                     >
                       {selectionMode && (
                         <td className="px-3 py-3.5">
-                          <button
-                            type="button"
-                            aria-label={`Pilih transaksi ${tx.notes || tx.category_name || tx.id}`}
-                            aria-pressed={selectedTransactions.some((item) => item.id === tx.id)}
-                            disabled={Boolean(tx.movement_id) || (selectedTransactions.length === 2 && !selectedTransactions.some((item) => item.id === tx.id))}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              toggleSelection(tx);
-                            }}
-                            className="min-h-9 min-w-9 rounded-lg border border-[var(--border)] font-semibold text-[var(--text)] aria-pressed:bg-sky-500/15 aria-pressed:text-sky-500 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
-                          >
-                            {selectedTransactions.some((item) => item.id === tx.id) ? "✓" : "+"}
-                          </button>
+                          {tx.movement_id ? (
+                            <span className="text-[10px] font-semibold text-[var(--text)]">Tergabung</span>
+                          ) : (
+                            <button
+                              type="button"
+                              aria-label={tx.is_inferred_transfer
+                                ? `Pilih pasangan perkiraan ${tx.notes || tx.category_name || tx.id}`
+                                : `Pilih transaksi ${tx.notes || tx.category_name || tx.id}`}
+                              aria-pressed={isPartiallySelected ? "mixed" : isSelected}
+                              disabled={Boolean(inferredPairUnavailable) || (selectedTransactions.length === 2 && selectedCount === 0)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                toggleSelection(tx);
+                              }}
+                              className="min-h-9 min-w-9 scroll-mt-[calc(var(--app-topbar-height,4rem)+var(--ledger-toolbar-height,8rem)+0.5rem)] rounded-lg border border-[var(--border)] px-2 font-semibold text-[var(--text)] hover:bg-[var(--surface-raised)] aria-pressed:bg-sky-500/15 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                            >
+                              {selectionLabel}
+                            </button>
+                          )}
                         </td>
                       )}
                       {/* Date */}
@@ -892,9 +947,9 @@ export default function LedgerPage() {
                             e.stopPropagation();
                             handleOpenEdit(tx);
                           }}
-                          className="px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface)] text-[11px]"
+                          className="scroll-mt-[calc(var(--app-topbar-height,4rem)+var(--ledger-toolbar-height,8rem)+0.5rem)] px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface)] text-[11px]"
                         >
-                          Ubah
+                          {tx.is_inferred_transfer ? "Gabungkan" : "Ubah"}
                         </button>}
                       </td>
                     </tr>

@@ -18,6 +18,35 @@ vi.mock("@/components/layout/AppLayout", () => ({
 }));
 
 describe("mobile header actions", () => {
+  it("updates the sticky content offset when the header changes height", () => {
+    let measuredHeight = 105;
+    let onResize: () => void = () => {};
+    const disconnect = vi.fn();
+    const observe = vi.fn();
+    const measurement = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => ({ height: measuredHeight } as DOMRect),
+    );
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(callback: () => void) { onResize = callback; }
+      observe = observe;
+      disconnect = disconnect;
+    });
+    try {
+      const { container, unmount } = render(<TopBar />);
+      expect(observe).toHaveBeenCalledWith(screen.getByRole("banner"));
+      expect(container.style.getPropertyValue("--app-topbar-height")).toBe("105px");
+      measuredHeight = 135;
+      onResize();
+      expect(container.style.getPropertyValue("--app-topbar-height")).toBe("135px");
+      unmount();
+      expect(disconnect).toHaveBeenCalledOnce();
+      expect(container.style.getPropertyValue("--app-topbar-height")).toBe("");
+    } finally {
+      measurement.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("names icon actions and keeps month navigation keyboard operable", async () => {
     const openMenu = vi.fn();
     render(<TopBar onToggleMobileMenu={openMenu} />);
