@@ -22,7 +22,8 @@ export const metadata: Metadata = {
   title: "CashFlow — Daily Money & Digital Vault",
   description: "Friction-free daily money tracking, smart daily allowance, and liquid vault",
   icons: {
-    icon: "/favicon.svg",
+    icon: "/icon.png",
+    apple: "/icon.png",
   },
 };
 
