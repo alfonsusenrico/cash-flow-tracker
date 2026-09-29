@@ -110,6 +110,10 @@ jobs:
           TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           BOT_SECRET: ${{ secrets.BOT_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NOTIFICATION_AI_ENABLED: ${{ secrets.NOTIFICATION_AI_ENABLED || 'true' }}
+          NOTIFICATION_AI_MODEL: ${{ secrets.NOTIFICATION_AI_MODEL || 'gpt-6-luna' }}
+          NOTIFICATION_AI_REASONING_EFFORT: ${{ secrets.NOTIFICATION_AI_REASONING_EFFORT || 'none' }}
 
       - name: Package Commit Archive
         run: |
