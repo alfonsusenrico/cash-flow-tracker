@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -328,13 +329,21 @@ def test_list_transactions_summary_cycle_and_cumulative():
         assert "end" in summary["cycle"]
 
         # Verify SQL query calculates aggregate summaries while excluding Internal Movement
-        executed_queries = [str(c[0][0]) for c in cur.execute.call_args_list]
-        summary_query = next(q for q in executed_queries if "cumulative_inflow" in q)
+        summary_call = next(c for c in cur.execute.call_args_list if "cumulative_inflow" in str(c[0][0]))
+        summary_query = summary_call[0][0]
+        summary_params = summary_call[0][1]
         assert "cumulative_outflow" in summary_query
         assert "cycle_inflow" in summary_query
         assert "cycle_outflow" in summary_query
         assert "Internal Movement" in summary_query
         assert "is_excluded_from_budget" in summary_query
+        # Ensure parameter order matches SQL placeholders: 4 date bounds first, followed by where_clause params
+        assert summary_query.count("%s") == len(summary_params)
+        assert isinstance(summary_params[0], datetime)
+        assert isinstance(summary_params[1], datetime)
+        assert isinstance(summary_params[2], datetime)
+        assert isinstance(summary_params[3], datetime)
+        assert summary_params[4] == mock_user["id"]
 
 
 def test_list_transactions_summary_with_filters_and_custom_payday():
@@ -381,8 +390,16 @@ def test_list_transactions_summary_with_filters_and_custom_payday():
         assert summary["cycle"]["net"] == 750000
 
         # Verify SQL query preserved account, category, and q filters
-        executed_queries = [str(c[0][0]) for c in cur.execute.call_args_list]
-        summary_query = next(q for q in executed_queries if "cumulative_inflow" in q)
+        summary_call = next(c for c in cur.execute.call_args_list if "cumulative_inflow" in str(c[0][0]))
+        summary_query = summary_call[0][0]
+        summary_params = summary_call[0][1]
         assert "t.account_id IN" in summary_query
         assert "t.category_id = %s" in summary_query
         assert "t.notes ILIKE" in summary_query
+        # Ensure parameter order matches SQL placeholders: 4 date bounds first, followed by where_clause params
+        assert summary_query.count("%s") == len(summary_params)
+        assert isinstance(summary_params[0], datetime)
+        assert isinstance(summary_params[1], datetime)
+        assert isinstance(summary_params[2], datetime)
+        assert isinstance(summary_params[3], datetime)
+        assert summary_params[4] == mock_user["id"]

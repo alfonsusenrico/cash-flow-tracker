@@ -109,14 +109,14 @@ def list_transactions(
             if obligation_id:
                 conditions.append("(t.obligation_id = %s OR EXISTS (SELECT 1 FROM transaction_obligation_allocations a WHERE a.transaction_id = t.id AND a.obligation_id = %s))")
                 params.extend([str(obligation_id), str(obligation_id)])
-            if type:
+            if type and isinstance(type, str):
                 if type == "transfer":
                     conditions.append("(t.type = 'transfer' OR c.name IN ('Internal Movement', 'Investasi') OR c.is_excluded_from_budget = true)")
                 elif type == "expense":
                     conditions.append("t.type = 'expense' AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND COALESCE(c.is_excluded_from_budget, false) = false")
                 elif type == "income":
                     conditions.append("t.type = 'income' AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND COALESCE(c.is_excluded_from_budget, false) = false")
-            if kakeibo_type:
+            if kakeibo_type and isinstance(kakeibo_type, str):
                 conditions.append("COALESCE(t.kakeibo_type, c.kakeibo_type, CASE WHEN COALESCE(c.is_primary, TRUE) THEN 'need' ELSE 'want' END) = %s")
                 params.append(kakeibo_type)
             if from_date:
@@ -184,7 +184,7 @@ def list_transactions(
                 LEFT JOIN obligations o ON o.id = t.obligation_id
                 WHERE {where_clause}
             """
-            cur.execute(summary_query, params + [cycle_start, cycle_end, cycle_start, cycle_end])
+            cur.execute(summary_query, [cycle_start, cycle_end, cycle_start, cycle_end] + params)
             agg = cur.fetchone()
             total = agg["total"]
             cum_inflow = int(agg["cumulative_inflow"] or 0)
