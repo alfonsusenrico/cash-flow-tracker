@@ -62,6 +62,21 @@ The backend SHALL expose an owner-scoped resolve operation for events in `needs_
 - **WHEN** the same resolve request is repeated
 - **THEN** no second transaction is created and the recorded result is returned
 
+### Requirement: Neutral Naming for Movements and Self-Transfers
+When the system links two notification-recorded legs into one movement, automatically or through a manual merge that includes a notification-recorded leg, both transactions SHALL be described as "Pindah saldo ke <destination account>". A leg recorded alone whose counterparty is the owner SHALL be described as "Pindah saldo masuk" or "Pindah saldo keluar" instead of the owner's name. Notes on manually entered transactions SHALL NOT be rewritten by a merge.
+
+#### Scenario: Top-up legs linked into a movement
+- **WHEN** a BCA debit labelled "Belanja" by the interpreter is linked with a ShopeePay top-up
+- **THEN** both transactions read "Pindah saldo ke ShopeePay"
+
+#### Scenario: Owner-named incoming transfer without its counterpart
+- **WHEN** Jago reports "<owner> has sent Rp7.491.557 to you" and no counterpart exists yet
+- **THEN** the income is recorded under Internal Movement with the description "Pindah saldo masuk"
+
+#### Scenario: Manual merge of hand-entered transactions
+- **WHEN** the owner merges two manually entered transactions
+- **THEN** their notes are unchanged
+
 ### Requirement: Splitting an Automatically Paired Movement
 The system SHALL let the owner split a non-trade internal movement back into two independent transactions that keep their accounts, amounts, dates, and notes, restoring each leg's notification-derived category where known and detaching the notification events from the movement.
 

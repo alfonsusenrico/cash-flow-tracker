@@ -47,6 +47,7 @@ class MovementMerge(BaseModel):
 from app.services.movement_linkage import (
     ensure_internal_movement_categories as _ensure_internal_movement_categories,
     link_transactions_as_movement,
+    movement_note,
 )
 
 
@@ -180,9 +181,19 @@ def merge_transactions_as_movement(
 ):
     with db_conn() as conn:
         with conn.cursor() as cur:
-            result = link_transactions_as_movement(
-                cur, current_user["id"], str(payload.expense_transaction_id), str(payload.income_transaction_id)
+            expense_id, income_id = str(payload.expense_transaction_id), str(payload.income_transaction_id)
+            cur.execute(
+                """SELECT 1 FROM notification_events WHERE user_id = %s AND transaction_id = ANY(%s) LIMIT 1""",
+                (current_user["id"], [expense_id, income_id]),
             )
+            from_notification = cur.fetchone() is not None
+            note = None
+            if from_notification:
+                cur.execute("SELECT account_id FROM transactions WHERE user_id = %s AND id = %s", (current_user["id"], income_id))
+                target = cur.fetchone()
+                note = movement_note(cur, current_user["id"], str(target["account_id"])) if target else None
+            # Notes written by notification processing describe one leg; a user's own notes are kept.
+            result = link_transactions_as_movement(cur, current_user["id"], expense_id, income_id, notes=note)
         conn.commit()
     return result
 

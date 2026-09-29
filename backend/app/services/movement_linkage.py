@@ -59,7 +59,27 @@ def ensure_internal_movement_categories(cur, user_id: str) -> tuple[str, str]:
     return expense_cat_id, income_cat_id
 
 
-def link_transactions_as_movement(cur, user_id: str, expense_id: str, income_id: str) -> dict:
+SELF_TRANSFER_NOTES = {"income": "Pindah saldo masuk", "expense": "Pindah saldo keluar"}
+
+
+def movement_note(cur, user_id: str, target_account_id: str) -> str:
+    """Neutral description for a linked movement, naming its destination account."""
+    cur.execute(
+        """SELECT a.name, p.name AS parent_name FROM accounts a
+           LEFT JOIN accounts p ON p.id = a.parent_id AND p.user_id = a.user_id
+           WHERE a.user_id = %s AND a.id = %s""",
+        (user_id, target_account_id),
+    )
+    row = cur.fetchone()
+    if not row:
+        return "Pindah saldo"
+    label = f"{row['parent_name']} · {row['name']}" if row.get("parent_name") else row["name"]
+    return f"Pindah saldo ke {label}"[:160]
+
+
+def link_transactions_as_movement(
+    cur, user_id: str, expense_id: str, income_id: str, *, notes: str | None = None
+) -> dict:
     if expense_id == income_id:
         raise HTTPException(status_code=422, detail="Choose two different transactions")
     cur.execute(
@@ -141,6 +161,11 @@ def link_transactions_as_movement(cur, user_id: str, expense_id: str, income_id:
         """,
         (movement_id, income_category_id, user_id, income_id),
     )
+    if notes:
+        cur.execute(
+            "UPDATE transactions SET notes = %s WHERE user_id = %s AND movement_id = %s",
+            (notes, user_id, movement_id),
+        )
     return {
         "ok": True, "movement_id": movement_id,
         "expense_transaction_id": expense_id, "income_transaction_id": income_id,
