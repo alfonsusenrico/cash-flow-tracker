@@ -31,7 +31,9 @@ export type IconName =
   | "tag"
   | "check"
   | "arrow-right"
-  | "arrowRight";
+  | "arrowRight"
+  | "calendar"
+  | "clock";
 
 interface IconProps extends SVGProps<SVGSVGElement> {
   name: IconName | string;

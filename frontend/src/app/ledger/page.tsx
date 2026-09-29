@@ -58,6 +58,22 @@ interface TransactionItem {
   is_inferred_transfer?: boolean;
 }
 
+interface CashFlowMetrics {
+  inflow: number;
+  outflow: number;
+  net: number;
+}
+
+interface CycleCashFlowMetrics extends CashFlowMetrics {
+  start: string;
+  end: string;
+}
+
+interface TransactionSummary {
+  cycle: CycleCashFlowMetrics;
+  cumulative: CashFlowMetrics;
+}
+
 export default function LedgerPage() {
   const holdTimerRef = useRef<{
     timer: number;
@@ -95,6 +111,7 @@ export default function LedgerPage() {
   const [editingTx, setEditingTx] = useState<TransactionItem | null>(null);
   const [recurringModalOpen, setRecurringModalOpen] = useState(false);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [summaryScope, setSummaryScope] = useState<"cycle" | "cumulative">("cycle");
 
   // Edit form state
   const [editAmount, setEditAmount] = useState("");
@@ -159,6 +176,7 @@ export default function LedgerPage() {
     ok: boolean;
     total: number;
     transactions: TransactionItem[];
+    summary?: TransactionSummary;
   }>({
     queryKey: queryKeys.transactions.ledger(queryParams),
     queryFn: () => api.get(`/transactions?${queryParams}`),
@@ -176,7 +194,7 @@ export default function LedgerPage() {
     );
   }, [transactions, accountFilter, typeFilter, categoryFilter]);
 
-  // Compute page totals (excluding internal movements so totals reflect real cash flow)
+  // Compute page totals (used as resilient fallback if backend summary is omitted)
   const pageInflow = transactions
     .filter(
       (t) =>
@@ -193,6 +211,30 @@ export default function LedgerPage() {
         t.category_name !== "Internal Movement"
     )
     .reduce((sum, t) => sum + t.amount, 0);
+
+  const summary = txData?.summary;
+  const cycleSummary = summary?.cycle;
+  const cumulativeSummary = summary?.cumulative;
+
+  const cycleInflow = cycleSummary ? cycleSummary.inflow : pageInflow;
+  const cycleOutflow = cycleSummary ? cycleSummary.outflow : pageOutflow;
+  const cycleNet = cycleSummary ? cycleSummary.net : (cycleInflow - cycleOutflow);
+
+  const cumulativeInflow = cumulativeSummary ? cumulativeSummary.inflow : pageInflow;
+  const cumulativeOutflow = cumulativeSummary ? cumulativeSummary.outflow : pageOutflow;
+  const cumulativeNet = cumulativeSummary ? cumulativeSummary.net : (cumulativeInflow - cumulativeOutflow);
+
+  const cycleStart = cycleSummary?.start;
+  const cycleEnd = cycleSummary?.end;
+
+  const cycleDateRangeLabel = useMemo(() => {
+    if (!cycleStart || !cycleEnd) return null;
+    const s = new Date(cycleStart);
+    const e = new Date(cycleEnd);
+    const startStr = s.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+    const endStr = e.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+    return `${startStr} – ${endStr}`;
+  }, [cycleStart, cycleEnd]);
 
   // Open Edit Modal
   const handleOpenEdit = (tx: TransactionItem) => {
@@ -526,55 +568,203 @@ export default function LedgerPage() {
 
       {/* 2. Ledger Volume Summary Bar */}
       {/* Mobile 1-Row Summary Ribbon (< sm) */}
-      <div className="sm:hidden flex items-center justify-between p-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
-        <div className="flex-1 text-center">
-          <div className="text-[10px] uppercase font-bold text-[var(--muted)]">Masuk</div>
-          <div className="text-xs font-bold text-emerald-500 tabular mt-0.5">+{bal(pageInflow)}</div>
-        </div>
-        <div className="h-6 w-px bg-[var(--border)]" />
-        <div className="flex-1 text-center">
-          <div className="text-[10px] uppercase font-bold text-[var(--muted)]">Keluar</div>
-          <div className="text-xs font-bold text-rose-500 tabular mt-0.5">-{bal(pageOutflow)}</div>
-        </div>
-        <div className="h-6 w-px bg-[var(--border)]" />
-        <div className="flex-1 text-center">
-          <div className="text-[10px] uppercase font-bold text-[var(--muted)]">Net</div>
-          <div
-            className={cn(
-              "text-xs font-bold tabular mt-0.5",
-              pageInflow - pageOutflow >= 0 ? "text-emerald-500" : "text-rose-500"
+      <div className="sm:hidden space-y-2">
+        <div className="flex items-center justify-between px-0.5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">Arus Kas</span>
+            {cycleDateRangeLabel && summaryScope === "cycle" && (
+              <span className="text-[10px] text-[var(--muted)] font-medium">({cycleDateRangeLabel})</span>
             )}
-          >
-            {pageInflow - pageOutflow >= 0 ? "+" : ""}
-            {bal(pageInflow - pageOutflow)}
+          </div>
+          <div className="inline-flex items-center p-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] text-[10px]">
+            <button
+              type="button"
+              onClick={() => setSummaryScope("cycle")}
+              className={cn(
+                "px-2 py-0.5 rounded-md font-medium transition-all duration-150",
+                summaryScope === "cycle"
+                  ? "bg-[var(--surface)] text-[var(--foreground)] shadow-xs font-semibold"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
+              )}
+              aria-pressed={summaryScope === "cycle"}
+            >
+              Siklus
+            </button>
+            <button
+              type="button"
+              onClick={() => setSummaryScope("cumulative")}
+              className={cn(
+                "px-2 py-0.5 rounded-md font-medium transition-all duration-150",
+                summaryScope === "cumulative"
+                  ? "bg-[var(--surface)] text-[var(--foreground)] shadow-xs font-semibold"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
+              )}
+              aria-pressed={summaryScope === "cumulative"}
+            >
+              Kumulatif
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between p-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
+          <div className="flex-1 text-center">
+            <div className="text-[10px] uppercase font-bold text-[var(--muted)]">Masuk</div>
+            <div className="text-xs font-bold text-emerald-500 tabular mt-0.5">
+              +{bal(summaryScope === "cycle" ? cycleInflow : cumulativeInflow)}
+            </div>
+          </div>
+          <div className="h-6 w-px bg-[var(--border)]" />
+          <div className="flex-1 text-center">
+            <div className="text-[10px] uppercase font-bold text-[var(--muted)]">Keluar</div>
+            <div className="text-xs font-bold text-rose-500 tabular mt-0.5">
+              -{bal(summaryScope === "cycle" ? cycleOutflow : cumulativeOutflow)}
+            </div>
+          </div>
+          <div className="h-6 w-px bg-[var(--border)]" />
+          <div className="flex-1 text-center">
+            <div className="text-[10px] uppercase font-bold text-[var(--muted)]">Net</div>
+            <div
+              className={cn(
+                "text-xs font-bold tabular mt-0.5",
+                (summaryScope === "cycle" ? cycleNet : cumulativeNet) >= 0 ? "text-emerald-500" : "text-rose-500"
+              )}
+            >
+              {(summaryScope === "cycle" ? cycleNet : cumulativeNet) >= 0 ? "+" : ""}
+              {bal(summaryScope === "cycle" ? cycleNet : cumulativeNet)}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Desktop 3-Card Summary (>= sm) */}
-      <div className="hidden sm:grid sm:grid-cols-3 gap-4">
-        <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
-          <span className="text-xs text-[var(--muted)] font-medium">Uang Masuk (Halaman Ini)</span>
-          <div className="text-xl font-bold tabular tracking-tight text-emerald-500 mt-1 select-all">
-            +{bal(pageInflow)}
-          </div>
-        </div>
-        <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
-          <span className="text-xs text-[var(--muted)] font-medium">Uang Keluar (Halaman Ini)</span>
-          <div className="text-xl font-bold tabular tracking-tight text-rose-500 mt-1 select-all">
-            -{bal(pageOutflow)}
-          </div>
-        </div>
-        <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
-          <span className="text-xs text-[var(--muted)] font-medium">Selisih Bersih (Halaman Ini)</span>
-          <div
-            className={cn(
-              "text-xl font-bold tabular tracking-tight mt-1 select-all",
-              pageInflow - pageOutflow >= 0 ? "text-emerald-500" : "text-rose-500"
+      <div className="hidden sm:block space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Arus Kas</span>
+            {cycleDateRangeLabel && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--foreground)]">
+                <Icon name="calendar" className="h-3.5 w-3.5 text-[var(--muted)]" />
+                Siklus {cycleDateRangeLabel}
+              </span>
             )}
-          >
-            {pageInflow - pageOutflow >= 0 ? "+" : ""}
-            {bal(pageInflow - pageOutflow)}
+          </div>
+          <div className="inline-flex items-center p-0.5 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] text-xs">
+            <button
+              type="button"
+              onClick={() => setSummaryScope("cycle")}
+              className={cn(
+                "px-3 py-1 rounded-lg font-medium transition-all duration-150",
+                summaryScope === "cycle"
+                  ? "bg-[var(--surface)] text-[var(--foreground)] shadow-xs font-semibold"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
+              )}
+              aria-pressed={summaryScope === "cycle"}
+            >
+              Siklus Berjalan
+            </button>
+            <button
+              type="button"
+              onClick={() => setSummaryScope("cumulative")}
+              className={cn(
+                "px-3 py-1 rounded-lg font-medium transition-all duration-150",
+                summaryScope === "cumulative"
+                  ? "bg-[var(--surface)] text-[var(--foreground)] shadow-xs font-semibold"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
+              )}
+              aria-pressed={summaryScope === "cumulative"}
+            >
+              Total Kumulatif
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          {/* Card 1: Inflow */}
+          <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-[var(--muted)] font-medium">
+                  {summaryScope === "cycle" ? "Uang Masuk (Siklus)" : "Uang Masuk (Kumulatif)"}
+                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                  Inflow
+                </span>
+              </div>
+              <div className="text-2xl font-bold tabular tracking-tight text-emerald-500 mt-1.5 select-all">
+                +{bal(summaryScope === "cycle" ? cycleInflow : cumulativeInflow)}
+              </div>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-[var(--border)] flex items-center justify-between text-xs text-[var(--muted)]">
+              <span>{summaryScope === "cycle" ? "Kumulatif:" : "Siklus ini:"}</span>
+              <span className="font-semibold tabular text-[var(--foreground)]">
+                +{bal(summaryScope === "cycle" ? cumulativeInflow : cycleInflow)}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 2: Outflow */}
+          <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-[var(--muted)] font-medium">
+                  {summaryScope === "cycle" ? "Uang Keluar (Siklus)" : "Uang Keluar (Kumulatif)"}
+                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md">
+                  Outflow
+                </span>
+              </div>
+              <div className="text-2xl font-bold tabular tracking-tight text-rose-500 mt-1.5 select-all">
+                -{bal(summaryScope === "cycle" ? cycleOutflow : cumulativeOutflow)}
+              </div>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-[var(--border)] flex items-center justify-between text-xs text-[var(--muted)]">
+              <span>{summaryScope === "cycle" ? "Kumulatif:" : "Siklus ini:"}</span>
+              <span className="font-semibold tabular text-[var(--foreground)]">
+                -{bal(summaryScope === "cycle" ? cumulativeOutflow : cycleOutflow)}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 3: Net */}
+          <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-[var(--muted)] font-medium">
+                  {summaryScope === "cycle" ? "Selisih Bersih (Siklus)" : "Selisih Bersih (Kumulatif)"}
+                </span>
+                <span
+                  className={cn(
+                    "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md",
+                    (summaryScope === "cycle" ? cycleNet : cumulativeNet) >= 0
+                      ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                      : "text-rose-600 dark:text-rose-400 bg-rose-500/10"
+                  )}
+                >
+                  Arus Bersih
+                </span>
+              </div>
+              <div
+                className={cn(
+                  "text-2xl font-bold tabular tracking-tight mt-1.5 select-all",
+                  (summaryScope === "cycle" ? cycleNet : cumulativeNet) >= 0 ? "text-emerald-500" : "text-rose-500"
+                )}
+              >
+                {(summaryScope === "cycle" ? cycleNet : cumulativeNet) >= 0 ? "+" : ""}
+                {bal(summaryScope === "cycle" ? cycleNet : cumulativeNet)}
+              </div>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-[var(--border)] flex items-center justify-between text-xs text-[var(--muted)]">
+              <span>{summaryScope === "cycle" ? "Kumulatif:" : "Siklus ini:"}</span>
+              <span
+                className={cn(
+                  "font-semibold tabular",
+                  (summaryScope === "cycle" ? cumulativeNet : cycleNet) >= 0 ? "text-emerald-500" : "text-rose-500"
+                )}
+              >
+                {(summaryScope === "cycle" ? cumulativeNet : cycleNet) >= 0 ? "+" : ""}
+                {bal(summaryScope === "cycle" ? cumulativeNet : cycleNet)}
+              </span>
+            </div>
           </div>
         </div>
       </div>

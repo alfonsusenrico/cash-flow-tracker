@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.routers.pulse import get_cycle_window
 from app.services.auth import get_current_user
 from app.services.debt_allocations import (
     DebtAllocation,
@@ -148,17 +149,48 @@ def list_transactions(
 
             where_clause = " AND ".join(conditions)
 
-            # Count total matching
-            count_query = f"""
-                SELECT COUNT(*) AS total
+            # Combined total count and cash flow summary query
+            payday_day = current_user.get("payday_day") or 25
+            cycle_start, cycle_end, _, _ = get_cycle_window(payday_day)
+
+            summary_query = f"""
+                SELECT
+                    COUNT(*) AS total,
+                    COALESCE(SUM(CASE
+                        WHEN t.type = 'income'
+                             AND COALESCE(c.name, '') != 'Internal Movement'
+                             AND COALESCE(c.is_excluded_from_budget, false) = false
+                        THEN t.amount ELSE 0 END), 0) AS cumulative_inflow,
+                    COALESCE(SUM(CASE
+                        WHEN t.type = 'expense'
+                             AND COALESCE(c.name, '') != 'Internal Movement'
+                             AND COALESCE(c.is_excluded_from_budget, false) = false
+                        THEN t.amount ELSE 0 END), 0) AS cumulative_outflow,
+                    COALESCE(SUM(CASE
+                        WHEN t.type = 'income'
+                             AND COALESCE(c.name, '') != 'Internal Movement'
+                             AND COALESCE(c.is_excluded_from_budget, false) = false
+                             AND t.date >= %s AND t.date <= %s
+                        THEN t.amount ELSE 0 END), 0) AS cycle_inflow,
+                    COALESCE(SUM(CASE
+                        WHEN t.type = 'expense'
+                             AND COALESCE(c.name, '') != 'Internal Movement'
+                             AND COALESCE(c.is_excluded_from_budget, false) = false
+                             AND t.date >= %s AND t.date <= %s
+                        THEN t.amount ELSE 0 END), 0) AS cycle_outflow
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
                 LEFT JOIN goals g ON g.id = t.goal_id
                 LEFT JOIN obligations o ON o.id = t.obligation_id
                 WHERE {where_clause}
             """
-            cur.execute(count_query, params)
-            total = cur.fetchone()["total"]
+            cur.execute(summary_query, params + [cycle_start, cycle_end, cycle_start, cycle_end])
+            agg = cur.fetchone()
+            total = agg["total"]
+            cum_inflow = int(agg["cumulative_inflow"] or 0)
+            cum_outflow = int(agg["cumulative_outflow"] or 0)
+            cyc_inflow = int(agg["cycle_inflow"] or 0)
+            cyc_outflow = int(agg["cycle_outflow"] or 0)
 
             # Select page
             select_query = f"""
@@ -210,6 +242,20 @@ def list_transactions(
         "total": total,
         "limit": limit,
         "offset": offset,
+        "summary": {
+            "cycle": {
+                "start": cycle_start.isoformat(),
+                "end": cycle_end.isoformat(),
+                "inflow": cyc_inflow,
+                "outflow": cyc_outflow,
+                "net": cyc_inflow - cyc_outflow,
+            },
+            "cumulative": {
+                "inflow": cum_inflow,
+                "outflow": cum_outflow,
+                "net": cum_inflow - cum_outflow,
+            },
+        },
         "transactions": [
             {
                 "id": str(r["id"]),
