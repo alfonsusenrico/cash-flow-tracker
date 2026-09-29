@@ -22,7 +22,17 @@ from pydantic import ValidationError
 from app.services.notification_interpretation import Interpretation, system_prompt
 
 
-OPERATIONAL_MODELS = frozenset({"gpt-5.6-luna"})
+# Models approved for live transaction parsing. Expand here to add candidates during evaluation.
+# Reasoning models (o-series / Luna): support reasoning= param.
+# Chat models (gpt-4o family): use temperature= instead; reasoning= is omitted.
+OPERATIONAL_MODELS = frozenset({
+    "gpt-5.6-luna",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4.1",
+    "gpt-4.1-mini",
+})
+REASONING_MODELS = frozenset({"gpt-5.6-luna"})
 PERMITTED_REASONING_EFFORTS = frozenset({"none", "low"})
 
 
@@ -41,7 +51,7 @@ def configuration_error(settings) -> str | None:
         return settings.notification_ai_configuration_error
     if settings.notification_ai_model not in OPERATIONAL_MODELS:
         return "provider_model_not_permitted"
-    if settings.notification_ai_reasoning_effort not in PERMITTED_REASONING_EFFORTS:
+    if settings.notification_ai_model in REASONING_MODELS and settings.notification_ai_reasoning_effort not in PERMITTED_REASONING_EFFORTS:
         return "provider_reasoning_not_permitted"
     if not settings.openai_api_key:
         return "provider_credential_missing"
@@ -55,7 +65,7 @@ def dry_run_configuration_error(settings) -> str | None:
         return settings.notification_ai_configuration_error
     if settings.notification_ai_model not in OPERATIONAL_MODELS:
         return "provider_model_not_permitted"
-    if settings.notification_ai_reasoning_effort not in PERMITTED_REASONING_EFFORTS:
+    if settings.notification_ai_model in REASONING_MODELS and settings.notification_ai_reasoning_effort not in PERMITTED_REASONING_EFFORTS:
         return "provider_reasoning_not_permitted"
     if not settings.openai_api_key:
         return "provider_credential_missing"
@@ -110,7 +120,7 @@ class OpenAINotificationProvider:
     async def interpret(self, context: dict) -> Interpretation:
         if self.model not in OPERATIONAL_MODELS:
             raise ProviderError("provider_model_not_permitted")
-        if self.reasoning_effort not in PERMITTED_REASONING_EFFORTS:
+        if self.reasoning_effort not in PERMITTED_REASONING_EFFORTS and self.model in REASONING_MODELS:
             raise ProviderError("provider_reasoning_not_permitted")
         if not self.api_key:
             raise ProviderError("provider_credential_missing")
@@ -119,17 +129,22 @@ class OpenAINotificationProvider:
         if len(context_json.encode("utf-8")) > 60000:
             raise ProviderError("incomplete_context")
 
+        is_reasoning_model = self.model in REASONING_MODELS
         try:
             self.last_usage = None
-            response = await self.client.responses.create(
-                model=self.model,
-                instructions=system_prompt(),
-                input=context_json,
-                reasoning={"effort": self.reasoning_effort},
-                text={"format": response_schema()},
-                max_output_tokens=2048,
-                store=False,
-            )
+            call_kwargs: dict = {
+                "model": self.model,
+                "instructions": system_prompt(),
+                "input": context_json,
+                "text": {"format": response_schema()},
+                "max_output_tokens": 2048,
+                "store": False,
+            }
+            if is_reasoning_model:
+                call_kwargs["reasoning"] = {"effort": self.reasoning_effort}
+            else:
+                call_kwargs["temperature"] = 0.2
+            response = await self.client.responses.create(**call_kwargs)
             if response.usage:
                 self.last_usage = {
                     name: int(value)
