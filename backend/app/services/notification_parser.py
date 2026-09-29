@@ -96,6 +96,13 @@ JAGO_PAYMENT_SIMPLE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# 2e. Bank Jago transfer to another bank account (observed 2026-09-30)
+# "You've transferred Rp625.000 to ALFONSUS ENRICO SOEBIJAN. Need help? Contact Tanya Jago at 1500 746."
+JAGO_TRANSFER_OUT_PATTERN = re.compile(
+    r"You(?:\x27ve|\s+have)\s+transferred\s+(?:Rp|IDR)\s*(?P<amount>[\d\.,]+)\s+to\s+(?P<recipient>.+?)(?:\.\s|\.$|\s+Need help)",
+    re.IGNORECASE,
+)
+
 # 3. Bank Jago Incoming Transfer
 # "Alfonsus Enrico Soebijanto has sent Rp500.050 to you. Need help? Contact Tanya Jago at 1500 746."
 JAGO_INBOUND_PATTERN = re.compile(
@@ -312,6 +319,24 @@ def parse_notification(
 
     # 2d. Bank Jago Payment / Card Expense
     if "jago" in clean_package.lower():
+        m_transfer = JAGO_TRANSFER_OUT_PATTERN.search(raw_content)
+        if m_transfer:
+            return ParsedNotification(
+                is_financial=True,
+                event_class="expense",
+                amount=_clean_amount(m_transfer.group("amount")),
+                currency="IDR",
+                direction="out",
+                source_pocket=None,
+                target_pocket=None,
+                counterparty=m_transfer.group("recipient").strip(),
+                category_hint="Transfer Keluar",
+                confidence=0.98,
+                raw_title=title,
+                raw_text=raw_content,
+                package_name=clean_package,
+            )
+
         m_pocket = JAGO_PAYMENT_WITH_POCKET_PATTERN.search(raw_content)
         if m_pocket:
             amt = _clean_amount(m_pocket.group("amount"))

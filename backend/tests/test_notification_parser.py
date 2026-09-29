@@ -420,3 +420,10 @@ def test_mybca_rdn_spending_leaves_rdn_and_other_categories_are_not_own_transfer
                                 "RDN spending of IDR 50,000.00 at Payment category.")
     assert (parsed.event_class, parsed.direction, parsed.source_pocket) == ("expense", "out", "RDN")
     assert parsed.own_account_transfer is False
+
+
+def test_jago_transfer_to_another_bank_is_an_outgoing_leg():
+    parsed = parse_notification("com.jago.digitalBanking", "Jago",
+                                "You've transferred Rp625.000 to RAKA PURNAMA SEN. Need help? Contact Tanya Jago at 1500 746.")
+    assert (parsed.event_class, parsed.direction, parsed.amount) == ("expense", "out", 625000)
+    assert parsed.counterparty == "RAKA PURNAMA SEN" and parsed.source_pocket is None
