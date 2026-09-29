@@ -58,5 +58,5 @@ A single Kotlin map `ProcessingReasons.describe(code)` returns Indonesian text f
 
 ## Open Questions
 
-- Jago single-pocket "moved out of your X Pocket": confirm during the monitored run whether Jago emits this wording for pocket → external transfers. If so, a later change adds pairing between the synthesized main-pocket leg and the external inbound.
+- Resolved (owner, 2026-09-29): Jago "You've moved … out of your X Pocket" means pocket → Main Pocket. On 2026-09-27 the owner then sent Main Pocket → BCA ATM; that Jago outbound notification was dropped by the old phone parser. The existing reading stays, and the Main Pocket → BCA leg pairs with the BCA credit under D2 (regression test `test_pocket_move_then_main_pocket_to_bca_books_two_movements`). The Jago outbound wording itself is still to be captured.
 - Exact texts for Jago outbound, ShopeePay outbound/payment, and GoPay top-up: captured during the monitored run and added as patterns in task 6.2 without changing specs.

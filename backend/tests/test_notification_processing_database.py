@@ -1025,3 +1025,32 @@ def test_settings_round_trip_normalizes_name_aliases(client, notification_owner)
     assert client.patch("/api/auth/settings", json={"name_aliases": [f"Alias {n}" for n in range(11)]}).status_code == 422
     cleared = client.patch("/api/auth/settings", json={"name_aliases": []})
     assert cleared.status_code == 200 and cleared.json()["user"]["name_aliases"] == []
+
+
+@pytest.mark.parametrize("bank_first", [False, True])
+def test_pocket_move_then_main_pocket_to_bca_books_two_movements(client, notification_owner, bank_first):
+    """Owner-confirmed 2026-09-27 flow: Emergency Fund -> Main Pocket, then Main Pocket -> BCA.
+
+    The pocket-move and BCA texts are verbatim device captures (names fictionalised); the Jago
+    outbound wording was never captured, so this uses a plausible form until the monitored run.
+    """
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        conn.execute("UPDATE users SET name_aliases = %s WHERE id = %s", (["Raka Purnama"], notification_owner["user_id"]))
+    pocket_move = at(notification(
+        "You've moved Rp1.500.000 out of your My Emergency Fund Pocket. Need help? Contact Tanya Jago at 1500 746.",
+        "com.jago.digitalBanking"), 22)
+    jago_out = at(notification("You've sent Rp1.500.000 to RAKA PURNAMA.", "com.jago.digitalBanking"), 35)
+    bca_in = at(notification(
+        "You received IDR 1,500,000.00 from RA*A ***NAMA at Account Transfer category.", "com.bca.mybca.omni.android"), 52)
+    moved = ingest(client, pocket_move)["results"][0]
+    assert moved["type"] == "internal_movement"
+    assert (moved["source"], moved["target"]) == ("Bank Jago · Dana Darurat", "Bank Jago · Kantong Utama")
+    later = [bca_in, jago_out] if bank_first else [jago_out, bca_in]
+    ingest(client, later[0])
+    paired = ingest(client, later[1])["results"][0]
+    assert paired["type"] == "internal_movement"
+    assert (paired["source"], paired["target"]) == ("Bank Jago · Kantong Utama", "BCA Harian")
+    rows = transactions_of(notification_owner)
+    assert len(rows) == 4 and len({row["movement_id"] for row in rows}) == 2
+    assert all(row["category"] == "Internal Movement" for row in rows)
