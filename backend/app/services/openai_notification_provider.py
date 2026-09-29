@@ -27,12 +27,13 @@ from app.services.notification_interpretation import Interpretation, system_prom
 # Chat models (gpt-4o family): use temperature= instead; reasoning= is omitted.
 OPERATIONAL_MODELS = frozenset({
     "gpt-5.6-luna",
+    "gpt-6-luna",
     "gpt-4o",
     "gpt-4o-mini",
     "gpt-4.1",
     "gpt-4.1-mini",
 })
-REASONING_MODELS = frozenset({"gpt-5.6-luna"})
+REASONING_MODELS = frozenset({"gpt-5.6-luna", "gpt-6-luna"})
 PERMITTED_REASONING_EFFORTS = frozenset({"none", "low"})
 
 
