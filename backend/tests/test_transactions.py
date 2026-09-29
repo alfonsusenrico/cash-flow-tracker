@@ -278,3 +278,111 @@ def test_create_transaction_routes_to_default_pocket():
         assert len(inserts) == 1
         inserted_args = inserts[0][0][1]
         assert inserted_args[1] == atm_id
+
+
+def test_list_transactions_summary_cycle_and_cumulative():
+    mock_user = {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "username": "tester",
+        "currency": "IDR",
+        "payday_day": 25,
+    }
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    with patch("app.routers.transactions.db_conn") as mock_conn:
+        cur = MagicMock()
+        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
+
+        # 1. Summary aggregate fetch
+        cur.fetchone.return_value = {
+            "total": 15,
+            "cumulative_inflow": 12000000,
+            "cumulative_outflow": 5500000,
+            "cycle_inflow": 7436000,
+            "cycle_outflow": 1250000,
+        }
+        # 2. Select page fetch & allocations
+        cur.fetchall.side_effect = [
+            [],  # select page rows
+            [],  # load allocation breakdowns
+        ]
+
+        client = TestClient(app, raise_server_exceptions=True)
+        res = client.get("/api/transactions?limit=25&offset=0")
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["ok"] is True
+        assert data["total"] == 15
+        assert "summary" in data
+
+        summary = data["summary"]
+        assert summary["cumulative"]["inflow"] == 12000000
+        assert summary["cumulative"]["outflow"] == 5500000
+        assert summary["cumulative"]["net"] == 6500000
+
+        assert summary["cycle"]["inflow"] == 7436000
+        assert summary["cycle"]["outflow"] == 1250000
+        assert summary["cycle"]["net"] == 6186000
+        assert "start" in summary["cycle"]
+        assert "end" in summary["cycle"]
+
+        # Verify SQL query calculates aggregate summaries while excluding Internal Movement
+        executed_queries = [str(c[0][0]) for c in cur.execute.call_args_list]
+        summary_query = next(q for q in executed_queries if "cumulative_inflow" in q)
+        assert "cumulative_outflow" in summary_query
+        assert "cycle_inflow" in summary_query
+        assert "cycle_outflow" in summary_query
+        assert "Internal Movement" in summary_query
+        assert "is_excluded_from_budget" in summary_query
+
+
+def test_list_transactions_summary_with_filters_and_custom_payday():
+    mock_user = {
+        "id": "22222222-2222-2222-2222-222222222222",
+        "username": "payday_user",
+        "currency": "IDR",
+        "payday_day": 1,
+    }
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    filter_account_id = str(uuid4())
+    filter_category_id = str(uuid4())
+
+    with patch("app.routers.transactions.db_conn") as mock_conn:
+        cur = MagicMock()
+        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
+
+        cur.fetchone.return_value = {
+            "total": 3,
+            "cumulative_inflow": 2000000,
+            "cumulative_outflow": 500000,
+            "cycle_inflow": 1000000,
+            "cycle_outflow": 250000,
+        }
+        cur.fetchall.side_effect = [
+            [{"id": filter_account_id}],  # accounts query for matching account IDs
+            [],  # select page rows
+            [],  # load allocation breakdowns
+        ]
+
+        client = TestClient(app, raise_server_exceptions=True)
+        res = client.get(f"/api/transactions?account_id={filter_account_id}&category_id={filter_category_id}&q=warung")
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["total"] == 3
+        summary = data["summary"]
+        assert summary["cumulative"]["inflow"] == 2000000
+        assert summary["cumulative"]["outflow"] == 500000
+        assert summary["cumulative"]["net"] == 1500000
+        assert summary["cycle"]["inflow"] == 1000000
+        assert summary["cycle"]["outflow"] == 250000
+        assert summary["cycle"]["net"] == 750000
+
+        # Verify SQL query preserved account, category, and q filters
+        executed_queries = [str(c[0][0]) for c in cur.execute.call_args_list]
+        summary_query = next(q for q in executed_queries if "cumulative_inflow" in q)
+        assert "t.account_id IN" in summary_query
+        assert "t.category_id = %s" in summary_query
+        assert "t.notes ILIKE" in summary_query

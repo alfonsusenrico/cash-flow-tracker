@@ -475,3 +475,85 @@ describe("Ledger movement selection", () => {
     expect(api.post).not.toHaveBeenCalled();
   });
 });
+
+describe("Ledger summary metrics (running cycle and cumulative)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [{ id: "account-1", name: "BCA", type: "bank", balance: 100_000 }] };
+      if (path === "/categories") return { categories: [{ id: "category-1", name: "Makan", kind: "expense", kakeibo_type: "need" }] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      if (path.startsWith("/transactions?")) {
+        return {
+          ok: true,
+          total: 10,
+          summary: {
+            cycle: {
+              start: "2026-09-24T17:00:00.000Z",
+              end: "2026-10-24T16:59:59.000Z",
+              inflow: 7_436_000,
+              outflow: 1_250_000,
+              net: 6_186_000,
+            },
+            cumulative: {
+              inflow: 54_200_000,
+              outflow: 42_100_000,
+              net: 12_100_000,
+            },
+          },
+          transactions: [transaction],
+        };
+      }
+      throw new Error(`Unexpected GET ${path}`);
+    });
+  });
+
+  it("renders running cycle metrics by default and switches to cumulative metrics on toggle", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LedgerPage />
+      </QueryClientProvider>,
+    );
+
+    // Verify Cycle Date Range Badge
+    expect(await screen.findByText(/Siklus 25 Sep – 24 Okt/)).toBeInTheDocument();
+
+    // Default scope: Cycle Berjalan
+    // Inflow: +Rp 7.436.000 (primary on mobile & desktop) & Kumulatif: +Rp 54.200.000 (secondary on desktop)
+    expect(screen.getAllByText("+Rp 7.436.000")).toHaveLength(2);
+    expect(screen.getAllByText("-Rp 1.250.000")).toHaveLength(2);
+    expect(screen.getAllByText("+Rp 6.186.000")).toHaveLength(2);
+
+    expect(screen.getAllByText("Uang Masuk (Siklus)")).toHaveLength(1);
+    expect(screen.getAllByText("Uang Keluar (Siklus)")).toHaveLength(1);
+    expect(screen.getAllByText("Selisih Bersih (Siklus)")).toHaveLength(1);
+
+    // Switch to Cumulative mode
+    const cumulativeBtn = screen.getByRole("button", { name: "Total Kumulatif" });
+    await user.click(cumulativeBtn);
+
+    // Primary numbers now reflect cumulative on both mobile & desktop
+    expect(screen.getAllByText("+Rp 54.200.000")).toHaveLength(2);
+    expect(screen.getAllByText("-Rp 42.100.000")).toHaveLength(2);
+    expect(screen.getAllByText("+Rp 12.100.000")).toHaveLength(2);
+
+    expect(screen.getAllByText("Uang Masuk (Kumulatif)")).toHaveLength(1);
+    expect(screen.getAllByText("Uang Keluar (Kumulatif)")).toHaveLength(1);
+    expect(screen.getAllByText("Selisih Bersih (Kumulatif)")).toHaveLength(1);
+
+    // Secondary footers now show "Siklus ini:"
+    expect(screen.getAllByText("Siklus ini:")).toHaveLength(3);
+
+    // Switch back to Cycle mode
+    const cycleBtn = screen.getByRole("button", { name: "Siklus Berjalan" });
+    await user.click(cycleBtn);
+
+    expect(screen.getAllByText("+Rp 7.436.000")).toHaveLength(2);
+    expect(screen.getAllByText("Uang Masuk (Siklus)")).toHaveLength(1);
+  });
+});
