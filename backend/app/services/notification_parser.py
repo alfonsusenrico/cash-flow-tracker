@@ -157,6 +157,18 @@ SHOPEEPAY_INBOUND_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# 11b. ShopeePay Inbound Top-Up (Indonesian & English)
+# "Pengisian saldo sebesar Rp7.490.557 telah ditambahkan ke ShopeePay-mu. Saldo saat ini sebesar Rp7.491.557."
+# "Your Top up request of Rp7.490.557 is successful and your current balance is Rp7.491.557."
+SHOPEEPAY_TOPUP_ID_PATTERN = re.compile(
+    r"Pengisian saldo sebesar\s+(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)\s+telah ditambahkan ke ShopeePay-mu",
+    re.IGNORECASE,
+)
+SHOPEEPAY_TOPUP_EN_PATTERN = re.compile(
+    r"Top\s*up request of\s+(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)\s+is successful",
+    re.IGNORECASE,
+)
+
 # 12. Stockbit Stock Order Match (Buying / Selling)
 # "Pembelian 4 lot BBRI match di harga Rp3.340" or "Penjualan 10 lot BBRI match di harga Rp3.340"
 STOCKBIT_MATCH_PATTERN = re.compile(
@@ -502,7 +514,7 @@ def parse_notification(
             package_name=clean_package,
         )
 
-    # Step 11: ShopeePay Inbound BI-Fast
+    # Step 11: ShopeePay Inbound BI-Fast & Top-Up
     m = SHOPEEPAY_INBOUND_PATTERN.search(raw_content)
     if m:
         amt = _clean_amount(m.group("amount"))
@@ -516,6 +528,25 @@ def parse_notification(
             source_pocket=None,
             target_pocket=None,
             counterparty=sender,
+            category_hint="Transfer Masuk",
+            confidence=0.98,
+            raw_title=title,
+            raw_text=raw_content,
+            package_name=clean_package,
+        )
+
+    m_topup = SHOPEEPAY_TOPUP_ID_PATTERN.search(raw_content) or SHOPEEPAY_TOPUP_EN_PATTERN.search(raw_content)
+    if m_topup:
+        amt = _clean_amount(m_topup.group("amount"))
+        return ParsedNotification(
+            is_financial=True,
+            event_class="income",
+            amount=amt,
+            currency="IDR",
+            direction="in",
+            source_pocket=None,
+            target_pocket=None,
+            counterparty="ShopeePay Top Up",
             category_hint="Transfer Masuk",
             confidence=0.98,
             raw_title=title,

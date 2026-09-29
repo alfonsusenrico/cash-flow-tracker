@@ -208,6 +208,39 @@ def test_shopeepay_inbound():
     assert parsed.counterparty == "ALFONSUS ENRICO SOEBIJANTO"
 
 
+def test_shopeepay_topup_indonesian():
+    text = "Pengisian saldo sebesar Rp7.490.557 telah ditambahkan ke ShopeePay-mu. Saldo saat ini sebesar Rp7.491.557."
+    parsed = parse_notification(
+        package_name="com.shopeepay.id",
+        title="Isi Saldo Berhasil",
+        body_text=text,
+        big_text=text,
+    )
+    assert parsed.is_financial is True
+    assert parsed.event_class == "income"
+    assert parsed.amount == 7490557
+    assert parsed.direction == "in"
+    assert parsed.counterparty == "ShopeePay Top Up"
+    assert parsed.category_hint == "Transfer Masuk"
+
+
+def test_shopeepay_topup_english():
+    text = "Your Top up request of Rp7.490.557 is successful and your current balance is Rp7.491.557. Transaction No.  UWSNVXUMQY52OYEWKYRSCQWVWHVIE"
+    parsed = parse_notification(
+        package_name="com.shopee.id",
+        title="Top-up Completed",
+        body_text=text,
+        big_text=text,
+    )
+    assert parsed.is_financial is True
+    assert parsed.event_class == "income"
+    assert parsed.amount == 7490557
+    assert parsed.direction == "in"
+    assert parsed.counterparty == "ShopeePay Top Up"
+    assert parsed.category_hint == "Transfer Masuk"
+
+
+
 def test_noise_filtering():
     promo_text = "Transferan ke sesama GoPay buat dapetin puzzle & klaim hadiah miliaran. Yuk transferan💸"
     parsed_promo = parse_notification(

@@ -18,10 +18,15 @@ SUPPORTED_PACKAGES = {
     "com.gojek.app": "gopay",
     "com.gopay.wallet": "gopay",
     "com.shopeepay.id": "shopeepay",
+    "com.shopee.id": "shopeepay",
     "com.stockbit.android": "stockbit",
 }
 TEXT_FIELDS = ("title", "body_text", "big_text", "sub_text", "summary_text")
 MONEY_PATTERN = re.compile(r"\b(?:Rp\.?|IDR)\s*(-?\d[\d.,]*\d|-?\d)\b", re.I)
+BALANCE_PATTERN = re.compile(
+    r"\b(?:saldo saat ini(?: sebesar)?|current balance(?: is)?|sisa saldo(?: anda)?(?: sebesar)?|saldo akhir(?: sebesar)?)\s*(?:Rp\.?|IDR)?\s*[\d\.,]+",
+    re.I,
+)
 NOISE_PATTERN = re.compile(
     r"\b(?:OTP|one.time password|kode (?:verifikasi|akses)|cashback|promo|diskon|"
     r"failed|gagal|pending|tertunda|sedang diproses|akan (?:dikirim|ditransfer)|"
@@ -37,7 +42,8 @@ SETTLED_PATTERN = re.compile(
     r"\b(?:berhasil|successful|completed|received|spent|paid|terdebit|"
     r"pemasukan|pengeluaran|has sent|udah dikirim|telah menerima|"
     r"mengirimkan dana|you've moved|you have moved|has been moved|"
-    r"telah dipindahkan|telah memindahkan|match di harga)\b",
+    r"telah dipindahkan|telah memindahkan|match di harga|"
+    r"pengisian saldo|telah ditambahkan|top\s*up request)\b",
     re.I,
 )
 OUT_PATTERN = re.compile(
@@ -46,7 +52,8 @@ OUT_PATTERN = re.compile(
 )
 IN_PATTERN = re.compile(
     r"\b(?:received|pemasukan|menerima|has sent.+to you|"
-    r"mengirimkan dana.+ke ShopeePay-mu)\b", re.I
+    r"mengirimkan dana.+ke ShopeePay-mu|pengisian saldo|"
+    r"ditambahkan ke ShopeePay-mu|top\s*up request.+successful)\b", re.I
 )
 
 
@@ -135,7 +142,11 @@ def collect_facts(event: dict[str, Any]) -> NotificationFacts:
     direction = {"out": "expense", "in": "income", "internal": "internal_movement"}.get(parsed.direction)
     amounts: dict[int, list[str]] = {}
     error = None
+    balance_spans = [m.span() for m in BALANCE_PATTERN.finditer(text)]
     for match in MONEY_PATTERN.finditer(text):
+        span = match.span()
+        if any(b_start <= span[0] and span[1] <= b_end for b_start, b_end in balance_spans):
+            continue
         try:
             amount = parse_idr_amount(match.group(1))
             amounts.setdefault(amount, []).append(match.group(0))
