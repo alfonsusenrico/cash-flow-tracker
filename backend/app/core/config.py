@@ -42,6 +42,7 @@ class Settings:
     notification_ai_history_limit: int = 20
     notification_ai_timeout: float = 30
     notification_pairing_window_seconds: int = 900
+    notification_mapping_auto_threshold: float = 0.85
     notification_ai_configuration_error: str | None = None
     app_env: str = "production"
     notification_ai_dry_run_enabled: bool = False
@@ -70,12 +71,15 @@ def load_settings() -> Settings:
         ai_history_limit = int(os.getenv("NOTIFICATION_AI_HISTORY_LIMIT", "20"))
         ai_timeout = float(os.getenv("NOTIFICATION_AI_TIMEOUT", "30"))
         pairing_window = int(os.getenv("NOTIFICATION_PAIRING_WINDOW_SECONDS", "900"))
+        mapping_threshold = float(os.getenv("NOTIFICATION_MAPPING_AUTO_THRESHOLD", "0.85"))
         if not 0 <= ai_history_limit <= 50 or not math.isfinite(ai_timeout) or not 1 <= ai_timeout <= 60:
             raise ValueError
         if not 30 <= pairing_window <= 86400:
             raise ValueError
+        if not math.isfinite(mapping_threshold) or not 0.5 <= mapping_threshold <= 1.0:
+            raise ValueError
     except ValueError:
-        ai_history_limit, ai_timeout, pairing_window = 20, 30, 900
+        ai_history_limit, ai_timeout, pairing_window, mapping_threshold = 20, 30, 900, 0.85
         ai_configuration_error = "processor_configuration_invalid"
 
     return Settings(
@@ -115,6 +119,7 @@ def load_settings() -> Settings:
         notification_ai_history_limit=ai_history_limit,
         notification_ai_timeout=ai_timeout,
         notification_pairing_window_seconds=pairing_window,
+        notification_mapping_auto_threshold=mapping_threshold,
         notification_ai_configuration_error=ai_configuration_error,
         app_env=os.getenv("APP_ENV", "production").strip().lower(),
         notification_ai_dry_run_enabled=os.getenv("NOTIFICATION_AI_DRY_RUN_ENABLED", "false").lower() == "true",

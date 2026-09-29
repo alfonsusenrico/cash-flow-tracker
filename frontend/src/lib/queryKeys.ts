@@ -29,4 +29,5 @@ export const queryKeys = {
     apiKey: ["auth", "api-key"] as const,
     currencyRates: ["auth", "currency-rates"] as const,
   },
+  notificationAliases: ["notification-aliases"] as const,
 } as const;

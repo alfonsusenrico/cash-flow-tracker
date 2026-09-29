@@ -162,8 +162,8 @@ def test_jago_resolves_only_registered_pockets(case_name):
     case = cases[case_name]
     facts = collect_facts(case.event)
     parent = next(row for row in case.context["accounts"] if row["name"] == "Bank Jago")
-    assert str(pocket_endpoint(facts.parsed.source_pocket, parent, case.context["accounts"])["id"]) == case.expected["source_account_id"]
-    assert str(pocket_endpoint(facts.parsed.target_pocket, parent, case.context["accounts"])["id"]) == case.expected["target_account_id"]
+    assert str(pocket_endpoint(facts.parsed.source_pocket, parent, case.context["accounts"], institution="jago")["id"]) == case.expected["source_account_id"]
+    assert str(pocket_endpoint(facts.parsed.target_pocket, parent, case.context["accounts"], institution="jago")["id"]) == case.expected["target_account_id"]
 
 
 def test_unknown_pocket_is_not_a_substring_fallback():
@@ -172,7 +172,7 @@ def test_unknown_pocket_is_not_a_substring_fallback():
         {"id": "food", "name": "Dana Makan", "parent_id": "parent"},
     ]
     with pytest.raises(EvidenceError, match="uncertain_pocket_mapping"):
-        pocket_endpoint("Dana", accounts[0], accounts)
+        pocket_endpoint("Dana", accounts[0], accounts, institution="jago")
 
 
 def test_ingest_supported_apps_scope_verification():

@@ -139,6 +139,24 @@ export async function updateTransaction(id: string, payload: Record<string, unkn
   return api.patch<{ ok: boolean; transaction?: unknown }>(`/transactions/${id}`, payload);
 }
 
+export interface NotificationAlias {
+  id: string;
+  institution: string;
+  name: string;
+  account_id: string;
+  account: string;
+  source: "ai" | "owner";
+  created_at: string;
+}
+
+export async function getNotificationAliases(): Promise<{ ok: boolean; aliases: NotificationAlias[] }> {
+  return api.get<{ ok: boolean; aliases: NotificationAlias[] }>("/ingest/aliases");
+}
+
+export async function deleteNotificationAlias(id: string): Promise<{ ok: boolean }> {
+  return api.del<{ ok: boolean }>(`/ingest/aliases/${id}`);
+}
+
 export interface ApiKeyMetadata {
   id: string;
   key_prefix: string;

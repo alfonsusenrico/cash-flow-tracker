@@ -17,6 +17,29 @@ GENERIC_COUNTERPARTY_WORDS = frozenset({
     "pocket", "kantong", "utama", "main", "card",
 })
 EXTERNAL_SOURCE_HINTS = frozenset({"salary", "gaji", "interest", "bunga", "refund", "cashback", "bonus"})
+INSTITUTION_LABELS = {"bca": "BCA", "jago": "Bank Jago", "gopay": "GoPay", "shopeepay": "ShopeePay", "stockbit": "Stockbit"}
+MAPPABLE_ACCOUNT_TYPES = frozenset({"bank", "cash", "wallet", "ewallet"})
+MAPPING_STOP_WORDS = frozenset({"pocket", "kantong", "my", "your", "bank", "by", "the", "dan", "and"})
+
+
+class UnresolvedName(EvidenceError):
+    """A bank-notification name that no learned alias or registered account name resolves."""
+
+    def __init__(self, code: str, *, institution: str, name: str, name_normalized: str):
+        super().__init__(code)
+        self.institution = institution
+        self.name = name
+        self.name_normalized = name_normalized
+
+
+def alias_key(institution: str, name_normalized: str) -> str:
+    return f"{institution}|{name_normalized}"
+
+
+def aliased_account(accounts: list[dict], institution: str, name_normalized: str) -> dict | None:
+    key = alias_key(institution, name_normalized)
+    matches = [account for account in accounts if key in (account.get("notification_names") or ())]
+    return matches[0] if len(matches) == 1 else None
 
 
 def owner_aliases(profile: dict) -> list[str]:
@@ -119,6 +142,9 @@ def institution_parent(accounts: list[dict], institution: str) -> dict:
     named pocket is used instead: some balances shown in one app live in another bank,
     for example GoPay Tabungan, which is a Bank Jago pocket.
     """
+    learned = aliased_account(accounts, institution, "")
+    if learned:
+        return learned
     aliases = {"shopeepay": ("shopeepay",), "stockbit": ("stockbit",)}.get(institution, (institution,))
 
     def matches(account: dict) -> bool:
@@ -131,7 +157,10 @@ def institution_parent(accounts: list[dict], institution: str) -> dict:
     if not candidates:
         candidates = [account for account in accounts if account.get("parent_id") and matches(account)]
     if len(candidates) != 1:
-        raise EvidenceError("uncertain_institution_mapping")
+        raise UnresolvedName(
+            "uncertain_institution_mapping", institution=institution,
+            name=INSTITUTION_LABELS.get(institution, institution), name_normalized="",
+        )
     return candidates[0]
 
 
@@ -150,10 +179,13 @@ def main_endpoint(parent: dict, accounts: list[dict]) -> dict:
     return matches[0] if matches else parent
 
 
-def pocket_endpoint(name: str | None, parent: dict, accounts: list[dict]) -> dict:
+def pocket_endpoint(name: str | None, parent: dict, accounts: list[dict], *, institution: str) -> dict:
     if not name or normalize_name(name) == "utama":
         return main_endpoint(parent, accounts)
     target_name = normalize_name(name)
+    learned = aliased_account(accounts, institution, target_name)
+    if learned:
+        return learned
     matches = [account for account in accounts
                if str(account.get("parent_id")) == str(parent["id"])
                and normalize_name(account["name"]) == target_name]
@@ -163,7 +195,9 @@ def pocket_endpoint(name: str | None, parent: dict, accounts: list[dict]) -> dic
                    if str(account.get("parent_id")) == str(parent["id"])
                    and normalize_name(account["name"]).rstrip("s") == target_stem]
     if len(matches) != 1:
-        raise EvidenceError("uncertain_pocket_mapping")
+        raise UnresolvedName(
+            "uncertain_pocket_mapping", institution=institution, name=name.strip(), name_normalized=target_name,
+        )
     return matches[0]
 
 
@@ -171,12 +205,12 @@ def observed_endpoint(facts: NotificationFacts, accounts: list[dict], proposal: 
     parent = institution_parent(accounts, facts.institution)
     named = facts.parsed.source_pocket if facts.direction == "expense" else facts.parsed.target_pocket
     if named:
-        return pocket_endpoint(named, parent, accounts)
+        return pocket_endpoint(named, parent, accounts, institution=facts.institution)
     if facts.institution == "jago":
         role_words = r"using|from|menggunakan|dari" if facts.direction == "expense" else r"in|into|ke|di"
         pocket = re.search(r"\b(?:" + role_words + r")(?:\s+your)?\s+(.+?)\s+(?:Pocket|Kantong)\b", facts.text, re.I)
         if pocket:
-            return pocket_endpoint(pocket.group(1), parent, accounts)
+            return pocket_endpoint(pocket.group(1), parent, accounts, institution=facts.institution)
     return main_endpoint(parent, accounts)
 
 
@@ -190,22 +224,73 @@ def movement_categories(context: dict) -> tuple[str, str]:
     return ids[0], ids[1]
 
 
+def mapping_words(value: str) -> set[str]:
+    return {word for word in re.findall(r"[a-z0-9]+", value.lower()) if len(word) >= 3 and word not in MAPPING_STOP_WORDS}
+
+
+def eligible_account_ids(role: str, error: UnresolvedName, accounts: list[dict], excluded: set[str]) -> list[str]:
+    """Accounts the model may propose for an unresolved name (design D2)."""
+    liquid = [account for account in accounts
+              if account.get("type") in MAPPABLE_ACCOUNT_TYPES and not account.get("instrument_type")
+              and str(account["id"]) not in excluded]
+    if role in {"source", "target"}:
+        return [str(account["id"]) for account in liquid]
+    root_id = None
+    if error.name_normalized:
+        try:
+            root_id = str(institution_parent(accounts, error.institution)["id"])
+        except EvidenceError:
+            root_id = None
+    words = mapping_words(error.name) | {error.institution}
+    eligible = []
+    for account in liquid:
+        compact = re.sub(r"[^a-z0-9]", "", account["name"].lower())
+        in_hierarchy = root_id is not None and root_id in {str(account["id"]), str(account.get("parent_id"))}
+        if in_hierarchy or mapping_words(account["name"]) & words or error.institution in compact:
+            eligible.append(str(account["id"]))
+    return eligible
+
+
+def unresolved_context(failures: list[tuple[str, EvidenceError]], accounts: list[dict], resolved: dict) -> dict:
+    first = failures[0][1]
+    if not all(isinstance(error, UnresolvedName) for _, error in failures):
+        blocking = next(error for _, error in failures if not isinstance(error, UnresolvedName))
+        return {"mapping_error": blocking.code}
+    names = []
+    for role, error in failures:
+        eligible = eligible_account_ids(role, error, accounts, set(resolved.values()))
+        if not eligible:
+            return {"mapping_error": error.code}
+        names.append({"role": role, "name": error.name, "institution": error.institution,
+                      "name_normalized": error.name_normalized, "eligible_account_ids": eligible})
+    return {**resolved, "mapping_error": first.code, "unresolved_names": names}
+
+
 def endpoint_context(facts: NotificationFacts, accounts: list[dict]) -> dict:
     if facts.status != "candidate" or facts.institution == "stockbit":
         return {}
-    try:
-        if facts.direction == "internal_movement":
-            if facts.institution != "jago":
-                raise EvidenceError("incomplete_movement")
+    if facts.direction == "internal_movement":
+        if facts.institution != "jago":
+            return {"mapping_error": "incomplete_movement"}
+        try:
             parent = institution_parent(accounts, "jago")
-            source = pocket_endpoint(facts.parsed.source_pocket, parent, accounts)
-            target = pocket_endpoint(facts.parsed.target_pocket, parent, accounts)
-            if str(source["id"]) == str(target["id"]):
-                raise EvidenceError("same_movement_endpoint")
-            return {"source_account_id": str(source["id"]), "target_account_id": str(target["id"])}
+        except EvidenceError as error:
+            return {"mapping_error": error.code}
+        resolved, failures = {}, []
+        for role, name in (("source", facts.parsed.source_pocket), ("target", facts.parsed.target_pocket)):
+            try:
+                resolved[f"{role}_account_id"] = str(pocket_endpoint(name, parent, accounts, institution="jago")["id"])
+            except EvidenceError as error:
+                failures.append((role, error))
+        if failures:
+            return unresolved_context(failures, accounts, resolved)
+        if resolved["source_account_id"] == resolved["target_account_id"]:
+            return {"mapping_error": "same_movement_endpoint"}
+        return resolved
+    try:
         return {"effective_account_id": str(observed_endpoint(facts, accounts)["id"])}
     except EvidenceError as error:
-        return {"mapping_error": error.code}
+        return unresolved_context([("observed", error)], accounts, {})
 
 
 def transfer_signature(facts: NotificationFacts, context: dict, account_id: str) -> dict:

@@ -6,7 +6,7 @@ from typing import Any
 
 from app.services.notification_evidence import MONEY_PATTERN, NotificationFacts
 from app.services.notification_resolution import (
-    endpoint_context, is_external_counterparty, names_owner, owner_aliases, redact_owner_names,
+    alias_key, endpoint_context, is_external_counterparty, names_owner, owner_aliases, redact_owner_names,
 )
 
 
@@ -83,8 +83,19 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
         len(accounts) > ACCOUNT_LIMIT or len(categories) > CATEGORY_LIMIT
         or len(rules) > 100 or len(candidates) > CANDIDATE_LIMIT
     )
+    cur.execute(
+        """SELECT al.institution, al.name_normalized, al.account_id FROM notification_account_aliases al
+           JOIN accounts a ON a.id = al.account_id AND a.user_id = al.user_id
+           WHERE al.user_id = %s AND a.is_archived = FALSE""",
+        (user_id,),
+    )
+    learned_names: dict[str, list[str]] = {}
+    for alias in cur.fetchall():
+        learned_names.setdefault(str(alias["account_id"]), []).append(alias_key(alias["institution"], alias["name_normalized"]))
     account_fields = ("id", "name", "type", "parent_id", "default_pocket_id", "default_funding_account_id", "instrument_type", "is_savings")
     sanitized_accounts = [{key: row.get(key) for key in account_fields} for row in accounts[:ACCOUNT_LIMIT]]
+    for row in sanitized_accounts:
+        row["notification_names"] = learned_names.get(str(row["id"]), [])
     for row in sanitized_accounts:
         row["name"] = sanitize_text(row["name"], identity)[:150]
     sanitized_categories = [{"id": row["id"], "name": sanitize_text(row["name"], identity)[:100], "kind": row["kind"]} for row in categories[:CATEGORY_LIMIT]]

@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, getApiKeyInfo } from "@/lib/api";
+import { api, deleteNotificationAlias, getApiKeyInfo, getNotificationAliases } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { SettingsModal } from "./SettingsModal";
 
@@ -11,6 +11,8 @@ vi.mock("@/lib/api", () => ({
   api: { get: vi.fn(), patch: vi.fn() },
   getApiKeyInfo: vi.fn(),
   rotateApiKey: vi.fn(),
+  getNotificationAliases: vi.fn(),
+  deleteNotificationAlias: vi.fn(),
 }));
 vi.mock("@/components/layout/AppLayout", () => ({
   useAppCtx: () => ({
@@ -29,6 +31,7 @@ describe("settings form", () => {
       throw new Error(`Unexpected GET ${path}`);
     });
     vi.mocked(getApiKeyInfo).mockResolvedValue({ ok: true, api_key: null });
+    vi.mocked(getNotificationAliases).mockResolvedValue({ ok: true, aliases: [] });
     vi.mocked(api.patch).mockResolvedValue({ ok: true });
   });
 
@@ -104,5 +107,31 @@ describe("settings form", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Setiap nama alias harus 3–150 karakter");
     expect(api.patch).not.toHaveBeenCalled();
+  });
+
+  it("lists learned bank-notification names and removes a wrong one", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getNotificationAliases).mockResolvedValue({
+      ok: true,
+      aliases: [
+        { id: "alias-1", institution: "jago", name: "GoPay Tabungan", account_id: "acc-1", account: "GoPay", source: "ai", created_at: "2026-09-29T10:00:00Z" },
+        { id: "alias-2", institution: "jago", name: "Tabungan Liburan", account_id: "acc-2", account: "Bank Jago · Liburan", source: "owner", created_at: "2026-09-29T10:00:00Z" },
+      ],
+    });
+    vi.mocked(deleteNotificationAlias).mockResolvedValue({ ok: true });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SettingsModal open onClose={() => {}} />
+      </QueryClientProvider>,
+    );
+
+    const section = await screen.findByRole("region", { name: "Nama dari Notifikasi Bank" });
+    expect(await within(section).findByText("Dipetakan otomatis")).toBeInTheDocument();
+    expect(within(section).getByText("Dikonfirmasi Anda")).toBeInTheDocument();
+    expect((await axe(section)).violations).toHaveLength(0);
+    await user.click(within(section).getByRole("button", { name: "Hapus pemetaan GoPay Tabungan" }));
+    await waitFor(() => expect(deleteNotificationAlias).toHaveBeenCalledWith("alias-1"));
+    await waitFor(() => expect(getNotificationAliases).toHaveBeenCalledTimes(2));
   });
 });

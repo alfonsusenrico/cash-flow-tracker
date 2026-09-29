@@ -1133,3 +1133,149 @@ def test_wallet_moved_under_bank_receives_both_apps_notifications(client, notifi
         seconds=40))["results"][0]
     assert pocket_move["type"] == "internal_movement"
     assert (pocket_move["source"], pocket_move["target"]) == ("Bank Jago · Kantong Utama", "Bank Jago · GoPay Tabungan")
+
+
+GOPAY_TABUNGAN_MOVE = "Rp1.250.000 has been moved from your Main Pocket Pocket to your GoPay Tabungan Pocket."
+
+
+def mapped_move(owner, target_key, confidence, *, alternatives=(), with_mapping=True):
+    return Interpretation.model_validate_json(json.dumps({
+        "outcome": "record", "direction": "internal_movement", "description": "Pindah saldo",
+        "account_id": None, "source_account_id": owner["main"], "target_account_id": owner[target_key],
+        "category_id": None, "kakeibo": None, "amount_evidence": "Rp1.250.000",
+        "direction_evidence": "has been moved", "source_evidence": "", "target_evidence": "",
+        "candidate_transaction_id": None, "confidence": 0.9, "review_reason": "none",
+        "mappings": [{"role": "target", "account_id": owner[target_key], "confidence": confidence,
+                      "alternatives": [owner[key] for key in alternatives]}] if with_mapping else [],
+    }))
+
+
+def ingest_move(client, version="1.3.0", seconds=27):
+    event = notification(GOPAY_TABUNGAN_MOVE, "com.jago.digitalBanking", seconds=seconds)
+    event["source_version"] = version
+    return ingest(client, event)["results"][0]
+
+
+def process_with(proposal):
+    from app.services import notification_processing as processing
+    provider = AsyncMock()
+    provider.interpret.return_value = proposal
+    asyncio.run(processing.process_claim(processing.claim_event(), provider))
+
+
+def aliases_of(owner):
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        return conn.execute(
+            "SELECT institution, name_normalized, account_id, source FROM notification_account_aliases WHERE user_id = %s",
+            (owner["user_id"],),
+        ).fetchall()
+
+
+def test_confident_mapping_records_labels_and_learns_alias(client, notification_owner, monkeypatch):
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest_move(client)
+    process_with(mapped_move(notification_owner, "gopay", 0.93))
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["status"] == "recorded" and result["type"] == "internal_movement"
+    assert (result["source"], result["target"]) == ("Bank Jago · Kantong Utama", "GoPay")
+    assert result["mapped"] == [{"name": "GoPay Tabungan", "account": "GoPay", "mode": "auto", "confidence": 0.93}]
+    assert [(row["institution"], row["name_normalized"], str(row["account_id"]), row["source"]) for row in aliases_of(notification_owner)] == [
+        ("jago", "gopay tabungan", notification_owner["gopay"], "ai")]
+    second = ingest_move(client, seconds=40)
+    facts, context = processing.read_context(processing.claim_event())
+    assert "unresolved_names" not in context["facts"]
+    assert context["facts"]["target_account_id"] == notification_owner["gopay"]
+
+
+def test_uncertain_mapping_waits_for_owner_and_confirmation_records(client, notification_owner, monkeypatch):
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest_move(client)
+    process_with(mapped_move(notification_owner, "gopay", 0.55, alternatives=("emergency", "bca")))
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["status"] == "needs_confirmation" and count_transactions(notification_owner) == 0
+    proposal = result["mapping_proposal"]
+    assert (proposal["name"], proposal["role"], proposal["confidence"]) == ("GoPay Tabungan", "target", 0.55)
+    assert proposal["proposed"] == {"id": notification_owner["gopay"], "label": "GoPay"}
+    assert [item["label"] for item in proposal["alternatives"]] == ["Bank Jago · Dana Darurat", "BCA Harian"]
+    assert processing.claim_event() is None and aliases_of(notification_owner) == []
+
+    confirm = client.post(f"/api/ingest/notifications/{event['event_id']}/confirm-mapping",
+                          json={"account_id": notification_owner["emergency"]})
+    assert confirm.status_code == 200 and confirm.json()["result"]["status"] == "queued"
+    assert client.post(f"/api/ingest/notifications/{event['event_id']}/confirm-mapping",
+                       json={"account_id": notification_owner["emergency"]}).status_code == 409
+    process_with(mapped_move(notification_owner, "emergency", 0.0, with_mapping=False))
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["status"] == "recorded" and result["target"] == "Bank Jago · Dana Darurat"
+    assert [(str(row["account_id"]), row["source"]) for row in aliases_of(notification_owner)] == [
+        (notification_owner["emergency"], "owner")]
+
+
+def test_owner_alias_is_not_replaced_by_a_later_ai_mapping(client, notification_owner):
+    from app.db.pool import db_conn
+    from app.services.notification_mapping import store_aliases
+    entry = {"institution": "jago", "name_normalized": "gopay tabungan", "name": "GoPay Tabungan"}
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            store_aliases(cur, notification_owner["user_id"], [{**entry, "account_id": notification_owner["gopay"]}], "owner")
+            store_aliases(cur, notification_owner["user_id"], [{**entry, "account_id": notification_owner["bca"]}], "ai")
+        conn.commit()
+    [row] = aliases_of(notification_owner)
+    assert (str(row["account_id"]), row["source"]) == (notification_owner["gopay"], "owner")
+
+
+def test_old_companion_builds_keep_receiving_needs_review(client, notification_owner, monkeypatch):
+    enable_ai(monkeypatch)
+    event = ingest_move(client, version="1.2.0")
+    process_with(mapped_move(notification_owner, "gopay", 0.55))
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert (result["status"], result["error_code"]) == ("needs_review", "uncertain_pocket_mapping")
+
+
+def test_ineligible_mapping_is_rejected_even_when_confident(client, notification_owner, monkeypatch):
+    enable_ai(monkeypatch)
+    event = ingest_move(client)
+    investment_target = json.loads(mapped_move(notification_owner, "gopay", 0.99).model_dump_json())
+    investment_target["target_account_id"] = notification_owner["stockbit"]
+    investment_target["mappings"][0]["account_id"] = notification_owner["stockbit"]
+    process_with(Interpretation.model_validate_json(json.dumps(investment_target)))
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["status"] == "needs_review" and count_transactions(notification_owner) == 0
+    assert aliases_of(notification_owner) == []
+
+
+def test_confirmation_is_owner_scoped_and_validates_account(client, notification_owner, monkeypatch):
+    enable_ai(monkeypatch)
+    event = ingest_move(client)
+    process_with(mapped_move(notification_owner, "gopay", 0.55))
+    path = f"/api/ingest/notifications/{event['event_id']}/confirm-mapping"
+    assert client.post(f"/api/ingest/notifications/{uuid4()}/confirm-mapping", json={"account_id": notification_owner["gopay"]}).status_code == 404
+    assert client.post(path, json={"account_id": notification_owner["stockbit"]}).status_code == 422
+    assert client.post(path, json={"account_id": str(uuid4())}).status_code == 422
+
+
+def test_alias_list_and_removal_only_affect_future_events(client, notification_owner, monkeypatch):
+    enable_ai(monkeypatch)
+    ingest_move(client)
+    process_with(mapped_move(notification_owner, "gopay", 0.93))
+    [alias] = client.get("/api/ingest/aliases").json()["aliases"]
+    assert (alias["name"], alias["account"], alias["source"], alias["institution"]) == ("GoPay Tabungan", "GoPay", "ai", "jago")
+    assert client.delete(f"/api/ingest/aliases/{alias['id']}").status_code == 200
+    assert client.delete(f"/api/ingest/aliases/{alias['id']}").status_code == 404
+    assert client.get("/api/ingest/aliases").json()["aliases"] == []
+    assert count_transactions(notification_owner) == 2
+    from app.services import notification_processing as processing
+    ingest_move(client, seconds=50)
+    facts, context = processing.read_context(processing.claim_event())
+    assert context["facts"]["unresolved_names"][0]["name"] == "GoPay Tabungan"
+
+
+def test_needs_confirmation_event_can_still_be_recorded_manually_or_retried(client, notification_owner, monkeypatch):
+    enable_ai(monkeypatch)
+    event = ingest_move(client)
+    process_with(mapped_move(notification_owner, "gopay", 0.55))
+    retried = client.post(f"/api/ingest/notifications/{event['event_id']}/retry")
+    assert retried.status_code == 200 and retried.json()["result"]["status"] == "queued"
