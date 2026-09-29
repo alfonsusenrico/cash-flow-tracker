@@ -45,9 +45,15 @@ def main_endpoint(parent: dict, accounts: list[dict]) -> dict:
 def pocket_endpoint(name: str | None, parent: dict, accounts: list[dict]) -> dict:
     if not name or normalize_name(name) == "utama":
         return main_endpoint(parent, accounts)
+    target_name = normalize_name(name)
     matches = [account for account in accounts
                if str(account.get("parent_id")) == str(parent["id"])
-               and normalize_name(account["name"]) == normalize_name(name)]
+               and normalize_name(account["name"]) == target_name]
+    if not matches:
+        target_stem = target_name.rstrip("s")
+        matches = [account for account in accounts
+                   if str(account.get("parent_id")) == str(parent["id"])
+                   and normalize_name(account["name"]).rstrip("s") == target_stem]
     if len(matches) != 1:
         raise EvidenceError("uncertain_pocket_mapping")
     return matches[0]
