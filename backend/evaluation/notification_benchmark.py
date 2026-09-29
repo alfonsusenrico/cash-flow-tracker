@@ -352,6 +352,7 @@ def revision_identity() -> dict:
 
 
 async def run_live(reasoning_efforts: list[str], *, repeats: int, partition: str,
+                   model: str = MODEL_ID,
                    max_estimated_usd: float = DEFAULT_MAX_ESTIMATED_USD):
     reasoning_efforts = selected_reasoning_efforts(reasoning_efforts)
     if max_estimated_usd <= 0:
@@ -367,7 +368,7 @@ async def run_live(reasoning_efforts: list[str], *, repeats: int, partition: str
         "prompt_version": PROMPT_VERSION, "prompt_hash": hashlib.sha256(system_prompt().encode()).hexdigest(),
         "fixture_version": FIXTURE_VERSION,
         "fixture_hash": hashlib.sha256(json.dumps([{"event": case.event, "context": case.context, "expected": case.expected} for case in cases], default=str, sort_keys=True).encode()).hexdigest(),
-        "partition": partition, **revision_identity(), "model": MODEL_ID, "configurations": {},
+        "partition": partition, **revision_identity(), "model": model, "configurations": {},
         "settings": {"max_output_tokens": MAX_OUTPUT_TOKENS, "store": False, "tools": [], "interval_seconds": 0.5},
         "cost": {
             "pricing_usd_per_million_tokens": {
@@ -383,12 +384,12 @@ async def run_live(reasoning_efforts: list[str], *, repeats: int, partition: str
             provider = OpenAINotificationProvider(
                 client,
                 api_key=credential,
-                model=MODEL_ID,
+                model=model,
                 reasoning_effort=reasoning_effort,
             )
             result = await evaluate_model(provider, cases, repeats=repeats)
             result["reasoning_effort"] = reasoning_effort
-            result["operational_model_permitted"] = MODEL_ID in OPERATIONAL_MODELS
+            result["operational_model_permitted"] = model in OPERATIONAL_MODELS
             result["activation_recommended"] = False
             report["configurations"][reasoning_effort] = result
     return report
@@ -397,6 +398,7 @@ async def run_live(reasoning_efforts: list[str], *, repeats: int, partition: str
 def main():
     parser = argparse.ArgumentParser(description="Synthetic-only notification benchmark; never reads or writes runtime records")
     parser.add_argument("--live", action="store_true", help="Explicitly allow synthetic provider requests using OPENAI_API_KEY")
+    parser.add_argument("--model", default=MODEL_ID, choices=sorted(OPERATIONAL_MODELS), help="Target model for synthetic benchmark")
     parser.add_argument("--reasoning-efforts", nargs="+", default=["low"], choices=REASONING_ORDER)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--partition", choices=("all", "development", "held_out"), default="all")
@@ -411,6 +413,7 @@ def main():
             arguments.reasoning_efforts,
             repeats=arguments.repeats,
             partition=arguments.partition,
+            model=arguments.model,
             max_estimated_usd=arguments.max_estimated_usd,
         ))
     except (ProviderError, BenchmarkBudgetExceeded, ValueError) as exc:
