@@ -279,7 +279,15 @@ def test_investment_valuation_updates_without_transactions():
     mock_cur = MagicMock()
     mock_conn.cursor.return_value.__enter__.return_value = mock_cur
 
-    with patch("app.routers.accounts.db_conn", return_value=mock_conn):
+    # TestClient runs the application lifespan, which opens the shared database
+    # pool before the route-level db_conn mock is reached.  Keep this unit test
+    # isolated so a missing local Postgres service cannot make it wait forever.
+    with (
+        patch("app.main.open_db_pool"),
+        patch("app.main.close_db_pool"),
+        patch("app.main.init_db_schema"),
+        patch("app.routers.accounts.db_conn", return_value=mock_conn),
+    ):
         mock_cur.fetchone.return_value = {
             "id": acc_id,
             "type": "investment",
@@ -350,7 +358,12 @@ def test_user_settings_and_currency_rates():
     mock_conn.__enter__.return_value = mock_conn
     mock_conn.cursor.return_value.__enter__.return_value = mock_cur
 
-    with patch("app.main.init_db_schema"), patch("app.routers.auth.db_conn", return_value=mock_conn):
+    with (
+        patch("app.main.open_db_pool"),
+        patch("app.main.close_db_pool"),
+        patch("app.main.init_db_schema"),
+        patch("app.routers.auth.db_conn", return_value=mock_conn),
+    ):
         mock_cur.fetchone.return_value = {
             "id": user_id,
             "username": "tester",
@@ -387,5 +400,3 @@ def test_user_settings_and_currency_rates():
             assert "USD" in rates_json["rates"]
 
     app.dependency_overrides.clear()
-
-
