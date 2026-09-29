@@ -87,12 +87,29 @@ def retry_after_seconds(value: str | None) -> float:
     return max(0, min(3600, delay))
 
 
+def strict_json_schema(schema: dict) -> dict:
+    """OpenAI strict mode needs every property required and no defaults, at every level."""
+    def visit(node):
+        if isinstance(node, dict):
+            node.pop("default", None)
+            if node.get("type") == "object" and "properties" in node:
+                node["required"] = list(node["properties"])
+                node["additionalProperties"] = False
+            for value in node.values():
+                visit(value)
+        elif isinstance(node, list):
+            for value in node:
+                visit(value)
+    visit(schema)
+    return schema
+
+
 def response_schema() -> dict:
     return {
         "type": "json_schema",
         "name": "notification_interpretation",
         "strict": True,
-        "schema": Interpretation.model_json_schema(),
+        "schema": strict_json_schema(Interpretation.model_json_schema()),
     }
 
 
@@ -157,6 +174,9 @@ class OpenAINotificationProvider:
             proposal = Interpretation.model_validate_json(response.output_text)
             if proposal.direction == "income" and proposal.kakeibo is not None:
                 proposal = proposal.model_copy(update={"kakeibo": None})
+            # Movement categories and Kakeibo are assigned by the backend, never by the model.
+            if proposal.direction == "internal_movement" and (proposal.category_id or proposal.kakeibo):
+                proposal = proposal.model_copy(update={"category_id": None, "kakeibo": None})
             return proposal
         except ProviderError:
             raise

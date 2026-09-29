@@ -64,8 +64,8 @@ def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Int
         if facts.institution != "jago":
             raise EvidenceError("incomplete_movement")
         parent = institution_parent(accounts, "jago")
-        source = pocket_endpoint(facts.parsed.source_pocket, parent, accounts)
-        target = pocket_endpoint(facts.parsed.target_pocket, parent, accounts)
+        source = pocket_endpoint(facts.parsed.source_pocket, parent, accounts, institution="jago")
+        target = pocket_endpoint(facts.parsed.target_pocket, parent, accounts, institution="jago")
         if str(source["id"]) == str(target["id"]):
             raise EvidenceError("same_movement_endpoint")
         description = f"Pindah saldo ke {target['name']}"
@@ -154,8 +154,8 @@ def resolve_record(facts: NotificationFacts, proposal: Interpretation, context: 
         if facts.institution != "jago":
             raise EvidenceError("incomplete_movement")
         parent = institution_parent(accounts, "jago")
-        source = pocket_endpoint(facts.parsed.source_pocket, parent, accounts)
-        target = pocket_endpoint(facts.parsed.target_pocket, parent, accounts)
+        source = pocket_endpoint(facts.parsed.source_pocket, parent, accounts, institution="jago")
+        target = pocket_endpoint(facts.parsed.target_pocket, parent, accounts, institution="jago")
         if str(source["id"]) != str(proposal.source_account_id) or str(target["id"]) != str(proposal.target_account_id):
             raise EvidenceError("conflicting_movement_endpoints")
         if str(source["id"]) == str(target["id"]):

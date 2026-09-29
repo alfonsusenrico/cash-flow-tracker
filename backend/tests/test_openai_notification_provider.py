@@ -162,6 +162,7 @@ def test_context_is_owner_scoped_bounded_and_uses_separate_candidates():
         [{"id": "category", "name": "Kategori Dinamis", "kind": "expense"}],
         [], [{"description": "Toko Fiksi token=private-value", "id": "recent"}],
         [{"id": "outside-history", "type": "income", "amount": 125000}],
+        [],
     ]
     result = load_context(cur, "owner", collect_facts(event()), history_limit=20)
     assert result["candidates"][0]["id"] == "outside-history"
@@ -175,10 +176,25 @@ def test_context_is_owner_scoped_bounded_and_uses_separate_candidates():
 def test_candidate_overflow_cannot_become_a_unique_match():
     cur = MagicMock()
     cur.fetchone.return_value = {}
-    cur.fetchall.side_effect = [[], [], [], [], [{"id": str(index)} for index in range(51)]]
+    cur.fetchall.side_effect = [[], [], [], [], [{"id": str(index)} for index in range(51)], []]
     result = load_context(cur, "owner", collect_facts(event()))
     assert result["incomplete"] is True
     assert len(result["candidates"]) == 50
+
+
+def test_provider_drops_model_category_for_movements():
+    data = proposal(
+        direction="internal_movement", direction_evidence="has been moved", account_id=None,
+        source_account_id="00000000-0000-4000-8000-000000000003",
+        target_account_id="00000000-0000-4000-8000-000000000005", kakeibo="saving",
+    )
+
+    def handler(request):
+        return httpx2.Response(200, json=envelope(data))
+
+    interpreted = run_provider(handler)
+    assert interpreted.direction == "internal_movement"
+    assert interpreted.category_id is None and interpreted.kakeibo is None
 
 
 def test_provider_normalizes_income_kakeibo_to_none():

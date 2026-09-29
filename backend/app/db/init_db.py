@@ -264,6 +264,7 @@ def init_db_schema() -> None:
                 WHERE remaining_amount <= 0 AND is_archived = false;
             """)
             cur.execute(Path(__file__).with_name("notification_processing.sql").read_text(encoding="utf-8"))
+            cur.execute(Path(__file__).with_name("notification_mapping.sql").read_text(encoding="utf-8"))
             conn.commit()
 
 

@@ -20,6 +20,10 @@ from app.services.notification_application import (
 from app.services.notification_context import load_context, sanitize_text
 from app.services.notification_evidence import EvidenceError, collect_facts
 from app.services.notification_interpretation import PROMPT_VERSION
+from app.services.notification_mapping import (
+    mapping_decision, mark_automatic_mapping, proposal_view, request_confirmation, store_aliases,
+    supports_confirmation,
+)
 from app.services.openai_notification_provider import ProviderError, configuration_error
 
 
@@ -80,6 +84,8 @@ def compact_result(cur, event: dict) -> dict:
                 result["transaction_id"] = str(transaction["id"])
     elif event.get("error_code"):
         result["error_code"] = event["error_code"]
+    if status == "needs_confirmation":
+        result["mapping_proposal"] = proposal_view(cur, event)
     return result
 
 
@@ -253,6 +259,24 @@ def apply_deterministic_fallback(conn, cur, event: dict, facts, context: dict, r
         raise EvidenceError(reason_code) from None
 
 
+def apply_mapped_proposal(conn, cur, event: dict, facts, context: dict, proposal) -> None:
+    """Apply the model's account choices for unresolved names per the confidence threshold."""
+    decision = mapping_decision(proposal, context)
+    user_id = str(event["user_id"])
+    if decision["confidence"] >= settings.notification_mapping_auto_threshold:
+        with conn.transaction():
+            store_aliases(cur, user_id, decision["entries"], "ai")
+            refreshed = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit)
+            if refreshed["facts"].get("mapping_error"):
+                raise EvidenceError("invalid_mapping_proposal")
+            apply_interpretation(cur, event, facts, proposal, refreshed, source="ai")
+            mark_automatic_mapping(cur, event, decision)
+    elif supports_confirmation(event):
+        request_confirmation(cur, event, decision)
+    else:
+        raise EvidenceError(context["facts"]["mapping_error"])
+
+
 def apply_claim(event: dict, proposal, provider_error: str | None = None) -> bool:
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -276,6 +300,9 @@ def apply_claim(event: dict, proposal, provider_error: str | None = None) -> boo
                 else:
                     apply_interpretation(cur, owned, facts, deterministic_interpretation(facts, context), context,
                                          source="deterministic")
+            elif (context["facts"].get("unresolved_names") and proposal is not None
+                  and proposal.outcome == "record"):
+                apply_mapped_proposal(conn, cur, owned, facts, context, proposal)
             elif proposal is not None and proposal.outcome == "ignored":
                 apply_interpretation(cur, owned, facts, proposal, context)
             else:
@@ -363,7 +390,7 @@ def resolve_event(event_id: str, user_id: str, resolution: dict) -> dict:
             if current["status"] == "recorded" and (event.get("interpretation") or {}).get("source") == "manual":
                 conn.commit()
                 return current
-            if current["status"] not in {"needs_review", "failed"}:
+            if current["status"] not in {"needs_review", "failed", "needs_confirmation"}:
                 raise HTTPException(status_code=409, detail="Only unresolved notifications can be recorded manually")
             facts = collect_facts(source_event(event))
             amount = resolution.get("amount")
@@ -394,6 +421,45 @@ def resolve_event(event_id: str, user_id: str, resolution: dict) -> dict:
             except EvidenceError as exc:
                 raise HTTPException(status_code=422, detail={"code": exc.code, "message": "Pilihan akun atau kategori tidak valid."}) from None
             cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s", (user_id, event_id))
+            result = compact_result(cur, cur.fetchone())
+        conn.commit()
+    return result
+
+
+def confirm_mapping(event_id: str, user_id: str, account_id: str) -> dict:
+    """Owner confirms or corrects a proposed account; the event is reprocessed with the new alias."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{user_id}",))
+            cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (user_id, event_id))
+            event = cur.fetchone()
+            if not event:
+                raise HTTPException(status_code=404, detail="Notification event not found")
+            proposal = (event.get("interpretation") or {}).get("mapping_proposal")
+            if event["processing_state"] != "needs_confirmation" or not proposal:
+                raise HTTPException(status_code=409, detail="Notifikasi ini tidak menunggu konfirmasi rekening")
+            cur.execute(
+                """SELECT id, type, instrument_type FROM accounts
+                   WHERE user_id = %s AND id = %s AND is_archived = FALSE""",
+                (user_id, account_id),
+            )
+            account = cur.fetchone()
+            if not account or account["type"] not in {"bank", "cash", "wallet", "ewallet"} or account.get("instrument_type"):
+                raise HTTPException(status_code=422, detail={
+                    "code": "invalid_account_reference", "message": "Pilih rekening atau kantong yang aktif.",
+                })
+            store_aliases(cur, user_id, [{**proposal, "account_id": account_id}], "owner")
+            mode = event["processing_mode"]
+            if mode == "ai" and configuration_error(settings):
+                mode = "deterministic"
+            cur.execute(
+                """UPDATE notification_events SET processing_state = 'queued', processing_mode = %s,
+                       attempt_count = 0, processing_generation = processing_generation + 1,
+                       next_attempt_at = NOW(), error_code = NULL, interpretation = NULL,
+                       lease_token = NULL, lease_expires_at = NULL, updated_at = NOW()
+                   WHERE user_id = %s AND id = %s RETURNING *""",
+                (mode, user_id, event_id),
+            )
             result = compact_result(cur, cur.fetchone())
         conn.commit()
     return result

@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, getApiKeyInfo, rotateApiKey, type ApiKeyMetadata } from "@/lib/api";
+import {
+  api, deleteNotificationAlias, getApiKeyInfo, getNotificationAliases, rotateApiKey, type ApiKeyMetadata,
+} from "@/lib/api";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -52,6 +54,22 @@ export function SettingsModal({ open, onClose }: Props) {
     queryKey: queryKeys.auth.apiKey,
     queryFn: getApiKeyInfo,
     enabled: open,
+  });
+
+  const { data: aliasData, isError: aliasesFailed } = useQuery({
+    queryKey: queryKeys.notificationAliases,
+    queryFn: getNotificationAliases,
+    enabled: open,
+  });
+
+  const [aliasError, setAliasError] = useState("");
+  const removeAliasMut = useMutation({
+    mutationFn: deleteNotificationAlias,
+    onSuccess: () => {
+      setAliasError("");
+      qc.invalidateQueries({ queryKey: queryKeys.notificationAliases });
+    },
+    onError: (e: Error) => setAliasError(e.message || "Gagal menghapus pemetaan"),
   });
 
   const persistedUser = userData?.user || user;
@@ -437,6 +455,52 @@ export function SettingsModal({ open, onClose }: Props) {
                 </div>
               )}
             </div>
+          )}
+        </section>
+
+        <section aria-labelledby="notification-aliases-title" className="space-y-3 pt-3 border-t border-[var(--border)] text-xs">
+          <h3 id="notification-aliases-title" className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+            Nama dari Notifikasi Bank
+          </h3>
+          <p className="text-[11px] text-[var(--muted)]">
+            Nama rekening atau kantong di notifikasi yang sudah dipetakan ke rekening Anda. Hapus pemetaan yang salah;
+            transaksi yang sudah tercatat tidak berubah.
+          </p>
+          {aliasError && (
+            <div role="alert" className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-medium">
+              {aliasError}
+            </div>
+          )}
+          {aliasesFailed ? (
+            <p role="alert" className="text-rose-500">Daftar pemetaan gagal dimuat.</p>
+          ) : !aliasData ? (
+            <p className="text-[var(--muted)]">Memuat…</p>
+          ) : aliasData.aliases.length === 0 ? (
+            <p className="text-[var(--muted)]">Belum ada pemetaan.</p>
+          ) : (
+            <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+              {aliasData.aliases.map((alias) => (
+                <li key={alias.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-[var(--text)] truncate">
+                      {alias.name} <span aria-hidden="true">→</span><span className="sr-only">dipetakan ke</span> {alias.account}
+                    </div>
+                    <div className="text-[10px] text-[var(--muted)]">
+                      {alias.source === "owner" ? "Dikonfirmasi Anda" : "Dipetakan otomatis"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeAliasMut.mutate(alias.id)}
+                    disabled={removeAliasMut.isPending}
+                    aria-label={`Hapus pemetaan ${alias.name}`}
+                    className="min-h-11 shrink-0 rounded-xl border border-rose-500/25 px-3 font-semibold text-rose-600 disabled:opacity-50"
+                  >
+                    Hapus
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
 

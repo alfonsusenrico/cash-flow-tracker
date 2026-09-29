@@ -165,8 +165,8 @@ def trusted_decision(case: SyntheticCase, interpretation) -> dict:
     decision["timestamp"] = facts.timestamp.isoformat()
     if interpretation.direction == "internal_movement":
         parent = institution_parent(context["accounts"], "jago")
-        source = pocket_endpoint(facts.parsed.source_pocket, parent, context["accounts"])
-        target = pocket_endpoint(facts.parsed.target_pocket, parent, context["accounts"])
+        source = pocket_endpoint(facts.parsed.source_pocket, parent, context["accounts"], institution="jago")
+        target = pocket_endpoint(facts.parsed.target_pocket, parent, context["accounts"], institution="jago")
         if str(source["id"]) != str(interpretation.source_account_id) or str(target["id"]) != str(interpretation.target_account_id):
             raise EvidenceError("conflicting_movement_endpoints")
         return decision
@@ -357,12 +357,8 @@ def revision_identity() -> dict:
     return {"revision": revision, "dirty": dirty, "implementation_hash": implementation.hexdigest()}
 
 
-async def run_live(reasoning_efforts: list[str], *, repeats: int, partition: str,
-                   model: str = MODEL_ID,
-                   max_estimated_usd: float = DEFAULT_MAX_ESTIMATED_USD):
-    reasoning_efforts = selected_reasoning_efforts(reasoning_efforts)
-    if max_estimated_usd <= 0:
-        raise ValueError("Benchmark cost cap must be positive")
+def provider_credential() -> str:
+    """OPENAI_API_KEY from the environment or the repository .env; never logged or returned elsewhere."""
     credential = os.getenv("OPENAI_API_KEY", "").strip()
     if not credential:
         env_file = Path(__file__).resolve().parents[2] / ".env"
@@ -374,6 +370,16 @@ async def run_live(reasoning_efforts: list[str], *, repeats: int, partition: str
                     break
     if not credential:
         raise ProviderError("provider_credential_missing")
+    return credential
+
+
+async def run_live(reasoning_efforts: list[str], *, repeats: int, partition: str,
+                   model: str = MODEL_ID,
+                   max_estimated_usd: float = DEFAULT_MAX_ESTIMATED_USD):
+    reasoning_efforts = selected_reasoning_efforts(reasoning_efforts)
+    if max_estimated_usd <= 0:
+        raise ValueError("Benchmark cost cap must be positive")
+    credential = provider_credential()
     cases = [case for case in synthetic_cases() if partition == "all" or case.partition == partition]
     estimated_usd = estimated_run_cost(cases, repeats=repeats, configurations=len(reasoning_efforts))
     enforce_cost_cap(estimated_usd, max_estimated_usd)

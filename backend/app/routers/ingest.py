@@ -54,6 +54,10 @@ class NotificationResolution(BaseModel):
     kakeibo: Literal["need", "want", "culture", "unexpected", "saving"] | None = None
 
 
+class MappingConfirmation(BaseModel):
+    account_id: UUID
+
+
 class NotificationLabelUpdate(BaseModel):
     is_financial: bool | None = None
     event_class: str | None = Field(default=None, max_length=50)
@@ -142,7 +146,7 @@ def retry_notification(event_id: UUID, current_user: dict = Depends(get_current_
             if not event:
                 raise HTTPException(status_code=404, detail="Notification event not found")
             result = notification_processing.compact_result(cur, event)
-            if result["status"] not in {"needs_review", "failed"}:
+            if result["status"] not in {"needs_review", "failed", "needs_confirmation"}:
                 raise HTTPException(status_code=409, detail="Only unresolved notifications can be retried")
             mode = event["processing_mode"]
             if mode not in {"ai", "deterministic"}:
@@ -171,6 +175,52 @@ def resolve_notification(
     if resolution["notes"] is not None:
         resolution["notes"] = resolution["notes"].strip() or None
     return {"ok": True, "result": resolve_event(str(event_id), str(current_user["id"]), resolution)}
+
+
+@router.post("/notifications/{event_id}/confirm-mapping")
+def confirm_notification_mapping(
+    event_id: UUID, payload: MappingConfirmation, current_user: dict = Depends(get_current_user)
+):
+    from app.services.notification_processing import confirm_mapping
+
+    return {"ok": True, "result": confirm_mapping(str(event_id), str(current_user["id"]), str(payload.account_id))}
+
+
+@router.get("/aliases")
+def list_notification_aliases(current_user: dict = Depends(get_current_user)):
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT al.id, al.institution, al.name_display, al.account_id, al.source, al.created_at,
+                          a.name AS account_name, p.name AS parent_name
+                   FROM notification_account_aliases al
+                   JOIN accounts a ON a.id = al.account_id AND a.user_id = al.user_id
+                   LEFT JOIN accounts p ON p.id = a.parent_id AND p.user_id = a.user_id
+                   WHERE al.user_id = %s ORDER BY al.created_at DESC""",
+                (current_user["id"],),
+            )
+            rows = cur.fetchall()
+    return {"ok": True, "aliases": [{
+        "id": str(row["id"]), "institution": row["institution"], "name": row["name_display"],
+        "account_id": str(row["account_id"]),
+        "account": f"{row['parent_name']} · {row['account_name']}" if row["parent_name"] else row["account_name"],
+        "source": row["source"], "created_at": row["created_at"].isoformat(),
+    } for row in rows]}
+
+
+@router.delete("/aliases/{alias_id}")
+def delete_notification_alias(alias_id: UUID, current_user: dict = Depends(get_current_user)):
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM notification_account_aliases WHERE user_id = %s AND id = %s RETURNING id",
+                (current_user["id"], str(alias_id)),
+            )
+            deleted = cur.fetchone()
+        conn.commit()
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Alias not found")
+    return {"ok": True}
 
 
 @router.get("/notifications")

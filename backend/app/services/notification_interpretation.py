@@ -9,9 +9,20 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
 
 
-PROMPT_VERSION = "notification-interpretation-4"
+PROMPT_VERSION = "notification-interpretation-5"
 PROMPT_PATH = Path(__file__).with_name("prompts") / "notification_interpretation.md"
 Kakeibo = Literal["need", "want", "culture", "unexpected", "saving"]
+
+
+class MappingProposal(BaseModel):
+    """The model's choice of owned account for a name the backend could not resolve."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    role: Literal["observed", "source", "target"]
+    account_id: UUID
+    confidence: float = Field(ge=0, le=1)
+    alternatives: list[UUID] = Field(max_length=3)
 
 
 class Interpretation(BaseModel):
@@ -32,6 +43,7 @@ class Interpretation(BaseModel):
     candidate_transaction_id: UUID | None
     confidence: float = Field(ge=0, le=1)
     review_reason: Literal["uncertain_facts", "uncertain_mapping", "ambiguous_movement", "none"]
+    mappings: list[MappingProposal] = Field(default_factory=list, max_length=3)
 
     @model_validator(mode="after")
     def check_record_shape(self):
@@ -86,6 +98,14 @@ def validate_interpretation(
         category = categories.get(str(interpretation.category_id))
         if not category or category["kind"] != interpretation.direction:
             raise EvidenceError("invalid_category_reference")
+    roles = [mapping.role for mapping in interpretation.mappings]
+    if len(roles) != len(set(roles)):
+        raise EvidenceError("invalid_mapping_proposal")
+    for mapping in interpretation.mappings:
+        for reference in (mapping.account_id, *mapping.alternatives):
+            account = accounts.get(str(reference))
+            if not account or account.get("type") not in {"bank", "cash", "wallet", "ewallet"} or account.get("instrument_type"):
+                raise EvidenceError("invalid_mapping_proposal")
     if interpretation.candidate_transaction_id is not None:
         candidates = {str(candidate["id"]) for candidate in context.get("candidates", [])}
         if str(interpretation.candidate_transaction_id) not in candidates:
