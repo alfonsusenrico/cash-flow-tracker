@@ -1114,3 +1114,22 @@ def test_manual_merge_renames_notification_legs_only(client, top_up_owner):
     with db_conn() as conn:
         notes = {row["notes"] for row in conn.execute("SELECT notes FROM transactions WHERE id = ANY(%s)", (manual,)).fetchall()}
     assert notes == {"Catatan sendiri"}
+
+
+def test_wallet_moved_under_bank_receives_both_apps_notifications(client, notification_owner):
+    moved = client.patch(f"/api/accounts/{notification_owner['gopay']}", json={
+        "parent_id": notification_owner["jago"], "name": "GoPay Tabungan",
+    })
+    assert moved.status_code == 200, moved.text
+    from app.db.pool import db_conn
+    add_category(notification_owner, "belanja", "Belanja")
+    with db_conn() as conn:
+        conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, 'Kedai Awan', %s)",
+                     (notification_owner["user_id"], notification_owner["belanja"]))
+    payment = ingest(client, notification("QRIS Rp32.000 ke Kedai Awan berhasil", "com.gopay.wallet"))["results"][0]
+    assert (payment["status"], payment["type"], payment["source"]) == ("recorded", "expense", "Bank Jago · GoPay Tabungan"), payment
+    pocket_move = ingest(client, notification(
+        "Rp1.250.000 has been moved from your Main Pocket Pocket to your GoPay Tabungan Pocket.", "com.jago.digitalBanking",
+        seconds=40))["results"][0]
+    assert pocket_move["type"] == "internal_movement"
+    assert (pocket_move["source"], pocket_move["target"]) == ("Bank Jago · Kantong Utama", "Bank Jago · GoPay Tabungan")
