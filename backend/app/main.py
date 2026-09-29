@@ -67,7 +67,10 @@ def _requires_csrf_origin_check(request: Request) -> bool:
 
 import asyncio
 import logging
+import httpx2 as httpx
 from app.services.market_data import sync_all_tracked_prices
+from app.services.notification_processing import notification_worker
+from app.services.openai_notification_provider import OpenAINotificationProvider, configuration_error, dry_run_configuration_error
 
 logger = logging.getLogger("api")
 
@@ -79,6 +82,12 @@ async def _daily_price_sync_loop():
             with db_conn() as conn:
                 res = await sync_all_tracked_prices(conn)
                 logger.info(f"Daily price sync completed: {res}")
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            logger.warning("Daily price sync unavailable")
+        try:
+            await asyncio.sleep(86400)
         except asyncio.CancelledError:
             break
 
@@ -98,29 +107,49 @@ async def _recurring_scheduler_loop():
             await asyncio.sleep(60)
         except asyncio.CancelledError:
             break
-        except Exception as e:
-            logger.warning(f"Daily price sync error: {e}")
-        try:
-            await asyncio.sleep(86400)
-        except asyncio.CancelledError:
-            break
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
     open_db_pool()
     # Initialize baseline schema if not present
     try:
         init_db_schema()
     except Exception as e:
         print(f"Schema init warning (handled by migrations): {e}")
-    sync_task = asyncio.create_task(_daily_price_sync_loop())
-    recurring_task = asyncio.create_task(_recurring_scheduler_loop())
+    tasks = []
+    provider_client = None
+    provider = None
+    if configuration_error(settings) is None or dry_run_configuration_error(settings) is None:
+        provider_client = httpx.AsyncClient(
+            follow_redirects=False, trust_env=False,
+            limits=httpx.Limits(max_connections=1, max_keepalive_connections=1),
+        )
+        provider = OpenAINotificationProvider(
+            provider_client, api_key=settings.openai_api_key,
+            model=settings.notification_ai_model,
+            reasoning_effort=settings.notification_ai_reasoning_effort,
+            timeout=settings.notification_ai_timeout,
+        )
+    app.state.notification_provider = provider
+    worker_provider = provider if configuration_error(settings) is None else None
+    dry_run_only = (
+        settings.app_env == "development"
+        and settings.notification_ai_dry_run_enabled
+        and not settings.notification_ai_enabled
+    )
+    if not dry_run_only:
+        tasks.append(asyncio.create_task(_daily_price_sync_loop()))
+        tasks.append(asyncio.create_task(_recurring_scheduler_loop()))
+        tasks.append(asyncio.create_task(notification_worker(worker_provider)))
     try:
         yield
     finally:
-        sync_task.cancel()
-        recurring_task.cancel()
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        if provider_client:
+            await provider_client.aclose()
         close_db_pool()
 
 

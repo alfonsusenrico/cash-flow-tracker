@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 from typing import Any
 from app.db.pool import db_conn
 
@@ -261,6 +262,7 @@ def init_db_schema() -> None:
                 SET is_archived = true, updated_at = NOW()
                 WHERE remaining_amount <= 0 AND is_archived = false;
             """)
+            cur.execute(Path(__file__).with_name("notification_processing.sql").read_text(encoding="utf-8"))
             conn.commit()
 
 

@@ -3,103 +3,64 @@ from decimal import Decimal
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+import psycopg
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services.auth import get_current_user
+from app.services.notification_evidence import collect_facts, EvidenceError
+from app.services.notification_resolution import observed_endpoint, pocket_endpoint
+from evaluation.notification_cases import synthetic_cases
+
+
+def route_payload(hash_value="synthetic-payload"):
+    return {
+        "device_id": "synthetic-device", "package_name": "com.jago.digitalbanking",
+        "body_text": "You've paid Rp125.000 to Kedai Awan",
+        "post_time": "2026-09-28T10:00:27Z", "payload_hash": hash_value,
+    }
 
 
 def test_ingest_notifications_success():
-    mock_user = {
-        "id": "11111111-1111-1111-1111-111111111111",
-        "username": "tester",
-        "currency": "IDR",
-        "payday_day": 25,
-    }
-
-    app.dependency_overrides[get_current_user] = lambda: mock_user
-
-    payload = {
-        "events": [
-            {
-                "device_id": "test_pixel_7",
-                "package_name": "id.co.bca.mybca.omni.android",
-                "app_label": "myBCA",
-                "notification_key": "0|id.co.bca.mybca.omni.android|101|null|10001",
-                "notification_id": 101,
-                "channel_id": "trans_alerts",
-                "category": "msg",
-                "title": "Transaksi Berhasil",
-                "body_text": "Transfer QRIS Rp 50.000 ke Kopi Kenangan berhasil",
-                "big_text": "Transfer QRIS Rp 50.000 ke Kopi Kenangan berhasil",
-                "sub_text": None,
-                "summary_text": None,
-                "post_time": "2026-09-14T10:00:00Z",
-                "payload_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                "raw_extras": {"android.title": "Transaksi Berhasil"},
-                "source_version": "1.0.0",
-                "is_financial": True,
-                "event_class": "expense",
-                "expected_amount": 50000.0,
-                "expected_direction": "out",
-                "expected_counterparty": "Kopi Kenangan",
-                "label_notes": "Ground truth coffee purchase",
-            }
-        ]
-    }
-
-    with patch("app.routers.ingest.db_conn") as mock_conn:
-        cur = MagicMock()
-        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
-        cur.fetchone.return_value = {"id": str(uuid4())}
-
-        client = TestClient(app, raise_server_exceptions=True)
-        res = client.post("/api/ingest/notifications", json=payload)
-
-        assert res.status_code == 200
-        data = res.json()
-        assert data["ok"] is True
-        assert data["inserted"] == 1
-        assert data["updated"] == 0
-        assert data["received"] == 1
+    user_id = str(uuid4())
+    app.dependency_overrides[get_current_user] = lambda: {"id": user_id}
+    result = {"payload_hash": "synthetic-payload", "event_id": str(uuid4()), "status": "recorded"}
+    with patch("app.services.notification_processing.accept_event", return_value=(result, True, 1)) as accept:
+        response = TestClient(app).post("/api/ingest/notifications", json={"events": [route_payload()]})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ok"] and data["received"] == data["inserted"] == data["created_transactions"] == 1
+    assert data["updated"] == 0 and data["results"] == [result]
+    assert accept.call_args.args[1] == user_id
+    assert accept.call_args.args[0]["post_time"].second == 27
 
 
 def test_ingest_notifications_deduplicate_update():
-    mock_user = {
-        "id": "11111111-1111-1111-1111-111111111111",
-        "username": "tester",
-        "currency": "IDR",
-        "payday_day": 25,
-    }
+    app.dependency_overrides[get_current_user] = lambda: {"id": str(uuid4())}
+    result = {"payload_hash": "synthetic-payload", "event_id": str(uuid4()), "status": "queued"}
+    with patch("app.services.notification_processing.accept_event", return_value=(result, False, 0)):
+        response = TestClient(app).post("/api/ingest/notifications", json={"events": [route_payload()]})
+    data = response.json()
+    assert data["ok"] and data["inserted"] == data["created_transactions"] == 0
+    assert data["updated"] == 1 and data["results"] == [result]
+    assert "record_key" not in data["results"][0]
 
-    app.dependency_overrides[get_current_user] = lambda: mock_user
 
-    payload = {
-        "events": [
-            {
-                "device_id": "test_pixel_7",
-                "package_name": "com.jago.digitalbanking",
-                "title": "Kantong Utama berkurang",
-                "body_text": "Rp 25.000 terdebit untuk GoPay Top Up",
-                "post_time": "2026-09-14T11:00:00Z",
-                "payload_hash": "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0",
-            }
-        ]
-    }
-
-    with patch("app.routers.ingest.db_conn") as mock_conn:
-        cur = MagicMock()
-        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
-        cur.fetchone.side_effect = [None, {"id": str(uuid4()), "transaction_id": None}]
-
-        client = TestClient(app, raise_server_exceptions=True)
-        res = client.post("/api/ingest/notifications", json=payload)
-
-        assert res.status_code == 200
-        data = res.json()
-        assert data["ok"] is True
-        assert data["inserted"] == 0
-        assert data["updated"] == 1
+def test_batch_failure_preserves_other_events_and_input_order():
+    app.dependency_overrides[get_current_user] = lambda: {"id": str(uuid4())}
+    recorded = {"payload_hash": "first", "event_id": str(uuid4()), "status": "recorded"}
+    queued = {"payload_hash": "last", "event_id": str(uuid4()), "status": "queued"}
+    with patch("app.services.notification_processing.accept_event",
+               side_effect=[(recorded, True, 1), psycopg.OperationalError("synthetic failure"), (queued, True, 0)]):
+        response = TestClient(app).post("/api/ingest/notifications", json={
+            "events": [route_payload("first"), route_payload("failed"), route_payload("last")]
+        })
+    data = response.json()
+    assert response.status_code == 200 and data["ok"] is False
+    assert data["inserted"] == 2 and data["created_transactions"] == 1
+    assert [item["payload_hash"] for item in data["results"]] == ["first", "failed", "last"]
+    assert data["results"][1] == {"payload_hash": "failed", "status": "failed", "error_code": "acceptance_failed"}
 
 
 def test_get_notifications_list():
@@ -193,374 +154,29 @@ def test_update_notification_label():
         assert data["event_id"] == event_id
 
 
-def test_ingest_stockbit_routes_to_default_funding_account():
-    mock_user = {
-        "id": "11111111-1111-1111-1111-111111111111",
-        "username": "tester",
-        "currency": "IDR",
-        "payday_day": 25,
-    }
-    app.dependency_overrides[get_current_user] = lambda: mock_user
-
-    stockbit_id = str(uuid4())
-    rdn_bca_id = str(uuid4())
-    bbri_pocket_id = str(uuid4())
-
-    payload = {
-        "events": [
-            {
-                "device_id": "test_phone",
-                "package_name": "com.stockbit.android",
-                "title": "Pembelian BBRI Fully Match",
-                "body_text": "Pembelian 10 lot BBRI match di harga Rp3.340",
-                "post_time": "2026-09-15T10:00:00Z",
-                "payload_hash": "stockbit_test_hash_12345",
-            }
-        ]
-    }
-
-    locked = {
-        rdn_bca_id: {"id": rdn_bca_id, "type": "bank"},
-        bbri_pocket_id: {"id": bbri_pocket_id, "type": "investment", "instrument_type": "stock"},
-    }
-    with patch("app.routers.ingest.db_conn") as mock_conn, \
-         patch("app.routers.ingest.get_instrument_quote", return_value={"price": 3320}), \
-         patch("app.routers.ingest.get_locked_ledger_balance", return_value=10_000_000), \
-         patch("app.routers.ingest.lock_owned_accounts", return_value=locked):
-        cur = MagicMock()
-        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
-
-        cur.fetchall.side_effect = [
-            [{"id": str(uuid4()), "name": "Investasi", "kind": "expense", "kakeibo_type": "saving", "is_excluded_from_budget": True}],
-            [],
-            [
-                {"id": rdn_bca_id, "name": "RDN BCA", "type": "bank", "default_funding_account_id": None},
-                {"id": stockbit_id, "name": "Stockbit", "type": "investment", "default_funding_account_id": rdn_bca_id},
-            ],
-        ]
-        cur.fetchone.side_effect = [
-            {"id": str(uuid4())},  # claimed event
-            None,  # existing pocket check -> None (create new)
-            {"id": bbri_pocket_id},  # created pocket
-            {"id": str(uuid4())},  # created expense tx
-            {"id": str(uuid4())},  # created income tx
-        ]
-
-        client = TestClient(app, raise_server_exceptions=True)
-        res = client.post("/api/ingest/notifications", json=payload)
-
-        assert res.status_code == 200
-        assert res.json()["created_transactions"] == 2
-
-        pocket_insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO accounts" in str(c)]
-        assert len(pocket_insert_calls) == 1
-        p_args = pocket_insert_calls[0][0][1]
-        assert p_args[1] == stockbit_id  # parent_id
-        assert p_args[2] == "BBRI"  # name
-        assert p_args[3] == "BBRI.JK"  # instrument_symbol
-        assert p_args[4] == 1000.0  # units
-        assert p_args[5] == 3340  # avg_buy_price
-        assert p_args[6] == 3320  # last_price from live quote
-
-        insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
-        assert len(insert_calls) == 2
-        exp_args = insert_calls[0][0][1]
-        assert exp_args[1] == rdn_bca_id
-        assert exp_args[4] == 3340000
-
-        inc_args = insert_calls[1][0][1]
-        assert inc_args[1] == bbri_pocket_id  # targeted to BBRI pocket!
-        assert inc_args[4] == 3340000
+@pytest.mark.parametrize("case_name", [
+    "jago-custom", "jago-into", "jago-out",
+])
+def test_jago_resolves_only_registered_pockets(case_name):
+    cases = {case.name: case for case in synthetic_cases()}
+    case = cases[case_name]
+    facts = collect_facts(case.event)
+    parent = next(row for row in case.context["accounts"] if row["name"] == "Bank Jago")
+    assert str(pocket_endpoint(facts.parsed.source_pocket, parent, case.context["accounts"])["id"]) == case.expected["source_account_id"]
+    assert str(pocket_endpoint(facts.parsed.target_pocket, parent, case.context["accounts"])["id"]) == case.expected["target_account_id"]
 
 
-def test_ingest_stockbit_accumulates_existing_stock_pocket():
-    mock_user = {
-        "id": "11111111-1111-1111-1111-111111111111",
-        "username": "tester",
-        "currency": "IDR",
-        "payday_day": 25,
-    }
-    app.dependency_overrides[get_current_user] = lambda: mock_user
-
-    stockbit_id = str(uuid4())
-    rdn_bca_id = str(uuid4())
-    bbri_pocket_id = str(uuid4())
-
-    payload = {
-        "events": [
-            {
-                "device_id": "test_phone",
-                "package_name": "com.stockbit.android",
-                "title": "Pembelian BBRI Fully Match",
-                "body_text": "Pembelian 4 lot BBRI match di harga Rp3.400",
-                "post_time": "2026-09-15T11:00:00Z",
-                "payload_hash": "stockbit_test_hash_67890",
-            }
-        ]
-    }
-
-    locked = {
-        rdn_bca_id: {"id": rdn_bca_id, "type": "bank"},
-        bbri_pocket_id: {"id": bbri_pocket_id, "type": "investment", "instrument_type": "stock"},
-    }
-    with patch("app.routers.ingest.db_conn") as mock_conn, \
-         patch("app.routers.ingest.get_instrument_quote", return_value={"price": 3410}), \
-         patch("app.routers.ingest.get_locked_ledger_balance", return_value=10_000_000), \
-         patch("app.routers.ingest.lock_owned_accounts", return_value=locked):
-        cur = MagicMock()
-        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
-
-        cur.fetchall.side_effect = [
-            [{"id": str(uuid4()), "name": "Investasi", "kind": "expense", "kakeibo_type": "saving", "is_excluded_from_budget": True}],
-            [],
-            [
-                {"id": rdn_bca_id, "name": "RDN BCA", "type": "bank", "default_funding_account_id": None, "parent_id": None},
-                {"id": stockbit_id, "name": "Stockbit", "type": "investment", "default_funding_account_id": rdn_bca_id, "parent_id": None},
-            ],
-        ]
-        # Existing pocket has 1,000 shares @ Rp 3.300
-        cur.fetchone.side_effect = [
-            {"id": str(uuid4())},  # claimed event
-            {"id": bbri_pocket_id, "units": 1000.0, "avg_buy_price": 3300, "last_price": 3300},  # existing pocket
-            {"id": str(uuid4())},  # created expense tx
-            {"id": str(uuid4())},  # created income tx
-        ]
-
-        client = TestClient(app, raise_server_exceptions=True)
-        res = client.post("/api/ingest/notifications", json=payload)
-
-        assert res.status_code == 200
-        assert res.json()["created_transactions"] == 2
-
-        update_calls = [c for c in cur.execute.call_args_list if "UPDATE accounts" in str(c)]
-        assert len(update_calls) == 1
-        u_args = update_calls[0][0][1]
-        assert u_args[0] == 1400.0  # new_units
-        assert u_args[1] == 3329  # new weighted avg_buy_price
-        assert u_args[2] == 3410  # last_price updated
-        assert u_args[3] == "BBRI.JK"
-        assert u_args[4] == bbri_pocket_id
-
-        insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
-        assert len(insert_calls) == 2
-        assert insert_calls[0][0][1][8] is None  # Kakeibo decoupled!
-
-
-def test_ingest_jago_pocket_transfer_resolves_child_pockets():
-    mock_user = {
-        "id": "11111111-1111-1111-1111-111111111111",
-        "username": "tester",
-        "currency": "IDR",
-        "payday_day": 25,
-    }
-    app.dependency_overrides[get_current_user] = lambda: mock_user
-
-    jago_parent_id = str(uuid4())
-    main_pocket_id = str(uuid4())
-    gopay_tabungan_id = str(uuid4())
-
-    payload = {
-        "events": [
-            {
-                "device_id": "test_pixel_7",
-                "package_name": "com.jago.digitalbanking",
-                "title": "Kantong Berpindah",
-                "body_text": "Rp500.000 has been moved from your Main Pocket Pocket to your GoPay Tabungan Pocket.",
-                "post_time": "2026-09-15T12:00:00Z",
-                "payload_hash": "jago_pocket_test_hash_111",
-            }
-        ]
-    }
-
-    locked = {
-        main_pocket_id: {"id": main_pocket_id, "type": "bank", "is_savings": False},
-        gopay_tabungan_id: {"id": gopay_tabungan_id, "type": "bank", "is_savings": True},
-    }
-    with patch("app.routers.ingest.db_conn") as mock_conn, \
-         patch("app.routers.ingest.get_locked_ledger_balance", return_value=10_000_000), \
-         patch("app.routers.ingest.lock_owned_accounts", return_value=locked):
-        cur = MagicMock()
-        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
-
-        cur.fetchall.side_effect = [
-            [
-                {"id": str(uuid4()), "name": "Internal Movement", "kind": "expense", "kakeibo_type": "need", "is_excluded_from_budget": True},
-                {"id": str(uuid4()), "name": "Internal Movement", "kind": "income", "kakeibo_type": None, "is_excluded_from_budget": True},
-            ],
-            [],
-            [
-                {"id": jago_parent_id, "name": "Bank Jago", "type": "bank", "default_funding_account_id": None, "parent_id": None},
-                {"id": main_pocket_id, "name": "Kantong Utama", "type": "bank", "default_funding_account_id": None, "parent_id": jago_parent_id},
-                {"id": gopay_tabungan_id, "name": "GoPay Tabungan", "type": "bank", "default_funding_account_id": None, "parent_id": jago_parent_id},
-            ],
-        ]
-        cur.fetchone.side_effect = [
-            {"id": str(uuid4())},  # claimed event
-            {"id": str(uuid4())},  # created expense tx
-            {"id": str(uuid4())},  # created income tx
-        ]
-
-        client = TestClient(app, raise_server_exceptions=True)
-        res = client.post("/api/ingest/notifications", json=payload)
-
-        assert res.status_code == 200
-        assert res.json()["created_transactions"] == 2
-
-        insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
-        assert len(insert_calls) == 2
-        exp_args = insert_calls[0][0][1]
-        assert exp_args[1] == main_pocket_id  # resolved source child pocket
-        assert exp_args[4] == 500000
-        assert exp_args[8] == "saving"
-
-        inc_args = insert_calls[1][0][1]
-        assert inc_args[1] == gopay_tabungan_id  # resolved target child pocket
-        assert inc_args[4] == 500000
-
-
-def test_ingest_jago_custom_pockets_transfer():
-    mock_user = {
-        "id": "11111111-1111-1111-1111-111111111111",
-        "username": "tester",
-        "currency": "IDR",
-        "payday_day": 25,
-    }
-    app.dependency_overrides[get_current_user] = lambda: mock_user
-
-    jago_parent_id = str(uuid4())
-    jajan_pocket_id = str(uuid4())
-    tabungan_pocket_id = str(uuid4())
-
-    payload = {
-        "events": [
-            {
-                "device_id": "test_pixel_7",
-                "package_name": "com.jago.digitalBanking",
-                "title": "Kantong Berpindah",
-                "body_text": "Rp 50.000 has been moved from your Jajan Pocket to your Tabungan Pocket",
-                "post_time": "2026-09-15T12:30:00Z",
-                "payload_hash": "jago_pocket_test_hash_222",
-            }
-        ]
-    }
-
-    locked = {
-        jajan_pocket_id: {"id": jajan_pocket_id, "type": "bank", "is_savings": False},
-        tabungan_pocket_id: {"id": tabungan_pocket_id, "type": "bank", "is_savings": True},
-    }
-    with patch("app.routers.ingest.db_conn") as mock_conn, \
-         patch("app.routers.ingest.get_locked_ledger_balance", return_value=10_000_000), \
-         patch("app.routers.ingest.lock_owned_accounts", return_value=locked):
-        cur = MagicMock()
-        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
-
-        cur.fetchall.side_effect = [
-            [
-                {"id": str(uuid4()), "name": "Internal Movement", "kind": "expense", "kakeibo_type": "need", "is_excluded_from_budget": True},
-                {"id": str(uuid4()), "name": "Internal Movement", "kind": "income", "kakeibo_type": None, "is_excluded_from_budget": True},
-            ],
-            [],
-            [
-                {"id": jago_parent_id, "name": "Bank Jago", "type": "bank", "default_funding_account_id": None, "parent_id": None},
-                {"id": jajan_pocket_id, "name": "Jajan", "type": "bank", "default_funding_account_id": None, "parent_id": jago_parent_id},
-                {"id": tabungan_pocket_id, "name": "Tabungan", "type": "bank", "default_funding_account_id": None, "parent_id": jago_parent_id},
-            ],
-        ]
-        cur.fetchone.side_effect = [
-            {"id": str(uuid4())},  # claimed event
-            {"id": str(uuid4())},  # created expense tx
-            {"id": str(uuid4())},  # created income tx
-        ]
-
-        client = TestClient(app, raise_server_exceptions=True)
-        res = client.post("/api/ingest/notifications", json=payload)
-
-        assert res.status_code == 200
-        assert res.json()["created_transactions"] == 2
-
-        insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
-        assert len(insert_calls) == 2
-        exp_args = insert_calls[0][0][1]
-        assert exp_args[1] == jajan_pocket_id  # resolved source pocket
-        assert exp_args[4] == 50000
-        inc_args = insert_calls[1][0][1]
-        assert inc_args[1] == tabungan_pocket_id  # resolved target pocket
-        assert inc_args[4] == 50000
-
-
-def test_ingest_jago_single_pocket_out_emergency_fund():
-    mock_user = {
-        "id": "11111111-1111-1111-1111-111111111111",
-        "username": "tester",
-        "currency": "IDR",
-        "payday_day": 25,
-    }
-    app.dependency_overrides[get_current_user] = lambda: mock_user
-
-    jago_parent_id = str(uuid4())
-    main_pocket_id = str(uuid4())
-    emergency_pocket_id = str(uuid4())
-
-    payload = {
-        "events": [
-            {
-                "device_id": "test_phone",
-                "package_name": "com.jago.digitalBanking",
-                "title": "Jago",
-                "body_text": "You've moved Rp500.000 out of your My Emergency Fund Pocket. Need help? Contact Tanya Jago at 1500 746.",
-                "big_text": "You've moved Rp500.000 out of your My Emergency Fund Pocket. Need help? Contact Tanya Jago at 1500 746.",
-                "post_time": "2026-09-16T09:00:00Z",
-                "payload_hash": "jago_single_pocket_hash_999",
-            }
-        ]
-    }
-
-    locked = {
-        emergency_pocket_id: {"id": emergency_pocket_id, "type": "bank", "is_savings": True},
-        main_pocket_id: {"id": main_pocket_id, "type": "bank", "is_savings": False},
-    }
-    with patch("app.routers.ingest.db_conn") as mock_conn, \
-         patch("app.routers.ingest.get_locked_ledger_balance", return_value=10_000_000), \
-         patch("app.routers.ingest.lock_owned_accounts", return_value=locked):
-        cur = MagicMock()
-        mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
-
-        cur.fetchall.side_effect = [
-            [
-                {"id": str(uuid4()), "name": "Internal Movement", "kind": "expense", "kakeibo_type": "need", "is_excluded_from_budget": True},
-                {"id": str(uuid4()), "name": "Internal Movement", "kind": "income", "kakeibo_type": None, "is_excluded_from_budget": True},
-            ],
-            [],  # user rules
-            [
-                {"id": jago_parent_id, "name": "Bank Jago", "type": "bank", "default_funding_account_id": None, "parent_id": None, "default_pocket_id": main_pocket_id},
-                {"id": main_pocket_id, "name": "Kantong Utama", "type": "bank", "default_funding_account_id": None, "parent_id": jago_parent_id},
-                {"id": emergency_pocket_id, "name": "Dana Darurat", "type": "bank", "default_funding_account_id": None, "parent_id": jago_parent_id},
-            ],
-        ]
-        cur.fetchone.side_effect = [
-            {"id": str(uuid4())},  # claimed event
-            {"id": str(uuid4())},  # created expense tx
-            {"id": str(uuid4())},  # created income tx
-        ]
-
-        client = TestClient(app, raise_server_exceptions=True)
-        res = client.post("/api/ingest/notifications", json=payload)
-
-        assert res.status_code == 200
-        assert res.json()["created_transactions"] == 2
-
-        insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO transactions" in str(c)]
-        assert len(insert_calls) == 2
-        exp_args = insert_calls[0][0][1]
-        assert exp_args[1] == emergency_pocket_id  # resolved source pocket via synonym
-        assert exp_args[4] == 500000
-        inc_args = insert_calls[1][0][1]
-        assert inc_args[1] == main_pocket_id  # resolved target to default pocket Kantong Utama
-        assert inc_args[4] == 500000
+def test_unknown_pocket_is_not_a_substring_fallback():
+    accounts = [
+        {"id": "parent", "name": "Bank Jago", "parent_id": None},
+        {"id": "food", "name": "Dana Makan", "parent_id": "parent"},
+    ]
+    with pytest.raises(EvidenceError, match="uncertain_pocket_mapping"):
+        pocket_endpoint("Dana", accounts[0], accounts)
 
 
 def test_ingest_supported_apps_scope_verification():
-    """Verify that all 6 active registered apps produce transactions, and unconfigured apps gracefully fallback."""
+    """Verify legacy parser coverage for supported packages; trusted application validates owned configuration separately."""
     from app.services.notification_parser import parse_notification
 
     # 1. myBCA

@@ -1,79 +1,15 @@
-import json
-import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
-from app.routers.transactions import resolve_effective_account
 from app.services.auth import get_current_user
-from app.services.category_rules import resolve_category_for_notification
-from app.services.market_data import get_instrument_quote
-from app.services.ledger_mutations import (
-    create_bilateral_movement,
-    get_locked_ledger_balance,
-    lock_owned_accounts,
-)
-from app.services.notification_parser import parse_notification
 
 router = APIRouter(tags=["Notification Ingestion"])
-
-
-def _match_pocket_account(
-    pocket_name: str | None,
-    child_accounts: list[dict],
-    parent_account: dict | None = None,
-) -> dict | None:
-    if not pocket_name:
-        return None
-    raw = pocket_name.strip()
-    raw_lower = raw.lower()
-    norm = re.sub(r"\bpocket\b|\bkantong\b", "", raw_lower, flags=re.IGNORECASE).strip()
-
-    # 1. Exact match on child account name
-    for acc in child_accounts:
-        acc_name = (acc.get("name") or "").strip().lower()
-        if acc_name == raw_lower or (norm and acc_name == norm):
-            return acc
-
-    # 2. Substring match against child accounts
-    for acc in child_accounts:
-        acc_name = (acc.get("name") or "").strip().lower()
-        if norm and (norm in acc_name or acc_name in norm):
-            return acc
-        if raw_lower in acc_name or acc_name in raw_lower:
-            return acc
-
-    # 3. Known synonyms (English <-> Indonesian)
-    # e.g. "Emergency Fund" or "My Emergency Fund" -> "Dana Darurat"
-    synonyms = {
-        "emergency fund": "dana darurat",
-        "emergency": "dana darurat",
-        "darurat": "dana darurat",
-        "savings": "tabungan",
-        "saving": "tabungan",
-        "main": "utama",
-    }
-    for syn_key, syn_val in synonyms.items():
-        if syn_key in norm or syn_key in raw_lower:
-            for acc in child_accounts:
-                acc_name = (acc.get("name") or "").strip().lower()
-                if syn_val in acc_name:
-                    return acc
-
-    # 4. Main/Utama fallback to parent or designated main child pocket
-    if norm in ("main", "utama", "kantong utama", "") or raw_lower in ("main", "utama", "kantong utama"):
-        for acc in child_accounts:
-            acc_name = (acc.get("name") or "").strip().lower()
-            if any(k in acc_name for k in ("utama", "main")):
-                return acc
-        return parent_account
-
-    return None
 
 
 class NotificationEventIn(BaseModel):
@@ -105,6 +41,10 @@ class BatchNotificationIngest(BaseModel):
     events: list[NotificationEventIn] = Field(..., min_length=1, max_length=200)
 
 
+class DryRunNotificationIn(BaseModel):
+    event: NotificationEventIn
+
+
 class NotificationLabelUpdate(BaseModel):
     is_financial: bool | None = None
     event_class: str | None = Field(default=None, max_length=50)
@@ -115,487 +55,101 @@ class NotificationLabelUpdate(BaseModel):
 
 
 @router.post("/notifications")
-async def ingest_notifications(
+def ingest_notifications(
     payload: BatchNotificationIngest,
     current_user: dict = Depends(get_current_user),
 ):
-    """
-    Ingest a batch of raw/sanitized notification events from the mobile companion app.
-    Idempotent via payload_hash; parses, auto-categorizes, and records transactions.
-    """
-    user_id = current_user["id"]
-    inserted = 0
-    updated = 0
-    created_txs = 0
+    from app.services.notification_processing import accept_event
+    import psycopg
+
+    inserted = updated = created = 0
+    results = []
+    for event in payload.events:
+        try:
+            result, accepted, transaction_count = accept_event(event.model_dump(), str(current_user["id"]))
+        except psycopg.Error:
+            result = {"payload_hash": event.payload_hash, "status": "failed", "error_code": "acceptance_failed"}
+            accepted, transaction_count = False, 0
+        results.append(result)
+        inserted += int(accepted)
+        updated += int(not accepted and "event_id" in result)
+        created += transaction_count
+    return {
+        "ok": not any(result.get("error_code") == "acceptance_failed" for result in results),
+        "received": len(payload.events), "inserted": inserted, "updated": updated,
+        "created_transactions": created, "results": results,
+    }
+
+
+def dry_run_guard(request: Request):
+    from app.services.notification_dry_run import dry_run_available
+    if not dry_run_available() or not getattr(request.app.state, "notification_provider", None):
+        raise HTTPException(status_code=404, detail="Not found")
+    return request.app.state.notification_provider
+
+
+@router.post("/notifications/dry-run")
+async def dry_run_notification(payload: DryRunNotificationIn, request: Request, current_user: dict = Depends(get_current_user)):
+    from app.services.notification_dry_run import run_dry_run
+    provider = dry_run_guard(request)
+    return {"ok": True, "result": await run_dry_run(provider, str(current_user["id"]), payload.event.model_dump())}
+
+
+@router.post("/notifications/{event_id}/dry-run")
+async def dry_run_stored_notification(event_id: UUID, request: Request, current_user: dict = Depends(get_current_user)):
+    from app.services.notification_dry_run import run_dry_run, stored_event
+    from app.services.notification_processing import database_operation
+    provider = dry_run_guard(request)
+    event = await database_operation(stored_event, str(event_id), str(current_user["id"]))
+    if not event:
+        raise HTTPException(status_code=404, detail="Notification event not found")
+    return {"ok": True, "result": await run_dry_run(provider, str(current_user["id"]), event)}
+
+
+@router.get("/notifications/{event_id}/result")
+def notification_result(event_id: UUID, current_user: dict = Depends(get_current_user)):
+    from app.services.notification_processing import compact_result
 
     with db_conn() as conn:
         with conn.cursor() as cur:
-            # Pre-fetch user's categories, rules, and accounts for fast batch processing
-            cur.execute("SELECT id, name, kind, kakeibo_type, is_excluded_from_budget FROM categories WHERE user_id = %s", (user_id,))
-            categories = cur.fetchall()
-
-            cur.execute("SELECT merchant_pattern, category_id FROM merchant_category_rules WHERE user_id = %s", (user_id,))
-            user_rules = cur.fetchall()
-
-            cur.execute("SELECT id, name, type, default_funding_account_id, parent_id FROM accounts WHERE user_id = %s AND is_archived = FALSE", (user_id,))
-            accounts = cur.fetchall()
-
-            for ev in payload.events:
-                # Discard empty group summary / foreground notifications
-                if not (ev.title and ev.title.strip()) and not (ev.body_text and ev.body_text.strip()) and not (ev.big_text and ev.big_text.strip()):
-                    continue
-
-                extras_json = json.dumps(ev.raw_extras) if ev.raw_extras else None
-
-                # 1. Deterministic Notification Parsing
-                parsed = parse_notification(
-                    package_name=ev.package_name,
-                    title=ev.title,
-                    body_text=ev.body_text,
-                    big_text=ev.big_text,
-                )
-                parsed_summary = parsed.to_dict()
-
-                # Strict Whitelist Gate: Discard non-financial noise before DB insertion or ledger creation
-                final_amount = parsed.amount if (parsed.amount is not None and parsed.amount > 0) else (
-                    int(ev.expected_amount) if ev.expected_amount else None
-                )
-                if not parsed.is_financial or parsed.event_class == "noise" or not final_amount or final_amount <= 0:
-                    continue
-
-                # 2. Automated Categorization
-                cat_res = resolve_category_for_notification(parsed, categories, user_rules)
-                parsed_summary["resolved_category"] = cat_res
-
-                # 3. Claim the event before any account, position, or ledger effect.
-                cur.execute(
-                    """
-                    INSERT INTO notification_events (
-                        user_id, device_id, package_name, app_label,
-                        notification_key, notification_id, channel_id, category,
-                        title, body_text, big_text, sub_text, summary_text,
-                        post_time, payload_hash, raw_extras, source_version,
-                        is_financial, event_class, expected_amount, expected_direction,
-                        expected_counterparty, label_notes, labelled_at, parsed_summary
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                    )
-                    ON CONFLICT (user_id, payload_hash) DO NOTHING
-                    RETURNING id
-                    """,
-                    (
-                        user_id, ev.device_id, ev.package_name, ev.app_label,
-                        ev.notification_key, ev.notification_id, ev.channel_id, ev.category,
-                        ev.title, ev.body_text, ev.big_text, ev.sub_text, ev.summary_text,
-                        ev.post_time, ev.payload_hash, extras_json, ev.source_version,
-                        parsed.is_financial if ev.is_financial is None else ev.is_financial,
-                        parsed.event_class if ev.event_class is None else ev.event_class,
-                        final_amount if ev.expected_amount is None else ev.expected_amount,
-                        parsed.direction if ev.expected_direction is None else ev.expected_direction,
-                        parsed.counterparty if ev.expected_counterparty is None else ev.expected_counterparty,
-                        cat_res.get("category_name") if ev.label_notes is None else ev.label_notes,
-                        datetime.now(timezone.utc) if (ev.is_financial is not None or ev.event_class is not None) else None,
-                        json.dumps(parsed_summary, default=str),
-                    ),
-                )
-                claimed = cur.fetchone()
-                if not claimed:
-                    cur.execute(
-                        "SELECT id, transaction_id FROM notification_events WHERE user_id = %s AND payload_hash = %s FOR UPDATE",
-                        (user_id, ev.payload_hash),
-                    )
-                    cur.fetchone()
-                    updated += 1
-                    continue
-                event_id = str(claimed["id"])
-                tx_id = None
-                inserted += 1
-
-                # 4. Auto-create ledger transaction if it is a settled transaction with a valid amount
-                if tx_id is None and parsed.is_financial and parsed.event_class != "noise" and final_amount and final_amount > 0:
-                    pkg_lower = ev.package_name.lower()
-                    matched_account = None
-                    if "jago" in pkg_lower:
-                        matched_account = next((a for a in accounts if "jago" in a.get("name", "").lower()), None)
-                    elif "bca" in pkg_lower:
-                        matched_account = next((a for a in accounts if "bca" in a.get("name", "").lower() and "rdn" not in a.get("name", "").lower()), None)
-                    elif "gopay" in pkg_lower or "gojek" in pkg_lower:
-                        matched_account = next((a for a in accounts if "gopay" in a.get("name", "").lower()), None)
-                    elif "shopee" in pkg_lower:
-                        matched_account = next((a for a in accounts if "shopee" in a.get("name", "").lower()), None)
-                    elif "stockbit" in pkg_lower:
-                        matched_account = next((a for a in accounts if "stockbit" in a.get("name", "").lower()), None)
-
-                    if not matched_account and accounts:
-                        matched_account = accounts[0]
-
-                    if matched_account and "id" in matched_account:
-                        source_account_id = matched_account["id"]
-                        transfer_target_id = None
-                        tx_type = "expense"
-
-                        # Child accounts belonging to the matched parent institution
-                        child_accounts = [
-                            a for a in accounts
-                            if a.get("parent_id") and str(a.get("parent_id")) == str(matched_account["id"])
-                        ]
-
-                        # If this is an investment account with a linked default funding account (e.g. Stockbit linked to RDN BCA)
-                        is_investment = (
-                            matched_account.get("type") == "investment"
-                            or "stockbit" in pkg_lower
-                            or cat_res.get("category_name") == "Investasi"
-                        )
-                        if is_investment and matched_account.get("default_funding_account_id"):
-                            funding_acc = next(
-                                (a for a in accounts if str(a["id"]) == str(matched_account["default_funding_account_id"])),
-                                None,
-                            )
-                            if funding_acc:
-                                stock_pocket_id = None
-                                if parsed.symbol or parsed.instrument_symbol:
-                                    sym = (parsed.symbol or "").upper().strip()
-                                    inst_sym = (parsed.instrument_symbol or f"{sym}.JK").upper().strip()
-                                    trade_units = float(parsed.units or ((parsed.lots or 0) * 100))
-                                    trade_price = float(parsed.price_per_unit or 0)
-
-                                    try:
-                                        live_quote = await get_instrument_quote(inst_sym)
-                                        cur_price = live_quote["price"] if (live_quote and live_quote.get("price")) else trade_price
-                                    except Exception:
-                                        cur_price = trade_price
-
-                                    cur.execute(
-                                        """
-                                        SELECT id, units, avg_buy_price, last_price
-                                        FROM accounts
-                                        WHERE user_id = %s
-                                          AND parent_id = %s
-                                          AND (instrument_symbol = %s OR UPPER(name) = %s)
-                                          AND is_archived = FALSE
-                                        LIMIT 1
-                                        """,
-                                        (user_id, matched_account["id"], inst_sym, sym),
-                                    )
-                                    existing_pocket = cur.fetchone()
-
-                                    if existing_pocket and isinstance(existing_pocket, dict):
-                                        stock_pocket_id = existing_pocket.get("id")
-                                        old_units = float(existing_pocket.get("units") or 0)
-                                        old_avg = float(existing_pocket.get("avg_buy_price") or 0)
-
-                                        if parsed.investment_action == "buy" or parsed.event_class == "expense" or parsed.direction == "out":
-                                            new_units = old_units + trade_units
-                                            if new_units > 0 and trade_price > 0:
-                                                new_avg = round(((old_units * old_avg) + (trade_units * trade_price)) / new_units)
-                                            else:
-                                                new_avg = old_avg or trade_price
-
-                                            cur.execute(
-                                                """
-                                                UPDATE accounts
-                                                SET units = %s,
-                                                    avg_buy_price = %s,
-                                                    last_price = %s,
-                                                    last_price_at = NOW(),
-                                                    instrument_symbol = %s,
-                                                    updated_at = NOW()
-                                                WHERE id = %s
-                                                """,
-                                                (new_units, new_avg, cur_price, inst_sym, stock_pocket_id),
-                                            )
-                                        else:
-                                            new_units = max(0.0, old_units - trade_units)
-                                            cur.execute(
-                                                """
-                                                UPDATE accounts
-                                                SET units = %s,
-                                                    last_price = %s,
-                                                    last_price_at = NOW(),
-                                                    updated_at = NOW()
-                                                WHERE id = %s
-                                                """,
-                                                (new_units, cur_price, stock_pocket_id),
-                                            )
-                                    else:
-                                        if parsed.investment_action == "buy" or parsed.event_class == "expense" or parsed.direction == "out":
-                                            cur.execute(
-                                                """
-                                                INSERT INTO accounts (
-                                                    user_id, parent_id, name, type, initial_balance,
-                                                    instrument_type, instrument_symbol, units, avg_buy_price,
-                                                    last_price, last_price_at
-                                                ) VALUES (
-                                                    %s, %s, %s, 'investment', 0,
-                                                    'stock', %s, %s, %s,
-                                                    %s, NOW()
-                                                ) RETURNING id
-                                                """,
-                                                (
-                                                    user_id,
-                                                    matched_account["id"],
-                                                    sym,
-                                                    inst_sym,
-                                                    trade_units,
-                                                    trade_price,
-                                                    cur_price,
-                                                ),
-                                            )
-                                            created_pocket = cur.fetchone()
-                                            if created_pocket and isinstance(created_pocket, dict):
-                                                stock_pocket_id = created_pocket.get("id")
-
-                                target_investment_dest_id = stock_pocket_id or matched_account["id"]
-
-                                # When buying: cash leaves funding_acc (RDN BCA) and enters investment account/pocket
-                                if parsed.event_class == "expense" or parsed.direction == "out":
-                                    source_account_id = funding_acc["id"]
-                                    transfer_target_id = target_investment_dest_id
-                                    tx_type = "transfer"
-                                else:  # selling: proceeds leave investment pocket/account and enter funding_acc (RDN BCA)
-                                    source_account_id = target_investment_dest_id
-                                    transfer_target_id = funding_acc["id"]
-                                    tx_type = "transfer"
-                        elif "jago" in pkg_lower and (parsed.source_pocket or parsed.target_pocket):
-                            src_acc = _match_pocket_account(parsed.source_pocket, child_accounts, matched_account)
-                            tgt_acc = _match_pocket_account(parsed.target_pocket, child_accounts, matched_account)
-
-                            # Auto-create source pocket if not found and not a variation of main/utama
-                            if parsed.source_pocket and not src_acc:
-                                norm_s = re.sub(r"\bpocket\b|\bkantong\b", "", parsed.source_pocket, flags=re.I).strip()
-                                if norm_s and norm_s.lower() not in ("main", "utama", "kantong utama"):
-                                    cur.execute(
-                                        """
-                                        INSERT INTO accounts (user_id, parent_id, name, type, initial_balance)
-                                        VALUES (%s, %s, %s, 'bank', 0)
-                                        RETURNING id, name, parent_id, type
-                                        """,
-                                        (user_id, matched_account["id"], parsed.source_pocket.strip()),
-                                    )
-                                    src_acc = cur.fetchone()
-                                    if src_acc:
-                                        accounts.append(src_acc)
-                                        child_accounts.append(src_acc)
-
-                            # Auto-create target pocket if not found and not a variation of main/utama
-                            if parsed.target_pocket and not tgt_acc:
-                                norm_t = re.sub(r"\bpocket\b|\bkantong\b", "", parsed.target_pocket, flags=re.I).strip()
-                                if norm_t and norm_t.lower() not in ("main", "utama", "kantong utama"):
-                                    cur.execute(
-                                        """
-                                        INSERT INTO accounts (user_id, parent_id, name, type, initial_balance)
-                                        VALUES (%s, %s, %s, 'bank', 0)
-                                        RETURNING id, name, parent_id, type
-                                        """,
-                                        (user_id, matched_account["id"], parsed.target_pocket.strip()),
-                                    )
-                                    tgt_acc = cur.fetchone()
-                                    if tgt_acc:
-                                        accounts.append(tgt_acc)
-                                        child_accounts.append(tgt_acc)
-
-                            if parsed.event_class == "expense":
-                                if src_acc and "id" in src_acc:
-                                    source_account_id = src_acc["id"]
-                                tx_type = "expense"
-                            elif parsed.event_class == "income":
-                                if tgt_acc and "id" in tgt_acc:
-                                    source_account_id = tgt_acc["id"]
-                                tx_type = "income"
-                            else:
-                                # Fallback: moving out of pocket -> destination defaults to parent account
-                                if src_acc and not tgt_acc:
-                                    tgt_acc = matched_account
-                                # Fallback: moving into pocket -> source defaults to parent account
-                                elif tgt_acc and not src_acc:
-                                    src_acc = matched_account
-
-                                if src_acc and "id" in src_acc:
-                                    source_account_id = src_acc["id"]
-                                if tgt_acc and "id" in tgt_acc:
-                                    transfer_target_id = tgt_acc["id"]
-
-                                tx_type = "transfer"
-                        else:
-                            is_internal_movement = (
-                                parsed.direction == "internal"
-                                or cat_res.get("category_name") == "Internal Movement"
-                                or (parsed.counterparty and any(kw in parsed.counterparty.lower() for kw in ["alfonsus", "enrico", "tabungan by jago"]))
-                            )
-                            if is_internal_movement:
-                                tx_type = "transfer"
-                                if not transfer_target_id and parsed.counterparty:
-                                    cp_lower = parsed.counterparty.lower()
-                                    if "jago" in cp_lower and "jago" not in matched_account.get("name", "").lower():
-                                        target_cand = next((a for a in accounts if "jago" in a.get("name", "").lower() and not a.get("parent_id")), None)
-                                        if target_cand:
-                                            transfer_target_id = target_cand["id"]
-                                    elif "bca" in cp_lower and "bca" not in matched_account.get("name", "").lower():
-                                        target_cand = next((a for a in accounts if "bca" in a.get("name", "").lower() and "rdn" not in a.get("name", "").lower() and not a.get("parent_id")), None)
-                                        if target_cand:
-                                            transfer_target_id = target_cand["id"]
-                                    elif "gopay" in cp_lower and "gopay" not in matched_account.get("name", "").lower():
-                                        target_cand = next((a for a in accounts if "gopay" in a.get("name", "").lower() and not a.get("parent_id")), None)
-                                        if target_cand:
-                                            transfer_target_id = target_cand["id"]
-                            elif parsed.event_class == "income":
-                                tx_type = "income"
-                            else:
-                                tx_type = "expense"
-
-                        if source_account_id:
-                            src_cand = next((a for a in accounts if str(a.get("id")) == str(source_account_id)), None)
-                            if src_cand:
-                                eff_src = resolve_effective_account(cur, user_id, src_cand, accounts)
-                                if eff_src:
-                                    source_account_id = eff_src["id"]
-                        if transfer_target_id:
-                            tgt_cand = next((a for a in accounts if str(a.get("id")) == str(transfer_target_id)), None)
-                            if tgt_cand:
-                                eff_tgt = resolve_effective_account(cur, user_id, tgt_cand, accounts)
-                                if eff_tgt:
-                                    transfer_target_id = eff_tgt["id"]
-
-                        notes_content = f"{ev.app_label or ev.package_name}: {parsed.counterparty or ev.title or ''}".strip()
-                        kakeibo_val = (
-                            None
-                            if (tx_type == "transfer" or is_investment or parsed.investment_action)
-                            else cat_res.get("kakeibo_type", "need")
-                        )
-                        if tx_type == "transfer" and transfer_target_id:
-                            expense_cat = next((c for c in categories if c.get("name") == "Internal Movement" and c.get("kind") == "expense"), None)
-                            income_cat = next((c for c in categories if c.get("name") == "Internal Movement" and c.get("kind") == "income"), None)
-                            expense_cat_id = (expense_cat.get("id") if expense_cat else None) or cat_res.get("category_id")
-                            income_cat_id = (income_cat.get("id") if income_cat else None) or cat_res.get("category_id")
-
-                            if not expense_cat_id or not income_cat_id:
-                                from app.routers.movements import _ensure_internal_movement_categories
-                                exp_id, inc_id = _ensure_internal_movement_categories(cur, user_id)
-                                expense_cat_id = expense_cat_id or exp_id
-                                income_cat_id = income_cat_id or inc_id
-                            locked = lock_owned_accounts(
-                                cur,
-                                user_id,
-                                [str(source_account_id), str(transfer_target_id)],
-                            )
-                            source_account = locked[str(source_account_id)]
-                            source_balance = get_locked_ledger_balance(
-                                cur,
-                                user_id,
-                                str(source_account_id),
-                            )
-                            movement = create_bilateral_movement(
-                                cur,
-                                user_id=user_id,
-                                source_id=str(source_account_id),
-                                target_id=str(transfer_target_id),
-                                amount=final_amount,
-                                notes=notes_content,
-                                tx_date=ev.post_time,
-                                expense_category_id=str(expense_cat_id),
-                                income_category_id=str(income_cat_id),
-                                source_account=locked[str(source_account_id)],
-                                target_account=locked[str(transfer_target_id)],
-                                idempotency_key=f"notification:{ev.payload_hash}",
-                                is_trade=bool(is_investment or parsed.investment_action),
-                                allow_negative=True,
-                            )
-                            tx_id = movement["expense_transaction_id"]
-                            created_txs += 2
-                            if (
-                                source_account.get("type") in {"cash", "bank", "ewallet", "wallet"}
-                                and not source_account.get("instrument_type")
-                                and source_balance < final_amount
-                            ):
-                                cur.execute(
-                                    """
-                                    UPDATE accounts
-                                    SET reconciliation_required = TRUE,
-                                        reconciliation_reason = 'settled_notification_negative_balance',
-                                        reconciliation_event_id = %s,
-                                        updated_at = NOW()
-                                    WHERE id = %s AND user_id = %s
-                                    """,
-                                    (event_id, str(source_account_id), user_id),
-                                )
-                        else:
-                            locked = lock_owned_accounts(cur, user_id, [str(source_account_id)])
-                            pre_balance = get_locked_ledger_balance(cur, user_id, str(source_account_id))
-                            if tx_type == "transfer":
-                                tx_type = "expense"
-                            cur.execute(
-                                """
-                                INSERT INTO transactions (
-                                    user_id, account_id, category_id, type, amount, notes, date, kakeibo_type
-                                ) VALUES (
-                                    %s, %s, %s, %s, %s, %s, %s, %s
-                                ) RETURNING id
-                                """,
-                                (
-                                    user_id,
-                                    source_account_id,
-                                    cat_res.get("category_id"),
-                                    tx_type,
-                                    final_amount,
-                                    notes_content,
-                                    ev.post_time,
-                                    kakeibo_val,
-                                ),
-                            )
-                            new_tx = cur.fetchone()
-                            if new_tx and isinstance(new_tx, dict):
-                                tx_id = new_tx.get("id")
-                                if tx_id:
-                                    created_txs += 1
-                            if tx_type == "expense" and pre_balance < final_amount:
-                                cur.execute(
-                                    """
-                                    UPDATE accounts
-                                    SET reconciliation_required = TRUE,
-                                        reconciliation_reason = 'settled_notification_negative_balance',
-                                        reconciliation_event_id = %s,
-                                        updated_at = NOW()
-                                    WHERE id = %s AND user_id = %s
-                                    """,
-                                    (event_id, str(source_account_id), user_id),
-                                )
-
-                # 5. Attach the logical result to the claimed event.
-                labelled_at = datetime.now(timezone.utc) if (ev.is_financial is not None or ev.event_class is not None) else None
-                cur.execute(
-                    """
-                    UPDATE notification_events
-                    SET is_financial = %s, event_class = %s, expected_amount = %s,
-                        expected_direction = %s, expected_counterparty = %s,
-                        label_notes = %s, labelled_at = %s, parsed_summary = %s,
-                        transaction_id = %s, updated_at = NOW()
-                    WHERE id = %s AND user_id = %s
-                    """,
-                    (
-                        parsed.is_financial if ev.is_financial is None else ev.is_financial,
-                        parsed.event_class if ev.event_class is None else ev.event_class,
-                        final_amount if ev.expected_amount is None else ev.expected_amount,
-                        parsed.direction if ev.expected_direction is None else ev.expected_direction,
-                        parsed.counterparty if ev.expected_counterparty is None else ev.expected_counterparty,
-                        cat_res.get("category_name") if ev.label_notes is None else ev.label_notes,
-                        labelled_at,
-                        json.dumps(parsed_summary, default=str),
-                        tx_id,
-                        event_id,
-                        user_id,
-                    ),
-                )
-
+            cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (current_user["id"], str(event_id)))
+            event = cur.fetchone()
+            if not event:
+                raise HTTPException(status_code=404, detail="Notification event not found")
+            result = compact_result(cur, event)
         conn.commit()
+    return {"ok": True, "result": result}
 
-    return {
-        "ok": True,
-        "received": len(payload.events),
-        "inserted": inserted,
-        "updated": updated,
-        "created_transactions": created_txs,
-    }
+
+@router.post("/notifications/{event_id}/retry")
+def retry_notification(event_id: UUID, current_user: dict = Depends(get_current_user)):
+    from app.services import notification_processing
+    from app.services.openai_notification_provider import configuration_error
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (current_user["id"], str(event_id)))
+            event = cur.fetchone()
+            if not event:
+                raise HTTPException(status_code=404, detail="Notification event not found")
+            result = notification_processing.compact_result(cur, event)
+            if result["status"] not in {"needs_review", "failed"}:
+                raise HTTPException(status_code=409, detail="Only unresolved notifications can be retried")
+            mode = event["processing_mode"]
+            if mode not in {"ai", "deterministic"}:
+                mode = "deterministic" if event["package_name"].lower() == "com.stockbit.android" else "ai"
+            if mode == "ai" and configuration_error(notification_processing.settings):
+                raise HTTPException(status_code=409, detail="AI processing unavailable")
+            cur.execute(
+                """UPDATE notification_events SET processing_state = 'queued', processing_mode = %s,
+                   attempt_count = 0, processing_generation = processing_generation + 1,
+                   next_attempt_at = NOW(), error_code = NULL, lease_token = NULL, lease_expires_at = NULL
+                   WHERE user_id = %s AND id = %s RETURNING *""",
+                (mode, current_user["id"], str(event_id)),
+            )
+            result = notification_processing.compact_result(cur, cur.fetchone())
+        conn.commit()
+    return {"ok": True, "result": result}
 
 
 @router.get("/notifications")
@@ -634,7 +188,8 @@ def list_ingested_notifications(
             title, body_text, big_text, sub_text, summary_text,
             post_time, captured_at, payload_hash, raw_extras, source_version,
             is_financial, event_class, expected_amount, expected_direction,
-            expected_counterparty, label_notes, labelled_at
+            expected_counterparty, label_notes, labelled_at, processing_state, error_code,
+            attempt_count, provider, model, prompt_version
         FROM notification_events
         WHERE {where_clause}
         ORDER BY post_time DESC
@@ -676,6 +231,12 @@ def list_ingested_notifications(
             "expected_counterparty": r["expected_counterparty"],
             "label_notes": r["label_notes"],
             "labelled_at": r["labelled_at"].isoformat() if r["labelled_at"] else None,
+            "processing_state": r.get("processing_state"),
+            "error_code": r.get("error_code"),
+            "attempt_count": r.get("attempt_count", 0),
+            "provider": r.get("provider"),
+            "model": r.get("model"),
+            "prompt_version": r.get("prompt_version"),
         })
 
     return {

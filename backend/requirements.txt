@@ -8,3 +8,5 @@ bcrypt==4.0.1
 fpdf2==2.7.8
 redis==5.2.1
 Pillow==12.2.0
+httpx==0.28.1
+openai==3.19.2

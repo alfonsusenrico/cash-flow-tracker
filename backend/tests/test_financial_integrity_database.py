@@ -120,6 +120,14 @@ def test_concurrent_notification_delivery_creates_one_ledger_effect(auth_client,
         balance=200_000,
     )
     user_id = auth_client.get("/api/auth/me").json()["user"]["id"]
+    with db_conn() as connection:
+        connection.execute(
+            """INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id)
+               SELECT %s, 'Kopi Kenangan', id FROM categories
+               WHERE user_id = %s AND name = 'Makanan & Minuman' AND kind = 'expense'
+               AND is_archived = FALSE LIMIT 1""",
+            (user_id, user_id),
+        )
     payload_hash = sha256(uuid4().bytes).hexdigest()
     payload = {
         "events": [
@@ -1845,7 +1853,6 @@ def test_settled_external_movement_marks_negative_source_for_reconciliation(
 ):
     from app.db.pool import db_conn
     from app.main import app
-    from app.services.notification_parser import ParsedNotification
 
     client = TestClient(app, base_url="https://testserver")
     client.headers["Origin"] = "https://testserver"
@@ -1875,30 +1882,14 @@ def test_settled_external_movement_marks_negative_source_for_reconciliation(
         balance=0,
     )
     payload_hash = sha256(uuid4().bytes).hexdigest()
-    parsed = ParsedNotification(
-        is_financial=True,
-        event_class="transfer",
-        amount=50_000,
-        currency="IDR",
-        direction="internal",
-        source_pocket=None,
-        target_pocket=None,
-        counterparty="Bank Jago",
-        category_hint=None,
-        confidence=1.0,
-        raw_title="Transfer berhasil",
-        raw_text="Transfer Rp 50.000 ke Bank Jago berhasil",
-        package_name="id.co.bca.mybca.omni.android",
-    )
-    monkeypatch.setattr("app.routers.ingest.parse_notification", lambda **_: parsed)
     payload = {
         "events": [
             {
                 "device_id": "integration-test-device",
-                "package_name": parsed.package_name,
+                "package_name": "id.co.bca.mybca.omni.android",
                 "app_label": "myBCA",
-                "title": parsed.raw_title,
-                "body_text": parsed.raw_text,
+                "title": "Transfer berhasil",
+                "body_text": "Pengeluaran sebesar IDR 50,000.00 di kategori Transfer Rekening. Transfer ke Bank Jago Reconciliation Test berhasil.",
                 "post_time": "2026-09-23T10:00:00Z",
                 "payload_hash": payload_hash,
             }
@@ -1909,7 +1900,15 @@ def test_settled_external_movement_marks_negative_source_for_reconciliation(
     response = client.post("/api/ingest/notifications", json=payload)
 
     assert response.status_code == 200, response.text
-    assert response.json()["created_transactions"] == 2
+    assert response.json()["created_transactions"] == 1
+    incoming = client.post("/api/ingest/notifications", json={"events": [{
+        "device_id": "integration-test-device", "package_name": "com.jago.digitalbanking",
+        "body_text": "Reconciliation Test has sent Rp50.000 to you.",
+        "post_time": "2026-09-23T10:00:01Z", "payload_hash": sha256(uuid4().bytes).hexdigest(),
+    }]})
+    assert incoming.status_code == 200, incoming.text
+    assert incoming.json()["created_transactions"] == 1
+    assert incoming.json()["results"][0]["type"] == "internal_movement"
     with db_conn() as connection:
         with connection.cursor() as cursor:
             cursor.execute(

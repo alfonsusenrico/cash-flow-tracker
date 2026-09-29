@@ -1,6 +1,7 @@
 import os
 import re
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,15 @@ class Settings:
     app_origins: tuple[str, ...]
     trusted_proxy_cidrs: tuple[str, ...]
     ledger_export_max_rows: int
+    notification_ai_enabled: bool = False
+    notification_ai_model: str = "gpt-5.6-luna"
+    notification_ai_reasoning_effort: str = "low"
+    openai_api_key: str = field(default="", repr=False)
+    notification_ai_history_limit: int = 20
+    notification_ai_timeout: float = 30
+    notification_ai_configuration_error: str | None = None
+    app_env: str = "production"
+    notification_ai_dry_run_enabled: bool = False
 
 
 def _csv_env(name: str) -> tuple[str, ...]:
@@ -53,6 +63,16 @@ def load_settings() -> Settings:
 
     db_pool_min = max(1, int(os.getenv("DB_POOL_MIN", "1")))
     db_pool_max = max(db_pool_min, int(os.getenv("DB_POOL_MAX", "10")))
+
+    ai_configuration_error = None
+    try:
+        ai_history_limit = int(os.getenv("NOTIFICATION_AI_HISTORY_LIMIT", "20"))
+        ai_timeout = float(os.getenv("NOTIFICATION_AI_TIMEOUT", "30"))
+        if not 0 <= ai_history_limit <= 50 or not math.isfinite(ai_timeout) or not 1 <= ai_timeout <= 60:
+            raise ValueError
+    except ValueError:
+        ai_history_limit, ai_timeout = 20, 30
+        ai_configuration_error = "processor_configuration_invalid"
 
     return Settings(
         database_url=database_url,
@@ -84,6 +104,15 @@ def load_settings() -> Settings:
         app_origins=_csv_env("APP_ORIGINS") or _csv_env("APP_ORIGIN"),
         trusted_proxy_cidrs=_csv_env("TRUSTED_PROXY_CIDRS"),
         ledger_export_max_rows=max(100, int(os.getenv("LEDGER_EXPORT_MAX_ROWS", "5000"))),
+        notification_ai_enabled=os.getenv("NOTIFICATION_AI_ENABLED", "false").lower() == "true",
+        notification_ai_model=os.getenv("NOTIFICATION_AI_MODEL", "gpt-5.6-luna").strip(),
+        notification_ai_reasoning_effort=os.getenv("NOTIFICATION_AI_REASONING_EFFORT", "low").strip().lower(),
+        openai_api_key=os.getenv("OPENAI_API_KEY", "").strip(),
+        notification_ai_history_limit=ai_history_limit,
+        notification_ai_timeout=ai_timeout,
+        notification_ai_configuration_error=ai_configuration_error,
+        app_env=os.getenv("APP_ENV", "production").strip().lower(),
+        notification_ai_dry_run_enabled=os.getenv("NOTIFICATION_AI_DRY_RUN_ENABLED", "false").lower() == "true",
     )
 
 

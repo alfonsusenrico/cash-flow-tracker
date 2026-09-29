@@ -47,6 +47,61 @@ Runs silently in the background using native Android `NotificationListenerServic
   - **Stockbit:** Real-time equity trade fills (`Beli 10 lot BBRI match di Rp 3.850`) updating stock units and RDN cash balances automatically!
 - **Strict Spam & Promo Rejection:** Marketing blasts, promo push notifications, OTPs, and cashback vouchers are strictly rejected on-device before any network request is made.
 
+#### Optional server-side interpretation
+
+The backend always preserves supported, unfamiliar financial notifications for safe review. Its optional OpenAI-backed interpreter is **disabled by default**. When explicitly enabled, it uses `gpt-5.6-luna` with `low` reasoning and receives only a bounded, redacted context of the user's active accounts, pockets, categories, rules, recent descriptions, and eligible movement candidates. It cannot set the amount or timestamp, create accounts/categories, or issue tools; the backend independently validates every reference and applies only settled whole-IDR facts.
+
+Set these environment variables only after completing the synthetic benchmark described below. Keep `OPENAI_API_KEY` in local/runtime secret management, never in source control. OpenAI API inputs are not used for training by default; requests use `store=false`, but standard abuse-monitoring retention can be up to 30 days unless the configured project has separately approved retention controls.
+
+```dotenv
+NOTIFICATION_AI_ENABLED=false
+NOTIFICATION_AI_MODEL=gpt-5.6-luna
+NOTIFICATION_AI_REASONING_EFFORT=low
+NOTIFICATION_AI_HISTORY_LIMIT=20
+NOTIFICATION_AI_TIMEOUT=30
+OPENAI_API_KEY=
+```
+
+For an owner-authorized local parsing check without any event, ledger, balance, retry, or worker mutation, set `APP_ENV=development` and `NOTIFICATION_AI_DRY_RUN_ENABLED=true` locally while keeping `NOTIFICATION_AI_ENABLED=false`. Use authenticated `POST /api/ingest/notifications/dry-run` with `{"event": <normal notification payload>}`, or `POST /api/ingest/notifications/{event_id}/dry-run` for one owned stored local event. These routes return a safe proposed result only and return 404 outside explicitly enabled development.
+
+In this dry-run-only configuration, notification processing, recurring execution, and market-price refresh background jobs are all suspended. Restore normal local runtime flags after testing to resume them. A `would_record` proposal passes the same account/default-pocket and category validation as recording, but does not simulate database application, counterpart merging, or concurrent changes. Uncertain mappings remain `needs_review`; they never become empty successful proposals.
+
+Accepted notification responses retain existing batch counters and add one result for every submitted event. A result is `recorded` only after its ledger transaction commits; `queued` only means recoverable asynchronous processing has begun.
+
+```json
+{
+  "payload_hash": "event-hash",
+  "event_id": "notification-event-id",
+  "status": "recorded",
+  "record_key": "movement:movement-id",
+  "type": "internal_movement",
+  "description": "Pindah saldo ke Dana Darurat",
+  "source": "Bank Jago · Kantong Utama",
+  "target": "Bank Jago · Dana Darurat",
+  "amount": 125000,
+  "currency": "IDR"
+}
+```
+
+Use `GET /api/ingest/notifications/{event_id}/result` to retrieve the same compact result. `POST` to the same path with `/retry` retries only unresolved owner-scoped events using their original captured facts; it never replays a committed ledger effect. Deterministic events retain that mode on retry. An AI event returns a conflict without changing state while AI processing is unavailable.
+
+The synthetic-only benchmark never accesses the runtime database or sends user notifications. With a configured key and reviewed OpenAI project access, spend limits, and retention controls, run each configuration separately to respect its $0.25 cap. Tune only on the development partition before using the held-out partition:
+
+```bash
+PYTHONPATH=backend backend/.venv/bin/python -m evaluation.notification_benchmark \
+  --live --partition development --repeats 3 --reasoning-efforts low
+PYTHONPATH=backend backend/.venv/bin/python -m evaluation.notification_benchmark \
+  --live --partition development --repeats 3 --reasoning-efforts none
+PYTHONPATH=backend backend/.venv/bin/python -m evaluation.notification_benchmark \
+  --live --partition held_out --repeats 3 --reasoning-efforts low
+PYTHONPATH=backend backend/.venv/bin/python -m evaluation.notification_benchmark \
+  --live --partition held_out --repeats 3 --reasoning-efforts none
+```
+
+The tool reports direct-access denial explicitly and does not activate the processor. It compares the operational `low` setting with the permitted `none` latency baseline using the same fictional fixtures.
+
+The 2026-09-29 held-out evaluation failed the required schema-validity and unambiguous-classification gates for both reasoning settings. Keep `NOTIFICATION_AI_ENABLED=false`; a passing development run or accepted sample descriptions do not authorize activation. See [the synthetic benchmark report](openspec/changes/add-ai-notification-processing/benchmark-report.md) for measured quality, latency, and cost. Local dry runs remain available only under their separate development flags and never write the ledger.
+
 ### 2. 🎯 Paycheck Cycle & Daily Pulse
 - **Payday-Aligned Cycles:** Budgets operate on your real financial cadence (e.g. 25th to 24th), not arbitrary calendar months.
 - **Safe-to-Spend Allowance:** Dynamically adjusts your daily allowance based on remaining days and actual burn rate.
