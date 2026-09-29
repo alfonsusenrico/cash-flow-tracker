@@ -359,6 +359,14 @@ async def run_live(reasoning_efforts: list[str], *, repeats: int, partition: str
         raise ValueError("Benchmark cost cap must be positive")
     credential = os.getenv("OPENAI_API_KEY", "").strip()
     if not credential:
+        env_file = Path(__file__).resolve().parents[2] / ".env"
+        if env_file.exists():
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("OPENAI_API_KEY=") and not line.startswith("#"):
+                    credential = line.split("=", 1)[1].strip().strip("'\"")
+                    break
+    if not credential:
         raise ProviderError("provider_credential_missing")
     cases = [case for case in synthetic_cases() if partition == "all" or case.partition == partition]
     estimated_usd = estimated_run_cost(cases, repeats=repeats, configurations=len(reasoning_efforts))

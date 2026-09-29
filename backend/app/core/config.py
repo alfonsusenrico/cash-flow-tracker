@@ -36,8 +36,8 @@ class Settings:
     trusted_proxy_cidrs: tuple[str, ...]
     ledger_export_max_rows: int
     notification_ai_enabled: bool = False
-    notification_ai_model: str = "gpt-5.6-luna"
-    notification_ai_reasoning_effort: str = "low"
+    notification_ai_model: str = "gpt-6-luna"
+    notification_ai_reasoning_effort: str = "none"
     openai_api_key: str = field(default="", repr=False)
     notification_ai_history_limit: int = 20
     notification_ai_timeout: float = 30
@@ -105,8 +105,8 @@ def load_settings() -> Settings:
         trusted_proxy_cidrs=_csv_env("TRUSTED_PROXY_CIDRS"),
         ledger_export_max_rows=max(100, int(os.getenv("LEDGER_EXPORT_MAX_ROWS", "5000"))),
         notification_ai_enabled=os.getenv("NOTIFICATION_AI_ENABLED", "false").lower() == "true",
-        notification_ai_model=os.getenv("NOTIFICATION_AI_MODEL", "gpt-5.6-luna").strip(),
-        notification_ai_reasoning_effort=os.getenv("NOTIFICATION_AI_REASONING_EFFORT", "low").strip().lower(),
+        notification_ai_model=os.getenv("NOTIFICATION_AI_MODEL", "gpt-6-luna").strip(),
+        notification_ai_reasoning_effort=os.getenv("NOTIFICATION_AI_REASONING_EFFORT", "none").strip().lower(),
         openai_api_key=os.getenv("OPENAI_API_KEY", "").strip(),
         notification_ai_history_limit=ai_history_limit,
         notification_ai_timeout=ai_timeout,
