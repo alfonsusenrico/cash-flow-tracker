@@ -14,9 +14,23 @@ ROLE_FIELDS = {"observed": "account_id", "source": "source_account_id", "target"
 CONFIRMATION_MIN_VERSION = (1, 3, 0)
 
 
+def version_tuple(value: str | None) -> tuple[int, int, int] | None:
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)", str(value or ""))
+    return tuple(int(part) for part in match.groups()) if match else None
+
+
 def supports_confirmation(event: dict) -> bool:
-    match = re.match(r"^(\d+)\.(\d+)\.(\d+)", str(event.get("source_version") or ""))
-    return bool(match) and tuple(int(part) for part in match.groups()) >= CONFIRMATION_MIN_VERSION
+    version = version_tuple(event.get("source_version"))
+    return version is not None and version >= CONFIRMATION_MIN_VERSION
+
+
+def newer_companion_version(current: str | None, requested: str | None) -> str | None:
+    """The companion version to keep on an event when a newer app build asks to reprocess it."""
+    requested_version = version_tuple(requested)
+    if requested_version is None or len(requested or "") > 50:
+        return current
+    current_version = version_tuple(current)
+    return requested if current_version is None or requested_version > current_version else current
 
 
 def mapping_decision(proposal, context: dict) -> dict | None:

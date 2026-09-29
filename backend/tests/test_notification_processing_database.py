@@ -1279,3 +1279,15 @@ def test_needs_confirmation_event_can_still_be_recorded_manually_or_retried(clie
     process_with(mapped_move(notification_owner, "gopay", 0.55))
     retried = client.post(f"/api/ingest/notifications/{event['event_id']}/retry")
     assert retried.status_code == 200 and retried.json()["result"]["status"] == "queued"
+
+
+def test_retry_from_newer_app_enables_confirmation_for_old_events(client, notification_owner, monkeypatch):
+    enable_ai(monkeypatch)
+    event = ingest_move(client, version="1.1.0")
+    process_with(mapped_move(notification_owner, "gopay", 0.6))
+    assert client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]["status"] == "needs_review"
+    retried = client.post(f"/api/ingest/notifications/{event['event_id']}/retry", headers={"X-Companion-Version": "1.3.1"})
+    assert retried.status_code == 200
+    process_with(mapped_move(notification_owner, "gopay", 0.6))
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["status"] == "needs_confirmation" and result["mapping_proposal"]["proposed"]["label"] == "GoPay"

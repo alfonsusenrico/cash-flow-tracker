@@ -135,8 +135,9 @@ def notification_result(event_id: UUID, current_user: dict = Depends(get_current
 
 
 @router.post("/notifications/{event_id}/retry")
-def retry_notification(event_id: UUID, current_user: dict = Depends(get_current_user)):
+def retry_notification(event_id: UUID, request: Request, current_user: dict = Depends(get_current_user)):
     from app.services import notification_processing
+    from app.services.notification_mapping import newer_companion_version
     from app.services.openai_notification_provider import configuration_error
 
     with db_conn() as conn:
@@ -153,12 +154,15 @@ def retry_notification(event_id: UUID, current_user: dict = Depends(get_current_
                 mode = "deterministic" if event["package_name"].lower() == "com.stockbit.android" else "ai"
             if mode == "ai" and configuration_error(notification_processing.settings):
                 raise HTTPException(status_code=409, detail="AI processing unavailable")
+            # An event captured by an older app build can use features of the build that retries it.
+            companion = newer_companion_version(event.get("source_version"), request.headers.get("X-Companion-Version"))
             cur.execute(
                 """UPDATE notification_events SET processing_state = 'queued', processing_mode = %s,
                    attempt_count = 0, processing_generation = processing_generation + 1,
-                   next_attempt_at = NOW(), error_code = NULL, lease_token = NULL, lease_expires_at = NULL
+                   next_attempt_at = NOW(), error_code = NULL, lease_token = NULL, lease_expires_at = NULL,
+                   source_version = %s
                    WHERE user_id = %s AND id = %s RETURNING *""",
-                (mode, current_user["id"], str(event_id)),
+                (mode, companion, current_user["id"], str(event_id)),
             )
             result = notification_processing.compact_result(cur, cur.fetchone())
         conn.commit()

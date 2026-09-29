@@ -120,3 +120,13 @@ def test_mapping_threshold_configuration_bounds(monkeypatch, value, threshold, e
     loaded = load_settings()
     assert loaded.notification_mapping_auto_threshold == threshold
     assert loaded.notification_ai_configuration_error == error
+
+
+@pytest.mark.parametrize("current,requested,expected", [
+    ("1.1.0", "1.3.1", "1.3.1"), ("1.3.1", "1.3.0", "1.3.1"), ("1.2.0", None, "1.2.0"),
+    ("1.2.0", "garbage", "1.2.0"), (None, "1.3.0", "1.3.0"), ("1.2.0", "1.3.0" + "0" * 60, "1.2.0"),
+])
+def test_retry_keeps_the_newest_companion_version(current, requested, expected):
+    from app.services.notification_mapping import newer_companion_version
+
+    assert newer_companion_version(current, requested) == expected
