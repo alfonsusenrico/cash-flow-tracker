@@ -28,3 +28,9 @@
 
 - [ ] 5.1 Push topic branches, owner merges, confirm the deploy run, install the app, update `PROJECT_STATE.md`, and validate this change strictly.
 - [ ] 5.2 Retry adopts a newer companion version (`X-Companion-Version`) so events captured before 1.3.0 can reach `needs_confirmation`; verify with `test_retry_from_newer_app_enables_confirmation_for_old_events` and on the device with stuck row 65 after deploy.
+
+## 6. Learned names as evidence (owner request)
+
+- [x] 6.1 Include learned names with `confirmed_by` in model context and resolve exact keys from them; verify with `test_learned_alias_resolves_before_name_matching` and database test `test_confirmed_names_reach_later_model_context_with_their_source`.
+- [x] 6.2 Prompt version 6 explains learned-name evidence; verify with the live mapping benchmark (8 cases × 3, gpt-6-luna none, $0.020): similar-to-owner-confirmed 0.95 auto correct, similar-to-ai-learned 0.80–0.82 confirm, generic-word-only 0.68–0.72 confirm, no wrong automatic mapping; 2 intermittent `provider_invalid_output`.
+- [x] 6.3 Retry the model once on `provider_invalid_output` before falling back; verify with `test_unusable_model_answer_is_asked_again_once`.

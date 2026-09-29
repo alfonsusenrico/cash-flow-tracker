@@ -22,7 +22,7 @@ from app.services.notification_context import sanitize_text
 from app.services.notification_evidence import EvidenceError, collect_facts
 from app.services.notification_interpretation import PROMPT_VERSION, validate_interpretation
 from app.services.notification_mapping import mapping_decision
-from app.services.notification_resolution import endpoint_context
+from app.services.notification_resolution import alias_key, endpoint_context, normalize_name
 from app.services.openai_notification_provider import OpenAINotificationProvider, ProviderError
 
 POST_TIME = datetime.fromisoformat("2026-09-29T17:00:00+07:00")
@@ -35,6 +35,8 @@ class MappingCase:
     text: str
     extra_accounts: tuple[dict, ...]
     acceptable_auto: frozenset[str]
+    # (account id, bank name, confirmed_by) pairs learned from earlier notifications.
+    learned: tuple[tuple[str, str, str], ...] = ()
 
 
 def jago_pocket(number: int, name: str) -> dict:
@@ -57,6 +59,16 @@ CASES = [
     MappingCase("gopay-with-paylater", "com.gopay.wallet", "QRIS Rp32.000 ke Kedai Awan berhasil",
                 ({"id": fixture_id(24), "name": "GoPay Later", "type": "ewallet", "parent_id": None},),
                 frozenset({fixture_id(5)})),
+    MappingCase("similar-to-owner-confirmed", "com.jago.digitalBanking",
+                "Rp200.000 has been moved from your Main Pocket Pocket to your Tabungan GoPay Pocket.",
+                (), frozenset({fixture_id(5)}), ((fixture_id(5), "GoPay Tabungan", "owner"),)),
+    MappingCase("generic-word-only-learned", "com.jago.digitalBanking",
+                "Rp300.000 has been moved from your Main Pocket Pocket to your Tabungan Liburan Pocket.",
+                (jago_pocket(21, "Liburan Bali"), jago_pocket(22, "Rumah")), frozenset(),
+                ((fixture_id(22), "Tabungan Rumah", "owner"),)),
+    MappingCase("similar-to-ai-learned", "com.jago.digitalBanking",
+                "Rp200.000 has been moved from your Main Pocket Pocket to your Tabungan GoPay Pocket.",
+                (), frozenset({fixture_id(5)}), ((fixture_id(5), "GoPay Tabungan", "ai"),)),
 ]
 
 
@@ -64,6 +76,11 @@ def case_input(case: MappingCase) -> tuple:
     facts = collect_facts({"package_name": case.package, "body_text": case.text, "post_time": POST_TIME})
     context = deepcopy(BASE_CONTEXT)
     context["accounts"] += [dict(account) for account in case.extra_accounts]
+    for account_id, name, confirmed_by in case.learned:
+        account = next(row for row in context["accounts"] if row["id"] == account_id)
+        account.setdefault("learned_notification_names", []).append({
+            "key": alias_key("jago", normalize_name(name)), "name": name, "institution": "jago", "confirmed_by": confirmed_by,
+        })
     context["notification"] = sanitize_text(facts.text)
     context["self_identity_detected"] = False
     context["facts"] = {"institution": facts.institution, "direction": facts.direction,
@@ -106,9 +123,16 @@ async def run(model: str, effort: str, repeats: int, threshold: float) -> dict:
     counts = {}
     for row in rows:
         counts[row["outcome"]] = counts.get(row["outcome"], 0) + 1
+    per_case = {}
+    for row in rows:
+        entry = per_case.setdefault(row["case"], {"outcomes": [], "confidences": []})
+        entry["outcomes"].append(row["outcome"])
+        if row.get("confidence") is not None:
+            entry["confidences"].append(row["confidence"])
     return {"prompt_version": PROMPT_VERSION, "model": model, "reasoning_effort": effort, "threshold": threshold,
             "repeats": repeats, "outcomes": counts, "gate_pass": counts.get("auto_wrong", 0) == 0
-            and counts.get("provider_error", 0) == 0, "observed_usage_usd": round(cost, 5), "rows": rows}
+            and counts.get("provider_error", 0) == 0, "observed_usage_usd": round(cost, 5),
+            "per_case": per_case, "rows": rows}
 
 
 def main():
