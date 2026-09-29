@@ -47,12 +47,14 @@ SETTLED_PATTERN = re.compile(
     r"mengirimkan dana|you've moved|you have moved|has been moved|"
     r"telah dipindahkan|telah memindahkan|match di harga|"
     r"pengisian saldo|telah ditambahkan|top\s*up request|"
-    r"you've sent|you have sent|dikirim|mengirim|terkirim|berhasil kirim|rdn earning|rdn spending)\b",
+    r"you've sent|you have sent|dikirim|mengirim|terkirim|berhasil kirim|rdn earning|rdn spending|"
+    r"you've transferred|you have transferred)\b",
     re.I,
 )
 OUT_PATTERN = re.compile(
     r"\b(?:paid|spent|terdebit|pengeluaran|pembayaran|membayar|udah dikirim|"
-    r"transfer (?:ke|to)|dikirim ke|sent to|you've sent|you have sent|mengirim|berhasil kirim)\b", re.I
+    r"transfer (?:ke|to)|dikirim ke|sent to|you've sent|you have sent|mengirim|berhasil kirim|"
+    r"you've transferred|you have transferred|transferred to)\b", re.I
 )
 IN_PATTERN = re.compile(
     r"\b(?:received|pemasukan|menerima|has sent.+to you|"

@@ -1354,3 +1354,19 @@ def test_two_rdn_accounts_send_rdn_notifications_to_review(client, notification_
     add_account(notification_owner, "second_rdn", "RDN Mandiri Sekuritas", "bank")
     result = ingest(client, notification(RDN_TOP_UP, "com.bca.mybca.omni.android"))["results"][0]
     assert (result["status"], result["error_code"]) == ("needs_review", "uncertain_pocket_mapping")
+
+
+
+@pytest.mark.parametrize("jago_last", [True, False])
+def test_jago_transfer_to_bca_pairs_with_the_bca_credit(client, notification_owner, jago_last):
+    """Device sequence of 2026-09-30 00:13 with fictional names: pocket move, BCA credit, Jago transfer."""
+    ingest(client, at(notification("You've moved Rp625.000 out of your My Emergency Fund Pocket.", "com.jago.digitalBanking"), 0))
+    bca = at(notification("You received IDR 625,000.00 from RA*A ***NAMA at Account Transfer category.", "com.bca.mybca.omni.android"), 42)
+    jago = at(notification("You've transferred Rp625.000 to RAKA PURNAMA. Need help? Contact Tanya Jago at 1500 746.", "com.jago.digitalBanking"), 46)
+    first, second = (bca, jago) if jago_last else (jago, bca)
+    ingest(client, first)
+    paired = ingest(client, second)["results"][0]
+    assert paired["type"] == "internal_movement"
+    assert (paired["source"], paired["target"]) == ("Bank Jago · Kantong Utama", "BCA Harian")
+    rows = transactions_of(notification_owner)
+    assert len(rows) == 4 and len({row["movement_id"] for row in rows}) == 2
