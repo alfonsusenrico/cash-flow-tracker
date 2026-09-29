@@ -202,7 +202,22 @@ def pocket_endpoint(name: str | None, parent: dict, accounts: list[dict], *, ins
     return matches[0]
 
 
+def rdn_account(accounts: list[dict]) -> dict:
+    """The owner's single securities fund account (RDN) held at BCA."""
+    learned = aliased_account(accounts, "bca", "rdn")
+    if learned:
+        return learned
+    candidates = [account for account in accounts
+                  if "rdn" in re.sub(r"[^a-z0-9]", "", account["name"].lower())
+                  and account.get("type") in MAPPABLE_ACCOUNT_TYPES and not account.get("instrument_type")]
+    if len(candidates) != 1:
+        raise EvidenceError("uncertain_pocket_mapping")
+    return candidates[0]
+
+
 def observed_endpoint(facts: NotificationFacts, accounts: list[dict], proposal: Interpretation | None = None) -> dict:
+    if facts.institution == "bca" and "RDN" in {facts.parsed.source_pocket, facts.parsed.target_pocket}:
+        return rdn_account(accounts)
     parent = institution_parent(accounts, facts.institution)
     named = facts.parsed.source_pocket if facts.direction == "expense" else facts.parsed.target_pocket
     if named:
@@ -297,7 +312,7 @@ def endpoint_context(facts: NotificationFacts, accounts: list[dict]) -> dict:
 def transfer_signature(facts: NotificationFacts, context: dict, account_id: str) -> dict:
     text = context.get("notification", facts.text)
     transfer = bool(re.search(r"transfer|kir[i]?m|irim|has sent|you've sent|you have sent|sent to|menerima|top.?up|pengisian saldo|terdebit|pindah|moved", text, re.I))
-    self_identity = bool(context.get("self_identity_detected"))
+    self_identity = bool(context.get("self_identity_detected")) or facts.parsed.own_account_transfer
     reference = re.search(r"(?:referensi|reference|ref)\s*[:#]\s*([a-z0-9-]{6,40})", facts.text, re.I)
     remote_id = None
     for institution in ("bca", "jago", "gopay", "shopeepay"):

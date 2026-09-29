@@ -405,3 +405,18 @@ def test_bank_jago_card_payment_with_pocket():
     assert parsed.direction == "out"
     assert parsed.source_pocket == "Subscriptions"
     assert "Midtrans" in (parsed.counterparty or "")
+
+
+def test_mybca_rdn_earning_is_an_own_account_transfer_into_rdn():
+    parsed = parse_notification("com.bca.mybca.omni.android", "Financial Diary",
+                                "RDN earning of IDR 225,180.00 at Account Transfer category.")
+    assert (parsed.event_class, parsed.direction, parsed.amount) == ("income", "in", 225180)
+    assert (parsed.target_pocket, parsed.source_pocket, parsed.counterparty) == ("RDN", None, "BCA RDN")
+    assert parsed.category_hint == "Transfer Masuk" and parsed.own_account_transfer is True
+
+
+def test_mybca_rdn_spending_leaves_rdn_and_other_categories_are_not_own_transfers():
+    parsed = parse_notification("com.bca.mybca.omni.android", "Financial Diary",
+                                "RDN spending of IDR 50,000.00 at Payment category.")
+    assert (parsed.event_class, parsed.direction, parsed.source_pocket) == ("expense", "out", "RDN")
+    assert parsed.own_account_transfer is False

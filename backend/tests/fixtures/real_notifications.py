@@ -43,6 +43,8 @@ REAL_NOTIFICATIONS = [
     ("shopeepay-bifast-owner", "com.shopeepay.id", "Saldo ShopeePay diterima!",
      "RAKA PURNAMA SENTOSA mengirimkan dana sebesar Rp7.491.557 ke ShopeePay-mu melalui BI-Fast.",
      "candidate", "income", 7491557),
+    ("mybca-rdn-earning", "com.bca.mybca.omni.android", "Financial Diary",
+     "RDN earning of IDR 225,180.00 at Account Transfer category.", "candidate", "income", 225180),
     ("gopay-coins-promotion", "com.gojek.gopay", "Coins GRATIS buat Raka Purnama",
      "Yuk, ambil GRATIS 11,200 GoPay Coins & voucher kamu. Cukup check-in di A+ Rewards! Check-in sekarang~",
      "ignored", None, None),

@@ -26,8 +26,8 @@
 
 ## 5. Release
 
-- [ ] 5.1 Push topic branches, owner merges, confirm the deploy run, install the app, update `PROJECT_STATE.md`, and validate this change strictly.
-- [ ] 5.2 Retry adopts a newer companion version (`X-Companion-Version`) so events captured before 1.3.0 can reach `needs_confirmation`; verify with `test_retry_from_newer_app_enables_confirmation_for_old_events` and on the device with stuck row 65 after deploy.
+- [x] 5.1 Push topic branches, owner merges, confirm the deploy run, install the app, update `PROJECT_STATE.md`, and validate this change strictly. Evidence: PRs #8, #9 and the learned-names branch merged; deploy runs for `3cf4eb8`, `738dd19`, `4f2005e` succeeded; companion 1.3.1 installed.
+- [x] 5.2 Retry adopts a newer companion version (`X-Companion-Version`) so events captured before 1.3.0 can reach `needs_confirmation`; verify with `test_retry_from_newer_app_enables_confirmation_for_old_events` and on the device with stuck row 65 after deploy. Evidence: device row 65 (Jago → GoPay Tabungan, captured by 1.1.0) retried from 1.3.1, confirmed by the owner, recorded as Jago · Main Pocket → GoPay; owner reported it working.
 
 ## 6. Learned names as evidence (owner request)
 
