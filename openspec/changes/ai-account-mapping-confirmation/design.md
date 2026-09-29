@@ -49,5 +49,5 @@ Prompt version `notification-interpretation-5` explains unresolved names, eligib
 ## Migration Plan
 
 1. Backend with V22 (additive table; constraint replaced to add one state) deploys first; old mobile builds treat unknown states as invalid results only if they receive one, so the confirmation state is emitted only when the request's `source_version` is ≥ 1.3.0; older builds keep receiving `needs_review`.
-2. Mobile 1.3.0 installs after the deploy.
+2. Mobile 1.3.0 installs after the deploy. Events captured by older builds become eligible when a ≥1.3.0 build retries them: the app sends `X-Companion-Version` on every request and the retry endpoint keeps the newer version on the event.
 3. Rollback: revert the backend merge; events already in `needs_confirmation` can be retried or resolved manually through existing endpoints after rollback because the check constraint change is kept.

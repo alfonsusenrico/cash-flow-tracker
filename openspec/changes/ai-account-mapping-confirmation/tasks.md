@@ -21,9 +21,10 @@
 
 - [x] 4.1 Handle `needs_confirmation` and `mapping_proposal` in result consumption and completion polling; send `source_version` 1.3.0; verify with unit tests. Evidence: unit tests `MappingConfirmationTest`; 1.3.0 sends `source_version` from a clean build.
 - [x] 4.2 Add the "Konfirmasi Rekening" channel, actionable notification, non-exported `MappingConfirmReceiver` with `goAsync()`, and receipts against duplicate posting; verify with unit tests for payload and a device check. Evidence: unit tests for notification content; instrumented `confirmationIsStoredPostedOnceAndClearedWhenResolved` compiled, not yet run (phone unreachable).
-- [ ] 4.3 Add the proposal and picker to the detail sheet; verify with an instrumented UI test (phone unlocked).
-- [ ] 4.4 Clean-build 1.3.0, install after the backend deploy, and verify one confirmation end to end on the device.
+- [x] 4.3 Add the proposal and picker to the detail sheet; verify with an instrumented UI test (phone unlocked). Evidence: all 18 instrumented tests on the TECNO device (17 passed, 1 skipped by design), including the picker test; the run also caught a 1.2.0 badge regression (recorded result with error shown as recorded), fixed in 1.3.1.
+- [x] 4.4 Clean-build 1.3.0, install after the backend deploy, and verify one confirmation end to end on the device. Evidence: 1.3.0 installed after deploy run for `3cf4eb8`, then 1.3.1 (`X-Companion-Version` header, badge fix) built with `--no-build-cache`; compiled version strings verified with dexdump; 24/24 rows and settings preserved; listener bound.
 
 ## 5. Release
 
 - [ ] 5.1 Push topic branches, owner merges, confirm the deploy run, install the app, update `PROJECT_STATE.md`, and validate this change strictly.
+- [ ] 5.2 Retry adopts a newer companion version (`X-Companion-Version`) so events captured before 1.3.0 can reach `needs_confirmation`; verify with `test_retry_from_newer_app_enables_confirmation_for_old_events` and on the device with stuck row 65 after deploy.
