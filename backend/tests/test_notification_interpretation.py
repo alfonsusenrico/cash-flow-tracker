@@ -191,3 +191,35 @@ def test_oversized_text_does_not_enter_legacy_regex_parser(monkeypatch):
 
 def test_foreground_service_noise_is_not_a_financial_candidate():
     assert collect_facts(event("Monitoring transactions...")).status == "ignored"
+
+
+def test_shopeepay_topup_facts_with_running_balance():
+    payload = {
+        "package_name": "com.shopeepay.id",
+        "title": "Isi Saldo Berhasil",
+        "body_text": "Pengisian saldo sebesar Rp7.490.557 telah ditambahkan ke ShopeePay-mu. Saldo saat ini sebesar Rp7.491.557.",
+        "post_time": datetime.fromisoformat("2026-09-29T10:15:27+07:00"),
+    }
+    facts = collect_facts(payload)
+    assert facts.status == "candidate"
+    assert facts.error_code is None
+    assert facts.amount == 7490557
+    assert facts.direction == "income"
+    assert facts.amount_quotes == ("Rp7.490.557",)
+    assert facts.institution == "shopeepay"
+
+
+def test_shopee_english_topup_facts_with_running_balance():
+    payload = {
+        "package_name": "com.shopee.id",
+        "title": "Top-up Completed",
+        "body_text": "Your Top up request of Rp7.490.557 is successful and your current balance is Rp7.491.557. Transaction No.  UWSNVXUMQY52OYEWKYRSCQWVWHVIE",
+        "post_time": datetime.fromisoformat("2026-09-29T10:15:27+07:00"),
+    }
+    facts = collect_facts(payload)
+    assert facts.status == "candidate"
+    assert facts.error_code is None
+    assert facts.amount == 7490557
+    assert facts.direction == "income"
+    assert facts.amount_quotes == ("Rp7.490.557",)
+    assert facts.institution == "shopeepay"
