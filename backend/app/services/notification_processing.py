@@ -361,12 +361,18 @@ async def process_claim(event: dict, provider):
         if context["incomplete"]:
             raise ProviderError("incomplete_context")
         proposal, provider_error = None, None
-        try:
-            proposal = await provider.interpret(context)
-        except ProviderError as exc:
-            if exc.transient or exc.code in RETRYABLE_FAILURE_CODES:
-                raise
-            provider_error = exc.code
+        # An unusable model answer is occasional and usually not repeated, so ask once more first.
+        for _ in range(2):
+            try:
+                proposal = await provider.interpret(context)
+                provider_error = None
+                break
+            except ProviderError as exc:
+                if exc.transient or exc.code in RETRYABLE_FAILURE_CODES:
+                    raise
+                provider_error = exc.code
+                if exc.code != "provider_invalid_output":
+                    break
         await database_operation(apply_claim, event, proposal, provider_error)
     except ProviderError as exc:
         await database_operation(fail_claim, event, exc)

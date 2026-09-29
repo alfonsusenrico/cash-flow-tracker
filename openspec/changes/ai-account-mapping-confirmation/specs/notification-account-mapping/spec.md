@@ -38,6 +38,17 @@ When the lowest mapping confidence is below the threshold, the system SHALL crea
 - **WHEN** a user confirms a mapping for an event they do not own
 - **THEN** the backend returns not found and reveals nothing
 
+### Requirement: Learned Names as Mapping Evidence
+The system SHALL give the AI, for each account, the bank names previously mapped to it and whether the owner confirmed each one or it was accepted automatically. The AI SHALL treat an owner-confirmed name for the same product or pocket as strong evidence for a similar unresolved name, SHALL treat an automatically accepted name as weaker evidence, and SHALL NOT treat a shared generic word as evidence. Owner names in learned names SHALL be redacted like other context.
+
+#### Scenario: Similar name after an owner confirmation
+- **WHEN** the owner confirmed "GoPay Tabungan" as GoPay and a later notification names "Tabungan GoPay"
+- **THEN** the AI maps it to GoPay with confidence at or above the threshold and it is recorded automatically
+
+#### Scenario: Only a generic word in common
+- **WHEN** the owner confirmed "Tabungan Rumah" for one pocket and a notification names "Tabungan Liburan"
+- **THEN** the learned name does not raise confidence above the threshold
+
 ### Requirement: Learned Alias Management
 The owner SHALL be able to list learned aliases with their source (AI or owner) and remove any of them. Removing an alias SHALL affect only future notifications.
 

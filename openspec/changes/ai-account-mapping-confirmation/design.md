@@ -39,6 +39,9 @@ A "Nama dari notifikasi bank" list (bank name → account, source AI or owner) w
 ### D8. Prompt and evaluation
 Prompt version `notification-interpretation-5` explains unresolved names, eligibility, and calibrated confidence (0.9+ only when the name clearly denotes one account; ≤0.6 when several accounts fit). Synthetic benchmark cases add: exact-but-missing pocket (GoPay Tabungan → GoPay), two plausible pockets (low confidence expected), unrelated name (needs_review). Acceptance: no auto-accepted mapping to a wrong account across repeated runs of these cases.
 
+### D9. Learned names as model evidence (added 2026-09-29, owner request)
+Accounts in the model context carry `learned_notification_names` entries `{key, name, institution, confirmed_by}`; the backend resolves exact keys deterministically, and prompt version 6 tells the model to weight owner-confirmed names as strong evidence for similar names (confidence 0.9+), AI-accepted names as weaker (≤0.85), and generic shared words as no evidence. Context cost is about 10 tokens per learned name (≈3k tokens per call today). An intermittent `provider_invalid_output` (2 of 30 live calls) is now retried once before falling back. Measured outcome-based threshold adaptation is deferred to a separate proposal.
+
 ## Risks / Trade-offs
 
 - [Model confidence is not calibrated] → guardrails in D2, the lowest-confidence rule in D3, benchmark gate in D8, the "dipetakan otomatis" label, and alias removal in Settings. The threshold is configurable upward without a deploy of code.

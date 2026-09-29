@@ -34,7 +34,9 @@ def test_unresolved_pocket_is_reported_with_eligible_liquid_accounts():
 def test_learned_alias_resolves_before_name_matching():
     accounts = deepcopy(BASE_CONTEXT["accounts"])
     gopay = next(row for row in accounts if row["id"] == fixture_id(5))
-    gopay["notification_names"] = [alias_key("jago", "gopay tabungan")]
+    gopay["learned_notification_names"] = [
+        {"key": alias_key("jago", "gopay tabungan"), "name": "GoPay Tabungan", "institution": "jago", "confirmed_by": "owner"},
+    ]
     assert endpoint_context(facts_for(GOPAY_TABUNGAN_MOVE), accounts) == {
         "source_account_id": fixture_id(3), "target_account_id": fixture_id(5),
     }

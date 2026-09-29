@@ -1291,3 +1291,36 @@ def test_retry_from_newer_app_enables_confirmation_for_old_events(client, notifi
     process_with(mapped_move(notification_owner, "gopay", 0.6))
     result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
     assert result["status"] == "needs_confirmation" and result["mapping_proposal"]["proposed"]["label"] == "GoPay"
+
+
+def test_confirmed_names_reach_later_model_context_with_their_source(client, notification_owner, monkeypatch):
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest_move(client)
+    process_with(mapped_move(notification_owner, "gopay", 0.55))
+    client.post(f"/api/ingest/notifications/{event['event_id']}/confirm-mapping", json={"account_id": notification_owner["gopay"]})
+    process_with(mapped_move(notification_owner, "gopay", 0.0, with_mapping=False))
+    later = notification("Rp200.000 has been moved from your Main Pocket Pocket to your Tabungan GoPay Pocket.",
+                         "com.jago.digitalBanking", seconds=50)
+    later["source_version"] = "1.3.1"
+    ingest(client, later)
+    facts, context = processing.read_context(processing.claim_event())
+    [unresolved] = context["facts"]["unresolved_names"]
+    assert unresolved["name"] == "Tabungan GoPay"
+    gopay = next(row for row in context["accounts"] if str(row["id"]) == notification_owner["gopay"])
+    assert gopay["learned_notification_names"] == [{
+        "key": "jago|gopay tabungan", "name": "GoPay Tabungan", "institution": "jago", "confirmed_by": "owner",
+    }]
+
+
+def test_unusable_model_answer_is_asked_again_once(client, notification_owner, monkeypatch):
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest(client, notification())["results"][0]
+    provider = AsyncMock()
+    provider.interpret.side_effect = [ProviderError("provider_invalid_output"), interpretation(notification_owner)]
+    asyncio.run(processing.process_claim(processing.claim_event(), provider))
+    assert provider.interpret.await_count == 2
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["status"] == "recorded"
+    assert processing.claim_event() is None

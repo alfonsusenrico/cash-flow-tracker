@@ -38,7 +38,8 @@ def alias_key(institution: str, name_normalized: str) -> str:
 
 def aliased_account(accounts: list[dict], institution: str, name_normalized: str) -> dict | None:
     key = alias_key(institution, name_normalized)
-    matches = [account for account in accounts if key in (account.get("notification_names") or ())]
+    matches = [account for account in accounts
+               if any(learned.get("key") == key for learned in account.get("learned_notification_names") or ())]
     return matches[0] if len(matches) == 1 else None
 
 
