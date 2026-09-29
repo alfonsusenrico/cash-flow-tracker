@@ -9,7 +9,7 @@ from app.services.ledger_mutations import (
     LIQUID_ACCOUNT_TYPES, create_bilateral_movement, get_locked_ledger_balance, lock_owned_accounts,
     movement_kakeibo,
 )
-from app.services.movement_linkage import link_transactions_as_movement
+from app.services.movement_linkage import SELF_TRANSFER_NOTES, link_transactions_as_movement, movement_note
 from app.services.notification_context import CANDIDATE_LIMIT, discover_candidates, sanitize_text
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
 from app.services.notification_interpretation import Interpretation, validate_interpretation
@@ -76,14 +76,18 @@ def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Int
         categories = [row for row in context["categories"] if row["kind"] == facts.direction]
         matches = [row for row in categories if str(row["id"]) in rule_ids]
         signature = transfer_signature(facts, context, str(observed["id"]))
-        if signature["transfer"] and signature["self_identity"]:
+        self_transfer = signature["transfer"] and signature["self_identity"]
+        if self_transfer:
             matches = [row for row in categories if row["name"] == "Internal Movement"]
         if not matches:
             matches = hinted_categories(categories, facts.parsed.category_hint)
         if len(matches) != 1:
             raise EvidenceError("uncertain_category_mapping")
         category = matches[0]
-        description = sanitize_text(facts.parsed.counterparty or "Transaksi bank")[:160]
+        if self_transfer or (context.get("facts") or {}).get("counterparty_is_owner"):
+            description = SELF_TRANSFER_NOTES[facts.direction]
+        else:
+            description = sanitize_text(facts.parsed.counterparty or "Transaksi bank")[:160]
     payload = {
         "outcome": "record", "direction": facts.direction, "description": description,
         "account_id": str(observed["id"]) if observed else None,
@@ -169,11 +173,16 @@ def resolve_record(facts: NotificationFacts, proposal: Interpretation, context: 
     signature = transfer_signature(facts, context, account_id)
     category_id = str(proposal.category_id)
     kakeibo = proposal.kakeibo
+    description = proposal.description
     if signature["transfer"] and signature["self_identity"]:
         expense_category, income_category = movement_categories(context)
         category_id = expense_category if facts.direction == "expense" else income_category
         kakeibo = None
+        description = SELF_TRANSFER_NOTES[facts.direction]
+    elif (context.get("facts") or {}).get("counterparty_is_owner"):
+        description = SELF_TRANSFER_NOTES[facts.direction]
     return {
+        "description": description,
         "observed": observed, "signature": signature, "category_id": category_id,
         "source": observed if facts.direction == "expense" else None,
         "target": observed if facts.direction == "income" else None, "kakeibo": kakeibo,
@@ -214,7 +223,7 @@ def apply_interpretation(
         return 2
     return record_observed_leg(
         cur, event, facts, context, observed=resolved["observed"], category_id=resolved["category_id"],
-        kakeibo=resolved["kakeibo"], description=proposal.description,
+        kakeibo=resolved["kakeibo"], description=resolved["description"],
         signature={**resolved["signature"], "source": source_name},
     )
 
@@ -302,12 +311,13 @@ def record_observed_leg(
     if counterpart:
         expense_id = tx_id if facts.direction == "expense" else str(counterpart["id"])
         income_id = tx_id if facts.direction == "income" else str(counterpart["id"])
-        result = link_transactions_as_movement(cur, user_id, expense_id, income_id)
         other = next(row for row in accounts if str(row["id"]) == str(counterpart["account_id"]))
         source = observed if facts.direction == "expense" else other
         target = other if facts.direction == "expense" else observed
+        note = movement_note(cur, user_id, str(target["id"]))
+        result = link_transactions_as_movement(cur, user_id, expense_id, income_id, notes=note)
         snapshot = committed_snapshot(key=counterpart["result_key"], kind="internal_movement",
-                                      description=counterpart["result_snapshot"]["description"], amount=facts.amount,
+                                      description=note, amount=facts.amount,
                                       source=account_label(source, accounts), target=account_label(target, accounts))
         cur.execute(
             """UPDATE notification_events SET movement_id = %s, confirmed_role = %s,

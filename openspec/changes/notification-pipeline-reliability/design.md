@@ -40,6 +40,9 @@ Flyway `V21__user_name_aliases.sql` adds `users.name_aliases TEXT[] NOT NULL DEF
 ### D8. Reason messages
 A single Kotlin map `ProcessingReasons.describe(code)` returns Indonesian text for every backend `error_code` (`model_uncertain`, `uncertain_category_mapping`, `ambiguous_movement`, `direction_unproven`, `settlement_unproven`, `provider_unavailable`, …) with a generic fallback that shows the raw code. `StatusBadge` distinguishes `failed` ("Diulang otomatis") from `needs_review` ("Perlu tinjau").
 
+### D9. Neutral movement and self-transfer naming (added 2026-09-29 after the first monitored transfers)
+The owner observed a linked BCA → ShopeePay movement still named "Belanja" (the interpreter's label for the debit leg) and an owner-named Jago credit described by the owner's full name. `link_transactions_as_movement` gains an optional `notes` argument; notification pairing passes `movement_note()` = "Pindah saldo ke <destination label>", and `/movements/merge` passes it only when a leg has a notification event, so hand-written notes survive. `resolve_record` and `deterministic_interpretation` describe owner-counterparty legs as "Pindah saldo masuk/keluar". The context gains a boolean `counterparty_is_owner` (no names leave the backend). Existing production rows are not rewritten; a split and re-merge, or a notes edit, renames them.
+
 ## Risks / Trade-offs
 
 - [Relaxed pairing merges two unrelated equal-amount transactions within 15 minutes] → external-counterparty exclusion, different-institution requirement, ambiguity flag, and the new split action; window is configurable downward.

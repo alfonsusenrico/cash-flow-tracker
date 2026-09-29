@@ -799,7 +799,7 @@ def transactions_of(owner):
     from app.db.pool import db_conn
     with db_conn() as conn:
         return conn.execute(
-            """SELECT t.id, t.type, t.account_id, t.movement_id, t.movement_role, t.category_id, c.name AS category
+            """SELECT t.id, t.type, t.account_id, t.movement_id, t.movement_role, t.category_id, t.notes, c.name AS category
                FROM transactions t JOIN categories c ON c.id = t.category_id
                WHERE t.user_id = %s ORDER BY t.type""",
             (owner["user_id"],),
@@ -1054,3 +1054,63 @@ def test_pocket_move_then_main_pocket_to_bca_books_two_movements(client, notific
     rows = transactions_of(notification_owner)
     assert len(rows) == 4 and len({row["movement_id"] for row in rows}) == 2
     assert all(row["category"] == "Internal Movement" for row in rows)
+
+
+def test_paired_legs_are_renamed_as_one_movement(client, top_up_owner):
+    ingest(client, at(notification(SHOPEEPAY_TOP_UP, "com.shopeepay.id"), 0))
+    result = ingest(client, at(notification(BCA_TOP_UP_DEBIT, "com.bca.mybca.omni.android"), 3))["results"][0]
+    assert result["description"] == "Pindah saldo ke ShopeePay"
+    assert {row["notes"] for row in transactions_of(top_up_owner)} == {"Pindah saldo ke ShopeePay"}
+
+
+def test_unpaired_self_transfer_is_named_neutrally(client, notification_owner):
+    result = ingest(client, notification("Raka Purnama has sent Rp125.000 to you. Need help? Contact Tanya Jago at 1500 746."))["results"][0]
+    assert result["type"] == "income" and result["description"] == "Pindah saldo masuk"
+    [row] = transactions_of(notification_owner)
+    assert row["notes"] == "Pindah saldo masuk" and row["category"] == "Internal Movement"
+
+
+def test_ai_self_transfer_description_is_replaced(client, notification_owner, monkeypatch):
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest(client, notification("Raka Purnama has sent Rp125.000 to you."))["results"][0]
+    provider = AsyncMock()
+    provider.interpret.return_value = Interpretation.model_validate_json(json.dumps({
+        "outcome": "record", "direction": "income", "description": "Transfer masuk dari Raka",
+        "account_id": notification_owner["main"], "category_id": notification_owner["income"], "kakeibo": None,
+        "source_account_id": None, "target_account_id": None, "amount_evidence": "Rp125.000",
+        "direction_evidence": "has sent", "source_evidence": "", "target_evidence": "",
+        "candidate_transaction_id": None, "confidence": 0.9, "review_reason": "none",
+    }))
+    asyncio.run(processing.process_claim(processing.claim_event(), provider))
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["description"] == "Pindah saldo masuk"
+    assert transactions_of(notification_owner)[0]["category"] == "Internal Movement"
+
+
+def test_manual_merge_renames_notification_legs_only(client, top_up_owner):
+    from app.db.pool import db_conn
+    add_category(top_up_owner, "transfer_out", "Transfer Keluar")
+    ingest(client, at(notification("Rp500.000 udah dikirim ke BCA Mira Langit.", "com.gojek.gopay"), 0))
+    ingest(client, at(notification("Pengisian saldo sebesar Rp500.000 telah ditambahkan ke ShopeePay-mu.", "com.shopeepay.id"), 60))
+    rows = {row["type"]: row for row in transactions_of(top_up_owner)}
+    merged = client.post("/api/movements/merge", json={
+        "expense_transaction_id": str(rows["expense"]["id"]), "income_transaction_id": str(rows["income"]["id"]),
+    })
+    assert merged.status_code == 200, merged.text
+    assert {row["notes"] for row in transactions_of(top_up_owner)} == {"Pindah saldo ke ShopeePay"}
+
+    with db_conn() as conn:
+        manual = []
+        for kind, account, category in [("expense", "bca", "shopping"), ("income", "gopay", "income")]:
+            manual.append(str(conn.execute(
+                """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date)
+                   VALUES (%s, %s, %s, %s, 77000, 'Catatan sendiri', NOW()) RETURNING id""",
+                (top_up_owner["user_id"], top_up_owner[account], top_up_owner[category], kind),
+            ).fetchone()["id"]))
+    assert client.post("/api/movements/merge", json={
+        "expense_transaction_id": manual[0], "income_transaction_id": manual[1],
+    }).status_code == 200
+    with db_conn() as conn:
+        notes = {row["notes"] for row in conn.execute("SELECT notes FROM transactions WHERE id = ANY(%s)", (manual,)).fetchall()}
+    assert notes == {"Catatan sendiri"}

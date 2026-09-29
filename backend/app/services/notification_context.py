@@ -104,6 +104,7 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
                   "amount_quotes": facts.amount_quotes, "timestamp": facts.timestamp.isoformat(),
                   "external_counterparty": is_external_counterparty(
                       facts.parsed.counterparty, facts.parsed.category_hint, identity),
+                  "counterparty_is_owner": names_owner(facts.parsed.counterparty, identity),
                   **endpoint_context(facts, sanitized_accounts)},
         "accounts": sanitized_accounts, "categories": sanitized_categories,
         "rules": sanitized_rules, "history": history, "candidates": sanitized_candidates,
