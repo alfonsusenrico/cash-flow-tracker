@@ -1324,3 +1324,33 @@ def test_unusable_model_answer_is_asked_again_once(client, notification_owner, m
     result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
     assert result["status"] == "recorded"
     assert processing.claim_event() is None
+
+
+RDN_TOP_UP = "RDN earning of IDR 225,180.00 at Account Transfer category."
+
+
+@pytest.mark.parametrize("rdn_first", [True, False])
+def test_rdn_top_up_is_an_own_transfer_and_pairs_with_the_sending_leg(client, notification_owner, rdn_first):
+    rdn = at(notification(RDN_TOP_UP, "com.bca.mybca.omni.android"), 60)
+    jago = at(notification("You've sent Rp225.180 to RAKA PURNAMA.", "com.jago.digitalBanking"), 30)
+    first, second = (rdn, jago) if rdn_first else (jago, rdn)
+    alone = ingest(client, first)["results"][0]
+    if rdn_first:
+        assert (alone["type"], alone["target"], alone["description"]) == ("income", "RDN BCA", "Pindah saldo masuk")
+        [row] = transactions_of(notification_owner)
+        assert row["category"] == "Internal Movement"
+    paired = ingest(client, second)["results"][0]
+    assert paired["type"] == "internal_movement"
+    assert (paired["source"], paired["target"]) == ("Bank Jago · Kantong Utama", "RDN BCA")
+
+
+def test_ordinary_bca_notifications_never_land_on_rdn(client, notification_owner):
+    add_category(notification_owner, "belanja", "Belanja")
+    result = ingest(client, notification("You spent IDR 45,000.00 at Shopping.", "com.bca.mybca.omni.android"))["results"][0]
+    assert result["source"] == "BCA Harian"
+
+
+def test_two_rdn_accounts_send_rdn_notifications_to_review(client, notification_owner):
+    add_account(notification_owner, "second_rdn", "RDN Mandiri Sekuritas", "bank")
+    result = ingest(client, notification(RDN_TOP_UP, "com.bca.mybca.omni.android"))["results"][0]
+    assert (result["status"], result["error_code"]) == ("needs_review", "uncertain_pocket_mapping")

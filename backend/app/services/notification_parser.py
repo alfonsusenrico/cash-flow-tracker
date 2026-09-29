@@ -24,6 +24,8 @@ class ParsedNotification:
     units: float | None = None
     price_per_unit: int | None = None
     investment_action: str | None = None  # "buy" or "sell"
+    # The counterparty is necessarily another account of the owner (e.g. an RDN top-up).
+    own_account_transfer: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -193,6 +195,14 @@ DEBIT_PATTERN = re.compile(
 
 
 BCA_TRANSFER_CATEGORIES = {"account transfer", "transfer rekening"}
+
+# myBCA RDN (securities fund account, Rekening Dana Nasabah) movements.
+# "RDN earning of IDR 225,180.00 at Account Transfer category."  (observed 2026-09-29)
+# "RDN spending of IDR ... at ... category."  (assumed outgoing wording; not yet observed)
+BCA_RDN_PATTERN = re.compile(
+    r"\bRDN\s+(?P<kind>earning|spending)\s+of\s+(?:IDR|Rp)\s*(?P<amount>[\d\.,]+)\s+at\s+(?P<category>.+?)\s+category",
+    re.IGNORECASE,
+)
 
 
 def _bca_category_hint(category: str, *, outgoing: bool) -> str:
@@ -435,6 +445,29 @@ def parse_notification(
             raw_title=title,
             raw_text=raw_content,
             package_name=clean_package,
+        )
+
+    # Step 6b: myBCA RDN movement. By regulation an RDN only exchanges money with the investor's
+    # own bank accounts and the broker, so an "Account Transfer" here is a transfer between owned accounts.
+    m = BCA_RDN_PATTERN.search(raw_content)
+    if m:
+        incoming = m.group("kind").lower() == "earning"
+        category = m.group("category").strip()
+        return ParsedNotification(
+            is_financial=True,
+            event_class="income" if incoming else "expense",
+            amount=_clean_amount(m.group("amount")),
+            currency="IDR",
+            direction="in" if incoming else "out",
+            source_pocket=None if incoming else "RDN",
+            target_pocket="RDN" if incoming else None,
+            counterparty="BCA RDN",
+            category_hint=_bca_category_hint(category, outgoing=not incoming),
+            confidence=0.98,
+            raw_title=title,
+            raw_text=raw_content,
+            package_name=clean_package,
+            own_account_transfer=category.casefold() in BCA_TRANSFER_CATEGORIES,
         )
 
     # Step 7: BCA Inbound (ID)
