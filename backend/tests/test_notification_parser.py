@@ -130,7 +130,7 @@ def test_bca_mobile_inbound():
     assert parsed.amount == 500000
     assert parsed.direction == "in"
     assert "***PET **AK ***GSA" in (parsed.counterparty or "")
-    assert parsed.category_hint == "Transfer Rekening"
+    assert parsed.category_hint == "Transfer Masuk"
 
 
 def test_mybca_inbound():

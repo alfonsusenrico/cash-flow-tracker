@@ -41,6 +41,7 @@ class Settings:
     openai_api_key: str = field(default="", repr=False)
     notification_ai_history_limit: int = 20
     notification_ai_timeout: float = 30
+    notification_pairing_window_seconds: int = 900
     notification_ai_configuration_error: str | None = None
     app_env: str = "production"
     notification_ai_dry_run_enabled: bool = False
@@ -68,10 +69,13 @@ def load_settings() -> Settings:
     try:
         ai_history_limit = int(os.getenv("NOTIFICATION_AI_HISTORY_LIMIT", "20"))
         ai_timeout = float(os.getenv("NOTIFICATION_AI_TIMEOUT", "30"))
+        pairing_window = int(os.getenv("NOTIFICATION_PAIRING_WINDOW_SECONDS", "900"))
         if not 0 <= ai_history_limit <= 50 or not math.isfinite(ai_timeout) or not 1 <= ai_timeout <= 60:
             raise ValueError
+        if not 30 <= pairing_window <= 86400:
+            raise ValueError
     except ValueError:
-        ai_history_limit, ai_timeout = 20, 30
+        ai_history_limit, ai_timeout, pairing_window = 20, 30, 900
         ai_configuration_error = "processor_configuration_invalid"
 
     return Settings(
@@ -110,6 +114,7 @@ def load_settings() -> Settings:
         openai_api_key=os.getenv("OPENAI_API_KEY", "").strip(),
         notification_ai_history_limit=ai_history_limit,
         notification_ai_timeout=ai_timeout,
+        notification_pairing_window_seconds=pairing_window,
         notification_ai_configuration_error=ai_configuration_error,
         app_env=os.getenv("APP_ENV", "production").strip().lower(),
         notification_ai_dry_run_enabled=os.getenv("NOTIFICATION_AI_DRY_RUN_ENABLED", "false").lower() == "true",

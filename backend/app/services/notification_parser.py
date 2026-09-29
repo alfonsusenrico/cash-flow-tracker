@@ -192,6 +192,17 @@ DEBIT_PATTERN = re.compile(
 
 
 
+BCA_TRANSFER_CATEGORIES = {"account transfer", "transfer rekening"}
+
+
+def _bca_category_hint(category: str, *, outgoing: bool) -> str:
+    """myBCA files account-to-account transfers under a generic transfer category."""
+    cleaned = category.strip()
+    if cleaned.casefold() in BCA_TRANSFER_CATEGORIES:
+        return "Transfer Keluar" if outgoing else "Transfer Masuk"
+    return cleaned
+
+
 def parse_notification(
     package_name: str,
     title: str | None,
@@ -432,7 +443,7 @@ def parse_notification(
         amt = _clean_amount(m.group("amount"))
         sender_raw = m.group("sender")
         sender = sender_raw.strip() if sender_raw else "BCA"
-        cat = m.group("category").strip()
+        cat = _bca_category_hint(m.group("category"), outgoing=False)
         return ParsedNotification(
             is_financial=True,
             event_class="income",
@@ -455,7 +466,7 @@ def parse_notification(
         amt = _clean_amount(m.group("amount"))
         sender_raw = m.group("sender")
         sender = sender_raw.strip() if sender_raw else "BCA"
-        cat = m.group("category").strip()
+        cat = _bca_category_hint(m.group("category"), outgoing=False)
         return ParsedNotification(
             is_financial=True,
             event_class="income",
@@ -476,7 +487,7 @@ def parse_notification(
     m = BCA_OUTBOUND_ID_PATTERN.search(raw_content)
     if m:
         amt = _clean_amount(m.group("amount"))
-        cat = m.group("category").strip()
+        cat = _bca_category_hint(m.group("category"), outgoing=True)
         return ParsedNotification(
             is_financial=True,
             event_class="expense",
@@ -497,7 +508,7 @@ def parse_notification(
     m = BCA_OUTBOUND_EN_PATTERN.search(raw_content)
     if m:
         amt = _clean_amount(m.group("amount"))
-        cat = m.group("category").strip()
+        cat = _bca_category_hint(m.group("category"), outgoing=True)
         return ParsedNotification(
             is_financial=True,
             event_class="expense",

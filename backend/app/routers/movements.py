@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
@@ -14,6 +15,7 @@ from app.services.ledger_mutations import (
     movement_kakeibo,
 )
 from app.services.auth import get_current_user
+from app.services.notification_application import account_label, committed_snapshot
 
 router = APIRouter(prefix="/movements", tags=["Movements"])
 
@@ -183,6 +185,85 @@ def merge_transactions_as_movement(
             )
         conn.commit()
     return result
+
+
+@router.post("/{movement_id}/split")
+def split_movement(movement_id: UUID, current_user: dict = Depends(get_current_user)):
+    """Undo a movement link, keeping both legs' accounts, amounts, dates, and notes."""
+    user_id = current_user["id"]
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id, type, account_id, amount, notes FROM transactions
+                   WHERE user_id = %s AND movement_id = %s ORDER BY id FOR UPDATE""",
+                (user_id, str(movement_id)),
+            )
+            legs = cur.fetchall()
+            if len(legs) != 2:
+                raise HTTPException(status_code=404, detail="Movement not found")
+            cur.execute(
+                """SELECT a.id, a.name, a.type, a.parent_id, a.instrument_type
+                   FROM accounts a WHERE a.user_id = %s
+                     AND (a.id = ANY(%s) OR a.id IN (SELECT parent_id FROM accounts
+                                                     WHERE user_id = %s AND id = ANY(%s)))""",
+                (user_id, [leg["account_id"] for leg in legs], user_id, [leg["account_id"] for leg in legs]),
+            )
+            accounts = cur.fetchall()
+            by_id = {str(row["id"]): row for row in accounts}
+            ensure_generic_movement_accounts(by_id[str(legs[0]["account_id"])], by_id[str(legs[1]["account_id"])])
+            cur.execute(
+                """SELECT id, transaction_id, interpretation FROM notification_events
+                   WHERE user_id = %s AND movement_id = %s ORDER BY id FOR UPDATE""",
+                (user_id, str(movement_id)),
+            )
+            events = cur.fetchall()
+            recorded_by = {str(event["transaction_id"]): event for event in events if event["transaction_id"]}
+            for leg in legs:
+                category_id, kakeibo = None, None
+                evidence = (recorded_by.get(str(leg["id"])) or {}).get("interpretation") or {}
+                if evidence.get("category_id"):
+                    cur.execute(
+                        """SELECT id FROM categories WHERE user_id = %s AND id = %s AND kind = %s
+                           AND is_archived = FALSE""",
+                        (user_id, evidence["category_id"], leg["type"]),
+                    )
+                    if cur.fetchone():
+                        category_id = evidence["category_id"]
+                        kakeibo = evidence.get("kakeibo") if leg["type"] == "expense" else None
+                if category_id:
+                    cur.execute(
+                        """UPDATE transactions SET movement_id = NULL, movement_role = NULL,
+                           category_id = %s, kakeibo_type = %s WHERE user_id = %s AND id = %s""",
+                        (category_id, kakeibo, user_id, leg["id"]),
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE transactions SET movement_id = NULL, movement_role = NULL WHERE user_id = %s AND id = %s",
+                        (user_id, leg["id"]),
+                    )
+            legs_by_id = {str(leg["id"]): leg for leg in legs}
+            for event in events:
+                leg = legs_by_id.get(str(event["transaction_id"]))
+                if not leg:
+                    cur.execute(
+                        "UPDATE notification_events SET movement_id = NULL, confirmed_role = NULL WHERE id = %s",
+                        (event["id"],),
+                    )
+                    continue
+                label = account_label(by_id[str(leg["account_id"])], accounts)
+                key = f"notification:{event['id']}"
+                snapshot = committed_snapshot(
+                    key=key, kind=leg["type"], description=leg["notes"] or "Transaksi", amount=int(leg["amount"]),
+                    source=label if leg["type"] == "expense" else None,
+                    target=label if leg["type"] == "income" else None,
+                )
+                cur.execute(
+                    """UPDATE notification_events SET movement_id = NULL, confirmed_role = NULL,
+                       result_key = %s, result_snapshot = %s, updated_at = NOW() WHERE id = %s""",
+                    (key, json.dumps(snapshot), event["id"]),
+                )
+        conn.commit()
+    return {"ok": True, "movement_id": str(movement_id), "transaction_ids": [str(leg["id"]) for leg in legs]}
 
 
 @router.patch("/{movement_id}")

@@ -5,7 +5,9 @@ from datetime import timedelta
 from typing import Any
 
 from app.services.notification_evidence import MONEY_PATTERN, NotificationFacts
-from app.services.notification_resolution import endpoint_context
+from app.services.notification_resolution import (
+    endpoint_context, is_external_counterparty, names_owner, owner_aliases, redact_owner_names,
+)
 
 
 ACCOUNT_LIMIT = 200
@@ -13,7 +15,7 @@ CATEGORY_LIMIT = 200
 CANDIDATE_LIMIT = 50
 
 
-def sanitize_text(value: str | None, identity: str | None = None) -> str:
+def sanitize_text(value: str | None, identity: str | list[str] | None = None) -> str:
     text = (value or "").replace("[SELF]", "[UNTRUSTED_MARKER]")
     money_tokens: list[str] = []
 
@@ -22,8 +24,10 @@ def sanitize_text(value: str | None, identity: str | None = None) -> str:
         return f"[MONEY_{len(money_tokens) - 1}]"
 
     text = MONEY_PATTERN.sub(preserve_money, text)
-    if identity and len(identity.strip()) >= 3:
-        text = re.sub(re.escape(identity.strip()), "[SELF]", text, flags=re.I)
+    aliases = [identity] if isinstance(identity, str) else list(identity or [])
+    aliases = [alias.strip() for alias in aliases if alias and len(alias.strip()) >= 3]
+    if aliases:
+        text = redact_owner_names(text, aliases)
     text = re.sub(r"(?i)\bBearer\s+\S+", "[REDACTED]", text)
     text = re.sub(r"(?i)\b(?:api[_ -]?key|token|password|secret|otp|kode akses)\s*[:=]?\s*\S+", "[REDACTED]", text)
     text = re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "[REDACTED]", text)
@@ -36,9 +40,9 @@ def sanitize_text(value: str | None, identity: str | None = None) -> str:
 
 def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: int = 20) -> dict:
     history_limit = max(0, min(50, history_limit))
-    cur.execute("SELECT name FROM users WHERE id = %s", (user_id,))
+    cur.execute("SELECT name, name_aliases FROM users WHERE id = %s", (user_id,))
     profile = cur.fetchone() or {}
-    identity = profile.get("name")
+    identity = owner_aliases(profile)
     cur.execute(
         """
         SELECT a.id, a.name, a.type, a.parent_id, a.default_pocket_id,
@@ -95,9 +99,11 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
         })
     return {
         "notification": sanitize_text(facts.text, identity),
-        "self_identity_detected": bool(identity and len(identity.strip()) >= 3 and re.search(re.escape(identity.strip()), facts.text, re.I)),
+        "self_identity_detected": names_owner(facts.text, identity),
         "facts": {"institution": facts.institution, "direction": facts.direction,
                   "amount_quotes": facts.amount_quotes, "timestamp": facts.timestamp.isoformat(),
+                  "external_counterparty": is_external_counterparty(
+                      facts.parsed.counterparty, facts.parsed.category_hint, identity),
                   **endpoint_context(facts, sanitized_accounts)},
         "accounts": sanitized_accounts, "categories": sanitized_categories,
         "rules": sanitized_rules, "history": history, "candidates": sanitized_candidates,
@@ -105,9 +111,16 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
     }
 
 
-def discover_candidates(cur, user_id: str, facts: NotificationFacts) -> list[dict[str, Any]]:
+def discover_candidates(
+    cur, user_id: str, facts: NotificationFacts, *, window_seconds: int | None = None
+) -> list[dict[str, Any]]:
     if not facts.amount or facts.direction not in {"expense", "income", "internal_movement"}:
         return []
+    if window_seconds is None:
+        from app.core.config import settings
+
+        window_seconds = settings.notification_pairing_window_seconds
+    window = timedelta(seconds=window_seconds)
     cur.execute(
         """
         SELECT t.id, t.type, t.account_id, t.amount, t.date, t.movement_id, t.movement_role,
@@ -128,6 +141,6 @@ def discover_candidates(cur, user_id: str, facts: NotificationFacts) -> list[dic
           AND NOT EXISTS (SELECT 1 FROM transaction_obligation_allocations alloc WHERE alloc.transaction_id = t.id)
         ORDER BY n.post_time, n.id, t.id LIMIT %s
         """,
-        (user_id, facts.timestamp - timedelta(seconds=30), facts.timestamp + timedelta(seconds=30), facts.amount, CANDIDATE_LIMIT + 1),
+        (user_id, facts.timestamp - window, facts.timestamp + window, facts.amount, CANDIDATE_LIMIT + 1),
     )
     return cur.fetchall()

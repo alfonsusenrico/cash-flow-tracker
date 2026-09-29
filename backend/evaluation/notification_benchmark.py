@@ -178,11 +178,17 @@ def trusted_decision(case: SyntheticCase, interpretation) -> dict:
     signature = transfer_signature(facts, context, str(observed["id"]))
     candidates = {
         str(row["id"]): row for row in context.get("candidates", [])
-        if row["amount"] == facts.amount and abs((row["date"] - facts.timestamp).total_seconds()) < 30
+        if row["amount"] == facts.amount
+        and abs((row["date"] - facts.timestamp).total_seconds()) < pairing_window_seconds()
         and signatures_compatible(signature, row.get("evidence") or {})
     }
     decision["candidate_transaction_id"] = next(iter(candidates)) if len(candidates) == 1 else None
     return decision
+
+
+def pairing_window_seconds() -> int:
+    """Same default and variable as the backend pairing window (app.core.config)."""
+    return int(os.getenv("NOTIFICATION_PAIRING_WINDOW_SECONDS", "900"))
 
 
 def score_case(case: SyntheticCase, interpretation, *, latency: float, error_code: str | None = None) -> dict:

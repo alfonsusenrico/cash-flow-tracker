@@ -2,12 +2,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, deleteMovement, updateMovement } from "@/lib/api";
+import { api, deleteMovement, splitMovement, updateMovement } from "@/lib/api";
 import { InternalMovementModal } from "./InternalMovementModal";
 
 vi.mock("@/lib/api", () => ({
   api: { get: vi.fn() },
   deleteMovement: vi.fn(),
+  splitMovement: vi.fn(),
   updateMovement: vi.fn(),
 }));
 
@@ -76,6 +77,43 @@ describe("InternalMovementModal", () => {
     const [, payload] = vi.mocked(updateMovement).mock.calls[0];
     expect(payload.date).toBeDefined();
     expect(new Date(payload.date!).toISOString()).toBe("2026-09-20T12:00:27.000Z");
+  });
+
+  it("splits a wrongly paired movement after confirmation", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    vi.mocked(splitMovement).mockResolvedValue({ ok: true, movement_id: "movement-1", transaction_ids: ["out-1", "in-1"] });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <InternalMovementModal
+          open
+          onClose={onClose}
+          editingMovement={{
+            id: "movement-1",
+            sourceAccountId: "account-source",
+            targetAccountId: "account-target",
+            amount: 500,
+            notes: "Top up",
+            date: "2026-09-20T12:00:27.000Z",
+          }}
+        />
+      </QueryClientProvider>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Pisahkan" }));
+    expect(splitMovement).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Jadikan dua transaksi terpisah?");
+    await user.click(screen.getByRole("button", { name: "Ya, pisahkan" }));
+
+    await waitFor(() => expect(splitMovement).toHaveBeenCalledWith("movement-1"));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["transactions"] });
+    expect(deleteMovement).not.toHaveBeenCalled();
   });
 
   it("does not expose a creation form without an existing movement", async () => {

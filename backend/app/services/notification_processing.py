@@ -14,16 +14,35 @@ from psycopg.types.json import Jsonb
 from app.core.config import settings
 from app.db.pool import db_conn
 from app.services.notification_application import (
-    apply_broker_trade, apply_interpretation, committed_snapshot, deterministic_interpretation,
+    apply_broker_trade, apply_interpretation, apply_manual_resolution, committed_snapshot,
+    deterministic_interpretation,
 )
-from app.services.notification_context import load_context
+from app.services.notification_context import load_context, sanitize_text
 from app.services.notification_evidence import EvidenceError, collect_facts
 from app.services.notification_interpretation import PROMPT_VERSION
 from app.services.openai_notification_provider import ProviderError, configuration_error
 
 
 logger = logging.getLogger(__name__)
+# Short in-place retries for transient blips before an event is marked failed.
 MAX_ATTEMPTS = 3
+# Failed events are retried automatically on an escalating schedule within a bounded horizon.
+MAX_AUTOMATIC_ATTEMPTS = 8
+AUTOMATIC_RETRY_HORIZON_HOURS = 48
+FAILED_RETRY_DELAYS_SECONDS = (30, 120, 600, 1800, 3600, 10800)
+# Failures caused by the provider, configuration, or infrastructure rather than by the
+# notification itself; the owner cannot fix them by reviewing the event.
+RETRYABLE_FAILURE_CODES = frozenset({
+    "provider_timeout", "provider_unavailable", "database_unavailable", "provider_access_denied",
+    "provider_credential_missing", "provider_model_not_permitted", "provider_reasoning_not_permitted",
+    "provider_request_rejected", "ai_disabled", "processor_configuration_invalid",
+    "worker_attempts_exhausted",
+})
+
+
+def failed_retry_delay(attempt_count: int) -> int:
+    index = max(0, min(len(FAILED_RETRY_DELAYS_SECONDS) - 1, attempt_count - 1))
+    return FAILED_RETRY_DELAYS_SECONDS[index]
 
 
 def source_event(event: dict) -> dict:
@@ -161,7 +180,7 @@ def accept_event(payload: dict, user_id: str) -> tuple[dict, bool, int]:
                             created = apply_broker_trade(cur, event, facts, context)
                         else:
                             proposal = deterministic_interpretation(facts, context)
-                            created = apply_interpretation(cur, event, facts, proposal, context)
+                            created = apply_interpretation(cur, event, facts, proposal, context, source="deterministic")
                 except (EvidenceError, HTTPException) as exc:
                     set_outcome(cur, str(event["id"]), "needs_review", exc.code if isinstance(exc, EvidenceError) else "invalid_current_reference")
                 cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s", (user_id, event["id"]))
@@ -176,17 +195,19 @@ def claim_event(*, include_ai: bool = True) -> dict | None:
         with conn.cursor() as cur:
             cur.execute(
                 """UPDATE notification_events SET processing_state = 'failed', error_code = 'worker_attempts_exhausted',
-                   lease_token = NULL, lease_expires_at = NULL
+                   lease_token = NULL, lease_expires_at = NULL, next_attempt_at = NOW() + INTERVAL '1 hour'
                    WHERE processing_state = 'processing' AND lease_expires_at < NOW() AND attempt_count >= %s""",
                 (MAX_ATTEMPTS,),
             )
             cur.execute(
                 """SELECT * FROM notification_events WHERE (processing_mode = 'deterministic'
-                       OR (processing_mode = 'ai' AND %s)) AND attempt_count < %s
-                   AND ((processing_state = 'queued' AND next_attempt_at <= NOW())
-                        OR (processing_state = 'processing' AND lease_expires_at < NOW()))
+                       OR (processing_mode = 'ai' AND %s))
+                   AND ((processing_state = 'queued' AND next_attempt_at <= NOW() AND attempt_count < %s)
+                        OR (processing_state = 'processing' AND lease_expires_at < NOW() AND attempt_count < %s)
+                        OR (processing_state = 'failed' AND next_attempt_at <= NOW() AND attempt_count < %s
+                            AND created_at > NOW() - %s * INTERVAL '1 hour'))
                    ORDER BY next_attempt_at, created_at FOR UPDATE SKIP LOCKED LIMIT 1""",
-                (include_ai, MAX_ATTEMPTS),
+                (include_ai, MAX_ATTEMPTS, MAX_ATTEMPTS, MAX_AUTOMATIC_ATTEMPTS, AUTOMATIC_RETRY_HORIZON_HOURS),
             )
             event = cur.fetchone()
             if not event:
@@ -214,7 +235,25 @@ def read_context(event: dict) -> tuple:
     return facts, context
 
 
-def apply_claim(event: dict, proposal) -> bool:
+def apply_deterministic_fallback(conn, cur, event: dict, facts, context: dict, reason_code: str) -> None:
+    """Record through the deterministic interpretation when the model could not.
+
+    Raises EvidenceError with the backend-proven reason when the deterministic path
+    cannot record either, so the event lands in needs_review with an actionable code.
+    """
+    if facts.status != "candidate" or context["incomplete"] or facts.institution == "stockbit":
+        raise EvidenceError(facts.error_code or reason_code)
+    try:
+        with conn.transaction():
+            proposal = deterministic_interpretation(facts, context)
+            apply_interpretation(cur, event, facts, proposal, context, source="deterministic_fallback")
+    except EvidenceError as exc:
+        raise EvidenceError(exc.code) from None
+    except HTTPException:
+        raise EvidenceError(reason_code) from None
+
+
+def apply_claim(event: dict, proposal, provider_error: str | None = None) -> bool:
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{event['user_id']}",))
@@ -235,19 +274,34 @@ def apply_claim(event: dict, proposal) -> bool:
                 if facts.institution == "stockbit":
                     apply_broker_trade(cur, owned, facts, context)
                 else:
-                    apply_interpretation(cur, owned, facts, deterministic_interpretation(facts, context), context)
-            else:
+                    apply_interpretation(cur, owned, facts, deterministic_interpretation(facts, context), context,
+                                         source="deterministic")
+            elif proposal is not None and proposal.outcome == "ignored":
                 apply_interpretation(cur, owned, facts, proposal, context)
+            else:
+                try:
+                    if proposal is None or proposal.outcome != "record":
+                        raise EvidenceError(provider_error or "model_uncertain")
+                    with conn.transaction():
+                        apply_interpretation(cur, owned, facts, proposal, context, source="ai")
+                except (EvidenceError, HTTPException) as exc:
+                    reason = exc.code if isinstance(exc, EvidenceError) else "invalid_current_reference"
+                    apply_deterministic_fallback(conn, cur, owned, facts, context, reason)
         conn.commit()
     return True
 
 
 def fail_claim(event: dict, error: ProviderError):
-    retry = error.transient and event["attempt_count"] < MAX_ATTEMPTS
-    delay = max(error.retry_after, 2 ** event["attempt_count"] + random.uniform(0, 1))
-    status = "queued" if retry else "failed"
-    if not retry:
+    attempts = event["attempt_count"]
+    if error.transient and attempts < MAX_ATTEMPTS:
+        status = "queued"
+        delay = max(error.retry_after, 2 ** attempts + random.uniform(0, 1))
+    elif error.transient or error.code in RETRYABLE_FAILURE_CODES:
+        status = "failed"
+        delay = max(error.retry_after, failed_retry_delay(attempts))
+    else:
         status = "needs_review"
+        delay = 0
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -276,11 +330,17 @@ async def process_claim(event: dict, provider):
             return
         facts, context = await database_operation(read_context, event)
         if facts.status != "candidate":
-            raise ProviderError("invalid_interpretation")
+            raise ProviderError(facts.error_code or "invalid_interpretation")
         if context["incomplete"]:
             raise ProviderError("incomplete_context")
-        proposal = await provider.interpret(context)
-        await database_operation(apply_claim, event, proposal)
+        proposal, provider_error = None, None
+        try:
+            proposal = await provider.interpret(context)
+        except ProviderError as exc:
+            if exc.transient or exc.code in RETRYABLE_FAILURE_CODES:
+                raise
+            provider_error = exc.code
+        await database_operation(apply_claim, event, proposal, provider_error)
     except ProviderError as exc:
         await database_operation(fail_claim, event, exc)
     except (EvidenceError, HTTPException) as exc:
@@ -288,6 +348,55 @@ async def process_claim(event: dict, provider):
         await database_operation(fail_claim, event, ProviderError(code))
     except psycopg.Error:
         await database_operation(fail_claim, event, ProviderError("database_unavailable", transient=True))
+
+
+def resolve_event(event_id: str, user_id: str, resolution: dict) -> dict:
+    """Record an owner-chosen interpretation of an unresolved event (idempotent per event)."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{user_id}",))
+            cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (user_id, event_id))
+            event = cur.fetchone()
+            if not event:
+                raise HTTPException(status_code=404, detail="Notification event not found")
+            current = compact_result(cur, event)
+            if current["status"] == "recorded" and (event.get("interpretation") or {}).get("source") == "manual":
+                conn.commit()
+                return current
+            if current["status"] not in {"needs_review", "failed"}:
+                raise HTTPException(status_code=409, detail="Only unresolved notifications can be recorded manually")
+            facts = collect_facts(source_event(event))
+            amount = resolution.get("amount")
+            if facts.amount is not None:
+                if amount is not None and amount != facts.amount:
+                    raise HTTPException(status_code=422, detail={
+                        "code": "conflicting_amount",
+                        "message": "Nominal harus sama dengan nominal pada notifikasi.",
+                    })
+                amount = facts.amount
+            elif amount is None:
+                raise HTTPException(status_code=422, detail={
+                    "code": "amount_required",
+                    "message": "Notifikasi tidak memuat satu nominal yang pasti; isi nominal secara manual.",
+                })
+            context = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit)
+            if context["incomplete"]:
+                raise HTTPException(status_code=409, detail={"code": "incomplete_context", "message": "Data akun terlalu besar untuk diproses."})
+            description = resolution.get("notes") or sanitize_text(
+                facts.parsed.counterparty or event.get("title") or "Transaksi"
+            )[:160]
+            try:
+                apply_manual_resolution(
+                    cur, event, facts, context, direction=resolution["type"], amount=amount,
+                    account_id=str(resolution["account_id"]), category_id=str(resolution["category_id"]),
+                    description=description, kakeibo=resolution.get("kakeibo"),
+                )
+            except EvidenceError as exc:
+                raise HTTPException(status_code=422, detail={"code": exc.code, "message": "Pilihan akun atau kategori tidak valid."}) from None
+            cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s", (user_id, event_id))
+            result = compact_result(cur, cur.fetchone())
+        conn.commit()
+    return result
 
 
 async def notification_worker(provider):

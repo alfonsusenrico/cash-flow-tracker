@@ -60,4 +60,49 @@ describe("settings form", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.pulse });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.dashboard.all });
   });
+
+  it("saves bank-notification name aliases as a trimmed list", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/auth/me") {
+        return { ok: true, user: { username: "owner", name: "Owner", name_aliases: ["Owner Full Name"], payday_day: 25, currency: "IDR", emergency_fund_multiplier: 6, monthly_spending_budget: null } };
+      }
+      if (path === "/auth/currency/rates") return { ok: true, usdidr: 16_000 };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SettingsModal open onClose={() => {}} />
+      </QueryClientProvider>,
+    );
+
+    const aliases = await screen.findByRole("textbox", { name: /nama di notifikasi bank/i });
+    await waitFor(() => expect(aliases).toHaveValue("Owner Full Name"));
+    expect(aliases).toHaveAccessibleDescription(/pisahkan dengan koma/i);
+    await user.clear(aliases);
+    await user.type(aliases, " Owner Full Name ,  OWNER F N,, ");
+    await user.click(screen.getByRole("button", { name: "Simpan pengaturan" }));
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/auth/settings", expect.objectContaining({
+      name_aliases: ["Owner Full Name", "OWNER F N"],
+    })));
+  });
+
+  it("rejects aliases shorter than three characters without saving", async () => {
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SettingsModal open onClose={() => {}} />
+      </QueryClientProvider>,
+    );
+
+    const aliases = await screen.findByRole("textbox", { name: /nama di notifikasi bank/i });
+    await user.type(aliases, "AB");
+    await user.click(screen.getByRole("button", { name: "Simpan pengaturan" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Setiap nama alias harus 3–150 karakter");
+    expect(api.patch).not.toHaveBeenCalled();
+  });
 });

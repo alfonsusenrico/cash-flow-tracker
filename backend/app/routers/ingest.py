@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -43,6 +43,15 @@ class BatchNotificationIngest(BaseModel):
 
 class DryRunNotificationIn(BaseModel):
     event: NotificationEventIn
+
+
+class NotificationResolution(BaseModel):
+    type: Literal["expense", "income"]
+    account_id: UUID
+    category_id: UUID
+    amount: int | None = Field(default=None, gt=0, le=9_223_372_036_854_775_807)
+    notes: str | None = Field(default=None, max_length=160)
+    kakeibo: Literal["need", "want", "culture", "unexpected", "saving"] | None = None
 
 
 class NotificationLabelUpdate(BaseModel):
@@ -150,6 +159,18 @@ def retry_notification(event_id: UUID, current_user: dict = Depends(get_current_
             result = notification_processing.compact_result(cur, cur.fetchone())
         conn.commit()
     return {"ok": True, "result": result}
+
+
+@router.post("/notifications/{event_id}/resolve")
+def resolve_notification(
+    event_id: UUID, payload: NotificationResolution, current_user: dict = Depends(get_current_user)
+):
+    from app.services.notification_processing import resolve_event
+
+    resolution = payload.model_dump()
+    if resolution["notes"] is not None:
+        resolution["notes"] = resolution["notes"].strip() or None
+    return {"ok": True, "result": resolve_event(str(event_id), str(current_user["id"]), resolution)}
 
 
 @router.get("/notifications")

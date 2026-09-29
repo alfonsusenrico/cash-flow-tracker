@@ -21,6 +21,7 @@ export function SettingsModal({ open, onClose }: Props) {
   const { user } = useAppCtx();
 
   const [name, setName] = useState("");
+  const [aliases, setAliases] = useState("");
   const [day, setDay] = useState("25");
   const [currency, setCurrency] = useState("IDR");
   const [multiplier, setMultiplier] = useState("6");
@@ -60,6 +61,7 @@ export function SettingsModal({ open, onClose }: Props) {
   const persistedCurrency = persistedUser?.currency;
   const persistedMultiplier = persistedUser?.emergency_fund_multiplier;
   const persistedBudget = persistedUser?.monthly_spending_budget;
+  const persistedAliases = ((persistedUser?.name_aliases as string[] | undefined) ?? []).join(", ");
 
   const rotateKeyMut = useMutation({
     mutationFn: rotateApiKey,
@@ -82,6 +84,7 @@ export function SettingsModal({ open, onClose }: Props) {
     if (!open) return;
     if (persistedUsername) {
       setName(persistedName || persistedUsername);
+      setAliases(persistedAliases);
       if (persistedPaydayDay) setDay(String(persistedPaydayDay));
       if (persistedCurrency) setCurrency(persistedCurrency.toUpperCase());
       if (persistedMultiplier) setMultiplier(String(persistedMultiplier));
@@ -93,7 +96,7 @@ export function SettingsModal({ open, onClose }: Props) {
     setCopiedKey(false);
     setErr("");
     setMsg("");
-  }, [open, persistedName, persistedUsername, persistedPaydayDay, persistedCurrency, persistedMultiplier, persistedBudget]);
+  }, [open, persistedName, persistedAliases, persistedUsername, persistedPaydayDay, persistedCurrency, persistedMultiplier, persistedBudget]);
 
   const settingsMut = useMutation({
     mutationFn: () => {
@@ -102,6 +105,11 @@ export function SettingsModal({ open, onClose }: Props) {
       const paydayDay = parseInt(day, 10);
       const emergencyMultiplier = parseInt(multiplier, 10);
       if (!name.trim()) throw new Error("Nama tampilan wajib diisi");
+      const nameAliases = aliases.split(",").map((alias) => alias.trim()).filter(Boolean);
+      if (nameAliases.length > 10) throw new Error("Maksimal 10 nama alias");
+      if (nameAliases.some((alias) => alias.length < 3 || alias.length > 150)) {
+        throw new Error("Setiap nama alias harus 3–150 karakter");
+      }
       if (paydayDay < 1 || paydayDay > 31) throw new Error("Tanggal gajian harus antara 1 dan 31");
       if (emergencyMultiplier < 1 || emergencyMultiplier > 36) throw new Error("Target dana darurat harus antara 1 dan 36 bulan");
       if (currency !== "IDR" && currency !== "USD") throw new Error("Mata uang yang didukung hanya IDR dan USD");
@@ -111,6 +119,7 @@ export function SettingsModal({ open, onClose }: Props) {
         currency,
         emergency_fund_multiplier: emergencyMultiplier,
         monthly_spending_budget: budgetVal,
+        name_aliases: nameAliases,
       });
     },
     onSuccess: () => {
@@ -187,6 +196,26 @@ export function SettingsModal({ open, onClose }: Props) {
               placeholder="Contoh: Enrico"
               className="w-full text-xs"
             />
+          </div>
+
+          <div>
+            <label htmlFor="settings-name-aliases" className="block text-[11px] font-medium text-[var(--muted)] mb-1">
+              Nama di Notifikasi Bank (alias)
+            </label>
+            <Input
+              id="settings-name-aliases"
+              name="name_aliases"
+              type="text"
+              value={aliases}
+              onChange={(e) => setAliases(e.target.value)}
+              placeholder="Contoh: Nama Lengkap Sesuai Rekening"
+              aria-describedby="settings-name-aliases-hint"
+              className="w-full text-xs"
+            />
+            <p id="settings-name-aliases-hint" className="text-[10px] text-[var(--muted)] mt-1">
+              Pisahkan dengan koma. Dipakai untuk mengenali transfer ke rekening sendiri, termasuk nama yang
+              disamarkan bank seperti &quot;ALFO**US&quot;. Nama tampilan selalu ikut dipakai.
+            </p>
           </div>
         </section>
 

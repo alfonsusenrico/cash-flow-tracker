@@ -1,6 +1,6 @@
 from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import settings
 from app.db.pool import db_conn
@@ -37,6 +37,23 @@ class SettingsUpdate(BaseModel):
     currency: Literal["IDR", "USD"] | None = None
     emergency_fund_multiplier: int | None = Field(default=None, ge=1, le=36)
     monthly_spending_budget: int | None = Field(default=None, ge=0)
+    name_aliases: list[str] | None = Field(default=None, max_length=10)
+
+    @field_validator("name_aliases")
+    @classmethod
+    def normalize_name_aliases(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        aliases: list[str] = []
+        seen: set[str] = set()
+        for raw in value:
+            alias = " ".join(raw.split())
+            if not 3 <= len(alias) <= 150:
+                raise ValueError("Each alias must be 3-150 characters")
+            if alias.casefold() not in seen:
+                seen.add(alias.casefold())
+                aliases.append(alias)
+        return aliases
 
 
 @router.get("/currency/rates")
@@ -133,6 +150,9 @@ def update_settings(payload: SettingsUpdate, current_user: dict = Depends(get_cu
     if "monthly_spending_budget" in payload.model_fields_set:
         updates.append("monthly_spending_budget = %s")
         params.append(payload.monthly_spending_budget)
+    if payload.name_aliases is not None:
+        updates.append("name_aliases = %s")
+        params.append(payload.name_aliases)
 
     if not updates:
         raise HTTPException(status_code=400, detail="No settings to update")
@@ -147,7 +167,7 @@ def update_settings(payload: SettingsUpdate, current_user: dict = Depends(get_cu
                 UPDATE users
                 SET {', '.join(updates)}
                 WHERE id = %s
-                RETURNING id, username, name, payday_day, currency, emergency_fund_multiplier, monthly_spending_budget
+                RETURNING id, username, name, name_aliases, payday_day, currency, emergency_fund_multiplier, monthly_spending_budget
                 """,
                 params,
             )
@@ -164,6 +184,7 @@ def update_settings(payload: SettingsUpdate, current_user: dict = Depends(get_cu
             "currency": updated["currency"],
             "emergency_fund_multiplier": updated.get("emergency_fund_multiplier", 6),
             "monthly_spending_budget": updated.get("monthly_spending_budget"),
+            "name_aliases": list(updated.get("name_aliases") or []),
         },
     }
 

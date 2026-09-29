@@ -114,6 +114,7 @@ jobs:
           NOTIFICATION_AI_ENABLED: ${{ secrets.NOTIFICATION_AI_ENABLED || 'true' }}
           NOTIFICATION_AI_MODEL: ${{ secrets.NOTIFICATION_AI_MODEL || 'gpt-6-luna' }}
           NOTIFICATION_AI_REASONING_EFFORT: ${{ secrets.NOTIFICATION_AI_REASONING_EFFORT || 'none' }}
+          NOTIFICATION_PAIRING_WINDOW_SECONDS: ${{ secrets.NOTIFICATION_PAIRING_WINDOW_SECONDS || '900' }}
 
       - name: Package Commit Archive
         run: |
