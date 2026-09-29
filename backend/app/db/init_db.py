@@ -187,6 +187,7 @@ def init_db_schema() -> None:
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(150) NULL;
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS emergency_fund_multiplier INT NOT NULL DEFAULT 6;
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS monthly_spending_budget BIGINT NULL;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS name_aliases TEXT[] NOT NULL DEFAULT '{}';
                 DELETE FROM transactions WHERE notes LIKE 'Penyesuaian Nilai Investasi%';
 
                 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS instrument_type VARCHAR(30) NULL;

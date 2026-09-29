@@ -122,6 +122,10 @@ export async function deleteMovement(id: string): Promise<{ ok: boolean }> {
   return api.del<{ ok: boolean }>(`/movements/${id}`);
 }
 
+export async function splitMovement(id: string): Promise<{ ok: boolean; movement_id: string; transaction_ids: string[] }> {
+  return api.post<{ ok: boolean; movement_id: string; transaction_ids: string[] }>(`/movements/${id}/split`);
+}
+
 export async function uploadTransactionReceipt(transactionId: string, file: File) {
   const body = new FormData();
   body.append("file", file);

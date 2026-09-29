@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
 from decimal import Decimal
 
 from app.services.ledger_mutations import (
@@ -14,10 +15,43 @@ from app.services.notification_evidence import EvidenceError, NotificationFacts,
 from app.services.notification_interpretation import Interpretation, validate_interpretation
 from app.services.notification_resolution import (
     institution_parent, main_endpoint, movement_categories, observed_endpoint,
-    pocket_endpoint, signatures_compatible, transfer_signature,
+    pocket_endpoint, root_account_id, signatures_compatible, transfer_signature,
 )
 
 
+# A second notification may confirm a movement role only when it arrives this close to it.
+ROLE_CONFIRMATION_WINDOW_SECONDS = 30
+
+# myBCA "Financial Diary" uses a fixed English category taxonomy; map it to the
+# Indonesian category names this app seeds so deterministic processing can resolve them.
+BANK_CATEGORY_HINT_ALIASES = {
+    "shopping": ("Belanja",),
+    "salary": ("Gaji",),
+    "food & beverage": ("Makanan & Minuman", "Makanan"),
+    "food & beverages": ("Makanan & Minuman", "Makanan"),
+    "transportation": ("Transportasi",),
+    "entertainment": ("Hiburan",),
+    "health": ("Kesehatan",),
+    "education": ("Pendidikan",),
+    "bills": ("Tagihan & Utilitas", "Tagihan"),
+    "payment": ("Tagihan & Utilitas", "Pembayaran"),
+    "account transfer": ("Transfer Keluar", "Transfer Masuk", "Transfer"),
+    "transfer rekening": ("Transfer Keluar", "Transfer Masuk", "Transfer"),
+    "miscellaneous": ("Lainnya", "Lain-lain"),
+}
+
+
+def hinted_categories(categories: list[dict], hint: str | None) -> list[dict]:
+    if not hint:
+        return []
+    exact = [row for row in categories if row["name"].casefold() == hint.casefold()]
+    if exact:
+        return exact
+    for alias in BANK_CATEGORY_HINT_ALIASES.get(hint.strip().casefold(), ()):
+        matches = [row for row in categories if row["name"].casefold() == alias.casefold()]
+        if matches:
+            return matches
+    return []
 
 
 def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Interpretation:
@@ -44,8 +78,8 @@ def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Int
         signature = transfer_signature(facts, context, str(observed["id"]))
         if signature["transfer"] and signature["self_identity"]:
             matches = [row for row in categories if row["name"] == "Internal Movement"]
-        if not matches and facts.parsed.category_hint:
-            matches = [row for row in categories if row["name"].casefold() == facts.parsed.category_hint.casefold()]
+        if not matches:
+            matches = hinted_categories(categories, facts.parsed.category_hint)
         if len(matches) != 1:
             raise EvidenceError("uncertain_category_mapping")
         category = matches[0]
@@ -146,12 +180,15 @@ def resolve_record(facts: NotificationFacts, proposal: Interpretation, context: 
     }
 
 
-def apply_interpretation(cur, event: dict, facts: NotificationFacts, proposal: Interpretation, context: dict) -> int:
+def apply_interpretation(
+    cur, event: dict, facts: NotificationFacts, proposal: Interpretation, context: dict, *, source: str = "ai"
+) -> int:
     validate_interpretation(proposal, facts, context)
     if proposal.outcome != "record":
         state = "ignored" if proposal.outcome == "ignored" else "needs_review"
         cur.execute("UPDATE notification_events SET processing_state = %s, error_code = %s, lease_token = NULL, lease_expires_at = NULL WHERE id = %s", (state, "model_uncertain" if state == "needs_review" else None, event["id"]))
         return 0
+    source_name = source
     user_id, event_id = str(event["user_id"]), str(event["id"])
     accounts = context["accounts"]
     key = f"notification:{event_id}"
@@ -171,16 +208,34 @@ def apply_interpretation(cur, event: dict, facts: NotificationFacts, proposal: I
         )
         snapshot = committed_snapshot(key=key, kind="internal_movement", description=proposal.description,
                                       amount=facts.amount, source=account_label(source, accounts), target=account_label(target, accounts))
-        signature = {"source_account_id": str(source["id"]), "target_account_id": str(target["id"]), "currency": "IDR", "transfer": True}
+        signature = {"source_account_id": str(source["id"]), "target_account_id": str(target["id"]),
+                     "currency": "IDR", "transfer": True, "source": source_name}
         save_recorded(cur, event, result["expense_transaction_id"], snapshot, signature, movement_id=result["movement_id"], provenance="complete_movement")
         return 2
-    observed = resolved["observed"]
+    return record_observed_leg(
+        cur, event, facts, context, observed=resolved["observed"], category_id=resolved["category_id"],
+        kakeibo=resolved["kakeibo"], description=proposal.description,
+        signature={**resolved["signature"], "source": source_name},
+    )
+
+
+def record_observed_leg(
+    cur, event: dict, facts: NotificationFacts, context: dict, *, observed: dict,
+    category_id: str, kakeibo: str | None, description: str, signature: dict,
+) -> int:
+    """Record one observed leg, linking it to a unique counterpart leg when evidence allows."""
+    user_id, event_id = str(event["user_id"]), str(event["id"])
+    accounts = context["accounts"]
+    key = f"notification:{event_id}"
     account_id = str(observed["id"])
-    signature = resolved["signature"]
-    category_id = resolved["category_id"]
+    signature = {**signature, "category_id": category_id, "kakeibo": kakeibo}
     candidates = discover_candidates(cur, user_id, facts)
     overflow = len(candidates) > CANDIDATE_LIMIT
-    possible_complete = [row for row in candidates if row["movement_id"] and str(row["account_id"]) == account_id and row["type"] == facts.direction]
+    possible_complete = [
+        row for row in candidates
+        if row["movement_id"] and str(row["account_id"]) == account_id and row["type"] == facts.direction
+        and abs((row["post_time"] - facts.timestamp).total_seconds()) < ROLE_CONFIRMATION_WINDOW_SECONDS
+    ]
     if possible_complete:
         confirmations = {}
         role = "outbound" if facts.direction == "expense" else "inbound"
@@ -238,11 +293,10 @@ def apply_interpretation(cur, event: dict, facts: NotificationFacts, proposal: I
         """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, kakeibo_type, idempotency_key)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
         (user_id, account_id, category_id, facts.direction, facts.amount,
-         sanitize_text(proposal.description), facts.timestamp,
-         resolved["kakeibo"], key),
+         sanitize_text(description), facts.timestamp, kakeibo, key),
     )
     tx_id = str(cur.fetchone()["id"])
-    snapshot = committed_snapshot(key=key, kind=facts.direction, description=proposal.description,
+    snapshot = committed_snapshot(key=key, kind=facts.direction, description=description,
                                   amount=facts.amount, source=account_label(observed, accounts) if facts.direction == "expense" else None,
                                   target=account_label(observed, accounts) if facts.direction == "income" else None)
     if counterpart:
@@ -267,6 +321,35 @@ def apply_interpretation(cur, event: dict, facts: NotificationFacts, proposal: I
         if overflow or len(compatible) > 1:
             cur.execute("UPDATE notification_events SET error_code = 'ambiguous_movement' WHERE id = %s", (event_id,))
     return 1
+
+
+def apply_manual_resolution(
+    cur, event: dict, facts: NotificationFacts, context: dict, *, direction: str, amount: int,
+    account_id: str, category_id: str, description: str, kakeibo: str | None,
+) -> int:
+    """Record an owner-chosen interpretation of an unresolved event, then run the pairing pass."""
+    accounts = context["accounts"]
+    observed = next((row for row in accounts if str(row["id"]) == account_id), None)
+    if not observed or observed.get("type") not in LIQUID_ACCOUNT_TYPES or observed.get("instrument_type"):
+        raise EvidenceError("invalid_account_reference")
+    category = next((row for row in context["categories"] if str(row["id"]) == category_id), None)
+    if not category or category["kind"] != direction:
+        raise EvidenceError("invalid_category_reference")
+    resolved_facts = replace(facts, status="candidate", error_code=None, amount=amount, direction=direction)
+    try:
+        signature = transfer_signature(resolved_facts, context, account_id)
+    except EvidenceError:
+        signature = {
+            "account_id": account_id, "direction": direction, "currency": resolved_facts.currency,
+            "transfer": False, "self_identity": False, "remote_account_id": None, "reference_hash": None,
+            "root_account_id": root_account_id(accounts, account_id),
+            "external_counterparty": bool((context.get("facts") or {}).get("external_counterparty")),
+        }
+    return record_observed_leg(
+        cur, event, resolved_facts, context, observed=observed, category_id=category_id,
+        kakeibo=kakeibo if direction == "expense" else None, description=description,
+        signature={**signature, "source": "manual"},
+    )
 
 
 def apply_broker_trade(cur, event: dict, facts: NotificationFacts, context: dict) -> int:

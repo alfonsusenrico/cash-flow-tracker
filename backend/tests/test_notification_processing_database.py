@@ -337,11 +337,14 @@ def test_concurrent_delivery_claims_one_effect(client, notification_owner):
     assert count_transactions(notification_owner) == 1
 
 
-@pytest.mark.parametrize("offset,reverse,expected_count", [(29, False, 1), (29, True, 1), (30, False, 2)])
+@pytest.mark.parametrize("offset,reverse,expected_count", [
+    (29, False, 1), (29, True, 1), (600, False, 1), (600, True, 1), (899, False, 1), (900, False, 2),
+])
 def test_cross_account_window_and_both_orders(client, notification_owner, offset, reverse, expected_count):
     from app.db.pool import db_conn
     outgoing = notification("Rp500.000 udah dikirim ke BCA Raka Purnama.", "com.gojek.gopay", seconds=1)
-    incoming = notification("Pemasukan sebesar IDR 500,000.00 dari ***FIK **SI di kategori Transfer Rekening.", "com.bca", seconds=1 + offset)
+    incoming = notification("Pemasukan sebesar IDR 500,000.00 dari ***FIK **SI di kategori Transfer Rekening.", "com.bca", seconds=1)
+    incoming["post_time"] = (datetime.fromisoformat(outgoing["post_time"]) + timedelta(seconds=offset)).isoformat()
     # The registered rule selects a category, never overrides source facts.
     with db_conn() as conn:
         conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, 'FIK', %s)", (notification_owner["user_id"], notification_owner["income"]))
@@ -464,7 +467,7 @@ def test_counterpart_discovery_is_independent_of_recent_history(client, notifica
     assert result["type"] == "internal_movement" and result["record_key"] == first["record_key"]
 
 
-def test_unsafe_provider_output_and_application_failure_leave_no_partial_effect(client, notification_owner, monkeypatch):
+def test_invalid_provider_output_falls_back_to_deterministic_record(client, notification_owner, monkeypatch):
     from app.db.pool import db_conn
     from app.services import notification_processing as processing
     enable_ai(monkeypatch)
@@ -473,22 +476,32 @@ def test_unsafe_provider_output_and_application_failure_leave_no_partial_effect(
     provider = AsyncMock()
     provider.interpret.side_effect = ProviderError("provider_invalid_output")
     asyncio.run(processing.process_claim(claimed, provider))
-    assert client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]["status"] == "needs_review"
-    retry = client.post(f"/api/ingest/notifications/{event['event_id']}/retry").json()["result"]
-    assert retry["status"] == "queued"
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["status"] == "recorded" and "error_code" not in result
+    assert count_transactions(notification_owner) == 1
+    with db_conn() as conn:
+        stored = conn.execute("SELECT interpretation FROM notification_events WHERE id = %s", (event["event_id"],)).fetchone()
+    assert stored["interpretation"]["source"] == "deterministic_fallback"
+
+
+def test_application_failure_leaves_no_partial_effect(client, notification_owner, monkeypatch):
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest(client, notification())["results"][0]
     claimed = processing.claim_event()
 
-    def fail_after_insert(cur, event, facts, proposal, context):
+    def fail_after_insert(cur, event, facts, proposal, context, **_):
         from app.services.notification_evidence import EvidenceError
         cur.execute("INSERT INTO transactions (user_id, account_id, category_id, type, amount, date) VALUES (%s, %s, %s, 'expense', 125000, NOW())", (notification_owner["user_id"], notification_owner["main"], notification_owner["expense"]))
         raise EvidenceError("synthetic_application_failure")
 
     monkeypatch.setattr(processing, "apply_interpretation", fail_after_insert)
-    provider.interpret.side_effect = None
+    provider = AsyncMock()
     provider.interpret.return_value = interpretation(notification_owner)
     asyncio.run(processing.process_claim(claimed, provider))
     assert count_transactions(notification_owner) == 0
-    assert client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]["status"] == "needs_review"
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["status"] == "needs_review" and result["error_code"] == "synthetic_application_failure"
 
 
 def test_legacy_result_materializes_without_inference_or_replay(client, notification_owner):
@@ -756,3 +769,259 @@ def test_legacy_paired_notification_is_not_guessed_as_unconsumed_confirmation(cl
     legacy = client.get(f"/api/ingest/notifications/{original['event_id']}/result").json()["result"]
     assert legacy["status"] == "recorded" and legacy["type"] == "internal_movement"
     assert count_transactions(notification_owner) == 2
+
+
+def add_account(owner, key, name, kind="ewallet"):
+    from app.db.pool import db_conn
+    owner[key] = str(uuid4())
+    with db_conn() as conn:
+        conn.execute(
+            "INSERT INTO accounts (id, user_id, name, type, initial_balance) VALUES (%s, %s, %s, %s, 1000000)",
+            (owner[key], owner["user_id"], name, kind),
+        )
+    return owner[key]
+
+
+def add_category(owner, key, name, kind="expense"):
+    from app.db.pool import db_conn
+    owner[key] = str(uuid4())
+    with db_conn() as conn:
+        conn.execute("INSERT INTO categories (id, user_id, name, kind) VALUES (%s, %s, %s, %s)", (owner[key], owner["user_id"], name, kind))
+    return owner[key]
+
+
+def at(event, seconds):
+    event["post_time"] = (datetime(2026, 9, 29, 6, 0, tzinfo=timezone.utc) + timedelta(seconds=seconds)).isoformat()
+    return event
+
+
+def transactions_of(owner):
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        return conn.execute(
+            """SELECT t.id, t.type, t.account_id, t.movement_id, t.movement_role, t.category_id, c.name AS category
+               FROM transactions t JOIN categories c ON c.id = t.category_id
+               WHERE t.user_id = %s ORDER BY t.type""",
+            (owner["user_id"],),
+        ).fetchall()
+
+
+BCA_TOP_UP_DEBIT = "You spent IDR 7,490,557.00 at Shopping."
+SHOPEEPAY_TOP_UP = "Pengisian saldo sebesar Rp7.490.557 telah ditambahkan ke ShopeePay-mu. Saldo saat ini sebesar Rp7.491.557."
+
+
+@pytest.fixture
+def top_up_owner(notification_owner):
+    add_account(notification_owner, "shopeepay", "ShopeePay")
+    add_category(notification_owner, "shopping", "Belanja")
+    return notification_owner
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_bca_debit_and_shopeepay_top_up_link_into_one_movement(client, top_up_owner, reverse):
+    debit = at(notification(BCA_TOP_UP_DEBIT, "com.bca.mybca.omni.android"), 3)
+    top_up = at(notification(SHOPEEPAY_TOP_UP, "com.shopeepay.id"), 0)
+    first, second = (debit, top_up) if reverse else (top_up, debit)
+    ingest(client, first)
+    result = ingest(client, second)["results"][0]
+    assert result["status"] == "recorded" and result["type"] == "internal_movement", result
+    assert result["source"] == "BCA Harian" and result["target"] == "ShopeePay"
+    rows = transactions_of(top_up_owner)
+    assert len(rows) == 2 and len({row["movement_id"] for row in rows}) == 1 and rows[0]["movement_id"]
+    assert {row["category"] for row in rows} == {"Internal Movement"}
+    assert {str(row["account_id"]) for row in rows} == {top_up_owner["bca"], top_up_owner["shopeepay"]}
+
+
+def test_self_transfer_legs_minutes_apart_link(client, top_up_owner):
+    outgoing = at(notification("You've sent Rp1.500.000 to RAKA PURNAMA.", "com.jago.digitalbanking"), 0)
+    incoming = at(notification(
+        "RAKA PURNAMA mengirimkan dana sebesar Rp1.500.000 ke ShopeePay-mu melalui BI-Fast.", "com.shopeepay.id"), 240)
+    assert ingest(client, outgoing)["results"][0]["status"] == "recorded"
+    result = ingest(client, incoming)["results"][0]
+    assert result["type"] == "internal_movement" and result["target"] == "ShopeePay"
+    assert result["source"] == "Bank Jago · Kantong Utama"
+
+
+def test_third_party_payment_is_not_linked_to_equal_income(client, top_up_owner):
+    add_category(top_up_owner, "transfer_out", "Transfer Keluar")
+    ingest(client, at(notification("Rp500.000 udah dikirim ke BCA Mira Langit.", "com.gojek.gopay"), 0))
+    result = ingest(client, at(notification(
+        "Pengisian saldo sebesar Rp500.000 telah ditambahkan ke ShopeePay-mu.", "com.shopeepay.id"), 60))["results"][0]
+    assert result["type"] == "income"
+    assert all(row["movement_id"] is None for row in transactions_of(top_up_owner))
+
+
+def test_two_qualifying_counterparts_are_flagged_ambiguous(client, top_up_owner):
+    from app.db.pool import db_conn
+    ingest(client, at(notification(SHOPEEPAY_TOP_UP, "com.shopeepay.id"), 0))
+    ingest(client, at(notification(SHOPEEPAY_TOP_UP, "com.shopeepay.id"), 60))
+    result = ingest(client, at(notification(BCA_TOP_UP_DEBIT, "com.bca.mybca.omni.android"), 120))["results"][0]
+    assert result["type"] == "expense"
+    with db_conn() as conn:
+        stored = conn.execute("SELECT error_code FROM notification_events WHERE id = %s", (result["event_id"],)).fetchone()
+    assert stored["error_code"] == "ambiguous_movement"
+    assert all(row["movement_id"] is None for row in transactions_of(top_up_owner))
+
+
+def test_model_needs_review_falls_back_to_deterministic_record(client, notification_owner, monkeypatch):
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest(client, notification())["results"][0]
+    claimed = processing.claim_event()
+    provider = AsyncMock()
+    provider.interpret.return_value = Interpretation.model_validate_json(json.dumps({
+        "outcome": "needs_review", "direction": None, "description": "", "account_id": None,
+        "source_account_id": None, "target_account_id": None, "category_id": None, "kakeibo": None,
+        "amount_evidence": "", "direction_evidence": "", "source_evidence": "", "target_evidence": "",
+        "candidate_transaction_id": None, "confidence": 0.3, "review_reason": "uncertain_mapping",
+    }))
+    asyncio.run(processing.process_claim(claimed, provider))
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["status"] == "recorded" and result["type"] == "expense"
+    assert count_transactions(notification_owner) == 1
+
+
+def test_unresolvable_model_uncertainty_reports_backend_reason(client, notification_owner, monkeypatch):
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest(client, notification("You spent IDR 45,000.00 at Shopping.", "com.bca.mybca.omni.android"))["results"][0]
+    claimed = processing.claim_event()
+    provider = AsyncMock()
+    provider.interpret.side_effect = ProviderError("provider_invalid_output")
+    asyncio.run(processing.process_claim(claimed, provider))
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result == {**result, "status": "needs_review", "error_code": "uncertain_category_mapping"}
+    assert processing.claim_event() is None
+
+
+def test_provider_outage_becomes_failed_and_is_retried_automatically(client, notification_owner, monkeypatch):
+    from app.db.pool import db_conn
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest(client, notification())["results"][0]
+    provider = AsyncMock()
+    provider.interpret.side_effect = ProviderError("provider_unavailable", transient=True)
+    for _ in range(processing.MAX_ATTEMPTS):
+        with db_conn() as conn:
+            conn.execute("UPDATE notification_events SET next_attempt_at = NOW() WHERE id = %s", (event["event_id"],))
+        asyncio.run(processing.process_claim(processing.claim_event(), provider))
+    with db_conn() as conn:
+        stored = conn.execute(
+            "SELECT processing_state, error_code, next_attempt_at > NOW() + INTERVAL '5 minutes' AS deferred FROM notification_events WHERE id = %s",
+            (event["event_id"],),
+        ).fetchone()
+    assert stored["processing_state"] == "failed" and stored["error_code"] == "provider_unavailable" and stored["deferred"]
+    assert processing.claim_event() is None
+    with db_conn() as conn:
+        conn.execute("UPDATE notification_events SET next_attempt_at = NOW() WHERE id = %s", (event["event_id"],))
+    provider.interpret.side_effect = None
+    provider.interpret.return_value = interpretation(notification_owner)
+    asyncio.run(processing.process_claim(processing.claim_event(), provider))
+    assert client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]["status"] == "recorded"
+
+
+def test_failed_events_stop_retrying_after_horizon(client, notification_owner, monkeypatch):
+    from app.db.pool import db_conn
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest(client, notification())["results"][0]
+    processing.fail_claim(processing.claim_event(), ProviderError("provider_access_denied"))
+    with db_conn() as conn:
+        conn.execute(
+            "UPDATE notification_events SET next_attempt_at = NOW(), created_at = NOW() - INTERVAL '49 hours' WHERE id = %s",
+            (event["event_id"],),
+        )
+    assert processing.claim_event() is None
+
+
+def test_manual_resolution_records_once_and_pairs(client, top_up_owner):
+    from app.db.pool import db_conn
+    ingest(client, at(notification(SHOPEEPAY_TOP_UP, "com.shopeepay.id"), 0))
+    with db_conn() as conn:
+        conn.execute("UPDATE categories SET is_archived = TRUE WHERE id = %s", (top_up_owner["shopping"],))
+    stuck = ingest(client, at(notification(BCA_TOP_UP_DEBIT, "com.bca.mybca.omni.android"), 3))["results"][0]
+    assert stuck["status"] == "needs_review" and stuck["error_code"] == "uncertain_category_mapping"
+    body = {"type": "expense", "account_id": top_up_owner["bca"], "category_id": top_up_owner["expense"], "notes": "Top up ShopeePay"}
+    resolved = client.post(f"/api/ingest/notifications/{stuck['event_id']}/resolve", json=body)
+    assert resolved.status_code == 200, resolved.text
+    assert resolved.json()["result"]["type"] == "internal_movement"
+    repeated = client.post(f"/api/ingest/notifications/{stuck['event_id']}/resolve", json=body)
+    assert repeated.status_code == 200 and repeated.json()["result"] == resolved.json()["result"]
+    assert len(transactions_of(top_up_owner)) == 2
+    with db_conn() as conn:
+        stored = conn.execute("SELECT interpretation FROM notification_events WHERE id = %s", (stuck["event_id"],)).fetchone()
+    assert stored["interpretation"]["source"] == "manual"
+
+
+def test_manual_resolution_validates_references_and_state(client, top_up_owner):
+    stuck = ingest(client, notification("You've paid Rp50.000, biaya Rp2.500, total Rp52.500"))["results"][0]
+    assert stuck["status"] == "needs_review"
+    path = f"/api/ingest/notifications/{stuck['event_id']}/resolve"
+    base = {"type": "expense", "account_id": top_up_owner["main"], "category_id": top_up_owner["expense"]}
+    assert client.post(path, json=base).json()["detail"]["code"] == "amount_required"
+    wrong_kind = client.post(path, json={**base, "amount": 52500, "category_id": top_up_owner["income"]})
+    assert wrong_kind.status_code == 422 and wrong_kind.json()["detail"]["code"] == "invalid_category_reference"
+    investment = client.post(path, json={**base, "amount": 52500, "account_id": top_up_owner["stockbit"]})
+    assert investment.status_code == 422
+    assert client.post(f"/api/ingest/notifications/{uuid4()}/resolve", json={**base, "amount": 1}).status_code == 404
+    ok = client.post(path, json={**base, "amount": 52500})
+    assert ok.status_code == 200 and ok.json()["result"]["amount"] == 52500
+    recorded = ingest(client, notification())["results"][0]
+    assert recorded["status"] == "recorded"
+    assert client.post(f"/api/ingest/notifications/{recorded['event_id']}/resolve", json={**base}).status_code == 409
+
+
+def test_manual_resolution_rejects_amount_conflicting_with_notification(client, top_up_owner):
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        conn.execute("UPDATE categories SET is_archived = TRUE WHERE id = %s", (top_up_owner["shopping"],))
+    stuck = ingest(client, notification(BCA_TOP_UP_DEBIT, "com.bca.mybca.omni.android"))["results"][0]
+    response = client.post(f"/api/ingest/notifications/{stuck['event_id']}/resolve", json={
+        "type": "expense", "account_id": top_up_owner["bca"], "category_id": top_up_owner["expense"], "amount": 1,
+    })
+    assert response.status_code == 422 and response.json()["detail"]["code"] == "conflicting_amount"
+
+
+def test_split_restores_notification_categories_and_results(client, top_up_owner):
+    ingest(client, at(notification(SHOPEEPAY_TOP_UP, "com.shopeepay.id"), 0))
+    linked = ingest(client, at(notification(BCA_TOP_UP_DEBIT, "com.bca.mybca.omni.android"), 3))["results"][0]
+    movement_id = transactions_of(top_up_owner)[0]["movement_id"]
+    response = client.post(f"/api/movements/{movement_id}/split")
+    assert response.status_code == 200, response.text
+    rows = {row["type"]: row for row in transactions_of(top_up_owner)}
+    assert all(row["movement_id"] is None and row["movement_role"] is None for row in rows.values())
+    assert rows["expense"]["category"] == "Belanja" and rows["income"]["category"] == "Transfer Masuk"
+    result = client.get(f"/api/ingest/notifications/{linked['event_id']}/result").json()["result"]
+    assert result["type"] == "expense" and result["transaction_id"] == str(rows["expense"]["id"])
+    assert client.post(f"/api/movements/{movement_id}/split").status_code == 404
+    merged = client.post("/api/movements/merge", json={
+        "expense_transaction_id": str(rows["expense"]["id"]), "income_transaction_id": str(rows["income"]["id"]),
+    })
+    assert merged.status_code == 200
+
+
+def test_split_rejects_investment_trades(client, notification_owner):
+    ingest(client, notification("Pembelian 4 lot FIKS match di harga Rp3.340", "com.stockbit.android"))
+    movement_id = next(row["movement_id"] for row in transactions_of(notification_owner) if row["movement_id"])
+    response = client.post(f"/api/movements/{movement_id}/split")
+    assert response.status_code == 422 and response.json()["detail"]["code"] == "investment_trade_required"
+
+
+def test_owner_aliases_drive_self_transfer_recognition(client, top_up_owner):
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        conn.execute("UPDATE users SET name_aliases = %s WHERE id = %s", (["Alfonsus Enrico Soebijanto"], top_up_owner["user_id"]))
+    ingest(client, at(notification("You've sent Rp1.500.000 to ALFONSUS ENRICO SOEBIJANTO.", "com.jago.digitalbanking"), 0))
+    result = ingest(client, at(notification(
+        "You received IDR 1,500,000.00 from ALFO**US ***ICO *O at Account Transfer category.", "com.bca.mybca.omni.android"), 90))["results"][0]
+    assert result["type"] == "internal_movement" and result["target"] == "BCA Harian"
+
+
+def test_settings_round_trip_normalizes_name_aliases(client, notification_owner):
+    response = client.patch("/api/auth/settings", json={"name_aliases": ["  Raka   Purnama ", "raka purnama", "RAKA P SENTOSA"]})
+    assert response.status_code == 200, response.text
+    assert response.json()["user"]["name_aliases"] == ["Raka Purnama", "RAKA P SENTOSA"]
+    assert client.patch("/api/auth/settings", json={"name_aliases": ["ab"]}).status_code == 422
+    assert client.patch("/api/auth/settings", json={"name_aliases": [f"Alias {n}" for n in range(11)]}).status_code == 422
+    cleared = client.patch("/api/auth/settings", json={"name_aliases": []})
+    assert cleared.status_code == 200 and cleared.json()["user"]["name_aliases"] == []

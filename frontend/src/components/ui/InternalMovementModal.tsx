@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, deleteMovement, updateMovement } from "@/lib/api";
+import { api, deleteMovement, splitMovement, updateMovement } from "@/lib/api";
 import { cn, fmtMoney, formatNumberWithDots, localDatetimeToISO, toDatetimeLocal } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
@@ -40,6 +40,7 @@ export function InternalMovementModal({
   const [err, setErr] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmSplit, setConfirmSplit] = useState(false);
 
   // Fetch accounts
   const { data: accountsData } = useQuery<{ accounts: any[] }>({
@@ -92,6 +93,7 @@ export function InternalMovementModal({
       setErr("");
       setIsSuccess(false);
       setConfirmDelete(false);
+      setConfirmSplit(false);
     }
   }, [editingMovement, liquidAccounts, open]);
 
@@ -148,6 +150,22 @@ export function InternalMovementModal({
       onClose();
     },
     onError: (error: any) => setErr(error?.message || "Gagal menghapus pemindahan saldo"),
+  });
+
+  const splitMutation = useMutation({
+    mutationFn: () => {
+      if (!editingMovement) throw new Error("Pemindahan saldo tidak ditemukan");
+      return splitMovement(editingMovement.id);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.accounts });
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      qc.invalidateQueries({ queryKey: queryKeys.pulse });
+      qc.invalidateQueries({ queryKey: queryKeys.insights });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      onClose();
+    },
+    onError: (error: any) => setErr(error?.message || "Gagal memisahkan pemindahan saldo"),
   });
 
   const handleSubmit = (e?: React.FormEvent) => {
@@ -279,8 +297,26 @@ export function InternalMovementModal({
                 </button>
                 <button type="button" onClick={() => setConfirmDelete(false)} className="min-h-11 rounded-xl px-3 text-xs font-semibold text-[var(--muted)]">Tidak</button>
               </div>
+            ) : confirmSplit ? (
+              <div className="mr-auto flex items-center gap-2" role="alert">
+                <span className="text-[11px] font-medium text-[var(--text)]">Jadikan dua transaksi terpisah?</span>
+                <button type="button" onClick={() => splitMutation.mutate()} disabled={splitMutation.isPending} className="min-h-11 rounded-xl bg-[var(--text)] px-3 text-xs font-bold text-[var(--surface)] disabled:opacity-50">
+                  {splitMutation.isPending ? "Memisahkan…" : "Ya, pisahkan"}
+                </button>
+                <button type="button" onClick={() => setConfirmSplit(false)} className="min-h-11 rounded-xl px-3 text-xs font-semibold text-[var(--muted)]">Tidak</button>
+              </div>
             ) : (
-              <button type="button" onClick={() => setConfirmDelete(true)} className="mr-auto min-h-11 rounded-xl border border-rose-500/25 px-3 text-xs font-semibold text-rose-600">Hapus</button>
+              <div className="mr-auto flex items-center gap-2">
+                <button type="button" onClick={() => setConfirmDelete(true)} className="min-h-11 rounded-xl border border-rose-500/25 px-3 text-xs font-semibold text-rose-600">Hapus</button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmSplit(true)}
+                  title="Pisahkan jika dua catatan ini ternyata bukan satu pemindahan saldo"
+                  className="min-h-11 rounded-xl border border-[var(--border)] px-3 text-xs font-semibold text-[var(--text)]"
+                >
+                  Pisahkan
+                </button>
+              </div>
             )
           ) : null}
           <button type="button" onClick={onClose} className="btn-secondary pressable rounded-xl">Batal</button>

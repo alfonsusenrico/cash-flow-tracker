@@ -121,7 +121,7 @@ def get_current_user(request: Request) -> dict[str, Any]:
         with db_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id, username, name, payday_day, currency, emergency_fund_multiplier, monthly_spending_budget FROM users WHERE id = %s",
+                    "SELECT id, username, name, name_aliases, payday_day, currency, emergency_fund_multiplier, monthly_spending_budget FROM users WHERE id = %s",
                     (user_id,),
                 )
                 user = cur.fetchone()
@@ -134,6 +134,7 @@ def get_current_user(request: Request) -> dict[str, Any]:
                         "currency": user["currency"],
                         "emergency_fund_multiplier": user.get("emergency_fund_multiplier", 6),
                         "monthly_spending_budget": user.get("monthly_spending_budget"),
+                        "name_aliases": list(user.get("name_aliases") or []),
                     }
 
     # 2. Try Bearer API Token
@@ -146,7 +147,7 @@ def get_current_user(request: Request) -> dict[str, Any]:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        SELECT u.id, u.username, u.name, u.payday_day, u.currency, u.emergency_fund_multiplier, u.monthly_spending_budget, k.id AS key_id
+                        SELECT u.id, u.username, u.name, u.name_aliases, u.payday_day, u.currency, u.emergency_fund_multiplier, u.monthly_spending_budget, k.id AS key_id
                         FROM api_keys k
                         JOIN users u ON u.id = k.user_id
                         WHERE k.key_hash = %s
@@ -169,6 +170,7 @@ def get_current_user(request: Request) -> dict[str, Any]:
                             "currency": user["currency"],
                             "emergency_fund_multiplier": user.get("emergency_fund_multiplier", 6),
                             "monthly_spending_budget": user.get("monthly_spending_budget"),
+                            "name_aliases": list(user.get("name_aliases") or []),
                         }
 
     raise HTTPException(status_code=401, detail="Not authenticated")

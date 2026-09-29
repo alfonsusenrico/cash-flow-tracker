@@ -24,7 +24,10 @@ SUPPORTED_PACKAGES = {
 TEXT_FIELDS = ("title", "body_text", "big_text", "sub_text", "summary_text")
 MONEY_PATTERN = re.compile(r"\b(?:Rp\.?|IDR)\s*(-?\d[\d.,]*\d|-?\d)\b", re.I)
 BALANCE_PATTERN = re.compile(
-    r"\b(?:saldo saat ini(?: sebesar)?|current balance(?: is)?|sisa saldo(?: anda)?(?: sebesar)?|saldo akhir(?: sebesar)?)\s*(?:Rp\.?|IDR)?\s*[\d\.,]+",
+    r"\b(?:saldo saat ini(?: sebesar)?|current balance(?: is)?|sisa saldo(?: (?:anda|kamu))?(?: sebesar)?|"
+    r"saldo akhir(?: sebesar)?|remaining balance(?: is)?|available balance(?: is)?|"
+    r"saldo (?:anda|kamu)(?: sekarang| saat ini)?(?: sebesar| adalah| jadi)?|saldo tersedia(?: sebesar)?)"
+    r"\s*:?\s*(?:Rp\.?|IDR)?\s*[\d\.,]+",
     re.I,
 )
 NOISE_PATTERN = re.compile(
@@ -43,12 +46,13 @@ SETTLED_PATTERN = re.compile(
     r"pemasukan|pengeluaran|has sent|udah dikirim|telah menerima|"
     r"mengirimkan dana|you've moved|you have moved|has been moved|"
     r"telah dipindahkan|telah memindahkan|match di harga|"
-    r"pengisian saldo|telah ditambahkan|top\s*up request)\b",
+    r"pengisian saldo|telah ditambahkan|top\s*up request|"
+    r"you've sent|you have sent|dikirim|mengirim|terkirim|berhasil kirim)\b",
     re.I,
 )
 OUT_PATTERN = re.compile(
     r"\b(?:paid|spent|terdebit|pengeluaran|pembayaran|membayar|udah dikirim|"
-    r"transfer (?:ke|to)|dikirim ke|sent to)\b", re.I
+    r"transfer (?:ke|to)|dikirim ke|sent to|you've sent|you have sent|mengirim|berhasil kirim)\b", re.I
 )
 IN_PATTERN = re.compile(
     r"\b(?:received|pemasukan|menerima|has sent.+to you|"
@@ -171,6 +175,14 @@ def collect_facts(event: dict[str, Any]) -> NotificationFacts:
         incoming = bool(IN_PATTERN.search(text))
         if outgoing != incoming:
             direction = "expense" if outgoing else "income"
+    settled = bool(SETTLED_PATTERN.search(text))
+    if status != "ignored" and error == "missing_amount" and (
+        not settled or (parsed.is_financial and parsed.amount is None)
+    ):
+        # Promotions and amount-less confirmations of an earlier transfer carry no ledger fact.
+        status, error = "ignored", None
+    elif status != "ignored" and error == "settlement_unproven" and not direction:
+        status, error = "ignored", None
     amount = next(iter(amounts)) if len(amounts) == 1 else None
     expected_fact = parsed.amount if institution == "stockbit" and parsed.investment_action else amount
     if status != "ignored" and expected_fact is not None and event.get("expected_amount") is not None:

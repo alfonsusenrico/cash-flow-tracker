@@ -126,7 +126,7 @@ def test_original_timestamp_and_duplicate_notification_text_preserved():
     ("You've paid Rp50.000, biaya Rp2.500, total Rp52.500", "needs_review"),
     ("You've paid IDR 50,000.50", "needs_review"),
     ("You've paid USD 50", "needs_review"),
-    ("Transfer Rp50.000", "needs_review"),
+    ("Transfer Rp50.000", "ignored"),
     ("QRIS Rp 50.000 ke Kedai Awan berhasil", "candidate"),
     ("Pembayaran Rp50.000 ke Kedai Awan telah completed", "candidate"),
 ])
