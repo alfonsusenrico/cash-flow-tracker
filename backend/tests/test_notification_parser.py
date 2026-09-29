@@ -148,6 +148,22 @@ def test_mybca_inbound():
     assert "***PET **AK ***GSA" in (parsed.counterparty or "")
 
 
+def test_mybca_inbound_without_sender():
+    text = "You received IDR 7,436,000.00 at Salary category."
+    parsed = parse_notification(
+        package_name="com.bca.mybca.omni.android",
+        title="Financial Diary",
+        body_text=text,
+        big_text=text,
+    )
+    assert parsed.is_financial is True
+    assert parsed.event_class == "income"
+    assert parsed.amount == 7436000
+    assert parsed.direction == "in"
+    assert parsed.counterparty == "BCA"
+    assert parsed.category_hint == "Salary"
+
+
 def test_bca_mobile_outbound():
     text = "Financial Diary: Pengeluaran sebesar IDR 500,000.00 di kategori Pembayaran."
     parsed = parse_notification(

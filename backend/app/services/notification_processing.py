@@ -246,7 +246,7 @@ def fail_claim(event: dict, error: ProviderError):
     retry = error.transient and event["attempt_count"] < MAX_ATTEMPTS
     delay = max(error.retry_after, 2 ** event["attempt_count"] + random.uniform(0, 1))
     status = "queued" if retry else "failed"
-    if error.code in {"provider_invalid_output", "incomplete_context", "model_uncertain", "invalid_current_reference", "invalid_interpretation"}:
+    if not retry:
         status = "needs_review"
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -283,8 +283,9 @@ async def process_claim(event: dict, provider):
         await database_operation(apply_claim, event, proposal)
     except ProviderError as exc:
         await database_operation(fail_claim, event, exc)
-    except (EvidenceError, HTTPException):
-        await database_operation(fail_claim, event, ProviderError("invalid_current_reference"))
+    except (EvidenceError, HTTPException) as exc:
+        code = exc.code if isinstance(exc, EvidenceError) else "invalid_current_reference"
+        await database_operation(fail_claim, event, ProviderError(code))
     except psycopg.Error:
         await database_operation(fail_claim, event, ProviderError("database_unavailable", transient=True))
 
