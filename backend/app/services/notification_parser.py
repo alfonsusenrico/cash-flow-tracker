@@ -125,14 +125,14 @@ GOPAY_TRANSFER_CONFIRMED_PATTERN = re.compile(
 # 7. BCA mobile Inbound
 # "Financial Diary: Pemasukan sebesar IDR 500,000.00 dari ***PET **AK ***GSA di kategori Transfer Rekening."
 BCA_INBOUND_ID_PATTERN = re.compile(
-    r"Pemasukan sebesar\s+(?:IDR|Rp)\s*(?P<amount>[\d\.,]+)\s+dari\s+(?P<sender>.+?)\s+di kategori\s+(?P<category>[^\.]+)",
+    r"Pemasukan sebesar\s+(?:IDR|Rp)\s*(?P<amount>[\d\.,]+)(?:\s+dari\s+(?P<sender>.+?))?\s+di kategori\s+(?P<category>[^\.]+)",
     re.IGNORECASE,
 )
 
 # 8. myBCA Inbound (English)
 # "You received IDR 500,000.00 from ***PET **AK ***GSA at Account Transfer category."
 BCA_INBOUND_EN_PATTERN = re.compile(
-    r"You received\s+(?:IDR|Rp)\s*(?P<amount>[\d\.,]+)\s+from\s+(?P<sender>.+?)\s+at\s+(?P<category>.+?)\s+category",
+    r"You received\s+(?:IDR|Rp)\s*(?P<amount>[\d\.,]+)(?:\s+from\s+(?P<sender>.+?))?\s+at\s+(?P<category>.+?)\s+category",
     re.IGNORECASE,
 )
 
@@ -418,7 +418,8 @@ def parse_notification(
     m = BCA_INBOUND_ID_PATTERN.search(raw_content)
     if m:
         amt = _clean_amount(m.group("amount"))
-        sender = m.group("sender").strip()
+        sender_raw = m.group("sender")
+        sender = sender_raw.strip() if sender_raw else "BCA"
         cat = m.group("category").strip()
         return ParsedNotification(
             is_financial=True,
@@ -440,7 +441,8 @@ def parse_notification(
     m = BCA_INBOUND_EN_PATTERN.search(raw_content)
     if m:
         amt = _clean_amount(m.group("amount"))
-        sender = m.group("sender").strip()
+        sender_raw = m.group("sender")
+        sender = sender_raw.strip() if sender_raw else "BCA"
         cat = m.group("category").strip()
         return ParsedNotification(
             is_financial=True,

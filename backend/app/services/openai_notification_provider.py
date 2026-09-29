@@ -154,7 +154,10 @@ class OpenAINotificationProvider:
                 }
             if response.status != "completed" or not response.output_text:
                 raise ProviderError("provider_invalid_output")
-            return Interpretation.model_validate_json(response.output_text)
+            proposal = Interpretation.model_validate_json(response.output_text)
+            if proposal.direction == "income" and proposal.kakeibo is not None:
+                proposal = proposal.model_copy(update={"kakeibo": None})
+            return proposal
         except ProviderError:
             raise
         except (APITimeoutError, APIConnectionError, asyncio.TimeoutError):

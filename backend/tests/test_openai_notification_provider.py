@@ -179,3 +179,14 @@ def test_candidate_overflow_cannot_become_a_unique_match():
     result = load_context(cur, "owner", collect_facts(event()))
     assert result["incomplete"] is True
     assert len(result["candidates"]) == 50
+
+
+def test_provider_normalizes_income_kakeibo_to_none():
+    data = proposal(direction="income", direction_evidence="has sent", kakeibo="need")
+
+    def handler(request):
+        return httpx2.Response(200, json=envelope(data))
+
+    interpreted = run_provider(handler)
+    assert interpreted.direction == "income"
+    assert interpreted.kakeibo is None
