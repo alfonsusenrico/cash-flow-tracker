@@ -43,6 +43,9 @@ A single Kotlin map `ProcessingReasons.describe(code)` returns Indonesian text f
 ### D9. Neutral movement and self-transfer naming (added 2026-09-29 after the first monitored transfers)
 The owner observed a linked BCA → ShopeePay movement still named "Belanja" (the interpreter's label for the debit leg) and an owner-named Jago credit described by the owner's full name. `link_transactions_as_movement` gains an optional `notes` argument; notification pairing passes `movement_note()` = "Pindah saldo ke <destination label>", and `/movements/merge` passes it only when a leg has a notification event, so hand-written notes survive. `resolve_record` and `deterministic_interpretation` describe owner-counterparty legs as "Pindah saldo masuk/keluar". The context gains a boolean `counterparty_is_owner` (no names leave the backend). Existing production rows are not rewritten; a split and re-merge, or a notes edit, renames them.
 
+### D10. Balances hosted as another bank's pocket (added 2026-09-29)
+The owner's GoPay balance is GoPay Tabungan by Jago, a Jago pocket that the GoPay app also shows. `institution_parent` falls back to a uniquely named pocket when no top-level account matches, so GoPay-app notifications and Jago pocket moves resolve to the same account. The accounts edit dialog gains "Jadikan kantong di bawah" (existing `PATCH /accounts/{id}` `parent_id`, already validated server-side) so the existing GoPay account moves with its history instead of being recreated. The phone now explains unregistered pockets and never offers a single-leg manual record for a pocket move (mobile commit `b24d74f`).
+
 ## Risks / Trade-offs
 
 - [Relaxed pairing merges two unrelated equal-amount transactions within 15 minutes] → external-counterparty exclusion, different-institution requirement, ambiguity flag, and the new split action; window is configurable downward.

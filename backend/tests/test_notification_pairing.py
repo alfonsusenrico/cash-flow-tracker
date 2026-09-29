@@ -153,3 +153,34 @@ def test_pairing_window_configuration_bounds(monkeypatch, value, window, error):
     loaded = load_settings()
     assert loaded.notification_pairing_window_seconds == window
     assert loaded.notification_ai_configuration_error == error
+
+
+def wallet_hosted_in_bank_context():
+    context = deepcopy(BASE_CONTEXT)
+    context["accounts"] = [row for row in context["accounts"] if row["name"] != "GoPay"]
+    context["accounts"].append({"id": fixture_id(10), "name": "GoPay Tabungan", "type": "ewallet", "parent_id": fixture_id(2)})
+    return context
+
+
+def test_wallet_app_notifications_map_to_a_pocket_when_no_top_level_account_exists():
+    facts = collect_facts({"package_name": "com.gopay.wallet", "body_text": "QRIS Rp32.000 ke Kedai Awan berhasil",
+                           "post_time": datetime.fromisoformat("2026-09-29T17:00:00+07:00")})
+    assert endpoint_context(facts, wallet_hosted_in_bank_context()["accounts"]) == {"effective_account_id": fixture_id(10)}
+
+
+def test_bank_pocket_move_reaches_the_hosted_wallet_pocket():
+    facts = collect_facts({"package_name": "com.jago.digitalBanking",
+                           "body_text": "Rp1.250.000 has been moved from your Main Pocket Pocket to your GoPay Tabungan Pocket.",
+                           "post_time": datetime.fromisoformat("2026-09-29T17:00:00+07:00")})
+    context = wallet_hosted_in_bank_context()
+    assert endpoint_context(facts, context["accounts"]) == {
+        "source_account_id": fixture_id(3), "target_account_id": fixture_id(10),
+    }
+
+
+def test_top_level_institution_account_still_wins_over_pockets():
+    from app.services.notification_resolution import institution_parent
+
+    context = deepcopy(BASE_CONTEXT)
+    context["accounts"].append({"id": fixture_id(10), "name": "GoPay Tabungan", "type": "ewallet", "parent_id": fixture_id(2)})
+    assert institution_parent(context["accounts"], "gopay")["id"] == fixture_id(5)

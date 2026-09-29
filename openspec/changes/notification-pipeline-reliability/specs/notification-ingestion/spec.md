@@ -77,6 +77,17 @@ When the system links two notification-recorded legs into one movement, automati
 - **WHEN** the owner merges two manually entered transactions
 - **THEN** their notes are unchanged
 
+### Requirement: Institution Balances Hosted as Pockets
+When no top-level account is named after a notification's institution, the system SHALL map that institution's notifications to the single active pocket whose name contains the institution name, so a balance shown in one app but held by another bank (GoPay Tabungan held in Bank Jago) is one account. A top-level account named after the institution SHALL keep precedence. The owner SHALL be able to move an existing stand-alone liquid account without pockets under another top-level account, keeping its transaction history.
+
+#### Scenario: GoPay payment debits the GoPay Tabungan pocket in Jago
+- **WHEN** the owner has moved the GoPay account under Jago as "GoPay Tabungan" and the GoPay app reports a QRIS payment
+- **THEN** the expense is recorded on "Bank Jago · GoPay Tabungan"
+
+#### Scenario: Jago pocket move into the hosted pocket
+- **WHEN** Jago reports "Rp1.250.000 has been moved from your Main Pocket Pocket to your GoPay Tabungan Pocket."
+- **THEN** a movement from Main Pocket to GoPay Tabungan is recorded
+
 ### Requirement: Splitting an Automatically Paired Movement
 The system SHALL let the owner split a non-trade internal movement back into two independent transactions that keep their accounts, amounts, dates, and notes, restoring each leg's notification-derived category where known and detaching the notification events from the movement.
 

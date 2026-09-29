@@ -50,3 +50,6 @@
 ## 8. Neutral naming (owner request during the monitored run)
 
 - [x] 8.1 Rename linked legs to "Pindah saldo ke <destination>" in automatic pairing and in manual merge when a leg came from a notification; describe owner-counterparty single legs as "Pindah saldo masuk/keluar"; verify with database tests `test_paired_legs_are_renamed_as_one_movement`, `test_unpaired_self_transfer_is_named_neutrally`, `test_ai_self_transfer_description_is_replaced`, `test_manual_merge_renames_notification_legs_only`.
+- [x] 8.2 Map institution notifications to a uniquely named pocket when no top-level account matches; verify with `test_wallet_app_notifications_map_to_a_pocket_when_no_top_level_account_exists`, `test_bank_pocket_move_reaches_the_hosted_wallet_pocket`, `test_top_level_institution_account_still_wins_over_pockets`, and database test `test_wallet_moved_under_bank_receives_both_apps_notifications`.
+- [x] 8.3 Add "Jadikan kantong di bawah" to the account edit dialog for stand-alone non-investment accounts without pockets; verify with Vitest `moves a stand-alone wallet under a bank as a pocket, keeping its history` (including axe).
+- [ ] 8.4 Install mobile `fix/pocket-mapping-review-guidance` (`b24d74f`): pocket-registration guidance and no manual record for pocket moves; verify on device once reachable.

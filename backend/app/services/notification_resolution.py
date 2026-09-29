@@ -113,14 +113,23 @@ def normalize_name(value: str) -> str:
 
 
 def institution_parent(accounts: list[dict], institution: str) -> dict:
+    """The account an institution's notifications belong to.
+
+    A top-level account named after the institution wins. When none exists, a uniquely
+    named pocket is used instead: some balances shown in one app live in another bank,
+    for example GoPay Tabungan, which is a Bank Jago pocket.
+    """
     aliases = {"shopeepay": ("shopeepay",), "stockbit": ("stockbit",)}.get(institution, (institution,))
-    candidates = []
-    for account in accounts:
+
+    def matches(account: dict) -> bool:
         name = re.sub(r"[^a-z0-9]", "", account["name"].lower())
-        if account.get("parent_id") or (institution == "bca" and "rdn" in name):
-            continue
-        if any(alias in name for alias in aliases):
-            candidates.append(account)
+        if institution == "bca" and "rdn" in name:
+            return False
+        return any(alias in name for alias in aliases)
+
+    candidates = [account for account in accounts if not account.get("parent_id") and matches(account)]
+    if not candidates:
+        candidates = [account for account in accounts if account.get("parent_id") and matches(account)]
     if len(candidates) != 1:
         raise EvidenceError("uncertain_institution_mapping")
     return candidates[0]

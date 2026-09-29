@@ -262,6 +262,47 @@ describe("account and pocket forms", () => {
     })));
   });
 
+  it("moves a stand-alone wallet under a bank as a pocket, keeping its history", async () => {
+    const user = userEvent.setup();
+    const jago = {
+      id: "jago", name: "Jago", type: "bank", initial_balance: 0, balance: 0, is_archived: false,
+      children: [], created_at: "2026-09-01T00:00:00.000Z",
+    };
+    const gopay = {
+      id: "gopay", name: "GoPay", type: "wallet", initial_balance: 0, balance: 0, is_archived: false,
+      children: [], created_at: "2026-09-01T00:00:00.000Z",
+    };
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { ok: true, accounts: [jago, gopay, investmentParent], total_balance: 0 };
+      if (path === "/dashboard/net-worth") {
+        return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [] };
+      }
+      return { ok: true, rules: [], accounts: [], results: [] };
+    });
+    vi.mocked(api.patch).mockResolvedValue({ ok: true });
+    renderAccounts();
+
+    const wallet = (await screen.findAllByRole("region", { name: "Rekening GoPay" }))[0];
+    await user.click(within(wallet).getByRole("button", { name: "Opsi GoPay" }));
+    await user.click(within(screen.getByRole("group", { name: "Opsi GoPay" })).getByRole("button", { name: "Ubah rekening" }));
+    const dialog = screen.getByRole("dialog", { name: "Ubah Rekening: GoPay" });
+    const parentSelect = within(dialog).getByRole("combobox", { name: "Jadikan kantong di bawah" });
+    expect(parentSelect).toHaveValue("");
+    expect(within(parentSelect).queryByRole("option", { name: "Broker" })).not.toBeInTheDocument();
+    expect(within(parentSelect).queryByRole("option", { name: "GoPay" })).not.toBeInTheDocument();
+    expect(parentSelect).toHaveAccessibleDescription(/GoPay Tabungan/);
+    expect((await axe(dialog)).violations).toHaveLength(0);
+    await user.selectOptions(parentSelect, "jago");
+    const name = within(dialog).getByRole("textbox", { name: /nama rekening/i });
+    await user.clear(name);
+    await user.type(name, "GoPay Tabungan");
+    await user.click(within(dialog).getByRole("button", { name: "Simpan Perubahan" }));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/accounts/gopay", expect.objectContaining({
+      parent_id: "jago", name: "GoPay Tabungan",
+    })));
+    expect(vi.mocked(api.patch).mock.calls[0][1]).not.toHaveProperty("default_pocket_id");
+  });
+
   it("keeps a rejected pocket name available and associates the error with its field", async () => {
     const user = userEvent.setup();
     vi.mocked(api.post).mockRejectedValue(new Error("Nama kantong sudah digunakan"));

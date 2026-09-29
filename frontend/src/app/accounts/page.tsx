@@ -292,6 +292,7 @@ export default function AccountsPage() {
   const [accColor, setAccColor] = useState<string>("#2563EB");
   const [accDefaultFundingId, setAccDefaultFundingId] = useState<string>("");
   const [accDefaultPocketId, setAccDefaultPocketId] = useState<string>("");
+  const [accParentId, setAccParentId] = useState<string>("");
   const [accError, setAccError] = useState("");
 
   // Account drag-and-drop reordering state
@@ -382,6 +383,10 @@ export default function AccountsPage() {
 
   const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData?.accounts]);
   const activeAccounts = useMemo(() => accounts.filter((a) => !a.is_archived), [accounts]);
+  const parentCandidates = useMemo(
+    () => activeAccounts.filter((a) => !a.parent_id && a.type !== "investment" && a.id !== editingAccount?.id),
+    [activeAccounts, editingAccount?.id],
+  );
   const totalBalance = accountsData?.total_balance ?? 0;
 
   const topAccounts = useMemo(() => {
@@ -469,6 +474,7 @@ export default function AccountsPage() {
     setAccColor(acc.color || "#2563EB");
     setAccDefaultFundingId(acc.default_funding_account_id || "");
     setAccDefaultPocketId(acc.default_pocket_id || "");
+    setAccParentId("");
     setAccInitBal(formatNumberWithDots(acc.initial_balance));
     const hasInst = Boolean(acc.instrument_type || acc.instrument_symbol || (acc.units !== null && acc.units !== undefined));
     setAccIsMultiInstrument(!hasInst);
@@ -559,7 +565,9 @@ export default function AccountsPage() {
       }
 
       if (editingAccount) {
+        const moveUnder = !isEditingPocket && accParentId ? { parent_id: accParentId } : {};
         return api.patch(`/accounts/${editingAccount.id}`, {
+          ...moveUnder,
           name,
           type: savedType,
           instrument_type: hasInstrument ? accInstrumentType : null,
@@ -568,7 +576,7 @@ export default function AccountsPage() {
             units: unitsNum,
             avg_buy_price: avgPriceNum,
           } : {}),
-          ...(!isEditingPocket ? {
+          ...(!isEditingPocket && !accParentId ? {
             color: accColor,
             default_funding_account_id: accType === "investment" ? defaultFunding : null,
             default_pocket_id: accDefaultPocketId ? accDefaultPocketId : null,
@@ -1436,6 +1444,29 @@ export default function AccountsPage() {
                   <option value="investment">Rekening Investasi (Bibit, Stockbit, Binance, dll)</option>
                 </select>
               </div>
+
+              {editingAccount && accType !== "investment" && !(editingAccount.children && editingAccount.children.length > 0) && parentCandidates.length > 0 && (
+                <div>
+                  <label htmlFor="account-move-parent" className="font-medium text-[var(--muted)] block mb-1">Jadikan kantong di bawah</label>
+                  <select
+                    id="account-move-parent"
+                    name="parent_id"
+                    value={accParentId}
+                    onChange={(e) => setAccParentId(e.target.value)}
+                    aria-describedby="account-move-parent-hint"
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+                  >
+                    <option value="">Tetap sebagai rekening utama</option>
+                    {parentCandidates.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+                    ))}
+                  </select>
+                  <p id="account-move-parent-hint" className="mt-1 text-[10px] text-[var(--muted)]">
+                    Untuk saldo yang sebenarnya disimpan di bank lain, misalnya GoPay Tabungan di Jago. Riwayat transaksi tetap
+                    utuh; beri nama kantong sama seperti di notifikasi bank.
+                  </p>
+                </div>
+              )}
 
               {editingAccount && !editingAccount.parent_id && editingAccount.children && editingAccount.children.length > 0 && (
                 <div>
