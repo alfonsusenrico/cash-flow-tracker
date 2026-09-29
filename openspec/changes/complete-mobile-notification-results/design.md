@@ -60,7 +60,7 @@ Alternative rejected: payload-hash notification identity, because two notificati
 
 Export Room schemas and provide explicit supported upgrade paths, including populated v2 and the previously supported v1 schema. Preserve all original notification fields and credential preferences. Classify historical `server_transaction_id` values by complete valid UUID versus opaque logical key; never infer missing backend event IDs. Seed historical logical delivery receipts conservatively to avoid retroactive alerts. Remove destructive fallback; unsupported migrations fail without wiping data.
 
-Prune only resolved rows with no pending alert, after result handling; retain queued/processing/review/failed/legacy-unresolved rows. Existing status badges distinguish submitted/processing from recorded. Existing edit controls require an actual validated ordinary UUID; movement/trade/legacy keys show a concise unavailable or edit-in-web option without passing tokens in URLs. Label changes remain inspection metadata, not proof of a committed ledger edit. Verify affected controls using Android TalkBack and increased font/display size; preserve the established layout.
+Prune only resolved rows with no pending alert, after result handling; retain queued/processing/review/failed/legacy-unresolved rows. Existing status badges distinguish submitted/processing from recorded. Existing edit controls require an actual validated ordinary UUID; movement/trade/legacy keys show a concise unavailable or edit-in-web option without passing tokens in URLs. Label changes remain inspection metadata, not proof of a committed ledger edit. Verify affected controls at increased font/display size; the owner has declined TalkBack acceptance for this change. Preserve the established layout.
 
 Official guidance: [Room migration testing](https://developer.android.com/training/data-storage/room/migrating-db-versions) documents migration verification and warns that destructive fallback deletes stored table data. Use populated migration tests and device row/checksum checks before and after installation.
 
@@ -81,7 +81,7 @@ Alternative rejected: keeping the receiver publicly exported behind a runtime de
 - [Migration regression] → Populated v1/v2 migration tests, retained preferences, no uninstall/data-clear, and device before/after row checks.
 - [Pairing changes to a different user/server] → Opaque local pairing context and held accepted events; no cross-pairing automatic replay.
 - [OS delivery crash window] → Persistent outbox/receipt and deterministic active identity, with explicit limits on exactly-once audible delivery.
-- [Scoped Android changes affect UI controls] → Minimal existing-control updates and actual device/TalkBack/font-scale checks; no accessibility conformance claim without sufficient evidence.
+- [Scoped Android changes affect UI controls] → Minimal existing-control updates and increased-font checks; TalkBack acceptance is out of scope by owner decision, and no accessibility conformance claim is made.
 
 ## Migration Plan
 

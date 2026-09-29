@@ -18,4 +18,4 @@
 
 - Connected TECNO CN7c Android 16 updated with `adb install -r` from debug APK version 1.1.0 (version code 2).
 - The private checksum-only comparison found Room upgraded from schema 2 to 3, all 15 original rows preserved, and stable pairing preferences preserved. Listener access and notification permission remained enabled.
-- TalkBack is installed but was not enabled or exercised on the owner device. Large-text behavior is covered by the verification-app Compose test; no full TalkBack acceptance claim is made.
+- The owner explicitly declined TalkBack acceptance for this change. Large-text behavior is covered by the verification-app Compose test; no TalkBack device exercise or accessibility-conformance claim is made.
