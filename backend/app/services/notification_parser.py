@@ -26,6 +26,8 @@ class ParsedNotification:
     investment_action: str | None = None  # "buy" or "sell"
     # The counterparty is necessarily another account of the owner (e.g. an RDN top-up).
     own_account_transfer: bool = False
+    # Money arriving in the securities fund account (RDN); bank and broker may both report it.
+    rdn_deposit: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -180,6 +182,13 @@ SHOPEEPAY_TOPUP_EN_PATTERN = re.compile(
 
 # 12. Stockbit Stock Order Match (Buying / Selling)
 # "Pembelian 4 lot BBRI match di harga Rp3.340" or "Penjualan 10 lot BBRI match di harga Rp3.340"
+# 12b. Stockbit deposit confirmation, hours after the bank transfer settles (observed 2026-09-30)
+# Title "Deposit Berhasil", text "Dana kamu senilai Rp225,180 sudah dapat digunakan"
+STOCKBIT_DEPOSIT_PATTERN = re.compile(
+    r"Dana kamu senilai\s+(?:Rp|IDR)\s*(?P<amount>[\d\.,]+)\s+sudah dapat digunakan",
+    re.IGNORECASE,
+)
+
 STOCKBIT_MATCH_PATTERN = re.compile(
     r"(?P<action>Pembelian|Penjualan|Beli|Jual)\s+(?P<lots>[\d\.,]+)\s+lot\s+(?P<symbol>[A-Za-z0-9]+)\s+match\s+di\s+harga\s+(?:Rp|IDR)?\s*(?P<price>[\d\.,]+)",
     re.IGNORECASE,
@@ -493,6 +502,7 @@ def parse_notification(
             raw_text=raw_content,
             package_name=clean_package,
             own_account_transfer=category.casefold() in BCA_TRANSFER_CATEGORIES,
+            rdn_deposit=incoming,
         )
 
     # Step 7: BCA Inbound (ID)
@@ -621,6 +631,28 @@ def parse_notification(
             raw_title=title,
             raw_text=raw_content,
             package_name=clean_package,
+        )
+
+    # Step 12a: Stockbit deposit into the RDN. An RDN only receives money from the owner's own
+    # accounts, so this is a transfer between owned accounts.
+    m = STOCKBIT_DEPOSIT_PATTERN.search(raw_content) or STOCKBIT_DEPOSIT_PATTERN.search(full_text)
+    if m and "stockbit" in clean_package.lower():
+        return ParsedNotification(
+            is_financial=True,
+            event_class="income",
+            amount=_clean_amount(m.group("amount")),
+            currency="IDR",
+            direction="in",
+            source_pocket=None,
+            target_pocket=None,
+            counterparty="Stockbit RDN",
+            category_hint="Transfer Masuk",
+            confidence=0.98,
+            raw_title=title,
+            raw_text=raw_content,
+            package_name=clean_package,
+            own_account_transfer=True,
+            rdn_deposit=True,
         )
 
     # Step 12: Stockbit Stock Order Match (Buying / Selling)

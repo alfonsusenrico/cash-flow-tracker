@@ -427,3 +427,9 @@ def test_jago_transfer_to_another_bank_is_an_outgoing_leg():
                                 "You've transferred Rp625.000 to RAKA PURNAMA SEN. Need help? Contact Tanya Jago at 1500 746.")
     assert (parsed.event_class, parsed.direction, parsed.amount) == ("expense", "out", 625000)
     assert parsed.counterparty == "RAKA PURNAMA SEN" and parsed.source_pocket is None
+
+
+def test_stockbit_deposit_confirmation_is_an_rdn_deposit():
+    parsed = parse_notification("com.stockbit.android", "Deposit Berhasil", "Dana kamu senilai Rp225,180 sudah dapat digunakan")
+    assert (parsed.event_class, parsed.direction, parsed.amount) == ("income", "in", 225180)
+    assert parsed.rdn_deposit and parsed.own_account_transfer and parsed.investment_action is None

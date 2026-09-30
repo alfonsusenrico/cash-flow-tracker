@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import replace
+from datetime import timedelta
 from decimal import Decimal
 
 from app.services.ledger_mutations import (
@@ -238,6 +239,11 @@ def record_observed_leg(
     key = f"notification:{event_id}"
     account_id = str(observed["id"])
     signature = {**signature, "category_id": category_id, "kakeibo": kakeibo}
+    if facts.parsed.rdn_deposit:
+        signature["rdn_deposit"] = True
+        signature["deposit_source"] = facts.institution
+        if confirm_existing_deposit(cur, event, facts, account_id, signature):
+            return 0
     candidates = discover_candidates(cur, user_id, facts)
     overflow = len(candidates) > CANDIDATE_LIMIT
     possible_complete = [
@@ -331,6 +337,43 @@ def record_observed_leg(
         if overflow or len(compatible) > 1:
             cur.execute("UPDATE notification_events SET error_code = 'ambiguous_movement' WHERE id = %s", (event_id,))
     return 1
+
+
+# The broker confirms an RDN deposit hours after the bank reports it (observed: 3 h).
+DEPOSIT_CONFIRMATION_WINDOW = timedelta(hours=48)
+
+
+def confirm_existing_deposit(cur, event: dict, facts: NotificationFacts, account_id: str, signature: dict) -> bool:
+    """Attach a second report of the same RDN deposit (bank vs broker) to the first one.
+
+    Returns True when the event was recorded as a confirmation and no transaction is needed.
+    """
+    user_id = str(event["user_id"])
+    cur.execute(
+        """SELECT n.id AS event_id, n.transaction_id, n.result_snapshot
+           FROM notification_events n JOIN transactions t ON t.id = n.transaction_id AND t.user_id = n.user_id
+           WHERE n.user_id = %s AND n.processing_state = 'recorded' AND n.id <> %s
+             AND n.interpretation ->> 'rdn_deposit' = 'true'
+             AND n.interpretation ->> 'deposit_source' <> %s
+             AND n.interpretation ->> 'deposit_confirmed_by' IS NULL
+             AND t.account_id = %s AND t.type = 'income' AND t.amount = %s
+             AND n.post_time BETWEEN %s AND %s
+           ORDER BY n.post_time FOR UPDATE OF n""",
+        (user_id, str(event["id"]), facts.institution, account_id, facts.amount,
+         facts.timestamp - DEPOSIT_CONFIRMATION_WINDOW, facts.timestamp + DEPOSIT_CONFIRMATION_WINDOW),
+    )
+    matches = cur.fetchall()
+    if len(matches) != 1:
+        return False
+    original = matches[0]
+    cur.execute(
+        """UPDATE notification_events SET interpretation = interpretation || %s::jsonb
+           WHERE user_id = %s AND id = %s""",
+        (json.dumps({"deposit_confirmed_by": str(event["id"])}), user_id, original["event_id"]),
+    )
+    save_recorded(cur, event, str(original["transaction_id"]), original["result_snapshot"],
+                  {**signature, "confirms_event": str(original["event_id"])}, provenance="deposit_confirmation")
+    return True
 
 
 def apply_manual_resolution(

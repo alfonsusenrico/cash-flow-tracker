@@ -48,7 +48,7 @@ SETTLED_PATTERN = re.compile(
     r"telah dipindahkan|telah memindahkan|match di harga|"
     r"pengisian saldo|telah ditambahkan|top\s*up request|"
     r"you've sent|you have sent|dikirim|mengirim|terkirim|berhasil kirim|rdn earning|rdn spending|"
-    r"you've transferred|you have transferred)\b",
+    r"you've transferred|you have transferred|sudah dapat digunakan|deposit berhasil)\b",
     re.I,
 )
 OUT_PATTERN = re.compile(
