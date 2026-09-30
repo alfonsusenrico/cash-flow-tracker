@@ -215,9 +215,19 @@ def rdn_account(accounts: list[dict]) -> dict:
     return candidates[0]
 
 
+def broker_funding_account(accounts: list[dict]) -> dict:
+    broker = institution_parent(accounts, "stockbit")
+    funding = next((row for row in accounts if str(row["id"]) == str(broker.get("default_funding_account_id"))), None)
+    if not funding or funding.get("type") not in MAPPABLE_ACCOUNT_TYPES or funding.get("instrument_type"):
+        raise EvidenceError("broker_funding_missing")
+    return funding
+
+
 def observed_endpoint(facts: NotificationFacts, accounts: list[dict], proposal: Interpretation | None = None) -> dict:
     if facts.institution == "bca" and "RDN" in {facts.parsed.source_pocket, facts.parsed.target_pocket}:
         return rdn_account(accounts)
+    if facts.institution == "stockbit" and facts.parsed.rdn_deposit:
+        return broker_funding_account(accounts)
     parent = institution_parent(accounts, facts.institution)
     named = facts.parsed.source_pocket if facts.direction == "expense" else facts.parsed.target_pocket
     if named:
@@ -283,7 +293,7 @@ def unresolved_context(failures: list[tuple[str, EvidenceError]], accounts: list
 
 
 def endpoint_context(facts: NotificationFacts, accounts: list[dict]) -> dict:
-    if facts.status != "candidate" or facts.institution == "stockbit":
+    if facts.status != "candidate" or (facts.institution == "stockbit" and facts.parsed.investment_action):
         return {}
     if facts.direction == "internal_movement":
         if facts.institution != "jago":
@@ -311,7 +321,9 @@ def endpoint_context(facts: NotificationFacts, accounts: list[dict]) -> dict:
 
 def transfer_signature(facts: NotificationFacts, context: dict, account_id: str) -> dict:
     text = context.get("notification", facts.text)
-    transfer = bool(re.search(r"transfer|kir[i]?m|irim|has sent|you've sent|you have sent|sent to|menerima|top.?up|pengisian saldo|terdebit|pindah|moved", text, re.I))
+    transfer = facts.parsed.own_account_transfer or bool(re.search(
+        r"transfer|kir[i]?m|irim|has sent|you've sent|you have sent|sent to|menerima|top.?up|pengisian saldo|terdebit|pindah|moved",
+        text, re.I))
     self_identity = bool(context.get("self_identity_detected")) or facts.parsed.own_account_transfer
     reference = re.search(r"(?:referensi|reference|ref)\s*[:#]\s*([a-z0-9-]{6,40})", facts.text, re.I)
     remote_id = None

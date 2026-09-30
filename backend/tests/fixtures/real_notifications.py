@@ -48,6 +48,8 @@ REAL_NOTIFICATIONS = [
     ("jago-transferred-to-owner", "com.jago.digitalBanking", "Jago",
      "You've transferred Rp625.000 to RAKA PURNAMA SEN. Need help? Contact Tanya Jago at 1500 746.",
      "candidate", "expense", 625000),
+    ("stockbit-deposit-confirmed", "com.stockbit.android", "Deposit Berhasil",
+     "Dana kamu senilai Rp225,180 sudah dapat digunakan", "candidate", "income", 225180),
     ("gopay-coins-promotion", "com.gojek.gopay", "Coins GRATIS buat Raka Purnama",
      "Yuk, ambil GRATIS 11,200 GoPay Coins & voucher kamu. Cukup check-in di A+ Rewards! Check-in sekarang~",
      "ignored", None, None),

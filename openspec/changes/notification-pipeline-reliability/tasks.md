@@ -53,3 +53,7 @@
 - [x] 8.2 Map institution notifications to a uniquely named pocket when no top-level account matches; verify with `test_wallet_app_notifications_map_to_a_pocket_when_no_top_level_account_exists`, `test_bank_pocket_move_reaches_the_hosted_wallet_pocket`, `test_top_level_institution_account_still_wins_over_pockets`, and database test `test_wallet_moved_under_bank_receives_both_apps_notifications`.
 - [x] 8.3 Add "Jadikan kantong di bawah" to the account edit dialog for stand-alone non-investment accounts without pockets; verify with Vitest `moves a stand-alone wallet under a bank as a pocket, keeping its history` (including axe).
 - [ ] 8.4 Install mobile `fix/pocket-mapping-review-guidance` (`b24d74f`): pocket-registration guidance and no manual record for pocket moves; verify on device once reachable.
+
+## 9. RDN deposits reported by bank and broker (owner request, 2026-09-30)
+
+- [x] 9.1 Parse Stockbit "Dana kamu senilai Rp… sudah dapat digunakan" as an RDN deposit into the broker funding account and attach a second report (bank or broker, same amount, within 48 h) to the first; verify with `test_bank_and_broker_reports_of_one_rdn_deposit_record_once` (both orders, mutation-checked), `test_rdn_deposit_reports_with_different_amounts_or_far_apart_stay_separate`, `test_broker_deposit_alone_records_into_the_funding_account`, `test_broker_trades_keep_the_trade_path`.

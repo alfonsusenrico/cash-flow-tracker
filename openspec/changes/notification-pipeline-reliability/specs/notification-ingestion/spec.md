@@ -88,6 +88,17 @@ When no top-level account is named after a notification's institution, the syste
 - **WHEN** Jago reports "Rp1.250.000 has been moved from your Main Pocket Pocket to your GoPay Tabungan Pocket."
 - **THEN** a movement from Main Pocket to GoPay Tabungan is recorded
 
+### Requirement: Securities Fund Account Deposits Reported Twice
+The system SHALL record a deposit into the owner's securities fund account (RDN) once when both the bank (myBCA "RDN earning … at … category") and the broker (Stockbit "Dana kamu senilai Rp… sudah dapat digunakan") report it. Whichever report is processed first SHALL record an own-account transfer into the RDN; a report from the other source with the same amount within 48 hours SHALL attach to that record without creating a transaction. Stockbit deposit reports SHALL map to the broker's configured funding account. Stockbit trade notifications SHALL keep the trade path.
+
+#### Scenario: Broker confirms hours after the bank
+- **WHEN** myBCA reports "RDN earning of IDR 225,180.00 at Account Transfer category." at 23:59 and Stockbit reports "Dana kamu senilai Rp225,180 sudah dapat digunakan" at 03:01
+- **THEN** exactly one income of Rp225.180 into the RDN exists, filed as Internal Movement, and both events show the same recorded result
+
+#### Scenario: Only the broker report arrives
+- **WHEN** only the Stockbit deposit report is captured
+- **THEN** it records the deposit into the broker's funding account
+
 ### Requirement: Splitting an Automatically Paired Movement
 The system SHALL let the owner split a non-trade internal movement back into two independent transactions that keep their accounts, amounts, dates, and notes, restoring each leg's notification-derived category where known and detaching the notification events from the movement.
 

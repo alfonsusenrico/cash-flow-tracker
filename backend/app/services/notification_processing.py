@@ -182,7 +182,7 @@ def accept_event(payload: dict, user_id: str) -> tuple[dict, bool, int]:
                         context = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit)
                         if context["incomplete"]:
                             raise EvidenceError("incomplete_context")
-                        if facts.institution == "stockbit":
+                        if facts.institution == "stockbit" and facts.parsed.investment_action:
                             created = apply_broker_trade(cur, event, facts, context)
                         else:
                             proposal = deterministic_interpretation(facts, context)
@@ -247,7 +247,7 @@ def apply_deterministic_fallback(conn, cur, event: dict, facts, context: dict, r
     Raises EvidenceError with the backend-proven reason when the deterministic path
     cannot record either, so the event lands in needs_review with an actionable code.
     """
-    if facts.status != "candidate" or context["incomplete"] or facts.institution == "stockbit":
+    if facts.status != "candidate" or context["incomplete"] or (facts.institution == "stockbit" and facts.parsed.investment_action):
         raise EvidenceError(facts.error_code or reason_code)
     try:
         with conn.transaction():
@@ -295,7 +295,7 @@ def apply_claim(event: dict, proposal, provider_error: str | None = None) -> boo
             if owned["processing_mode"] == "deterministic":
                 if facts.status != "candidate" or context["incomplete"]:
                     raise EvidenceError(facts.error_code or "incomplete_context")
-                if facts.institution == "stockbit":
+                if facts.institution == "stockbit" and facts.parsed.investment_action:
                     apply_broker_trade(cur, owned, facts, context)
                 else:
                     apply_interpretation(cur, owned, facts, deterministic_interpretation(facts, context), context,

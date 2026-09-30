@@ -1370,3 +1370,57 @@ def test_jago_transfer_to_bca_pairs_with_the_bca_credit(client, notification_own
     assert (paired["source"], paired["target"]) == ("Bank Jago · Kantong Utama", "BCA Harian")
     rows = transactions_of(notification_owner)
     assert len(rows) == 4 and len({row["movement_id"] for row in rows}) == 2
+
+
+STOCKBIT_DEPOSIT = "Dana kamu senilai Rp225,180 sudah dapat digunakan"
+
+
+def deposit_events(bank_seconds, broker_seconds, broker_amount="225,180"):
+    bank = at(notification(RDN_TOP_UP, "com.bca.mybca.omni.android"), bank_seconds)
+    broker = at(notification(f"Dana kamu senilai Rp{broker_amount} sudah dapat digunakan", "com.stockbit.android"), broker_seconds)
+    broker["title"] = "Deposit Berhasil"
+    return bank, broker
+
+
+@pytest.mark.parametrize("bank_first", [True, False])
+def test_bank_and_broker_reports_of_one_rdn_deposit_record_once(client, notification_owner, bank_first):
+    from app.db.pool import db_conn
+    bank, broker = deposit_events(0, 3 * 3600 + 120)
+    first, second = (bank, broker) if bank_first else (broker, bank)
+    recorded = ingest(client, first)["results"][0]
+    confirmed = ingest(client, second)["results"][0]
+    assert (recorded["type"], recorded["target"]) == ("income", "RDN BCA")
+    assert confirmed["status"] == "recorded" and confirmed["record_key"] == recorded["record_key"]
+    [row] = transactions_of(notification_owner)
+    assert row["category"] == "Internal Movement" and str(row["account_id"]) == notification_owner["funding"]
+    with db_conn() as conn:
+        kinds = conn.execute(
+            "SELECT provenance_kind FROM notification_events WHERE user_id = %s ORDER BY post_time",
+            (notification_owner["user_id"],),
+        ).fetchall()
+    assert sorted(kind["provenance_kind"] for kind in kinds) == ["deposit_confirmation", "observed_leg"]
+
+
+def test_rdn_deposit_reports_with_different_amounts_or_far_apart_stay_separate(client, notification_owner):
+    bank, broker = deposit_events(0, 600, broker_amount="225,181")
+    ingest(client, bank)
+    ingest(client, broker)
+    assert len(transactions_of(notification_owner)) == 2
+    later_bank, far_broker = deposit_events(100, 100 + 49 * 3600)
+    later_bank["body_text"] = "RDN earning of IDR 99,000.00 at Account Transfer category."
+    far_broker["body_text"] = "Dana kamu senilai Rp99,000 sudah dapat digunakan"
+    ingest(client, later_bank)
+    ingest(client, far_broker)
+    assert len(transactions_of(notification_owner)) == 4
+
+
+def test_broker_deposit_alone_records_into_the_funding_account(client, notification_owner):
+    _, broker = deposit_events(0, 0)
+    result = ingest(client, broker)["results"][0]
+    assert (result["status"], result["type"], result["target"], result["description"]) == (
+        "recorded", "income", "RDN BCA", "Pindah saldo masuk")
+
+
+def test_broker_trades_keep_the_trade_path(client, notification_owner):
+    result = ingest(client, notification("Pembelian 4 lot FIKS match di harga Rp3.340", "com.stockbit.android"))["results"][0]
+    assert result["status"] == "recorded" and result["type"] == "internal_movement"
