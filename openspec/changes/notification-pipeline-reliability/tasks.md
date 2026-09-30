@@ -57,3 +57,7 @@
 ## 9. RDN deposits reported by bank and broker (owner request, 2026-09-30)
 
 - [x] 9.1 Parse Stockbit "Dana kamu senilai Rp… sudah dapat digunakan" as an RDN deposit into the broker funding account and attach a second report (bank or broker, same amount, within 48 h) to the first; verify with `test_bank_and_broker_reports_of_one_rdn_deposit_record_once` (both orders, mutation-checked), `test_rdn_deposit_reports_with_different_amounts_or_far_apart_stay_separate`, `test_broker_deposit_alone_records_into_the_funding_account`, `test_broker_trades_keep_the_trade_path`.
+
+## 10. Removing notifications from the phone (owner request, 2026-09-30)
+
+- [x] 10.1 Add "Hapus dari Aplikasi" (confirmed) to the detail sheet and "Hapus Semua" to the ignored list; removed rows stay as hidden tombstones (pruned after 3 days) so drawer rescans cannot recapture them; verify with instrumented `deleteFromPhoneRequiresConfirmation` and `deletedRowLeavesListsAndQueuesAndBlocksRecapture` (on-device suite 22 passed, 1 skipped; companion 1.4.1).

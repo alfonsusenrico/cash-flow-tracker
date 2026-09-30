@@ -37,3 +37,14 @@ The companion app SHALL let the owner record an unresolved event as an expense o
 #### Scenario: Manual recording is refused for resolved events
 - **WHEN** the event is already `recorded` or `ignored`
 - **THEN** the manual record action is not offered
+
+### Requirement: Removing Notifications From the Phone
+The companion app SHALL let the owner remove any captured notification from the phone's lists after confirmation, and SHALL let the owner clear the ignored list at once. A removed notification SHALL NOT be submitted, SHALL NOT be captured again from the notification drawer, and SHALL NOT change any record on the server.
+
+#### Scenario: Removing an item already recorded by hand
+- **WHEN** the owner confirms "Hapus dari Aplikasi" on a Stockbit deposit awaiting review that the owner already recorded manually
+- **THEN** the item disappears from the phone, the listener's drawer rescan does not bring it back, and the manual record is unchanged
+
+#### Scenario: Clearing ignored notifications
+- **WHEN** the owner confirms "Hapus Semua" on the ignored list
+- **THEN** the list is empty and nothing changes on the server
