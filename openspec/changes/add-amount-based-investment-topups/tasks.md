@@ -39,3 +39,7 @@ Expected Result: the approved workflow is verified locally, and the owner receiv
 - [x] 5.1 Run the full backend suite against disposable migrated PostgreSQL and frontend tests, type-check, lint, and production build; record commands/results and verify prior investment, movement, recurring, and dashboard contracts remain green.
 - [x] 5.2 Smoke-test a fictional RDN → Bibit product top-up, valuation update, correction, deletion, monthly rule, and confirmed occurrence in the local browser at desktop/mobile sizes; verify keyboard focus, labels/errors, contrast and zoom/reflow against the UI guide and document observable evidence without touching real financial records.
 - [x] 5.3 Run `openspec validate add-amount-based-investment-topups --strict` and `git diff --check`, refresh PROJECT_STATE, and commit/push the approved implementation topic branch; report the branch and checks for owner acceptance, leaving merge, deployment, and archive to their separately authorized workflow.
+
+## 6. Owner-requested copy refinement
+
+- [x] 6.1 Remove persistent top-up eligibility text from standalone and child product rows, preserving existing action eligibility; verify account component tests, type-check, and a fictional unit-tracked product browser check.
