@@ -1,6 +1,6 @@
 # Verification — 2026-10-01
 
-Owner approved the amount-only contribution plan and selected confirmation of each actual monthly debit. Implementation is on `feat/amount-based-investment-topups`, based on main `2361145`.
+Owner approved the amount-only contribution plan and selected confirmation of each actual monthly debit. Implementation commit `673313b` was pushed on `feat/amount-based-investment-topups`, based on main `2361145`. All 15 implementation tasks are complete; owner acceptance and release remain pending.
 
 ## Automated evidence
 
