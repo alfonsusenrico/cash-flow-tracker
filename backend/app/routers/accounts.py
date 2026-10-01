@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from app.db.pool import db_conn
 from app.services.auth import get_current_user
 from app.services.ledger_mutations import get_locked_ledger_balance, lock_owned_accounts
+from app.services.investment_topups import initialize_amount_tracking
 from app.services.market_data import (
     get_instrument_quote,
     search_instruments,
@@ -84,6 +85,9 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
                     a.avg_buy_price,
                     a.last_price,
                     a.last_price_at,
+                    a.investment_tracking_mode,
+                    a.investment_cost_basis,
+                    a.investment_value_estimated,
                     a.color,
                     a.display_order,
                     a.reconciliation_required,
@@ -128,7 +132,9 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
 
         # 1. Total Cost Basis calculation
         total_cost_basis = None
-        if units is not None and units > 0 and avg_buy_price is not None and avg_buy_price > 0:
+        if r.get("investment_tracking_mode") == "amount":
+            total_cost_basis = int(r["investment_cost_basis"]) if r.get("investment_cost_basis") is not None else None
+        elif units is not None and units > 0 and avg_buy_price is not None and avg_buy_price > 0:
             total_cost_basis = int(round(units * avg_buy_price))
         elif r.get("initial_balance", 0) > 0:
             total_cost_basis = int(r["initial_balance"])
@@ -136,7 +142,13 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
             total_cost_basis = avg_buy_price
 
         # 2. Market value & Capital Gain calculation
-        if units is not None and units > 0 and last_price is not None and last_price > 0:
+        if r.get("investment_tracking_mode") == "amount":
+            balance = int(last_price) if last_price is not None else ledger_balance
+            if total_cost_basis is not None:
+                capital_gain = balance - total_cost_basis
+                if total_cost_basis > 0:
+                    capital_gain_pct = round(capital_gain / total_cost_basis * 100, 2)
+        elif units is not None and units > 0 and last_price is not None and last_price > 0:
             market_val = int(round(units * last_price))
             balance = market_val
             if total_cost_basis is not None and total_cost_basis > 0:
@@ -174,6 +186,8 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
             "capital_gain": capital_gain,
             "capital_gain_pct": capital_gain_pct,
             "cost_basis": total_cost_basis,
+            "investment_tracking_mode": r.get("investment_tracking_mode"),
+            "investment_value_estimated": bool(r.get("investment_value_estimated")),
             "color": r.get("color") or "#3b82f6",
             "display_order": int(r.get("display_order") or 0),
             "reconciliation_required": bool(r.get("reconciliation_required", False)),
@@ -356,12 +370,14 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
             # 2-level depth validation
             if parent_id:
                 cur.execute(
-                    "SELECT id, parent_id FROM accounts WHERE user_id = %s AND id = %s",
+                    "SELECT id, parent_id, investment_tracking_mode FROM accounts WHERE user_id = %s AND id = %s FOR UPDATE",
                     (user_id, parent_id),
                 )
                 parent_row = cur.fetchone()
                 if not parent_row:
                     raise HTTPException(status_code=404, detail="Parent account not found")
+                if parent_row.get("investment_tracking_mode") == "amount":
+                    raise HTTPException(status_code=409, detail={"code": "amount_product_must_remain_leaf"})
                 if parent_row["parent_id"] is not None:
                     raise HTTPException(
                         status_code=400,
@@ -551,10 +567,23 @@ async def update_account(
     with db_conn() as conn:
         with conn.cursor() as cur:
             # Verify account exists
-            cur.execute("SELECT id, parent_id, type, instrument_type, default_pocket_id FROM accounts WHERE user_id = %s AND id = %s", (user_id, aid))
-            curr_acc = cur.fetchone()
-            if not curr_acc:
-                raise HTTPException(status_code=404, detail="Account not found")
+            lock_ids = [aid]
+            if payload.parent_id:
+                lock_ids.append(str(payload.parent_id))
+            locked = lock_owned_accounts(cur, user_id, lock_ids, include_archived=True)
+            curr_acc = locked[aid]
+            if payload.parent_id and locked[str(payload.parent_id)].get("investment_tracking_mode") == "amount":
+                raise HTTPException(status_code=409, detail={"code": "amount_product_must_remain_leaf"})
+            if curr_acc.get("investment_tracking_mode") == "amount":
+                financial_fields = {"units", "avg_buy_price", "last_price", "instrument_symbol"}
+                has_financial_edit = any(
+                    field in payload.model_fields_set and getattr(payload, field) is not None
+                    for field in financial_fields
+                )
+                changed_type = payload.type is not None and payload.type != curr_acc["type"]
+                changed_instrument = "instrument_type" in payload.model_fields_set and payload.instrument_type != curr_acc["instrument_type"]
+                if has_financial_edit or changed_type or changed_instrument:
+                    raise HTTPException(status_code=409, detail={"code": "amount_valuation_required"})
 
             # Validate default_funding_account_id if provided
             final_type = payload.type if payload.type is not None else curr_acc["type"]
@@ -673,17 +702,20 @@ def update_account_valuation(
 
     with db_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT id, type, instrument_type, instrument_symbol, units, avg_buy_price, initial_balance
-                FROM accounts
-                WHERE user_id = %s AND id = %s
-                """,
-                (user_id, aid),
-            )
-            acc = cur.fetchone()
-            if not acc:
-                raise HTTPException(status_code=404, detail="Account not found")
+            acc = lock_owned_accounts(cur, user_id, [aid])[aid]
+
+            if acc.get("investment_tracking_mode") == "amount":
+                acc = initialize_amount_tracking(cur, user_id, acc)
+                basis = payload.cost_basis if payload.cost_basis is not None else acc["investment_cost_basis"]
+                cur.execute(
+                    """UPDATE accounts SET last_price = %s, investment_cost_basis = %s,
+                           investment_value_estimated = FALSE, last_price_at = NOW(), updated_at = NOW()
+                       WHERE user_id = %s AND id = %s""",
+                    (payload.current_balance, basis, user_id, aid),
+                )
+                conn.commit()
+                accounts = get_accounts_with_balances(user_id)
+                return {"ok": True, "account": next((a for a in accounts if a["id"] == aid), None)}
 
             updates = []
             params = []
@@ -735,6 +767,9 @@ def reconcile_account(
     with db_conn() as conn:
         with conn.cursor() as cur:
             lock_owned_accounts(cur, user_id, [aid])
+            cur.execute("SELECT investment_tracking_mode FROM accounts WHERE id = %s", (aid,))
+            if cur.fetchone().get("investment_tracking_mode") == "amount":
+                raise HTTPException(status_code=409, detail={"code": "amount_valuation_required"})
             current_balance = get_locked_ledger_balance(cur, user_id, aid)
             diff = payload.actual_balance - current_balance
             tx_type = "income" if diff > 0 else "expense"
@@ -792,6 +827,20 @@ def delete_account(account_id: UUID, current_user: dict = Depends(get_current_us
     aid = str(account_id)
     with db_conn() as conn:
         with conn.cursor() as cur:
+            cur.execute("SELECT id FROM accounts WHERE user_id = %s AND (id = %s OR parent_id = %s)", (user_id, aid, aid))
+            account_ids = [str(row["id"]) for row in cur.fetchall()]
+            if aid not in account_ids:
+                raise HTTPException(status_code=404, detail="Account not found")
+            lock_owned_accounts(cur, user_id, account_ids, include_archived=True)
+            cur.execute(
+                """SELECT 1 FROM investment_topups WHERE user_id = %s
+                   AND (source_account_id = ANY(%s) OR target_account_id = ANY(%s)) LIMIT 1""",
+                (user_id, account_ids, account_ids),
+            )
+            if cur.fetchone():
+                cur.execute("UPDATE accounts SET is_archived = TRUE, updated_at = NOW() WHERE user_id = %s AND id = ANY(%s)", (user_id, account_ids))
+                conn.commit()
+                return {"ok": True, "message": "Account archived to preserve investment contribution history"}
             # Check if account or its child pockets have transactions
             cur.execute(
                 """

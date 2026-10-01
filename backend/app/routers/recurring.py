@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from app.db.pool import db_conn
 from app.routers.movements import _ensure_internal_movement_categories
 from app.services.auth import get_current_user
+from app.services.investment_topups import create_topup, resolve_topup_source, validate_topup_accounts
 from app.services.ledger_mutations import (
     create_bilateral_movement,
     ensure_generic_movement_accounts,
@@ -73,7 +74,7 @@ def calculate_next_due_date(
 
 class RecurringRuleCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    type: str = Field(pattern="^(expense|income|transfer)$")
+    type: str = Field(pattern="^(expense|income|transfer|investment_topup)$")
     amount: int = Field(gt=0)
     source_account_id: UUID
     target_account_id: Optional[UUID] = None
@@ -89,7 +90,7 @@ class RecurringRuleCreate(BaseModel):
 
 class RecurringRuleUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
-    type: Optional[str] = Field(default=None, pattern="^(expense|income|transfer)$")
+    type: Optional[str] = Field(default=None, pattern="^(expense|income|transfer|investment_topup)$")
     amount: Optional[int] = Field(default=None, gt=0)
     source_account_id: Optional[UUID] = None
     target_account_id: Optional[UUID] = None
@@ -106,6 +107,7 @@ class RecurringRuleUpdate(BaseModel):
 class ExecuteRulesRequest(BaseModel):
     rule_ids: List[UUID]
     execution_date: Optional[date] = None
+    scheduled_dates: dict[UUID, date] = Field(default_factory=dict)
 
 
 class PayrollExecutionItem(BaseModel):
@@ -144,6 +146,20 @@ def _validate_rule_references(
 ) -> None:
     if not source_id:
         raise HTTPException(status_code=422, detail="Source account is required")
+    if rule_type == "investment_topup":
+        if not target_id or category_id or obligation_id:
+            raise HTTPException(status_code=422, detail={"code": "invalid_investment_topup_rule"})
+        effective_source = resolve_topup_source(cur, user_id, source_id)
+        cur.execute(
+            """SELECT a.*, EXISTS (SELECT 1 FROM accounts child WHERE child.parent_id = a.id) AS has_children
+               FROM accounts a WHERE user_id = %s AND id = ANY(%s) AND is_archived = FALSE""",
+            (user_id, [effective_source, target_id]),
+        )
+        accounts = {str(row["id"]): row for row in cur.fetchall()}
+        if effective_source not in accounts or target_id not in accounts:
+            raise HTTPException(status_code=404, detail="Investment rule account not found")
+        validate_topup_accounts(accounts[effective_source], accounts[target_id])
+        return
     cur.execute(
         "SELECT id, type, instrument_type FROM accounts WHERE user_id = %s AND id = %s AND is_archived = FALSE",
         (user_id, source_id),
@@ -283,6 +299,8 @@ def create_recurring_rule(
         raise HTTPException(status_code=422, detail="Rule name is required")
     if payload.is_payroll_allocation and payload.type != "transfer":
         raise HTTPException(status_code=422, detail="Payroll allocation requires a transfer rule")
+    if payload.type == "investment_topup" and payload.auto_post:
+        raise HTTPException(status_code=422, detail={"code": "investment_confirmation_required"})
 
     source_id = str(payload.source_account_id)
     target_id = str(payload.target_account_id) if payload.target_account_id else None
@@ -355,7 +373,7 @@ def update_recurring_rule(
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT * FROM recurring_rules WHERE id = %s AND user_id = %s",
+                "SELECT * FROM recurring_rules WHERE id = %s AND user_id = %s FOR UPDATE",
                 (str(rule_id), user_id),
             )
             existing = cur.fetchone()
@@ -391,7 +409,10 @@ def update_recurring_rule(
 
             if not name.strip():
                 raise HTTPException(status_code=422, detail="Rule name is required")
-            if rtype != "transfer":
+            if rtype == "investment_topup":
+                if auto_post or is_payroll or cat_id or ob_id:
+                    raise HTTPException(status_code=422, detail={"code": "invalid_investment_topup_rule"})
+            elif rtype != "transfer":
                 target_id = None
                 is_payroll = False
             else:
@@ -542,6 +563,7 @@ def _execute_rule_occurrence(
     user_id: str,
     payday_day: int,
     scheduled_for: date,
+    actual_date: date | None = None,
 ) -> dict[str, Any]:
     rule_id = str(rule["id"])
     cur.execute(
@@ -599,10 +621,11 @@ def _execute_rule_occurrence(
             category_id=str(rule["category_id"]) if rule.get("category_id") else None,
             obligation_id=str(rule["obligation_id"]) if rule.get("obligation_id") else None,
         )
+        ledger_date = actual_date or scheduled_for
         tx_dt = datetime(
-            scheduled_for.year,
-            scheduled_for.month,
-            scheduled_for.day,
+            ledger_date.year,
+            ledger_date.month,
+            ledger_date.day,
             12,
             0,
             tzinfo=timezone.utc,
@@ -611,7 +634,18 @@ def _execute_rule_occurrence(
         transaction_id = None
         movement_id = None
 
-        if rule["type"] == "transfer":
+        if rule["type"] == "investment_topup":
+            if rule["auto_post"] or rule["is_payroll_allocation"]:
+                raise HTTPException(status_code=422, detail={"code": "investment_confirmation_required"})
+            topup = create_topup(
+                cur, user_id=user_id, source_id=source_id, target_id=target_id,
+                amount=int(rule["amount"]), tx_date=tx_dt, notes=notes,
+                idempotency_key=f"recurring:{rule_id}:{scheduled_for.isoformat()}",
+                recurring_rule_id=rule_id, recurring_execution_id=occurrence_id,
+            )["topup"]
+            transaction_id = topup["expense_transaction_id"]
+            movement_id = topup["movement_id"]
+        elif rule["type"] == "transfer":
             locked = lock_owned_accounts(cur, user_id, [source_id, target_id])
             expense_category_id, income_category_id = _ensure_internal_movement_categories(cur, user_id)
             movement = create_bilateral_movement(
@@ -729,7 +763,7 @@ def process_due_recurring_rules(*, user_id: str | None = None, limit: int = 20) 
     results = []
     with db_conn() as conn:
         with conn.cursor() as cur:
-            conditions = ["r.is_active = TRUE", "r.auto_post = TRUE", "r.next_due_date <= %s"]
+            conditions = ["r.is_active = TRUE", "r.auto_post = TRUE", "r.next_due_date <= %s", "r.type <> 'investment_topup'"]
             params: list[Any] = [today]
             if user_id:
                 conditions.append("r.user_id = %s")
@@ -785,7 +819,7 @@ def execute_selected_rules(
     results = []
     with db_conn() as conn:
         with conn.cursor() as cur:
-            for r_id in payload.rule_ids:
+            for r_id in sorted(set(payload.rule_ids), key=str):
                 cur.execute(
                     "SELECT * FROM recurring_rules WHERE id = %s AND user_id = %s FOR UPDATE",
                     (str(r_id), user_id),
@@ -795,7 +829,25 @@ def execute_selected_rules(
                     raise HTTPException(status_code=404, detail="Recurring rule not found")
                 if not rule["is_active"]:
                     raise HTTPException(status_code=409, detail="Inactive recurring rules cannot be executed")
-                results.append(_execute_rule_occurrence(cur, rule, user_id, payday_day, exec_date))
+                if rule["type"] == "investment_topup":
+                    scheduled_for = payload.scheduled_dates.get(r_id)
+                    if scheduled_for is None:
+                        results.append({"rule_id": str(r_id), "status": "failed", "error_code": "scheduled_date_required"})
+                        continue
+                    cur.execute(
+                        "SELECT status FROM recurring_executions WHERE recurring_rule_id = %s AND scheduled_for = %s",
+                        (str(r_id), scheduled_for),
+                    )
+                    occurrence = cur.fetchone()
+                    if occurrence and occurrence["status"] == "succeeded":
+                        results.append({"rule_id": str(r_id), "scheduled_for": scheduled_for.isoformat(), "status": "succeeded", "idempotent": True})
+                        continue
+                    if scheduled_for != rule["next_due_date"] or scheduled_for > date.today() or exec_date > date.today():
+                        results.append({"rule_id": str(r_id), "status": "failed", "error_code": "invalid_scheduled_occurrence"})
+                        continue
+                    results.append(_execute_rule_occurrence(cur, rule, user_id, payday_day, scheduled_for, actual_date=exec_date))
+                else:
+                    results.append(_execute_rule_occurrence(cur, rule, user_id, payday_day, exec_date))
             conn.commit()
 
     return {

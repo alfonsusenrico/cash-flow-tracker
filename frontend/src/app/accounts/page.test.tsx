@@ -112,6 +112,24 @@ describe("account and pocket forms", () => {
     expect(within(holding).queryByRole("button", { name: "Tambah kantong BBCA" })).not.toBeInTheDocument();
   });
 
+  it.each([false, true])("offers nominal top-up for an eligible product (child=%s)", async (child) => {
+    const product = { ...investmentParent, id: "fund-1", name: "Bibit Fund", instrument_type: "mutual_fund", units: null, parent_id: child ? investmentParent.id : null };
+    const source = { id: "rdn", name: "BCA RDN", type: "bank", balance: 500_000, initial_balance: 500_000, children: [] };
+    const parent = { ...investmentParent, default_funding_account_id: "rdn", children: [product] };
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: child ? [parent, product, source] : [product, source], total_balance: 500_000 };
+      if (path === "/dashboard/net-worth") return { net_worth: 500_000, total_assets: 500_000, total_liabilities: 0, accounts: [], obligations: [] };
+      return { rules: [], accounts: [], results: [] };
+    });
+    const user = userEvent.setup();
+    renderAccounts();
+    await user.click((await screen.findAllByRole("button", { name: "Top up" }))[0]);
+    const dialog = screen.getByRole("dialog", { name: "Top up Investasi" });
+    expect(within(dialog).getByText("Bibit Fund")).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/Unit Penyertaan|NAB/)).not.toBeInTheDocument();
+    if (child) expect(within(dialog).getByRole("combobox", { name: "Dari rekening" })).toHaveValue("rdn");
+  });
+
   it("creates a cash funding pocket under an investment platform as liquid", async () => {
     const user = userEvent.setup();
     renderAccounts();

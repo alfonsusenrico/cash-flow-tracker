@@ -23,11 +23,13 @@ function renderQuickCapture(props: { defaultType?: "expense" | "income" | "movem
     },
   });
 
-  return render(
+  const onClose = vi.fn();
+  const view = render(
     <QueryClientProvider client={queryClient}>
-      <QuickCaptureModal open onClose={() => {}} {...props} />
+      <QuickCaptureModal open onClose={onClose} {...props} />
     </QueryClientProvider>,
   );
+  return { ...view, onClose };
 }
 
 describe("QuickCaptureModal", () => {
@@ -64,7 +66,7 @@ describe("QuickCaptureModal", () => {
 
   it("inherits category classification until the user deliberately overrides it", async () => {
     const user = userEvent.setup();
-    renderQuickCapture();
+    const { onClose } = renderQuickCapture();
 
     const categorySelect = await screen.findByRole("combobox", { name: "Kategori" });
     expect(screen.queryByRole("option", { name: "Gaji" })).not.toBeInTheDocument();
@@ -86,11 +88,12 @@ describe("QuickCaptureModal", () => {
       kakeibo_type: "need",
       notes: "Lunch",
     })));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("submits the selected transaction time with seconds", async () => {
     const user = userEvent.setup();
-    renderQuickCapture();
+    const { onClose } = renderQuickCapture();
     await user.selectOptions(await screen.findByRole("combobox", { name: "Kategori" }), "need-category");
     await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "1000");
     const date = screen.getByLabelText("Waktu Transaksi");
@@ -103,6 +106,7 @@ describe("QuickCaptureModal", () => {
     })));
     const payload = vi.mocked(api.post).mock.calls[0][1] as { date: string };
     expect(new Date(payload.date).toISOString()).toBe(new Date("2026-09-20T12:00:27").toISOString());
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("filters categories after switching transaction type and keeps the form accessible", async () => {
@@ -120,7 +124,7 @@ describe("QuickCaptureModal", () => {
 
   it("treats goal linkage as metadata without changing the chosen classification", async () => {
     const user = userEvent.setup();
-    renderQuickCapture();
+    const { onClose } = renderQuickCapture();
 
     await user.selectOptions(await screen.findByRole("combobox", { name: "Kategori" }), "want-category");
     await user.selectOptions(screen.getByRole("combobox", { name: "Kaitkan ke target (opsional)" }), "goal-1");
@@ -133,6 +137,7 @@ describe("QuickCaptureModal", () => {
       kakeibo_type: "want",
       notes: null,
     })));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("derives a partial multi-debt payment from edited debt amounts", async () => {
@@ -147,7 +152,7 @@ describe("QuickCaptureModal", () => {
       throw new Error(`Unexpected GET ${path}`);
     });
     const user = userEvent.setup();
-    renderQuickCapture();
+    const { onClose } = renderQuickCapture();
     await screen.findByRole("button", { name: "+ Tambah tagihan" });
     await user.click(screen.getByRole("button", { name: "+ Tambah tagihan" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Tagihan 1" }), "debt-1");
@@ -176,6 +181,7 @@ describe("QuickCaptureModal", () => {
         { obligation_id: "debt-2", amount: 40_000 },
       ],
     })));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("records selected debts at full outstanding amounts without extra inputs", async () => {
@@ -190,7 +196,7 @@ describe("QuickCaptureModal", () => {
       throw new Error(`Unexpected GET ${path}`);
     });
     const user = userEvent.setup();
-    renderQuickCapture();
+    const { onClose } = renderQuickCapture();
     await screen.findByRole("button", { name: "+ Tambah tagihan" });
     await user.click(screen.getByRole("button", { name: "+ Tambah tagihan" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Tagihan 1" }), "debt-1");
@@ -207,6 +213,7 @@ describe("QuickCaptureModal", () => {
         { obligation_id: "debt-2", amount: 70_000 },
       ],
     })));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("keeps a single debt compatible with a partial legacy payment", async () => {
@@ -220,7 +227,7 @@ describe("QuickCaptureModal", () => {
       throw new Error(`Unexpected GET ${path}`);
     });
     const user = userEvent.setup();
-    renderQuickCapture();
+    const { onClose } = renderQuickCapture();
     await screen.findByRole("button", { name: "+ Tambah tagihan" });
     await user.click(screen.getByRole("button", { name: "+ Tambah tagihan" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Tagihan 1" }), "debt-1");
@@ -234,6 +241,7 @@ describe("QuickCaptureModal", () => {
       amount: 30_000,
       obligation_id: "debt-1",
     })));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("retries an allocated payment receipt without submitting the payment twice", async () => {
@@ -249,7 +257,7 @@ describe("QuickCaptureModal", () => {
     });
     vi.mocked(uploadTransactionReceipt).mockRejectedValueOnce(new Error("Bukti gagal")).mockResolvedValueOnce({ ok: true, receipt_path: "receipt.jpg" });
     const user = userEvent.setup();
-    renderQuickCapture();
+    const { onClose } = renderQuickCapture();
     await screen.findByRole("button", { name: "+ Tambah tagihan" });
     await user.click(screen.getByRole("button", { name: "+ Tambah tagihan" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Tagihan 1" }), "debt-1");
@@ -261,6 +269,7 @@ describe("QuickCaptureModal", () => {
     await user.click(screen.getByRole("button", { name: "Coba Unggah Lagi" }));
     await waitFor(() => expect(uploadTransactionReceipt).toHaveBeenCalledTimes(2));
     expect(api.post).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("keeps a created transaction and retries a failed receipt without duplicating it", async () => {
@@ -268,7 +277,7 @@ describe("QuickCaptureModal", () => {
     vi.mocked(uploadTransactionReceipt)
       .mockRejectedValueOnce(new Error("Bukti tidak valid"))
       .mockResolvedValueOnce({ ok: true, receipt_path: "replacement.jpg" });
-    renderQuickCapture();
+    const { onClose } = renderQuickCapture();
 
     const accountSelect = await screen.findByRole("combobox", { name: "Bayar dari" });
     await user.selectOptions(accountSelect, "account-1");
@@ -289,11 +298,12 @@ describe("QuickCaptureModal", () => {
       "transaction-1",
       expect.objectContaining({ name: "replacement.jpg" }),
     );
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("attaches a valid receipt to the newly created transaction", async () => {
     const user = userEvent.setup();
-    renderQuickCapture();
+    const { onClose } = renderQuickCapture();
 
     await screen.findByRole("combobox", { name: "Bayar dari" });
     await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "12000");
@@ -308,6 +318,7 @@ describe("QuickCaptureModal", () => {
       expect.objectContaining({ name: "receipt.jpg" }),
     ));
     expect(api.post).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("creates an internal movement from the shared form without transaction-only fields", async () => {
@@ -327,7 +338,7 @@ describe("QuickCaptureModal", () => {
       throw new Error(`Unexpected GET ${path}`);
     });
     const user = userEvent.setup();
-    const { container } = renderQuickCapture();
+    const { container, onClose } = renderQuickCapture();
 
     await user.selectOptions(await screen.findByRole("combobox", { name: "Kategori" }), "need-category");
     await user.selectOptions(screen.getByRole("combobox", { name: "Kaitkan ke target (opsional)" }), "goal-1");
@@ -360,6 +371,7 @@ describe("QuickCaptureModal", () => {
     expect(new Date(payload.date!).toISOString()).toBe(new Date("2026-09-20T12:00:27").toISOString());
     expect(api.post).not.toHaveBeenCalled();
     expect(uploadTransactionReceipt).not.toHaveBeenCalled();
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("focuses and explains the destination when fewer than two liquid accounts exist", async () => {

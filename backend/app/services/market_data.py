@@ -203,6 +203,7 @@ async def sync_all_tracked_prices(conn) -> dict[str, int]:
             FROM accounts
             WHERE instrument_symbol IS NOT NULL
               AND is_archived = FALSE
+              AND investment_tracking_mode IS DISTINCT FROM 'amount'
         """)
         symbols = [row["instrument_symbol"] for row in cur.fetchall() if row.get("instrument_symbol")]
 
@@ -226,6 +227,7 @@ async def sync_all_tracked_prices(conn) -> dict[str, int]:
                     updated_at = NOW()
                 WHERE instrument_symbol = %s
                   AND is_archived = FALSE
+                  AND investment_tracking_mode IS DISTINCT FROM 'amount'
             """, (latest_price, now_utc, sym))
             updated_count += cur.rowcount
         conn.commit()

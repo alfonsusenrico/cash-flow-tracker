@@ -8,6 +8,8 @@ export interface LedgerMovementRow {
   date: string;
   notes: string | null;
   movement_id?: string | null;
+  investment_topup_id?: string | null;
+  movement_kind?: "investment_topup" | null;
   movement_role?: "outbound" | "inbound" | null;
   partner_id?: string | null;
   transfer_target_account_id?: string | null;

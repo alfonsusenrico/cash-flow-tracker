@@ -32,6 +32,21 @@ function normalizeApiErrorDetail(detail: unknown): string | ApiErrorDetail {
   }
 
   const structured = detail as ApiErrorDetail;
+  const investmentMessages: Record<string, string> = {
+    amount_product_required: "Top up nominal memerlukan produk reksadana tanpa pencatatan unit.",
+    amount_product_trade_not_supported: "Produk ini dicatat berdasarkan nominal. Gunakan Top up atau Update Nilai.",
+    amount_valuation_required: "Gunakan Update Nilai untuk memperbarui modal atau nilai produk ini.",
+    amount_product_must_remain_leaf: "Produk dengan top up tidak dapat memiliki kantong turunan.",
+    invalid_investment_reversal: "Koreksi akan membuat modal atau nilai investasi negatif. Periksa nilai aktual sebelum mencoba lagi.",
+    idempotency_mismatch: "Permintaan sebelumnya memakai nominal atau data berbeda. Periksa buku kas sebelum mencatat kembali.",
+    investment_topup_lifecycle_required: "Ubah atau hapus melalui detail Top up Investasi.",
+    investment_topup_deleted: "Top up ini sudah dihapus. Muat ulang buku kas.",
+    archived_topup_account: "Rekening atau produk sudah diarsipkan. Nominal top up tidak dapat ditambah.",
+    funding_selection_changed: "Kantong sumber berubah. Pilih kembali rekening sumber.",
+  };
+  if (structured.code && investmentMessages[structured.code]) {
+    return { ...structured, message: investmentMessages[structured.code] };
+  }
   if (structured.message) return structured;
 
   const amount = (value: number | undefined) =>

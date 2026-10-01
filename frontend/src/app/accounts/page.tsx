@@ -16,6 +16,8 @@ import { PayrollAllocationModal } from "@/components/recurring/PayrollAllocation
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { InvestmentTradeModal } from "@/components/ui/InvestmentTradeModal";
+import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
+import { InvestmentScheduleDraft, listAmountInvestmentProducts } from "@/lib/investmentTopups";
 
 function getContrastTextColor(hexColor?: string): string {
   if (!hexColor || !hexColor.startsWith("#")) return "#FFFFFF";
@@ -63,6 +65,8 @@ interface AccountItem {
   capital_gain?: number | null;
   capital_gain_pct?: number | null;
   cost_basis?: number | null;
+  investment_tracking_mode?: string | null;
+  investment_value_estimated?: boolean;
   is_archived: boolean;
   is_parent?: boolean;
   default_pocket_id?: string | null;
@@ -107,6 +111,8 @@ export default function AccountsPage() {
   const [reconcileAccount, setReconcileAccount] = useState<AccountItem | null>(null);
   // Investment Trade Modal state
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
+  const [topupProduct, setTopupProduct] = useState<AccountItem | null>(null);
+  const [investmentSchedule, setInvestmentSchedule] = useState<InvestmentScheduleDraft | null>(null);
   const [tradePocket, setTradePocket] = useState<AccountItem | null>(null);
   const [tradeAction, setTradeAction] = useState<"buy" | "sell">("buy");
 
@@ -209,7 +215,7 @@ export default function AccountsPage() {
       : ((acc.units && acc.avg_buy_price)
         ? Math.round(acc.units * acc.avg_buy_price)
         : (acc.initial_balance || acc.avg_buy_price || acc.balance));
-    setValCostBasisStr(formatNumberWithDots(totalCost));
+    setValCostBasisStr(acc.investment_tracking_mode === "amount" && acc.cost_basis == null ? "" : formatNumberWithDots(totalCost));
     setValNotes("");
     setValError("");
   };
@@ -571,8 +577,8 @@ export default function AccountsPage() {
           name,
           type: savedType,
           instrument_type: hasInstrument ? accInstrumentType : null,
-          instrument_symbol: tickerSymbol,
-          ...(!(hasInstrument && accInstrumentType === "deposit" && editingAccount.instrument_type === "deposit") ? {
+          ...(editingAccount.investment_tracking_mode !== "amount" ? { instrument_symbol: tickerSymbol } : {}),
+          ...(!(hasInstrument && accInstrumentType === "deposit" && editingAccount.instrument_type === "deposit") && editingAccount.investment_tracking_mode !== "amount" ? {
             units: unitsNum,
             avg_buy_price: avgPriceNum,
           } : {}),
@@ -811,11 +817,14 @@ export default function AccountsPage() {
                 {account.instrument_symbol && <span>{account.instrument_symbol}</span>}
                 {account.instrument_type && <span>{INSTRUMENT_OPTIONS.find((option) => option.value === account.instrument_type)?.label}</span>}
                 {account.default_funding_account_name && <span>RDN: {account.default_funding_account_name}</span>}
+                {account.instrument_type === "mutual_fund" && account.units != null && <span>Top up nominal tersedia pada produk tanpa pencatatan unit.</span>}
               </div>
             </div>
           </div>
           <div className="flex max-w-[55%] shrink-0 flex-wrap justify-end gap-1.5">
-            {isPosition ? (
+            {isPosition && listAmountInvestmentProducts(accountsData?.accounts ?? []).some((item) => item.id === account.id) ? (
+              <button type="button" onClick={() => setTopupProduct(account)} className={cn(actionClass, "bg-[#1E201E] text-white")}>Top up</button>
+            ) : isPosition ? (
               <>
                 <button type="button" onClick={() => openTrade(account, "buy")} className={cn(actionClass, "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300")}>Beli</button>
                 <button type="button" onClick={() => openTrade(account, "sell")} className={cn(actionClass, "bg-rose-500/15 text-rose-700 dark:text-rose-300")}>Jual</button>
@@ -833,7 +842,7 @@ export default function AccountsPage() {
             )}
             <AccountOptions name={account.name} iconOnly>
               {isPosition && <button type="button" onClick={() => handleOpenValuation(account)}>Update Nilai</button>}
-              {!hasChildren && <button type="button" onClick={() => openReconciliation(account)}>Sesuaikan Saldo</button>}
+              {!hasChildren && account.investment_tracking_mode !== "amount" && <button type="button" onClick={() => openReconciliation(account)}>Sesuaikan Saldo</button>}
               <button type="button" onClick={() => handleOpenEditAccount(account)}>Ubah rekening</button>
               <button type="button" onClick={() => moveId(topAccounts.map((item) => item.id), account.id, topIndex - 1)} disabled={topIndex === 0 || reorderMutation.isPending}>Naikkan urutan</button>
               <button type="button" onClick={() => moveId(topAccounts.map((item) => item.id), account.id, topIndex + 1)} disabled={topIndex === topAccounts.length - 1 || reorderMutation.isPending}>Turunkan urutan</button>
@@ -845,6 +854,7 @@ export default function AccountsPage() {
             <div className="break-words text-2xl font-extrabold tabular-nums tracking-tight text-[var(--text)] sm:text-3xl">
               {bal(account.balance)}
             </div>
+            {account.investment_tracking_mode === "amount" && <p className="text-xs tabular-nums">Modal: {account.cost_basis == null ? "Belum diisi" : bal(account.cost_basis)}{account.investment_value_estimated ? " · Nilai estimasi" : ""}</p>}
             {account.capital_gain !== null && account.capital_gain !== undefined && (
               <p className={cn("text-xs font-semibold tabular-nums", account.capital_gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
                 Capital Gain: {account.capital_gain >= 0 ? "+" : ""}{bal(account.capital_gain)} ({account.capital_gain_pct ?? 0}%)
@@ -907,17 +917,21 @@ export default function AccountsPage() {
                         {pocket.instrument_symbol && <span>{pocket.instrument_symbol}</span>}
                         {pocket.instrument_type && <span>{INSTRUMENT_OPTIONS.find((option) => option.value === pocket.instrument_type)?.label}</span>}
                         {pocket.units ? <span className="tabular-nums">{pocket.units.toLocaleString("id-ID")} {getInstrumentConfig(pocket.instrument_type).unitUnit}{pocket.instrument_type === "stock" ? ` (${(pocket.units / 100).toLocaleString("id-ID")} lot)` : ""}</span> : null}
+                        {pocket.instrument_type === "mutual_fund" && pocket.units != null && <span>Top up nominal memerlukan produk tanpa pencatatan unit.</span>}
+                        {pocket.investment_tracking_mode === "amount" && <span className="tabular-nums">Modal: {pocket.cost_basis == null ? "Belum diisi" : bal(pocket.cost_basis)}{pocket.investment_value_estimated ? " · Nilai estimasi" : ""}</span>}
                       </div>
                     </div>
                   </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      {position && <>
+                      {position && listAmountInvestmentProducts(accountsData?.accounts ?? []).some((item) => item.id === pocket.id) ? (
+                        <button type="button" onClick={() => setTopupProduct(pocket)} className={cn(actionClass, "bg-[#1E201E] px-2.5 text-white")}>Top up</button>
+                      ) : position && <>
                         <button type="button" onClick={() => openTrade(pocket, "buy")} className={cn(actionClass, "bg-emerald-500/15 px-2.5 text-emerald-700 dark:text-emerald-300")}>Beli</button>
                         <button type="button" onClick={() => openTrade(pocket, "sell")} className={cn(actionClass, "bg-rose-500/15 px-2.5 text-rose-700 dark:text-rose-300")}>Jual</button>
                       </>}
                       <AccountOptions name={pocket.name} iconOnly>
                         {position && <button type="button" onClick={() => handleOpenValuation(pocket)}>Update Nilai</button>}
-                        <button type="button" onClick={() => openReconciliation(pocket)}>Sesuaikan Saldo</button>
+                        {pocket.investment_tracking_mode !== "amount" && <button type="button" onClick={() => openReconciliation(pocket)}>Sesuaikan Saldo</button>}
                         <button type="button" onClick={() => handleOpenEditAccount(pocket)}>Ubah kantong</button>
                         <button type="button" onClick={() => moveId(children.map((item) => item.id), pocket.id, index - 1, account.id)} disabled={index === 0 || reorderMutation.isPending}>Naikkan urutan</button>
                         <button type="button" onClick={() => moveId(children.map((item) => item.id), pocket.id, index + 1, account.id)} disabled={index === children.length - 1 || reorderMutation.isPending}>Turunkan urutan</button>
@@ -1699,7 +1713,7 @@ export default function AccountsPage() {
                 )}
               </div>}
 
-              {accInstrumentType !== "deposit" && (() => {
+              {accInstrumentType !== "deposit" && editingAccount?.investment_tracking_mode !== "amount" && (() => {
                 const aCfg = getInstrumentConfig(accInstrumentType);
                 return (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -2131,6 +2145,7 @@ export default function AccountsPage() {
 
             {/* Capital Gain preview */}
             {(() => {
+              if (!valCostBasisStr.trim()) return <p className="text-xs">Gain belum tersedia sampai total modal diisi.</p>;
               const curVal = parseNumberFromDots(valCurrentBalStr);
               const costVal = parseNumberFromDots(valCostBasisStr);
               const gain = curVal - costVal;
@@ -2300,7 +2315,16 @@ export default function AccountsPage() {
       {/* Recurring Rules Management Modal */}
       <RecurringRulesModal
         open={recurringModalOpen}
-        onClose={() => setRecurringModalOpen(false)}
+        onClose={() => { setRecurringModalOpen(false); setInvestmentSchedule(null); }}
+        investmentDraft={investmentSchedule}
+      />
+
+      <InvestmentTopupModal
+        open={Boolean(topupProduct)}
+        onClose={() => setTopupProduct(null)}
+        product={topupProduct}
+        allAccounts={accountsData?.accounts ?? []}
+        onSchedule={(draft) => { setInvestmentSchedule(draft); setTopupProduct(null); setRecurringModalOpen(true); }}
       />
 
       {/* Investment Trade Modal (Beli / Jual) */}

@@ -3,7 +3,7 @@ import { z } from "zod";
 export const recurringRuleFormSchema = z
   .object({
     name: z.string().trim().min(1, "Nama transaksi terjadwal wajib diisi").max(100),
-    type: z.enum(["expense", "income", "transfer"]),
+    type: z.enum(["expense", "income", "transfer", "investment_topup"]),
     amount: z.number().int().positive("Nominal harus lebih dari 0"),
     sourceAccountId: z.string().min(1, "Rekening sumber wajib dipilih"),
     targetAccountId: z.string().nullable(),
@@ -17,7 +17,7 @@ export const recurringRuleFormSchema = z
     notes: z.string().max(500, "Catatan maksimal 500 karakter"),
   })
   .superRefine((rule, context) => {
-    if (rule.type === "transfer") {
+    if (rule.type === "transfer" || rule.type === "investment_topup") {
       if (!rule.targetAccountId) {
         context.addIssue({
           code: "custom",
@@ -37,6 +37,10 @@ export const recurringRuleFormSchema = z
         path: ["categoryId"],
         message: "Kategori wajib dipilih",
       });
+    }
+
+    if (rule.type === "investment_topup" && (rule.autoPost || rule.categoryId || rule.obligationId || rule.isPayrollAllocation)) {
+      context.addIssue({ code: "custom", path: ["autoPost"], message: "Top up investasi harus menunggu konfirmasi debit dan tidak menggunakan kategori atau alokasi gaji." });
     }
 
     if (rule.obligationId && rule.type !== "expense") {
