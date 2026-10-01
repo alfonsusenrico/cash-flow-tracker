@@ -5,7 +5,13 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from app.db.pool import db_conn
 from app.services.auth import get_current_user
-from app.services.investment_topups import create_topup, get_topup, mutate_topup, topup_response
+from app.services.investment_topups import (
+    convert_transaction_to_topup,
+    create_topup,
+    get_topup,
+    mutate_topup,
+    topup_response,
+)
 
 router = APIRouter(tags=["Investment Top-ups"])
 
@@ -19,6 +25,13 @@ class TopupCreate(BaseModel):
     date: AwareDatetime
     notes: str = Field(default="", max_length=500)
     idempotency_key: str = Field(min_length=1, max_length=128, pattern=r"\S")
+
+
+class TopupFromTransaction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    transaction_id: UUID
+    target_account_id: UUID
 
 
 class TopupUpdate(BaseModel):
@@ -37,6 +50,18 @@ def record_topup(payload: TopupCreate, current_user: dict = Depends(get_current_
                 cur, user_id=current_user["id"], source_id=str(payload.source_account_id),
                 target_id=str(payload.target_account_id), amount=payload.amount,
                 tx_date=payload.date, notes=payload.notes.strip(), idempotency_key=payload.idempotency_key,
+            )
+        conn.commit()
+    return result
+
+
+@router.post("/from-transaction")
+def convert_recorded_expense(payload: TopupFromTransaction, current_user: dict = Depends(get_current_user)):
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            result = convert_transaction_to_topup(
+                cur, user_id=current_user["id"], transaction_id=str(payload.transaction_id),
+                target_id=str(payload.target_account_id),
             )
         conn.commit()
     return result

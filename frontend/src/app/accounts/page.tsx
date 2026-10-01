@@ -17,7 +17,8 @@ import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal"
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { InvestmentTradeModal } from "@/components/ui/InvestmentTradeModal";
 import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
-import { InvestmentScheduleDraft, listAmountInvestmentProducts } from "@/lib/investmentTopups";
+import { AmountTrackingSwitchModal } from "@/components/ui/AmountTrackingSwitchModal";
+import { canSwitchToAmountTracking, InvestmentScheduleDraft, listAmountInvestmentProducts } from "@/lib/investmentTopups";
 
 function getContrastTextColor(hexColor?: string): string {
   if (!hexColor || !hexColor.startsWith("#")) return "#FFFFFF";
@@ -112,6 +113,7 @@ export default function AccountsPage() {
   // Investment Trade Modal state
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
   const [topupProduct, setTopupProduct] = useState<AccountItem | null>(null);
+  const [amountSwitchProduct, setAmountSwitchProduct] = useState<AccountItem | null>(null);
   const [investmentSchedule, setInvestmentSchedule] = useState<InvestmentScheduleDraft | null>(null);
   const [tradePocket, setTradePocket] = useState<AccountItem | null>(null);
   const [tradeAction, setTradeAction] = useState<"buy" | "sell">("buy");
@@ -842,6 +844,7 @@ export default function AccountsPage() {
             )}
             <AccountOptions name={account.name} iconOnly>
               {isPosition && <button type="button" onClick={() => handleOpenValuation(account)}>Update Nilai</button>}
+              {canSwitchToAmountTracking(account) && <button type="button" onClick={() => setAmountSwitchProduct(account)}>Ubah ke pelacakan nominal</button>}
               {!hasChildren && account.investment_tracking_mode !== "amount" && <button type="button" onClick={() => openReconciliation(account)}>Sesuaikan Saldo</button>}
               <button type="button" onClick={() => handleOpenEditAccount(account)}>Ubah rekening</button>
               <button type="button" onClick={() => moveId(topAccounts.map((item) => item.id), account.id, topIndex - 1)} disabled={topIndex === 0 || reorderMutation.isPending}>Naikkan urutan</button>
@@ -931,6 +934,7 @@ export default function AccountsPage() {
                       </>}
                       <AccountOptions name={pocket.name} iconOnly>
                         {position && <button type="button" onClick={() => handleOpenValuation(pocket)}>Update Nilai</button>}
+                        {canSwitchToAmountTracking(pocket) && <button type="button" onClick={() => setAmountSwitchProduct(pocket)}>Ubah ke pelacakan nominal</button>}
                         {pocket.investment_tracking_mode !== "amount" && <button type="button" onClick={() => openReconciliation(pocket)}>Sesuaikan Saldo</button>}
                         <button type="button" onClick={() => handleOpenEditAccount(pocket)}>Ubah kantong</button>
                         <button type="button" onClick={() => moveId(children.map((item) => item.id), pocket.id, index - 1, account.id)} disabled={index === 0 || reorderMutation.isPending}>Naikkan urutan</button>
@@ -2326,6 +2330,8 @@ export default function AccountsPage() {
         allAccounts={accountsData?.accounts ?? []}
         onSchedule={(draft) => { setInvestmentSchedule(draft); setTopupProduct(null); setRecurringModalOpen(true); }}
       />
+
+      <AmountTrackingSwitchModal product={amountSwitchProduct} onClose={() => setAmountSwitchProduct(null)} />
 
       {/* Investment Trade Modal (Beli / Jual) */}
       <InvestmentTradeModal

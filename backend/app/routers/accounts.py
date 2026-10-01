@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from app.db.pool import db_conn
 from app.services.auth import get_current_user
 from app.services.ledger_mutations import get_locked_ledger_balance, lock_owned_accounts
-from app.services.investment_topups import initialize_amount_tracking
+from app.services.investment_topups import convert_product_to_amount, initialize_amount_tracking
 from app.services.market_data import (
     get_instrument_quote,
     search_instruments,
@@ -753,6 +753,18 @@ def update_account_valuation(
     accounts = get_accounts_with_balances(user_id, include_archived=False)
     updated = next((a for a in accounts if a["id"] == aid), None)
     return {"ok": True, "account": updated}
+
+
+@router.post("/{account_id}/amount-tracking")
+def switch_to_amount_tracking(account_id: UUID, current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
+    aid = str(account_id)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            convert_product_to_amount(cur, user_id, aid)
+        conn.commit()
+    accounts = get_accounts_with_balances(user_id)
+    return {"ok": True, "account": next((a for a in accounts if a["id"] == aid), None)}
 
 
 @router.post("/{account_id}/reconcile")

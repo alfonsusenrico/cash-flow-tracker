@@ -40,3 +40,31 @@ export interface InvestmentScheduleDraft {
   amount: number;
   productName: string;
 }
+
+const LIQUID_ACCOUNT_TYPES = new Set(["cash", "bank", "wallet", "ewallet"]);
+
+/** A unit-tracked mutual-fund product that can switch, once, to amount tracking. */
+export function canSwitchToAmountTracking(account: InvestmentAccount): boolean {
+  return account.instrument_type === "mutual_fund" && account.units != null &&
+    account.investment_tracking_mode !== "amount" && !account.is_archived &&
+    !account.is_parent && !account.children?.length;
+}
+
+export interface ConvertibleExpense {
+  type: string;
+  account_id: string;
+  movement_id?: string | null;
+  goal_id?: string | null;
+  obligation_id?: string | null;
+  obligation_allocations?: unknown[];
+  recurring_rule_id?: string | null;
+}
+
+/** A recorded standalone expense from a liquid account that can become the debit side of a top-up. */
+export function canConvertExpenseToTopup(transaction: ConvertibleExpense, accounts: InvestmentAccount[]): boolean {
+  if (transaction.type !== "expense" || transaction.movement_id || transaction.goal_id || transaction.obligation_id) return false;
+  if (transaction.obligation_allocations?.length || transaction.recurring_rule_id) return false;
+  const flattened = accounts.flatMap((account) => [account, ...(account.children ?? [])]);
+  const source = flattened.find((account) => account.id === transaction.account_id);
+  return Boolean(source && LIQUID_ACCOUNT_TYPES.has(source.type) && !source.instrument_type && !source.is_archived);
+}

@@ -43,6 +43,11 @@ function normalizeApiErrorDetail(detail: unknown): string | ApiErrorDetail {
     investment_topup_deleted: "Top up ini sudah dihapus. Muat ulang buku kas.",
     archived_topup_account: "Rekening atau produk sudah diarsipkan. Nominal top up tidak dapat ditambah.",
     funding_selection_changed: "Kantong sumber berubah. Pilih kembali rekening sumber.",
+    already_amount_tracked: "Produk ini sudah dicatat berdasarkan nominal.",
+    unit_mutual_fund_required: "Hanya produk reksadana yang mencatat unit yang dapat diubah ke pelacakan nominal.",
+    negative_investment_value: "Nilai produk negatif. Perbarui nilai produk sebelum mengubah pelacakan.",
+    transaction_not_convertible: "Transaksi ini tidak dapat dijadikan top up. Hanya pengeluaran tunggal tanpa tagihan, target, atau jadwal yang dapat diubah.",
+    liquid_funding_required: "Top up hanya dapat berasal dari rekening bank, e-wallet, atau kas.",
   };
   if (structured.code && investmentMessages[structured.code]) {
     return { ...structured, message: investmentMessages[structured.code] };

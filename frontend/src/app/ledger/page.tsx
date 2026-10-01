@@ -26,6 +26,8 @@ import { queryKeys } from "@/lib/queryKeys";
 import { DebtAllocationEditor, allocationError, totalDebtPayments, type DebtAllocationValue } from "@/components/ui/DebtAllocationEditor";
 import { consolidateLedgerMovements } from "@/lib/ledgerMovements";
 import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
+import { ExpenseTopupConversionModal } from "@/components/ui/ExpenseTopupConversionModal";
+import { canConvertExpenseToTopup } from "@/lib/investmentTopups";
 
 interface TransactionItem {
   id: string;
@@ -112,6 +114,7 @@ export default function LedgerPage() {
 
   // Selected for Edit/Detail
   const [editingTx, setEditingTx] = useState<TransactionItem | null>(null);
+  const [topupExpense, setTopupExpense] = useState<TransactionItem | null>(null);
   const [recurringModalOpen, setRecurringModalOpen] = useState(false);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [summaryScope, setSummaryScope] = useState<"cycle" | "cumulative">("cycle");
@@ -1316,6 +1319,13 @@ export default function LedgerPage() {
         }}
       />}
 
+      <ExpenseTopupConversionModal
+        expense={topupExpense}
+        accounts={accounts}
+        onClose={() => setTopupExpense(null)}
+        onConverted={() => setTopupExpense(null)}
+      />
+
       {/* 5. Ordinary transaction edit modal */}
       {editingTx && !editingTx.movement_id && (
         <Modal
@@ -1544,6 +1554,18 @@ export default function LedgerPage() {
                   <input id="edit-transaction-receipt" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setEditReceipt(event.target.files?.[0] ?? null)} className="block min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)]" />
                   {editingTx.receipt_path && <p className="mt-1 text-[10px] text-[var(--muted)]">Bukti saat ini akan diganti hanya setelah unggahan baru berhasil.</p>}
                 </div>
+            {canConvertExpenseToTopup(editingTx, accounts) && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-purple-900 dark:border-purple-800 dark:bg-purple-950 dark:text-purple-100">
+                <p className="text-xs">Debit ini untuk membeli reksadana?</p>
+                <button
+                  type="button"
+                  onClick={() => { setTopupExpense(editingTx); setEditingTx(null); }}
+                  className="min-h-11 rounded-xl bg-[#1E201E] px-3.5 text-sm font-semibold text-white"
+                >
+                  Jadikan Top up Investasi
+                </button>
+              </div>
+            )}
             <div className="pt-4 flex items-center justify-between border-t border-[var(--border)]">
               <ConfirmActionButton
                 label={editingTx.is_consolidated_transfer ? "Hapus pemindahan saldo" : "Hapus transaksi"}

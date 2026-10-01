@@ -116,7 +116,7 @@ export function InvestmentTopupModal({ open, onClose, product, allAccounts, edit
         {!editingTopup && <p className="text-xs text-[var(--text-secondary)]">Catat setelah debit berhasil. Pastikan debit yang sama belum tercatat di buku kas.</p>}
         {editingTopup && <p className="text-xs text-[var(--text-secondary)]">Koreksi nominal menyesuaikan modal dan estimasi nilai. Periksa kembali nilai aktual di Bibit setelah mengubahnya.</p>}
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] pt-3">
-          {editingTopup && <ConfirmActionButton label="Hapus top up" confirmation="Hapus top up dan kembalikan saldo sumber? Modal dan estimasi nilai investasi ikut berkurang." onConfirm={() => mutation.mutate(true)} disabled={busy} className="min-h-11 rounded-xl border border-rose-300 px-3 text-sm text-rose-700 dark:text-rose-300">Hapus</ConfirmActionButton>}
+          {editingTopup && <ConfirmActionButton label="Hapus top up" confirmation="Hapus top up? Modal dan estimasi nilai investasi ikut berkurang. Top up dari pengeluaran tercatat kembali menjadi pengeluaran biasa; top up lainnya mengembalikan saldo sumber." onConfirm={() => mutation.mutate(true)} disabled={busy} className="min-h-11 rounded-xl border border-rose-300 px-3 text-sm text-rose-700 dark:text-rose-300">Hapus</ConfirmActionButton>}
           <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-xl border border-[var(--border)] px-3 text-sm">Batal</button>
           <button type="submit" disabled={busy} className="min-h-11 rounded-xl bg-[#1E201E] px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Menyimpan…" : editingTopup ? "Simpan perubahan" : "Catat top up"}</button>
         </div>
