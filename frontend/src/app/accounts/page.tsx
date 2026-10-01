@@ -819,7 +819,6 @@ export default function AccountsPage() {
                 {account.instrument_symbol && <span>{account.instrument_symbol}</span>}
                 {account.instrument_type && <span>{INSTRUMENT_OPTIONS.find((option) => option.value === account.instrument_type)?.label}</span>}
                 {account.default_funding_account_name && <span>RDN: {account.default_funding_account_name}</span>}
-                {account.instrument_type === "mutual_fund" && account.units != null && <span>Top up nominal tersedia pada produk tanpa pencatatan unit.</span>}
               </div>
             </div>
           </div>
@@ -920,7 +919,6 @@ export default function AccountsPage() {
                         {pocket.instrument_symbol && <span>{pocket.instrument_symbol}</span>}
                         {pocket.instrument_type && <span>{INSTRUMENT_OPTIONS.find((option) => option.value === pocket.instrument_type)?.label}</span>}
                         {pocket.units ? <span className="tabular-nums">{pocket.units.toLocaleString("id-ID")} {getInstrumentConfig(pocket.instrument_type).unitUnit}{pocket.instrument_type === "stock" ? ` (${(pocket.units / 100).toLocaleString("id-ID")} lot)` : ""}</span> : null}
-                        {pocket.instrument_type === "mutual_fund" && pocket.units != null && <span>Top up nominal memerlukan produk tanpa pencatatan unit.</span>}
                         {pocket.investment_tracking_mode === "amount" && <span className="tabular-nums">Modal: {pocket.cost_basis == null ? "Belum diisi" : bal(pocket.cost_basis)}{pocket.investment_value_estimated ? " · Nilai estimasi" : ""}</span>}
                       </div>
                     </div>

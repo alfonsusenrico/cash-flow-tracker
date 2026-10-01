@@ -72,7 +72,7 @@ The web interface SHALL expose Top up on eligible products with product context,
 
 #### Scenario: Unit-tracked product remains explicit
 - **WHEN** the owner views a unit-tracked mutual-fund product
-- **THEN** Beli/Jual retain their unit-based behavior and the interface explains that amount-only top-ups require an amount-tracked product
+- **THEN** Beli/Jual retain their unit-based behavior and the account list omits persistent explanatory top-up eligibility text
 
 #### Scenario: Failure remains actionable
 - **WHEN** a contribution submission fails
