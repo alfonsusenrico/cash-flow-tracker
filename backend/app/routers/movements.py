@@ -15,6 +15,7 @@ from app.services.ledger_mutations import (
     movement_kakeibo,
 )
 from app.services.auth import get_current_user
+from app.services.investment_topups import reject_topup_movement
 from app.services.notification_application import account_label, committed_snapshot
 
 router = APIRouter(prefix="/movements", tags=["Movements"])
@@ -182,6 +183,9 @@ def merge_transactions_as_movement(
     with db_conn() as conn:
         with conn.cursor() as cur:
             expense_id, income_id = str(payload.expense_transaction_id), str(payload.income_transaction_id)
+            cur.execute("SELECT movement_id FROM transactions WHERE user_id = %s AND id = ANY(%s)", (current_user["id"], [expense_id, income_id]))
+            for row in cur.fetchall():
+                reject_topup_movement(cur, current_user["id"], str(row["movement_id"]) if row["movement_id"] else None)
             cur.execute(
                 """SELECT 1 FROM notification_events WHERE user_id = %s AND transaction_id = ANY(%s) LIMIT 1""",
                 (current_user["id"], [expense_id, income_id]),
@@ -204,6 +208,7 @@ def split_movement(movement_id: UUID, current_user: dict = Depends(get_current_u
     user_id = current_user["id"]
     with db_conn() as conn:
         with conn.cursor() as cur:
+            reject_topup_movement(cur, user_id, str(movement_id))
             cur.execute(
                 """SELECT id, type, account_id, amount, notes FROM transactions
                    WHERE user_id = %s AND movement_id = %s ORDER BY id FOR UPDATE""",
@@ -291,6 +296,7 @@ def update_movement(
 
     with db_conn() as conn:
         with conn.cursor() as cur:
+            reject_topup_movement(cur, user_id, str(movement_id))
             cur.execute(
                 "SELECT id, movement_role FROM transactions WHERE user_id = %s AND movement_id = %s FOR UPDATE",
                 (user_id, str(movement_id)),
@@ -334,6 +340,7 @@ def delete_movement(movement_id: UUID, current_user: dict = Depends(get_current_
     user_id = current_user["id"]
     with db_conn() as conn:
         with conn.cursor() as cur:
+            reject_topup_movement(cur, user_id, str(movement_id))
             cur.execute(
                 "DELETE FROM transactions WHERE user_id = %s AND movement_id = %s RETURNING id",
                 (user_id, str(movement_id)),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { cn, fmtMoney, formatNumberWithDots, parseNumberFromDots } from "@/lib/utils";
@@ -13,13 +13,15 @@ import { RecurringRule } from "@/types/recurring";
 import { queryKeys } from "@/lib/queryKeys";
 import { listLiquidAccountChoices } from "@/lib/accountOptions";
 import { parseRecurringRuleForm } from "@/lib/recurringForm";
+import { InvestmentScheduleDraft, listAmountInvestmentProducts } from "@/lib/investmentTopups";
 
 interface Props {
   open: boolean;
   onClose: () => void;
+  investmentDraft?: InvestmentScheduleDraft | null;
 }
 
-export function RecurringRulesModal({ open, onClose }: Props) {
+export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
   const qc = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<"list" | "create">("list");
@@ -27,7 +29,7 @@ export function RecurringRulesModal({ open, onClose }: Props) {
 
   // Form states
   const [name, setName] = useState("");
-  const [type, setType] = useState<"expense" | "transfer" | "income">("transfer");
+  const [type, setType] = useState<RecurringRule["type"]>("transfer");
   const [amountStr, setAmountStr] = useState("");
   const [sourceAccountId, setSourceAccountId] = useState("");
   const [targetAccountId, setTargetAccountId] = useState("");
@@ -42,13 +44,18 @@ export function RecurringRulesModal({ open, onClose }: Props) {
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState("");
 
-  const handleTypeChange = (nextType: "expense" | "transfer" | "income") => {
+  const handleTypeChange = (nextType: RecurringRule["type"]) => {
     setType(nextType);
     setCategoryId("");
     setObligationId("");
     if (nextType !== "transfer") {
       setTargetAccountId("");
       setIsPayrollAllocation(false);
+    }
+    if (nextType === "investment_topup") {
+      setAutoPost(false);
+      setScheduleType("monthly_day");
+      setScheduleDay(0);
     }
   };
 
@@ -106,11 +113,36 @@ export function RecurringRulesModal({ open, onClose }: Props) {
   const rules = rulesData?.rules ?? [];
   const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData?.accounts]);
   const liquidAccounts = useMemo(() => listLiquidAccountChoices(accounts), [accounts]);
+  const investmentProducts = useMemo(() => listAmountInvestmentProducts(accounts), [accounts]);
+  const targetChoices = type === "investment_topup" ? investmentProducts : liquidAccounts;
+  const draftInitialized = useRef(false);
+  useEffect(() => {
+    if (!open) { draftInitialized.current = false; return; }
+    if (!investmentDraft || draftInitialized.current) return;
+    draftInitialized.current = true;
+    setEditingRuleId(null);
+    setType("investment_topup");
+    setName(`Top up ${investmentDraft.productName}`.slice(0, 100));
+    setAmountStr(formatNumberWithDots(investmentDraft.amount));
+    setSourceAccountId(investmentDraft.sourceAccountId);
+    setTargetAccountId(investmentDraft.targetAccountId);
+    setCategoryId("");
+    setObligationId("");
+    setScheduleType("monthly_day");
+    setScheduleDay(0);
+    setAutoPost(false);
+    setIsPayrollAllocation(false);
+    setIsActive(true);
+    setNotes("");
+    setFormError("");
+    setActiveTab("create");
+  }, [open, investmentDraft]);
   const categories = categoriesData?.categories ?? [];
   const obligations = (obligationsData?.obligations ?? []).filter((o: any) => !o.is_archived);
 
   useEffect(() => {
     if (!open || liquidAccounts.length === 0) return;
+    if (investmentDraft && activeTab !== "create") return;
     const sourceChoices = liquidAccounts;
     const getAccountId = (account: any) => String(account.id ?? account.account_id ?? "");
     const firstSourceId = getAccountId(sourceChoices[0]);
@@ -123,13 +155,13 @@ export function RecurringRulesModal({ open, onClose }: Props) {
         : firstSourceId,
     );
     setTargetAccountId((current) => {
-      if (liquidAccounts.some((account) => getAccountId(account) === current && current !== effectiveSourceId)) {
+      if (targetChoices.some((account) => getAccountId(account) === current && current !== effectiveSourceId)) {
         return current;
       }
-      const target = liquidAccounts.find((account) => getAccountId(account) !== effectiveSourceId);
+      const target = targetChoices.find((account) => getAccountId(account) !== effectiveSourceId);
       return target ? getAccountId(target) : "";
     });
-  }, [liquidAccounts, open, sourceAccountId]);
+  }, [liquidAccounts, targetChoices, open, sourceAccountId, investmentDraft, activeTab]);
 
   // Filter rules
   const filteredRules = rules.filter((r) => {
@@ -149,8 +181,8 @@ export function RecurringRulesModal({ open, onClose }: Props) {
         type,
         amount: parsedAmount,
         sourceAccountId,
-        targetAccountId: type === "transfer" ? targetAccountId || null : null,
-        categoryId: type === "transfer" ? null : categoryId || null,
+        targetAccountId: type === "transfer" || type === "investment_topup" ? targetAccountId || null : null,
+        categoryId: type === "transfer" || type === "investment_topup" ? null : categoryId || null,
         obligationId: obligationId || null,
         scheduleType,
         scheduleDay: scheduleType === "payday" ? null : Number(scheduleDay),
@@ -278,7 +310,7 @@ export function RecurringRulesModal({ open, onClose }: Props) {
               </div>
             ) : (
               filteredRules.map((rule) => {
-                const isTransfer = rule.type === "transfer";
+                const isTransfer = rule.type === "transfer" || rule.type === "investment_topup";
                 const isDebt = Boolean(rule.obligation_id);
 
                 return (
@@ -294,6 +326,7 @@ export function RecurringRulesModal({ open, onClose }: Props) {
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-sm text-[var(--text)]">{rule.name}</span>
+                        {rule.type === "investment_topup" && <span className="rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-900 dark:bg-purple-950 dark:text-purple-100">Top up Investasi</span>}
                         {rule.is_payroll_allocation && (
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/15 text-blue-600 dark:text-blue-400">
                             Alokasi Gaji
@@ -442,12 +475,13 @@ export function RecurringRulesModal({ open, onClose }: Props) {
                   id="recurring-type"
                   name="type"
                   value={type}
-                  onChange={(e) => handleTypeChange(e.target.value as "expense" | "transfer" | "income")}
+                  onChange={(e) => handleTypeChange(e.target.value as RecurringRule["type"])}
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
                 >
                   <option value="transfer">Pindah Saldo / Alokasi Kantong</option>
                   <option value="expense">Pengeluaran / Pembayaran Tagihan</option>
                   <option value="income">Pemasukan Rutin</option>
+                  <option value="investment_topup">Top up Investasi (nominal)</option>
                 </select>
               </div>
 
@@ -483,9 +517,9 @@ export function RecurringRulesModal({ open, onClose }: Props) {
                 </select>
               </div>
 
-              {type === "transfer" ? (
+              {type === "transfer" || type === "investment_topup" ? (
                 <div>
-                  <label htmlFor="recurring-target" className="text-xs font-medium text-[var(--muted)] block mb-1">Ke Rekening / Kantong Tujuan</label>
+                  <label htmlFor="recurring-target" className="text-xs font-medium text-[var(--muted)] block mb-1">{type === "investment_topup" ? "Produk reksadana tujuan" : "Ke Rekening / Kantong Tujuan"}</label>
                   <select
                     id="recurring-target"
                     name="target_account_id"
@@ -494,7 +528,7 @@ export function RecurringRulesModal({ open, onClose }: Props) {
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
                   >
                     <option value="">Pilih rekening tujuan…</option>
-                    <AccountSelectOptions accounts={accounts} allowParentSelection={true} excludeAccountId={sourceAccountId} liquidOnly />
+                    {type === "investment_topup" ? investmentProducts.map((product) => <option key={product.id} value={product.id}>{product.name}</option>) : <AccountSelectOptions accounts={accounts} allowParentSelection={true} excludeAccountId={sourceAccountId} liquidOnly />}
                   </select>
                 </div>
               ) : (
@@ -606,6 +640,7 @@ export function RecurringRulesModal({ open, onClose }: Props) {
                         type="number"
                         min={1}
                         max={31}
+                        required
                         value={scheduleDay}
                         onChange={(event) => setScheduleDay(Number(event.target.value))}
                         className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm tabular text-[var(--text)] font-semibold"
@@ -650,7 +685,7 @@ export function RecurringRulesModal({ open, onClose }: Props) {
                 </label>
               )}
 
-              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              {type === "investment_topup" ? <p className="text-xs text-[var(--text)]">Konfirmasi setiap bulan setelah debit berhasil. Membuat aturan tidak mencatat top up hari ini.</p> : <><label className="flex items-center gap-2.5 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   name="auto_post"
@@ -663,6 +698,7 @@ export function RecurringRulesModal({ open, onClose }: Props) {
                 </span>
               </label>
               <p className="pl-7 text-xs text-[var(--muted)]">Jika tidak dipilih, transaksi menunggu konfirmasi Anda saat jatuh tempo.</p>
+              </>}
             </div>
             </FormSection>
 

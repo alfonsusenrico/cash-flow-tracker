@@ -1,7 +1,7 @@
 export interface RecurringRule {
   id: string;
   name: string;
-  type: "expense" | "income" | "transfer";
+  type: "expense" | "income" | "transfer" | "investment_topup";
   amount: number;
   source_account_id: string;
   source_account_name?: string;

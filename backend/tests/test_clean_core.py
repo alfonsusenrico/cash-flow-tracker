@@ -277,6 +277,7 @@ def test_investment_valuation_updates_without_transactions():
 
     mock_conn = MagicMock()
     mock_cur = MagicMock()
+    mock_conn.__enter__.return_value = mock_conn
     mock_conn.cursor.return_value.__enter__.return_value = mock_cur
 
     # TestClient runs the application lifespan, which opens the shared database

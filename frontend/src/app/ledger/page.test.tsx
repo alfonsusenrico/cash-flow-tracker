@@ -49,6 +49,7 @@ type MovementTransaction = typeof transaction & {
   target_account_id?: string;
   transfer_target_account_id?: string;
   is_consolidated_transfer?: boolean;
+  investment_topup_id?: string;
 };
 let currentTransactions: Array<typeof transaction | MovementTransaction> = [transaction];
 
@@ -193,6 +194,34 @@ describe("Ledger edit receipt recovery", () => {
     await user.click(screen.getByRole("button", { name: "Hapus transaksi" }));
     await user.click(screen.getByRole("button", { name: "Ya, lanjutkan" }));
     await waitFor(() => expect(api.del).toHaveBeenCalledWith("/transactions/transaction-1"));
+  });
+
+  it("opens a consolidated top-up through the dedicated correction endpoint", async () => {
+    currentTransactions = [{ ...transaction, id: "topup-out", notes: "Monthly Bibit", movement_id: "topup-1", movement_role: "outbound", target_account_id: "fund-1", is_consolidated_transfer: true, investment_topup_id: "topup-1" }];
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [
+        { id: "account-1", name: "BCA", type: "bank", balance: 100_000 },
+        { id: "fund-1", name: "Bibit Fund", type: "investment", instrument_type: "mutual_fund", units: null },
+      ] };
+      if (path === "/categories") return { categories: [] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      if (path.startsWith("/transactions?")) return { total: 1, transactions: currentTransactions };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={qc}><LedgerPage /></QueryClientProvider>);
+    await user.click(await screen.findByRole("row", { name: /Buka atau ubah: Monthly Bibit/ }));
+    expect(screen.getByRole("dialog", { name: "Ubah Top up Investasi" })).toBeVisible();
+    expect(screen.queryByRole("dialog", { name: "Ubah pindah saldo" })).not.toBeInTheDocument();
+    await user.clear(screen.getByLabelText("Nominal top up (IDR)"));
+    await user.type(screen.getByLabelText("Nominal top up (IDR)"), "20000");
+    await user.click(screen.getByRole("button", { name: "Simpan perubahan" }));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/investment-topups/topup-1", expect.objectContaining({ amount: 20_000 })));
+    expect(updateMovement).not.toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.transactions.all });
   });
 
   it("routes a linked movement edit through the atomic movement operation", async () => {

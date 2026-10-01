@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
+import type { InvestmentScheduleDraft } from "@/lib/investmentTopups";
 import { RecurringRulesModal } from "./RecurringRulesModal";
 
 vi.mock("@/lib/api", () => ({
@@ -29,13 +30,13 @@ const weeklyExpense = {
   notes: null,
 };
 
-function renderRules() {
+function renderRules(investmentDraft?: InvestmentScheduleDraft) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <RecurringRulesModal open onClose={() => {}} />
+      <RecurringRulesModal open onClose={() => {}} investmentDraft={investmentDraft} />
     </QueryClientProvider>,
   );
 }
@@ -49,6 +50,9 @@ describe("RecurringRulesModal", () => {
         { id: "account-1", name: "BCA", type: "bank", balance: 100_000 },
         { id: "account-2", name: "Jago", type: "bank", balance: 25_000 },
         { id: "position-1", name: "BBCA", type: "investment", balance: 50_000 },
+        { id: "fund-1", name: "Bibit A", type: "investment", instrument_type: "mutual_fund", units: null },
+        { id: "fund-2", name: "Bibit B", type: "investment", instrument_type: "mutual_fund", units: null },
+        { id: "fund-units", name: "Fund with units", type: "investment", instrument_type: "mutual_fund", units: 10 },
       ] };
       if (path === "/categories") return { categories: [
         { id: "category-expense", name: "Makan", kind: "expense" },
@@ -102,6 +106,26 @@ describe("RecurringRulesModal", () => {
       schedule_type: "weekly",
       schedule_day: 5,
     })));
+  });
+
+  it("creates only a manual monthly rule from the selected product shortcut", async () => {
+    const user = userEvent.setup();
+    renderRules({ sourceAccountId: "account-1", targetAccountId: "fund-2", amount: 112_590, productName: "Bibit B" });
+    const target = await screen.findByRole("combobox", { name: "Produk reksadana tujuan" });
+    await waitFor(() => expect(target).toHaveValue("fund-2"));
+    expect(screen.getByRole("textbox", { name: "Nominal (IDR)" })).toHaveValue("112.590");
+    expect(screen.queryByRole("option", { name: "Fund with units" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /otomatis|alokasi gaji/i })).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+    await user.clear(screen.getByRole("spinbutton", { name: "Tanggal Setiap Bulan (1–31)" }));
+    await user.type(screen.getByRole("spinbutton", { name: "Tanggal Setiap Bulan (1–31)" }), "10");
+    await user.click(screen.getByRole("button", { name: "Simpan Aturan" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/recurring", expect.objectContaining({
+      type: "investment_topup", source_account_id: "account-1", target_account_id: "fund-2",
+      amount: 112_590, auto_post: false, is_payroll_allocation: false, category_id: null,
+      schedule_type: "monthly_day", schedule_day: 10,
+    })));
+    expect(api.post).toHaveBeenCalledTimes(1);
   });
 
   it("clears an expense category before saving a switched transfer", async () => {

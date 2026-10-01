@@ -36,6 +36,15 @@ const holdHandlers = {
 };
 
 describe("MobileLedgerFeed", () => {
+  it("shows one investment top-up row and opens its contribution", async () => {
+    const topup = { ...payment, investment_topup_id: "topup-1", movement_id: "topup-1", is_consolidated_transfer: true };
+    const onOpenEdit = vi.fn();
+    render(<MobileLedgerFeed transactions={[topup]} onOpenEdit={onOpenEdit} {...holdHandlers} bal={(amount) => `Rp ${amount.toLocaleString("id-ID")}`} />);
+    expect(screen.getByText("Top up Investasi")).toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button"));
+    expect(onOpenEdit).toHaveBeenCalledWith(topup);
+  });
   it("shows one cash row with the allocation breakdown and opens it by keyboard", async () => {
     const onOpenEdit = vi.fn();
     render(<MobileLedgerFeed transactions={[payment]} onOpenEdit={onOpenEdit} {...holdHandlers} bal={(amount) => `Rp ${amount.toLocaleString("id-ID")}`} />);

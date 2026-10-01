@@ -215,6 +215,7 @@ def list_transactions(
                     t.receipt_path,
                     t.movement_id,
                     t.movement_role,
+                    topup.id AS investment_topup_id,
                     partner.id AS partner_id,
                     partner.account_id AS movement_target_account_id,
                     partner_account.name AS movement_target_account_name,
@@ -226,6 +227,7 @@ def list_transactions(
                    AND partner.user_id = t.user_id
                    AND partner.id != t.id
                 LEFT JOIN accounts partner_account ON partner_account.id = partner.account_id
+                LEFT JOIN investment_topups topup ON topup.id = t.movement_id AND topup.user_id = t.user_id
                 LEFT JOIN categories c ON c.id = t.category_id
                 LEFT JOIN goals g ON g.id = t.goal_id
                 LEFT JOIN obligations o ON o.id = t.obligation_id
@@ -274,6 +276,8 @@ def list_transactions(
                 "type": r["type"],
                 "kakeibo_type": r.get("kakeibo_type"),
                 "movement_id": str(r["movement_id"]) if r.get("movement_id") else None,
+                "investment_topup_id": str(r["investment_topup_id"]) if r.get("investment_topup_id") else None,
+                "movement_kind": "investment_topup" if r.get("investment_topup_id") else None,
                 "movement_role": r.get("movement_role"),
                 "partner_id": str(r["partner_id"]) if r.get("partner_id") else None,
                 "transfer_target_account_id": str(r["movement_target_account_id"]) if r.get("movement_target_account_id") else None,
@@ -727,6 +731,8 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 locked = lock_owned_accounts(cur, user_id, [funding_id, position_id])
                 funding = locked[funding_id]
                 position = locked[position_id]
+                if position.get("investment_tracking_mode") == "amount":
+                    raise HTTPException(status_code=409, detail={"code": "amount_product_trade_not_supported"})
                 if funding.get("type") not in {"cash", "bank", "wallet", "ewallet"} or funding.get("instrument_type"):
                     raise HTTPException(status_code=400, detail="Funding account must be a liquid account")
                 if position.get("type") != "investment" and not position.get("instrument_type"):
@@ -885,7 +891,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                     t.type,
                     COALESCE(t.kakeibo_type, c.kakeibo_type, CASE WHEN COALESCE(c.is_primary, TRUE) THEN 'need' ELSE 'want' END) AS kakeibo_type,
                     t.amount, t.notes, t.date, t.receipt_path,
-                    t.movement_id, t.movement_role,
+                    t.movement_id, t.movement_role, topup.id AS investment_topup_id,
                     partner.id AS partner_id,
                     partner.account_id AS movement_target_account_id,
                     partner_account.name AS movement_target_account_name,
@@ -896,6 +902,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                     ON partner.movement_id = t.movement_id
                    AND partner.id != t.id
                 LEFT JOIN accounts partner_account ON partner_account.id = partner.account_id
+                LEFT JOIN investment_topups topup ON topup.id = t.movement_id AND topup.user_id = t.user_id
                 LEFT JOIN categories c ON c.id = t.category_id
                 LEFT JOIN goals g ON g.id = t.goal_id
                 LEFT JOIN obligations o ON o.id = t.obligation_id
@@ -926,6 +933,8 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             "type": r["type"],
             "kakeibo_type": r.get("kakeibo_type"),
             "movement_id": str(r["movement_id"]) if r.get("movement_id") else None,
+            "investment_topup_id": str(r["investment_topup_id"]) if r.get("investment_topup_id") else None,
+            "movement_kind": "investment_topup" if r.get("investment_topup_id") else None,
             "movement_role": r.get("movement_role"),
             "partner_id": str(r["partner_id"]) if r.get("partner_id") else None,
             "transfer_target_account_id": str(r["movement_target_account_id"]) if r.get("movement_target_account_id") else None,

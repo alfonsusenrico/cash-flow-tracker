@@ -33,6 +33,8 @@ export interface LedgerTxItem {
   is_consolidated_transfer?: boolean;
   is_inferred_transfer?: boolean;
   movement_id?: string | null;
+  investment_topup_id?: string | null;
+  movement_kind?: "investment_topup" | null;
   target_account_name?: string;
   target_account_id?: string;
   kakeibo_type?: string | null;
@@ -205,7 +207,7 @@ export function MobileLedgerFeed({
                   selectedRowCount === 0 &&
                   selectedIdsOutsideRow + rowSelectionIds.length > 2;
                 const selectionDisabled = selectionMode && (Boolean(tx.movement_id) || selectionBlocked);
-                const movementStatus = tx.movement_id
+                const movementStatus = tx.investment_topup_id ? "Top up Investasi" : tx.movement_id
                   ? "Tergabung"
                   : "Transfer";
                 let selectionPressed: boolean | "mixed" | undefined;
@@ -248,7 +250,9 @@ export function MobileLedgerFeed({
                       <div
                         className={cn(
                           "h-9 w-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs",
-                          isMovement
+                          tx.investment_topup_id
+                            ? "bg-purple-100 text-purple-900 border border-purple-200 dark:bg-purple-950 dark:text-purple-100 dark:border-purple-800"
+                            : isMovement
                             ? "bg-sky-500/10 text-sky-500 border border-sky-500/20"
                             : isIncome
                             ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"

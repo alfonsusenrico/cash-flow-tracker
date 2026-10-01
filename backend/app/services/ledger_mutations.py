@@ -10,22 +10,27 @@ from fastapi import HTTPException
 LIQUID_ACCOUNT_TYPES = {"cash", "bank", "ewallet", "wallet"}
 
 
-def lock_owned_accounts(cur, user_id: str, account_ids: list[str]) -> dict[str, dict[str, Any]]:
+def lock_owned_accounts(
+    cur, user_id: str, account_ids: list[str], *, include_archived: bool = False
+) -> dict[str, dict[str, Any]]:
     ordered_ids = sorted(set(account_ids))
     cur.execute(
         """
         SELECT a.id, a.user_id, a.name, a.type, a.instrument_type,
                a.initial_balance, a.units, a.avg_buy_price, a.last_price,
+               a.parent_id, a.default_pocket_id, a.default_funding_account_id, a.instrument_symbol, a.is_archived,
+               a.investment_tracking_mode, a.investment_cost_basis,
+               EXISTS (SELECT 1 FROM accounts child WHERE child.parent_id = a.id) AS has_children,
                a.reconciliation_required,
                EXISTS (
                    SELECT 1 FROM goal_accounts ga WHERE ga.account_id = a.id
                ) AS is_savings
         FROM accounts a
-        WHERE a.user_id = %s AND a.id = ANY(%s) AND a.is_archived = FALSE
+        WHERE a.user_id = %s AND a.id = ANY(%s) AND (a.is_archived = FALSE OR %s)
         ORDER BY a.id
         FOR UPDATE
         """,
-        (user_id, ordered_ids),
+        (user_id, ordered_ids, include_archived),
     )
     rows = cur.fetchall()
     accounts = {str(row["id"]): row for row in rows}
@@ -143,16 +148,22 @@ def create_bilateral_movement(
     recurring_rule_id: str | None = None,
     obligation_id: str | None = None,
     is_trade: bool = False,
+    is_investment_topup: bool = False,
+    movement_id: str | None = None,
     allow_negative: bool = False,
 ) -> dict[str, str]:
     if source_id == target_id:
         raise HTTPException(status_code=400, detail="Source and target accounts must be different")
-    if not is_trade:
+    if is_investment_topup:
+        from app.services.investment_topups import validate_topup_accounts
+
+        validate_topup_accounts(source_account, target_account)
+    elif not is_trade:
         ensure_generic_movement_accounts(source_account, target_account)
     if not allow_negative:
         ensure_sufficient_funds(cur, user_id, source_account, amount)
 
-    movement_id = str(uuid4())
+    movement_id = movement_id or str(uuid4())
     base_key = idempotency_key[:118] if idempotency_key else None
     out_key = f"{base_key}:out" if base_key else None
     in_key = f"{base_key}:in" if base_key else None

@@ -25,6 +25,7 @@ import { InfoHelp } from "@/components/ui/InfoHelp";
 import { queryKeys } from "@/lib/queryKeys";
 import { DebtAllocationEditor, allocationError, totalDebtPayments, type DebtAllocationValue } from "@/components/ui/DebtAllocationEditor";
 import { consolidateLedgerMovements } from "@/lib/ledgerMovements";
+import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
 
 interface TransactionItem {
   id: string;
@@ -52,6 +53,8 @@ interface TransactionItem {
   target_account_name?: string;
   target_account_id?: string;
   movement_id?: string | null;
+  investment_topup_id?: string | null;
+  movement_kind?: "investment_topup" | null;
   movement_role?: "outbound" | "inbound" | null;
   transfer_target_account_id?: string | null;
   transfer_target_account_name?: string | null;
@@ -1088,9 +1091,9 @@ export default function LedgerPage() {
                       {/* Type Badge */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         {tx.is_consolidated_transfer || tx.is_inferred_transfer ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/10 text-sky-500 border border-sky-500/20 tracking-wide">
+                          <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border tracking-wide", tx.investment_topup_id ? "bg-purple-100 text-purple-900 border-purple-200 dark:bg-purple-950 dark:text-purple-100 dark:border-purple-800" : "bg-sky-500/10 text-sky-500 border-sky-500/20")}>
                             <span className="text-xs leading-none">↔️</span>
-                            <span>Pindah Saldo</span>
+                            <span>{tx.investment_topup_id ? "Top up Investasi" : "Pindah Saldo"}</span>
                           </span>
                         ) : (
                           <span
@@ -1103,7 +1106,7 @@ export default function LedgerPage() {
                                 : "bg-expense/10 text-expense"
                             )}
                           >
-                            {isMovement
+                            {tx.investment_topup_id ? "Top up Investasi" : isMovement
                               ? isIncome
                                 ? "Pindah Saldo (Masuk)"
                                 : "Pindah Saldo (Keluar)"
@@ -1134,7 +1137,7 @@ export default function LedgerPage() {
                                   : tx.category_color || "#3b82f6",
                               }}
                             />
-                            <span>{isMovement ? "Pindah Saldo" : tx.category_name}</span>
+                            <span>{tx.investment_topup_id ? "Top up Investasi" : isMovement ? "Pindah Saldo" : tx.category_name}</span>
                           </span>
                         ) : (
                           <span className="text-[var(--muted)]">-</span>
@@ -1280,7 +1283,7 @@ export default function LedgerPage() {
       </Modal>
 
       <InternalMovementModal
-        open={Boolean(editingTx?.movement_id)}
+        open={Boolean(editingTx?.movement_id && !editingTx?.investment_topup_id)}
         onClose={() => setEditingTx(null)}
         editingMovement={editingTx?.movement_id ? {
           id: editingTx.movement_id,
@@ -1295,6 +1298,23 @@ export default function LedgerPage() {
           date: editingTx.date,
         } : null}
       />
+
+      {editingTx?.investment_topup_id && <InvestmentTopupModal
+        open
+        onClose={() => setEditingTx(null)}
+        product={accounts.find((account) => account.id === (editingTx.movement_role === "inbound" ? editingTx.account_id : editingTx.target_account_id ?? editingTx.transfer_target_account_id)) ?? {
+          id: editingTx.movement_role === "inbound" ? editingTx.account_id : editingTx.target_account_id ?? editingTx.transfer_target_account_id ?? "",
+          name: editingTx.movement_role === "inbound" ? editingTx.account_name : editingTx.target_account_name ?? editingTx.transfer_target_account_name ?? "Produk reksadana",
+          type: "investment",
+        }}
+        allAccounts={accounts}
+        editingTopup={{
+          id: editingTx.investment_topup_id,
+          source_account_id: editingTx.movement_role === "inbound" ? editingTx.transfer_target_account_id ?? "" : editingTx.account_id,
+          target_account_id: editingTx.movement_role === "inbound" ? editingTx.account_id : editingTx.target_account_id ?? editingTx.transfer_target_account_id ?? "",
+          amount: editingTx.amount, date: editingTx.date, notes: editingTx.notes,
+        }}
+      />}
 
       {/* 5. Ordinary transaction edit modal */}
       {editingTx && !editingTx.movement_id && (

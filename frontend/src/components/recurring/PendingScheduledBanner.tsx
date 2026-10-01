@@ -6,6 +6,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { fmtMoney } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { RecurringRule } from "@/types/recurring";
+import { useState } from "react";
 
 interface Props {
   onOpenRulesManager?: () => void;
@@ -13,6 +14,7 @@ interface Props {
 
 export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
   const qc = useQueryClient();
+  const [executionErrors, setExecutionErrors] = useState<string[]>([]);
 
   // Automatic execution is owned by the server scheduler; the client only lists manual confirmations.
   const { data } = useQuery<{ ok: boolean; pending_count: number; rules: RecurringRule[] }>({
@@ -26,14 +28,28 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
   // Execute selected or all pending rules
   const executeMutation = useMutation({
     mutationFn: async (ruleIds: string[]) => {
-      return api.post("/recurring/execute", { rule_ids: ruleIds });
+      setExecutionErrors([]);
+      const scheduledDates = Object.fromEntries(pendingRules
+        .filter((rule) => ruleIds.includes(rule.id) && rule.type === "investment_topup")
+        .map((rule) => [rule.id, rule.next_due_date]));
+      return api.post<{ results?: { rule_id: string; status: string; error_code?: string }[] }>("/recurring/execute", {
+        rule_ids: ruleIds, ...(Object.keys(scheduledDates).length ? { scheduled_dates: scheduledDates } : {}),
+      });
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      const failures = result.results?.filter((item) => item.status === "failed") ?? [];
+      setExecutionErrors(failures.map((item) => {
+        const name = pendingRules.find((rule) => rule.id === item.rule_id)?.name ?? "Transaksi";
+        const reason = item.error_code === "insufficient_funds" ? "Saldo sumber tidak mencukupi." : "Periksa rekening, produk, dan jadwal sebelum mencoba lagi.";
+        return `${name} belum tercatat. ${reason}`;
+      }));
       qc.invalidateQueries({ queryKey: queryKeys.recurring.all });
       qc.invalidateQueries({ queryKey: queryKeys.accounts });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
       qc.invalidateQueries({ queryKey: queryKeys.obligations });
+      qc.invalidateQueries({ queryKey: queryKeys.pulse });
+      qc.invalidateQueries({ queryKey: queryKeys.insights });
     },
   });
 
@@ -60,6 +76,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
             <p className="text-xs text-[var(--muted)] mt-0.5">
               Total nominal: <span className="font-bold tabular text-[var(--text)]">{fmtMoney(totalPendingAmount)}</span>. Konfirmasi untuk mencatat ke rekening Anda.
             </p>
+            {pendingRules.some((rule) => rule.type === "investment_topup") && <p className="mt-1 text-xs">Konfirmasi top up investasi hanya setelah debit berhasil.</p>}
           </div>
         </div>
 
@@ -91,10 +108,11 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
           {executeMutation.error.message || "Transaksi gagal dicatat. Periksa saldo dan coba lagi."}
         </p>
       )}
+      {executionErrors.length > 0 && <div role="alert" className="text-xs text-rose-700 dark:text-rose-300">{executionErrors.map((error) => <p key={error}>{error}</p>)}</div>}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1 border-t border-amber-500/15">
         {pendingRules.map((rule) => {
-          const isTransfer = rule.type === "transfer";
+          const isTransfer = rule.type === "transfer" || rule.type === "investment_topup";
           return (
             <div
               key={rule.id}
@@ -105,6 +123,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                 <div className="text-[11px] text-[var(--muted)] truncate font-medium">
                   {isTransfer ? `${rule.source_account_name} → ${rule.target_account_name}` : rule.source_account_name}
                 </div>
+                {rule.type === "investment_topup" && <div className="mt-1 text-[11px] tabular-nums">Top up Investasi · {rule.next_due_date}</div>}
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="font-bold tabular text-xs text-[var(--text)]">

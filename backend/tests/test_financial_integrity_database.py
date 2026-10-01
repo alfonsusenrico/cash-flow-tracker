@@ -1758,8 +1758,9 @@ def test_failed_recurring_occurrence_preserves_schedule_and_ledger(auth_client):
     user_id = auth_client.get("/api/auth/me").json()["user"]["id"]
     result = process_due_recurring_rules(user_id=user_id, limit=20)
 
-    assert result["processed_count"] == 1
-    assert result["results"][0]["status"] == "failed"
+    # Other shared-fixture rules can still be due when yesterday is in the previous month.
+    own_result = next(item for item in result["results"] if item["rule_id"] == rule_id)
+    assert own_result["status"] == "failed"
     with db_conn() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
