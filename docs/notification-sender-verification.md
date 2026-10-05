@@ -98,8 +98,9 @@ awake. Never inspect or modify the normal app's personal records or credentials.
 
 Backend branch: `feat/notification-sender-clarification`, based on main `b682460`.
 Companion branch: `feat/sender-notification-replies`, based on accepted `3ae2292`;
-the companion repository has no remote. Final commit IDs are recorded in the
-session handoff after committing these tested trees.
+the companion repository has no remote. Tested implementation commits are backend
+`635fcd1` and companion `2ffc420`; subsequent delivery commits update only docs and
+task receipts. Final branch heads are recorded in the session handoff.
 
 The companion APK is version **1.5.0 / code 11**, Room v4, normal debug application
 ID `com.alfonsusenrico.financialtracker.listener.debug`, with production as its
@@ -116,7 +117,9 @@ may reject a version downgrade; do not uninstall or clear the normal app to forc
 rollback because that destroys its local data and pairing.
 
 The owner creates and merges the backend PR. The existing deployment workflow
-runs on main or manual dispatch, so a topic push does not run it. Verify successful
+runs on main or manual dispatch, so a topic push does not run it. Remote Actions
+could not be queried because `gh` is not installed; no CI success is claimed.
+Verify successful
 pipeline execution for the exact merged SHA before installing the normal APK
 with `adb install -r`. Then check version, listener and data/config preservation
 without printing credentials. Production-server access, main pushes, PR creation,
