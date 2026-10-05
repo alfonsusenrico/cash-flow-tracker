@@ -125,3 +125,27 @@ with `adb install -r`. Then check version, listener and data/config preservation
 without printing credentials. Production-server access, main pushes, PR creation,
 normal-app installation and owner acceptance are not part of the completed checks.
 Synchronize/archive the changes only after owner acceptance.
+
+## Deployment and installed upgrade — 2026-10-05
+
+Owner merged the feature as `1797708c97c268d69fa75e0b98088607164d4f85`.
+Its tree exactly matches the verified feature head `47a01a2`.
+[Deploy Production run 37266842633](https://github.com/alfonsusenrico/cash-flow-tracker/actions/runs/37266842633)
+completed successfully for that exact SHA; both Build & Test Preflight and Deploy
+to Production Server succeeded. Evidence was read from GitHub's API; no direct
+production connection was used. This resolves the earlier missing-`gh` limitation.
+
+After deployment, the prepared normal APK was upgraded with `adb install -r` on
+the original TECNO CN7c USB device. Installed version is 1.5.0/code 11; Room moved
+from v3 to v4. All 98 existing local rows and 38 alert receipts were retained.
+An on-device check returned only counts and booleans: production URL is selected,
+the API key is present, and the URL/key/pairing context/device identity match the
+pre-upgrade state. No credential values or personal notification contents were
+sent to the host. The listener permission is enabled, its service is foreground,
+and Android's system process is bound to it. Notification permission was retained.
+
+The rollback APK remains available. Temporary on-device audit code and comparison
+metadata were removed. The second connected phone was not changed. Installed
+artifact evidence is in the companion's `app/build/outputs/sender-release/installed-release.json`.
+Owner testing of a new masked transfer and acceptance/spec synchronization/archive
+remain pending; the existing OEM background and older-device coverage limits apply.
