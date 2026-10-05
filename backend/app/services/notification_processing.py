@@ -25,6 +25,9 @@ from app.services.notification_mapping import (
     supports_confirmation,
 )
 from app.services.openai_notification_provider import ProviderError, configuration_error
+from app.services.notification_sender import (
+    accept_sender_answer, attach_sender_context, supports_sender_confirmation,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -85,7 +88,13 @@ def compact_result(cur, event: dict) -> dict:
     elif event.get("error_code"):
         result["error_code"] = event["error_code"]
     if status == "needs_confirmation":
-        result["mapping_proposal"] = proposal_view(cur, event)
+        question = event.get("active_question") or {}
+        if question.get("type") == "sender":
+            result["confirmation"] = question
+        else:
+            result["mapping_proposal"] = proposal_view(cur, event)
+            if supports_sender_confirmation(event) and question:
+                result["confirmation"] = {"type": "account", "question_id": question["question_id"]}
     return result
 
 
@@ -238,6 +247,7 @@ def read_context(event: dict) -> tuple:
     with db_conn() as conn:
         with conn.cursor() as cur:
             context = load_context(cur, str(event["user_id"]), facts, history_limit=settings.notification_ai_history_limit)
+            attach_sender_context(cur, event, facts, context)
     return facts, context
 
 
@@ -432,7 +442,7 @@ def resolve_event(event_id: str, user_id: str, resolution: dict) -> dict:
     return result
 
 
-def confirm_mapping(event_id: str, user_id: str, account_id: str) -> dict:
+def confirm_mapping(event_id: str, user_id: str, account_id: str, question_id: str | None = None) -> dict:
     """Owner confirms or corrects a proposed account; the event is reprocessed with the new alias."""
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -444,6 +454,9 @@ def confirm_mapping(event_id: str, user_id: str, account_id: str) -> dict:
             proposal = (event.get("interpretation") or {}).get("mapping_proposal")
             if event["processing_state"] != "needs_confirmation" or not proposal:
                 raise HTTPException(status_code=409, detail="Notifikasi ini tidak menunggu konfirmasi rekening")
+            question = event.get("active_question") or {}
+            if question_id is not None and question.get("question_id") != question_id:
+                raise HTTPException(status_code=409, detail={"code": "stale_confirmation"})
             cur.execute(
                 """SELECT id, type, instrument_type FROM accounts
                    WHERE user_id = %s AND id = %s AND is_archived = FALSE""",
@@ -461,11 +474,37 @@ def confirm_mapping(event_id: str, user_id: str, account_id: str) -> dict:
             cur.execute(
                 """UPDATE notification_events SET processing_state = 'queued', processing_mode = %s,
                        attempt_count = 0, processing_generation = processing_generation + 1,
-                       next_attempt_at = NOW(), error_code = NULL, interpretation = NULL,
+                       next_attempt_at = NOW(), error_code = NULL, interpretation = NULL, active_question = NULL,
                        lease_token = NULL, lease_expires_at = NULL, updated_at = NOW()
                    WHERE user_id = %s AND id = %s RETURNING *""",
                 (mode, user_id, event_id),
             )
+            result = compact_result(cur, cur.fetchone())
+        conn.commit()
+    return result
+
+
+def confirm_sender(event_id: str, user_id: str, answer: dict) -> dict:
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{user_id}",))
+            cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (user_id, event_id))
+            event = cur.fetchone()
+            if not event:
+                raise HTTPException(status_code=404, detail="Notification event not found")
+            if accept_sender_answer(cur, event, answer):
+                mode = event["processing_mode"]
+                if mode == "ai" and configuration_error(settings):
+                    mode = "deterministic"
+                cur.execute(
+                    """UPDATE notification_events SET processing_state = 'queued', processing_mode = %s,
+                           attempt_count = 0, processing_generation = processing_generation + 1,
+                           next_attempt_at = NOW(), error_code = NULL, interpretation = NULL,
+                           lease_token = NULL, lease_expires_at = NULL, updated_at = NOW()
+                       WHERE user_id = %s AND id = %s""",
+                    (mode, user_id, event_id),
+                )
+            cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s", (user_id, event_id))
             result = compact_result(cur, cur.fetchone())
         conn.commit()
     return result

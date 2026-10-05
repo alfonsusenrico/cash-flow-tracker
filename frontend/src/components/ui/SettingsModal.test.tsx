@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, deleteNotificationAlias, getApiKeyInfo, getNotificationAliases } from "@/lib/api";
+import { api, deleteNotificationAlias, getApiKeyInfo, getNotificationAliases, getSenderAliases } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { SettingsModal } from "./SettingsModal";
 
@@ -13,6 +13,9 @@ vi.mock("@/lib/api", () => ({
   rotateApiKey: vi.fn(),
   getNotificationAliases: vi.fn(),
   deleteNotificationAlias: vi.fn(),
+  getSenderAliases: vi.fn(),
+  updateSenderAlias: vi.fn(),
+  deleteSenderAlias: vi.fn(),
 }));
 vi.mock("@/components/layout/AppLayout", () => ({
   useAppCtx: () => ({
@@ -32,6 +35,7 @@ describe("settings form", () => {
     });
     vi.mocked(getApiKeyInfo).mockResolvedValue({ ok: true, api_key: null });
     vi.mocked(getNotificationAliases).mockResolvedValue({ ok: true, aliases: [] });
+    vi.mocked(getSenderAliases).mockResolvedValue({ ok: true, aliases: [] });
     vi.mocked(api.patch).mockResolvedValue({ ok: true });
   });
 
