@@ -18,6 +18,7 @@ from app.services.notification_resolution import (
     institution_parent, main_endpoint, movement_categories, observed_endpoint,
     pocket_endpoint, root_account_id, signatures_compatible, transfer_signature,
 )
+from app.services.notification_sender import sender_gate
 
 
 # A second notification may confirm a movement role only when it arrives this close to it.
@@ -130,7 +131,7 @@ def save_recorded(cur, event: dict, tx_id: str, snapshot: dict, signature: dict,
         """UPDATE notification_events SET processing_state = 'recorded', transaction_id = %s,
            result_key = %s, result_snapshot = %s, interpretation = %s, movement_id = %s,
            provenance_kind = %s, confirmed_role = %s, error_code = NULL,
-           lease_token = NULL, lease_expires_at = NULL, updated_at = NOW()
+           lease_token = NULL, lease_expires_at = NULL, active_question = NULL, updated_at = NOW()
            WHERE user_id = %s AND id = %s""",
         (tx_id, snapshot["record_key"], json.dumps(snapshot), json.dumps(signature), movement_id,
          provenance, role, str(event["user_id"]), str(event["id"])),
@@ -286,6 +287,13 @@ def record_observed_leg(
                      if not row["movement_id"] and signatures_compatible(counterpart.get("evidence") or {}, row.get("evidence") or {})}
         if competing or len(reverse) > CANDIDATE_LIMIT:
             counterpart = None
+    held, sender_description = sender_gate(
+        cur, event, facts, context, observed, signature, proven_movement=counterpart is not None,
+    )
+    if held:
+        return 0
+    if sender_description is not None:
+        description = sender_description
     if counterpart:
         movement_categories(context)
     locked_ids = [account_id]

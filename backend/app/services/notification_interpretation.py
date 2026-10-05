@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
 
 
-PROMPT_VERSION = "notification-interpretation-6"
+PROMPT_VERSION = "notification-interpretation-7"
 PROMPT_PATH = Path(__file__).with_name("prompts") / "notification_interpretation.md"
 Kakeibo = Literal["need", "want", "culture", "unexpected", "saving"]
 

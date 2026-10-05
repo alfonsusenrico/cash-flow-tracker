@@ -116,6 +116,9 @@ def mark_automatic_mapping(cur, event: dict, decision: dict) -> None:
 def request_confirmation(cur, event: dict, decision: dict) -> None:
     """Park the event with its least certain mapping for the owner to confirm or correct."""
     entry = min(decision["entries"], key=lambda item: item["confidence"])
+    from app.services.notification_sender import persist_question
+
+    persist_question(cur, event, {"type": "account", "proposal": entry})
     cur.execute(
         """UPDATE notification_events SET processing_state = 'needs_confirmation',
                error_code = 'mapping_confirmation_required', interpretation = %s,

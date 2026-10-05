@@ -343,7 +343,7 @@ def test_concurrent_delivery_claims_one_effect(client, notification_owner):
 def test_cross_account_window_and_both_orders(client, notification_owner, offset, reverse, expected_count):
     from app.db.pool import db_conn
     outgoing = notification("Rp500.000 udah dikirim ke BCA Raka Purnama.", "com.gojek.gopay", seconds=1)
-    incoming = notification("Pemasukan sebesar IDR 500,000.00 dari ***FIK **SI di kategori Transfer Rekening.", "com.bca", seconds=1)
+    incoming = notification("Pemasukan sebesar IDR 500,000.00 dari RA** PUR**MA di kategori Transfer Rekening.", "com.bca", seconds=1)
     incoming["post_time"] = (datetime.fromisoformat(outgoing["post_time"]) + timedelta(seconds=offset)).isoformat()
     # The registered rule selects a category, never overrides source facts.
     with db_conn() as conn:
@@ -441,7 +441,7 @@ def test_ambiguous_candidates_do_not_merge(client, notification_owner):
         conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, 'FIK', %s)", (notification_owner["user_id"], notification_owner["income"]))
     for seconds in (1, 2):
         assert ingest(client, notification("Rp500.000 udah dikirim ke BCA Raka Purnama.", "com.gojek.gopay", seconds=seconds))["results"][0]["status"] == "recorded"
-    incoming = ingest(client, notification("Pemasukan sebesar IDR 500,000.00 dari ***FIK **SI di kategori Transfer Rekening.", "com.bca", seconds=4))["results"][0]
+    incoming = ingest(client, notification("Pemasukan sebesar IDR 500,000.00 dari RA** PUR**MA di kategori Transfer Rekening.", "com.bca", seconds=4))["results"][0]
     assert incoming["status"] == "recorded" and incoming["type"] == "income"
     with db_conn() as conn:
         assert conn.execute("SELECT COUNT(*) AS count FROM transactions WHERE user_id = %s AND movement_id IS NOT NULL", (notification_owner["user_id"],)).fetchone()["count"] == 0
@@ -456,7 +456,7 @@ def test_counterpart_discovery_is_independent_of_recent_history(client, notifica
         for _ in range(25):
             conn.execute("INSERT INTO transactions (user_id, account_id, category_id, type, amount, date) VALUES (%s, %s, %s, 'expense', 1, '2026-09-28T10:15:20Z')", (notification_owner["user_id"], notification_owner["bca"], notification_owner["expense"]))
         conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, 'FIK', %s)", (notification_owner["user_id"], notification_owner["income"]))
-    incoming = notification("Pemasukan sebesar IDR 500,000.00 dari ***FIK **SI di kategori Transfer Rekening.", "com.bca", seconds=29)
+    incoming = notification("Pemasukan sebesar IDR 500,000.00 dari RA** PUR**MA di kategori Transfer Rekening.", "com.bca", seconds=29)
     payload = dict(incoming, post_time=datetime.fromisoformat(incoming["post_time"]))
     with db_conn() as conn:
         context = load_context(conn.cursor(), notification_owner["user_id"], collect_facts(payload))
@@ -548,7 +548,7 @@ def test_concurrent_counterparts_link_once(client, notification_owner):
         conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, 'FIK', %s)", (owner["user_id"], owner["income"]))
     payloads = [
         notification("Rp500.000 udah dikirim ke BCA Raka Purnama.", "com.gojek.gopay", seconds=1),
-        notification("Pemasukan sebesar IDR 500,000.00 dari ***FIK **SI di kategori Transfer Rekening.", "com.bca", seconds=4),
+        notification("Pemasukan sebesar IDR 500,000.00 dari RA** PUR**MA di kategori Transfer Rekening.", "com.bca", seconds=4),
     ]
     for payload in payloads:
         payload["post_time"] = datetime.fromisoformat(payload["post_time"])
@@ -572,7 +572,7 @@ def test_literal_self_marker_cannot_prove_own_transfer(client, notification_owne
         conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, '[SELF]', %s)", (owner["user_id"], owner["expense"]))
         conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, 'FIK', %s)", (owner["user_id"], owner["income"]))
     first = ingest(client, notification("Rp500.000 udah dikirim ke BCA [SELF].", "com.gojek.gopay", seconds=1))["results"][0]
-    second = ingest(client, notification("Pemasukan sebesar IDR 500,000.00 dari ***FIK **SI di kategori Transfer Rekening.", "com.bca", seconds=4))["results"][0]
+    second = ingest(client, notification("Pemasukan sebesar IDR 500,000.00 dari FIK SISI di kategori Transfer Rekening.", "com.bca", seconds=4))["results"][0]
     assert first["status"] in {"recorded", "needs_review"}
     assert second["status"] == "recorded" and second["type"] == "income"
     with db_conn() as conn:

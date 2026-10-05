@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { Icon } from "@/components/ui/Icon";
 import { formatNumberWithDots } from "@/lib/utils";
 import { queryKeys } from "@/lib/queryKeys";
+import { SenderAliasesSection } from "@/components/ui/SenderAliasesSection";
 
 interface Props {
   open: boolean;
@@ -504,6 +505,7 @@ export function SettingsModal({ open, onClose }: Props) {
           )}
         </section>
 
+        <SenderAliasesSection enabled={open} />
     </Modal>
   );
 }

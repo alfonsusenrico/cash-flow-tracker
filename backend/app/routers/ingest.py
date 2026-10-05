@@ -56,6 +56,18 @@ class NotificationResolution(BaseModel):
 
 class MappingConfirmation(BaseModel):
     account_id: UUID
+    question_id: UUID | None = None
+
+
+class SenderConfirmation(BaseModel):
+    question_id: UUID
+    reply_id: UUID
+    action: Literal["name", "unknown"]
+    name: str | None = Field(default=None, max_length=80)
+
+
+class SenderAliasUpdate(BaseModel):
+    name: str = Field(max_length=80)
 
 
 class NotificationLabelUpdate(BaseModel):
@@ -187,7 +199,68 @@ def confirm_notification_mapping(
 ):
     from app.services.notification_processing import confirm_mapping
 
-    return {"ok": True, "result": confirm_mapping(str(event_id), str(current_user["id"]), str(payload.account_id))}
+    question_id = str(payload.question_id) if payload.question_id is not None else None
+    return {"ok": True, "result": confirm_mapping(str(event_id), str(current_user["id"]), str(payload.account_id), question_id)}
+
+
+@router.post("/notifications/{event_id}/confirm-sender")
+def confirm_notification_sender(
+    event_id: UUID, payload: SenderConfirmation, current_user: dict = Depends(get_current_user)
+):
+    from app.services.notification_processing import confirm_sender
+
+    answer = payload.model_dump(mode="json")
+    return {"ok": True, "result": confirm_sender(str(event_id), str(current_user["id"]), answer)}
+
+
+@router.get("/sender-aliases")
+def list_sender_aliases(current_user: dict = Depends(get_current_user)):
+    with db_conn() as conn:
+        rows = conn.execute(
+            """SELECT al.*, a.name AS account_name, p.name AS parent_name
+               FROM notification_sender_aliases al
+               JOIN accounts a ON a.id = al.receiving_account_id AND a.user_id = al.user_id
+               LEFT JOIN accounts p ON p.id = a.parent_id AND p.user_id = a.user_id
+               WHERE al.user_id = %s ORDER BY al.created_at DESC, al.id""",
+            (current_user["id"],),
+        ).fetchall()
+    return {"ok": True, "aliases": [{
+        "id": str(row["id"]), "institution": row["institution"], "mask": row["mask_display"],
+        "name": row["sender_name"], "state": row["state"], "account_id": str(row["receiving_account_id"]),
+        "account": f"{row['parent_name']} · {row['account_name']}" if row["parent_name"] else row["account_name"],
+    } for row in rows]}
+
+
+@router.patch("/sender-aliases/{alias_id}")
+def update_sender_alias(alias_id: UUID, payload: SenderAliasUpdate, current_user: dict = Depends(get_current_user)):
+    from app.services.notification_sender import validate_sender_name
+
+    name = validate_sender_name(payload.name)
+    with db_conn() as conn:
+        conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{current_user['id']}",))
+        updated = conn.execute(
+            """UPDATE notification_sender_aliases SET sender_name = %s, state = 'active', updated_at = NOW()
+               WHERE user_id = %s AND id = %s RETURNING id""",
+            (name, current_user["id"], str(alias_id)),
+        ).fetchone()
+        if not updated:
+            raise HTTPException(status_code=404, detail="Sender alias not found")
+        conn.commit()
+    return {"ok": True}
+
+
+@router.delete("/sender-aliases/{alias_id}")
+def delete_sender_alias(alias_id: UUID, current_user: dict = Depends(get_current_user)):
+    with db_conn() as conn:
+        conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{current_user['id']}",))
+        deleted = conn.execute(
+            "DELETE FROM notification_sender_aliases WHERE user_id = %s AND id = %s RETURNING id",
+            (current_user["id"], str(alias_id)),
+        ).fetchone()
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Sender alias not found")
+        conn.commit()
+    return {"ok": True}
 
 
 @router.get("/aliases")

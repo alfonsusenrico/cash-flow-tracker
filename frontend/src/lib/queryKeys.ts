@@ -30,4 +30,5 @@ export const queryKeys = {
     currencyRates: ["auth", "currency-rates"] as const,
   },
   notificationAliases: ["notification-aliases"] as const,
+  senderAliases: ["sender-aliases"] as const,
 } as const;

@@ -177,6 +177,28 @@ export async function deleteNotificationAlias(id: string): Promise<{ ok: boolean
   return api.del<{ ok: boolean }>(`/ingest/aliases/${id}`);
 }
 
+export interface SenderAlias {
+  id: string;
+  institution: string;
+  mask: string;
+  name: string;
+  state: "active" | "ambiguous";
+  account_id: string;
+  account: string;
+}
+
+export async function getSenderAliases(): Promise<{ ok: boolean; aliases: SenderAlias[] }> {
+  return api.get<{ ok: boolean; aliases: SenderAlias[] }>("/ingest/sender-aliases");
+}
+
+export async function updateSenderAlias(id: string, name: string): Promise<{ ok: boolean }> {
+  return api.patch<{ ok: boolean }>(`/ingest/sender-aliases/${id}`, { name });
+}
+
+export async function deleteSenderAlias(id: string): Promise<{ ok: boolean }> {
+  return api.del<{ ok: boolean }>(`/ingest/sender-aliases/${id}`);
+}
+
 export interface ApiKeyMetadata {
   id: string;
   key_prefix: string;
