@@ -66,6 +66,12 @@ class SenderConfirmation(BaseModel):
     name: str | None = Field(default=None, max_length=80)
 
 
+class SourcePocketConfirmation(BaseModel):
+    question_id: UUID
+    reply_id: UUID
+    account_id: UUID
+
+
 class SenderAliasUpdate(BaseModel):
     name: str = Field(max_length=80)
 
@@ -211,6 +217,31 @@ def confirm_notification_sender(
 
     answer = payload.model_dump(mode="json")
     return {"ok": True, "result": confirm_sender(str(event_id), str(current_user["id"]), answer)}
+
+
+@router.get("/notifications/{event_id}/source-pockets")
+def get_source_pockets(event_id: UUID, current_user: dict = Depends(get_current_user)):
+    from app.services.notification_source_pocket import source_options
+
+    with db_conn() as conn:
+        event = conn.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s",
+                             (current_user["id"], event_id)).fetchone()
+        if not event:
+            raise HTTPException(status_code=404, detail="Notification event not found")
+        with conn.cursor() as cur:
+            result = source_options(cur, event)
+    return {"ok": True, "result": result}
+
+
+@router.post("/notifications/{event_id}/confirm-source-pocket")
+def confirm_notification_source_pocket(
+    event_id: UUID, payload: SourcePocketConfirmation, current_user: dict = Depends(get_current_user),
+):
+    from app.services.notification_processing import confirm_source_pocket
+
+    return {"ok": True, "result": confirm_source_pocket(
+        str(event_id), str(current_user["id"]), payload.model_dump(mode="json"),
+    )}
 
 
 @router.get("/sender-aliases")
