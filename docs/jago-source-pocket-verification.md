@@ -25,3 +25,11 @@ Normal APK ready: `/private/tmp/cft-mobile-jago-pockets/app/build/outputs/jago-r
 The inherited notification-ingestion delta includes older `transfer`/`transfer_target_account_id` language. The approved design and current architecture preserve bilateral expense/income movement records; this implementation does not restore obsolete ledger columns/types. Reconcile inherited main-spec wording during the separately accepted synchronization/archive step.
 
 Native strict validation and diff checks pass in both repositories. Owner backend PR creation/merge, exact-revision deployment, normal mobile installation, final acceptance and native sync/archive remain pending.
+
+## Deployed and installed — 2026-10-06
+
+PR #19 merged as `7fcd302c93860f3edfe3a054ddc4e4855f07f13e`; its tree matches the tested `24e1a38` exactly. [Deploy Production run 37424356067](https://github.com/alfonsusenrico/cash-flow-tracker/actions/runs/37424356067) completed successfully for that revision. Evidence was read from GitHub; no production-server connection occurred.
+
+The owner explicitly requested installing the prepared normal APK during the deployment pipeline, overriding the planned wait-before-install order. The same TECNO now has **1.6.0/code 12**, Room **5**. The on-device audit proved **98** existing records and **43** alert receipts retained; production URL/API key/pairing/device identity unchanged. Notification permission was retained; the foreground listener is bound by Android's system process. Credential and personal-notification values never left the phone. Temporary upgrade-check artifacts were removed.
+
+Sanitized installation evidence is beside the retained APK at `/private/tmp/cft-mobile-jago-pockets/app/build/outputs/jago-release/installed-release.json`. Earlier pending release text describes the pre-release checkpoint. Deployment and installation are complete; owner acceptance/spec synchronization/archive and USB transport verification remain pending.
