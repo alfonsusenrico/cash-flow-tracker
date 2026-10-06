@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 
-from app.services.notification_evidence import EvidenceError, NotificationFacts
+from app.services.notification_evidence import EvidenceError, NotificationFacts, requires_source_pocket
 from app.services.notification_interpretation import Interpretation
 
 
@@ -224,6 +224,11 @@ def broker_funding_account(accounts: list[dict]) -> dict:
 
 
 def observed_endpoint(facts: NotificationFacts, accounts: list[dict], proposal: Interpretation | None = None) -> dict:
+    if requires_source_pocket(facts):
+        selected = next((row for row in accounts if str(row["id"]) == facts.confirmed_source_account_id), None)
+        if not selected:
+            raise EvidenceError("source_pocket_confirmation_required")
+        return selected
     if facts.institution == "bca" and "RDN" in {facts.parsed.source_pocket, facts.parsed.target_pocket}:
         return rdn_account(accounts)
     if facts.institution == "stockbit" and facts.parsed.rdn_deposit:

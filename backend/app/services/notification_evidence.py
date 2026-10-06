@@ -83,6 +83,27 @@ class NotificationFacts:
     direction: str | None
     amount_quotes: tuple[str, ...]
     parsed: ParsedNotification
+    confirmed_source_account_id: str | None = None
+
+
+def source_pocket_evidence(facts: NotificationFacts) -> str | None:
+    if facts.parsed.source_pocket:
+        return facts.parsed.source_pocket
+    # Source wording must be in its own role, rather than inside the recipient name.
+    match = re.search(
+        r"\b(?:using|from)\s+your\s+([^\n.]+?)\s+Pocket\b",
+        facts.text, re.I,
+    )
+    return match.group(1).strip() if match else None
+
+
+def requires_source_pocket(facts: NotificationFacts) -> bool:
+    return bool(
+        facts.status == "candidate" and facts.institution == "jago"
+        and facts.direction == "expense" and facts.amount and facts.amount > 0
+        and re.search(r"\bYou(?:'ve|\s+have)\s+(?:transferred|sent)\s+(?:Rp|IDR)", facts.text, re.I)
+        and not source_pocket_evidence(facts)
+    )
 
 
 def notification_text(event: dict[str, Any]) -> str:

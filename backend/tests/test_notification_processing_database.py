@@ -71,6 +71,25 @@ def count_transactions(owner):
         return conn.execute("SELECT COUNT(*) AS count FROM transactions WHERE user_id = %s", (owner["user_id"],)).fetchone()["count"]
 
 
+def ingest_with_source_confirmation(client, event, owner):
+    """Explicitly choose main for fictional scenarios where the owner used that pocket."""
+    from app.services import notification_processing as processing
+
+    event = {**event, "source_version": "1.6.0"}
+    result = ingest(client, event)["results"][0]
+    if result["status"] == "needs_confirmation" and result["confirmation"]["type"] == "source_pocket":
+        before = count_transactions(owner)
+        response = client.post(f"/api/ingest/notifications/{result['event_id']}/confirm-source-pocket", json={
+            "question_id": result["confirmation"]["question_id"], "reply_id": str(uuid4()), "account_id": owner["main"],
+        })
+        assert response.status_code == 200 and count_transactions(owner) == before
+        claimed = processing.claim_event(include_ai=False)
+        assert str(claimed["id"]) == result["event_id"]
+        asyncio.run(processing.process_claim(claimed, None))
+        result = client.get(f"/api/ingest/notifications/{result['event_id']}/result").json()["result"]
+    return result
+
+
 def enable_ai(monkeypatch):
     from app.services import notification_processing as processing
     monkeypatch.setattr(processing, "settings", replace(
@@ -836,7 +855,7 @@ def test_self_transfer_legs_minutes_apart_link(client, top_up_owner):
     outgoing = at(notification("You've sent Rp1.500.000 to RAKA PURNAMA.", "com.jago.digitalbanking"), 0)
     incoming = at(notification(
         "RAKA PURNAMA mengirimkan dana sebesar Rp1.500.000 ke ShopeePay-mu melalui BI-Fast.", "com.shopeepay.id"), 240)
-    assert ingest(client, outgoing)["results"][0]["status"] == "recorded"
+    assert ingest_with_source_confirmation(client, outgoing, top_up_owner)["status"] == "recorded"
     result = ingest(client, incoming)["results"][0]
     assert result["type"] == "internal_movement" and result["target"] == "ShopeePay"
     assert result["source"] == "Bank Jago · Kantong Utama"
@@ -1011,7 +1030,7 @@ def test_owner_aliases_drive_self_transfer_recognition(client, top_up_owner):
     from app.db.pool import db_conn
     with db_conn() as conn:
         conn.execute("UPDATE users SET name_aliases = %s WHERE id = %s", (["Alfonsus Enrico Soebijanto"], top_up_owner["user_id"]))
-    ingest(client, at(notification("You've sent Rp1.500.000 to ALFONSUS ENRICO SOEBIJANTO.", "com.jago.digitalbanking"), 0))
+    ingest_with_source_confirmation(client, at(notification("You've sent Rp1.500.000 to ALFONSUS ENRICO SOEBIJANTO.", "com.jago.digitalbanking"), 0), top_up_owner)
     result = ingest(client, at(notification(
         "You received IDR 1,500,000.00 from ALFO**US ***ICO *O at Account Transfer category.", "com.bca.mybca.omni.android"), 90))["results"][0]
     assert result["type"] == "internal_movement" and result["target"] == "BCA Harian"
@@ -1047,8 +1066,8 @@ def test_pocket_move_then_main_pocket_to_bca_books_two_movements(client, notific
     assert moved["type"] == "internal_movement"
     assert (moved["source"], moved["target"]) == ("Bank Jago · Dana Darurat", "Bank Jago · Kantong Utama")
     later = [bca_in, jago_out] if bank_first else [jago_out, bca_in]
-    ingest(client, later[0])
-    paired = ingest(client, later[1])["results"][0]
+    ingest_with_source_confirmation(client, later[0], notification_owner)
+    paired = ingest_with_source_confirmation(client, later[1], notification_owner)
     assert paired["type"] == "internal_movement"
     assert (paired["source"], paired["target"]) == ("Bank Jago · Kantong Utama", "BCA Harian")
     rows = transactions_of(notification_owner)
@@ -1334,12 +1353,12 @@ def test_rdn_top_up_is_an_own_transfer_and_pairs_with_the_sending_leg(client, no
     rdn = at(notification(RDN_TOP_UP, "com.bca.mybca.omni.android"), 60)
     jago = at(notification("You've sent Rp225.180 to RAKA PURNAMA.", "com.jago.digitalBanking"), 30)
     first, second = (rdn, jago) if rdn_first else (jago, rdn)
-    alone = ingest(client, first)["results"][0]
+    alone = ingest_with_source_confirmation(client, first, notification_owner)
     if rdn_first:
         assert (alone["type"], alone["target"], alone["description"]) == ("income", "RDN BCA", "Pindah saldo masuk")
         [row] = transactions_of(notification_owner)
         assert row["category"] == "Internal Movement"
-    paired = ingest(client, second)["results"][0]
+    paired = ingest_with_source_confirmation(client, second, notification_owner)
     assert paired["type"] == "internal_movement"
     assert (paired["source"], paired["target"]) == ("Bank Jago · Kantong Utama", "RDN BCA")
 
@@ -1364,8 +1383,8 @@ def test_jago_transfer_to_bca_pairs_with_the_bca_credit(client, notification_own
     bca = at(notification("You received IDR 625,000.00 from RA*A ***NAMA at Account Transfer category.", "com.bca.mybca.omni.android"), 42)
     jago = at(notification("You've transferred Rp625.000 to RAKA PURNAMA. Need help? Contact Tanya Jago at 1500 746.", "com.jago.digitalBanking"), 46)
     first, second = (bca, jago) if jago_last else (jago, bca)
-    ingest(client, first)
-    paired = ingest(client, second)["results"][0]
+    ingest_with_source_confirmation(client, first, notification_owner)
+    paired = ingest_with_source_confirmation(client, second, notification_owner)
     assert paired["type"] == "internal_movement"
     assert (paired["source"], paired["target"]) == ("Bank Jago · Kantong Utama", "BCA Harian")
     rows = transactions_of(notification_owner)

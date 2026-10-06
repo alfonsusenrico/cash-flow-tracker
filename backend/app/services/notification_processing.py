@@ -28,6 +28,9 @@ from app.services.openai_notification_provider import ProviderError, configurati
 from app.services.notification_sender import (
     accept_sender_answer, attach_sender_context, supports_sender_confirmation,
 )
+from app.services.notification_source_pocket import (
+    accept_source_answer, resolved_facts, source_pocket_gate,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -89,7 +92,7 @@ def compact_result(cur, event: dict) -> dict:
         result["error_code"] = event["error_code"]
     if status == "needs_confirmation":
         question = event.get("active_question") or {}
-        if question.get("type") == "sender":
+        if question.get("type") in {"sender", "source_pocket"}:
             result["confirmation"] = question
         else:
             result["mapping_proposal"] = proposal_view(cur, event)
@@ -184,10 +187,15 @@ def accept_event(payload: dict, user_id: str) -> tuple[dict, bool, int]:
                 conn.commit()
                 return result, False, 0
             created = 0
+            if facts.status == "candidate":
+                cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{user_id}",))
+                if source_pocket_gate(cur, event, facts):
+                    status = event["processing_state"]
             if status == "processing":
                 try:
                     with conn.transaction():
                         cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{user_id}",))
+                        facts = resolved_facts(cur, event, facts)
                         context = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit)
                         if context["incomplete"]:
                             raise EvidenceError("incomplete_context")
@@ -246,6 +254,19 @@ def read_context(event: dict) -> tuple:
     facts = collect_facts(source_event(event))
     with db_conn() as conn:
         with conn.cursor() as cur:
+            if event.get("processing_state") in {"queued", "processing"}:
+                cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{event['user_id']}",))
+                cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (event["user_id"], event["id"]))
+                current = cur.fetchone()
+                if (not current or current["processing_state"] not in {"queued", "processing"}
+                        or current["processing_generation"] != event["processing_generation"]):
+                    return facts, {"source_confirmation_pending": True, "incomplete": False}
+                facts = collect_facts(source_event(current))
+                if current and source_pocket_gate(cur, current, facts):
+                    conn.commit()
+                    return facts, {"source_confirmation_pending": True, "incomplete": False}
+                event = current or event
+            facts = resolved_facts(cur, event, facts)
             context = load_context(cur, str(event["user_id"]), facts, history_limit=settings.notification_ai_history_limit)
             attach_sender_context(cur, event, facts, context)
     return facts, context
@@ -301,6 +322,10 @@ def apply_claim(event: dict, proposal, provider_error: str | None = None) -> boo
             if not owned:
                 return False
             facts = collect_facts(source_event(owned))
+            if source_pocket_gate(cur, owned, facts):
+                conn.commit()
+                return True
+            facts = resolved_facts(cur, owned, facts)
             context = load_context(cur, str(owned["user_id"]), facts, history_limit=settings.notification_ai_history_limit)
             if owned["processing_mode"] == "deterministic":
                 if facts.status != "candidate" or context["incomplete"]:
@@ -323,7 +348,14 @@ def apply_claim(event: dict, proposal, provider_error: str | None = None) -> boo
                         apply_interpretation(cur, owned, facts, proposal, context, source="ai")
                 except (EvidenceError, HTTPException) as exc:
                     reason = exc.code if isinstance(exc, EvidenceError) else "invalid_current_reference"
-                    apply_deterministic_fallback(conn, cur, owned, facts, context, reason)
+                    if reason == "conflicting_source_pocket":
+                        cur.execute(
+                            """UPDATE notification_events SET processing_state = 'needs_review', error_code = %s,
+                               lease_token = NULL, lease_expires_at = NULL WHERE user_id = %s AND id = %s""",
+                            (reason, owned["user_id"], owned["id"]),
+                        )
+                    else:
+                        apply_deterministic_fallback(conn, cur, owned, facts, context, reason)
         conn.commit()
     return True
 
@@ -366,6 +398,8 @@ async def process_claim(event: dict, provider):
             await database_operation(apply_claim, event, None)
             return
         facts, context = await database_operation(read_context, event)
+        if context.get("source_confirmation_pending"):
+            return
         if facts.status != "candidate":
             raise ProviderError(facts.error_code or "invalid_interpretation")
         if context["incomplete"]:
@@ -409,6 +443,9 @@ def resolve_event(event_id: str, user_id: str, resolution: dict) -> dict:
             if current["status"] not in {"needs_review", "failed", "needs_confirmation"}:
                 raise HTTPException(status_code=409, detail="Only unresolved notifications can be recorded manually")
             facts = collect_facts(source_event(event))
+            if source_pocket_gate(cur, event, facts):
+                raise HTTPException(status_code=409, detail={"code": "source_pocket_confirmation_required"})
+            facts = resolved_facts(cur, event, facts)
             amount = resolution.get("amount")
             if facts.amount is not None:
                 if amount is not None and amount != facts.amount:
@@ -451,6 +488,8 @@ def confirm_mapping(event_id: str, user_id: str, account_id: str, question_id: s
             event = cur.fetchone()
             if not event:
                 raise HTTPException(status_code=404, detail="Notification event not found")
+            if (event.get("active_question") or {}).get("type") == "source_pocket":
+                raise HTTPException(status_code=409, detail={"code": "source_pocket_confirmation_required"})
             proposal = (event.get("interpretation") or {}).get("mapping_proposal")
             if event["processing_state"] != "needs_confirmation" or not proposal:
                 raise HTTPException(status_code=409, detail="Notifikasi ini tidak menunggu konfirmasi rekening")
@@ -479,6 +518,32 @@ def confirm_mapping(event_id: str, user_id: str, account_id: str, question_id: s
                    WHERE user_id = %s AND id = %s RETURNING *""",
                 (mode, user_id, event_id),
             )
+            result = compact_result(cur, cur.fetchone())
+        conn.commit()
+    return result
+
+
+def confirm_source_pocket(event_id: str, user_id: str, answer: dict) -> dict:
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{user_id}",))
+            cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (user_id, event_id))
+            event = cur.fetchone()
+            if not event:
+                raise HTTPException(status_code=404, detail="Notification event not found")
+            facts = collect_facts(source_event(event))
+            if accept_source_answer(cur, event, facts, answer):
+                mode = event["processing_mode"]
+                if mode == "ai" and configuration_error(settings):
+                    mode = "deterministic"
+                cur.execute(
+                    """UPDATE notification_events SET processing_state = 'queued', processing_mode = %s,
+                       attempt_count = 0, processing_generation = processing_generation + 1,
+                       next_attempt_at = NOW(), error_code = NULL, interpretation = NULL,
+                       lease_token = NULL, lease_expires_at = NULL, updated_at = NOW()
+                       WHERE user_id = %s AND id = %s""", (mode, user_id, event_id),
+                )
+            cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s", (user_id, event_id))
             result = compact_result(cur, cur.fetchone())
         conn.commit()
     return result

@@ -194,6 +194,11 @@ def resolve_record(facts: NotificationFacts, proposal: Interpretation, context: 
 def apply_interpretation(
     cur, event: dict, facts: NotificationFacts, proposal: Interpretation, context: dict, *, source: str = "ai"
 ) -> int:
+    from app.services.notification_source_pocket import resolved_facts, source_pocket_gate
+
+    if source_pocket_gate(cur, event, facts):
+        return 0
+    facts = resolved_facts(cur, event, facts)
     validate_interpretation(proposal, facts, context)
     if proposal.outcome != "record":
         state = "ignored" if proposal.outcome == "ignored" else "needs_review"
@@ -235,6 +240,14 @@ def record_observed_leg(
     category_id: str, kakeibo: str | None, description: str, signature: dict,
 ) -> int:
     """Record one observed leg, linking it to a unique counterpart leg when evidence allows."""
+    from app.services.notification_evidence import requires_source_pocket
+    from app.services.notification_source_pocket import resolved_facts, source_pocket_gate
+
+    if source_pocket_gate(cur, event, facts):
+        return 0
+    facts = resolved_facts(cur, event, facts)
+    if requires_source_pocket(facts) and str(observed["id"]) != facts.confirmed_source_account_id:
+        raise EvidenceError("conflicting_observed_account")
     user_id, event_id = str(event["user_id"]), str(event["id"])
     accounts = context["accounts"]
     key = f"notification:{event_id}"
