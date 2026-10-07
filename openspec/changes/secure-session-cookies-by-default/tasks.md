@@ -18,6 +18,6 @@ Expected Result: Production fails closed; explicit local HTTP remains usable wit
 
 - [x] 3.1 Run the full backend suite against disposable migrated PostgreSQL with no database skips; record command/counts and frontend CI checks, Compose validation, native strict validation and diff review in verification.md.
 - [x] 3.2 Check only the COOKIE_SECURE secret name with gh secret list, report likely impact and pending owner header confirmation, and refresh local PROJECT_STATE.md with evidence and separate follow-ups.
-- [ ] 3.3 Commit with the authorized author and subject-only Conventional message, push fix/secure-cookies-by-default, verify the remote revision and report the compare link.
+- [x] 3.3 Commit with the authorized author and subject-only Conventional message, push fix/secure-cookies-by-default, verify the remote revision and report the compare link.
 
 Expected Result: A reviewed branch is available to the owner; no deployment, production access, secret modification, or merge occurs.

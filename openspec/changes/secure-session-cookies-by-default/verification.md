@@ -18,6 +18,8 @@ Result: **24 failed, 13 passed** (2.31 s), pytest exit 1. Failures demonstrate i
 
 Tested implementation: the final source changes in this branch relative to `7fcd302`; later delivery edits affect only this record and task/state metadata. Local runtime: Python 3.14.7, Node 26.9.0, PostgreSQL 16 (disposable `postgres:16-alpine`). CI's Python 3.12 / Node 22 environment was not executed locally.
 
+Verified source commit: **37e4dbc51f1fb5495e3caf2c33ab329a5eb71f2f**, `fix(auth): secure session cookies by default`, author `enrico.soebijanto@gmail.com`. The commit contains the exact source tested above; this delivery receipt adds documentation only.
+
 The same focused regression command passed: **37 passed** (1.72 s). It verifies absent/blank/non-false defaults, normalized explicit local false, production/default/prod startup refusal, the actual app's synthetic session response, empty secrets, historical seed handling, explicit override preservation, and Compose/workflow contracts. Session tests inspect cookie attributes only, without outputting cookie values.
 
 ### Full backend suite
@@ -54,6 +56,8 @@ Run from `frontend/`: `npm ci --no-audit --no-fund`, `npm run type-check`, `npm 
 ## Delivery boundaries
 
 The owner's dirty `fix/investment-topup-label` checkout remains untouched. Local handoff state is maintained in the isolated worktree. Production/server access, deployment, GitHub secret/settings writes, merge and PR creation were not performed. The disposable test container is removed after verification; existing local stacks are preserved.
+
+`git push -u origin fix/secure-cookies-by-default` succeeded. `git ls-remote --heads origin refs/heads/fix/secure-cookies-by-default` independently confirmed the source commit on the remote. Compare link: https://github.com/alfonsusenrico/cash-flow-tracker/compare/main...fix/secure-cookies-by-default?expand=1. This receipt is delivered in a subsequent documentation commit on the same branch.
 
 ## Secret name audit
 
