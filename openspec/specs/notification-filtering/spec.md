@@ -1,7 +1,7 @@
 # notification-filtering Specification
 
 ## Purpose
-TBD - created by archiving change strict-financial-notification-filtering. Update Purpose after archive.
+Reject non-financial notifications while retaining supported bank and pocket movement notifications.
 ## Requirements
 ### Requirement: Discard Non-Financial Notifications at Listener Entrance
 The companion mobile notification listener SHALL discard any status bar notification that is not a settled financial transaction before database persistence or network synchronization.

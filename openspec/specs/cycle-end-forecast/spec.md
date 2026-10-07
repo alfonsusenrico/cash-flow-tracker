@@ -1,7 +1,7 @@
 # cycle-end-forecast Specification
 
 ## Purpose
-TBD - created by archiving change cycle-forecast-burn-rate. Update Purpose after archive.
+Provide payday-cycle spending forecasts based on actual outflow and elapsed time without rounding drift.
 ## Requirements
 ### Requirement: Active Cycle Outflow Forecasting
 The system SHALL compute a linear month-end spending forecast for the active payday cycle based on actual outflow and elapsed days.

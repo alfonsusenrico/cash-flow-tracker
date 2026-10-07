@@ -1,17 +1,23 @@
 # obligations-debt-tracker Specification
 
 ## Purpose
-TBD - created by archiving change personal-finance-dashboard-os. Update Purpose after archive.
+Manage debts and obligations, track payoff progress and link actual or recurring payments to their lifecycle.
 
 ## Requirements
 
 ### Requirement: Debt & Obligations Management
-The system SHALL support creating, editing, querying, and deleting recurring obligations and debts:
-1. Each obligation SHALL contain `name`, `total_amount`, `remaining_amount`, optional `due_date`, optional `minimum_payment`, optional `notes`, and `is_archived` status.
-2. The system SHALL expose `GET /api/obligations`, `POST /api/obligations`, `PATCH /api/obligations/{id}`, and `DELETE /api/obligations/{id}`.
-3. Active debt queries (`GET /api/obligations` when `include_archived=false`) SHALL return only obligations where `is_archived = false` AND `remaining_amount > 0`.
-4. Directly updating an obligation (`PATCH /api/obligations/{id}`) with `remaining_amount = 0` SHALL automatically set `is_archived = true`.
-5. Directly updating an archived obligation with `remaining_amount > 0` SHALL set `is_archived = false`.
+The system SHALL support creating, editing, querying, and deleting recurring obligations and debts.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner manages an obligation or changes its remaining balance
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL support creating, editing, querying, and deleting recurring obligations and debts:
+  1. Each obligation SHALL contain `name`, `total_amount`, `remaining_amount`, optional `due_date`, optional `minimum_payment`, optional `notes`, and `is_archived` status.
+  2. The system SHALL expose `GET /api/obligations`, `POST /api/obligations`, `PATCH /api/obligations/{id}`, and `DELETE /api/obligations/{id}`.
+  3. Active debt queries (`GET /api/obligations` when `include_archived=false`) SHALL return only obligations where `is_archived = false` AND `remaining_amount > 0`.
+  4. Directly updating an obligation (`PATCH /api/obligations/{id}`) with `remaining_amount = 0` SHALL automatically set `is_archived = true`.
+  5. Directly updating an archived obligation with `remaining_amount > 0` SHALL set `is_archived = false`.
 
 #### Scenario: Creating an obligation
 - **WHEN** a user posts an obligation with total 12,000,000 IDR and remaining 10,000,000 IDR
@@ -35,13 +41,19 @@ The system SHALL compute payoff progress and estimated payoff duration:
 - **THEN** the card renders 50% paid off and indicates approximately 6 months remaining to payoff
 
 ### Requirement: Linking Ledger Payments to Obligations
-The transaction recording system SHALL support an optional legacy `obligation_id` and an optional `obligation_allocations` list of distinct obligation IDs and positive integer amounts. A manually recorded expense MAY use either field, but SHALL NOT use both. When allocations are supplied, their sum SHALL equal the expense amount, each debt SHALL be active and owned by the user at creation, and no allocation SHALL exceed that debt's outstanding amount. The system SHALL persist one ledger expense and debit its source account once. It SHALL apply all allocated debt reductions and related archival changes atomically with that expense. Existing single-debt payments and recurring-rule payments using `obligation_id` SHALL retain their current behavior.
+The transaction recording system SHALL support an optional legacy `obligation_id` and an optional `obligation_allocations` list of distinct obligation IDs and positive integer amounts.
 
-1. When an expense transaction payment reduces a debt's `remaining_amount` to 0 or less, the system SHALL set `remaining_amount = 0` and automatically set `is_archived = true`.
-2. When an existing payment transaction linked to a debt is modified or deleted such that the debt's `remaining_amount` becomes greater than 0, the system SHALL automatically set `is_archived = false`.
-3. Editing a payment's amount or allocations SHALL reverse its previous debt effects and apply the replacement effects in one atomic operation. A failed edit SHALL preserve the original transaction and all debt balances.
-4. Deleting an allocated payment SHALL reverse every allocation and restore affected debts, including reactivation when applicable.
-5. Retrying an idempotent creation request SHALL return the original transaction without applying cash or debt effects again.
+#### Scenario: Required behavior and constraints
+- **WHEN** an expense linked to one or more debts is created, retried, edited or deleted
+- **THEN** the following required behavior and constraints hold:
+
+  The transaction recording system SHALL support an optional legacy `obligation_id` and an optional `obligation_allocations` list of distinct obligation IDs and positive integer amounts. A manually recorded expense MAY use either field, but SHALL NOT use both. When allocations are supplied, their sum SHALL equal the expense amount, each debt SHALL be active and owned by the user at creation, and no allocation SHALL exceed that debt's outstanding amount. The system SHALL persist one ledger expense and debit its source account once. It SHALL apply all allocated debt reductions and related archival changes atomically with that expense. Existing single-debt payments and recurring-rule payments using `obligation_id` SHALL retain their current behavior.
+
+  1. When an expense transaction payment reduces a debt's `remaining_amount` to 0 or less, the system SHALL set `remaining_amount = 0` and automatically set `is_archived = true`.
+  2. When an existing payment transaction linked to a debt is modified or deleted such that the debt's `remaining_amount` becomes greater than 0, the system SHALL automatically set `is_archived = false`.
+  3. Editing a payment's amount or allocations SHALL reverse its previous debt effects and apply the replacement effects in one atomic operation. A failed edit SHALL preserve the original transaction and all debt balances.
+  4. Deleting an allocated payment SHALL reverse every allocation and restore affected debts, including reactivation when applicable.
+  5. Retrying an idempotent creation request SHALL return the original transaction without applying cash or debt effects again.
 
 #### Scenario: Logging a debt payment
 - **WHEN** a user records an expense of 1,000,000 IDR linked to an obligation

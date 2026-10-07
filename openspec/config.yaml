@@ -1,1 +1,38 @@
 schema: spec-driven
+
+context: |
+  Project: Cash Flow Tracker, personal self-hosted daily cash-flow and payday awareness.
+  Capabilities: database, deployed, money, personal-data, background-jobs, api-consumers, multi-user, llm.
+  Stack: Python/FastAPI, PostgreSQL 16, Redis, Next.js App Router/TypeScript/Tailwind;
+    Android companion maintained in a separate repository. No organization profile applies.
+  Sources of truth: existing ledger and notification contracts, approved behavior specs,
+    frontend/tokens.css and shared components for implemented visual choices, owner decisions.
+  Boundaries: personal finance tracking, not ERP, FX trading or full accounting. Currency
+    conversion is display-only. Production releases use the designated GitHub workflow.
+  Money invariants: linked expense/income movement legs, idempotent committed ingestion,
+    no parent/child balance double counting, reversible debt payoff and investment top-ups.
+  Notification confirmation: masked sender memory is owner/bank/receiving-account scoped;
+    missing Jago outbound source pockets need event-specific confirmation before recording.
+  LLM boundary: deterministic code owns amounts, timestamps, ownership and ledger effects;
+    the model interprets bounded redacted evidence and cannot invent entities or financial facts.
+  Language: Indonesian UI and generated ledger descriptions; preserve proper names and
+    untranslated Indonesian/English notification evidence. IDR uses Indonesian separators.
+  Privacy: tracked research/evidence uses synthetic data only; local journals may retain
+    protected historical context and are excluded from Git. No secrets in planning artifacts.
+
+rules:
+  proposal:
+    - State the Expected Outcome as an observable result for the user or owner.
+    - List Non-goals and explicitly separate local verification from production authority.
+    - State whether capabilities change and which standards or documented follow-ups apply.
+  design:
+    - Number decisions and record rejected alternatives with reasons.
+    - Describe data, API and failure behavior; include migration and rollback when data changes.
+    - Preserve the money, confirmation and privacy boundaries in project context.
+    - Use live design tokens; treat conflicting historical visual specs as a reconciliation task.
+  tasks:
+    - Group tasks in phases and end each phase with an Expected Result line.
+    - Every task names evidence that proves completion, including relevant negative paths.
+    - Track owner production confirmation in PROJECT_STATE.md, not as an open implementation task.
+    - Verify database changes with migrated disposable PostgreSQL and report any skipped tests.
+    - The final task pushes the branch and reports the compare link; owner merging is separate.

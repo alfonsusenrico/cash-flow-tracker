@@ -3,12 +3,18 @@
 ## MODIFIED Requirements
 
 ### Requirement: Debt & Obligations Management
-The system SHALL support creating, editing, querying, and deleting recurring obligations and debts:
-1. Each obligation SHALL contain `name`, positive `total_amount`, `remaining_amount` from zero through `total_amount`, optional `due_date`, optional non-negative `minimum_payment`, optional `notes`, and `is_archived`.
-2. Create and update SHALL validate the final combined state, including when total and remaining amounts change together.
-3. The system SHALL expose `GET /api/obligations`, `POST /api/obligations`, `PATCH /api/obligations/{id}`, and `DELETE /api/obligations/{id}`.
-4. Active queries SHALL return only obligations where `is_archived = false` and `remaining_amount > 0`.
-5. Setting remaining amount to zero SHALL archive the obligation; raising it above zero through an authorized reversal or edit SHALL reactivate it.
+The system SHALL support creating, editing, querying, and deleting recurring obligations and debts.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner manages an obligation or changes its remaining balance
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL support creating, editing, querying, and deleting recurring obligations and debts:
+  1. Each obligation SHALL contain `name`, positive `total_amount`, `remaining_amount` from zero through `total_amount`, optional `due_date`, optional non-negative `minimum_payment`, optional `notes`, and `is_archived`.
+  2. Create and update SHALL validate the final combined state, including when total and remaining amounts change together.
+  3. The system SHALL expose `GET /api/obligations`, `POST /api/obligations`, `PATCH /api/obligations/{id}`, and `DELETE /api/obligations/{id}`.
+  4. Active queries SHALL return only obligations where `is_archived = false` and `remaining_amount > 0`.
+  5. Setting remaining amount to zero SHALL archive the obligation; raising it above zero through an authorized reversal or edit SHALL reactivate it.
 
 #### Scenario: Rejecting debt above its original total
 - **WHEN** a user submits a final obligation state whose remaining amount exceeds its total amount

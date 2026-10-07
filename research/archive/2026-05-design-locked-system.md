@@ -1,3 +1,5 @@
+> Superseded historical design; [frontend/tokens.css](../../frontend/tokens.css) is the visual authority.
+
 # Design - Financial Manager
 
 A locked design system for the operational app. Every page redesign should read this file before emitting code. Do not regenerate per page; extend this file when the system needs to grow.
@@ -66,4 +68,4 @@ modern-minimal, utilitarian, austere
 ## Exports
 
 ### tokens.css
-See `frontend/tokens.css`.
+See [frontend/tokens.css](../../frontend/tokens.css).

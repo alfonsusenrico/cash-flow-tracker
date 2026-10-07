@@ -8,7 +8,13 @@ Let the owner clarify an unfamiliar masked transfer sender before ledger recordi
 
 ### Requirement: Sender clarification before recording
 
-The backend SHALL hold an otherwise recordable incoming BCA account transfer when its notification contains a masked sender that has no unique, owner-confirmed alias for the receiving account. The hold SHALL apply independently of model confidence and across AI, deterministic, and fallback recording paths. It SHALL create no ledger entry or balance change until answered. Notifications without a sender mask, non-transfer income, expenses, and independently proven own-account movements SHALL retain their existing behavior. Uncertain financial facts SHALL use existing review/account-confirmation behavior rather than being accepted through a sender answer.
+The backend SHALL hold an otherwise recordable incoming BCA account transfer when its notification contains a masked sender that has no unique, owner-confirmed alias for the receiving account.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an otherwise recordable incoming BCA transfer has a masked sender
+- **THEN** the following required behavior and constraints hold:
+
+  The backend SHALL hold an otherwise recordable incoming BCA account transfer when its notification contains a masked sender that has no unique, owner-confirmed alias for the receiving account. The hold SHALL apply independently of model confidence and across AI, deterministic, and fallback recording paths. It SHALL create no ledger entry or balance change until answered. Notifications without a sender mask, non-transfer income, expenses, and independently proven own-account movements SHALL retain their existing behavior. Uncertain financial facts SHALL use existing review/account-confirmation behavior rather than being accepted through a sender answer.
 
 #### Scenario: High financial confidence with an unfamiliar sender
 - **WHEN** BCA reports an incoming account transfer from the fictional sender `AN**RA**`, the amount and receiving account are proven, and no confirmed alias exists
@@ -28,7 +34,13 @@ The backend SHALL hold an otherwise recordable incoming BCA account transfer whe
 
 ### Requirement: Typed and stable questions
 
-The result SHALL expose a sender question containing its type, unique question identifier, observed masked sender, institution, receiving-account identity and label, proven amount, and currency. An unanswered question SHALL retain its identifier across result lookup and retries that do not change its meaning. Changing the question or moving between account and sender clarification SHALL produce a different question identifier. Account selection SHALL be resolved before sender clarification when the receiving account is uncertain, and accepted sender answers SHALL survive subsequent account confirmation or processing retries.
+The result SHALL expose a sender question containing its type, unique question identifier, observed masked sender, institution, receiving-account identity and label, proven amount, and currency.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the backend returns a sender clarification question
+- **THEN** the following required behavior and constraints hold:
+
+  The result SHALL expose a sender question containing its type, unique question identifier, observed masked sender, institution, receiving-account identity and label, proven amount, and currency. An unanswered question SHALL retain its identifier across result lookup and retries that do not change its meaning. Changing the question or moving between account and sender clarification SHALL produce a different question identifier. Account selection SHALL be resolved before sender clarification when the receiving account is uncertain, and accepted sender answers SHALL survive subsequent account confirmation or processing retries.
 
 #### Scenario: Repeated result lookup
 - **WHEN** the companion looks up the same unanswered sender question repeatedly
@@ -40,7 +52,13 @@ The result SHALL expose a sender question containing its type, unique question i
 
 ### Requirement: Validated and idempotent owner answers
 
-Only the owner of an event SHALL be able to answer its current sender question. An answer SHALL choose either a bounded, nonblank sender name or explicit recording without a name. The answer SHALL NOT alter notification text, payload hash, amount, direction, currency, or account selection. Acceptance SHALL persist the answer and resume the same event atomically. Repeating the same accepted answer SHALL return the current result without another ledger record or memory mutation; a different answer to an already answered or superseded question SHALL return a conflict. Financial references SHALL be revalidated before recording, and success SHALL be reported only after recording commits.
+Only the owner of an event SHALL be able to answer its current sender question.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner submits or retries an answer to a sender question
+- **THEN** the following required behavior and constraints hold:
+
+  Only the owner of an event SHALL be able to answer its current sender question. An answer SHALL choose either a bounded, nonblank sender name or explicit recording without a name. The answer SHALL NOT alter notification text, payload hash, amount, direction, currency, or account selection. Acceptance SHALL persist the answer and resume the same event atomically. Repeating the same accepted answer SHALL return the current result without another ledger record or memory mutation; a different answer to an already answered or superseded question SHALL return a conflict. Financial references SHALL be revalidated before recording, and success SHALL be reported only after recording commits.
 
 #### Scenario: Known sender reply
 - **WHEN** the owner replies `Andra` to the current question
@@ -68,7 +86,13 @@ Only the owner of an event SHALL be able to answer its current sender question. 
 
 ### Requirement: Scoped sender memory and descriptions
 
-The backend SHALL store sender confirmations separately from owner-name and owned-account aliases. Automatic reuse SHALL require the same owner, institution, receiving account, and normalized exact sender mask with mask characters preserved. The system SHALL NOT use fuzzy name similarity or a sender alias to infer an internal movement. Only uniquely confirmed names SHALL be reused; conflicting confirmations SHALL stop automatic reuse. The matching name SHALL be supplied as bounded owner-confirmed data to AI interpretation and SHALL control the recorded sender wording in deterministic paths too. Previously recorded transactions SHALL remain unchanged.
+The backend SHALL store sender confirmations separately from owner-name and owned-account aliases.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** a sender confirmation is saved or reused to describe a transfer
+- **THEN** the following required behavior and constraints hold:
+
+  The backend SHALL store sender confirmations separately from owner-name and owned-account aliases. Automatic reuse SHALL require the same owner, institution, receiving account, and normalized exact sender mask with mask characters preserved. The system SHALL NOT use fuzzy name similarity or a sender alias to infer an internal movement. Only uniquely confirmed names SHALL be reused; conflicting confirmations SHALL stop automatic reuse. The matching name SHALL be supplied as bounded owner-confirmed data to AI interpretation and SHALL control the recorded sender wording in deterministic paths too. Previously recorded transactions SHALL remain unchanged.
 
 #### Scenario: Subsequent matching notification
 - **WHEN** another transfer arrives with the exact mask for the same owner, institution, and receiving account
@@ -104,7 +128,13 @@ The owner SHALL be able to list, correct, and remove confirmed sender memory in 
 
 ### Requirement: Compatibility and durable pending state
 
-The backend SHALL emit sender questions only to companion versions declaring sender-reply support. Older or unrecognized versions SHALL receive `needs_review` with a sender-confirmation reason and no automatic ledger write. The existing account-mapping contract SHALL remain supported. An unanswered sender event SHALL remain pending without automatic expiry or recording; dismissal, provider failures, retries, and restarts SHALL NOT bypass the hold. An upgraded companion SHALL be able to explicitly retry an older event under its newer version and obtain a supported question.
+The backend SHALL emit sender questions only to companion versions declaring sender-reply support.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the backend negotiates sender-reply support or restores a pending question
+- **THEN** the following required behavior and constraints hold:
+
+  The backend SHALL emit sender questions only to companion versions declaring sender-reply support. Older or unrecognized versions SHALL receive `needs_review` with a sender-confirmation reason and no automatic ledger write. The existing account-mapping contract SHALL remain supported. An unanswered sender event SHALL remain pending without automatic expiry or recording; dismissal, provider failures, retries, and restarts SHALL NOT bypass the hold. An upgraded companion SHALL be able to explicitly retry an older event under its newer version and obtain a supported question.
 
 #### Scenario: Old companion
 - **WHEN** an eligible masked transfer was submitted by a companion without sender-reply support

@@ -1,7 +1,7 @@
 # stock-pocket-auto-provisioning Specification
 
 ## Purpose
-TBD - created by archiving change stock-pocket-auto-provisioning. Update Purpose after archive.
+Define structured stock notification handling, stock pocket creation, funding routing and market valuation.
 ## Requirements
 ### Requirement: Structured Stock Trade Notification Parsing
 The system SHALL parse stock order match notifications from broker apps (e.g. Stockbit) into structured trade data including stock ticker symbol, Yahoo Finance normalized instrument symbol, quantity in lots and shares, price per share, total amount, and trade action.

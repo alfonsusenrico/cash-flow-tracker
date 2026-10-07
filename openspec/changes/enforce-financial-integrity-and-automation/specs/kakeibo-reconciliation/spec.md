@@ -3,12 +3,18 @@
 ## MODIFIED Requirements
 
 ### Requirement: Net Fresh Savings Calculation
-The system SHALL classify savings from the economic direction of a durably linked movement:
-1. A movement from an operational liquid account into a savings or investment destination SHALL increase net fresh savings.
-2. A movement from a savings or investment source back into an operational liquid account SHALL reduce net fresh savings.
-3. A movement between operational liquid accounts SHALL not affect savings.
-4. A trade between a funding account and an investment instrument position SHALL remain excluded from Kakeibo turnover.
-5. Manual, recurring, payroll, and ingested movements SHALL use the same classification rule; automation SHALL NOT mark every transfer as saving.
+The system SHALL classify savings from the economic direction of a durably linked movement.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** savings are calculated from linked internal movements
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL classify savings from the economic direction of a durably linked movement:
+  1. A movement from an operational liquid account into a savings or investment destination SHALL increase net fresh savings.
+  2. A movement from a savings or investment source back into an operational liquid account SHALL reduce net fresh savings.
+  3. A movement between operational liquid accounts SHALL not affect savings.
+  4. A trade between a funding account and an investment instrument position SHALL remain excluded from Kakeibo turnover.
+  5. Manual, recurring, payroll, and ingested movements SHALL use the same classification rule; automation SHALL NOT mark every transfer as saving.
 
 #### Scenario: Counting fresh investment funding
 - **WHEN** a user moves money from an operational bank account into an investment funding account without executing a trade

@@ -3,13 +3,19 @@
 ## MODIFIED Requirements
 
 ### Requirement: 1-Tap Payroll Allocation Modal & Execution
-The application SHALL provide a reviewable payroll allocation batch and execute selected items as one atomic operation:
-1. The modal SHALL display all explicitly configured payroll allocations and allow amount adjustment or deselection.
-2. Every selected item SHALL use distinct, active, user-owned liquid source and target accounts; investment positions SHALL be rejected as either endpoint.
-3. The server SHALL lock affected sources and validate the aggregate amount drawn from each source before writing any item.
-4. Each allocation SHALL create a durably linked bilateral movement using the canonical movement contract.
-5. If any item is invalid or unaffordable, the entire batch SHALL fail without ledger, balance, or schedule changes.
-6. Successful execution SHALL advance only the rules represented by committed items and SHALL return a per-item success summary.
+The application SHALL provide a reviewable payroll allocation batch and execute selected items as one atomic operation.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner reviews and executes a payroll allocation batch
+- **THEN** the following required behavior and constraints hold:
+
+  The application SHALL provide a reviewable payroll allocation batch and execute selected items as one atomic operation:
+  1. The modal SHALL display all explicitly configured payroll allocations and allow amount adjustment or deselection.
+  2. Every selected item SHALL use distinct, active, user-owned liquid source and target accounts; investment positions SHALL be rejected as either endpoint.
+  3. The server SHALL lock affected sources and validate the aggregate amount drawn from each source before writing any item.
+  4. Each allocation SHALL create a durably linked bilateral movement using the canonical movement contract.
+  5. If any item is invalid or unaffordable, the entire batch SHALL fail without ledger, balance, or schedule changes.
+  6. Successful execution SHALL advance only the rules represented by committed items and SHALL return a per-item success summary.
 
 #### Scenario: Executing an affordable payroll allocation batch
 - **WHEN** a user confirms four valid allocations whose combined source requirement is available

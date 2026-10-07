@@ -8,7 +8,13 @@ Allow the owner to answer a pending sender question from an Android notification
 
 ### Requirement: Inline sender reply and explicit unknown action
 
-The companion SHALL display supported sender questions with the masked sender, proven amount, receiving account, and actions `Balas nama` and `Catat tanpa nama`. The reply action SHALL open an inline text input and submit the name without requiring the app to be opened. Tapping the notification SHALL open the corresponding detail sheet, where equivalent name and unknown-sender controls SHALL be available. Financial details SHALL have a private lock-screen presentation. Account-selection questions SHALL retain their existing controls.
+The companion SHALL display supported sender questions with the masked sender, proven amount, receiving account, and actions `Balas nama` and `Catat tanpa nama`.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the companion receives a supported sender question
+- **THEN** the following required behavior and constraints hold:
+
+  The companion SHALL display supported sender questions with the masked sender, proven amount, receiving account, and actions `Balas nama` and `Catat tanpa nama`. The reply action SHALL open an inline text input and submit the name without requiring the app to be opened. Tapping the notification SHALL open the corresponding detail sheet, where equivalent name and unknown-sender controls SHALL be available. Financial details SHALL have a private lock-screen presentation. Account-selection questions SHALL retain their existing controls.
 
 #### Scenario: Name supplied from notification
 - **WHEN** the owner taps `Balas nama`, enters `Andra`, and sends
@@ -44,7 +50,13 @@ The companion SHALL validate supported question types and required fields before
 
 ### Requirement: Durable offline reply delivery
 
-The companion SHALL persist a reply before reporting it queued and SHALL recover its delivery after process restart or temporary network failure. Transport retries SHALL resend the same logical answer, not re-ingest the financial notification. Blank/invalid input SHALL remain correctable. Transient failures SHALL retry with bounded backoff; authentication failures SHALL wait for pairing recovery; conflicts or permanent validation failures SHALL stop automatic replay and expose a recoverable in-app state.
+The companion SHALL persist a reply before reporting it queued and SHALL recover its delivery after process restart or temporary network failure.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner answers a sender question while delivery may be interrupted
+- **THEN** the following required behavior and constraints hold:
+
+  The companion SHALL persist a reply before reporting it queued and SHALL recover its delivery after process restart or temporary network failure. Transport retries SHALL resend the same logical answer, not re-ingest the financial notification. Blank/invalid input SHALL remain correctable. Transient failures SHALL retry with bounded backoff; authentication failures SHALL wait for pairing recovery; conflicts or permanent validation failures SHALL stop automatic replay and expose a recoverable in-app state.
 
 #### Scenario: Reply while offline
 - **WHEN** the owner replies without connectivity and the app process subsequently restarts
@@ -60,7 +72,13 @@ The companion SHALL persist a reply before reporting it queued and SHALL recover
 
 ### Requirement: Truthful status and completion
 
-The companion SHALL distinguish a queued local reply, backend acceptance, processing, unresolved review, and committed recording. It SHALL display `Balasan menunggu koneksi` or an equivalent truthful pending state while offline and SHALL post a transaction success alert only for a complete authoritative `recorded` result. Normal completion polling and logical record alert deduplication SHALL remain in force. Repeated question lookup SHALL not deliberately generate repeated alerts, and unanswered events or undelivered replies SHALL be preserved by retention.
+The companion SHALL distinguish a queued local reply, backend acceptance, processing, unresolved review, and committed recording.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** a sender reply advances through local delivery and backend processing
+- **THEN** the following required behavior and constraints hold:
+
+  The companion SHALL distinguish a queued local reply, backend acceptance, processing, unresolved review, and committed recording. It SHALL display `Balasan menunggu koneksi` or an equivalent truthful pending state while offline and SHALL post a transaction success alert only for a complete authoritative `recorded` result. Normal completion polling and logical record alert deduplication SHALL remain in force. Repeated question lookup SHALL not deliberately generate repeated alerts, and unanswered events or undelivered replies SHALL be preserved by retention.
 
 #### Scenario: Reply accepted for processing
 - **WHEN** the backend accepts an answer and returns `queued` or `processing`

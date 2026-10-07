@@ -3,7 +3,13 @@
 ## MODIFIED Requirements
 
 ### Requirement: Discard Non-Financial Notifications at Listener Entrance
-The companion mobile notification listener SHALL forward every status bar notification from an enabled registered financial package to the backend, discarding locally only notifications with no title and no text, and notifications that carry a one-time password or verification code. The listener SHALL attach parser hints (`event_class`, `expected_amount`, `expected_direction`, `expected_counterparty`) only when a known pattern matches, and SHALL send `is_financial = null` with no hints otherwise. The backend's acceptance result is the sole authority on whether the notification is financial.
+The companion mobile notification listener SHALL forward every status bar notification from an enabled registered financial package to the backend, discarding locally only notifications with no title and no text, and notifications that carry a one-time password or verification code.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the companion listener receives a financial application notification
+- **THEN** the following required behavior and constraints hold:
+
+  The companion mobile notification listener SHALL forward every status bar notification from an enabled registered financial package to the backend, discarding locally only notifications with no title and no text, and notifications that carry a one-time password or verification code. The listener SHALL attach parser hints (`event_class`, `expected_amount`, `expected_direction`, `expected_counterparty`) only when a known pattern matches, and SHALL send `is_financial = null` with no hints otherwise. The backend's acceptance result is the sole authority on whether the notification is financial.
 
 #### Scenario: Promotional or marketing notifications are dropped immediately
 - **GIVEN** a notification from an enabled registered package (e.g. `com.gojek.app` or `com.shopeepay.id`)

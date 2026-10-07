@@ -1,7 +1,7 @@
 # transaction-ledger-management Specification
 
 ## Purpose
-TBD - created by archiving change bibit-executive-sidebar-and-power-tools. Update Purpose after archive.
+Provide searchable ledger records, inspection and editing, recurring origins and consolidated internal movements.
 
 ## Requirements
 
@@ -21,15 +21,21 @@ The application SHALL provide a dedicated `/ledger` screen displaying all record
 - **THEN** only transactions originating from or transferring into "Main Bank" are displayed
 
 ### Requirement: Transaction Detail & Inline Editing
-The application SHALL allow users to click any transaction row to open a detail and editing modal supporting:
-1. Editing the transaction amount with automatic balance recalculation on affected accounts.
-2. Changing the associated account or category.
-3. Updating notes and transaction timestamp.
-4. Linking or unlinking savings goals (`goal_id`) and debt obligations (`obligation_id`), or assigning a debt payment among multiple obligations with explicit amounts (`obligation_allocations`).
-5. Showing each debt name and assigned amount for an allocated payment in ledger detail, including debts that were archived by that payment; the transaction SHALL remain one ledger row.
-6. Deleting the transaction with confirmation, cleanly reversing its balance impact on accounts, goals, or obligations.
+The application SHALL allow users to click any transaction row to open a detail and editing modal supporting.
 
-The Quick Capture and ledger edit forms SHALL let a user select multiple active debts for an expense. Selecting a new debt SHALL default its payment amount to that debt's outstanding balance and SHALL update the transaction total to the sum of selected payments. The default view SHALL show each amount without requiring a separate input. An explicit amount-edit action SHALL allow partial payments per debt and SHALL update the total as amounts change. The form SHALL prevent submission when a selected amount is not positive, exceeds the available debt balance, or does not match the transaction total. Reopening a saved payment SHALL show its recorded amounts rather than replacing them with current debt balances. The same behavior and feedback SHALL be available in desktop dialogs and mobile sheets. A single-debt selection MAY keep the existing API field for compatibility.
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner opens transaction details or edits a ledger payment
+- **THEN** the following required behavior and constraints hold:
+
+  The application SHALL allow users to click any transaction row to open a detail and editing modal supporting:
+  1. Editing the transaction amount with automatic balance recalculation on affected accounts.
+  2. Changing the associated account or category.
+  3. Updating notes and transaction timestamp.
+  4. Linking or unlinking savings goals (`goal_id`) and debt obligations (`obligation_id`), or assigning a debt payment among multiple obligations with explicit amounts (`obligation_allocations`).
+  5. Showing each debt name and assigned amount for an allocated payment in ledger detail, including debts that were archived by that payment; the transaction SHALL remain one ledger row.
+  6. Deleting the transaction with confirmation, cleanly reversing its balance impact on accounts, goals, or obligations.
+
+  The Quick Capture and ledger edit forms SHALL let a user select multiple active debts for an expense. Selecting a new debt SHALL default its payment amount to that debt's outstanding balance and SHALL update the transaction total to the sum of selected payments. The default view SHALL show each amount without requiring a separate input. An explicit amount-edit action SHALL allow partial payments per debt and SHALL update the total as amounts change. The form SHALL prevent submission when a selected amount is not positive, exceeds the available debt balance, or does not match the transaction total. Reopening a saved payment SHALL show its recorded amounts rather than replacing them with current debt balances. The same behavior and feedback SHALL be available in desktop dialogs and mobile sheets. A single-debt selection MAY keep the existing API field for compatibility.
 
 #### Scenario: Modifying transaction amount
 - **WHEN** the user changes a transaction amount from 50,000 to 75,000 IDR and clicks Save
@@ -69,24 +75,36 @@ The ledger and transaction models SHALL support tracking the originating recurri
 - **THEN** ledger displays a recurring icon badge indicating it was generated from a scheduled rule
 
 ### Requirement: Flexible Transaction Creation Contract
-The transaction creation API SHALL support both explicit UUID references and human-readable string references:
-1. `account_id` OR `account_name` for source liquid cash or investment accounts.
-2. `transfer_target_account_id` OR `target_account_name` for transfer destinations.
-3. `category_id` OR `category_name` for spending/income classifications.
-4. An optional `idempotency_key` (up to 64 characters) ensuring duplicate requests return the original transaction without double-counting ledger balances.
+The transaction creation API SHALL support both explicit UUID references and human-readable string references.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** a client submits transaction references and an optional retry identifier
+- **THEN** the following required behavior and constraints hold:
+
+  The transaction creation API SHALL support both explicit UUID references and human-readable string references:
+  1. `account_id` OR `account_name` for source liquid cash or investment accounts.
+  2. `transfer_target_account_id` OR `target_account_name` for transfer destinations.
+  3. `category_id` OR `category_name` for spending/income classifications.
+  4. An optional `idempotency_key` (up to 64 characters) ensuring duplicate requests return the original transaction without double-counting ledger balances.
 
 #### Scenario: Creating an expense using category name and account name
 - **WHEN** client posts an expense with `account_name = "GoPay"`, `category_name = "Makanan & Minuman"`, and `amount = 25000`
 - **THEN** server resolves the names to corresponding IDs, writes the expense to the ledger, and returns HTTP 201
 
 ### Requirement: Consolidated Internal Movement Ledger Representation
-The application SHALL consolidate paired internal movement transactions into a single bilateral row in the ledger table:
-1. In the default "Semua Rekening" ledger view, paired inbound and outbound records representing the same internal transfer SHALL be rendered as a single consolidated row.
-2. The consolidated row SHALL display a neutral `↔️ PINDAH SALDO` status badge.
-3. The row SHALL display the origin account in the `Rekening` column and destination account in the `Target / Tagihan` column (or format `Sumber → Tujuan`).
-4. The transaction amount SHALL be rendered with neutral tabular typography without misleading `+` or `-` prefixes, accurately reflecting zero net cash flow change.
-5. In account-filtered views, the movement SHALL display directional context relative to the selected account.
-6. Editing or deleting a consolidated movement row SHALL atomically update or delete both underlying paired records to safeguard double-entry balance integrity.
+The application SHALL consolidate paired internal movement transactions into a single bilateral row in the ledger table.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an internal movement is persisted, displayed, edited or deleted
+- **THEN** the following required behavior and constraints hold:
+
+  The application SHALL consolidate paired internal movement transactions into a single bilateral row in the ledger table:
+  1. In the default "Semua Rekening" ledger view, paired inbound and outbound records representing the same internal transfer SHALL be rendered as a single consolidated row.
+  2. The consolidated row SHALL display a neutral `↔️ PINDAH SALDO` status badge.
+  3. The row SHALL display the origin account in the `Rekening` column and destination account in the `Target / Tagihan` column (or format `Sumber → Tujuan`).
+  4. The transaction amount SHALL be rendered with neutral tabular typography without misleading `+` or `-` prefixes, accurately reflecting zero net cash flow change.
+  5. In account-filtered views, the movement SHALL display directional context relative to the selected account.
+  6. Editing or deleting a consolidated movement row SHALL atomically update or delete both underlying paired records to safeguard double-entry balance integrity.
 
 #### Scenario: Viewing internal movements in all-accounts ledger
 - **WHEN** the user views the `/ledger` screen with "Semua Rekening" selected

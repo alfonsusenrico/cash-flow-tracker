@@ -17,15 +17,21 @@ A goal without linked accounts SHALL support explicit progress adjustments that 
 ## MODIFIED Requirements
 
 ### Requirement: Account-Backed Goals (Single or Multiple Linked Accounts)
-The system SHALL allow users to link a savings goal to one or more active physical accounts or pockets:
-1. A goal MAY be associated with zero, one, or multiple active user-owned accounts via `account_ids`; unknown, archived, or foreign accounts SHALL be rejected rather than ignored.
-2. When a goal has linked accounts, its displayed progress SHALL dynamically equal the sum of the non-redundant current balances of those accounts.
-3. Linking or unlinking accounts SHALL NOT create ledger transactions, copy balances into standalone progress, or otherwise change account balances.
-4. If both a parent and any children are linked, the parent's aggregate balance SHALL be counted once and child balances SHALL NOT be added again.
-5. If only children are linked, their balances SHALL be summed normally.
-6. Direct standalone progress adjustments SHALL be unavailable while accounts are linked.
-7. Every subsequent income, expense, movement, trade, or reconciliation affecting a linked account SHALL be reflected in goal progress on the next query without a goal-specific transaction.
-8. The goal view SHALL display contributing accounts without redundant child chips.
+The system SHALL allow users to link a savings goal to one or more active physical accounts or pockets.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner links accounts or pockets to a savings goal or views its funding progress
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL allow users to link a savings goal to one or more active physical accounts or pockets:
+  1. A goal MAY be associated with zero, one, or multiple active user-owned accounts via `account_ids`; unknown, archived, or foreign accounts SHALL be rejected rather than ignored.
+  2. When a goal has linked accounts, its displayed progress SHALL dynamically equal the sum of the non-redundant current balances of those accounts.
+  3. Linking or unlinking accounts SHALL NOT create ledger transactions, copy balances into standalone progress, or otherwise change account balances.
+  4. If both a parent and any children are linked, the parent's aggregate balance SHALL be counted once and child balances SHALL NOT be added again.
+  5. If only children are linked, their balances SHALL be summed normally.
+  6. Direct standalone progress adjustments SHALL be unavailable while accounts are linked.
+  7. Every subsequent income, expense, movement, trade, or reconciliation affecting a linked account SHALL be reflected in goal progress on the next query without a goal-specific transaction.
+  8. The goal view SHALL display contributing accounts without redundant child chips.
 
 #### Scenario: Applying accounts to a goal without financial mutation
 - **WHEN** a user links an account with a 3,500,000 IDR balance to an existing goal

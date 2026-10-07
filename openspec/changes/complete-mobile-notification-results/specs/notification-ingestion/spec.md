@@ -3,7 +3,13 @@
 ## ADDED Requirements
 
 ### Requirement: Companion Ledger Edit Identity
-The backend SHALL distinguish an event identifier and logical result key from the actual ledger identifier used for editing. Recorded ordinary expense/income results SHALL optionally expose `transaction_id` only when a current owned ordinary transaction still exists and is not a movement leg or trade. Movement/trade, deleted, queued, ignored, review, and failed results SHALL NOT expose an editable ordinary transaction identifier. The field SHALL be additive to the approved compact result contract and SHALL NOT change record keys, amounts, financial effects, or owner isolation. Existing clients SHALL remain able to ignore it.
+The backend SHALL distinguish an event identifier and logical result key from the actual ledger identifier used for editing.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the companion opens a ledger edit from a notification result
+- **THEN** the following required behavior and constraints hold:
+
+  The backend SHALL distinguish an event identifier and logical result key from the actual ledger identifier used for editing. Recorded ordinary expense/income results SHALL optionally expose `transaction_id` only when a current owned ordinary transaction still exists and is not a movement leg or trade. Movement/trade, deleted, queued, ignored, review, and failed results SHALL NOT expose an editable ordinary transaction identifier. The field SHALL be additive to the approved compact result contract and SHALL NOT change record keys, amounts, financial effects, or owner isolation. Existing clients SHALL remain able to ignore it.
 
 #### Scenario: Ordinary recorded result
 - **WHEN** an owned ordinary expense or income has committed and remains an ordinary ledger record

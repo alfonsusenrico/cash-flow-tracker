@@ -1,7 +1,7 @@
 # kazz-ui-and-kakeibo Specification
 
 ## Purpose
-TBD - created by archiving change modern-fintech-ui-and-kakeibo-redesign. Update Purpose after archive.
+Describe Kakeibo insight presentation, rapid touch amount entry and mobile navigation behavior.
 ## Requirements
 ### Requirement: Kakeibo Lifestyle Tracking
 The system SHALL classify expense categories and transactions into three Kakeibo pillars: `need` (Kebutuhan), `want` (Keinginan), and `saving` (Tabungan / Investasi).

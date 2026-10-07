@@ -3,13 +3,19 @@
 ## MODIFIED Requirements
 
 ### Requirement: Name-Based Entity Resolution on Transaction Creation
-The `POST /api/transactions` endpoint SHALL accept supported human-readable references while preserving ownership and deterministic resolution:
-1. An explicit account or target UUID SHALL resolve only to an active account owned by the authenticated user; unknown or foreign identifiers SHALL be rejected.
-2. A supplied account name SHALL resolve by case-insensitive canonical match or an explicitly documented synonym among the user's active accounts.
-3. Ambiguous or unmatched free-form names SHALL be rejected and SHALL NOT silently create an account or pocket.
-4. Provisioning a new investment instrument or parsed bank pocket SHALL occur only through its explicit supported workflow, not as a fallback for a public transaction typo.
-5. A category reference SHALL resolve only to a user-owned category compatible with the transaction type.
-6. Any internal movement request SHALL require a valid, distinct target and SHALL use the canonical bilateral movement operation.
+The `POST /api/transactions` endpoint SHALL accept supported human-readable references while preserving ownership and deterministic resolution.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** a transaction request identifies entities by their names
+- **THEN** the following required behavior and constraints hold:
+
+  The `POST /api/transactions` endpoint SHALL accept supported human-readable references while preserving ownership and deterministic resolution:
+  1. An explicit account or target UUID SHALL resolve only to an active account owned by the authenticated user; unknown or foreign identifiers SHALL be rejected.
+  2. A supplied account name SHALL resolve by case-insensitive canonical match or an explicitly documented synonym among the user's active accounts.
+  3. Ambiguous or unmatched free-form names SHALL be rejected and SHALL NOT silently create an account or pocket.
+  4. Provisioning a new investment instrument or parsed bank pocket SHALL occur only through its explicit supported workflow, not as a fallback for a public transaction typo.
+  5. A category reference SHALL resolve only to a user-owned category compatible with the transaction type.
+  6. Any internal movement request SHALL require a valid, distinct target and SHALL use the canonical bilateral movement operation.
 
 #### Scenario: Rejecting a foreign target identifier
 - **WHEN** a client supplies a target account UUID owned by another user

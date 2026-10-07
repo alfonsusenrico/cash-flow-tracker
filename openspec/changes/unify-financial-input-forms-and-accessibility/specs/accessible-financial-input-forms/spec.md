@@ -39,7 +39,13 @@ Icon-only actions and visual color, icon, category, account, and segmented-choic
 - **THEN** each choice announces its name and current selected state
 
 ### Requirement: Canonical Responsive Form Behavior
-Each financial action SHALL have one canonical state and validation contract reused by desktop modal and mobile bottom-sheet presentations. Entry points MAY choose different responsive layouts but SHALL expose equivalent fields, defaults, errors, and results. Quick Capture SHALL expose keyboard-operable `Pengeluaran`, `Pemasukan`, and `Perpindahan` choices with programmatically exposed selected state. Selecting Perpindahan SHALL show movement-specific source and destination controls and use the atomic movement contract without submitting fields from another mode.
+Each financial action SHALL have one canonical state and validation contract reused by desktop modal and mobile bottom-sheet presentations.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner uses a financial action form on desktop or mobile
+- **THEN** the following required behavior and constraints hold:
+
+  Each financial action SHALL have one canonical state and validation contract reused by desktop modal and mobile bottom-sheet presentations. Entry points MAY choose different responsive layouts but SHALL expose equivalent fields, defaults, errors, and results. Quick Capture SHALL expose keyboard-operable `Pengeluaran`, `Pemasukan`, and `Perpindahan` choices with programmatically exposed selected state. Selecting Perpindahan SHALL show movement-specific source and destination controls and use the atomic movement contract without submitting fields from another mode.
 
 #### Scenario: Opening movement capture from Home or global navigation
 - **WHEN** the user opens movement capture from a Home shortcut or the global movement action
@@ -72,7 +78,13 @@ The account and pocket forms SHALL represent a deposit position using its openin
 - **THEN** the form sends that principal as the opening value without submitting it as an average purchase price or annual interest rate
 
 ### Requirement: Concise Labels and Accessible Contextual Help
-Every active financial input form SHALL keep a concise persistent label for each control and SHALL avoid visible captions that merely restate the label, section title, or evident operation. Guidance required only to explain an unusual field or domain concept SHALL be available from a labelled information control adjacent to the relevant label or section. The explanation SHALL be available by keyboard and touch as well as optional hover, and SHALL have a programmatic relationship to the field or group. Essential validation, transaction outcomes, destructive consequences, and financial warnings SHALL remain visible when relevant rather than depending on hover.
+Every active financial input form SHALL keep a concise persistent label for each control and SHALL avoid visible captions that merely restate the label, section title, or evident operation.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner reads or interacts with a financial input form
+- **THEN** the following required behavior and constraints hold:
+
+  Every active financial input form SHALL keep a concise persistent label for each control and SHALL avoid visible captions that merely restate the label, section title, or evident operation. Guidance required only to explain an unusual field or domain concept SHALL be available from a labelled information control adjacent to the relevant label or section. The explanation SHALL be available by keyboard and touch as well as optional hover, and SHALL have a programmatic relationship to the field or group. Essential validation, transaction outcomes, destructive consequences, and financial warnings SHALL remain visible when relevant rather than depending on hover.
 
 #### Scenario: Opening field guidance without a pointer
 - **WHEN** a keyboard or touch user activates an information control beside a field label

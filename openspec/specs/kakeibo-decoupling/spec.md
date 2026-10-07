@@ -1,7 +1,7 @@
 # kakeibo-decoupling Specification
 
 ## Purpose
-TBD - created by archiving change decouple-kakeibo-from-categories. Update Purpose after archive.
+Keep transaction Kakeibo selection independent from category presentation, management and budget aggregation.
 ## Requirements
 ### Requirement: Clean Category Presentation
 The system SHALL present category labels across all dropdowns, select elements, tables, and chart legends with only their display name and icon, without appending lifestyle classifications such as `(need)`, `(want)`, or `(saving)`.

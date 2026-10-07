@@ -1,7 +1,7 @@
 # pocket-reordering Specification
 
 ## Purpose
-TBD - created by archiving change pocket-drag-and-drop-reordering. Update Purpose after archive.
+Allow sibling pockets to be reordered while keeping account presentation aligned and compact.
 ## Requirements
 ### Requirement: Sibling Pocket Drag-and-Drop
 The system SHALL allow users to reorder child pockets within an expanded parent account card using drag-and-drop.

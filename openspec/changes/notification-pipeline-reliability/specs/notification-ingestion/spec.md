@@ -3,7 +3,13 @@
 ## ADDED Requirements
 
 ### Requirement: Evidence-Bounded Automatic Movement Pairing
-The system SHALL link an observed notification leg to a counterpart as one internal movement when both are notification-recorded transactions on distinct owned liquid accounts under different root institutions, with equal positive amount and currency, opposite directions, no goal, debt, recurring, or trade association, and original event timestamps within the configured pairing window (default 900 seconds, configurable between 30 and 86400 seconds). A leg whose parsed counterparty names a third party that matches none of the owner's identity aliases SHALL NOT be paired under this rule. When more than one counterpart qualifies, the system SHALL record the leg alone and flag it `ambiguous_movement`. Linking SHALL preserve both legs' identities, timestamps, amounts, notes, and balance effects.
+The system SHALL link an observed notification leg to a counterpart as one internal movement when both are notification-recorded transactions on distinct owned liquid accounts under different root institutions, with equal positive amount and currency, opposite directions, no goal, debt, recurring, or trade association, and original event timestamps within the configured pairing window (default 900 seconds, configurable between 30 and 86400 seconds).
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the system evaluates observed notification legs for automatic movement pairing
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL link an observed notification leg to a counterpart as one internal movement when both are notification-recorded transactions on distinct owned liquid accounts under different root institutions, with equal positive amount and currency, opposite directions, no goal, debt, recurring, or trade association, and original event timestamps within the configured pairing window (default 900 seconds, configurable between 30 and 86400 seconds). A leg whose parsed counterparty names a third party that matches none of the owner's identity aliases SHALL NOT be paired under this rule. When more than one counterpart qualifies, the system SHALL record the leg alone and flag it `ambiguous_movement`. Linking SHALL preserve both legs' identities, timestamps, amounts, notes, and balance effects.
 
 #### Scenario: Top-up recognised across institutions without transfer wording
 - **WHEN** a BCA expense "You spent IDR 7,490,557.00 at Shopping." and a ShopeePay income "Pengisian saldo sebesar Rp7.490.557 telah ditambahkan ke ShopeePay-mu." arrive 3 seconds apart
@@ -48,7 +54,13 @@ When AI interpretation returns `needs_review` or a non-transient provider error 
 - **THEN** the event is `needs_review` with the mapping error code and is not retried automatically
 
 ### Requirement: Owner-Scoped Manual Resolution
-The backend SHALL expose an owner-scoped resolve operation for events in `needs_review` or `failed` that records exactly one expense or income using the event's single proven amount (or an owner-entered amount only when the notification has no single proven amount) and its captured timestamp, the owner-chosen liquid account and matching-kind category, and an idempotency key derived from the event, then marks the event recorded with manual provenance and runs the pairing pass. It SHALL reject recorded, ignored, or foreign events without revealing their contents.
+The backend SHALL expose an owner-scoped resolve operation for events in `needs_review` or `failed` that records exactly one expense or income using the event's single proven amount (or an owner-entered amount only when the notification has no single proven amount) and its captured timestamp, the owner-chosen liquid account and matching-kind category, and an idempotency key derived from the event, then marks the event recorded with manual provenance and runs the pairing pass.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner resolves a notification event requiring review
+- **THEN** the following required behavior and constraints hold:
+
+  The backend SHALL expose an owner-scoped resolve operation for events in `needs_review` or `failed` that records exactly one expense or income using the event's single proven amount (or an owner-entered amount only when the notification has no single proven amount) and its captured timestamp, the owner-chosen liquid account and matching-kind category, and an idempotency key derived from the event, then marks the event recorded with manual provenance and runs the pairing pass. It SHALL reject recorded, ignored, or foreign events without revealing their contents.
 
 #### Scenario: Resolving a stuck event from the phone
 - **WHEN** the owner resolves a `needs_review` event with an owned account and a category of the same kind
@@ -78,7 +90,13 @@ When the system links two notification-recorded legs into one movement, automati
 - **THEN** their notes are unchanged
 
 ### Requirement: Institution Balances Hosted as Pockets
-When no top-level account is named after a notification's institution, the system SHALL map that institution's notifications to the single active pocket whose name contains the institution name, so a balance shown in one app but held by another bank (GoPay Tabungan held in Bank Jago) is one account. A top-level account named after the institution SHALL keep precedence. The owner SHALL be able to move an existing stand-alone liquid account without pockets under another top-level account, keeping its transaction history.
+When no top-level account is named after a notification's institution, the system SHALL map that institution's notifications to the single active pocket whose name contains the institution name, so a balance shown in one app but held by another bank (GoPay Tabungan held in Bank Jago) is one account.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an institution notification must be mapped to a registered account or pocket
+- **THEN** the following required behavior and constraints hold:
+
+  When no top-level account is named after a notification's institution, the system SHALL map that institution's notifications to the single active pocket whose name contains the institution name, so a balance shown in one app but held by another bank (GoPay Tabungan held in Bank Jago) is one account. A top-level account named after the institution SHALL keep precedence. The owner SHALL be able to move an existing stand-alone liquid account without pockets under another top-level account, keeping its transaction history.
 
 #### Scenario: GoPay payment debits the GoPay Tabungan pocket in Jago
 - **WHEN** the owner has moved the GoPay account under Jago as "GoPay Tabungan" and the GoPay app reports a QRIS payment
@@ -89,7 +107,13 @@ When no top-level account is named after a notification's institution, the syste
 - **THEN** a movement from Main Pocket to GoPay Tabungan is recorded
 
 ### Requirement: Securities Fund Account Deposits Reported Twice
-The system SHALL record a deposit into the owner's securities fund account (RDN) once when both the bank (myBCA "RDN earning … at … category") and the broker (Stockbit "Dana kamu senilai Rp… sudah dapat digunakan") report it. Whichever report is processed first SHALL record an own-account transfer into the RDN; a report from the other source with the same amount within 48 hours SHALL attach to that record without creating a transaction. Stockbit deposit reports SHALL map to the broker's configured funding account. Stockbit trade notifications SHALL keep the trade path.
+The system SHALL record a deposit into the owner's securities fund account (RDN) once when both the bank (myBCA "RDN earning … at … category") and the broker (Stockbit "Dana kamu senilai Rp… sudah dapat digunakan") report it.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** bank and broker notifications describe a deposit into the same securities fund account
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL record a deposit into the owner's securities fund account (RDN) once when both the bank (myBCA "RDN earning … at … category") and the broker (Stockbit "Dana kamu senilai Rp… sudah dapat digunakan") report it. Whichever report is processed first SHALL record an own-account transfer into the RDN; a report from the other source with the same amount within 48 hours SHALL attach to that record without creating a transaction. Stockbit deposit reports SHALL map to the broker's configured funding account. Stockbit trade notifications SHALL keep the trade path.
 
 #### Scenario: Broker confirms hours after the bank
 - **WHEN** myBCA reports "RDN earning of IDR 225,180.00 at Account Transfer category." at 23:59 and Stockbit reports "Dana kamu senilai Rp225,180 sudah dapat digunakan" at 03:01
@@ -109,14 +133,20 @@ The system SHALL let the owner split a non-trade internal movement back into two
 ## MODIFIED Requirements
 
 ### Requirement: Multi-App Notification Ingestion Scope
-The system SHALL support push notification ingestion from the 6 active registered financial companion apps:
-1. `myBCA` (`com.bca.mybca.omni.android`, `id.co.bca.mybca.omni.android`)
-2. `BCA mobile` (`com.bca`)
-3. `Bank Jago` (`com.jago.digitalbanking`, `com.jago.digitalBanking`)
-4. `GoPay` (`com.gojek.gopay`, `com.gojek.app`, `com.gopay.wallet`)
-5. `ShopeePay` (`com.shopeepay.id`)
-6. `Stockbit` (`com.stockbit.android`)
-The system SHALL NOT process unsupported apps (such as Blu by BCA) and SHALL postpone Bibit ingestion until real notification payload samples are provided. Settlement, direction, and balance cue recognition SHALL cover outbound transfer wording (`sent`, `dikirim`, `mengirim`) and balance phrases (`remaining balance`, `saldo kamu`), and myBCA outbound `Account Transfer` notifications SHALL be recorded as outgoing transfers.
+The system SHALL support push notification ingestion from the 6 active registered financial companion apps.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** a companion application submits a notification for ingestion
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL support push notification ingestion from the 6 active registered financial companion apps:
+  1. `myBCA` (`com.bca.mybca.omni.android`, `id.co.bca.mybca.omni.android`)
+  2. `BCA mobile` (`com.bca`)
+  3. `Bank Jago` (`com.jago.digitalbanking`, `com.jago.digitalBanking`)
+  4. `GoPay` (`com.gojek.gopay`, `com.gojek.app`, `com.gopay.wallet`)
+  5. `ShopeePay` (`com.shopeepay.id`)
+  6. `Stockbit` (`com.stockbit.android`)
+  The system SHALL NOT process unsupported apps (such as Blu by BCA) and SHALL postpone Bibit ingestion until real notification payload samples are provided. Settlement, direction, and balance cue recognition SHALL cover outbound transfer wording (`sent`, `dikirim`, `mengirim`) and balance phrases (`remaining balance`, `saldo kamu`), and myBCA outbound `Account Transfer` notifications SHALL be recorded as outgoing transfers.
 
 #### Scenario: Ingesting valid financial notification from supported app
 - **WHEN** an incoming batch contains a notification event from `com.gojek.app` for an outbound payment

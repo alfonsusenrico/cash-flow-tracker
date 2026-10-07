@@ -3,11 +3,17 @@
 ## MODIFIED Requirements
 
 ### Requirement: Searchable & Filterable Ledger View
-The application SHALL provide a dedicated `/ledger` screen displaying all recorded cash movements in a responsive tabular view with real-time filtering:
-1. Full-text search by notes, merchant, or category name.
-2. Filter chips by transaction type (`All`, `Expense`, `Income`, `Transfer`).
-3. Account filter dropdown and category filter dropdown.
-4. Cash flow summary display providing both running payday cycle totals (inbound, outbound, net) and cumulative overall totals (inbound, outbound, net) matching active filters, independent of pagination boundaries.
+The application SHALL provide a dedicated `/ledger` screen displaying all recorded cash movements in a responsive tabular view with real-time filtering.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner opens or filters the ledger
+- **THEN** the following required behavior and constraints hold:
+
+  The application SHALL provide a dedicated `/ledger` screen displaying all recorded cash movements in a responsive tabular view with real-time filtering:
+  1. Full-text search by notes, merchant, or category name.
+  2. Filter chips by transaction type (`All`, `Expense`, `Income`, `Transfer`).
+  3. Account filter dropdown and category filter dropdown.
+  4. Cash flow summary display providing both running payday cycle totals (inbound, outbound, net) and cumulative overall totals (inbound, outbound, net) matching active filters, independent of pagination boundaries.
 
 #### Scenario: Searching transactions by note
 - **WHEN** the user types "coffee" in the ledger search input

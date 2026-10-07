@@ -15,7 +15,13 @@ The system SHALL apply all versioned migrations successfully to an empty Postgre
 - **AND** the database reaches the latest migration version with `transactions.idempotency_key` present
 
 ### Requirement: Guarded Applied-Migration Checksum Repair
-The approved release path SHALL repair an intentionally changed applied migration checksum only when Flyway validation identifies the V14 checksum mismatch and no other unexpected issue. Validation entries for not-yet-applied versioned migrations MAY coexist with that mismatch only when each version and description exactly matches a `Pending` entry in Flyway history. History SHALL contain no failed, missing, deleted, or out-of-order migrations. The repair SHALL align V14 only, SHALL be checked afterward for no remaining unexpected validation issue, and SHALL NOT run during ordinary application startup or when V14 needs no repair.
+The approved release path SHALL repair an intentionally changed applied migration checksum only when Flyway validation identifies the V14 checksum mismatch and no other unexpected issue.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the approved release preflight encounters an applied migration checksum mismatch
+- **THEN** the following required behavior and constraints hold:
+
+  The approved release path SHALL repair an intentionally changed applied migration checksum only when Flyway validation identifies the V14 checksum mismatch and no other unexpected issue. Validation entries for not-yet-applied versioned migrations MAY coexist with that mismatch only when each version and description exactly matches a `Pending` entry in Flyway history. History SHALL contain no failed, missing, deleted, or out-of-order migrations. The repair SHALL align V14 only, SHALL be checked afterward for no remaining unexpected validation issue, and SHALL NOT run during ordinary application startup or when V14 needs no repair.
 
 #### Scenario: Repairing the expected V14 checksum only
 - **WHEN** an existing database has successfully applied V14 and validation reports its checksum mismatch, with no other issue except versioned migrations independently confirmed as pending in Flyway history

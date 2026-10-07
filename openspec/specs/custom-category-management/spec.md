@@ -1,13 +1,19 @@
 # custom-category-management Specification
 
 ## Purpose
-TBD - created by archiving change core-calculations-and-financial-logic-alignment. Update Purpose after archive.
+Allow users to manage transaction categories and apply category budget variance filters.
 ## Requirements
 ### Requirement: Custom Category Creation & Management
-The system SHALL provide full category lifecycle management allowing users to create, update, archive, and query custom categories:
-1. Category entities SHALL include `name`, `kind` (`income` or `expense`), `is_primary` (boolean: true for `Pokok`, false for `Opsional`), optional `color`, optional `icon`, and optional `monthly_budget`.
-2. The system SHALL expose `GET /api/categories`, `POST /api/categories`, `PATCH /api/categories/{id}`, and `DELETE /api/categories/{id}` (soft-delete/archive).
-3. The category listing SHALL allow filtering by `kind` (`expense` or `income`) and support searching active categories.
+The system SHALL provide full category lifecycle management allowing users to create, update, archive, and query custom categories.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner manages custom transaction categories
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL provide full category lifecycle management allowing users to create, update, archive, and query custom categories:
+  1. Category entities SHALL include `name`, `kind` (`income` or `expense`), `is_primary` (boolean: true for `Pokok`, false for `Opsional`), optional `color`, optional `icon`, and optional `monthly_budget`.
+  2. The system SHALL expose `GET /api/categories`, `POST /api/categories`, `PATCH /api/categories/{id}`, and `DELETE /api/categories/{id}` (soft-delete/archive).
+  3. The category listing SHALL allow filtering by `kind` (`expense` or `income`) and support searching active categories.
 
 #### Scenario: Creating a custom expense category
 - **WHEN** a user creates a category with name "Hobi", kind "expense", is_primary false, and monthly budget 500,000 IDR

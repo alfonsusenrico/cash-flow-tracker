@@ -3,13 +3,19 @@
 ## MODIFIED Requirements
 
 ### Requirement: Investment Trade Transaction Creation
-The system SHALL accept `investment_action`, positive `units`, and positive `price_per_unit` and SHALL settle the cash and position effects atomically:
-1. A purchase SHALL debit the selected funding account, credit the investment movement destination, increment units, and recalculate weighted average purchase price.
-2. A sale SHALL decrement the instrument units and credit the selected funding account with the proceeds.
-3. The funding and instrument accounts SHALL be active, user-owned, distinct, and compatible with the requested trade.
-4. A purchase SHALL obey liquid source balance protection.
-5. A sale SHALL be rejected when requested units exceed owned units; units SHALL never be silently clamped.
-6. Invalid, missing, zero, or non-finite trade quantities or prices SHALL be rejected without creating a ledger record.
+The system SHALL accept `investment_action`, positive `units`, and positive `price_per_unit` and SHALL settle the cash and position effects atomically.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an investment trade is submitted for recording
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL accept `investment_action`, positive `units`, and positive `price_per_unit` and SHALL settle the cash and position effects atomically:
+  1. A purchase SHALL debit the selected funding account, credit the investment movement destination, increment units, and recalculate weighted average purchase price.
+  2. A sale SHALL decrement the instrument units and credit the selected funding account with the proceeds.
+  3. The funding and instrument accounts SHALL be active, user-owned, distinct, and compatible with the requested trade.
+  4. A purchase SHALL obey liquid source balance protection.
+  5. A sale SHALL be rejected when requested units exceed owned units; units SHALL never be silently clamped.
+  6. Invalid, missing, zero, or non-finite trade quantities or prices SHALL be rejected without creating a ledger record.
 
 #### Scenario: Successfully recording a stock purchase
 - **WHEN** a user buys 600 BBRI units at 3,200 IDR using RDN BCA

@@ -1,7 +1,7 @@
 # indonesian-daily-finance-ui Specification
 
 ## Purpose
-TBD - created by archiving change indonesian-daily-finance-terms. Update Purpose after archive.
+Provide natural Indonesian financial vocabulary, accessible form labels and locally formatted amount entry.
 ## Requirements
 ### Requirement: Default Bahasa Indonesia Localization
 The user interface SHALL render all text in Bahasa Indonesia by default, without requiring users to configure language settings.
@@ -11,21 +11,27 @@ The user interface SHALL render all text in Bahasa Indonesia by default, without
 - **THEN** all navigational labels, form placeholders, metrics, and buttons display in natural Bahasa Indonesia
 
 ### Requirement: Intuitive Daily Finance Terminology
-The application SHALL use simple, everyday consumer finance vocabulary rather than technical, literal, or bureaucratic financial jargon:
-1. Transaction directions:
-   - Expense SHALL be labeled `Uang Keluar`
-   - Income SHALL be labeled `Uang Masuk`
-   - Internal Transfer SHALL be labeled `Pindah Saldo`
-2. Metrics and allowances:
-   - Daily spending comparison SHALL be labeled `Pengeluaran Harian` (not "Laju Pengeluaran")
-   - Monthly category limits SHALL be labeled `Batas Anggaran Kategori`
-   - Realized spending in categories SHALL be labeled `Terpakai` (not "Realisasi")
-   - Net cash balance explanation SHALL be labeled `Total Kekayaan Bersih (Total saldo kas dikurangi sisa cicilan & utang)`
-   - Savings portfolio SHALL be labeled `Target Tabungan` (not "Portofolio Target Tabungan")
-   - Debt and liabilities SHALL be labeled `Tagihan & Cicilan` or `Pelunasan Cicilan & Utang`
-3. Reconciliation and Accuracy:
-   - Account reconciliation SHALL be labeled `Sesuaikan Saldo`
-   - The application SHALL NOT use informal slang words (such as "Boncos", "Tekor", or "Jebol")
+The application SHALL use simple, everyday consumer finance vocabulary rather than technical, literal, or bureaucratic financial jargon.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the application presents finance labels or transaction names to the owner
+- **THEN** the following required behavior and constraints hold:
+
+  The application SHALL use simple, everyday consumer finance vocabulary rather than technical, literal, or bureaucratic financial jargon:
+  1. Transaction directions:
+     - Expense SHALL be labeled `Uang Keluar`
+     - Income SHALL be labeled `Uang Masuk`
+     - Internal Transfer SHALL be labeled `Pindah Saldo`
+  2. Metrics and allowances:
+     - Daily spending comparison SHALL be labeled `Pengeluaran Harian` (not "Laju Pengeluaran")
+     - Monthly category limits SHALL be labeled `Batas Anggaran Kategori`
+     - Realized spending in categories SHALL be labeled `Terpakai` (not "Realisasi")
+     - Net cash balance explanation SHALL be labeled `Total Kekayaan Bersih (Total saldo kas dikurangi sisa cicilan & utang)`
+     - Savings portfolio SHALL be labeled `Target Tabungan` (not "Portofolio Target Tabungan")
+     - Debt and liabilities SHALL be labeled `Tagihan & Cicilan` or `Pelunasan Cicilan & Utang`
+  3. Reconciliation and Accuracy:
+     - Account reconciliation SHALL be labeled `Sesuaikan Saldo`
+     - The application SHALL NOT use informal slang words (such as "Boncos", "Tekor", or "Jebol")
 
 #### Scenario: User views category budget breakdown
 - **WHEN** a user navigates to the Insights page
@@ -47,12 +53,18 @@ All transaction entry forms, account creation dialogs, and settings modals SHALL
 - **THEN** the modal is titled "Catat Transaksi Baru" with intuitive labels and a "Simpan Transaksi" submission button
 
 ### Requirement: Automatic Thousands Dot Separation on Number and Amount Inputs
-The user interface SHALL automatically format all numeric currency and amount input fields with Indonesian thousand separator periods (`.`) in real time as the user types:
-1. When typing digits, the displayed value SHALL dynamically group digits with dots (e.g. `20000000` is displayed as `20.000.000`).
-2. When deleting digits, backspacing, or clearing the input, the dots SHALL automatically readjust to reflect the remaining digits.
-3. Submitting the form or mutating state SHALL parse out all non-digit characters so that API payloads receive clean integer amounts.
-4. If a user pastes numbers containing dots, commas, or spaces, the input SHALL extract only digits and reformat cleanly with thousand dots.
-5. All numeric input fields across Goals, Obligations, Accounts, Dashboard Transfers, Ledger Edits, and Category Budgets SHALL utilize this automatic dot formatting.
+The user interface SHALL automatically format all numeric currency and amount input fields with Indonesian thousand separator periods (`.`) in real time as the user types.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner types or pastes a numeric amount into a financial input
+- **THEN** the following required behavior and constraints hold:
+
+  The user interface SHALL automatically format all numeric currency and amount input fields with Indonesian thousand separator periods (`.`) in real time as the user types:
+  1. When typing digits, the displayed value SHALL dynamically group digits with dots (e.g. `20000000` is displayed as `20.000.000`).
+  2. When deleting digits, backspacing, or clearing the input, the dots SHALL automatically readjust to reflect the remaining digits.
+  3. Submitting the form or mutating state SHALL parse out all non-digit characters so that API payloads receive clean integer amounts.
+  4. If a user pastes numbers containing dots, commas, or spaces, the input SHALL extract only digits and reformat cleanly with thousand dots.
+  5. All numeric input fields across Goals, Obligations, Accounts, Dashboard Transfers, Ledger Edits, and Category Budgets SHALL utilize this automatic dot formatting.
 
 #### Scenario: User enters large amount in goal target field
 - **WHEN** a user enters `20000000` into the Target Nominal input field in the Goals modal
