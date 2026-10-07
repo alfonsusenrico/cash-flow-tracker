@@ -94,7 +94,7 @@ The local Compose override selects development/HTTP cookies. For a direct loopba
 
 ## Visual and language references
 
-Use [frontend/tokens.css](frontend/tokens.css) and the existing shared primitives as the implemented design source; refine without restyling. Apply the framework tool design base where the project is silent. Transfer/income colours are semantic, not extra interactive accents. The root design.md is historical and conflicts with the live tokens; it is retained for a separate archive decision, not a styling authority.
+Use [frontend/tokens.css](frontend/tokens.css) and the existing shared primitives as the implemented design source; refine without restyling. Apply the framework tool design base where the project is silent. Transfer/income colours are semantic, not extra interactive accents. The [archived design](research/archive/2026-05-design-locked-system.md) is superseded historical evidence, not a styling authority.
 
 Keep account/pocket and financial status hierarchy legible at mobile and desktop densities. Do not add pseudo health meters or decorative empty KPI cards. Use tabular figures for comparable financial numbers. Preserve actual token choices; missing CSS variables, geometry/font-weight differences and the obsolete preset contract are recorded follow-ups, not new exceptions or fixes in this adoption.
 
