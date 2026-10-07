@@ -93,3 +93,7 @@ Final `openspec validate --all --strict`: **44 passed / 0 failed**, exit 0. No v
 ## Verification and delivery
 
 See ../evidence/2026-10-07-framework-adoption-verification.md for exact commands, counts, source revision, scope checks and commit receipts. Local PROJECT_STATE.md records owner confirmation and remaining decisions. No personal context from the journal/backup is copied into this tracked note.
+
+## Owner-approved follow-up
+
+The owner approved archival on 2026-10-07. The historical document now lives at [research/archive/2026-05-design-locked-system.md](../archive/2026-05-design-locked-system.md), with live tokens identified as authoritative. The owner also approved replacing Bob hooks and moving durable local state to the main checkout; current receipts are in [follow-up verification](../evidence/2026-10-07-framework-adoption-followup.md). Earlier findings above describe the original adoption revision.
