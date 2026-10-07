@@ -3,11 +3,17 @@
 ## ADDED Requirements
 
 ### Requirement: Goal Progress Action Presentation
-The Goals interface SHALL present progress actions according to goal backing:
-1. A standalone goal SHALL offer a clearly labeled progress adjustment that changes no account or ledger balance.
-2. An account-backed goal SHALL display that progress follows linked account balances and SHALL not offer a synthetic goal deposit action.
-3. Linking or unlinking accounts SHALL explain the resulting progress source before saving.
-4. The interface SHALL never label a progress-only adjustment as an account transfer or ask for a source account that will not be debited.
+The Goals interface SHALL present progress actions according to goal backing.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner views progress actions for a savings goal
+- **THEN** the following required behavior and constraints hold:
+
+  The Goals interface SHALL present progress actions according to goal backing:
+  1. A standalone goal SHALL offer a clearly labeled progress adjustment that changes no account or ledger balance.
+  2. An account-backed goal SHALL display that progress follows linked account balances and SHALL not offer a synthetic goal deposit action.
+  3. Linking or unlinking accounts SHALL explain the resulting progress source before saving.
+  4. The interface SHALL never label a progress-only adjustment as an account transfer or ask for a source account that will not be debited.
 
 #### Scenario: Viewing an account-backed goal
 - **WHEN** a goal has one or more linked accounts

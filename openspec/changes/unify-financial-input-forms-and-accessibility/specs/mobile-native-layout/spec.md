@@ -3,14 +3,20 @@
 ## MODIFIED Requirements
 
 ### Requirement: Mobile Bottom-Sheet Quick Capture
-The application SHALL render the canonical transaction-capture form as a touch-first bottom sheet on mobile screens:
-1. The sheet SHALL have rounded top corners, a visible handle, contained scrolling, accessible dialog semantics, and safe focus behavior.
-2. Amount entry SHALL use high-visibility tabular figures and a touch-appropriate numeric interaction without preventing hardware-keyboard entry.
-3. Category selection SHALL use horizontally scrollable, named, stateful icon choices filtered by transaction type.
-4. Kakeibo choices SHALL be one-tap targets whose selected state is exposed programmatically and whose default follows the selected category.
-5. Account, date, notes, goal or obligation context, receipt attachment, errors, and submission results SHALL be functionally equivalent to the desktop canonical form.
-6. The sheet SHALL not force mobile keyboard focus immediately when doing so obscures context or causes unwanted viewport movement.
-7. The sheet SHALL expose the `Perpindahan` mode with eligible source and destination accounts, amount, seconds-precise timestamp, notes, and movement validation through the same atomic movement contract as desktop Quick Capture.
+The application SHALL render the canonical transaction-capture form as a touch-first bottom sheet on mobile screens.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner opens quick transaction capture on a mobile screen
+- **THEN** the following required behavior and constraints hold:
+
+  The application SHALL render the canonical transaction-capture form as a touch-first bottom sheet on mobile screens:
+  1. The sheet SHALL have rounded top corners, a visible handle, contained scrolling, accessible dialog semantics, and safe focus behavior.
+  2. Amount entry SHALL use high-visibility tabular figures and a touch-appropriate numeric interaction without preventing hardware-keyboard entry.
+  3. Category selection SHALL use horizontally scrollable, named, stateful icon choices filtered by transaction type.
+  4. Kakeibo choices SHALL be one-tap targets whose selected state is exposed programmatically and whose default follows the selected category.
+  5. Account, date, notes, goal or obligation context, receipt attachment, errors, and submission results SHALL be functionally equivalent to the desktop canonical form.
+  6. The sheet SHALL not force mobile keyboard focus immediately when doing so obscures context or causes unwanted viewport movement.
+  7. The sheet SHALL expose the `Perpindahan` mode with eligible source and destination accounts, amount, seconds-precise timestamp, notes, and movement validation through the same atomic movement contract as desktop Quick Capture.
 
 #### Scenario: Opening quick capture on mobile
 - **WHEN** a user opens Quick Capture on a 390px viewport

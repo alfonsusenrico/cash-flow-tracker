@@ -1,14 +1,20 @@
 # investment-source-linking Specification
 
 ## Purpose
-TBD - created by archiving change investment-source-account-linking. Update Purpose after archive.
+Associate investment instruments with funding accounts and route or reassign investment funding effects.
 ## Requirements
 ### Requirement: Investment Account Default Funding Source Configuration
-The system SHALL support configuring an optional `default_funding_account_id` for any account where `type = 'investment'`:
-1. The `default_funding_account_id` SHALL reference an existing, non-archived account owned by the same user.
-2. The endpoint `GET /api/accounts` SHALL include `default_funding_account_id` and `default_funding_account_name` in the account response payload.
-3. The endpoints `POST /api/accounts` and `PATCH /api/accounts/{id}` SHALL accept `default_funding_account_id`.
-4. Deleting a linked funding account SHALL set `default_funding_account_id` to NULL without deleting the investment account.
+The system SHALL support configuring an optional `default_funding_account_id` for any account where `type = 'investment'`.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner configures or queries an investment account funding source
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL support configuring an optional `default_funding_account_id` for any account where `type = 'investment'`:
+  1. The `default_funding_account_id` SHALL reference an existing, non-archived account owned by the same user.
+  2. The endpoint `GET /api/accounts` SHALL include `default_funding_account_id` and `default_funding_account_name` in the account response payload.
+  3. The endpoints `POST /api/accounts` and `PATCH /api/accounts/{id}` SHALL accept `default_funding_account_id`.
+  4. Deleting a linked funding account SHALL set `default_funding_account_id` to NULL without deleting the investment account.
 
 #### Scenario: Configuring RDN BCA as default source for Stockbit
 - **WHEN** user edits the "Stockbit" investment account and selects "RDN BCA" as the default funding account
@@ -19,11 +25,17 @@ The system SHALL support configuring an optional `default_funding_account_id` fo
 - **THEN** system updates `default_funding_account_id` to NULL
 
 ### Requirement: Automated Investment Notification Debit Routing
-The system SHALL route financial trade notifications from investment brokers (e.g. Stockbit) based on funding account configuration:
-1. If the target investment account has a non-null `default_funding_account_id`, the system SHALL set the created transaction's `account_id` to that `default_funding_account_id`.
-2. The transaction `type` SHALL be recorded as `expense` for buy executions (`Pembelian Fully Match`) and `income` for sell executions (`Penjualan Fully Match`).
-3. The transaction category SHALL resolve to `Investasi` (`is_excluded_from_budget = TRUE`, `kakeibo_type = 'saving'`).
-4. If the target investment account has no `default_funding_account_id` configured, the system SHALL fallback to assigning `account_id` to the investment account itself.
+The system SHALL route financial trade notifications from investment brokers (e.g. Stockbit) based on funding account configuration.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** a broker trade notification is routed to its funding account
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL route financial trade notifications from investment brokers (e.g. Stockbit) based on funding account configuration:
+  1. If the target investment account has a non-null `default_funding_account_id`, the system SHALL set the created transaction's `account_id` to that `default_funding_account_id`.
+  2. The transaction `type` SHALL be recorded as `expense` for buy executions (`Pembelian Fully Match`) and `income` for sell executions (`Penjualan Fully Match`).
+  3. The transaction category SHALL resolve to `Investasi` (`is_excluded_from_budget = TRUE`, `kakeibo_type = 'saving'`).
+  4. If the target investment account has no `default_funding_account_id` configured, the system SHALL fallback to assigning `account_id` to the investment account itself.
 
 #### Scenario: Stockbit buy execution routed to RDN BCA
 - **WHEN** mobile companion pushes an order match notification for "Pembelian 10 lot BBRI match di harga Rp3.340" from Stockbit, and Stockbit's default funding account is set to "RDN BCA"

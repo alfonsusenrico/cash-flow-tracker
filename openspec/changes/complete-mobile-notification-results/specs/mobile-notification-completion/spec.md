@@ -7,7 +7,13 @@ Keep the Android companion's stored notification lifecycle aligned with authorit
 ## ADDED Requirements
 
 ### Requirement: Durable Event Completion Tracking
-The companion SHALL distinguish local capture, backend acceptance, processing, and committed recording. It SHALL persist accepted event identifiers and states independently of transport success, correlate results by submitted payload hash, and preserve queued/processing/review/failed events through retention. Missing or invalid per-event results SHALL NOT make a submitted event appear recorded. Only accepted queued/processing events SHALL be automatically polled for completion; review/failed/ignored outcomes SHALL NOT trigger automatic backend retries or resubmission. Tracking SHALL be scoped to the server pairing that accepted the event.
+The companion SHALL distinguish local capture, backend acceptance, processing, and committed recording.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** a captured notification advances through acceptance and processing
+- **THEN** the following required behavior and constraints hold:
+
+  The companion SHALL distinguish local capture, backend acceptance, processing, and committed recording. It SHALL persist accepted event identifiers and states independently of transport success, correlate results by submitted payload hash, and preserve queued/processing/review/failed events through retention. Missing or invalid per-event results SHALL NOT make a submitted event appear recorded. Only accepted queued/processing events SHALL be automatically polled for completion; review/failed/ignored outcomes SHALL NOT trigger automatic backend retries or resubmission. Tracking SHALL be scoped to the server pairing that accepted the event.
 
 #### Scenario: Queued acknowledgement
 - **WHEN** ingestion returns a queued result and event identifier
@@ -26,7 +32,13 @@ The companion SHALL distinguish local capture, backend acceptance, processing, a
 - **THEN** previously accepted events are not polled or replayed against the new pairing, and their stored state is preserved
 
 ### Requirement: Verified Logical Record Alerts
-The companion SHALL post a financial success alert only for a complete authoritative recorded result. Expense content SHALL identify its owned source; income SHALL identify its owned receiving target; movement SHALL identify both endpoints. Logical record keys SHALL identify alert deliveries separately from payload hashes. Repeated delivery and notifications sharing a movement key SHALL use the same active notification and persist deduplication independently of raw-event pruning. Updates to an already delivered logical record SHALL NOT deliberately produce another sound or recreate a dismissed alert.
+The companion SHALL post a financial success alert only for a complete authoritative recorded result.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the companion receives a result that may represent a committed financial record
+- **THEN** the following required behavior and constraints hold:
+
+  The companion SHALL post a financial success alert only for a complete authoritative recorded result. Expense content SHALL identify its owned source; income SHALL identify its owned receiving target; movement SHALL identify both endpoints. Logical record keys SHALL identify alert deliveries separately from payload hashes. Repeated delivery and notifications sharing a movement key SHALL use the same active notification and persist deduplication independently of raw-event pruning. Updates to an already delivered logical record SHALL NOT deliberately produce another sound or recreate a dismissed alert.
 
 #### Scenario: Asynchronous recording completes
 - **WHEN** completion lookup returns a valid recorded result after a queued acknowledgement

@@ -1,7 +1,7 @@
 # account-reconciliation Specification
 
 ## Purpose
-TBD - created by archiving change bibit-executive-sidebar-and-power-tools. Update Purpose after archive.
+Allow users to reconcile tracked account balances with an actual balance and retain an auditable adjustment.
 ## Requirements
 ### Requirement: 1-Tap Account Balance Reconciliation
 The application SHALL provide a balance reconciliation action on every account card in `/accounts`:

@@ -3,10 +3,16 @@
 ## MODIFIED Requirements
 
 ### Requirement: 1-Tap Account Balance Reconciliation
-The application SHALL provide a `Sesuaikan Saldo` balance reconciliation action for every eligible account or pocket in `/accounts`, reachable from that item's labelled actions:
-1. The modal SHALL display the current tracked balance and provide an input for the user's actual real-world balance.
-2. The system SHALL display the calculated variance (e.g. `+15,000 IDR` or `-8,500 IDR`).
-3. Upon confirmation, the backend SHALL update the account balance to the actual amount and automatically generate an audit transaction labeled "Balance Adjustment" or custom user notes.
+The application SHALL provide a `Sesuaikan Saldo` balance reconciliation action for every eligible account or pocket in `/accounts`, reachable from that item's labelled actions.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner reconciles the recorded balance of an eligible account or pocket
+- **THEN** the following required behavior and constraints hold:
+
+  The application SHALL provide a `Sesuaikan Saldo` balance reconciliation action for every eligible account or pocket in `/accounts`, reachable from that item's labelled actions:
+  1. The modal SHALL display the current tracked balance and provide an input for the user's actual real-world balance.
+  2. The system SHALL display the calculated variance (e.g. `+15,000 IDR` or `-8,500 IDR`).
+  3. Upon confirmation, the backend SHALL update the account balance to the actual amount and automatically generate an audit transaction labeled "Balance Adjustment" or custom user notes.
 
 #### Scenario: Reconciling an account balance discrepancy
 - **WHEN** the user inputs an actual balance of 10,000,000 IDR for an account currently tracking at 9,950,000 IDR

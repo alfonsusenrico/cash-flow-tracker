@@ -1,16 +1,22 @@
 # kakeibo-reconciliation Specification
 
 ## Purpose
-TBD - created by archiving change portfolio-trade-kakeibo-reconciliation. Update Purpose after archive.
+Reconcile Kakeibo spending and fresh savings while excluding portfolio trades from inappropriate allocations.
 
 ## Requirements
 
 ### Requirement: Portfolio Trade Exclusion from Kakeibo
-The system SHALL exclude investment trades (such as buying or selling stocks, mutual funds, or gold) and automated internal transfers from Kakeibo pillars so that trading turnover and inter-account movements do not inflate monthly savings or living expense metrics:
-1. Category metadata for `Internal Movement` SHALL have `kakeibo_type = NULL`.
-2. Investment trade transactions (manual or ingested via notification event from brokers such as Stockbit) SHALL be created with `kakeibo_type = NULL`.
-3. Internal account transfer transactions (manual or ingested via notification event such as Bank Jago pocket moves) between liquid accounts SHALL be created with `kakeibo_type = NULL`.
-4. Ingestion pipelines and transaction endpoints SHALL NOT default `kakeibo_type` to `"saving"` or `"need"` for trade or transfer events between liquid accounts, or for card verification pre-auth holds.
+The system SHALL exclude investment trades (such as buying or selling stocks, mutual funds, or gold) and automated internal transfers from Kakeibo pillars so that trading turnover and inter-account movements do not inflate monthly savings or living expense metrics.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** investment trades or internal transfers are classified for Kakeibo reporting
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL exclude investment trades (such as buying or selling stocks, mutual funds, or gold) and automated internal transfers from Kakeibo pillars so that trading turnover and inter-account movements do not inflate monthly savings or living expense metrics:
+  1. Category metadata for `Internal Movement` SHALL have `kakeibo_type = NULL`.
+  2. Investment trade transactions (manual or ingested via notification event from brokers such as Stockbit) SHALL be created with `kakeibo_type = NULL`.
+  3. Internal account transfer transactions (manual or ingested via notification event such as Bank Jago pocket moves) between liquid accounts SHALL be created with `kakeibo_type = NULL`.
+  4. Ingestion pipelines and transaction endpoints SHALL NOT default `kakeibo_type` to `"saving"` or `"need"` for trade or transfer events between liquid accounts, or for card verification pre-auth holds.
 
 #### Scenario: User records a stock purchase trade
 - **WHEN** a user records an investment trade to buy or sell units of a stock or mutual fund

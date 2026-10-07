@@ -3,7 +3,13 @@
 ## MODIFIED Requirements
 
 ### Requirement: Backend Rejection of Non-Financial Payloads
-The backend ingestion endpoint `POST /api/ingest/notifications` SHALL prevent ledger creation for unsupported packages, empty notifications, promotions, pending/failed transactions, OTPs, and other non-settled or non-financial events. Definite unsupported/empty/noise events SHALL be acknowledged as ignored without external inference or event persistence. A supported plausibly financial event SHALL NOT be discarded merely because a known regex did not recognize its syntax; it SHALL be persisted before inference and classified as recorded, ignored, or requiring review according to independently validated settlement and amount evidence. Mobile expected fields and a model's assertion of financial status SHALL NOT bypass this gate. Companion-app entrance filtering remains unchanged.
+The backend ingestion endpoint `POST /api/ingest/notifications` SHALL prevent ledger creation for unsupported packages, empty notifications, promotions, pending/failed transactions, OTPs, and other non-settled or non-financial events.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the backend receives a notification payload
+- **THEN** the following required behavior and constraints hold:
+
+  The backend ingestion endpoint `POST /api/ingest/notifications` SHALL prevent ledger creation for unsupported packages, empty notifications, promotions, pending/failed transactions, OTPs, and other non-settled or non-financial events. Definite unsupported/empty/noise events SHALL be acknowledged as ignored without external inference or event persistence. A supported plausibly financial event SHALL NOT be discarded merely because a known regex did not recognize its syntax; it SHALL be persisted before inference and classified as recorded, ignored, or requiring review according to independently validated settlement and amount evidence. Mobile expected fields and a model's assertion of financial status SHALL NOT bypass this gate. Companion-app entrance filtering remains unchanged.
 
 #### Scenario: Non-financial or noise event payloads are acknowledged without database storage
 - **WHEN** backend entrance checks establish that the submitted event is an empty foreground notification or definite promotional noise
@@ -18,7 +24,13 @@ The backend ingestion endpoint `POST /api/ingest/notifications` SHALL prevent le
 - **THEN** no ledger effect is created and the result is ignored rather than recorded
 
 ### Requirement: Bank Jago Pocket Movement Notifications
-The backend SHALL recognize supported single-pocket and dual-pocket Jago movement syntax while preserving companion-app behavior. Named endpoints SHALL resolve only within the user's registered active Jago hierarchy. Single-pocket syntax SHALL use an unambiguous valid default main endpoint; unresolved named pockets or main endpoints SHALL become review items rather than newly created pockets or guessed transfers. A complete verified interpretation SHALL be applied as a canonical bilateral movement through the notification ingestion contract.
+The backend SHALL recognize supported single-pocket and dual-pocket Jago movement syntax while preserving companion-app behavior.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the backend interprets a Jago pocket movement notification
+- **THEN** the following required behavior and constraints hold:
+
+  The backend SHALL recognize supported single-pocket and dual-pocket Jago movement syntax while preserving companion-app behavior. Named endpoints SHALL resolve only within the user's registered active Jago hierarchy. Single-pocket syntax SHALL use an unambiguous valid default main endpoint; unresolved named pockets or main endpoints SHALL become review items rather than newly created pockets or guessed transfers. A complete verified interpretation SHALL be applied as a canonical bilateral movement through the notification ingestion contract.
 
 #### Scenario: Single-pocket movement out of a pocket
 - **WHEN** Jago reports `You've moved Rp500.000 out of your My Emergency Fund Pocket` and the named pocket and configured main endpoint resolve uniquely

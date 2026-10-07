@@ -1,7 +1,7 @@
 # net-worth-analytics Specification
 
 ## Purpose
-TBD - created by archiving change personal-finance-dashboard-os. Update Purpose after archive.
+Aggregate net worth and liquidity and expose cash-flow runway forecasts for financial planning.
 ## Requirements
 ### Requirement: Net Worth & Liquidity Aggregation
 The system SHALL aggregate liquid assets and outstanding liabilities to compute net worth:
@@ -15,10 +15,16 @@ The system SHALL aggregate liquid assets and outstanding liabilities to compute 
 - **THEN** the system reports `total_assets: 25,000,000`, `total_liabilities: 5,000,000`, and `net_worth: 20,000,000`
 
 ### Requirement: Cash Flow Runway Forecast
-The system SHALL compute estimated cash runway in days and months:
-1. `daily_burn_rate`: Trailing 30-day average daily outflow.
-2. `runway_days`: If `total_assets <= 0`, `runway_days` SHALL be `0`. If `total_assets > 0` and `daily_burn_rate > 0`, `runway_days` SHALL be `round(total_assets / daily_burn_rate)`. If `total_assets > 0` and `daily_burn_rate == 0`, `runway_days` SHALL be `999`.
-3. The dashboard and accounts views SHALL render a runway forecast card indicating the status: if liquid balance is zero, it SHALL indicate zero runway without displaying false solvency indicators.
+The system SHALL compute estimated cash runway in days and months.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the system calculates and displays the cash runway forecast
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL compute estimated cash runway in days and months:
+  1. `daily_burn_rate`: Trailing 30-day average daily outflow.
+  2. `runway_days`: If `total_assets <= 0`, `runway_days` SHALL be `0`. If `total_assets > 0` and `daily_burn_rate > 0`, `runway_days` SHALL be `round(total_assets / daily_burn_rate)`. If `total_assets > 0` and `daily_burn_rate == 0`, `runway_days` SHALL be `999`.
+  3. The dashboard and accounts views SHALL render a runway forecast card indicating the status: if liquid balance is zero, it SHALL indicate zero runway without displaying false solvency indicators.
 
 #### Scenario: Computing runway with zero liquid balance
 - **WHEN** a user has 0 IDR across liquid accounts and no recent spending

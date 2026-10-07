@@ -3,15 +3,21 @@
 ## MODIFIED Requirements
 
 ### Requirement: Bank Jago Child Pocket Transfer Resolution
-The system SHALL resolve source and destination child pockets when ingesting internal movement notifications from Bank Jago (`com.jago.digitalbanking` / `com.jago.digitalBanking`):
-1. When a notification matches pocket-to-pocket movement with `source_pocket` and `target_pocket`, the ingestion engine SHALL search the user's active child accounts (`parent_id = bank_jago_id`) for matching names.
-2. The matching algorithm SHALL support exact name matching, normalized name matching (ignoring the redundant word "Pocket"), and case-insensitive substring matching.
-3. If `source_pocket` matches a child pocket, `transactions.account_id` SHALL be assigned that child pocket's ID; otherwise, for a named internal movement whose source cannot be mapped, it SHALL preserve the existing review/fallback behavior without inventing a different child pocket.
-4. If `target_pocket` matches a child pocket, `transactions.transfer_target_account_id` SHALL be assigned that child pocket's ID.
-5. The created transaction SHALL have `type = 'transfer'` and `kakeibo_type = NULL`.
-6. A verified settled Jago outbound transfer that has no source-pocket evidence SHALL enter the source-pocket confirmation flow before any Jago balance or movement record is written. The system SHALL offer the owner all current eligible child pockets under the owned Bank Jago parent, including the configured main pocket, without selecting one by default.
-7. The source choice SHALL be scoped to the event and SHALL NOT create or update a generic account alias, `default_pocket_id`, or future default for unnamed transfers.
-8. After an authenticated owner confirms an eligible pocket, the system SHALL resume the normal transaction and bilateral-pairing pipeline using that selected account. An unanswered, stale, invalid, or conflicting choice SHALL remain pending or enter review and SHALL NOT fall back to the main pocket.
+The system SHALL resolve source and destination child pockets when ingesting internal movement notifications from Bank Jago (`com.jago.digitalbanking` / `com.jago.digitalBanking`).
+
+#### Scenario: Required behavior and constraints
+- **WHEN** a Jago internal movement notification is ingested
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL resolve source and destination child pockets when ingesting internal movement notifications from Bank Jago (`com.jago.digitalbanking` / `com.jago.digitalBanking`):
+  1. When a notification matches pocket-to-pocket movement with `source_pocket` and `target_pocket`, the ingestion engine SHALL search the user's active child accounts (`parent_id = bank_jago_id`) for matching names.
+  2. The matching algorithm SHALL support exact name matching, normalized name matching (ignoring the redundant word "Pocket"), and case-insensitive substring matching.
+  3. If `source_pocket` matches a child pocket, `transactions.account_id` SHALL be assigned that child pocket's ID; otherwise, for a named internal movement whose source cannot be mapped, it SHALL preserve the existing review/fallback behavior without inventing a different child pocket.
+  4. If `target_pocket` matches a child pocket, `transactions.transfer_target_account_id` SHALL be assigned that child pocket's ID.
+  5. The created transaction SHALL have `type = 'transfer'` and `kakeibo_type = NULL`.
+  6. A verified settled Jago outbound transfer that has no source-pocket evidence SHALL enter the source-pocket confirmation flow before any Jago balance or movement record is written. The system SHALL offer the owner all current eligible child pockets under the owned Bank Jago parent, including the configured main pocket, without selecting one by default.
+  7. The source choice SHALL be scoped to the event and SHALL NOT create or update a generic account alias, `default_pocket_id`, or future default for unnamed transfers.
+  8. After an authenticated owner confirms an eligible pocket, the system SHALL resume the normal transaction and bilateral-pairing pipeline using that selected account. An unanswered, stale, invalid, or conflicting choice SHALL remain pending or enter review and SHALL NOT fall back to the main pocket.
 
 #### Scenario: Moving funds between Main Pocket and GoPay Tabungan Pocket
 - **WHEN** Bank Jago sends a notification *"Rp500.000 has been moved from your Main Pocket Pocket to your GoPay Tabungan Pocket"*
@@ -58,14 +64,20 @@ The system SHALL resolve source and destination child pockets when ingesting int
 - **AND** the new source-pocket question SHALL not be shown
 
 ### Requirement: Multi-App Notification Ingestion Scope
-The system SHALL support push notification ingestion from the 6 active registered companion apps:
-1. `myBCA` (`com.bca.mybca.omni.android`, `id.co.bca.mybca.omni.android`)
-2. `BCA mobile` (`com.bca`)
-3. `Bank Jago` (`com.jago.digitalbanking`, `com.jago.digitalBanking`)
-4. `GoPay` (`com.gojek.gopay`, `com.gojek.app`, `com.gopay.wallet`)
-5. `ShopeePay` (`com.shopeepay.id`)
-6. `Stockbit` (`com.stockbit.android`)
-The system SHALL NOT process unsupported apps (such as Blu by BCA) and SHALL postpone Bibit ingestion until real notification payload samples are provided.
+The system SHALL support push notification ingestion from the 6 active registered companion apps.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** a companion application submits a notification for ingestion
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL support push notification ingestion from the 6 active registered companion apps:
+  1. `myBCA` (`com.bca.mybca.omni.android`, `id.co.bca.mybca.omni.android`)
+  2. `BCA mobile` (`com.bca`)
+  3. `Bank Jago` (`com.jago.digitalbanking`, `com.jago.digitalBanking`)
+  4. `GoPay` (`com.gojek.gopay`, `com.gojek.app`, `com.gopay.wallet`)
+  5. `ShopeePay` (`com.shopeepay.id`)
+  6. `Stockbit` (`com.stockbit.android`)
+  The system SHALL NOT process unsupported apps (such as Blu by BCA) and SHALL postpone Bibit ingestion until real notification payload samples are provided.
 
 #### Scenario: Ingesting valid financial notification from supported app
 - **WHEN** an incoming batch contains a notification event from `com.gojek.app` for an outbound payment

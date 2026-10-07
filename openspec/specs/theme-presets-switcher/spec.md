@@ -1,14 +1,20 @@
 # theme-presets-switcher Specification
 
 ## Purpose
-TBD - created by archiving change modern-presets-and-clean-forms. Update Purpose after archive.
+Specify theme preset selection and persistence together with consistent shared button styling.
 ## Requirements
 ### Requirement: Interactive Design System Preset Switcher
-The application SHALL provide an interactive design system switcher supporting 4 distinct modern styles with seamless, borderless digital bank aesthetics:
-1. `swiss` (Swiss Digital Bank / Default): Seamless floating card surfaces on subtle canvas, hairline/borderless dividers, Outfit rounded geometric typography, high-contrast electric mint & coral financial signals, inspired by Bank Jago, Bibit, and SeaBank.
-2. `nordic` (Nordic Obsidian / Raycast): Cool slate & titanium canvas, Plus Jakarta Sans typography, JetBrains Mono tabular figures, indigo primary brand accent.
-3. `bauhaus` (Modern Bauhaus / Apple Card): Warm alabaster & midnight canvas, Outfit rounded geometric typography, soft pill button geometry, forest emerald & warm rose accents.
-4. `stripe` (Executive FinTech / Stripe): Crisp ice-grey canvas, Inter Display typography, SF Mono tabular figures, royal cobalt blue primary brand accent.
+The application SHALL provide an interactive design system switcher supporting 4 distinct modern styles with seamless, borderless digital bank aesthetics.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner selects a design preset
+- **THEN** the following required behavior and constraints hold:
+
+  The application SHALL provide an interactive design system switcher supporting 4 distinct modern styles with seamless, borderless digital bank aesthetics:
+  1. `swiss` (Swiss Digital Bank / Default): Seamless floating card surfaces on subtle canvas, hairline/borderless dividers, Outfit rounded geometric typography, high-contrast electric mint & coral financial signals, inspired by Bank Jago, Bibit, and SeaBank.
+  2. `nordic` (Nordic Obsidian / Raycast): Cool slate & titanium canvas, Plus Jakarta Sans typography, JetBrains Mono tabular figures, indigo primary brand accent.
+  3. `bauhaus` (Modern Bauhaus / Apple Card): Warm alabaster & midnight canvas, Outfit rounded geometric typography, soft pill button geometry, forest emerald & warm rose accents.
+  4. `stripe` (Executive FinTech / Stripe): Crisp ice-grey canvas, Inter Display typography, SF Mono tabular figures, royal cobalt blue primary brand accent.
 
 #### Scenario: Switching design system presets in real-time
 - **WHEN** a user selects any design preset from the TopBar or Settings switcher
@@ -19,10 +25,16 @@ The application SHALL provide an interactive design system switcher supporting 4
 - **THEN** the selection is saved to `localStorage` under `theme_preset` and restored on subsequent visits across all screens
 
 ### Requirement: Modern Button Styling System
-The application SHALL provide a consistent, modern button styling hierarchy:
-1. **Primary Action Buttons**: Solid background adhering to active preset colors, subtle 1px border, high-contrast text, smooth hover elevation, and tactile press scaling (`:active:scale-[0.98]`).
-2. **Secondary / Outlined Buttons**: Clean border (`var(--border)`), surface background (`var(--surface)`), and subtle hover state.
-3. **Preset-Adaptive Geometry**: Corner radii SHALL dynamically adapt to the active preset (`--radius-btn`), using compact geometry for Swiss Tech (`8px`), sleek curves for Nordic (`10px`), pill geometry for Bauhaus (`9999px`), and structured geometry for Stripe (`8px`).
+The application SHALL provide a consistent, modern button styling hierarchy.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the application renders an action button for the active design preset
+- **THEN** the following required behavior and constraints hold:
+
+  The application SHALL provide a consistent, modern button styling hierarchy:
+  1. **Primary Action Buttons**: Solid background adhering to active preset colors, subtle 1px border, high-contrast text, smooth hover elevation, and tactile press scaling (`:active:scale-[0.98]`).
+  2. **Secondary / Outlined Buttons**: Clean border (`var(--border)`), surface background (`var(--surface)`), and subtle hover state.
+  3. **Preset-Adaptive Geometry**: Corner radii SHALL dynamically adapt to the active preset (`--radius-btn`), using compact geometry for Swiss Tech (`8px`), sleek curves for Nordic (`10px`), pill geometry for Bauhaus (`9999px`), and structured geometry for Stripe (`8px`).
 
 #### Scenario: Tactile button press feedback
 - **WHEN** a user clicks or taps any primary or secondary action button

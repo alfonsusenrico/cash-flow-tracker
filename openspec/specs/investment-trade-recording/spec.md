@@ -1,7 +1,7 @@
 # investment-trade-recording Specification
 
 ## Purpose
-TBD - created by archiving change investment-trade-transactions. Update Purpose after archive.
+Record instrument trades with unit and cost inputs and preview their effect on investment positions.
 ## Requirements
 ### Requirement: Investment Trade Transaction Creation
 The system SHALL accept investment trade parameters (`investment_action`, `units`, `price_per_unit`) when creating a transaction and execute position mutation alongside ledger transfer entry.

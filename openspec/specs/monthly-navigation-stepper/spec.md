@@ -1,7 +1,7 @@
 # monthly-navigation-stepper Specification
 
 ## Purpose
-TBD - created by archiving change natural-indonesian-monthly-ui. Update Purpose after archive.
+Provide a month-and-year navigation stepper for historical financial views without competing timeframe controls.
 ## Requirements
 ### Requirement: Month-and-Year Stepper Navigation
 The primary global navigation bar SHALL provide a month-and-year stepper that explicitly indicates the active calendar month and year (e.g., "September 2026" or "Sep 2026") with left and right chevrons to move backward or forward across discrete monthly statement periods.

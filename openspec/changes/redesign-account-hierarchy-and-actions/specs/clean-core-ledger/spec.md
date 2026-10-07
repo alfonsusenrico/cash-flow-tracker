@@ -3,14 +3,20 @@
 ## MODIFIED Requirements
 
 ### Requirement: Account Management & Real Liquid Balances
-The system SHALL support creating, updating via both `PUT` and `PATCH`, archiving, and querying liquid cash and investment accounts (`cash`, `bank`, `wallet`, `investment`):
-1. Each account's current balance SHALL equal its initial balance plus all debits (income/inbound transfers) minus all credits (expenses/outbound transfers), or its market valuation when instrument tracking is enabled.
-2. Investment valuation updates (via market data or manual updates) SHALL update market valuation parameters (`last_price`, `units`, `initial_balance`) directly and SHALL NOT insert income, expense, or transfer transactions into the ledger.
-3. Account entities SHALL support a customizable tag color (`color`, hex string default `#3b82f6`) and display position index (`display_order`, integer default `0`).
-4. `GET /api/accounts` SHALL order top-level accounts by `display_order ASC, created_at ASC, name ASC`.
-5. The system SHALL expose `POST /api/accounts/reorder` accepting `account_ids: list[UUID]` to persist updated account order.
-6. The Accounts page SHALL display top-level accounts as equal-height cards in their persisted order, with three cards per row on wide desktops, two on medium desktops, and one on narrow screens. Each card SHALL prominently identify the account by name and configured color with high-contrast text, show its balance, and keep its associated pockets in an expandable, bounded scroll region below the persistent summary and actions. Cards with and without pockets SHALL align to the same height. The hierarchy SHALL remain legible in light and dark modes.
-7. The Accounts page SHALL let users reorder top-level accounts using drag-and-drop and explicit, keyboard- and touch-operable move controls; both methods SHALL persist the resulting order through `POST /api/accounts/reorder`. The UI SHALL NOT print numerical position indexes merely to indicate order.
+The system SHALL support creating, updating via both `PUT` and `PATCH`, archiving, and querying liquid cash and investment accounts (`cash`, `bank`, `wallet`, `investment`).
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner creates, updates, archives or queries accounts
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL support creating, updating via both `PUT` and `PATCH`, archiving, and querying liquid cash and investment accounts (`cash`, `bank`, `wallet`, `investment`):
+  1. Each account's current balance SHALL equal its initial balance plus all debits (income/inbound transfers) minus all credits (expenses/outbound transfers), or its market valuation when instrument tracking is enabled.
+  2. Investment valuation updates (via market data or manual updates) SHALL update market valuation parameters (`last_price`, `units`, `initial_balance`) directly and SHALL NOT insert income, expense, or transfer transactions into the ledger.
+  3. Account entities SHALL support a customizable tag color (`color`, hex string default `#3b82f6`) and display position index (`display_order`, integer default `0`).
+  4. `GET /api/accounts` SHALL order top-level accounts by `display_order ASC, created_at ASC, name ASC`.
+  5. The system SHALL expose `POST /api/accounts/reorder` accepting `account_ids: list[UUID]` to persist updated account order.
+  6. The Accounts page SHALL display top-level accounts as equal-height cards in their persisted order, with three cards per row on wide desktops, two on medium desktops, and one on narrow screens. Each card SHALL prominently identify the account by name and configured color with high-contrast text, show its balance, and keep its associated pockets in an expandable, bounded scroll region below the persistent summary and actions. Cards with and without pockets SHALL align to the same height. The hierarchy SHALL remain legible in light and dark modes.
+  7. The Accounts page SHALL let users reorder top-level accounts using drag-and-drop and explicit, keyboard- and touch-operable move controls; both methods SHALL persist the resulting order through `POST /api/accounts/reorder`. The UI SHALL NOT print numerical position indexes merely to indicate order.
 
 #### Scenario: Updating investment valuation without ledger transactions
 - **WHEN** a user updates the market value of an investment account from 10,000,000 IDR to 11,500,000 IDR
@@ -46,11 +52,17 @@ The system SHALL support creating, updating via both `PUT` and `PATCH`, archivin
 - **THEN** the canvas displays a refined soft slate background (`#F4F5F8`), account groups render with crisp white surfaces and visible borders, and the hierarchy avoids unstyled dark inversions
 
 ### Requirement: Parent Balance Aggregation and Grouped Representation
-The system SHALL compute the balance of any master account dynamically as the sum of all its active child pockets' balances plus any direct balance of the master account:
-1. `GET /api/accounts` SHALL return accounts with `parent_id`, `is_parent`, `children: [...]`, and aggregated total balance for master accounts.
-2. Transactions recorded against a child pocket SHALL directly debit or credit that specific pocket and automatically reflect in the master account's aggregated balance.
-3. Account selectors across Quick Capture, Ledger, and Transfers SHALL present pockets grouped under their respective master accounts using `<optgroup>`.
-4. The Accounts page SHALL render master accounts with expandable/collapsible pocket lists and clear visual hierarchy. Expanded pockets SHALL be shown as compact rows in the card's bounded scroll region, with pocket names, balances, and relevant investment details readable without visually repeating full account cards.
+The system SHALL compute the balance of any master account dynamically as the sum of all its active child pockets' balances plus any direct balance of the master account.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the application computes or displays an account hierarchy balance
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL compute the balance of any master account dynamically as the sum of all its active child pockets' balances plus any direct balance of the master account:
+  1. `GET /api/accounts` SHALL return accounts with `parent_id`, `is_parent`, `children: [...]`, and aggregated total balance for master accounts.
+  2. Transactions recorded against a child pocket SHALL directly debit or credit that specific pocket and automatically reflect in the master account's aggregated balance.
+  3. Account selectors across Quick Capture, Ledger, and Transfers SHALL present pockets grouped under their respective master accounts using `<optgroup>`.
+  4. The Accounts page SHALL render master accounts with expandable/collapsible pocket lists and clear visual hierarchy. Expanded pockets SHALL be shown as compact rows in the card's bounded scroll region, with pocket names, balances, and relevant investment details readable without visually repeating full account cards.
 
 #### Scenario: Querying accounts with pockets
 - **WHEN** a user with Bank Jago having "Kantong Utama" (Rp 5.000.000) and "Kantong Darurat" (Rp 15.000.000) calls `GET /api/accounts`
@@ -67,7 +79,13 @@ The system SHALL compute the balance of any master account dynamically as the su
 ## ADDED Requirements
 
 ### Requirement: Account and Pocket Action Clarity
-The Accounts page SHALL provide a clearly labelled primary action appropriate to each account or pocket and a discoverable, labelled secondary-action disclosure for other supported operations. The action presentation SHALL preserve available transfers, child-pocket creation, investment buy and sell, manual valuation, balance reconciliation where eligible, editing, and archiving. Action controls SHALL have sufficiently large touch targets, visible keyboard focus, meaningful accessible names, and an operable disclosure that does not trap focus or conceal an action from keyboard users.
+The Accounts page SHALL provide a clearly labelled primary action appropriate to each account or pocket and a discoverable, labelled secondary-action disclosure for other supported operations.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner inspects available actions for an account or pocket
+- **THEN** the following required behavior and constraints hold:
+
+  The Accounts page SHALL provide a clearly labelled primary action appropriate to each account or pocket and a discoverable, labelled secondary-action disclosure for other supported operations. The action presentation SHALL preserve available transfers, child-pocket creation, investment buy and sell, manual valuation, balance reconciliation where eligible, editing, and archiving. Action controls SHALL have sufficiently large touch targets, visible keyboard focus, meaningful accessible names, and an operable disclosure that does not trap focus or conceal an action from keyboard users.
 
 #### Scenario: Acting on a liquid account
 - **WHEN** a user views a top-level liquid account, with or without pockets

@@ -1,7 +1,13 @@
 ## ADDED Requirements
 
 ### Requirement: Unit-tracked mutual fund conversion to amount tracking
-The system SHALL let the owner convert an owned, active, leaf mutual-fund product that records units into an amount-tracked product, once and only by explicit request. The conversion SHALL carry over the current value as units multiplied by the last price (or the product's ledger balance when no price exists), and the invested cost as units multiplied by the average buy price, else the positive opening balance, else zero for an empty product, else unknown. After conversion the product SHALL record no units or per-unit average, SHALL be eligible for amount top-ups and amount valuation, and SHALL no longer accept unit trades.
+The system SHALL let the owner convert an owned, active, leaf mutual-fund product that records units into an amount-tracked product, once and only by explicit request.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner explicitly converts a unit-tracked mutual fund to amount tracking
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL let the owner convert an owned, active, leaf mutual-fund product that records units into an amount-tracked product, once and only by explicit request. The conversion SHALL carry over the current value as units multiplied by the last price (or the product's ledger balance when no price exists), and the invested cost as units multiplied by the average buy price, else the positive opening balance, else zero for an empty product, else unknown. After conversion the product SHALL record no units or per-unit average, SHALL be eligible for amount top-ups and amount valuation, and SHALL no longer accept unit trades.
 
 #### Scenario: Product keeps its value and cost
 - **WHEN** the owner converts a product holding 2,871.1295 units with last price 1,994.18 and average buy price 1,922.1773
@@ -16,7 +22,13 @@ The system SHALL let the owner convert an owned, active, leaf mutual-fund produc
 - **THEN** the request is rejected with a stable error code and no account changes
 
 ### Requirement: Recorded expense conversion to an investment top-up
-The system SHALL let the owner turn an owned, standalone expense from an active liquid account into an investment top-up for an owned, active, amount-tracked mutual-fund product. The existing expense SHALL become the top-up's outgoing leg with its date, amount, notification link, and idempotency key preserved, and the system SHALL add the incoming product leg and increase the product's value and known invested cost by the amount, in one atomic operation. The funding account balance SHALL NOT change. An expense that is already part of a movement, or linked to a debt, debt split, goal, or recurring rule, SHALL be refused.
+The system SHALL let the owner turn an owned, standalone expense from an active liquid account into an investment top-up for an owned, active, amount-tracked mutual-fund product.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner converts a recorded standalone expense to an investment top-up
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL let the owner turn an owned, standalone expense from an active liquid account into an investment top-up for an owned, active, amount-tracked mutual-fund product. The existing expense SHALL become the top-up's outgoing leg with its date, amount, notification link, and idempotency key preserved, and the system SHALL add the incoming product leg and increase the product's value and known invested cost by the amount, in one atomic operation. The funding account balance SHALL NOT change. An expense that is already part of a movement, or linked to a debt, debt split, goal, or recurring rule, SHALL be refused.
 
 #### Scenario: Notification debit becomes a top-up
 - **WHEN** the owner converts the Rp112.590 RDN expense recorded from a myBCA notification into a top-up for a Bibit product

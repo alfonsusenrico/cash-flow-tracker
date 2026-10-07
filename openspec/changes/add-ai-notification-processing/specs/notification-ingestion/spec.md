@@ -3,7 +3,13 @@
 ## MODIFIED Requirements
 
 ### Requirement: Bank Jago Child Pocket Transfer Resolution
-The system SHALL resolve Jago movement endpoints from the user's active registered accounts and child pockets under the same Jago parent. Exact and normalized names, including redundant `Pocket`/`Kantong` terms and supported aliases, SHALL be considered; substring or semantic matching SHALL NOT resolve an ambiguous name arbitrarily. An implicit main endpoint SHALL resolve only to that parent's explicitly configured valid default pocket, uniquely identified registered main pocket, or valid parent main balance. Unknown named pockets SHALL NOT be created or replaced with a parent fallback. A verified complete movement SHALL atomically create the canonical linked expense/income pair, preserving amount and original timestamp, and apply the canonical movement Kakeibo rule rather than a legacy `transfer` transaction type. The processor SHALL NOT wait for a second notification for an explicit Jago pocket movement.
+The system SHALL resolve Jago movement endpoints from the user's active registered accounts and child pockets under the same Jago parent.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** a Jago internal movement notification is ingested
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL resolve Jago movement endpoints from the user's active registered accounts and child pockets under the same Jago parent. Exact and normalized names, including redundant `Pocket`/`Kantong` terms and supported aliases, SHALL be considered; substring or semantic matching SHALL NOT resolve an ambiguous name arbitrarily. An implicit main endpoint SHALL resolve only to that parent's explicitly configured valid default pocket, uniquely identified registered main pocket, or valid parent main balance. Unknown named pockets SHALL NOT be created or replaced with a parent fallback. A verified complete movement SHALL atomically create the canonical linked expense/income pair, preserving amount and original timestamp, and apply the canonical movement Kakeibo rule rather than a legacy `transfer` transaction type. The processor SHALL NOT wait for a second notification for an explicit Jago pocket movement.
 
 #### Scenario: Moving funds between Main Pocket and GoPay Tabungan Pocket
 - **WHEN** Jago reports `Rp500.000 has been moved from your Main Pocket Pocket to your GoPay Tabungan Pocket` and both endpoints resolve uniquely within the registered Jago hierarchy
@@ -18,7 +24,13 @@ The system SHALL resolve Jago movement endpoints from the user's active register
 - **THEN** the event is retained for review, no liquid pocket is created, and no guessed movement is recorded
 
 ### Requirement: Multi-App Notification Ingestion Scope
-The system SHALL continue to support authenticated backend ingestion from myBCA (`com.bca.mybca.omni.android`, `id.co.bca.mybca.omni.android`), BCA mobile (`com.bca`), Bank Jago (`com.jago.digitalbanking`, `com.jago.digitalBanking`), GoPay (`com.gojek.gopay`, `com.gojek.app`, `com.gopay.wallet`), ShopeePay (`com.shopeepay.id`), and Stockbit (`com.stockbit.android`). Unsupported apps, including Blu and deferred Bibit ingestion, SHALL NOT create ledger effects. Source institutions SHALL resolve from the authenticated user's registered data and supported package evidence; missing or ambiguous mapping SHALL NOT fall back to an unrelated primary or first liquid account. Existing deterministic broker trade processing SHALL remain isolated from generic AI liquid operations.
+The system SHALL continue to support authenticated backend ingestion from myBCA (`com.bca.mybca.omni.android`, `id.co.bca.mybca.omni.android`), BCA mobile (`com.bca`), Bank Jago (`com.jago.digitalbanking`, `com.jago.digitalBanking`), GoPay (`com.gojek.gopay`, `com.gojek.app`, `com.gopay.wallet`), ShopeePay (`com.shopeepay.id`), and Stockbit (`com.stockbit.android`).
+
+#### Scenario: Required behavior and constraints
+- **WHEN** a companion application submits a notification for ingestion
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL continue to support authenticated backend ingestion from myBCA (`com.bca.mybca.omni.android`, `id.co.bca.mybca.omni.android`), BCA mobile (`com.bca`), Bank Jago (`com.jago.digitalbanking`, `com.jago.digitalBanking`), GoPay (`com.gojek.gopay`, `com.gojek.app`, `com.gopay.wallet`), ShopeePay (`com.shopeepay.id`), and Stockbit (`com.stockbit.android`). Unsupported apps, including Blu and deferred Bibit ingestion, SHALL NOT create ledger effects. Source institutions SHALL resolve from the authenticated user's registered data and supported package evidence; missing or ambiguous mapping SHALL NOT fall back to an unrelated primary or first liquid account. Existing deterministic broker trade processing SHALL remain isolated from generic AI liquid operations.
 
 #### Scenario: Ingesting valid financial notification from supported app
 - **WHEN** a supported GoPay event confirms an outbound payment and resolves uniquely to an owned active GoPay account
@@ -35,7 +47,13 @@ The system SHALL continue to support authenticated backend ingestion from myBCA 
 ## ADDED Requirements
 
 ### Requirement: Durable Idempotent Notification Processing
-The system SHALL persist accepted financial candidates and processing status before external inference, keyed uniquely by authenticated user and payload hash. It SHALL expose `queued`, `processing`, `recorded`, `needs_review`, `ignored`, or `failed` as appropriate. Repeated deliveries, simultaneous workers, expired worker ownership, and process restarts SHALL NOT duplicate ledger effects. A per-event failure SHALL NOT roll back another event's accepted state. Ordinary redelivery SHALL return existing state, not overwrite source facts or replay a completed ledger operation.
+The system SHALL persist accepted financial candidates and processing status before external inference, keyed uniquely by authenticated user and payload hash.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** a financial candidate is accepted, processed or redelivered
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL persist accepted financial candidates and processing status before external inference, keyed uniquely by authenticated user and payload hash. It SHALL expose `queued`, `processing`, `recorded`, `needs_review`, `ignored`, or `failed` as appropriate. Repeated deliveries, simultaneous workers, expired worker ownership, and process restarts SHALL NOT duplicate ledger effects. A per-event failure SHALL NOT roll back another event's accepted state. Ordinary redelivery SHALL return existing state, not overwrite source facts or replay a completed ledger operation.
 
 #### Scenario: Concurrent delivery of the same candidate
 - **WHEN** two requests submit the same user and payload hash simultaneously
@@ -50,7 +68,13 @@ The system SHALL persist accepted financial candidates and processing status bef
 - **THEN** each event retains its own durable state and the failed event does not erase the accepted or recorded results of the others
 
 ### Requirement: Conservative Automatic Movement Reconciliation
-For cross-account notifications, the system SHALL record only the observed financial leg until a unique supported opposite leg exists. Automatic linkage SHALL require the same owner, equal positive source-supported amounts and currency, opposite directions, distinct eligible liquid accounts, original event timestamps strictly less than 30 seconds apart, compatible transfer/endpoint evidence, and exactly one mutually eligible counterpart. Model confidence or amount/time coincidence alone SHALL NOT prove a movement. Associated goal/debt/recurring/trade records, unrelated manually recorded transactions, and consumed movement roles SHALL NOT be reassigned automatically. Linking two existing observed legs SHALL preserve their identities, timestamps, amounts, notes, receipts, and balance effects, while assigning canonical movement roles/classifications atomically. Manual merge and display-only legacy inference SHALL retain their existing contracts.
+For cross-account notifications, the system SHALL record only the observed financial leg until a unique supported opposite leg exists.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** cross-account notification legs are considered for automatic reconciliation
+- **THEN** the following required behavior and constraints hold:
+
+  For cross-account notifications, the system SHALL record only the observed financial leg until a unique supported opposite leg exists. Automatic linkage SHALL require the same owner, equal positive source-supported amounts and currency, opposite directions, distinct eligible liquid accounts, original event timestamps strictly less than 30 seconds apart, compatible transfer/endpoint evidence, and exactly one mutually eligible counterpart. Model confidence or amount/time coincidence alone SHALL NOT prove a movement. Associated goal/debt/recurring/trade records, unrelated manually recorded transactions, and consumed movement roles SHALL NOT be reassigned automatically. Linking two existing observed legs SHALL preserve their identities, timestamps, amounts, notes, receipts, and balance effects, while assigning canonical movement roles/classifications atomically. Manual merge and display-only legacy inference SHALL retain their existing contracts.
 
 #### Scenario: Receiving opposite legs in separate batches
 - **WHEN** a supported outgoing event and its unique supported incoming counterpart arrive in different batches with event timestamps 29 seconds apart
@@ -80,7 +104,13 @@ The system SHALL distinguish a leg observed directly in a notification from a co
 - **THEN** the backend does not silently reuse, rewrite, or double-record that movement and retains the ambiguity for review
 
 ### Requirement: Compact Committed Notification Results
-Batch ingestion SHALL preserve `ok`, `received`, `inserted`, `updated`, and `created_transactions` and add one result per submitted event in input order. Each result SHALL identify its submitted `payload_hash` and state. A committed result SHALL include stable `record_key`, `type`, concise `description`, source/target display strings, numeric `amount`, and `currency`, with `target` null when inapplicable. `event_id` SHALL support lookup for durably accepted asynchronous events. `recorded` SHALL be returned only after commit; queued acceptance or provider success alone SHALL NOT indicate transaction success. Redelivery SHALL reuse the committed key and results; a reconciled movement's notifications SHALL identify the same logical operation. Counters SHALL describe the current HTTP request, not eventual asynchronous ledger writes.
+Batch ingestion SHALL preserve `ok`, `received`, `inserted`, `updated`, and `created_transactions` and add one result per submitted event in input order.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the backend returns results for a notification batch
+- **THEN** the following required behavior and constraints hold:
+
+  Batch ingestion SHALL preserve `ok`, `received`, `inserted`, `updated`, and `created_transactions` and add one result per submitted event in input order. Each result SHALL identify its submitted `payload_hash` and state. A committed result SHALL include stable `record_key`, `type`, concise `description`, source/target display strings, numeric `amount`, and `currency`, with `target` null when inapplicable. `event_id` SHALL support lookup for durably accepted asynchronous events. `recorded` SHALL be returned only after commit; queued acceptance or provider success alone SHALL NOT indicate transaction success. Redelivery SHALL reuse the committed key and results; a reconciled movement's notifications SHALL identify the same logical operation. Counters SHALL describe the current HTTP request, not eventual asynchronous ledger writes.
 
 #### Scenario: Acknowledging queued work
 - **WHEN** ingestion durably accepts an event that requires asynchronous processing
@@ -122,7 +152,13 @@ The backend SHALL expose the same compact event result through `GET /api/ingest/
 - **THEN** the backend rejects the retry without changing its durable state or reporting it queued
 
 ### Requirement: Owner-Authorized Development Notification Dry Run
-The backend SHALL provide owner-authenticated dry-run interpretation only in an explicitly enabled development environment. `POST /api/ingest/notifications/dry-run` SHALL accept a normal notification payload without persisting it, and `POST /api/ingest/notifications/{event_id}/dry-run` SHALL read exactly one owned stored event. Both routes SHALL use current active owner context and the same fact, provider, redaction, and trusted-validation boundaries as AI processing, but SHALL create no notification event, transaction, movement, lease, retry, or balance/state mutation. They SHALL not start or require the normal processing worker. Responses SHALL contain only a safe dry-run status, proposed compact financial fields when available, and a safe validation/provider error code; raw notification text and provider diagnostic bodies SHALL not be returned or persisted.
+The backend SHALL provide owner-authenticated dry-run interpretation only in an explicitly enabled development environment. `POST /api/ingest/notifications/dry-run` SHALL accept a normal notification payload without persisting it, and `POST /api/ingest/notifications/{event_id}/dry-run` SHALL read exactly one owned stored event.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner requests notification interpretation through a development dry-run route
+- **THEN** the following required behavior and constraints hold:
+
+  The backend SHALL provide owner-authenticated dry-run interpretation only in an explicitly enabled development environment. `POST /api/ingest/notifications/dry-run` SHALL accept a normal notification payload without persisting it, and `POST /api/ingest/notifications/{event_id}/dry-run` SHALL read exactly one owned stored event. Both routes SHALL use current active owner context and the same fact, provider, redaction, and trusted-validation boundaries as AI processing, but SHALL create no notification event, transaction, movement, lease, retry, or balance/state mutation. They SHALL not start or require the normal processing worker. Responses SHALL contain only a safe dry-run status, proposed compact financial fields when available, and a safe validation/provider error code; raw notification text and provider diagnostic bodies SHALL not be returned or persisted.
 
 #### Scenario: Testing a direct local mobile payload without a write
 - **WHEN** an authenticated owner submits a supported notification to the enabled development dry-run route

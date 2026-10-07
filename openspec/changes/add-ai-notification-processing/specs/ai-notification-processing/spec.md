@@ -33,7 +33,13 @@ Processing context SHALL contain only the authenticated user's active accounts/p
 - **THEN** none of those references or transaction contents appear in the processing context
 
 ### Requirement: Source-Backed Financial Facts
-The backend SHALL preserve the original event timestamp including seconds and SHALL verify amounts and currency against notification evidence independently of model confidence. Amount parsing SHALL be exact, not floating-point or silent rounding. Model output and mobile expected fields SHALL NOT override conflicting source evidence. Multiple plausible amounts, missing settlement evidence, unsupported currency, or a non-integral amount unsupported by the current whole-IDR ledger SHALL produce review rather than an invented or rounded transaction.
+The backend SHALL preserve the original event timestamp including seconds and SHALL verify amounts and currency against notification evidence independently of model confidence.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the backend validates notification amounts, currency and timestamps
+- **THEN** the following required behavior and constraints hold:
+
+  The backend SHALL preserve the original event timestamp including seconds and SHALL verify amounts and currency against notification evidence independently of model confidence. Amount parsing SHALL be exact, not floating-point or silent rounding. Model output and mobile expected fields SHALL NOT override conflicting source evidence. Multiple plausible amounts, missing settlement evidence, unsupported currency, or a non-integral amount unsupported by the current whole-IDR ledger SHALL produce review rather than an invented or rounded transaction.
 
 #### Scenario: Preserving amount and seconds
 - **WHEN** the notification states `Rp125.000` and its event timestamp is `2026-09-28T10:15:27+07:00`
@@ -48,7 +54,13 @@ The backend SHALL preserve the original event timestamp including seconds and SH
 - **THEN** the backend does not truncate it to 50000 and creates no ledger effect
 
 ### Requirement: Backend Reference and Classification Validation
-Before a financial write, the system SHALL revalidate proposed references against current active ownership, hierarchy, category kind, and account eligibility. Ordinary liquid operations SHALL NOT use investment positions or mutate positions, goal progress, debt balances, allocations, or recurring rules. Kakeibo SHALL be a valid transaction-level value independent of category naming; movements SHALL use the canonical economic classification rule. Invalid or uncertain required references SHALL produce review without creating generic accounts, liquid pockets, or categories. Existing deterministic instrument-provisioning rules remain separate from the AI processor.
+Before a financial write, the system SHALL revalidate proposed references against current active ownership, hierarchy, category kind, and account eligibility.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** a proposed notification interpretation is checked before a financial write
+- **THEN** the following required behavior and constraints hold:
+
+  Before a financial write, the system SHALL revalidate proposed references against current active ownership, hierarchy, category kind, and account eligibility. Ordinary liquid operations SHALL NOT use investment positions or mutate positions, goal progress, debt balances, allocations, or recurring rules. Kakeibo SHALL be a valid transaction-level value independent of category naming; movements SHALL use the canonical economic classification rule. Invalid or uncertain required references SHALL produce review without creating generic accounts, liquid pockets, or categories. Existing deterministic instrument-provisioning rules remain separate from the AI processor.
 
 #### Scenario: Detecting an account archived during inference
 - **WHEN** a proposed source account becomes archived after context construction but before application
@@ -63,7 +75,13 @@ Before a financial write, the system SHALL revalidate proposed references agains
 - **THEN** their validated Kakeibo classifications can differ without changing the category definition
 
 ### Requirement: OpenAI Operational Provider With Explicit Retention Policy
-The initial processor SHALL use the official OpenAI API with `gpt-5.6-luna` as its only operational model. It SHALL use a tool-less structured-output request with response storage disabled. It SHALL permit only `none` or `low` reasoning effort and SHALL default to `low`. The system SHALL require `OPENAI_API_KEY`, SHALL remain disabled without valid opt-in configuration, and SHALL NOT silently select a different model, provider, reasoning level, or paid fallback. An owner-authorized development dry run MAY invoke the same provider only when separately enabled; it SHALL not enable the normal worker or ledger writes. Documentation SHALL state that OpenAI API inputs are not used for training by default but standard abuse-monitoring retention may be up to 30 days unless the configured project has separately approved retention controls.
+The initial processor SHALL use the official OpenAI API with `gpt-5.6-luna` as its only operational model.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** the notification processor or an authorized development dry run invokes the provider
+- **THEN** the following required behavior and constraints hold:
+
+  The initial processor SHALL use the official OpenAI API with `gpt-5.6-luna` as its only operational model. It SHALL use a tool-less structured-output request with response storage disabled. It SHALL permit only `none` or `low` reasoning effort and SHALL default to `low`. The system SHALL require `OPENAI_API_KEY`, SHALL remain disabled without valid opt-in configuration, and SHALL NOT silently select a different model, provider, reasoning level, or paid fallback. An owner-authorized development dry run MAY invoke the same provider only when separately enabled; it SHALL not enable the normal worker or ledger writes. Documentation SHALL state that OpenAI API inputs are not used for training by default but standard abuse-monitoring retention may be up to 30 days unless the configured project has separately approved retention controls.
 
 #### Scenario: Configuring a permitted low-reasoning model
 - **WHEN** enabled operational configuration names `gpt-5.6-luna` with `low` reasoning and an available OpenAI credential
@@ -97,7 +115,13 @@ The system SHALL send only the notification fields and owned context needed for 
 - **THEN** only a safe error classification is exposed or logged
 
 ### Requirement: Synthetic OpenAI Configuration Benchmark
-Model evaluation SHALL use a versioned wholly synthetic corpus mimicking supported Indonesian notification formats and synthetic registered context, not exported or merely anonymized real records. The runner SHALL apply the same entrance routing as production: definite ignored/non-candidate events SHALL be scored separately without external inference; deterministic Stockbit events SHALL be reported as a non-model route; only candidate non-Stockbit events SHALL be sent to `gpt-5.6-luna` and counted in model-quality metrics. Evaluation SHALL measure `gpt-5.6-luna` with `low` reasoning and, when explicitly requested, the permitted `none` baseline using the same prompt, schema, model-eligible cases, and parameters. Reports SHALL identify provider/model/reasoning effort, prompt and fixture versions, routing counts, model sample counts, repeats, schema validity, fact accuracy, reference accuracy, category/Kakeibo accuracy, movement precision/recall, safe abstention, token usage when returned, and latency percentiles. Provider failures SHALL count as unsuccessful model-eligible cases. Aggregate scores SHALL NOT hide unsafe amounts, references, or false movement merges.
+Model evaluation SHALL use a versioned wholly synthetic corpus mimicking supported Indonesian notification formats and synthetic registered context, not exported or merely anonymized real records.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an authorized synthetic notification benchmark is run
+- **THEN** the following required behavior and constraints hold:
+
+  Model evaluation SHALL use a versioned wholly synthetic corpus mimicking supported Indonesian notification formats and synthetic registered context, not exported or merely anonymized real records. The runner SHALL apply the same entrance routing as production: definite ignored/non-candidate events SHALL be scored separately without external inference; deterministic Stockbit events SHALL be reported as a non-model route; only candidate non-Stockbit events SHALL be sent to `gpt-5.6-luna` and counted in model-quality metrics. Evaluation SHALL measure `gpt-5.6-luna` with `low` reasoning and, when explicitly requested, the permitted `none` baseline using the same prompt, schema, model-eligible cases, and parameters. Reports SHALL identify provider/model/reasoning effort, prompt and fixture versions, routing counts, model sample counts, repeats, schema validity, fact accuracy, reference accuracy, category/Kakeibo accuracy, movement precision/recall, safe abstention, token usage when returned, and latency percentiles. Provider failures SHALL count as unsuccessful model-eligible cases. Aggregate scores SHALL NOT hide unsafe amounts, references, or false movement merges.
 
 #### Scenario: Comparing permitted reasoning configurations fairly
 - **WHEN** `gpt-5.6-luna` is evaluated with `low` and `none` reasoning
