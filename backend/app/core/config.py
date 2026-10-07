@@ -61,6 +61,11 @@ def load_settings() -> Settings:
     if not session_secret:
         raise RuntimeError("SESSION_SECRET is required")
 
+    app_env = os.getenv("APP_ENV", "production").strip().lower()
+    cookie_secure = os.getenv("COOKIE_SECURE", "true").strip().lower() != "false"
+    if app_env in {"production", "prod"} and not cookie_secure:
+        raise RuntimeError("COOKIE_SECURE must be true in production")
+
     username_re = re.compile(r"^[a-zA-Z0-9._-]{3,32}$")
 
     db_pool_min = max(1, int(os.getenv("DB_POOL_MIN", "1")))
@@ -87,7 +92,7 @@ def load_settings() -> Settings:
         redis_url=(os.getenv("REDIS_URL") or "").strip() or None,
         redis_prefix=(os.getenv("REDIS_PREFIX") or "cashflow").strip() or "cashflow",
         session_secret=session_secret,
-        cookie_secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
+        cookie_secure=cookie_secure,
         tz=os.getenv("TZ", "Asia/Jakarta"),
         summary_cache_ttl=int(os.getenv("SUMMARY_CACHE_TTL", "30")),
         month_summary_ttl=int(os.getenv("MONTH_SUMMARY_TTL", "60")),
@@ -121,7 +126,7 @@ def load_settings() -> Settings:
         notification_pairing_window_seconds=pairing_window,
         notification_mapping_auto_threshold=mapping_threshold,
         notification_ai_configuration_error=ai_configuration_error,
-        app_env=os.getenv("APP_ENV", "production").strip().lower(),
+        app_env=app_env,
         notification_ai_dry_run_enabled=os.getenv("NOTIFICATION_AI_DRY_RUN_ENABLED", "false").lower() == "true",
     )
 

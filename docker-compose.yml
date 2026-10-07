@@ -33,7 +33,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ledger}:${POSTGRES_PASSWORD:-ledgerpass}@db:5432/${POSTGRES_DB:-ledger}
       SESSION_SECRET: ${SESSION_SECRET}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
       APP_ORIGINS: ${APP_ORIGINS:-http://localhost:8090}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.16.0.0/12,127.0.0.1/32,::1/128}
       INVITE_CODE: ${INVITE_CODE}
