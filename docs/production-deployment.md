@@ -47,6 +47,10 @@ flowchart TD
 
 ## 3. GitHub Secrets Configuration Checklist
 
+Session cookies default to `COOKIE_SECURE=true`; no repository secret is required for that flag. An unset or empty secret uses the materializer's safe default, and historical runtime cookie flags are not inherited from seed files. An explicit `COOKIE_SECURE=false` causes production startup to fail. Remove that override or set it to true before deploying. The explicitly selected `docker-compose.local.yml` override and the development values in `.env.example` are for local HTTP only; never include them in production.
+
+After deploying this cookie change, the owner must confirm that the production login response's `Set-Cookie` attributes include `Secure`. Inspect attributes only; do not copy session cookie values into logs or reports.
+
 Register these secrets in GitHub under `Settings -> Secrets and variables -> Actions`:
 
 | Secret Name | Description | Example / Note |

@@ -25,6 +25,7 @@ os.environ["DATABASE_URL"] = os.getenv(
 )
 os.environ.setdefault("SESSION_SECRET", "test-secret-for-pytest")
 os.environ.setdefault("INVITE_CODE", "TESTCODE")
+os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("COOKIE_SECURE", "false")
 os.environ.setdefault("REDIS_URL", "")
 
@@ -118,6 +119,7 @@ def client(db_url: str, apply_migrations, db_available: bool):
     os.environ["DATABASE_URL"] = db_url
     os.environ["SESSION_SECRET"] = "test-secret-for-pytest"
     os.environ.setdefault("INVITE_CODE", "TESTCODE")
+    os.environ["APP_ENV"] = "test"
     os.environ["COOKIE_SECURE"] = "false"
     os.environ["REDIS_URL"] = ""  # disable Redis in tests
 

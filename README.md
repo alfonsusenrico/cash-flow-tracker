@@ -5,6 +5,16 @@
 
 ---
 
+### Local HTTP sessions
+
+Session cookies default to Secure. For local HTTP, explicitly set `APP_ENV=development` and `COOKIE_SECURE=false` as shown in `.env.example`, or include the local Compose override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+```
+
+Production uses the base Compose file and rejects insecure cookies at startup. Do not include the local override in a release.
+
 ## 🌟 The Magic Flow: Notification ➔ Instant Parse ➔ Live Ledger
 
 You tap your card or QRIS at lunch. By the time you lock your phone, your net worth, category spending, and daily safe-to-spend allowance are already updated. **Zero manual entry. Zero cloud subscription fees. Zero data tracking.**

@@ -1,0 +1,6 @@
+# Explicit local HTTP opt-in; never included by production Compose discovery.
+services:
+  api:
+    environment:
+      APP_ENV: development
+      COOKIE_SECURE: "false"

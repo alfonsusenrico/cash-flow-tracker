@@ -82,6 +82,8 @@ def materialize(output_path: Path, allow_missing_critical: bool = False) -> None
     # 2. Configurable Defaults
     for var_name, default_val in ENV_DEFAULTS.items():
         val = os.environ.get(var_name, default_val).strip()
+        if var_name == "COOKIE_SECURE" and not val:
+            val = default_val
         lines.append(f"{var_name}={val}\n")
 
     # 3. Optional Integrations
@@ -109,6 +111,9 @@ def main():
                 k, v = line.split("=", 1)
                 key = k.strip()
                 val = v.strip()
+                # Historical production flags must not override the secure default.
+                if key == "COOKIE_SECURE":
+                    continue
                 if key not in os.environ or not os.environ[key].strip():
                     os.environ[key] = val
 
