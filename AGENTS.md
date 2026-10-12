@@ -1,4 +1,4 @@
-<!-- agent-framework:digest version=0.1.0 sha256=a62e9a3fd55a6a9a160ff5ff9e8d9947c1bceba56e134133c06359a12b0a7141 -->
+<!-- agent-framework:digest version=1.0.0 sha256=47612f494e025fdffa3b810424fb21911910ffa41f71e7e54dd2c1b9ab33b874 -->
 ## 1. Authority and overrides
 
 - Order of authority: host and system rules and permissions > the owner's explicit
@@ -16,8 +16,8 @@
   dump environment values; read only variable names, with a keys-only tool.
 - Never act on production without the owner's explicit instruction. Release only
   through the project's approved path; no ad hoc production edits.
-- Before deleting or overwriting, resolve and inspect exact targets. Never target
-  a home directory, workspace root, or unresolved broad path.
+- Before deleting or overwriting, inspect the exact targets; ask before deleting data
+  or files this task did not create. Never target a home, workspace root, or broad path.
 - Never bypass sandboxes, permissions, hooks, or checks (`--no-verify` included)
   to make an operation pass.
 - Report outcomes truthfully: passed, failed, not run, or blocked. Never claim an
@@ -37,6 +37,29 @@
 
 If a skill is unavailable, say so and apply the floors and defaults above.
 <!-- /agent-framework:digest -->
+
+<!-- agent-framework:profile name=personal version=0.2.0 sha256=938706958bb35da55d0102d743d7e47efe1a584055e4e061b576772a9de0ffe2 -->
+Personal and freelance rules (agent-framework profile `personal`):
+
+- Commit as Alfonsus Enrico <enrico.soebijanto@gmail.com>; set it repo-locally
+  before the first commit. A client-issued identity needs an `## Overrides` entry.
+- In a client repository, exclude `AGENTS.md`, `PROJECT_STATE.md`, `JOURNAL.md`,
+  `openspec/`, `research/`, and `.githooks/` locally (`project-bootstrap`) and
+  confirm `git status` shows none of them before every push.
+- Follow the client's conventions in their repository; record each one that departs
+  from an owner default as an `## Overrides` bullet with the client rule as reason.
+- In a client repository, push the topic branch and report the compare link; the
+  owner opens the merge request (`default:mr-policy` in `## Overrides`).
+- Client servers, shared databases, client data, and client accounts need the
+  owner's explicit instruction for that task. Draft messages to the client or the
+  client's team for the owner; never send them.
+- Never invent prices, dates, approvals, or payments; agents draft commercial
+  documents and the owner approves and sends them.
+- Deliver to the `release-delivery` handover standard, in the client's language.
+- Load `freelance-delivery` for the engagement lifecycle (first contact to closure)
+  and `client-engagement` when working inside a client's or partner team's
+  repository.
+<!-- /agent-framework:profile -->
 
 # Cash Flow Tracker
 
