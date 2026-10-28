@@ -41,7 +41,6 @@ flowchart TD
 - **Web Ingress Port:** `127.0.0.1:8090` (reverse-proxied by Cloudflare Tunnel)
 - **Tailscale IP:** `100.85.113.31`
 - **Public Domain:** `https://finance.alfonsusenrico.com`
-- **Telegram Webhook:** `https://telegram-webhook.alfonsusenrico.com/cash-flow-tracker/telegram/webhook`
 
 ---
 
@@ -60,10 +59,6 @@ Register these secrets in GitHub under `Settings -> Secrets and variables -> Act
 | `SESSION_SECRET` | 32-byte random session encryption key | Generated via `openssl rand -hex 32` |
 | `POSTGRES_PASSWORD` | Secure PostgreSQL database password | Used by postgres container and backend pool |
 | `INVITE_CODE` | Registration invite code | E.g. `CASHFLOWTRACKER` |
-| `TELEGRAM_BOT_TOKEN` | *(Optional)* Telegram bot authentication token | From @BotFather |
-| `TELEGRAM_WEBHOOK_SECRET` | *(Optional)* Secret header for Telegram webhook | Arbitrary secure string |
-| `DEEPSEEK_API_KEY` | *(Optional)* API key for DeepSeek or OpenRouter | For AI receipt / natural language parsing |
-| `BOT_SECRET` | *(Optional)* Internal bot authentication secret | Arbitrary secure string |
 
 *(Defaults for `DEPLOY_HOST=100.85.113.31`, `DEPLOY_USER=enr1c0`, `DEPLOY_PORT=22`, and `DEPLOY_ROOT=/opt/cash-flow-tracker` are configured automatically).*
 

@@ -20,6 +20,7 @@ from app.services.debt_allocations import (
     validate_allocation_request,
     validate_debt_capacity,
 )
+from app.services.kakeibo import PILLAR_PATTERN, effective_pillar_sql
 from app.services.ledger_mutations import ensure_sufficient_funds, get_locked_ledger_balance, lock_owned_accounts
 from app.services.receipts import (
     build_receipt_relative_path,
@@ -47,7 +48,7 @@ class TransactionCreate(BaseModel):
     date: datetime | None = None
     receipt_path: str | None = None
     idempotency_key: str | None = Field(default=None, max_length=64)
-    kakeibo_type: str | None = Field(default=None, pattern="^(need|want|saving)$")
+    kakeibo_type: str | None = Field(default=None, pattern=PILLAR_PATTERN)
     investment_action: str | None = Field(default=None, pattern="^(buy|sell)$")
     units: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     price_per_unit: float | None = Field(default=None, gt=0, allow_inf_nan=False)
@@ -63,7 +64,7 @@ class TransactionUpdate(BaseModel):
     amount: int | None = Field(default=None, gt=0)
     notes: str | None = Field(default=None, max_length=500)
     date: datetime | None = None
-    kakeibo_type: str | None = Field(default=None, pattern="^(need|want|saving)$")
+    kakeibo_type: str | None = Field(default=None, pattern=PILLAR_PATTERN)
 
 
 @router.get("")
@@ -73,7 +74,7 @@ def list_transactions(
     goal_id: UUID | None = None,
     obligation_id: UUID | None = None,
     type: str | None = Query(default=None, pattern="^(expense|income|transfer)$"),
-    kakeibo_type: str | None = Query(default=None, pattern="^(need|want|saving)$"),
+    kakeibo_type: str | None = Query(default=None, pattern=PILLAR_PATTERN),
     from_date: datetime | None = None,
     to_date: datetime | None = None,
     q: str | None = None,
@@ -117,7 +118,7 @@ def list_transactions(
                 elif type == "income":
                     conditions.append("t.type = 'income' AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND COALESCE(c.is_excluded_from_budget, false) = false")
             if kakeibo_type and isinstance(kakeibo_type, str):
-                conditions.append("COALESCE(t.kakeibo_type, c.kakeibo_type, CASE WHEN COALESCE(c.is_primary, TRUE) THEN 'need' ELSE 'want' END) = %s")
+                conditions.append(f"{effective_pillar_sql()} = %s")
                 params.append(kakeibo_type)
             if from_date:
                 conditions.append("t.date >= %s")
@@ -208,7 +209,7 @@ def list_transactions(
                     t.obligation_id,
                     o.name AS obligation_name,
                     t.type,
-                    COALESCE(t.kakeibo_type, c.kakeibo_type, CASE WHEN COALESCE(c.is_primary, TRUE) THEN 'need' ELSE 'want' END) AS kakeibo_type,
+                    {effective_pillar_sql()} AS kakeibo_type,
                     t.amount,
                     t.notes,
                     t.date,
@@ -882,14 +883,14 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """
+                f"""
                 SELECT
                     t.id, t.account_id, sa.name AS account_name,
                     t.category_id, c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
                     t.goal_id, g.name AS goal_name,
                     t.obligation_id, o.name AS obligation_name,
                     t.type,
-                    COALESCE(t.kakeibo_type, c.kakeibo_type, CASE WHEN COALESCE(c.is_primary, TRUE) THEN 'need' ELSE 'want' END) AS kakeibo_type,
+                    {effective_pillar_sql()} AS kakeibo_type,
                     t.amount, t.notes, t.date, t.receipt_path,
                     t.movement_id, t.movement_role, topup.id AS investment_topup_id,
                     partner.id AS partner_id,

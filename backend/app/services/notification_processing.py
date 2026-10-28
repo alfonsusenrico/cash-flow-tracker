@@ -155,6 +155,8 @@ def accept_event(payload: dict, user_id: str) -> tuple[dict, bool, int]:
                 conn.commit()
                 return result, False, 0
             if facts.status == "ignored":
+                # Reason codes only: notification text is personal data and never logged.
+                logger.info("Notification ignored package=%s reason=%s", payload.get("package_name"), facts.ignore_reason)
                 return {"payload_hash": payload["payload_hash"], "status": "ignored"}, False, 0
             mode = "ai" if settings.notification_ai_enabled and facts.institution != "stockbit" else "deterministic"
             status = "queued" if mode == "ai" else "processing"
@@ -587,3 +589,36 @@ async def notification_worker(provider):
         except Exception:
             logger.warning("Notification worker unavailable; accepted events retain durable recovery state")
         await asyncio.sleep(1)
+
+
+def reclassify_review_noise() -> int:
+    """Move open review events that the current noise rules ignore to ignored.
+
+    Only unlinked needs_review events change, so recorded money and pending owner answers are
+    never touched. Safe to run on every start; logs counts by reason only.
+    """
+    moved: dict[str, int] = {}
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id, package_name, title, body_text, big_text, sub_text, summary_text, post_time
+                   FROM notification_events
+                   WHERE processing_state = 'needs_review' AND transaction_id IS NULL
+                   FOR UPDATE SKIP LOCKED"""
+            )
+            for event in cur.fetchall():
+                facts = collect_facts(event)
+                if facts.status != "ignored":
+                    continue
+                cur.execute(
+                    """UPDATE notification_events
+                       SET processing_state = 'ignored', error_code = NULL, next_attempt_at = NULL, updated_at = NOW()
+                       WHERE id = %s AND processing_state = 'needs_review' AND transaction_id IS NULL""",
+                    (event["id"],),
+                )
+                reason = facts.ignore_reason or "unspecified"
+                moved[reason] = moved.get(reason, 0) + 1
+        conn.commit()
+    if moved:
+        logger.info("Reclassified open review notifications as ignored: %s", moved)
+    return sum(moved.values())

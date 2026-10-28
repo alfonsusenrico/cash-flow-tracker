@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
 from app.services.auth import get_current_user
+from app.services.kakeibo import PILLAR_PATTERN
 
 router = APIRouter(tags=["Categories"])
 
@@ -17,7 +18,7 @@ class CategoryCreate(BaseModel):
     kind: str = Field(default="expense", pattern="^(expense|income)$")
     monthly_budget: int | None = Field(default=None, ge=0)
     is_primary: bool = True
-    kakeibo_type: str | None = Field(default=None, pattern="^(need|want|saving)$")
+    kakeibo_type: str | None = Field(default=None, pattern=PILLAR_PATTERN)
 
 
 class CategoryUpdate(BaseModel):
@@ -27,7 +28,7 @@ class CategoryUpdate(BaseModel):
     kind: str | None = Field(default=None, pattern="^(expense|income)$")
     monthly_budget: int | None = Field(default=None, ge=0)
     is_primary: bool | None = None
-    kakeibo_type: str | None = Field(default=None, pattern="^(need|want|saving)$")
+    kakeibo_type: str | None = Field(default=None, pattern=PILLAR_PATTERN)
     is_archived: bool | None = None
 
 

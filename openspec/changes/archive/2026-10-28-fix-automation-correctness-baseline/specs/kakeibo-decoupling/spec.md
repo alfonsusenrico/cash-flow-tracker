@@ -1,0 +1,49 @@
+## MODIFIED Requirements
+
+### Requirement: Independent Transaction Kakeibo Selection
+The Quick Capture interface and the ledger edit form SHALL allow the user to choose any Kakeibo pillar independently of the selected category: `need`, `want`, `culture`, `unexpected` or `saving`. Selecting a category SHALL NOT overwrite a pillar the user has chosen. The backend SHALL accept exactly these five values wherever a transaction or category pillar is written: manual transactions, category defaults, notification resolution and AI interpretation. It SHALL reject any other value with a validation error.
+
+#### Scenario: Categorizing a discretionary dining expense
+- **GIVEN** the Quick Capture modal is open for an expense
+- **WHEN** the user selects the `[👑 Want]` pill
+- **AND** selects the category "Makanan & Minuman"
+- **THEN** the Kakeibo pill SHALL remain `[👑 Want]`
+- **AND** submitting the transaction SHALL save `kakeibo_type = 'want'` with the chosen category ID.
+
+#### Scenario: Recording a culture expense
+- **GIVEN** the user records a sports court booking as an expense
+- **WHEN** the user selects the culture pillar and submits
+- **THEN** the transaction SHALL be saved with `kakeibo_type = 'culture'`.
+
+#### Scenario: AI chooses an unexpected pillar
+- **GIVEN** AI notification processing proposes `kakeibo = 'unexpected'` for a settled expense
+- **WHEN** the backend records the transaction
+- **THEN** the insert SHALL succeed with `kakeibo_type = 'unexpected'`
+- **AND** the notification event SHALL end in `recorded`, not `failed`.
+
+#### Scenario: Unknown pillar is rejected
+- **WHEN** a client creates or updates a transaction or category with `kakeibo_type = 'luxury'`
+- **THEN** the API SHALL respond with a 422 validation error
+- **AND** no row SHALL change.
+
+---
+
+### Requirement: Pure Transaction-Level Kakeibo Aggregation
+The system SHALL resolve every expense's effective Kakeibo pillar with one shared rule: the transaction's own pillar when set, otherwise its category's pillar when set, otherwise `need`. Ledger listing, ledger pillar filtering, transaction detail, Kakeibo report aggregation and safe-to-spend calculations SHALL all use this rule. Category pillars SHALL remain optional.
+
+#### Scenario: Aggregating mixed transactions under the same category
+- **GIVEN** two expense transactions under category "Makanan & Minuman": one marked `need` for Rp 30.000 and one marked `want` for Rp 70.000
+- **WHEN** the Kakeibo breakdown endpoint is executed
+- **THEN** Rp 30.000 SHALL be counted in `need_spent`
+- **AND** Rp 70.000 SHALL be counted in `want_spent`.
+
+#### Scenario: Transaction without its own pillar follows its category
+- **GIVEN** a recurring expense of Rp 100.000 with no transaction pillar, in a category whose pillar is `want`
+- **WHEN** the ledger lists the transaction and the Kakeibo breakdown is executed
+- **THEN** the ledger SHALL show the pillar `want`
+- **AND** the report SHALL count Rp 100.000 in `want_spent`.
+
+#### Scenario: No pillar anywhere defaults to need
+- **GIVEN** an expense with no transaction pillar in a reportable category with no pillar
+- **WHEN** the Kakeibo breakdown is executed
+- **THEN** the amount SHALL be counted in `need_spent`.

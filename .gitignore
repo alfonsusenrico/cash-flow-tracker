@@ -11,7 +11,3 @@ frontend/.next/
 frontend/.env.local
 frontend/*.tsbuildinfo
 .bob/
-telegram-bot/.pytest_cache/
-telegram-bot/src/bot/__pycache__/
-telegram-bot/tests/__pycache__/
-telegram-bot/benchmark_results_*.json

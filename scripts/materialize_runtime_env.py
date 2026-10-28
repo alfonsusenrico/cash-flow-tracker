@@ -36,16 +36,6 @@ ENV_DEFAULTS = {
     "RECEIPT_MAX_PIXELS": "50000000",
     "LEDGER_EXPORT_MAX_ROWS": "5000",
     "WEB_PORT": "8090",
-    "WEBHOOK_LISTEN": "0.0.0.0",
-    "WEBHOOK_PORT": "8081",
-    "FINANCE_API_BASE_URL": "http://api:8000",
-    "DEEPSEEK_BASE_URL": "https://openrouter.ai/api/v1",
-    "DEEPSEEK_MODEL": "deepseek/deepseek-chat",
-    "USE_TWO_STEP_VISION": "true",
-    "LLM_TIMEOUT": "300",
-    "VISION_BASE_URL": "https://openrouter.ai/api/v1",
-    "VISION_MODEL": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-    "CONFIDENCE_THRESHOLD": "0.75",
     "NOTIFICATION_AI_ENABLED": "true",
     "NOTIFICATION_AI_MODEL": "gpt-6-luna",
     "NOTIFICATION_AI_REASONING_EFFORT": "none",
@@ -60,11 +50,6 @@ CRITICAL_VARIABLES = (
 )
 
 OPTIONAL_VARIABLES = (
-    "TELEGRAM_BOT_TOKEN",
-    "TELEGRAM_WEBHOOK_URL",
-    "TELEGRAM_WEBHOOK_SECRET",
-    "DEEPSEEK_API_KEY",
-    "BOT_SECRET",
     "OPENAI_API_KEY",
 )
 

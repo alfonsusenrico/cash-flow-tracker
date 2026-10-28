@@ -70,7 +70,7 @@ import asyncio
 import logging
 import httpx2 as httpx
 from app.services.market_data import sync_all_tracked_prices
-from app.services.notification_processing import notification_worker
+from app.services.notification_processing import notification_worker, reclassify_review_noise
 from app.services.openai_notification_provider import OpenAINotificationProvider, configuration_error, dry_run_configuration_error
 
 logger = logging.getLogger("api")
@@ -118,6 +118,11 @@ async def lifespan(app: FastAPI):
         init_db_schema()
     except Exception as e:
         print(f"Schema init warning (handled by migrations): {e}")
+    try:
+        reclassify_review_noise()
+    except Exception as exc:
+        # The review queue keeps its items until the next start; ingestion is unaffected.
+        logger.warning("Review noise reclassification failed: %s", type(exc).__name__)
     tasks = []
     provider_client = None
     provider = None

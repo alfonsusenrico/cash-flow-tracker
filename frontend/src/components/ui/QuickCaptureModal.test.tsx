@@ -46,6 +46,7 @@ describe("QuickCaptureModal", () => {
           categories: [
             { id: "want-category", name: "Hobi", kind: "expense", kakeibo_type: "want" },
             { id: "need-category", name: "Makan", kind: "expense", kakeibo_type: "need" },
+            { id: "culture-category", name: "Olahraga", kind: "expense", kakeibo_type: "culture" },
             { id: "income-category", name: "Gaji", kind: "income" },
           ],
         };
@@ -89,6 +90,33 @@ describe("QuickCaptureModal", () => {
       notes: "Lunch",
     })));
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
+  it("follows a culture category default and offers every Kakeibo pillar", async () => {
+    const user = userEvent.setup();
+    renderQuickCapture();
+
+    await user.selectOptions(await screen.findByRole("combobox", { name: "Kategori" }), "culture-category");
+    for (const label of ["Kebutuhan", "Keinginan", "Budaya", "Tak Terduga", "Tabungan"]) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    expect(screen.getByRole("button", { name: "Budaya" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText(/Pengembangan diri dan relasi/)).toBeInTheDocument();
+  });
+
+  it("submits an unexpected pillar chosen by the user", async () => {
+    const user = userEvent.setup();
+    renderQuickCapture();
+
+    await user.selectOptions(await screen.findByRole("combobox", { name: "Kategori" }), "need-category");
+    await user.click(screen.getByRole("button", { name: "Tak Terduga" }));
+    await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "250000");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/transactions", expect.objectContaining({
+      category_id: "need-category",
+      kakeibo_type: "unexpected",
+    })));
   });
 
   it("submits the selected transaction time with seconds", async () => {

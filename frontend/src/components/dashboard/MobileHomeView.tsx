@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
+import { kakeiboLabel } from "@/lib/kakeibo";
 
 interface MobileHomeViewProps {
   dashboard: any;
@@ -402,7 +403,7 @@ export function MobileHomeView({
 
                     {tx.kakeibo_type && (
                       <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                        {tx.kakeibo_type}
+                        {kakeiboLabel(tx.kakeibo_type)}
                       </span>
                     )}
                   </div>

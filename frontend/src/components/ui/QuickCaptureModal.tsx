@@ -12,6 +12,7 @@ import { InfoHelp } from "@/components/ui/InfoHelp";
 import { DebtAllocationEditor, allocationError, totalDebtPayments, type DebtAllocationValue } from "@/components/ui/DebtAllocationEditor";
 import { queryKeys } from "@/lib/queryKeys";
 import { movementFormSchema } from "@/lib/movementFormSchema";
+import { KAKEIBO_PILLARS, type KakeiboPillar, kakeiboPillarInfo, pillarOrNeed } from "@/lib/kakeibo";
 import { z } from "zod";
 
 type QuickCaptureMode = "expense" | "income" | "movement";
@@ -73,7 +74,7 @@ export function QuickCaptureModal({
   const [movementTargetAccountId, setMovementTargetAccountId] = useState(defaultTargetAccountId ?? "");
   const [movementFieldErrors, setMovementFieldErrors] = useState<Partial<Record<MovementField, string>>>({});
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [kakeiboType, setKakeiboType] = useState<"need" | "want" | "saving">("need");
+  const [kakeiboType, setKakeiboType] = useState<KakeiboPillar>("need");
   const [hasKakeiboOverride, setHasKakeiboOverride] = useState(false);
   const [selectedGoalId, setSelectedGoalId] = useState<string>("");
   const [selectedObligationId, setSelectedObligationId] = useState<string>("");
@@ -266,7 +267,7 @@ export function QuickCaptureModal({
     setSelectedCategory(catId);
     const category = categories.find((item: any) => item.id === catId);
     if (type === "expense" && !hasKakeiboOverride) {
-      setKakeiboType(category?.kakeibo_type ?? "need");
+      setKakeiboType(pillarOrNeed(category?.kakeibo_type));
     }
   };
 
@@ -691,12 +692,8 @@ export function QuickCaptureModal({
         {type === "expense" && (
           <fieldset className="space-y-2">
             <legend className="text-xs font-medium text-[var(--muted)]">Pilar Kakeibo <InfoHelp label="Pilar Kakeibo">Mengikuti pilar kategori, kecuali Anda memilih pilar lain untuk transaksi ini.</InfoHelp></legend>
-            <div className="grid grid-cols-3 gap-2">
-              {([
-                ["need", "Kebutuhan"],
-                ["want", "Keinginan"],
-                ["saving", "Tabungan"],
-              ] as const).map(([value, label]) => (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {KAKEIBO_PILLARS.map(({ value, label }) => (
                 <button
                   key={value}
                   type="button"
@@ -713,6 +710,7 @@ export function QuickCaptureModal({
                 </button>
               ))}
             </div>
+            <p className="text-[11px] text-[var(--muted)]">{kakeiboPillarInfo(kakeiboType)?.help}</p>
           </fieldset>
         )}
         </FormSection>

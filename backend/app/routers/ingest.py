@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
 from app.services.auth import get_current_user
+from app.services.kakeibo import Pillar
 
 router = APIRouter(tags=["Notification Ingestion"])
 
@@ -51,7 +52,7 @@ class NotificationResolution(BaseModel):
     category_id: UUID
     amount: int | None = Field(default=None, gt=0, le=9_223_372_036_854_775_807)
     notes: str | None = Field(default=None, max_length=160)
-    kakeibo: Literal["need", "want", "culture", "unexpected", "saving"] | None = None
+    kakeibo: Pillar | None = None
 
 
 class MappingConfirmation(BaseModel):

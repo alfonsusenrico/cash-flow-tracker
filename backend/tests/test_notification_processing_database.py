@@ -1443,3 +1443,73 @@ def test_broker_deposit_alone_records_into_the_funding_account(client, notificat
 def test_broker_trades_keep_the_trade_path(client, notification_owner):
     result = ingest(client, notification("Pembelian 4 lot FIKS match di harga Rp3.340", "com.stockbit.android"))["results"][0]
     assert result["status"] == "recorded" and result["type"] == "internal_movement"
+
+
+def test_ai_unexpected_pillar_is_recorded(client, notification_owner, monkeypatch):
+    from app.db.pool import db_conn
+    from app.services import notification_processing as processing
+    from app.services.notification_interpretation import PROMPT_VERSION
+
+    enable_ai(monkeypatch)
+    event = ingest(client, notification())["results"][0]
+    claimed = processing.claim_event()
+    provider = AsyncMock()
+    provider.interpret.return_value = interpretation(notification_owner).model_copy(update={"kakeibo": "unexpected"})
+    asyncio.run(processing.process_claim(claimed, provider))
+
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["status"] == "recorded"
+    with db_conn() as conn:
+        row = conn.execute(
+            """SELECT t.kakeibo_type, e.processing_state, e.prompt_version FROM notification_events e
+               JOIN transactions t ON t.id = e.transaction_id WHERE e.id = %s""",
+            (event["event_id"],),
+        ).fetchone()
+    assert row["kakeibo_type"] == "unexpected"
+    assert row["processing_state"] == "recorded"
+    assert row["prompt_version"] == PROMPT_VERSION == "notification-interpretation-8"
+
+
+def test_startup_reclassifies_only_unlinked_noise_reviews(client, notification_owner):
+    from app.db.pool import db_conn
+    from app.services.notification_processing import reclassify_review_noise
+
+    owner = notification_owner
+    real = ingest(client, notification())["results"][0]
+    assert real["status"] == "recorded"
+    rows = {
+        "promo": ("needs_review", "missing_amount", "Pay with Jago and get up to 30K BONUS before it's too late", False),
+        "news": ("needs_review", "unsupported_currency", "IHSG naik +1,12%, Emiten Contoh dapat komitmen US$555 Juta", False),
+        "real_review": ("needs_review", "unsupported_currency", "You've paid USD 10.00 using your debit card", False),
+        "linked_noise": ("needs_review", "missing_amount", "Get up to $6.000 CREDIT BONUS with Digital Pro Card!", True),
+        "failed_noise": ("failed", "database_unavailable", "Get up to $6.000 CREDIT BONUS with Digital Pro Card!", False),
+    }
+    ids = {}
+    with db_conn() as conn:
+        linked_tx = conn.execute(
+            "SELECT transaction_id FROM notification_events WHERE id = %s", (real["event_id"],)
+        ).fetchone()["transaction_id"]
+        for key, (state, error, text, linked) in rows.items():
+            ids[key] = conn.execute(
+                """INSERT INTO notification_events (user_id, device_id, package_name, body_text, post_time, payload_hash,
+                       processing_state, error_code, transaction_id)
+                   VALUES (%s, 'synthetic-device', 'com.jago.digitalbanking', %s, NOW(), %s, %s, %s, %s) RETURNING id""",
+                (owner["user_id"], text, uuid4().hex, state, error, linked_tx if linked else None),
+            ).fetchone()["id"]
+        conn.commit()
+
+    assert reclassify_review_noise() >= 2
+
+    with db_conn() as conn:
+        states = {
+            key: conn.execute("SELECT processing_state, error_code FROM notification_events WHERE id = %s", (event_id,)).fetchone()
+            for key, event_id in ids.items()
+        }
+        recorded = conn.execute("SELECT processing_state FROM notification_events WHERE id = %s", (real["event_id"],)).fetchone()
+    assert states["promo"]["processing_state"] == states["news"]["processing_state"] == "ignored"
+    assert states["promo"]["error_code"] is None
+    assert states["real_review"]["processing_state"] == "needs_review"
+    assert states["linked_noise"]["processing_state"] == "needs_review"
+    assert states["failed_noise"]["processing_state"] == "failed"
+    assert recorded["processing_state"] == "recorded"
+    assert reclassify_review_noise() == 0
