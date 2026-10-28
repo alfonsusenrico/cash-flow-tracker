@@ -160,23 +160,27 @@ def test_context_is_owner_scoped_bounded_and_uses_separate_candidates():
     cur.fetchall.side_effect = [
         [{"id": "owned", "name": "BCA Operasional", "type": "bank", "parent_id": None}],
         [{"id": "category", "name": "Kategori Dinamis", "kind": "expense"}],
-        [], [{"description": "Toko Fiksi token=private-value", "id": "recent"}],
+        [], [],
+        [{"id": "recent", "description": "Toko Fiksi token=private-value", "merchant": None, "category_id": "category",
+          "kakeibo": "want", "amount": 125000, "date": "2026-09-27", "owner_confirmed": True, "same_key": True}],
         [{"id": "outside-history", "type": "income", "amount": 125000}],
         [],
     ]
     result = load_context(cur, "owner", collect_facts(event()), history_limit=20)
     assert result["candidates"][0]["id"] == "outside-history"
-    assert result["history"][0]["id"] == "recent"
+    assert result["similar_history"][0]["description"].startswith("Toko Fiksi")
+    assert result["similar_history"][0]["match"] == "same_key"
     assert "private-value" not in json.dumps(result, default=str)
     assert "device_id" not in result and "raw_extras" not in result
     for call in cur.execute.call_args_list:
-        assert call.args[1][0] == "owner"
+        params = call.args[1]
+        assert (params["user_id"] if isinstance(params, dict) else params[0]) == "owner"
 
 
 def test_candidate_overflow_cannot_become_a_unique_match():
     cur = MagicMock()
     cur.fetchone.return_value = {}
-    cur.fetchall.side_effect = [[], [], [], [], [{"id": str(index)} for index in range(51)], []]
+    cur.fetchall.side_effect = [[], [], [], [], [], [{"id": str(index)} for index in range(51)], []]
     result = load_context(cur, "owner", collect_facts(event()))
     assert result["incomplete"] is True
     assert len(result["candidates"]) == 50
@@ -206,3 +210,38 @@ def test_provider_normalizes_income_kakeibo_to_none():
     interpreted = run_provider(handler)
     assert interpreted.direction == "income"
     assert interpreted.kakeibo is None
+
+
+def run_normalizer(handler, context):
+    async def run():
+        async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as transport:
+            provider = OpenAINotificationProvider(
+                transport, api_key="synthetic-test-credential", model="gpt-5.6-luna", reasoning_effort="low",
+            )
+            return await provider.normalize_purpose(context)
+    return asyncio.run(run())
+
+
+def test_purpose_normalizer_uses_its_own_strict_schema_and_prompt():
+    sent = {}
+    answer = {"merchant": "Arena Futsal", "description": "Sewa lapangan Arena Futsal", "category_id": "00000000-0000-4000-8000-000000000101",
+              "kakeibo": "culture", "offset_category_id": None, "confidence": 0.8}
+
+    def handler(request):
+        sent.update(json.loads(request.content))
+        return httpx2.Response(200, json=envelope(answer))
+
+    result = run_normalizer(handler, {"answer": "sewa lapangan arena futsal", "_internal": "never-sent"})
+    assert result.merchant == "Arena Futsal" and str(result.category_id).endswith("101")
+    assert sent["text"]["format"]["name"] == "purpose_normalization" and sent["text"]["format"]["strict"] is True
+    assert set(sent["text"]["format"]["schema"]["required"]) == set(answer)
+    assert "never-sent" not in sent["input"] and "owner's own short note" in sent["instructions"]
+
+
+def test_purpose_normalizer_rejects_invalid_output():
+    def handler(request):
+        return httpx2.Response(200, json=envelope({"merchant": None, "description": ""}))
+
+    with pytest.raises(ProviderError) as error:
+        run_normalizer(handler, {"answer": "kopi"})
+    assert error.value.code == "provider_invalid_output"

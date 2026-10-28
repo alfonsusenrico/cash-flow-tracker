@@ -18,6 +18,7 @@ from app.services.ledger_mutations import (
     lock_owned_accounts,
     movement_kakeibo,
 )
+from app.services.merchant_memory import record_owner_corrections, snapshot_rows
 from app.services.movement_linkage import ensure_internal_movement_categories
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, system_provenance
 
@@ -321,6 +322,7 @@ def convert_transaction_to_topup(cur, *, user_id: str, transaction_id: str, targ
     )
     expense_category, income_category = ensure_internal_movement_categories(cur, user_id)
     leg_notes = notes or TOPUP_NOTE
+    before_classification = snapshot_rows(cur, user_id, [transaction_id])
     cur.execute(
         f"""UPDATE transactions SET movement_id = %s, movement_role = 'outbound', category_id = %s,
                kakeibo_type = %s, notes = %s, review_status = 'reviewed', {OWNER_EDIT_ASSIGNMENTS},
@@ -337,6 +339,7 @@ def convert_transaction_to_topup(cur, *, user_id: str, transaction_id: str, targ
         (user_id, target_id, income_category, amount, leg_notes, expense["date"],
          f"investment-topup:{topup_id}:in", topup_id, *system_provenance("investment").columns()),
     )
+    record_owner_corrections(cur, user_id, before_classification)
     apply_contribution_delta(cur, user_id, target, amount)
     return topup_response(cur, get_topup(cur, user_id, topup_id))
 
@@ -391,6 +394,8 @@ def mutate_topup(
     else:
         tx_date = updates.get("date", row["date"])
         notes = updates.get("notes", row["notes"]) or ""
+        cur.execute("SELECT id FROM transactions WHERE user_id = %s AND movement_id = %s", (user_id, topup_id))
+        before_classification = snapshot_rows(cur, user_id, [str(leg["id"]) for leg in cur.fetchall()])
         cur.execute(
             """UPDATE transactions SET amount = %s, date = %s, notes = %s, updated_at = NOW(),
                    owner_edited_at = CASE WHEN notes IS DISTINCT FROM %s THEN NOW() ELSE owner_edited_at END,
@@ -401,6 +406,7 @@ def mutate_topup(
                WHERE user_id = %s AND movement_id = %s""",
             (amount, tx_date, notes or TOPUP_NOTE, *([notes or TOPUP_NOTE] * 4), user_id, topup_id),
         )
+        record_owner_corrections(cur, user_id, before_classification)
         cur.execute(
             "UPDATE investment_topups SET amount = %s, date = %s, notes = %s, updated_at = NOW() WHERE id = %s",
             (amount, tx_date, notes, topup_id),

@@ -62,7 +62,7 @@ The local Compose override selects development/HTTP cookies. For a direct loopba
 - Schema: [versioned migrations](db/migrations/); startup SQL mirrors and legacy backend/migrations also exist. Their consolidation is pending, not authorization to replace migration history.
 - Web: Next.js App Router in frontend/src/app, shared UI in frontend/src/components; [tokens](frontend/tokens.css) imported by globals.css.
 - Companion: the separately maintained `financial-tracker-mobile-listener` repository contains the installed Android app. The bundled android/ source is not assumed to be that artifact. Current batch ingestion/result contracts live in backend/app/routers/ingest.py; do not infer the singular legacy endpoint from old notes.
-- LLM boundary: [prompt](backend/app/services/prompts/notification_interpretation.md), [evidence](backend/app/services/notification_evidence.py), [processing](backend/app/services/notification_processing.py), [application](backend/app/services/notification_application.py).
+- LLM boundary: [prompt](backend/app/services/prompts/notification_interpretation.md), [evidence](backend/app/services/notification_evidence.py), [processing](backend/app/services/notification_processing.py), [application](backend/app/services/notification_application.py), [merchant memory](backend/app/services/merchant_memory.py), [purpose questions](backend/app/services/purpose_questions.py).
 - Approved release path: [.github/workflows/deploy.yml](.github/workflows/deploy.yml) and [scripts/deploy_remote_release.sh](scripts/deploy_remote_release.sh). A bug report authorizes local diagnosis, not a production-server connection; the owner must explicitly authorize that connection.
 
 ## Project rules
@@ -74,6 +74,7 @@ The local Compose override selects development/HTTP cookies. For a direct loopba
 - Unit-tracked investments retain trade/unit bookkeeping. Nominal top-ups target explicitly amount-tracked products and preserve paired funding/product effects and reversals. Monthly amount top-ups require confirmation of the actual debit; rule creation alone records nothing.
 - AI interprets supported evidence; deterministic code owns money, timestamps, entity ownership, application and deduplication. It cannot invent accounts/categories or override confirmed financial facts.
 - Exact sender memory is scoped to owner, bank and receiving account; no-name answers learn nothing. Missing Jago outbound pocket evidence requires event-specific pocket confirmation before recording and must never teach a generic default pocket.
+- Settled notifications with proven amount, direction and owned account are always recorded; classification doubts set `review_status = needs_review` instead of holding the event. Merchant-less rows get an "Apa ini?" purpose question. `classification_feedback` is append-only (never update a row); `merchant_memory` auto-applies only exact owner merchant keys.
 - Synthetic fixtures only in tracked research and verification. Historical personal financial context belongs only in protected local state/journal backups, never in research, screenshots or shared evidence.
 
 ## Visual and language references

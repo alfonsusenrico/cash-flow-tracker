@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from app.services.ledger_mutations import (
     LIQUID_ACCOUNT_TYPES, ensure_generic_movement_accounts, lock_owned_accounts, movement_kakeibo,
 )
+from app.services.merchant_memory import record_owner_corrections, snapshot_rows
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS
 
 
@@ -142,6 +143,7 @@ def link_transactions_as_movement(
         raise HTTPException(status_code=422, detail="Both accounts must be liquid")
 
     expense_category_id, income_category_id = ensure_internal_movement_categories(cur, user_id)
+    before_classification = snapshot_rows(cur, user_id, [expense_id, income_id]) if owner_edit else {}
     movement_id = str(uuid4())
     cur.execute(
         """
@@ -178,6 +180,7 @@ def link_transactions_as_movement(
                 WHERE user_id = %s AND movement_id = %s""",
             (user_id, movement_id),
         )
+        record_owner_corrections(cur, user_id, before_classification)
     return {
         "ok": True, "movement_id": movement_id,
         "expense_transaction_id": expense_id, "income_transaction_id": income_id,

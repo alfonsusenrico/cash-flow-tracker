@@ -19,7 +19,9 @@ from openai import (
 )
 from pydantic import ValidationError
 
+from app.services.notification_context import CONTEXT_BYTE_LIMIT
 from app.services.notification_interpretation import Interpretation, system_prompt
+from app.services.purpose_normalization import PurposeNormalization, purpose_prompt
 
 
 # Models approved for live transaction parsing. Expand here to add candidates during evaluation.
@@ -104,13 +106,22 @@ def strict_json_schema(schema: dict) -> dict:
     return schema
 
 
-def response_schema() -> dict:
+def response_schema(model=Interpretation, name: str = "notification_interpretation") -> dict:
     return {
         "type": "json_schema",
-        "name": "notification_interpretation",
+        "name": name,
         "strict": True,
-        "schema": strict_json_schema(Interpretation.model_json_schema()),
+        "schema": strict_json_schema(model.model_json_schema()),
     }
+
+
+def model_input(context: dict) -> str:
+    """Serialised model input; underscore-prefixed keys are backend-internal and never sent."""
+    public = {key: value for key, value in context.items() if not key.startswith("_")}
+    context_json = json.dumps(public, default=str, ensure_ascii=False)
+    if len(context_json.encode("utf-8")) > CONTEXT_BYTE_LIMIT:
+        raise ProviderError("incomplete_context")
+    return context_json
 
 
 class OpenAINotificationProvider:
@@ -136,6 +147,28 @@ class OpenAINotificationProvider:
         )
 
     async def interpret(self, context: dict) -> Interpretation:
+        output = await self.respond(system_prompt(), context, response_schema())
+        try:
+            proposal = Interpretation.model_validate_json(output)
+        except (ValueError, TypeError, ValidationError):
+            raise ProviderError("provider_invalid_output") from None
+        if proposal.direction == "income" and proposal.kakeibo is not None:
+            proposal = proposal.model_copy(update={"kakeibo": None})
+        # Movement categories and Kakeibo are assigned by the backend, never by the model.
+        if proposal.direction == "internal_movement" and (proposal.category_id or proposal.kakeibo):
+            proposal = proposal.model_copy(update={"category_id": None, "kakeibo": None})
+        return proposal
+
+    async def normalize_purpose(self, context: dict) -> PurposeNormalization:
+        output = await self.respond(
+            purpose_prompt(), context, response_schema(PurposeNormalization, "purpose_normalization"),
+        )
+        try:
+            return PurposeNormalization.model_validate_json(output)
+        except (ValueError, TypeError, ValidationError):
+            raise ProviderError("provider_invalid_output") from None
+
+    async def respond(self, instructions: str, context: dict, schema: dict) -> str:
         if self.model not in OPERATIONAL_MODELS:
             raise ProviderError("provider_model_not_permitted")
         if self.reasoning_effort not in PERMITTED_REASONING_EFFORTS and self.model in REASONING_MODELS:
@@ -143,18 +176,15 @@ class OpenAINotificationProvider:
         if not self.api_key:
             raise ProviderError("provider_credential_missing")
 
-        context_json = json.dumps(context, default=str, ensure_ascii=False)
-        if len(context_json.encode("utf-8")) > 60000:
-            raise ProviderError("incomplete_context")
-
+        context_json = model_input(context)
         is_reasoning_model = self.model in REASONING_MODELS
         try:
             self.last_usage = None
             call_kwargs: dict = {
                 "model": self.model,
-                "instructions": system_prompt(),
+                "instructions": instructions,
                 "input": context_json,
-                "text": {"format": response_schema()},
+                "text": {"format": schema},
                 "max_output_tokens": 2048,
                 "store": False,
             }
@@ -171,13 +201,7 @@ class OpenAINotificationProvider:
                 }
             if response.status != "completed" or not response.output_text:
                 raise ProviderError("provider_invalid_output")
-            proposal = Interpretation.model_validate_json(response.output_text)
-            if proposal.direction == "income" and proposal.kakeibo is not None:
-                proposal = proposal.model_copy(update={"kakeibo": None})
-            # Movement categories and Kakeibo are assigned by the backend, never by the model.
-            if proposal.direction == "internal_movement" and (proposal.category_id or proposal.kakeibo):
-                proposal = proposal.model_copy(update={"category_id": None, "kakeibo": None})
-            return proposal
+            return response.output_text
         except ProviderError:
             raise
         except (APITimeoutError, APIConnectionError, asyncio.TimeoutError):

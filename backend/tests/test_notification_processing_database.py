@@ -426,7 +426,8 @@ def test_foreign_lookup_retry_and_context_are_isolated(client, notification_owne
     payload["post_time"] = datetime.fromisoformat(payload["post_time"])
     with db_conn() as conn:
         context = load_context(conn.cursor(), other_id, collect_facts(payload))
-    assert context["accounts"] == context["categories"] == context["history"] == context["candidates"] == []
+    assert context["accounts"] == context["categories"] == context["similar_history"] == context["candidates"] == []
+    assert context["memory"] == []
 
 
 def test_committed_deletion_never_recreates_a_transaction(client, notification_owner):
@@ -479,9 +480,8 @@ def test_counterpart_discovery_is_independent_of_recent_history(client, notifica
     payload = dict(incoming, post_time=datetime.fromisoformat(incoming["post_time"]))
     with db_conn() as conn:
         context = load_context(conn.cursor(), notification_owner["user_id"], collect_facts(payload))
-    assert len(context["history"]) == 20
+    assert context["similar_history"] == []
     assert len(context["candidates"]) == 1
-    assert context["candidates"][0]["id"] not in {row["id"] for row in context["history"]}
     result = ingest(client, incoming)["results"][0]
     assert result["type"] == "internal_movement" and result["record_key"] == first["record_key"]
 
@@ -900,7 +900,8 @@ def test_model_needs_review_falls_back_to_deterministic_record(client, notificat
     assert count_transactions(notification_owner) == 1
 
 
-def test_unresolvable_model_uncertainty_reports_backend_reason(client, notification_owner, monkeypatch):
+def test_unusable_model_answer_without_category_records_uncategorised_and_flagged(client, notification_owner, monkeypatch):
+    from app.db.pool import db_conn
     from app.services import notification_processing as processing
     enable_ai(monkeypatch)
     event = ingest(client, notification("You spent IDR 45,000.00 at Shopping.", "com.bca.mybca.omni.android"))["results"][0]
@@ -909,8 +910,18 @@ def test_unresolvable_model_uncertainty_reports_backend_reason(client, notificat
     provider.interpret.side_effect = ProviderError("provider_invalid_output")
     asyncio.run(processing.process_claim(claimed, provider))
     result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
-    assert result == {**result, "status": "needs_review", "error_code": "uncertain_category_mapping"}
+    assert result["status"] == "recorded" and "error_code" not in result
     assert processing.claim_event() is None
+    with db_conn() as conn:
+        row = conn.execute(
+            "SELECT category_id, review_status, classified_by, amount, account_id FROM transactions WHERE user_id = %s",
+            (notification_owner["user_id"],),
+        ).fetchone()
+        reasons = conn.execute("SELECT interpretation FROM notification_events WHERE id = %s",
+                               (event["event_id"],)).fetchone()["interpretation"]["review_reasons"]
+    assert row["category_id"] is None and row["review_status"] == "needs_review" and row["classified_by"] == "rule"
+    assert (row["amount"], str(row["account_id"])) == (45000, notification_owner["bca"])
+    assert reasons == ["model_fallback", "uncertain_category", "purpose_question"]
 
 
 def test_provider_outage_becomes_failed_and_is_retried_automatically(client, notification_owner, monkeypatch):
@@ -956,10 +967,9 @@ def test_failed_events_stop_retrying_after_horizon(client, notification_owner, m
 def test_manual_resolution_records_once_and_pairs(client, top_up_owner):
     from app.db.pool import db_conn
     ingest(client, at(notification(SHOPEEPAY_TOP_UP, "com.shopeepay.id"), 0))
-    with db_conn() as conn:
-        conn.execute("UPDATE categories SET is_archived = TRUE WHERE id = %s", (top_up_owner["shopping"],))
-    stuck = ingest(client, at(notification(BCA_TOP_UP_DEBIT, "com.bca.mybca.omni.android"), 3))["results"][0]
-    assert stuck["status"] == "needs_review" and stuck["error_code"] == "uncertain_category_mapping"
+    debit = {**at(notification(BCA_TOP_UP_DEBIT, "com.bca.mybca.omni.android"), 3), "expected_direction": "in"}
+    stuck = ingest(client, debit)["results"][0]
+    assert stuck["status"] == "needs_review" and stuck["error_code"] == "conflicting_mobile_direction"
     body = {"type": "expense", "account_id": top_up_owner["bca"], "category_id": top_up_owner["expense"], "notes": "Top up ShopeePay"}
     resolved = client.post(f"/api/ingest/notifications/{stuck['event_id']}/resolve", json=body)
     assert resolved.status_code == 200, resolved.text
@@ -991,10 +1001,9 @@ def test_manual_resolution_validates_references_and_state(client, top_up_owner):
 
 
 def test_manual_resolution_rejects_amount_conflicting_with_notification(client, top_up_owner):
-    from app.db.pool import db_conn
-    with db_conn() as conn:
-        conn.execute("UPDATE categories SET is_archived = TRUE WHERE id = %s", (top_up_owner["shopping"],))
-    stuck = ingest(client, notification(BCA_TOP_UP_DEBIT, "com.bca.mybca.omni.android"))["results"][0]
+    stuck = ingest(client, {**notification(BCA_TOP_UP_DEBIT, "com.bca.mybca.omni.android"),
+                            "expected_direction": "in"})["results"][0]
+    assert stuck["status"] == "needs_review"
     response = client.post(f"/api/ingest/notifications/{stuck['event_id']}/resolve", json={
         "type": "expense", "account_id": top_up_owner["bca"], "category_id": top_up_owner["expense"], "amount": 1,
     })
@@ -1467,7 +1476,7 @@ def test_ai_unexpected_pillar_is_recorded(client, notification_owner, monkeypatc
         ).fetchone()
     assert row["kakeibo_type"] == "unexpected"
     assert row["processing_state"] == "recorded"
-    assert row["prompt_version"] == PROMPT_VERSION == "notification-interpretation-8"
+    assert row["prompt_version"] == PROMPT_VERSION == "notification-interpretation-9"
 
 
 def test_startup_reclassifies_only_unlinked_noise_reviews(client, notification_owner):

@@ -36,7 +36,7 @@ BASE_CONTEXT = {
         {"id": fixture_id(106), "name": "Internal Movement", "kind": "income"},
     ],
     "rules": [{"merchant_pattern": "Kedai Awan", "category_id": fixture_id(102)}],
-    "history": [], "candidates": [],
+    "memory": [], "similar_history": [], "candidates": [],
 }
 
 

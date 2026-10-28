@@ -4,13 +4,13 @@ from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
 
 from app.services.kakeibo import Pillar
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
 
 
-PROMPT_VERSION = "notification-interpretation-8"
+PROMPT_VERSION = "notification-interpretation-9"
 PROMPT_PATH = Path(__file__).with_name("prompts") / "notification_interpretation.md"
 Kakeibo = Pillar
 
@@ -32,6 +32,7 @@ class Interpretation(BaseModel):
     outcome: Literal["record", "ignored", "needs_review"]
     direction: Literal["expense", "income", "internal_movement"] | None
     description: str = Field(max_length=160)
+    merchant: str | None = Field(default=None, max_length=120)
     account_id: UUID | None
     source_account_id: UUID | None
     target_account_id: UUID | None
@@ -47,7 +48,7 @@ class Interpretation(BaseModel):
     mappings: list[MappingProposal] = Field(default_factory=list, max_length=3)
 
     @model_validator(mode="after")
-    def check_record_shape(self):
+    def check_record_shape(self, info: ValidationInfo):
         if self.outcome != "record":
             return self
         if not self.description.strip() or not self.direction or not self.amount_evidence:
@@ -57,8 +58,11 @@ class Interpretation(BaseModel):
                 raise ValueError("Movement endpoints required")
             if self.source_account_id == self.target_account_id:
                 raise ValueError("Movement endpoints must differ")
-        elif not self.account_id or not self.category_id:
-            raise ValueError("Observed account and category required")
+        elif not self.account_id:
+            raise ValueError("Observed account required")
+        elif not self.category_id and not (info.context or {}).get("allow_uncategorized"):
+            # Only the backend's own deterministic path may record a row without a category.
+            raise ValueError("Category required")
         return self
 
 
