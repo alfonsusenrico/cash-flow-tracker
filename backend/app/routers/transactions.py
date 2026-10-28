@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import settings
 from app.db.pool import db_conn
@@ -20,19 +20,69 @@ from app.services.debt_allocations import (
     validate_allocation_request,
     validate_debt_capacity,
 )
-from app.services.kakeibo import PILLAR_PATTERN, effective_pillar_sql
+from app.services.kakeibo import PILLAR_PATTERN, effective_pillar, effective_pillar_sql
 from app.services.ledger_mutations import ensure_sufficient_funds, get_locked_ledger_balance, lock_owned_accounts
+from app.services.provenance import (
+    CLASSIFICATION_FIELDS,
+    OWNER_EDIT_ASSIGNMENTS,
+    OWNER_REVIEW_STATUS_PATTERN,
+    REVIEW_STATUS_PATTERN,
+    SOURCE_PATTERN,
+    normalize_merchant,
+    owner_provenance,
+    system_provenance,
+)
 from app.services.receipts import (
     build_receipt_relative_path,
     prepare_receipt_payload,
     remove_receipt_file,
     store_receipt,
 )
+from app.services.reimbursements import (
+    category_offsets_spending,
+    not_reimbursement_sql,
+    offset_not_allowed,
+    validate_offset_category,
+)
 
 router = APIRouter(tags=["Transactions"])
 
 
-class TransactionCreate(BaseModel):
+class TransactionClassificationInput(BaseModel):
+    merchant: str | None = Field(default=None, max_length=500)
+    review_status: str | None = Field(default=None, pattern=OWNER_REVIEW_STATUS_PATTERN)
+    offset_category_id: UUID | None = None
+
+    @field_validator("merchant")
+    @classmethod
+    def normalize_merchant_field(cls, value: str | None) -> str | None:
+        return normalize_merchant(value)
+
+
+def provenance_fields(row: dict[str, Any]) -> dict[str, Any]:
+    """Provenance and reimbursement fields shared by the ledger list and detail responses."""
+    confidence = row.get("classification_confidence")
+    return {
+        "source": row["source"],
+        "merchant": row.get("merchant"),
+        "review_status": row["review_status"],
+        "classified_by": row.get("classified_by"),
+        "classification_confidence": float(confidence) if confidence is not None else None,
+        "owner_edited_at": row["owner_edited_at"].isoformat() if row.get("owner_edited_at") else None,
+        "is_reimbursement": bool(row.get("is_reimbursement")),
+        "offset_category_id": str(row["offset_category_id"]) if row.get("offset_category_id") else None,
+        "offset_category_name": row.get("offset_category_name"),
+    }
+
+
+PROVENANCE_SELECT = """
+    t.source, t.merchant, t.review_status, t.classified_by, t.classification_confidence,
+    t.owner_edited_at, t.offset_category_id, offset_category.name AS offset_category_name,
+    COALESCE(c.offsets_spending, FALSE) AND t.type = 'income' AS is_reimbursement
+"""
+
+
+class TransactionCreate(TransactionClassificationInput):
     account_id: UUID | None = None
     account_name: str | None = Field(default=None, max_length=100)
     type: str = Field(pattern="^(expense|income)$")
@@ -54,7 +104,7 @@ class TransactionCreate(BaseModel):
     price_per_unit: float | None = Field(default=None, gt=0, allow_inf_nan=False)
 
 
-class TransactionUpdate(BaseModel):
+class TransactionUpdate(TransactionClassificationInput):
     account_id: UUID | None = None
     category_id: UUID | None = None
     type: str | None = Field(default=None, pattern="^(expense|income)$")
@@ -75,6 +125,8 @@ def list_transactions(
     obligation_id: UUID | None = None,
     type: str | None = Query(default=None, pattern="^(expense|income|transfer)$"),
     kakeibo_type: str | None = Query(default=None, pattern=PILLAR_PATTERN),
+    source: str | None = Query(default=None, pattern=SOURCE_PATTERN),
+    review_status: str | None = Query(default=None, pattern=REVIEW_STATUS_PATTERN),
     from_date: datetime | None = None,
     to_date: datetime | None = None,
     q: str | None = None,
@@ -120,6 +172,12 @@ def list_transactions(
             if kakeibo_type and isinstance(kakeibo_type, str):
                 conditions.append(f"{effective_pillar_sql()} = %s")
                 params.append(kakeibo_type)
+            if source:
+                conditions.append("t.source = %s")
+                params.append(source)
+            if review_status:
+                conditions.append("t.review_status = %s")
+                params.append(review_status)
             if from_date:
                 conditions.append("t.date >= %s")
                 params.append(from_date)
@@ -128,13 +186,13 @@ def list_transactions(
                 params.append(to_date)
             if q:
                 search_pattern = f"%{q.strip()}%"
-                conditions.append("(t.notes ILIKE %s OR c.name ILIKE %s OR g.name ILIKE %s OR o.name ILIKE %s OR EXISTS (SELECT 1 FROM transaction_obligation_allocations a JOIN obligations debt ON debt.id = a.obligation_id WHERE a.transaction_id = t.id AND debt.name ILIKE %s))")
-                params.extend([search_pattern] * 5)
+                conditions.append("(t.notes ILIKE %s OR t.merchant ILIKE %s OR c.name ILIKE %s OR g.name ILIKE %s OR o.name ILIKE %s OR EXISTS (SELECT 1 FROM transaction_obligation_allocations a JOIN obligations debt ON debt.id = a.obligation_id WHERE a.transaction_id = t.id AND debt.name ILIKE %s))")
+                params.extend([search_pattern] * 6)
 
             # Filtered views retain individual legs: either side may match independently.
             if logical_movements and not any((
                 account_id, category_id, goal_id, obligation_id, type,
-                kakeibo_type, from_date, to_date, q,
+                kakeibo_type, source, review_status, from_date, to_date, q,
             )):
                 conditions.append(
                     """(
@@ -161,6 +219,7 @@ def list_transactions(
                         WHEN t.type = 'income'
                              AND COALESCE(c.name, '') != 'Internal Movement'
                              AND COALESCE(c.is_excluded_from_budget, false) = false
+                             AND {not_reimbursement_sql()}
                         THEN t.amount ELSE 0 END), 0) AS cumulative_inflow,
                     COALESCE(SUM(CASE
                         WHEN t.type = 'expense'
@@ -171,6 +230,7 @@ def list_transactions(
                         WHEN t.type = 'income'
                              AND COALESCE(c.name, '') != 'Internal Movement'
                              AND COALESCE(c.is_excluded_from_budget, false) = false
+                             AND {not_reimbursement_sql()}
                              AND t.date >= %s AND t.date <= %s
                         THEN t.amount ELSE 0 END), 0) AS cycle_inflow,
                     COALESCE(SUM(CASE
@@ -220,9 +280,11 @@ def list_transactions(
                     partner.id AS partner_id,
                     partner.account_id AS movement_target_account_id,
                     partner_account.name AS movement_target_account_name,
-                    t.created_at
+                    t.created_at,
+                    {PROVENANCE_SELECT}
                 FROM transactions t
                 JOIN accounts sa ON sa.id = t.account_id
+                LEFT JOIN categories offset_category ON offset_category.id = t.offset_category_id
                 LEFT JOIN transactions partner
                     ON partner.movement_id = t.movement_id
                    AND partner.user_id = t.user_id
@@ -288,6 +350,7 @@ def list_transactions(
                 "date": r["date"].isoformat() if r["date"] else None,
                 "receipt_path": r["receipt_path"],
                 "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                **provenance_fields(r),
             }
             for r in rows
         ],
@@ -711,6 +774,11 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     kakeibo_val = crow.get("kakeibo_type") or ("need" if crow.get("is_primary", True) else "want")
 
             if payload.investment_action:
+                if payload.merchant or payload.review_status or payload.offset_category_id:
+                    raise HTTPException(
+                        status_code=422,
+                        detail="Merchant, review status and offset category are not supported for investment trades",
+                    )
                 if target_account_id is None:
                     raise HTTPException(status_code=400, detail="Investment trades require a target account")
                 if account_id == target_account_id:
@@ -772,6 +840,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     target_account=locked[destination_id],
                     idempotency_key=payload.idempotency_key,
                     is_trade=True,
+                    provenance=system_provenance("investment"),
                 )
 
                 if payload.investment_action == "buy":
@@ -797,6 +866,12 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
             if payload.target_account_id or payload.target_account_name:
                 raise HTTPException(status_code=400, detail="Use the movement endpoint for account transfers")
 
+            offset_category_id = str(payload.offset_category_id) if payload.offset_category_id else None
+            if offset_category_id:
+                if payload.type != "income" or not category_offsets_spending(cur, user_id, category_id):
+                    raise offset_not_allowed()
+                validate_offset_category(cur, user_id, offset_category_id)
+
             if payload.type == "expense":
                 locked = lock_owned_accounts(cur, user_id, [account_id])
                 ensure_sufficient_funds(cur, user_id, locked[account_id], payload.amount)
@@ -809,9 +884,11 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 """
                 INSERT INTO transactions (
                     user_id, account_id, category_id, goal_id, obligation_id, type,
-                    amount, notes, date, receipt_path, kakeibo_type, idempotency_key
+                    amount, notes, date, receipt_path, kakeibo_type, idempotency_key,
+                    merchant, offset_category_id,
+                    source, review_status, classified_by, classification_confidence
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, created_at
                 """,
                 (
@@ -827,6 +904,9 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     None,
                     kakeibo_val,
                     payload.idempotency_key,
+                    payload.merchant,
+                    offset_category_id,
+                    *owner_provenance(payload.review_status or "reviewed").columns(),
                 ),
             )
             created = cur.fetchone()
@@ -896,9 +976,11 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                     partner.id AS partner_id,
                     partner.account_id AS movement_target_account_id,
                     partner_account.name AS movement_target_account_name,
-                    t.created_at
+                    t.created_at,
+                    {PROVENANCE_SELECT}
                 FROM transactions t
                 JOIN accounts sa ON sa.id = t.account_id
+                LEFT JOIN categories offset_category ON offset_category.id = t.offset_category_id
                 LEFT JOIN transactions partner
                     ON partner.movement_id = t.movement_id
                    AND partner.id != t.id
@@ -945,6 +1027,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             "date": r["date"].isoformat() if r["date"] else None,
             "receipt_path": r["receipt_path"],
             "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            **provenance_fields(r),
         },
     }
 
@@ -963,17 +1046,22 @@ def update_transaction(
             # 1. Fetch current transaction
             cur.execute(
                 """
-                SELECT id, account_id, category_id, goal_id, obligation_id, type,
-                       amount, notes, date, receipt_path, kakeibo_type, movement_id
-                FROM transactions
-                WHERE user_id = %s AND id = %s
-                FOR UPDATE
+                SELECT t.id, t.account_id, t.category_id, t.goal_id, t.obligation_id, t.type,
+                       t.amount, t.notes, t.date, t.receipt_path, t.kakeibo_type, t.movement_id,
+                       t.merchant, t.offset_category_id, t.review_status,
+                       c.kakeibo_type AS category_kakeibo_type
+                FROM transactions t
+                LEFT JOIN categories c ON c.id = t.category_id
+                WHERE t.user_id = %s AND t.id = %s
+                FOR UPDATE OF t
                 """,
                 (user_id, tid),
             )
             old_tx = cur.fetchone()
             if not old_tx:
                 raise HTTPException(status_code=404, detail="Transaction not found")
+            if payload.model_fields_set == {"review_status"}:
+                return mark_review_status(conn, cur, user_id, tid, payload.review_status)
             if old_tx.get("movement_id"):
                 raise HTTPException(status_code=409, detail="Linked movements must be edited through the movement endpoint")
             old_allocation_rows = load_allocation_rows(cur, tid)
@@ -1058,6 +1146,19 @@ def update_transaction(
             else:
                 new_kakeibo_type = old_tx.get("kakeibo_type")
 
+            new_merchant = payload.merchant if "merchant" in payload.model_fields_set else old_tx.get("merchant")
+            old_offset_id = str(old_tx["offset_category_id"]) if old_tx.get("offset_category_id") else None
+            offset_allowed = new_type == "income" and category_offsets_spending(cur, user_id, new_category_id)
+            if "offset_category_id" in payload.model_fields_set:
+                new_offset_id = str(payload.offset_category_id) if payload.offset_category_id else None
+                if new_offset_id and not offset_allowed:
+                    raise offset_not_allowed()
+                if new_offset_id and new_offset_id != old_offset_id:
+                    validate_offset_category(cur, user_id, new_offset_id)
+            else:
+                # The link only means something on a reimbursement; recategorising away drops it.
+                new_offset_id = old_offset_id if offset_allowed else None
+
             locked_account = None
             if new_type == "expense":
                 locked_account = lock_owned_accounts(cur, user_id, [new_account_id])[new_account_id]
@@ -1141,9 +1242,35 @@ def update_transaction(
                             },
                         )
 
+            new_category_pillar = old_tx.get("category_kakeibo_type")
+            if new_category_id != (str(old_tx["category_id"]) if old_tx["category_id"] else None):
+                new_category_pillar = None
+                if new_category_id:
+                    cur.execute("SELECT kakeibo_type FROM categories WHERE id = %s", (new_category_id,))
+                    category_row = cur.fetchone()
+                    new_category_pillar = category_row.get("kakeibo_type") if category_row else None
+            classification_changed = classification_change(
+                old_tx,
+                {
+                    "category_id": new_category_id,
+                    "kakeibo_type": effective_pillar(new_type, new_kakeibo_type, new_category_pillar),
+                    "notes": new_notes,
+                    "merchant": new_merchant,
+                    "type": new_type,
+                    "offset_category_id": new_offset_id,
+                },
+            )
+            if "review_status" in payload.model_fields_set and payload.review_status:
+                new_review_status = payload.review_status
+            elif classification_changed:
+                new_review_status = "reviewed"
+            else:
+                new_review_status = old_tx["review_status"]
+            owner_assignments = f", {OWNER_EDIT_ASSIGNMENTS}" if classification_changed else ""
+
             # 4. Update the transaction row
             cur.execute(
-                """
+                f"""
                 UPDATE transactions
                 SET account_id = %s,
                     category_id = %s,
@@ -1154,7 +1281,10 @@ def update_transaction(
                     notes = %s,
                     date = %s,
                     kakeibo_type = %s,
-                    updated_at = NOW()
+                    merchant = %s,
+                    offset_category_id = %s,
+                    review_status = %s,
+                    updated_at = NOW(){owner_assignments}
                 WHERE user_id = %s AND id = %s
                 RETURNING id
                 """,
@@ -1168,6 +1298,9 @@ def update_transaction(
                     new_notes,
                     new_date,
                     new_kakeibo_type,
+                    new_merchant,
+                    new_offset_id,
+                    new_review_status,
                     user_id,
                     tid,
                 ),
@@ -1217,6 +1350,36 @@ def update_transaction(
             conn.commit()
 
     return {"ok": True, "message": "Transaction updated successfully"}
+
+
+def classification_change(old_tx: dict[str, Any], new_values: dict[str, Any]) -> bool:
+    """True when the owner changed what the row is, not only how much, when or where from.
+
+    Pillars are compared as effective pillars, because the edit form sends the pillar it shows even
+    when the row follows its category.
+    """
+    old_values = {
+        "category_id": str(old_tx["category_id"]) if old_tx["category_id"] else None,
+        "kakeibo_type": effective_pillar(old_tx["type"], old_tx.get("kakeibo_type"), old_tx.get("category_kakeibo_type")),
+        "notes": (old_tx.get("notes") or "").strip(),
+        "merchant": old_tx.get("merchant"),
+        "type": old_tx["type"],
+        "offset_category_id": str(old_tx["offset_category_id"]) if old_tx.get("offset_category_id") else None,
+    }
+    compared = {**new_values, "notes": (new_values.get("notes") or "").strip()}
+    return any(old_values[field] != compared[field] for field in CLASSIFICATION_FIELDS)
+
+
+def mark_review_status(conn, cur, user_id: str, transaction_id: str, review_status: str | None) -> dict[str, Any]:
+    """Review action: confirms or flags the current classification without changing it."""
+    if review_status is None:
+        raise HTTPException(status_code=422, detail="review_status must be reviewed or needs_review")
+    cur.execute(
+        "UPDATE transactions SET review_status = %s, updated_at = NOW() WHERE user_id = %s AND id = %s",
+        (review_status, user_id, transaction_id),
+    )
+    conn.commit()
+    return {"ok": True, "message": "Transaction review status updated", "review_status": review_status}
 
 
 @router.delete("/{transaction_id}")

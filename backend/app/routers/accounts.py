@@ -9,6 +9,7 @@ from app.db.pool import db_conn
 from app.services.auth import get_current_user
 from app.services.ledger_mutations import get_locked_ledger_balance, lock_owned_accounts
 from app.services.investment_topups import convert_product_to_amount, initialize_amount_tracking
+from app.services.provenance import system_provenance
 from app.services.market_data import (
     get_instrument_quote,
     search_instruments,
@@ -814,12 +815,13 @@ def reconcile_account(
                 cur.execute(
                     """
                     INSERT INTO transactions (
-                        user_id, account_id, category_id, type, amount, notes, date
+                        user_id, account_id, category_id, type, amount, notes, date,
+                        source, review_status, classified_by, classification_confidence
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                    VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s, %s, %s, %s)
                     RETURNING id
                     """,
-                    (user_id, aid, category_id, tx_type, tx_amount, tx_notes),
+                    (user_id, aid, category_id, tx_type, tx_amount, tx_notes, *system_provenance("reconcile").columns()),
                 )
             cur.execute(
                 """

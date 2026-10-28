@@ -29,6 +29,15 @@ import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
 import { ExpenseTopupConversionModal } from "@/components/ui/ExpenseTopupConversionModal";
 import { canConvertExpenseToTopup } from "@/lib/investmentTopups";
 import { KAKEIBO_PILLARS, type KakeiboPillar, kakeiboPillarInfo, pillarOrNeed } from "@/lib/kakeibo";
+import {
+  MERCHANT_MAX_LENGTH,
+  categoryOffsetsSpending,
+  classifierLabel,
+  needsOwnerReview,
+  offsetCategoryOptions,
+  reviewStatusLabel,
+  sourceLabel,
+} from "@/lib/provenance";
 
 interface TransactionItem {
   id: string;
@@ -62,6 +71,13 @@ interface TransactionItem {
   transfer_target_account_id?: string | null;
   transfer_target_account_name?: string | null;
   is_inferred_transfer?: boolean;
+  source?: string;
+  merchant?: string | null;
+  review_status?: string;
+  classified_by?: string | null;
+  offset_category_id?: string | null;
+  offset_category_name?: string | null;
+  is_reimbursement?: boolean;
 }
 
 interface CashFlowMetrics {
@@ -128,6 +144,8 @@ export default function LedgerPage() {
   const [editReceipt, setEditReceipt] = useState<File | null>(null);
   const [receiptRetryTransactionId, setReceiptRetryTransactionId] = useState<string | null>(null);
   const [editNotes, setEditNotes] = useState("");
+  const [editMerchant, setEditMerchant] = useState("");
+  const [editOffsetCategoryId, setEditOffsetCategoryId] = useState("");
   const [editAccountId, setEditAccountId] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
   const [editGoalId, setEditGoalId] = useState("");
@@ -256,6 +274,8 @@ export default function LedgerPage() {
     setEditReceipt(null);
     setReceiptRetryTransactionId(null);
     setEditNotes(tx.notes || "");
+    setEditMerchant(tx.merchant || "");
+    setEditOffsetCategoryId(tx.offset_category_id || "");
     setEditAccountId(tx.account_id);
     setEditCategoryId(tx.category_id || "");
     setEditGoalId(tx.goal_id || "");
@@ -264,6 +284,9 @@ export default function LedgerPage() {
     setEditDate(tx.date ? toDatetimeLocal(tx.date) : "");
     setEditError("");
   };
+
+  const editOffsetsSpending = editType === "income" && categoryOffsetsSpending(categories, editCategoryId);
+  const offsetCategories = offsetCategoryOptions(categories);
 
   const refreshTransactionViews = () => {
     qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
@@ -295,6 +318,8 @@ export default function LedgerPage() {
         obligation_id: editType === "income" ? (editObligationId || null) : editDebtRows.length === 1 ? editDebtRows[0].obligation_id : null,
         ...(editType === "expense" && editDebtRows.length > 1 ? { obligation_allocations: editDebtRows.map((row) => ({ obligation_id: row.obligation_id, amount: Number(row.amount.replace(/\./g, "")) })) } : {}),
         kakeibo_type: editType === "expense" ? editKakeiboType : null,
+        merchant: editMerchant.trim() || null,
+        ...(editOffsetsSpending ? { offset_category_id: editOffsetCategoryId || null } : {}),
         date: isoDate,
       });
       if (editReceipt) {
@@ -316,6 +341,17 @@ export default function LedgerPage() {
     },
     onError: (err: any) => {
       setEditError(err?.message || "Gagal memperbarui transaksi");
+    },
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async (tx: TransactionItem) => api.patch(`/transactions/${tx.id}`, { review_status: "reviewed" }),
+    onSuccess: (_result, tx) => {
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      setEditingTx((current) => (current && current.id === tx.id ? { ...current, review_status: "reviewed" } : current));
+    },
+    onError: (err: any) => {
+      setEditError(err?.message || "Gagal menandai transaksi");
     },
   });
 
@@ -1357,6 +1393,36 @@ export default function LedgerPage() {
                 {editError}
               </div>
             )}
+            {editingTx.source && (
+              <section aria-labelledby="ledger-edit-provenance-title" className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3">
+                <h3 id="ledger-edit-provenance-title" className="sr-only">Asal transaksi</h3>
+                <dl className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-[11px] font-medium text-[var(--muted)]">Sumber</dt>
+                    <dd className="text-sm font-semibold text-[var(--text)]">{sourceLabel(editingTx.source)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-medium text-[var(--muted)]">Status tinjauan</dt>
+                    <dd className="text-sm font-semibold text-[var(--text)]">{reviewStatusLabel(editingTx.review_status)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-medium text-[var(--muted)]">Diklasifikasi oleh</dt>
+                    <dd className="text-sm font-semibold text-[var(--text)]">{classifierLabel(editingTx.classified_by) ?? "—"}</dd>
+                  </div>
+                </dl>
+                {needsOwnerReview(editingTx.review_status) && (
+                  <button
+                    type="button"
+                    disabled={reviewMutation.isPending}
+                    onClick={() => reviewMutation.mutate(editingTx)}
+                    className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--text)] disabled:opacity-50"
+                  >
+                    <Icon name="check" className="h-4 w-4" aria-hidden="true" />
+                    {reviewMutation.isPending ? "Menandai…" : "Tandai sudah ditinjau"}
+                  </button>
+                )}
+              </section>
+            )}
             {receiptRetryTransactionId === editingTx.id && (
               <button
                 type="button"
@@ -1448,6 +1514,26 @@ export default function LedgerPage() {
                   </select>
                 </div>
 
+                {editOffsetsSpending && (
+                  <div>
+                    <label htmlFor="ledger-edit-offset-category" className="text-xs font-medium text-[var(--muted)] block mb-1">Mengurangi pengeluaran</label>
+                    <select
+                      id="ledger-edit-offset-category"
+                      name="offset_category_id"
+                      value={editOffsetCategoryId}
+                      onChange={(event) => setEditOffsetCategoryId(event.target.value)}
+                      aria-describedby="ledger-edit-offset-help"
+                      className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+                    >
+                      <option value="">Belum dipilih</option>
+                      {offsetCategories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                    <p id="ledger-edit-offset-help" className="mt-1 text-[11px] text-[var(--muted)]">Uang ganti ini bukan pemasukan. Pilih kategori pengeluaran yang dibayar kembali.</p>
+                  </div>
+                )}
+
                 {editType === "expense" && (
                   <div>
                     <div className="mb-1 flex items-center gap-1">
@@ -1530,6 +1616,21 @@ export default function LedgerPage() {
                     value={editDate}
                     onChange={(e) => setEditDate(e.target.value)}
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="ledger-edit-merchant" className="text-xs font-medium text-[var(--muted)] block mb-1">Merchant / tempat (opsional)</label>
+                  <input
+                    id="ledger-edit-merchant"
+                    name="merchant"
+                    type="text"
+                    autoComplete="off"
+                    maxLength={MERCHANT_MAX_LENGTH}
+                    value={editMerchant}
+                    onChange={(e) => setEditMerchant(e.target.value)}
+                    placeholder="Nama warung, toko, atau aplikasi"
+                    className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
                   />
                 </div>
 

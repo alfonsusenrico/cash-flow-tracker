@@ -11,6 +11,7 @@ from app.routers.accounts import get_accounts_with_balances, summarize_account_b
 from app.routers.pulse import get_cycle_window
 from app.services.auth import get_current_user
 from app.services.kakeibo import effective_pillar_sql
+from app.services.reimbursements import SpendingOffsets, load_spending_offsets, not_reimbursement_sql
 
 router = APIRouter(tags=["Dashboard"])
 
@@ -143,7 +144,10 @@ def get_kakeibo_breakdown(
     start_utc: datetime,
     end_utc: datetime,
     total_inflow: int,
+    offsets: SpendingOffsets | None = None,
 ) -> dict[str, Any]:
+    if offsets is None:
+        offsets = load_spending_offsets(cur, user_id, start_utc, end_utc)
     # 1. Expenses by effective pillar, excluding internal movements and other excluded categories
     cur.execute(
         f"""
@@ -160,7 +164,11 @@ def get_kakeibo_breakdown(
         """,
         (user_id, start_utc, end_utc),
     )
-    pillar_map = {r["pillar"]: int(r["total_amount"]) for r in cur.fetchall()}
+    # Reimbursements lower the pillar of the category they repay, never below zero.
+    pillar_map = {
+        r["pillar"]: max(0, int(r["total_amount"]) - offsets.for_pillar(r["pillar"]))
+        for r in cur.fetchall()
+    }
     need_spent = pillar_map.get("need", 0)
     want_spent = pillar_map.get("want", 0)
     culture_spent = pillar_map.get("culture", 0)
@@ -470,9 +478,9 @@ def get_dashboard_overview(
         with conn.cursor() as cur:
             # 2. Total Inflow & Outflow in timeframe
             cur.execute(
-                """
+                f"""
                 SELECT
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
                     COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS outflow,
                     COUNT(*) AS tx_count
                 FROM transactions t
@@ -483,7 +491,9 @@ def get_dashboard_overview(
             )
             totals_row = cur.fetchone()
             total_inflow = int(totals_row["inflow"])
-            total_outflow = int(totals_row["outflow"])
+            gross_outflow = int(totals_row["outflow"])
+            offsets = load_spending_offsets(cur, user_id, start_utc, end_utc)
+            total_outflow = gross_outflow - offsets.applied
             net_cashflow = total_inflow - total_outflow
             savings_rate = (
                 round(((total_inflow - total_outflow) / total_inflow) * 100, 1)
@@ -554,10 +564,10 @@ def get_dashboard_overview(
 
             # 5. Day-by-Day Time Series for Cumulative Trendline & Burn Cadence
             cur.execute(
-                """
+                f"""
                 SELECT
                     (t.date AT TIME ZONE %s)::date AS tx_day,
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS income,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS income,
                     COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS expense
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
@@ -625,7 +635,10 @@ def get_dashboard_overview(
                 """,
                 (start_utc, end_utc, user_id),
             )
-            cat_rows = cur.fetchall()
+            cat_rows = [
+                {**r, "gross_spent": int(r["spent"]), "spent": int(r["spent"]) - offsets.for_category(r["id"])}
+                for r in cur.fetchall()
+            ]
             categories_data = []
             for r in cat_rows:
                 spent = int(r["spent"])
@@ -643,6 +656,8 @@ def get_dashboard_overview(
                         "is_primary": bool(r.get("is_primary", True)),
                         "kakeibo_type": r.get("kakeibo_type") or "need",
                         "spent": spent,
+                        "gross_spent": r["gross_spent"],
+                        "reimbursed": r["gross_spent"] - spent,
                         "percentage_of_total": pct_total,
                         "budget": budget,
                         "percentage_used": pct_used,
@@ -655,9 +670,9 @@ def get_dashboard_overview(
             )
 
             cur.execute(
-                """
+                f"""
                 SELECT
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
                     COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS outflow,
                     COUNT(*) AS tx_count
                 FROM transactions t
@@ -667,8 +682,9 @@ def get_dashboard_overview(
                 (user_id, prev_start_utc, prev_end_utc),
             )
             prev_totals_row = cur.fetchone()
+            prev_offsets = load_spending_offsets(cur, user_id, prev_start_utc, prev_end_utc)
             prev_inflow = int(prev_totals_row["inflow"]) if prev_totals_row else 0
-            prev_outflow = int(prev_totals_row["outflow"]) if prev_totals_row else 0
+            prev_outflow = (int(prev_totals_row["outflow"]) if prev_totals_row else 0) - prev_offsets.applied
             prev_net = prev_inflow - prev_outflow
             prev_savings_rate = (
                 round(((prev_inflow - prev_outflow) / prev_inflow) * 100, 1)
@@ -696,7 +712,7 @@ def get_dashboard_overview(
                 """,
                 (prev_start_utc, prev_end_utc, user_id),
             )
-            prev_cat_map = {str(r["id"]): int(r["spent"]) for r in cur.fetchall()}
+            prev_cat_map = {str(r["id"]): int(r["spent"]) - prev_offsets.for_category(r["id"]) for r in cur.fetchall()}
 
             top_driver_name = None
             top_driver_delta = 0.0
@@ -736,7 +752,7 @@ def get_dashboard_overview(
                 top_driver_delta_pct=top_driver_delta,
             )
 
-            kakeibo_data = get_kakeibo_breakdown(cur, user_id, start_utc, end_utc, total_inflow)
+            kakeibo_data = get_kakeibo_breakdown(cur, user_id, start_utc, end_utc, total_inflow, offsets)
 
             # 7. Goals Glance
             cur.execute(
@@ -874,6 +890,7 @@ def get_dashboard_overview(
             "reconciliation_pending": reconciliation_pending,
             "total_inflow": total_inflow,
             "total_outflow": total_outflow,
+            **offsets.summary(gross_outflow),
             "net_cashflow": net_cashflow,
             "savings_rate": savings_rate,
             "safe_to_spend_today": safe_to_spend_today,
@@ -984,11 +1001,11 @@ def get_dashboard_analytics(
 
             # 2. Daily Cadence
             cur.execute(
-                """
+                f"""
                 SELECT 
                     (t.date AT TIME ZONE %s)::date AS tx_day,
                     COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS expense,
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS income
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS income
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
                 WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
@@ -1014,6 +1031,7 @@ def get_dashboard_analytics(
                 curr += timedelta(days=1)
 
             # 3. Category Variance Matrix
+            analytics_offsets = load_spending_offsets(cur, user_id, start_utc, end_utc)
             cur.execute(
                 """
                 SELECT 
@@ -1031,7 +1049,8 @@ def get_dashboard_analytics(
             )
             category_variance = []
             for r in cur.fetchall():
-                spent = int(r["spent"])
+                gross_spent = int(r["spent"])
+                spent = gross_spent - analytics_offsets.for_category(r["id"])
                 budget = int(r["monthly_budget"]) if r["monthly_budget"] else None
                 pct = round((spent / budget) * 100, 1) if budget and budget > 0 else None
                 variance = (budget - spent) if budget else None
@@ -1054,6 +1073,8 @@ def get_dashboard_analytics(
                         "is_primary": bool(r.get("is_primary", True)),
                         "kakeibo_type": r.get("kakeibo_type") or "need",
                         "spent": spent,
+                        "gross_spent": gross_spent,
+                        "reimbursed": gross_spent - spent,
                         "budget": budget,
                         "variance": variance,
                         "percentage_used": pct,
@@ -1083,9 +1104,9 @@ def get_dashboard_analytics(
 
             # 5. Inflow / Outflow & Period Comparison
             cur.execute(
-                """
+                f"""
                 SELECT
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
                     COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS outflow
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
@@ -1095,7 +1116,8 @@ def get_dashboard_analytics(
             )
             totals_row = cur.fetchone() or {}
             total_inflow = int(totals_row.get("inflow", 0))
-            total_outflow = int(totals_row.get("outflow", 0))
+            gross_outflow = int(totals_row.get("outflow", 0))
+            total_outflow = gross_outflow - analytics_offsets.applied
             net_cashflow = total_inflow - total_outflow
             savings_rate = (
                 round(((total_inflow - total_outflow) / total_inflow) * 100, 1)
@@ -1124,9 +1146,9 @@ def get_dashboard_analytics(
             )
 
             cur.execute(
-                """
+                f"""
                 SELECT
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
                     COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS outflow
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
@@ -1135,8 +1157,9 @@ def get_dashboard_analytics(
                 (user_id, prev_start_utc, prev_end_utc),
             )
             prev_totals_row = cur.fetchone() or {}
+            prev_offsets = load_spending_offsets(cur, user_id, prev_start_utc, prev_end_utc)
             prev_inflow = int(prev_totals_row.get("inflow", 0))
-            prev_outflow = int(prev_totals_row.get("outflow", 0))
+            prev_outflow = int(prev_totals_row.get("outflow", 0)) - prev_offsets.applied
             prev_net = prev_inflow - prev_outflow
             prev_savings_rate = (
                 round(((prev_inflow - prev_outflow) / prev_inflow) * 100, 1)
@@ -1164,7 +1187,7 @@ def get_dashboard_analytics(
                 """,
                 (prev_start_utc, prev_end_utc, user_id),
             )
-            prev_cat_map = {str(r["id"]): int(r["spent"]) for r in cur.fetchall()}
+            prev_cat_map = {str(r["id"]): int(r["spent"]) - prev_offsets.for_category(r["id"]) for r in cur.fetchall()}
 
             top_driver_name = None
             top_driver_delta = 0.0
@@ -1204,7 +1227,7 @@ def get_dashboard_analytics(
                 top_driver_delta_pct=top_driver_delta,
             )
 
-            kakeibo_data = get_kakeibo_breakdown(cur, user_id, start_utc, end_utc, total_inflow)
+            kakeibo_data = get_kakeibo_breakdown(cur, user_id, start_utc, end_utc, total_inflow, analytics_offsets)
 
     return {
         "ok": True,
@@ -1229,6 +1252,7 @@ def get_dashboard_analytics(
             "savings_rate_delta_pts": savings_rate_delta_pts,
             "total_inflow": total_inflow,
             "total_outflow": total_outflow,
+            **analytics_offsets.summary(gross_outflow),
             "net_cashflow": net_cashflow,
             "savings_rate": savings_rate,
             "prev_inflow": prev_inflow,

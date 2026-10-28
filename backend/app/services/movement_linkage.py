@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from app.services.ledger_mutations import (
     LIQUID_ACCOUNT_TYPES, ensure_generic_movement_accounts, lock_owned_accounts, movement_kakeibo,
 )
+from app.services.provenance import OWNER_EDIT_ASSIGNMENTS
 
 
 def ensure_internal_movement_categories(cur, user_id: str) -> tuple[str, str]:
@@ -78,8 +79,13 @@ def movement_note(cur, user_id: str, target_account_id: str) -> str:
 
 
 def link_transactions_as_movement(
-    cur, user_id: str, expense_id: str, income_id: str, *, notes: str | None = None
+    cur, user_id: str, expense_id: str, income_id: str, *, notes: str | None = None, owner_edit: bool = False,
 ) -> dict:
+    """Link an expense and an income as one movement.
+
+    `owner_edit` is true when the owner merges the rows; automatic pairing of notification legs is
+    not an owner classification.
+    """
     if expense_id == income_id:
         raise HTTPException(status_code=422, detail="Choose two different transactions")
     cur.execute(
@@ -165,6 +171,12 @@ def link_transactions_as_movement(
         cur.execute(
             "UPDATE transactions SET notes = %s WHERE user_id = %s AND movement_id = %s",
             (notes, user_id, movement_id),
+        )
+    if owner_edit:
+        cur.execute(
+            f"""UPDATE transactions SET review_status = 'reviewed', {OWNER_EDIT_ASSIGNMENTS}
+                WHERE user_id = %s AND movement_id = %s""",
+            (user_id, movement_id),
         )
     return {
         "ok": True, "movement_id": movement_id,

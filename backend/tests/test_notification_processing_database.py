@@ -1513,3 +1513,58 @@ def test_startup_reclassifies_only_unlinked_noise_reviews(client, notification_o
     assert states["failed_noise"]["processing_state"] == "failed"
     assert recorded["processing_state"] == "recorded"
     assert reclassify_review_noise() == 0
+
+
+def provenance_rows(owner):
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        return conn.execute(
+            """SELECT source, review_status, classified_by, classification_confidence, owner_edited_at
+               FROM transactions WHERE user_id = %s""",
+            (owner["user_id"],),
+        ).fetchall()
+
+
+def test_deterministic_and_broker_records_are_rule_classified(client, notification_owner):
+    assert ingest(client, notification())["results"][0]["status"] == "recorded"
+    assert ingest(client, notification("You've moved Rp500.000 into your Dana Darurat Pocket.", seconds=40))["results"][0]["status"] == "recorded"
+    buy = notification("Pembelian 4 lot FIKS match di harga Rp3.340", "com.stockbit.android", seconds=50)
+    assert ingest(client, buy)["results"][0]["status"] == "recorded"
+    rows = provenance_rows(notification_owner)
+    assert len(rows) == 5
+    assert {(row["source"], row["review_status"], row["classified_by"]) for row in rows} == {("notification", "auto", "rule")}
+    assert all(row["classification_confidence"] is None and row["owner_edited_at"] is None for row in rows)
+
+
+def test_ai_record_stores_model_classifier_and_confidence(client, notification_owner, monkeypatch):
+    from app.services.notification_processing import claim_event, process_claim
+    enable_ai(monkeypatch)
+    ingest(client, notification())
+    provider = AsyncMock()
+    provider.interpret.return_value = interpretation(notification_owner)
+    asyncio.run(process_claim(claim_event(), provider))
+    [row] = provenance_rows(notification_owner)
+    assert (row["source"], row["review_status"], row["classified_by"]) == ("notification", "auto", "ai")
+    assert float(row["classification_confidence"]) == 0.9
+
+
+def test_owner_resolution_is_owner_classified_and_pairing_is_not_an_owner_edit(client, top_up_owner):
+    ingest(client, at(notification(SHOPEEPAY_TOP_UP, "com.shopeepay.id"), 0))
+    stuck = ingest(client, notification("You've paid Rp50.000, biaya Rp2.500, total Rp52.500"))["results"][0]
+    resolved = client.post(f"/api/ingest/notifications/{stuck['event_id']}/resolve", json={
+        "type": "expense", "account_id": top_up_owner["main"], "category_id": top_up_owner["expense"], "amount": 52500,
+    })
+    assert resolved.status_code == 200, resolved.text
+    rows = provenance_rows(top_up_owner)
+    assert {(row["review_status"], row["classified_by"]) for row in rows} == {("auto", "rule"), ("reviewed", "owner")}
+
+    paired = ingest(client, at(notification(BCA_TOP_UP_DEBIT, "com.bca.mybca.omni.android"), 3))["results"][0]
+    assert paired["type"] == "internal_movement"
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        legs = conn.execute(
+            "SELECT classified_by, owner_edited_at, review_status FROM transactions WHERE user_id = %s AND movement_id IS NOT NULL",
+            (top_up_owner["user_id"],),
+        ).fetchall()
+    assert len(legs) == 2
+    assert all(leg["classified_by"] == "rule" and leg["owner_edited_at"] is None and leg["review_status"] == "auto" for leg in legs)

@@ -10,6 +10,7 @@ from app.db.pool import db_conn
 from app.routers.movements import _ensure_internal_movement_categories
 from app.services.auth import get_current_user
 from app.services.investment_topups import create_topup, resolve_topup_source, validate_topup_accounts
+from app.services.provenance import system_provenance
 from app.services.ledger_mutations import (
     create_bilateral_movement,
     ensure_generic_movement_accounts,
@@ -641,7 +642,7 @@ def _execute_rule_occurrence(
                 cur, user_id=user_id, source_id=source_id, target_id=target_id,
                 amount=int(rule["amount"]), tx_date=tx_dt, notes=notes,
                 idempotency_key=f"recurring:{rule_id}:{scheduled_for.isoformat()}",
-                recurring_rule_id=rule_id, recurring_execution_id=occurrence_id,
+                recurring_rule_id=rule_id, recurring_execution_id=occurrence_id, ledger_source="recurring",
             )["topup"]
             transaction_id = topup["expense_transaction_id"]
             movement_id = topup["movement_id"]
@@ -663,6 +664,7 @@ def _execute_rule_occurrence(
                 idempotency_key=f"recurring:{rule_id}:{scheduled_for.isoformat()}",
                 recurring_rule_id=rule_id,
                 obligation_id=str(rule["obligation_id"]) if rule.get("obligation_id") else None,
+                provenance=system_provenance("recurring"),
             )
             transaction_id = movement["expense_transaction_id"]
             movement_id = movement["movement_id"]
@@ -674,8 +676,9 @@ def _execute_rule_occurrence(
                 """
                 INSERT INTO transactions (
                     user_id, account_id, category_id, obligation_id, type,
-                    amount, notes, date, recurring_rule_id, idempotency_key
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    amount, notes, date, recurring_rule_id, idempotency_key,
+                    source, review_status, classified_by, classification_confidence
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
@@ -689,6 +692,7 @@ def _execute_rule_occurrence(
                     tx_dt,
                     rule_id,
                     f"recurring:{rule_id}:{scheduled_for.isoformat()}",
+                    *system_provenance("recurring").columns(),
                 ),
             )
             transaction_id = str(cur.fetchone()["id"])
@@ -930,6 +934,7 @@ def execute_payroll_batch(
                     target_account=locked[target_id],
                     idempotency_key=f"payroll:{r_id}:{exec_date.isoformat()}" if r_id else None,
                     recurring_rule_id=r_id,
+                    provenance=system_provenance("payroll"),
                 )
                 results.append({"rule_id": r_id, **movement})
 

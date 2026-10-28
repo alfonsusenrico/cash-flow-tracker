@@ -40,7 +40,8 @@ def list_categories(
 ):
     user_id = current_user["id"]
     query = """
-        SELECT id, name, icon, color, kind, monthly_budget, is_primary, kakeibo_type, is_archived, created_at
+        SELECT id, name, icon, color, kind, monthly_budget, is_primary, kakeibo_type, is_archived, created_at,
+               is_excluded_from_budget, offsets_spending
         FROM categories
         WHERE user_id = %s
     """
@@ -76,6 +77,8 @@ def list_categories(
                     r.get("kakeibo_type") or ("need" if r.get("is_primary", True) else "want")
                 ) if r["kind"] == "expense" else None,
                 "is_archived": r["is_archived"],
+                "is_excluded_from_budget": bool(r.get("is_excluded_from_budget", False)),
+                "offsets_spending": bool(r.get("offsets_spending", False)),
                 "created_at": r["created_at"].isoformat() if r["created_at"] else None,
             }
             for r in rows
@@ -184,12 +187,21 @@ def update_category(
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT kind FROM categories WHERE user_id = %s AND id = %s FOR UPDATE",
+                "SELECT kind, offsets_spending FROM categories WHERE user_id = %s AND id = %s FOR UPDATE",
                 (user_id, cid),
             )
             current_category = cur.fetchone()
             if not current_category:
                 raise HTTPException(status_code=404, detail="Category not found")
+            if payload.kind and payload.kind != current_category["kind"]:
+                if current_category["offsets_spending"]:
+                    raise HTTPException(status_code=409, detail="A reimbursement category must stay an income category")
+                cur.execute(
+                    "SELECT EXISTS (SELECT 1 FROM transactions WHERE user_id = %s AND offset_category_id = %s) AS is_offset",
+                    (user_id, cid),
+                )
+                if cur.fetchone()["is_offset"]:
+                    raise HTTPException(status_code=409, detail="Category type cannot change while reimbursements offset it")
             final_kind = payload.kind or current_category["kind"]
             if final_kind == "income":
                 if payload.monthly_budget is not None or payload.kakeibo_type is not None:
@@ -250,9 +262,10 @@ def delete_category(category_id: UUID, current_user: dict = Depends(get_current_
             cur.execute(
                 """
                 SELECT EXISTS (SELECT 1 FROM transactions WHERE category_id = %s)
+                    OR EXISTS (SELECT 1 FROM transactions WHERE offset_category_id = %s)
                     OR EXISTS (SELECT 1 FROM recurring_rules WHERE category_id = %s) AS is_referenced
                 """,
-                (cid, cid),
+                (cid, cid, cid),
             )
             row = cur.fetchone()
             if row and row["is_referenced"]:

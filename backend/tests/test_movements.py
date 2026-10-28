@@ -9,6 +9,7 @@ import pytest
 from app.main import app
 from app.services.auth import get_current_user
 from app.services.ledger_mutations import create_bilateral_movement
+from app.services.provenance import system_provenance
 
 
 def test_generic_bilateral_movement_rejects_investment_positions_before_writes():
@@ -29,6 +30,7 @@ def test_generic_bilateral_movement_rejects_investment_positions_before_writes()
             income_category_id=str(uuid4()),
             source_account={"id": source_id, "type": "bank"},
             target_account={"id": position_id, "type": "investment", "instrument_type": "stock"},
+            provenance=system_provenance("movement"),
         )
 
     assert error.value.status_code == 422
@@ -59,6 +61,7 @@ def test_investment_trade_movement_allows_position_endpoint():
             source_account={"id": source_id, "type": "bank"},
             target_account={"id": position_id, "type": "investment", "instrument_type": "stock"},
             is_trade=True,
+            provenance=system_provenance("investment"),
         )
 
     assert result["movement_id"]

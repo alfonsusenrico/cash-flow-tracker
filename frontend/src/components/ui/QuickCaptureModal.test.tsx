@@ -479,4 +479,56 @@ describe("QuickCaptureModal", () => {
     expect(screen.getByRole("textbox", { name: "Nominal (IDR)" })).not.toHaveFocus();
     expect(screen.getByLabelText("Bukti transaksi (opsional)")).toBeInTheDocument();
   });
+
+  it("offers the offset category only for income that repays spending", async () => {
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [{ id: "account-1", name: "BCA", type: "bank", balance: 100_000 }] };
+      if (path === "/categories") {
+        return {
+          categories: [
+            { id: "dinner", name: "Makan Bareng", kind: "expense", kakeibo_type: "want" },
+            { id: "movement", name: "Internal Movement", kind: "expense", is_excluded_from_budget: true },
+            { id: "old", name: "Lama", kind: "expense", is_archived: true },
+            { id: "salary", name: "Gaji", kind: "income" },
+            { id: "repayment", name: "Patungan & Ganti Uang", kind: "income", offsets_spending: true },
+          ],
+        };
+      }
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    const user = userEvent.setup();
+    const { container } = renderQuickCapture({ defaultType: "income" });
+    const categorySelect = await screen.findByRole("combobox", { name: "Kategori" });
+
+    await user.selectOptions(categorySelect, "salary");
+    expect(screen.queryByRole("combobox", { name: "Mengurangi pengeluaran" })).not.toBeInTheDocument();
+
+    await user.selectOptions(categorySelect, "repayment");
+    const offset = screen.getByRole("combobox", { name: "Mengurangi pengeluaran" });
+    expect(Array.from((offset as HTMLSelectElement).options).map((option) => option.textContent)).toEqual(["Belum dipilih", "Makan Bareng"]);
+    expect((await axe(container.ownerDocument.body)).violations).toHaveLength(0);
+    offset.focus();
+    await user.keyboard("{ArrowDown}");
+    await user.selectOptions(offset, "dinner");
+    await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "200000");
+    await user.click(screen.getByRole("button", { name: "Simpan Transaksi" }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/transactions", expect.objectContaining({
+      type: "income",
+      category_id: "repayment",
+      offset_category_id: "dinner",
+    })));
+  });
+
+  it("does not send an offset for ordinary income", async () => {
+    const user = userEvent.setup();
+    renderQuickCapture({ defaultType: "income" });
+    await user.selectOptions(await screen.findByRole("combobox", { name: "Kategori" }), "income-category");
+    await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "5000000");
+    await user.click(screen.getByRole("button", { name: "Simpan Transaksi" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalled());
+    expect(vi.mocked(api.post).mock.calls[0][1]).not.toHaveProperty("offset_category_id");
+  });
 });

@@ -5,6 +5,7 @@ from app.db.pool import db_conn
 
 DEFAULT_CATEGORIES = [
     {"name": "Makanan & Minuman", "icon": "utensils", "color": "#f97316", "kind": "expense"},
+    {"name": "Jajan & Nongkrong", "icon": "coffee", "color": "#d97706", "kind": "expense", "kakeibo_type": "want"},
     {"name": "Belanja Harian", "icon": "shopping-cart", "color": "#10b981", "kind": "expense"},
     {"name": "Transportasi", "icon": "car", "color": "#3b82f6", "kind": "expense"},
     {"name": "Tagihan & Utilitas", "icon": "zap", "color": "#eab308", "kind": "expense"},
@@ -16,6 +17,7 @@ DEFAULT_CATEGORIES = [
     {"name": "Internal Movement", "icon": "repeat", "color": "#64748b", "kind": "income"},
     {"name": "Gaji", "icon": "dollar-sign", "color": "#22c55e", "kind": "income"},
     {"name": "Pendapatan Lain", "icon": "plus-circle", "color": "#14b8a6", "kind": "income"},
+    {"name": "Patungan & Ganti Uang", "icon": "users", "color": "#0d9488", "kind": "income", "offsets_spending": True},
 ]
 
 DEFAULT_ACCOUNTS = [
@@ -270,6 +272,7 @@ def init_db_schema() -> None:
             cur.execute(Path(__file__).with_name("investment_topups.sql").read_text(encoding="utf-8"))
             cur.execute(Path(__file__).with_name("investment_topup_conversion.sql").read_text(encoding="utf-8"))
             cur.execute(Path(__file__).with_name("full_kakeibo_and_adjustment_category.sql").read_text(encoding="utf-8"))
+            cur.execute(Path(__file__).with_name("transaction_provenance_and_reimbursements.sql").read_text(encoding="utf-8"))
             conn.commit()
 
 
@@ -284,10 +287,13 @@ def seed_user_defaults(user_id: str | uuid.UUID) -> None:
             if row and row["c"] == 0:
                 for cat in DEFAULT_CATEGORIES:
                     cur.execute("""
-                        INSERT INTO categories (user_id, name, icon, color, kind)
-                        VALUES (%s, %s, %s, %s, %s)
+                        INSERT INTO categories (user_id, name, icon, color, kind, kakeibo_type, offsets_spending)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT DO NOTHING
-                    """, (uid, cat["name"], cat["icon"], cat["color"], cat["kind"]))
+                    """, (
+                        uid, cat["name"], cat["icon"], cat["color"], cat["kind"],
+                        cat.get("kakeibo_type"), cat.get("offsets_spending", False),
+                    ))
 
             # Check existing accounts
             cur.execute("SELECT COUNT(*) AS c FROM accounts WHERE user_id = %s", (uid,))
