@@ -160,7 +160,7 @@ def test_context_is_owner_scoped_bounded_and_uses_separate_candidates():
     cur.fetchall.side_effect = [
         [{"id": "owned", "name": "BCA Operasional", "type": "bank", "parent_id": None}],
         [{"id": "category", "name": "Kategori Dinamis", "kind": "expense"}],
-        [], [],
+        [],
         [{"id": "recent", "description": "Toko Fiksi token=private-value", "merchant": None, "category_id": "category",
           "kakeibo": "want", "amount": 125000, "date": "2026-09-27", "owner_confirmed": True, "same_key": True}],
         [{"id": "outside-history", "type": "income", "amount": 125000}],
@@ -180,7 +180,7 @@ def test_context_is_owner_scoped_bounded_and_uses_separate_candidates():
 def test_candidate_overflow_cannot_become_a_unique_match():
     cur = MagicMock()
     cur.fetchone.return_value = {}
-    cur.fetchall.side_effect = [[], [], [], [], [], [{"id": str(index)} for index in range(51)], []]
+    cur.fetchall.side_effect = [[], [], [], [], [{"id": str(index)} for index in range(51)], []]
     result = load_context(cur, "owner", collect_facts(event()))
     assert result["incomplete"] is True
     assert len(result["candidates"]) == 50

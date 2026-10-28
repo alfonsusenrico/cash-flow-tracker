@@ -1,4 +1,7 @@
-"""Loopback-only fictional ledger for USB companion source-pocket verification."""
+"""Loopback-only fictional ledger for USB companion source-pocket verification.
+
+Requires a disposable ledger_test database already migrated with Flyway (db/migrations).
+"""
 
 from __future__ import annotations
 
@@ -20,7 +23,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 from fastapi import Depends, HTTPException
 from app.main import app
 from app.db.pool import close_db_pool, db_conn, open_db_pool
-from app.db.init_db import init_db_schema
 from app.services.auth import get_current_user, hash_token
 from app.services import notification_processing as processing
 
@@ -34,7 +36,6 @@ extra_id = str(uuid4())
 @asynccontextmanager
 async def lifespan(_app):
     open_db_pool()
-    init_db_schema()
     with db_conn() as conn:
         conn.execute("DELETE FROM users WHERE username LIKE 'jago_device_%%' AND id IN (SELECT user_id FROM api_keys WHERE key_hash=%s)",
                      (hash_token("fictional-jago-phone-key"),))

@@ -8,7 +8,6 @@ from psycopg import sql
 
 ROOT = Path(__file__).resolve().parents[2]
 VERSIONED = ROOT / "db/migrations/V28__transaction_provenance_and_reimbursements.sql"
-MIRROR = ROOT / "backend/app/db/transaction_provenance_and_reimbursements.sql"
 NEW_COLUMNS = {
     "source", "merchant", "review_status", "classified_by", "classification_confidence",
     "owner_edited_at", "offset_category_id",
@@ -28,7 +27,6 @@ def test_v28_backfills_provenance_once_without_touching_ledger_values(client, db
         pytest.skip("Disposable database unavailable")
     from app.db.pool import db_conn
 
-    assert VERSIONED.read_text() == MIRROR.read_text()
     schema = "fictional_provenance_upgrade_" + uuid4().hex
     with db_conn() as conn:
         # The scratch schema and everything in it are rolled back after verification.
@@ -171,7 +169,7 @@ def test_v28_backfills_provenance_once_without_touching_ledger_values(client, db
             conn.execute("UPDATE transactions SET review_status = 'reviewed' WHERE id = %s", (ids["ai"],))
             conn.execute("DELETE FROM categories WHERE user_id = %s AND name = 'Jajan & Nongkrong'", (user,))
             snapshot = conn.execute("SELECT id, source, review_status, classified_by FROM transactions ORDER BY id").fetchall()
-            conn.execute(MIRROR.read_text())
+            conn.execute(VERSIONED.read_text())
             assert conn.execute("SELECT id, source, review_status, classified_by FROM transactions ORDER BY id").fetchall() == snapshot
             assert one("SELECT COUNT(*) AS count FROM categories WHERE user_id = %s AND name = 'Jajan & Nongkrong'", (user,))["count"] == 0
 

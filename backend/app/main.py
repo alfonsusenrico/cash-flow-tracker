@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.core.config import settings
-from app.db.init_db import init_db_schema
 from app.db.pool import close_db_pool, db_conn, open_db_pool
 from app.routers.accounts import router as accounts_router
 from app.routers.auth import router as auth_router
@@ -133,11 +132,6 @@ async def _movement_repair_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     open_db_pool()
-    # Initialize baseline schema if not present
-    try:
-        init_db_schema()
-    except Exception as e:
-        print(f"Schema init warning (handled by migrations): {e}")
     try:
         reclassify_review_noise()
     except Exception as exc:

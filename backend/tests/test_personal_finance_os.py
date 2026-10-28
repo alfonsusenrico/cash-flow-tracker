@@ -72,7 +72,7 @@ def test_get_timeframe_window_options():
 
 
 def test_dashboard_and_domain_routes():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -129,7 +129,7 @@ def test_payday_29_and_31_cycles():
 
 
 def test_settings_routes_and_method_parity():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -173,7 +173,7 @@ def test_settings_routes_and_method_parity():
 
 
 def test_zero_balance_runway_calculations():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -287,7 +287,7 @@ def test_zero_balance_runway_calculations():
 
 
 def test_goal_multi_account_linking_and_dynamic_balance():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -414,7 +414,7 @@ def test_goal_multi_account_linking_and_dynamic_balance():
 
 
 def test_hierarchical_accounts_and_pockets():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -525,7 +525,7 @@ def test_hierarchical_accounts_and_pockets():
 
 
 def test_investment_account_crud_and_validation():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -580,7 +580,7 @@ def test_investment_account_crud_and_validation():
 
 
 def test_goal_emergency_flag_crud():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -634,7 +634,7 @@ def test_goal_emergency_flag_crud():
 
 
 def test_category_is_primary_flag_crud():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -895,7 +895,7 @@ def test_calculate_ketahanan_dana_deduplication():
 
 
 def test_obligation_auto_archive_and_reversal_in_transactions():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -981,7 +981,7 @@ def test_obligation_auto_archive_and_reversal_in_transactions():
 
 
 def test_list_and_update_obligations_auto_archive():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 

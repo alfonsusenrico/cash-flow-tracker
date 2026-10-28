@@ -2,7 +2,9 @@
 
 ## Purpose
 Define savings goals, progress pacing, ledger linkage and funding from one or more linked accounts.
+
 ## Requirements
+
 ### Requirement: Financial Goals Management
 The system SHALL support creating, editing, viewing, and deleting savings targets and financial goals:
 1. Each goal SHALL contain `name`, `target_amount`, `current_amount`, optional `target_date`, optional `icon`, and optional `color`.
@@ -65,3 +67,23 @@ The system SHALL allow users to link a savings goal to one or more physical acco
 - **WHEN** an authenticated user selects child pockets "Sucorinvest" (5,712,112 IDR) and "TRIM Kas" (5,688,503 IDR) without selecting parent "Bibit"
 - **THEN** the goal's `current_amount` is calculated as the sum of the two pockets (11,400,615 IDR)
 
+### Requirement: Goal Progress Action Presentation
+The Goals interface SHALL present progress actions according to goal backing.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner views progress actions for a savings goal
+- **THEN** the following required behavior and constraints hold:
+
+  The Goals interface SHALL present progress actions according to goal backing:
+  1. A standalone goal SHALL offer a clearly labeled progress adjustment that changes no account or ledger balance.
+  2. An account-backed goal SHALL display that progress follows linked account balances and SHALL not offer a synthetic goal deposit action.
+  3. Linking or unlinking accounts SHALL explain the resulting progress source before saving.
+  4. The interface SHALL never label a progress-only adjustment as an account transfer or ask for a source account that will not be debited.
+
+#### Scenario: Viewing an account-backed goal
+- **WHEN** a goal has one or more linked accounts
+- **THEN** the interface identifies those accounts as the progress source and omits standalone deposit controls
+
+#### Scenario: Adjusting a standalone goal
+- **WHEN** a user records progress for a goal without linked accounts
+- **THEN** the confirmation states that no account transaction will be created

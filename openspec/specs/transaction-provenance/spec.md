@@ -93,7 +93,7 @@ The migration SHALL assign provenance to every existing row once, deterministica
 
 #### Scenario: Backfill runs once
 - **GIVEN** the migration has run and the owner has since edited rows
-- **WHEN** the API starts and runs the startup mirror
+- **WHEN** the API restarts or the migrations are applied again
 - **THEN** no provenance value SHALL change.
 
 ### Requirement: Owner Edits Mark Rows Reviewed

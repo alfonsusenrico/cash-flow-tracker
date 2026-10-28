@@ -31,7 +31,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 from fastapi import Depends, HTTPException
 from app.main import app
 from app.db.pool import close_db_pool, db_conn, open_db_pool
-from app.db.init_db import init_db_schema
 from app.services.auth import get_current_user, hash_token
 from app.services import notification_processing as processing
 from app.services.notification_application import deterministic_interpretation
@@ -85,7 +84,6 @@ class FictionalProvider:
 @asynccontextmanager
 async def lifespan(_app):
     open_db_pool()
-    init_db_schema()
     with db_conn() as conn:
         # Recover only this fixture's owner after an interrupted verification process.
         conn.execute(

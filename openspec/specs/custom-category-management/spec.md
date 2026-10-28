@@ -13,13 +13,24 @@ The system SHALL provide full category lifecycle management allowing users to cr
 - **THEN** the following required behavior and constraints hold:
 
   The system SHALL provide full category lifecycle management allowing users to create, update, archive, and query custom categories:
-  1. Category entities SHALL include `name`, `kind` (`income` or `expense`), `is_primary` (boolean: true for `Pokok`, false for `Opsional`), optional `color`, optional `icon`, and optional `monthly_budget`.
-  2. The system SHALL expose `GET /api/categories`, `POST /api/categories`, `PATCH /api/categories/{id}`, and `DELETE /api/categories/{id}` (soft-delete/archive).
-  3. The category listing SHALL allow filtering by `kind` (`expense` or `income`) and support searching active categories.
+  1. Category forms SHALL expose `name`, `kind` (`income` or `expense`), Kakeibo pillar where applicable, `is_primary`, optional color, optional icon, and optional monthly budget.
+  2. Income categories SHALL not present expense-only budget or Kakeibo controls unless the underlying contract supports them.
+  3. Existing values SHALL load when editing and every persisted attribute SHALL remain editable where compatible.
+  4. Color and icon choices SHALL expose names and selected states without relying on appearance alone.
+  5. The system SHALL expose `GET /api/categories`, `POST /api/categories`, `PATCH /api/categories/{id}`, and soft-delete/archive behavior.
+  6. Transaction forms SHALL filter category choices by the selected transaction type.
+
+#### Scenario: Creating an optional expense category
+- **WHEN** a user creates "Hobi" as an expense, selects `want`, marks it optional, and sets a 500,000 IDR budget
+- **THEN** all selected attributes are persisted and the category appears only in expense selections
+
+#### Scenario: Creating an income category
+- **WHEN** a user creates an income category named "Bonus"
+- **THEN** it appears in income transaction forms and not in expense-only budget tables
 
 #### Scenario: Creating a custom expense category
-- **WHEN** a user creates a category with name "Hobi", kind "expense", is_primary false, and monthly budget 500,000 IDR
-- **THEN** the category is persisted with the "Opsional" tag and appears in the expense category selection list
+- **WHEN** a user creates "Hobi" as an optional expense category with a 500,000 IDR monthly budget
+- **THEN** the category is persisted with its selected classification and appears in expense category choices
 
 ### Requirement: Category Budget Variance Filtering
 The `/insights` category budget matrix SHALL strictly filter and display categories of kind `expense`:
@@ -47,3 +58,22 @@ Every user SHALL have the expense category "Jajan & Nongkrong" with the Kakeibo 
 #### Scenario: New user defaults
 - **WHEN** a new user registers
 - **THEN** the default categories SHALL include "Jajan & Nongkrong" with pillar `want`.
+
+### Requirement: New User Movement Categories
+At registration, the seeded expense and income "Internal Movement" categories SHALL be excluded from budget and SHALL carry no Kakeibo pillar, so that movement legs never count as spending, income or a pillar from the first movement on.
+
+#### Scenario: Seeded movement categories
+- **WHEN** a new user registers
+- **THEN** both "Internal Movement" categories SHALL have `is_excluded_from_budget = true` and no pillar
+- **AND** no other seeded category SHALL be excluded from budget.
+
+### Requirement: System Category Icons Render
+The web icon set SHALL draw every icon that seeded or system categories use (`coffee`, `users`, `receipt`, `arrows-right-left` among them) instead of the generic tag fallback, and the category icon picker SHALL offer `coffee` ("Jajan") and `users` ("Patungan"). Stored category icons SHALL NOT be rewritten.
+
+#### Scenario: Snack category icon
+- **WHEN** the category "Jajan & Nongkrong" with icon `coffee` is shown
+- **THEN** a coffee cup icon SHALL be drawn, not the tag fallback.
+
+#### Scenario: Unknown icon
+- **WHEN** a category carries an icon name the web does not know
+- **THEN** the tag fallback SHALL be drawn.

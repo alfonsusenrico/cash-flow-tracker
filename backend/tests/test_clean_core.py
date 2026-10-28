@@ -51,7 +51,7 @@ def test_api_key_generation_and_hashing():
 
 
 def test_healthcheck_endpoint():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         with TestClient(app) as client:
             res = client.get("/api/health")
@@ -65,7 +65,7 @@ def test_healthcheck_endpoint():
 
 
 def test_api_key_info_and_v1_routing():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -94,7 +94,7 @@ def test_api_key_info_and_v1_routing():
 def test_account_color_display_order_and_reordering():
     from unittest.mock import MagicMock
 
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -286,7 +286,6 @@ def test_investment_valuation_updates_without_transactions():
     with (
         patch("app.main.open_db_pool"),
         patch("app.main.close_db_pool"),
-        patch("app.main.init_db_schema"),
         patch("app.routers.accounts.db_conn", return_value=mock_conn),
     ):
         mock_cur.fetchone.return_value = {
@@ -362,7 +361,6 @@ def test_user_settings_and_currency_rates():
     with (
         patch("app.main.open_db_pool"),
         patch("app.main.close_db_pool"),
-        patch("app.main.init_db_schema"),
         patch("app.routers.auth.db_conn", return_value=mock_conn),
     ):
         mock_cur.fetchone.return_value = {

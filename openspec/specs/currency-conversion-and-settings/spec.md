@@ -2,26 +2,35 @@
 
 ## Purpose
 Define user profile settings and currency display conversion using maintained exchange-rate information.
+
 ## Requirements
+
 ### Requirement: Streamlined User Settings & Profile Information
-The system SHALL expose user settings and profile management in a unified interface.
+The system SHALL persist and present user settings and profile information through aligned registration and settings contracts.
 
 #### Scenario: Required behavior and constraints
 - **WHEN** an owner registers, views or updates profile and settings information
 - **THEN** the following required behavior and constraints hold:
 
-  The system SHALL expose user settings and profile management in a unified interface:
-  1. The settings interface SHALL display the user's `username` and display name `name`.
-  2. The settings interface SHALL permit configuring:
-     - `payday_day` (payday cycle day: 1 to 31).
-     - `currency` (primary display currency: selected from supported currencies).
-     - `emergency_fund_multiplier` (target emergency coverage multiplier, default 6x, e.g. 8x).
-     - `monthly_spending_budget` (overall monthly spending budget ceiling).
-  3. The settings interface SHALL NOT display redundant view toggles (such as hide-balance checkboxes) or unconfigured third-party integrations.
+  The system SHALL persist and present user settings and profile information through aligned registration and settings contracts:
+  1. Registration SHALL either persist the submitted display name or omit that control; it SHALL NOT accept and silently discard it.
+  2. Settings SHALL display username and permit updating the persisted display name.
+  3. Settings SHALL permit configuring payday day from 1 through 31, a supported currency from the explicit `IDR` and `USD` set, emergency-fund multiplier, and optional monthly spending budget.
+  4. Unsupported currency values and invalid numeric ranges SHALL be rejected by both form and server without changing saved settings.
+  5. Successful changes SHALL refresh every view that consumes the affected user settings.
+  6. The interface SHALL NOT display redundant view toggles or unconfigured integrations.
+
+#### Scenario: Registering with a display name
+- **WHEN** a new user submits a valid optional display name during registration
+- **THEN** the name is persisted and appears in authenticated profile settings
+
+#### Scenario: Rejecting an unsupported currency
+- **WHEN** a client attempts to save a currency other than IDR or USD
+- **THEN** the server rejects the request and preserves the existing currency
 
 #### Scenario: Updating user profile settings
-- **WHEN** the user updates their emergency fund target multiplier to 8x and monthly spending budget to 12,000,000 IDR
-- **THEN** the system persists the settings and recalculates runway and safe-to-spend benchmarks accordingly
+- **WHEN** a user updates the emergency-fund multiplier to 8 and monthly spending budget to 12,000,000 IDR
+- **THEN** the system persists both values and refreshes runway and safe-to-spend consumers
 
 ### Requirement: Automated Daily Currency Conversion
 The system SHALL support dynamic currency conversion and formatting between `IDR` and `USD`.
@@ -53,4 +62,3 @@ The system SHALL support dynamic currency conversion and formatting between `IDR
 #### Scenario: Switching back to IDR
 - **WHEN** the user reverts their primary currency preference to "IDR"
 - **THEN** all balances and metrics immediately re-render in Indonesian Rupiah with "Rp" prefix and dot thousand separators without conversion loss
-

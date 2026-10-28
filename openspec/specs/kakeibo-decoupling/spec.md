@@ -16,7 +16,7 @@ The system SHALL present category labels across all dropdowns, select elements, 
 ---
 
 ### Requirement: Independent Transaction Kakeibo Selection
-The Quick Capture interface and the ledger edit form SHALL allow the user to choose any Kakeibo pillar independently of the selected category: `need`, `want`, `culture`, `unexpected` or `saving`. Selecting a category SHALL NOT overwrite a pillar the user has chosen. The backend SHALL accept exactly these five values wherever a transaction or category pillar is written: manual transactions, category defaults, notification resolution and AI interpretation. It SHALL reject any other value with a validation error.
+The Quick Capture interface and the ledger edit form SHALL allow the user to choose any Kakeibo pillar (`need`, `want`, `culture`, `unexpected` or `saving`) independently of the selected category. Selecting a category SHALL NOT overwrite a pillar the user has chosen.
 
 #### Scenario: Categorizing a discretionary dining expense
 - **GIVEN** the Quick Capture modal is open for an expense
@@ -72,3 +72,14 @@ The system SHALL resolve every expense's effective Kakeibo pillar with one share
 - **GIVEN** an expense with no transaction pillar in a reportable category with no pillar
 - **WHEN** the Kakeibo breakdown is executed
 - **THEN** the amount SHALL be counted in `need_spent`.
+
+### Requirement: Kakeibo Pillar Vocabulary
+The backend SHALL accept exactly the pillars `need`, `want`, `culture`, `unexpected` and `saving` wherever a transaction or category pillar is written: manual transactions, category defaults, notification resolution and AI interpretation. It SHALL reject any other value with a validation error.
+
+#### Scenario: Category default accepts a new pillar
+- **WHEN** a client updates a category with `kakeibo_type = 'culture'`
+- **THEN** the category SHALL be stored with the `culture` pillar.
+
+#### Scenario: Retired pillar name is rejected
+- **WHEN** a client creates a transaction with `kakeibo_type = 'investment'`
+- **THEN** the API SHALL respond with a 422 validation error and no row SHALL be created.

@@ -487,14 +487,12 @@ def test_reports_are_unchanged_for_existing_movements(client, notification_owner
     assert (overview(client)["kpis"], client.get("/api/pulse").json()) == before
 
 
-def test_v30_matches_mirror_and_is_idempotent(client):
+def test_v30_is_idempotent(client):
     from app.db.pool import db_conn
     versioned = ROOT / "db/migrations/V30__movement_pairing_fees_and_splits.sql"
-    mirror = ROOT / "backend/app/db/movement_pairing_fees_and_splits.sql"
-    assert versioned.read_text() == mirror.read_text()
     with db_conn() as conn:
-        conn.execute(mirror.read_text())
-        conn.execute(mirror.read_text())
+        conn.execute(versioned.read_text())
+        conn.execute(versioned.read_text())
         columns = {row["column_name"] for row in conn.execute(
             """SELECT column_name FROM information_schema.columns
                WHERE table_name = 'transactions' AND column_name IN ('owner_split_at', 'fee_for_movement_id')""").fetchall()}

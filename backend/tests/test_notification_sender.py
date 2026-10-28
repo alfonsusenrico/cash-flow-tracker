@@ -392,7 +392,7 @@ def test_populated_v24_upgrade_preserves_state_and_reapplication(client, notific
             before = conn.execute("SELECT id, initial_balance FROM accounts WHERE user_id = %s", (user,)).fetchall()
             conn.execute((root / "db/migrations/V25__notification_sender_confirmation.sql").read_text())
             for _ in range(2):
-                conn.execute((root / "backend/app/db/notification_sender.sql").read_text())
+                conn.execute((root / "db/migrations/V25__notification_sender_confirmation.sql").read_text())
             assert conn.execute("SELECT id, initial_balance FROM accounts WHERE user_id = %s", (user,)).fetchall() == before
             event = conn.execute("SELECT active_question, sender_resolution, processing_state FROM notification_events WHERE user_id = %s", (user,)).fetchone()
             assert event == {"active_question": None, "sender_resolution": None, "processing_state": "needs_review"}

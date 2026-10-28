@@ -35,8 +35,11 @@ BASE_CONTEXT = {
         {"id": fixture_id(105), "name": "Internal Movement", "kind": "expense"},
         {"id": fixture_id(106), "name": "Internal Movement", "kind": "income"},
     ],
-    "rules": [{"merchant_pattern": "Kedai Awan", "category_id": fixture_id(102)}],
-    "memory": [], "similar_history": [], "candidates": [],
+    "memory": [{
+        "match_key": "merchant:kedai awan", "merchant": "Kedai Awan", "description": None,
+        "category_id": fixture_id(102), "kakeibo": "want", "source": "owner",
+    }],
+    "similar_history": [], "candidates": [],
 }
 
 

@@ -360,13 +360,9 @@ def test_concurrent_delivery_claims_one_effect(client, notification_owner):
     (29, False, 1), (29, True, 1), (600, False, 1), (600, True, 1), (899, False, 1), (900, False, 2),
 ])
 def test_cross_account_window_and_both_orders(client, notification_owner, offset, reverse, expected_count):
-    from app.db.pool import db_conn
     outgoing = notification("Rp500.000 udah dikirim ke BCA Raka Purnama.", "com.gojek.gopay", seconds=1)
     incoming = notification("Pemasukan sebesar IDR 500,000.00 dari RA** PUR**MA di kategori Transfer Rekening.", "com.bca", seconds=1)
     incoming["post_time"] = (datetime.fromisoformat(outgoing["post_time"]) + timedelta(seconds=offset)).isoformat()
-    # The registered rule selects a category, never overrides source facts.
-    with db_conn() as conn:
-        conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, 'FIK', %s)", (notification_owner["user_id"], notification_owner["income"]))
     events = [incoming, outgoing] if reverse else [outgoing, incoming]
     first = ingest(client, events[0])["results"][0]
     second = ingest(client, events[1])["results"][0]
@@ -457,8 +453,6 @@ def test_confirming_jago_movement_role_has_zero_extra_effect(client, notificatio
 
 def test_ambiguous_candidates_do_not_merge(client, notification_owner):
     from app.db.pool import db_conn
-    with db_conn() as conn:
-        conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, 'FIK', %s)", (notification_owner["user_id"], notification_owner["income"]))
     for seconds in (1, 2):
         assert ingest(client, notification("Rp500.000 udah dikirim ke BCA Raka Purnama.", "com.gojek.gopay", seconds=seconds))["results"][0]["status"] == "recorded"
     incoming = ingest(client, notification("Pemasukan sebesar IDR 500,000.00 dari RA** PUR**MA di kategori Transfer Rekening.", "com.bca", seconds=4))["results"][0]
@@ -475,7 +469,6 @@ def test_counterpart_discovery_is_independent_of_recent_history(client, notifica
     with db_conn() as conn:
         for _ in range(25):
             conn.execute("INSERT INTO transactions (user_id, account_id, category_id, type, amount, date) VALUES (%s, %s, %s, 'expense', 1, '2026-09-28T10:15:20Z')", (notification_owner["user_id"], notification_owner["bca"], notification_owner["expense"]))
-        conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, 'FIK', %s)", (notification_owner["user_id"], notification_owner["income"]))
     incoming = notification("Pemasukan sebesar IDR 500,000.00 dari RA** PUR**MA di kategori Transfer Rekening.", "com.bca", seconds=29)
     payload = dict(incoming, post_time=datetime.fromisoformat(incoming["post_time"]))
     with db_conn() as conn:
@@ -563,8 +556,6 @@ def test_concurrent_counterparts_link_once(client, notification_owner):
     from app.services.notification_processing import accept_event
 
     owner = notification_owner
-    with db_conn() as conn:
-        conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, 'FIK', %s)", (owner["user_id"], owner["income"]))
     payloads = [
         notification("Rp500.000 udah dikirim ke BCA Raka Purnama.", "com.gojek.gopay", seconds=1),
         notification("Pemasukan sebesar IDR 500,000.00 dari RA** PUR**MA di kategori Transfer Rekening.", "com.bca", seconds=4),
@@ -587,9 +578,6 @@ def test_literal_self_marker_cannot_prove_own_transfer(client, notification_owne
     from app.db.pool import db_conn
 
     owner = notification_owner
-    with db_conn() as conn:
-        conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, '[SELF]', %s)", (owner["user_id"], owner["expense"]))
-        conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, 'FIK', %s)", (owner["user_id"], owner["income"]))
     first = ingest(client, notification("Rp500.000 udah dikirim ke BCA [SELF].", "com.gojek.gopay", seconds=1))["results"][0]
     second = ingest(client, notification("Pemasukan sebesar IDR 500,000.00 dari FIK SISI di kategori Transfer Rekening.", "com.bca", seconds=4))["results"][0]
     assert first["status"] in {"recorded", "needs_review"}
@@ -1149,11 +1137,6 @@ def test_wallet_moved_under_bank_receives_both_apps_notifications(client, notifi
         "parent_id": notification_owner["jago"], "name": "GoPay Tabungan",
     })
     assert moved.status_code == 200, moved.text
-    from app.db.pool import db_conn
-    add_category(notification_owner, "belanja", "Belanja")
-    with db_conn() as conn:
-        conn.execute("INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id) VALUES (%s, 'Kedai Awan', %s)",
-                     (notification_owner["user_id"], notification_owner["belanja"]))
     payment = ingest(client, notification("QRIS Rp32.000 ke Kedai Awan berhasil", "com.gopay.wallet"))["results"][0]
     assert (payment["status"], payment["type"], payment["source"]) == ("recorded", "expense", "Bank Jago · GoPay Tabungan"), payment
     pocket_move = ingest(client, notification(
@@ -1476,7 +1459,7 @@ def test_ai_unexpected_pillar_is_recorded(client, notification_owner, monkeypatc
         ).fetchone()
     assert row["kakeibo_type"] == "unexpected"
     assert row["processing_state"] == "recorded"
-    assert row["prompt_version"] == PROMPT_VERSION == "notification-interpretation-9"
+    assert row["prompt_version"] == PROMPT_VERSION == "notification-interpretation-10"
 
 
 def test_startup_reclassifies_only_unlinked_noise_reviews(client, notification_owner):

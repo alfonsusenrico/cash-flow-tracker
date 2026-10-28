@@ -120,14 +120,6 @@ def test_concurrent_notification_delivery_creates_one_ledger_effect(auth_client,
         balance=200_000,
     )
     user_id = auth_client.get("/api/auth/me").json()["user"]["id"]
-    with db_conn() as connection:
-        connection.execute(
-            """INSERT INTO merchant_category_rules (user_id, merchant_pattern, category_id)
-               SELECT %s, 'Kopi Kenangan', id FROM categories
-               WHERE user_id = %s AND name = 'Makanan & Minuman' AND kind = 'expense'
-               AND is_archived = FALSE LIMIT 1""",
-            (user_id, user_id),
-        )
     payload_hash = sha256(uuid4().bytes).hexdigest()
     payload = {
         "events": [

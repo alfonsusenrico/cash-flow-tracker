@@ -496,14 +496,12 @@ def test_invalid_configuration_disables_runs(client, owner, monkeypatch):
 # --- Migration -------------------------------------------------------------------------------------
 
 
-def test_v31_matches_mirror_and_is_idempotent(client, owner):
+def test_v31_is_idempotent(client, owner):
     from app.db.pool import db_conn
     versioned = ROOT / "db/migrations/V31__history_suggestions.sql"
-    mirror = ROOT / "backend/app/db/history_suggestions.sql"
-    assert versioned.read_text() == mirror.read_text()
     with db_conn() as conn:
-        conn.execute(mirror.read_text())
-        conn.execute(mirror.read_text())
+        conn.execute(versioned.read_text())
+        conn.execute(versioned.read_text())
         definition = conn.execute(
             """SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
                WHERE conname = 'classification_feedback_kind_check'""").fetchone()["def"]

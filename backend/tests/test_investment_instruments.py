@@ -228,7 +228,7 @@ def test_parent_account_capital_gain_aggregation():
 
 
 def test_account_endpoints_instrument_search_and_sync():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 

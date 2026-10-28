@@ -66,8 +66,6 @@ def insert_classified_row(client, account_id, category_id, *, source="notificati
 def test_every_transaction_insert_names_provenance():
     statements = []
     for path in APP_ROOT.rglob("*.py"):
-        if "services/ledger/" in path.as_posix():
-            continue
         text = path.read_text(encoding="utf-8")
         for match in re.finditer(r"INSERT INTO transactions\s*\(([^)]*)\)", text):
             statements.append((path.name, match.group(1)))

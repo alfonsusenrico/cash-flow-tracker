@@ -16,6 +16,7 @@ The system SHALL accept `investment_action`, positive `units`, and positive `pri
   4. A purchase SHALL obey liquid source balance protection.
   5. A sale SHALL be rejected when requested units exceed owned units; units SHALL never be silently clamped.
   6. Invalid, missing, zero, or non-finite trade quantities or prices SHALL be rejected without creating a ledger record.
+  7. Unit-based trades against a product already using amount tracking with contribution history SHALL be rejected rather than implicitly converting that product or replacing its contributed capital.
 
 #### Scenario: Successfully recording a stock purchase
 - **WHEN** a user buys 600 BBRI units at 3,200 IDR using RDN BCA
@@ -36,3 +37,7 @@ The system SHALL accept `investment_action`, positive `units`, and positive `pri
 #### Scenario: Successfully record an investment sale
 - **WHEN** a user records a sale of 400 owned BBRI units at 3,500 IDR to RDN BCA
 - **THEN** the system credits 1,400,000 IDR to RDN BCA and decrements the position by 400 atomically
+
+#### Scenario: Prevent implicit conversion of an amount portfolio
+- **WHEN** a unit-based buy or sell targets an amount-tracked mutual-fund product with contribution history
+- **THEN** the system rejects it with an explanation and leaves units, cost basis, valuation, and ledger balances unchanged
