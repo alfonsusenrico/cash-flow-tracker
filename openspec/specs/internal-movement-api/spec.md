@@ -1,6 +1,9 @@
-# Spec: Internal Movement API
+# internal-movement-api Specification
 
-## ADDED Requirements
+## Purpose
+Record a move of money between the owner's own accounts as one atomic pair of linked expense and income legs that never counts as spending or income.
+
+## Requirements
 
 ### Requirement: Internal Movement Endpoint
 The system SHALL expose `POST /api/movements` accepting `{ source_account_id: UUID, target_account_id: UUID, amount: integer, notes?: string, date?: ISO8601 }` or account names. The endpoint SHALL atomically insert 2 transactions: first an expense row on source_account_id, second an income row on target_account_id, both with category "Internal Movement". The endpoint SHALL reject same source and target with 400.
@@ -21,10 +24,8 @@ Any query computing living expenses or cycle income in `GET /api/pulse`, `GET /a
 - **WHEN** internal movement transactions exist
 - **THEN** `GET /api/pulse` does not count them in today_spent or cycle_spent
 
-## REMOVED Requirements
-
-### Requirement: Transfer Transaction Type
-The single-row `transfer` transaction type SHALL be completely removed. `type = 'transfer'` SHALL be rejected by transaction creation and update endpoints.
+### Requirement: Transfer Transaction Type Rejected
+The single-row `transfer` transaction type SHALL NOT exist. `type = 'transfer'` SHALL be rejected by transaction creation and update endpoints.
 
 #### Scenario: Reject transfer type
 - **WHEN** `POST /api/transactions` is called with `type = "transfer"`

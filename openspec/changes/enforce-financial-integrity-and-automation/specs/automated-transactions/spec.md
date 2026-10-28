@@ -16,6 +16,7 @@ The system SHALL support creating, querying, updating, deactivating, and deletin
   4. Weekly rules SHALL identify a weekday, monthly rules SHALL identify a day from 1 through 31, and payday rules SHALL use the user's payday setting.
   5. Updates SHALL distinguish omitted fields from explicit clearing of optional fields and SHALL remove fields incompatible with a changed rule type.
   6. The system SHALL compute `next_due_date` from the validated schedule.
+  7. Investment-top-up rules (`investment_topup`, requiring a target) SHALL validate the liquid funding account and amount-tracked mutual-fund leaf target, use `auto_post = false`, and reject category, obligation, and payroll-allocation linkage. Their creation SHALL NOT itself record a contribution.
 
 #### Scenario: Updating a rule without crossing tenant boundaries
 - **WHEN** a user attempts to update a recurring rule with an account, category, or obligation owned by another user
@@ -37,6 +38,14 @@ The system SHALL support creating, querying, updating, deactivating, and deletin
 - **WHEN** a user creates or updates a recurring transfer with an investment position as its source or destination
 - **THEN** the server rejects the rule and preserves any existing rule unchanged
 
+#### Scenario: Define monthly Bibit contribution
+- **WHEN** the owner schedules Rp112.590 monthly from BCA RDN to a specific eligible Bibit product
+- **THEN** the system saves a manually confirmed investment-top-up rule with the selected due day and makes no ledger or valuation changes
+
+#### Scenario: Reject automatic investment logging
+- **WHEN** a create or update request enables automatic posting or payroll allocation for an investment-top-up rule
+- **THEN** the request fails and the saved rule remains unchanged
+
 ### Requirement: Execution Engine (Auto-Post & 1-Tap Confirmation)
 The system SHALL execute due recurring rules through a server-owned scheduler and explicit manual confirmation.
 
@@ -52,6 +61,7 @@ The system SHALL execute due recurring rules through a server-owned scheduler an
   5. Failed execution SHALL create no financial mutation, SHALL NOT advance the schedule, and SHALL expose an actionable failure state for the user.
   6. Manual execution SHALL reject inactive rules.
   7. Overdue occurrences SHALL follow an explicit bounded catch-up policy and SHALL NOT be replayed merely because a page reloads.
+  8. Investment-top-up rules SHALL never execute through automatic processing. Confirmation SHALL use the same contribution semantics as a manual top-up and commit the occurrence, both ledger legs, capital/value adjustment, and schedule advancement atomically. Repeated or concurrent confirmation of one occurrence SHALL record it once. Failure SHALL leave that occurrence pending and present its error to the owner.
 
 #### Scenario: Auto-posting without a browser session
 - **WHEN** an active auto-post rule becomes due while no user is signed in
@@ -72,3 +82,19 @@ The system SHALL execute due recurring rules through a server-owned scheduler an
 #### Scenario: Confirming a pending scheduled payment
 - **WHEN** a user confirms an active due rule that requires manual confirmation
 - **THEN** the system records it once, applies any obligation payment, and advances the rule beyond that occurrence
+
+#### Scenario: Confirm the actual monthly debit
+- **WHEN** an investment-top-up rule is due and the owner confirms after the successful Rp112.590 debit
+- **THEN** one contribution is recorded from the specified RDN to the specified product, the occurrence is fulfilled, and the next due date advances one month
+
+#### Scenario: Date alone does not confirm a debit
+- **WHEN** a monthly investment-top-up rule becomes due and automatic processing runs
+- **THEN** it remains pending without any ledger or valuation changes until the owner confirms
+
+#### Scenario: Funding validation fails during confirmation
+- **WHEN** the owner confirms a due investment top-up but funds are insufficient or its product is no longer eligible
+- **THEN** the rule stays pending, its next due date is unchanged, no contribution is recorded, and the interface reports the failure
+
+#### Scenario: Concurrent confirmation
+- **WHEN** two confirmation requests refer to the same investment rule occurrence
+- **THEN** only one contribution is recorded and the schedule advances once

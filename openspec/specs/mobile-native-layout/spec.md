@@ -25,22 +25,32 @@ The web application SHALL render a dedicated mobile-first layout when viewed on 
 - **AND** desktop command-center sidebars and multi-column matrices are not displayed
 
 ### Requirement: Mobile Bottom-Sheet Quick Capture
-The application SHALL render the quick capture transaction entry interface as a native bottom sheet on mobile screens.
+The application SHALL render the canonical transaction-capture form as a touch-first bottom sheet on mobile screens.
 
 #### Scenario: Required behavior and constraints
 - **WHEN** an owner opens quick transaction capture on a mobile screen
 - **THEN** the following required behavior and constraints hold:
 
-  The application SHALL render the quick capture transaction entry interface as a native bottom sheet on mobile screens:
-  1. The bottom sheet SHALL slide up from the bottom edge with rounded top corners (`rounded-t-3xl`) and include a touch-friendly drag-down handle bar.
-  2. The numeric input SHALL feature high-visibility typography with tabular figures and a 3x4 touch keypad with arithmetic operators (`+`, `-`).
-  3. The category selector SHALL be rendered as a horizontal scrollable row of touch-friendly icon chips.
-  4. The Kakeibo classification pills (`Kebutuhan`, `Keinginan`, `Tabungan`) SHALL be accessible with 1-tap thumb targets.
+  The application SHALL render the canonical transaction-capture form as a touch-first bottom sheet on mobile screens:
+  1. The sheet SHALL have rounded top corners, a visible handle, contained scrolling, accessible dialog semantics, and safe focus behavior.
+  2. Amount entry SHALL use high-visibility tabular figures and a touch-appropriate numeric interaction without preventing hardware-keyboard entry.
+  3. Category selection SHALL use horizontally scrollable, named, stateful icon choices filtered by transaction type.
+  4. Kakeibo choices SHALL be one-tap targets whose selected state is exposed programmatically and whose default follows the selected category.
+  5. Account, date, notes, goal or obligation context, receipt attachment, errors, and submission results SHALL be functionally equivalent to the desktop canonical form.
+  6. The sheet SHALL not force mobile keyboard focus immediately when doing so obscures context or causes unwanted viewport movement.
+  7. The sheet SHALL expose the `Perpindahan` mode with eligible source and destination accounts, amount, seconds-precise timestamp, notes, and movement validation through the same atomic movement contract as desktop Quick Capture.
 
 #### Scenario: Opening quick capture on mobile
-- **WHEN** a user taps the center `+` button on the mobile bottom navigation
-- **THEN** the quick capture bottom sheet slides up smoothly from the bottom of the screen
-- **AND** the numeric keypad and category chips are immediately interactable in the thumb zone
+- **WHEN** a user opens Quick Capture on a 390px viewport
+- **THEN** the complete canonical transaction fields are available in a touch-first bottom sheet without losing keyboard or assistive-technology operation
+
+#### Scenario: Selecting a category on mobile
+- **WHEN** a user selects a category chip classified as `want`
+- **THEN** the chip announces its selected state and the Kakeibo selection defaults to `want`
+
+#### Scenario: Recording a movement on mobile
+- **WHEN** a user selects `Perpindahan` and submits a valid movement in the mobile bottom sheet
+- **THEN** the same atomic movement contract is used, with no transaction-only values included
 
 ### Requirement: Mobile Date-Grouped Transaction Ledger
 The `/ledger` screen SHALL display transactions in chronological date groups on mobile viewports.

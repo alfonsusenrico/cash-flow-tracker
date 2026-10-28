@@ -1,6 +1,9 @@
-# Spec: Mobile Transaction Edit
+# mobile-transaction-edit Specification
 
-## ADDED Requirements
+## Purpose
+Let the owner review, correct and send a captured notification as a transaction from the Android companion, and edit it after it is synced.
+
+## Requirements
 
 ### Requirement: TransactionEditSheet Form
 The mobile companion app SHALL replace `NotificationDetailSheet` with `TransactionEditSheet`. The sheet SHALL display: Catatan (notes), Jumlah (Rp-formatted amount), Jenis (income/expense toggle), Rekening (dropdown from API), Kategori (dropdown from API filtered by type), and Waktu Transaksi. The sheet SHALL NOT display developer jargon such as Payload Hash, Raw JSON, or Ground Truth.
@@ -8,7 +11,7 @@ The mobile companion app SHALL replace `NotificationDetailSheet` with `Transacti
 #### Scenario: Open unsynced notification in edit sheet
 - **WHEN** user taps a notification card in the inbox feed
 - **THEN** `TransactionEditSheet` opens pre-populated with natural Indonesian field labels and clean values
-- **AND** action button reads "Kirim Transaksi ke Tracker"
+- **AND** action button reads "Kirim Notifikasi ke Tracker"
 
 ### Requirement: Patch Synced Transactions from Mobile
 The mobile app SHALL persist `server_transaction_id` in Room. When editing a synced transaction, the app SHALL call `PATCH /api/transactions/{server_transaction_id}` with updated fields.

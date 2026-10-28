@@ -2,8 +2,11 @@
 
 ## Purpose
 Define scheduled payment rules, automatic execution where configured, and explicit confirmation of due payments.
+
 ## Requirements
+
 ### Requirement: Recurring Transaction Rules Definition
+
 The system SHALL support creating, querying, updating, and deactivating recurring transaction rules (`recurring_rules`).
 
 #### Scenario: Required behavior and constraints
@@ -11,9 +14,10 @@ The system SHALL support creating, querying, updating, and deactivating recurrin
 - **THEN** the following required behavior and constraints hold:
 
   The system SHALL support creating, querying, updating, and deactivating recurring transaction rules (`recurring_rules`):
-  1. Each rule SHALL specify `name`, `type` (`expense`, `income`, `transfer`), `amount` (> 0), `source_account_id`, optional `target_account_id` (required for transfers), optional `category_id`, optional `obligation_id`, schedule type (`monthly_day`, `payday`, `weekly`), `schedule_day`, `auto_post` (boolean), `is_payroll_allocation` (boolean), and `notes`.
+  1. Each rule SHALL specify `name`, `type` (`expense`, `income`, `transfer`, `investment_topup`), `amount` (> 0), `source_account_id`, optional `target_account_id` (required for transfers and investment top-ups), optional `category_id`, optional `obligation_id`, schedule type (`monthly_day`, `payday`, `weekly`), `schedule_day`, `auto_post` (boolean), `is_payroll_allocation` (boolean), and `notes`.
   2. The system SHALL compute `next_due_date` automatically based on the schedule type and schedule day.
   3. The system SHALL expose `GET /api/recurring`, `POST /api/recurring`, `PUT /api/recurring/{id}`, `DELETE /api/recurring/{id}`, and `POST /api/recurring/toggle/{id}`.
+  4. Investment-top-up rules SHALL validate the liquid funding account and amount-tracked mutual-fund leaf target, use `auto_post = false`, and reject category, obligation, and payroll-allocation linkage. Their creation SHALL NOT itself record a contribution.
 
 #### Scenario: Creating a monthly debt payment rule
 - **WHEN** user creates an automated expense rule for "Cicilan Mobil" of Rp 2.500.000 scheduled monthly on day 25 with `auto_post = true` linked to an obligation
@@ -23,7 +27,16 @@ The system SHALL support creating, querying, updating, and deactivating recurrin
 - **WHEN** user creates a recurring transfer from "BCA" to "Jago - Jajan" of Rp 300.000 scheduled weekly
 - **THEN** system saves the rule and advances `next_due_date` to the upcoming scheduled day
 
+#### Scenario: Define monthly Bibit contribution
+- **WHEN** the owner schedules Rp112.590 monthly from BCA RDN to a specific eligible Bibit product
+- **THEN** the system saves a manually confirmed investment-top-up rule with the selected due day and makes no ledger or valuation changes
+
+#### Scenario: Reject automatic investment logging
+- **WHEN** a create or update request enables automatic posting or payroll allocation for an investment-top-up rule
+- **THEN** the request fails and the saved rule remains unchanged
+
 ### Requirement: Execution Engine (Auto-Post & 1-Tap Confirmation)
+
 The system SHALL support executing due recurring rules.
 
 #### Scenario: Required behavior and constraints
@@ -35,6 +48,7 @@ The system SHALL support executing due recurring rules.
   2. Rules with `auto_post = false` that reach or pass `next_due_date` SHALL appear in `GET /api/recurring/pending` and in a frontend notification banner for 1-tap user confirmation.
   3. The endpoint `POST /api/recurring/execute` SHALL accept a list of rule IDs to execute immediately on demand.
   4. Each executed transaction SHALL reference the originating `recurring_rule_id` and update `last_executed_at` on the rule.
+  5. Investment-top-up rules SHALL never execute through automatic processing. Confirmation SHALL use the same contribution semantics as a manual top-up and commit the occurrence, both ledger legs, capital/value adjustment, and schedule advancement atomically. Repeated or concurrent confirmation of one occurrence SHALL record it once. Failure SHALL leave that occurrence pending and present its error to the owner.
 
 #### Scenario: Auto-posting a due scheduled bill
 - **WHEN** system processes pending recurring rules on day 25 and an active rule with `auto_post = true` is due
@@ -44,3 +58,41 @@ The system SHALL support executing due recurring rules.
 - **WHEN** user views pending recurring rules on the dashboard and clicks "Konfirmasi Catat"
 - **THEN** system records the transaction, decrements any linked obligation balance, and marks the rule as fulfilled for the current cycle
 
+#### Scenario: Confirm the actual monthly debit
+- **WHEN** an investment-top-up rule is due and the owner confirms after the successful Rp112.590 debit
+- **THEN** one contribution is recorded from the specified RDN to the specified product, the occurrence is fulfilled, and the next due date advances one month
+
+#### Scenario: Date alone does not confirm a debit
+- **WHEN** a monthly investment-top-up rule becomes due and automatic processing runs
+- **THEN** it remains pending without any ledger or valuation changes until the owner confirms
+
+#### Scenario: Funding validation fails during confirmation
+- **WHEN** the owner confirms a due investment top-up but funds are insufficient or its product is no longer eligible
+- **THEN** the rule stays pending, its next due date is unchanged, no contribution is recorded, and the interface reports the failure
+
+#### Scenario: Concurrent confirmation
+- **WHEN** two confirmation requests refer to the same investment rule occurrence
+- **THEN** only one contribution is recorded and the schedule advances once
+
+### Requirement: Complete Recurring Rule Management Interface
+The recurring-rule interface SHALL support creating and editing every persisted rule field, deactivating and deleting rules, and clearly distinguishing transaction type, source, target, category, obligation, schedule, payroll inclusion, and automatic posting.
+
+#### Scenario: Required behavior and constraints
+- **WHEN** an owner uses the interface to manage recurring rules
+- **THEN** the following required behavior and constraints hold:
+
+  The recurring-rule interface SHALL support creating and editing every persisted rule field, deactivating and deleting rules, and clearly distinguishing transaction type, source, target, category, obligation, schedule, payroll inclusion, and automatic posting.
+  1. Weekly schedules SHALL provide an explicit weekday control.
+  2. Monthly schedules SHALL provide a day from 1 through 31.
+  3. Category choices SHALL match the selected income or expense type.
+  4. Payroll inclusion SHALL default to off and require explicit selection.
+  5. Changing rule type SHALL clear or replace incompatible target, category, and obligation values before submission.
+  6. Generic transfer account choices SHALL include only liquid accounts; investment positions SHALL be excluded with an explanation that position changes require Beli/Jual.
+
+#### Scenario: Editing a weekly recurring expense
+- **WHEN** a user edits an existing recurring expense and changes its weekday to Friday
+- **THEN** the form loads the existing values, submits the Friday schedule, and displays the recalculated next due date
+
+#### Scenario: Creating an ordinary recurring payment
+- **WHEN** a user creates a recurring expense without choosing payroll inclusion
+- **THEN** the rule is saved with `is_payroll_allocation = false`
