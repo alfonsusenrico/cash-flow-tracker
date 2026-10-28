@@ -47,11 +47,38 @@ class Settings:
     notification_ai_configuration_error: str | None = None
     app_env: str = "production"
     notification_ai_dry_run_enabled: bool = False
+    movement_transfer_fees: tuple[int, ...] = (2500, 6500, 1000, 2900)
+    movement_fee_max_difference: int = 10000
+    movement_repair_interval_seconds: int = 600
+    movement_repair_lookback_hours: int = 48
+    movement_repair_max_gap_seconds: int = 21600
+    movement_pairing_configuration_error: str | None = None
 
 
 def _csv_env(name: str) -> tuple[str, ...]:
     raw = os.getenv(name, "")
     return tuple(part.strip().rstrip("/") for part in raw.split(",") if part.strip())
+
+
+def _movement_pairing_settings() -> dict:
+    """Fee table and re-pairing schedule; an invalid value disables fee tolerance and re-pairing."""
+    try:
+        fees = tuple(sorted({int(part) for part in _csv_env("MOVEMENT_TRANSFER_FEES") or ("2500", "6500", "1000", "2900")}))
+        max_difference = int(os.getenv("MOVEMENT_FEE_MAX_DIFFERENCE", "10000"))
+        interval = int(os.getenv("MOVEMENT_REPAIR_INTERVAL_SECONDS", "600"))
+        lookback = int(os.getenv("MOVEMENT_REPAIR_LOOKBACK_HOURS", "48"))
+        max_gap = int(os.getenv("MOVEMENT_REPAIR_MAX_GAP_SECONDS", "21600"))
+        if not 0 <= max_difference <= 100000 or any(not 0 < fee <= max_difference for fee in fees):
+            raise ValueError
+        if not 60 <= interval <= 86400 or not 1 <= lookback <= 168 or not 900 <= max_gap <= 172800:
+            raise ValueError
+    except ValueError:
+        return {"movement_transfer_fees": (), "movement_pairing_configuration_error": "movement_pairing_configuration_invalid"}
+    return {
+        "movement_transfer_fees": fees, "movement_fee_max_difference": max_difference,
+        "movement_repair_interval_seconds": interval, "movement_repair_lookback_hours": lookback,
+        "movement_repair_max_gap_seconds": max_gap,
+    }
 
 
 def load_settings() -> Settings:
@@ -134,6 +161,7 @@ def load_settings() -> Settings:
         notification_ai_configuration_error=ai_configuration_error,
         app_env=app_env,
         notification_ai_dry_run_enabled=os.getenv("NOTIFICATION_AI_DRY_RUN_ENABLED", "false").lower() == "true",
+        **_movement_pairing_settings(),
     )
 
 

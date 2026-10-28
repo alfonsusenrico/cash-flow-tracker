@@ -14,13 +14,14 @@ from app.services.ledger_mutations import (
 from app.services.merchant_memory import (
     PLACEHOLDER_COUNTERPARTIES, count_memory_hit, learn_from_model, normalize_key_text, stored_key_fields,
 )
-from app.services.movement_linkage import SELF_TRANSFER_NOTES, link_transactions_as_movement, movement_note
+from app.services.movement_linkage import SELF_TRANSFER_NOTES, movement_note
+from app.services.movement_pairing import find_counterpart, flag_ambiguous, leg_evidence, link_pair, load_accounts
 from app.services.notification_context import CANDIDATE_LIMIT, discover_candidates, sanitize_text
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
 from app.services.notification_interpretation import Interpretation, validate_interpretation
 from app.services.notification_resolution import (
     institution_parent, main_endpoint, movement_categories, observed_endpoint,
-    pocket_endpoint, root_account_id, signatures_compatible, transfer_signature,
+    pocket_endpoint, root_account_id, transfer_signature,
 )
 from app.services.notification_sender import sender_gate
 from app.services.provenance import MERCHANT_MAX_LENGTH, Provenance, normalize_merchant, notification_provenance
@@ -364,23 +365,15 @@ def record_observed_leg(
         save_recorded(cur, event, str(candidate["id"]), candidate["result_snapshot"], signature,
                       movement_id=str(candidate["movement_id"]), provenance="role_confirmation", role=role)
         return 0
-    compatible = {}
-    for candidate in candidates:
-        if candidate["movement_id"] or not signatures_compatible(signature, candidate.get("evidence") or {}):
-            continue
-        compatible[str(candidate["id"])] = candidate
-    counterpart = next(iter(compatible.values())) if len(compatible) == 1 and not overflow else None
-    if counterpart:
-        other_facts = NotificationFacts(
-            status="candidate", error_code=None, text="", institution=None, amount=facts.amount,
-            currency="IDR", timestamp=counterpart["post_time"], direction=counterpart["type"],
-            amount_quotes=(), parsed=facts.parsed,
-        )
-        reverse = discover_candidates(cur, user_id, other_facts)
-        competing = {str(row["id"]) for row in reverse
-                     if not row["movement_id"] and signatures_compatible(counterpart.get("evidence") or {}, row.get("evidence") or {})}
-        if competing or len(reverse) > CANDIDATE_LIMIT:
-            counterpart = None
+    in_movement_category = category_id in movement_category_ids(context)
+    pairing = find_counterpart(cur, user_id, {
+        "id": None, "type": facts.direction, "account_id": account_id, "amount": facts.amount,
+        "date": facts.timestamp, "evidence": leg_evidence({
+            "event_id": event_id, "evidence": signature, "movement_category": in_movement_category,
+            "account_id": account_id, "type": facts.direction,
+        }, load_accounts(cur, user_id)),
+    }, gap_seconds=settings.notification_pairing_window_seconds)
+    counterpart = pairing.counterpart
     held, sender_description = sender_gate(
         cur, event, facts, context, observed, signature, proven_movement=counterpart is not None,
     )
@@ -394,13 +387,15 @@ def record_observed_leg(
     reasons = [] if counterpart else list(review_reasons or [])
     if not counterpart and category_id is None:
         reasons.append("uncertain_category")
-    if not counterpart and (overflow or len(compatible) > 1):
+    if not counterpart and pairing.ambiguous:
         reasons.append("ambiguous_movement")
+    if not counterpart and in_movement_category:
+        reasons.append("awaiting_counterpart")
     self_transfer = bool((signature.get("transfer") and signature.get("self_identity"))
                          or (context.get("facts") or {}).get("counterparty_is_owner"))
     ask_purpose = bool(
         not counterpart and key and key["merchant_less"] and not self_transfer
-        and provenance.classified_by != "owner" and category_id not in movement_category_ids(context)
+        and provenance.classified_by != "owner" and not in_movement_category
     )
     if ask_purpose:
         reasons.append("purpose_question")
@@ -443,30 +438,27 @@ def record_observed_leg(
         source = observed if facts.direction == "expense" else other
         target = other if facts.direction == "expense" else observed
         note = movement_note(cur, user_id, str(target["id"]))
-        result = link_transactions_as_movement(cur, user_id, expense_id, income_id, notes=note)
-        snapshot = committed_snapshot(key=counterpart["result_key"], kind="internal_movement",
-                                      description=note, amount=facts.amount,
+        # Links equal legs; a known fee on the outbound leg becomes its own expense (link_pair).
+        result = link_pair(cur, user_id, expense_id, income_id, fee=pairing.fee, notes=note)
+        snapshot = committed_snapshot(key=counterpart["result_key"] or record_key, kind="internal_movement",
+                                      description=note, amount=facts.amount - pairing.fee if facts.direction == "expense" else facts.amount,
                                       source=account_label(source, accounts), target=account_label(target, accounts))
-        # The counterpart's classification doubts and purpose question ended with the pairing (design D1).
-        cur.execute(
-            """UPDATE notification_events SET movement_id = %s, confirmed_role = %s, result_snapshot = %s,
-                   active_question = CASE WHEN active_question ->> 'type' = 'purpose' THEN NULL
-                                          ELSE active_question END
-               WHERE user_id = %s AND id = %s""",
-            (result["movement_id"], "inbound" if facts.direction == "expense" else "outbound", json.dumps(snapshot), user_id, counterpart["event_id"]),
-        )
-        cur.execute(
-            """UPDATE transactions SET review_status = 'auto'
-               WHERE user_id = %s AND movement_id = %s AND review_status = 'needs_review'
-                 AND classified_by IS DISTINCT FROM 'owner'""",
-            (user_id, result["movement_id"]),
-        )
+        if counterpart.get("event_id"):
+            # The counterpart's classification doubts and purpose question ended with the pairing (design D1).
+            cur.execute(
+                """UPDATE notification_events SET movement_id = %s, confirmed_role = %s, result_snapshot = %s,
+                       active_question = CASE WHEN active_question ->> 'type' = 'purpose' THEN NULL
+                                              ELSE active_question END
+                   WHERE user_id = %s AND id = %s""",
+                (result["movement_id"], "inbound" if facts.direction == "expense" else "outbound", json.dumps(snapshot), user_id, counterpart["event_id"]),
+            )
         save_recorded(cur, event, tx_id, snapshot, signature, movement_id=result["movement_id"],
                       role="outbound" if facts.direction == "expense" else "inbound")
     else:
         save_recorded(cur, event, tx_id, snapshot, signature)
-        if overflow or len(compatible) > 1:
+        if pairing.ambiguous:
             cur.execute("UPDATE notification_events SET error_code = 'ambiguous_movement' WHERE id = %s", (event_id,))
+            flag_ambiguous(cur, user_id, list(pairing.ambiguous_ids))
         if ask_purpose:
             from app.services.purpose_questions import attach_purpose_question
 
