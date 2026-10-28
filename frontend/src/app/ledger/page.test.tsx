@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { axe } from "vitest-axe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, updateMovement, uploadTransactionReceipt } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
@@ -584,5 +585,101 @@ describe("Ledger summary metrics (running cycle and cumulative)", () => {
 
     expect(screen.getAllByText("+Rp 7.436.000")).toHaveLength(2);
     expect(screen.getAllByText("Uang Masuk (Siklus)")).toHaveLength(1);
+  });
+});
+
+describe("Ledger provenance and reimbursements", () => {
+  const renderLedger = () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    return render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [{ id: "account-1", name: "BCA", type: "bank", balance: 100_000 }] };
+      if (path === "/categories") return { categories: [
+        { id: "category-1", name: "Makan", kind: "expense", kakeibo_type: "need" },
+        { id: "dinner", name: "Makan Bareng", kind: "expense", kakeibo_type: "want" },
+        { id: "movement", name: "Internal Movement", kind: "expense", is_excluded_from_budget: true },
+        { id: "salary", name: "Gaji", kind: "income" },
+        { id: "repayment", name: "Patungan & Ganti Uang", kind: "income", offsets_spending: true },
+      ] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      if (path.startsWith("/transactions?")) return { ok: true, total: currentTransactions.length, transactions: currentTransactions };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    vi.mocked(api.patch).mockResolvedValue({ ok: true });
+  });
+
+  it("shows where an automatic row came from and marks it reviewed without other changes", async () => {
+    currentTransactions = [{ ...transaction, source: "notification", review_status: "auto", classified_by: "ai", merchant: null } as typeof transaction];
+    const user = userEvent.setup();
+    renderLedger();
+
+    await user.click(await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ }));
+    const dialog = screen.getByRole("dialog", { name: "Ubah Transaksi" });
+    expect(within(dialog).getByText("Notifikasi bank")).toBeInTheDocument();
+    expect(within(dialog).getByText("Otomatis, belum ditinjau")).toBeInTheDocument();
+    expect(within(dialog).getByText("AI")).toBeInTheDocument();
+    expect((await axe(dialog)).violations).toHaveLength(0);
+
+    const review = within(dialog).getByRole("button", { name: "Tandai sudah ditinjau" });
+    review.focus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/transactions/transaction-1", { review_status: "reviewed" }));
+    expect(await within(dialog).findByText("Sudah ditinjau")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Tandai sudah ditinjau" })).not.toBeInTheDocument();
+  });
+
+  it("saves the merchant with the edit and hides the offset select for expenses", async () => {
+    currentTransactions = [{ ...transaction, source: "manual", review_status: "reviewed", classified_by: "owner", merchant: "Warung Lama" } as typeof transaction];
+    const user = userEvent.setup();
+    renderLedger();
+
+    await user.click(await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ }));
+    expect(screen.queryByRole("button", { name: "Tandai sudah ditinjau" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Mengurangi pengeluaran" })).not.toBeInTheDocument();
+    const merchant = screen.getByRole("textbox", { name: "Merchant / tempat (opsional)" });
+    expect(merchant).toHaveValue("Warung Lama");
+    expect(merchant).toHaveAttribute("maxLength", "120");
+    await user.clear(merchant);
+    await user.type(merchant, "Warung Contoh");
+    await user.click(screen.getByRole("button", { name: "Simpan Perubahan" }));
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/transactions/transaction-1", expect.objectContaining({
+      merchant: "Warung Contoh",
+    })));
+    expect(vi.mocked(api.patch).mock.calls[0][1]).not.toHaveProperty("offset_category_id");
+  });
+
+  it("lets a reimbursement pick the spending category it repays", async () => {
+    currentTransactions = [{
+      ...transaction, type: "income", kakeibo_type: null, category_id: "repayment", category_name: "Patungan & Ganti Uang",
+      notes: "Ganti makan", source: "manual", review_status: "reviewed", classified_by: "owner",
+      is_reimbursement: true, offset_category_id: null,
+    } as unknown as typeof transaction];
+    const user = userEvent.setup();
+    renderLedger();
+
+    await user.click(await screen.findByRole("row", { name: /Buka atau ubah: Ganti makan/ }));
+    const offset = screen.getByRole("combobox", { name: "Mengurangi pengeluaran" });
+    expect(Array.from((offset as HTMLSelectElement).options).map((option) => option.textContent)).toEqual([
+      "Belum dipilih", "Makan", "Makan Bareng",
+    ]);
+    await user.selectOptions(offset, "dinner");
+    await user.click(screen.getByRole("button", { name: "Simpan Perubahan" }));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/transactions/transaction-1", expect.objectContaining({
+      type: "income",
+      category_id: "repayment",
+      offset_category_id: "dinner",
+    })));
+
+    await user.click(await screen.findByRole("row", { name: /Buka atau ubah: Ganti makan/ }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Kategori" }), "salary");
+    expect(screen.queryByRole("combobox", { name: "Mengurangi pengeluaran" })).not.toBeInTheDocument();
   });
 });

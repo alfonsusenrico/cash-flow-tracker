@@ -10,6 +10,7 @@ from app.db.pool import db_conn
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.services.auth import get_current_user
 from app.services.kakeibo import effective_pillar_sql
+from app.services.reimbursements import load_spending_offsets, not_reimbursement_sql
 
 router = APIRouter(tags=["Pulse & Insights"])
 
@@ -121,6 +122,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
                         WHEN t.type = 'income'
                              AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
                              AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                             AND {not_reimbursement_sql()}
                         THEN t.amount ELSE 0 END), 0) AS cycle_income
                 FROM transactions t
                 LEFT JOIN categories c ON t.category_id = c.id
@@ -129,7 +131,10 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
                 (user_id, cycle_start, cycle_end),
             )
             cycle_tx = cur.fetchone()
-            cycle_spent = int(cycle_tx["cycle_spent"] or 0)
+            # Reimbursements lower the spending they repay; saving-pillar categories are not living spending.
+            cycle_reimbursed = load_spending_offsets(cur, user_id, cycle_start, cycle_end).living
+            gross_cycle_spent = int(cycle_tx["cycle_spent"] or 0)
+            cycle_spent = max(0, gross_cycle_spent - cycle_reimbursed)
             cycle_income = int(cycle_tx["cycle_income"] or 0)
 
             # 4. Total monthly budget ceiling from user settings or categories
@@ -204,6 +209,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
         "today_spent": today_spent,
         "safe_to_spend_today": safe_to_spend_today,
         "cycle_spent": cycle_spent,
+        "cycle_reimbursed": cycle_reimbursed,
         "cycle_total_budget": effective_budget,
         "cycle_remaining": remaining_budget,
         "cycle_days_total": total_days,
@@ -250,12 +256,13 @@ def get_insights(current_user: dict = Depends(get_current_user)):
         with conn.cursor() as cur:
             # 1. Total in & out (excluding internal movement & invest)
             cur.execute(
-                """
+                f"""
                 SELECT
                     COALESCE(SUM(CASE
                         WHEN t.type = 'income'
                              AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
                              AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                             AND {not_reimbursement_sql()}
                         THEN t.amount ELSE 0 END), 0) AS total_income,
                     COALESCE(SUM(CASE
                         WHEN t.type = 'expense'
@@ -269,8 +276,9 @@ def get_insights(current_user: dict = Depends(get_current_user)):
                 (user_id, cycle_start, cycle_end),
             )
             totals = cur.fetchone()
+            offsets = load_spending_offsets(cur, user_id, cycle_start, cycle_end)
             total_income = int(totals["total_income"] or 0)
-            total_expense = int(totals["total_expense"] or 0)
+            total_expense = int(totals["total_expense"] or 0) - offsets.applied
 
             # 2. Category spending vs budgets
             cur.execute(
@@ -293,7 +301,7 @@ def get_insights(current_user: dict = Depends(get_current_user)):
 
             # 3. Daily spending histogram
             cur.execute(
-                """
+                f"""
                 SELECT
                     DATE(t.date AT TIME ZONE %s) AS day_date,
                     COALESCE(SUM(CASE
@@ -305,6 +313,7 @@ def get_insights(current_user: dict = Depends(get_current_user)):
                         WHEN t.type = 'income'
                              AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
                              AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                             AND {not_reimbursement_sql()}
                         THEN t.amount ELSE 0 END), 0) AS day_income
                 FROM transactions t
                 LEFT JOIN categories c ON t.category_id = c.id
@@ -333,7 +342,7 @@ def get_insights(current_user: dict = Depends(get_current_user)):
     categories = []
     for c in cat_rows:
         budget = c["monthly_budget"]
-        spent = int(c["spent"])
+        spent = int(c["spent"]) - offsets.for_category(c["id"])
         pct = round((spent / budget) * 100, 1) if budget and budget > 0 else None
         categories.append({
             "id": str(c["id"]),

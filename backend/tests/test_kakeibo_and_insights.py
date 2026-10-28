@@ -10,6 +10,7 @@ from app.routers.dashboard import (
     generate_financial_narrative,
     get_kakeibo_breakdown,
 )
+from app.services.reimbursements import SpendingOffsets
 
 
 def test_delta_percentage_calculator():
@@ -74,7 +75,7 @@ def test_kakeibo_breakdown_calculation():
     mock_cur.fetchone.return_value = {"saving_transfers": 2_000_000}
 
     total_inflow = 10_000_000
-    res = get_kakeibo_breakdown(mock_cur, user_id, start, end, total_inflow)
+    res = get_kakeibo_breakdown(mock_cur, user_id, start, end, total_inflow, SpendingOffsets())
 
     assert res["need_spent"] == 4_500_000
     assert res["need_pct"] == 45.0
@@ -108,6 +109,7 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
         mock_conn.cursor.return_value.__enter__.return_value = mock_cur
 
         with patch("app.routers.dashboard.db_conn", return_value=mock_conn), \
+             patch("app.routers.dashboard.load_spending_offsets", return_value=SpendingOffsets()), \
              patch("app.routers.dashboard.get_accounts_with_balances") as mock_accs:
 
             mock_accs.return_value = [
@@ -322,7 +324,8 @@ def test_burn_rate_cycle_forecast_and_unrounded_projection():
         mock_conn.__enter__.return_value = mock_conn
         mock_conn.cursor.return_value.__enter__.return_value = mock_cur
 
-        with patch("app.routers.dashboard.db_conn", return_value=mock_conn):
+        with patch("app.routers.dashboard.db_conn", return_value=mock_conn), \
+             patch("app.routers.dashboard.load_spending_offsets", return_value=SpendingOffsets()):
             # 1. Day of week heatmap
             mock_cur.fetchall.side_effect = [
                 [],  # dow_rows

@@ -13,6 +13,7 @@ import { DebtAllocationEditor, allocationError, totalDebtPayments, type DebtAllo
 import { queryKeys } from "@/lib/queryKeys";
 import { movementFormSchema } from "@/lib/movementFormSchema";
 import { KAKEIBO_PILLARS, type KakeiboPillar, kakeiboPillarInfo, pillarOrNeed } from "@/lib/kakeibo";
+import { categoryOffsetsSpending, offsetCategoryOptions } from "@/lib/provenance";
 import { z } from "zod";
 
 type QuickCaptureMode = "expense" | "income" | "movement";
@@ -74,6 +75,7 @@ export function QuickCaptureModal({
   const [movementTargetAccountId, setMovementTargetAccountId] = useState(defaultTargetAccountId ?? "");
   const [movementFieldErrors, setMovementFieldErrors] = useState<Partial<Record<MovementField, string>>>({});
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [offsetCategoryId, setOffsetCategoryId] = useState("");
   const [kakeiboType, setKakeiboType] = useState<KakeiboPillar>("need");
   const [hasKakeiboOverride, setHasKakeiboOverride] = useState(false);
   const [selectedGoalId, setSelectedGoalId] = useState<string>("");
@@ -256,6 +258,8 @@ export function QuickCaptureModal({
   };
 
   const parsedAmount = parseAmount(amountStr);
+  const offsetsSpending = type === "income" && categoryOffsetsSpending(categories, selectedCategory);
+  const offsetCategories = useMemo(() => offsetCategoryOptions(categories), [categories]);
   const hasSelectedDebt = type === "expense" && debtRows.some((row) => row.obligation_id);
 
   const addFastAmount = (increment: number) => {
@@ -265,6 +269,7 @@ export function QuickCaptureModal({
 
   const handleCategoryChange = (catId: string | null) => {
     setSelectedCategory(catId);
+    setOffsetCategoryId("");
     const category = categories.find((item: any) => item.id === catId);
     if (type === "expense" && !hasKakeiboOverride) {
       setKakeiboType(pillarOrNeed(category?.kakeibo_type));
@@ -274,6 +279,7 @@ export function QuickCaptureModal({
   const handleTypeChange = (nextType: QuickCaptureMode) => {
     setType(nextType);
     setSelectedCategory(null);
+    setOffsetCategoryId("");
     setHasKakeiboOverride(false);
     setErr("");
     setMovementFieldErrors({});
@@ -322,6 +328,7 @@ export function QuickCaptureModal({
         obligation_id: type === "expense" && debtRows.length === 1 ? debtRows[0].obligation_id : null,
         ...(type === "expense" && debtRows.length > 1 ? { obligation_allocations: debtRows.map((row) => ({ obligation_id: row.obligation_id, amount: Number(row.amount.replace(/\./g, "")) })) } : {}),
         notes: notes.trim() || null,
+        ...(offsetsSpending ? { offset_category_id: offsetCategoryId || null } : {}),
         date: isoDate,
       });
       if (receipt) {
@@ -712,6 +719,29 @@ export function QuickCaptureModal({
             </div>
             <p className="text-[11px] text-[var(--muted)]">{kakeiboPillarInfo(kakeiboType)?.help}</p>
           </fieldset>
+        )}
+        {offsetsSpending && (
+          <div>
+            <label htmlFor="quick-capture-offset-category" className="mb-1 block text-[11px] font-medium text-[var(--muted)]">
+              Mengurangi pengeluaran
+            </label>
+            <select
+              id="quick-capture-offset-category"
+              name="offset_category_id"
+              value={offsetCategoryId}
+              onChange={(event) => setOffsetCategoryId(event.target.value)}
+              aria-describedby="quick-capture-offset-help"
+              className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30 focus-visible:border-[var(--primary)]"
+            >
+              <option value="">Belum dipilih</option>
+              {offsetCategories.map((category: any) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
+            <p id="quick-capture-offset-help" className="mt-1 text-[11px] text-[var(--muted)]">
+              Uang ganti ini bukan pemasukan. Pilih kategori pengeluaran yang dibayar kembali.
+            </p>
+          </div>
         )}
         </FormSection>
 

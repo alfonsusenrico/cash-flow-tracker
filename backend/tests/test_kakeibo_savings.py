@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 from app.routers.dashboard import get_kakeibo_breakdown
+from app.services.reimbursements import SpendingOffsets
 from app.routers.movements import _ensure_internal_movement_categories
 
 
@@ -46,7 +47,7 @@ def test_kakeibo_breakdown_excludes_liquid_moves_and_preauth():
     ]
     cur.fetchone.return_value = {"saving_transfers": 0}
 
-    res = get_kakeibo_breakdown(cur, user_id, start_utc, end_utc, total_inflow=290050)
+    res = get_kakeibo_breakdown(cur, user_id, start_utc, end_utc, total_inflow=290050, offsets=SpendingOffsets())
 
     assert res["need_spent"] == 951903
     assert res["want_spent"] == 70400
@@ -75,7 +76,7 @@ def test_kakeibo_breakdown_includes_true_saving_transfers():
     # 2. Genuine transfer to savings/investment account: Rp 300.000
     cur.fetchone.return_value = {"saving_transfers": 300000}
 
-    res = get_kakeibo_breakdown(cur, user_id, start_utc, end_utc, total_inflow=1000000)
+    res = get_kakeibo_breakdown(cur, user_id, start_utc, end_utc, total_inflow=1000000, offsets=SpendingOffsets())
 
     assert res["need_spent"] == 500000
     assert res["want_spent"] == 200000

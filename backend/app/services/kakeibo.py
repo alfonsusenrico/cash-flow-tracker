@@ -15,3 +15,10 @@ def effective_pillar_sql(tx: str = "t", category: str = "c") -> str:
     so income never resolves to one.
     """
     return f"CASE WHEN {tx}.type = 'expense' THEN COALESCE({tx}.kakeibo_type, {category}.kakeibo_type, 'need') END"
+
+
+def effective_pillar(tx_type: str, tx_pillar: str | None, category_pillar: str | None) -> str | None:
+    """Python form of `effective_pillar_sql` for figures computed outside SQL."""
+    if tx_type != "expense":
+        return None
+    return tx_pillar or category_pillar or "need"

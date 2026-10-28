@@ -19,6 +19,7 @@ from app.services.notification_resolution import (
     pocket_endpoint, root_account_id, signatures_compatible, transfer_signature,
 )
 from app.services.notification_sender import sender_gate
+from app.services.provenance import Provenance, notification_provenance
 
 
 # A second notification may confirm a movement role only when it arrives this close to it.
@@ -205,6 +206,7 @@ def apply_interpretation(
         cur.execute("UPDATE notification_events SET processing_state = %s, error_code = %s, lease_token = NULL, lease_expires_at = NULL WHERE id = %s", (state, "model_uncertain" if state == "needs_review" else None, event["id"]))
         return 0
     source_name = source
+    provenance = notification_provenance(source_name, proposal.confidence)
     user_id, event_id = str(event["user_id"]), str(event["id"])
     accounts = context["accounts"]
     key = f"notification:{event_id}"
@@ -220,7 +222,7 @@ def apply_interpretation(
             amount=facts.amount, notes=proposal.description, tx_date=facts.timestamp,
             expense_category_id=exp_category, income_category_id=inc_category,
             source_account=locked[str(source["id"])], target_account=locked[str(target["id"])],
-            idempotency_key=key, allow_negative=True,
+            idempotency_key=key, allow_negative=True, provenance=provenance,
         )
         snapshot = committed_snapshot(key=key, kind="internal_movement", description=proposal.description,
                                       amount=facts.amount, source=account_label(source, accounts), target=account_label(target, accounts))
@@ -231,13 +233,13 @@ def apply_interpretation(
     return record_observed_leg(
         cur, event, facts, context, observed=resolved["observed"], category_id=resolved["category_id"],
         kakeibo=resolved["kakeibo"], description=resolved["description"],
-        signature={**resolved["signature"], "source": source_name},
+        signature={**resolved["signature"], "source": source_name}, provenance=provenance,
     )
 
 
 def record_observed_leg(
     cur, event: dict, facts: NotificationFacts, context: dict, *, observed: dict,
-    category_id: str, kakeibo: str | None, description: str, signature: dict,
+    category_id: str, kakeibo: str | None, description: str, signature: dict, provenance: Provenance,
 ) -> int:
     """Record one observed leg, linking it to a unique counterpart leg when evidence allows."""
     from app.services.notification_evidence import requires_source_pocket
@@ -326,10 +328,11 @@ def record_observed_leg(
     if facts.direction == "expense":
         reconciliation_flag(cur, user_id, event_id, account_id, facts.amount)
     cur.execute(
-        """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, kakeibo_type, idempotency_key)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+        """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, kakeibo_type, idempotency_key,
+               source, review_status, classified_by, classification_confidence)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
         (user_id, account_id, category_id, facts.direction, facts.amount,
-         sanitize_text(description), facts.timestamp, kakeibo, key),
+         sanitize_text(description), facts.timestamp, kakeibo, key, *provenance.columns()),
     )
     tx_id = str(cur.fetchone()["id"])
     snapshot = committed_snapshot(key=key, kind=facts.direction, description=description,
@@ -422,7 +425,7 @@ def apply_manual_resolution(
     return record_observed_leg(
         cur, event, resolved_facts, context, observed=observed, category_id=category_id,
         kakeibo=kakeibo if direction == "expense" else None, description=description,
-        signature={**signature, "source": "manual"},
+        signature={**signature, "source": "manual"}, provenance=notification_provenance("manual", None),
     )
 
 
@@ -484,6 +487,7 @@ def apply_broker_trade(cur, event: dict, facts: NotificationFacts, context: dict
         notes=description, tx_date=facts.timestamp, expense_category_id=exp_category, income_category_id=inc_category,
         source_account=locked[str(source["id"])], target_account=locked[str(target["id"])],
         idempotency_key=key, is_trade=True, allow_negative=True,
+        provenance=notification_provenance(None, None),
     )
     snapshot = committed_snapshot(key=key, kind="internal_movement", description=description, amount=amount,
                                   source=account_label(source, context["accounts"]), target=account_label(target, context["accounts"]))

@@ -17,6 +17,7 @@ from app.services.ledger_mutations import (
 from app.services.auth import get_current_user
 from app.services.investment_topups import reject_topup_movement
 from app.services.notification_application import account_label, committed_snapshot
+from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, system_provenance
 
 router = APIRouter(prefix="/movements", tags=["Movements"])
 
@@ -164,6 +165,7 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
                 source_account=locked[source_id],
                 target_account=locked[target_id],
                 idempotency_key=payload.idempotency_key,
+                provenance=system_provenance("movement"),
             )
 
             conn.commit()
@@ -197,7 +199,9 @@ def merge_transactions_as_movement(
                 target = cur.fetchone()
                 note = movement_note(cur, current_user["id"], str(target["account_id"])) if target else None
             # Notes written by notification processing describe one leg; a user's own notes are kept.
-            result = link_transactions_as_movement(cur, current_user["id"], expense_id, income_id, notes=note)
+            result = link_transactions_as_movement(
+                cur, current_user["id"], expense_id, income_id, notes=note, owner_edit=True,
+            )
         conn.commit()
     return result
 
@@ -298,7 +302,7 @@ def update_movement(
         with conn.cursor() as cur:
             reject_topup_movement(cur, user_id, str(movement_id))
             cur.execute(
-                "SELECT id, movement_role FROM transactions WHERE user_id = %s AND movement_id = %s FOR UPDATE",
+                "SELECT id, movement_role, notes FROM transactions WHERE user_id = %s AND movement_id = %s FOR UPDATE",
                 (user_id, str(movement_id)),
             )
             movement_rows = cur.fetchall()
@@ -331,6 +335,12 @@ def update_movement(
                 """,
                 (source_id, target_id, payload.amount, notes, tx_date, kakeibo, user_id, str(movement_id)),
             )
+            if any(row["notes"] != notes for row in movement_rows):
+                cur.execute(
+                    f"""UPDATE transactions SET review_status = 'reviewed', {OWNER_EDIT_ASSIGNMENTS}
+                        WHERE user_id = %s AND movement_id = %s""",
+                    (user_id, str(movement_id)),
+                )
             conn.commit()
     return {"ok": True, "movement_id": str(movement_id)}
 

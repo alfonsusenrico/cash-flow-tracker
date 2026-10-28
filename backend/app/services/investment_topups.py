@@ -19,6 +19,7 @@ from app.services.ledger_mutations import (
     movement_kakeibo,
 )
 from app.services.movement_linkage import ensure_internal_movement_categories
+from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, system_provenance
 
 TOPUP_NOTE = "Top up Investasi"
 
@@ -197,6 +198,7 @@ def create_topup(
     idempotency_key: str,
     recurring_rule_id: str | None = None,
     recurring_execution_id: str | None = None,
+    ledger_source: str = "investment",
 ) -> dict[str, Any]:
     fingerprint = sha256(json.dumps({
         "source": source_id,
@@ -241,7 +243,7 @@ def create_topup(
         expense_category_id=expense_category, income_category_id=income_category,
         source_account=source, target_account=target,
         idempotency_key=f"investment-topup:{topup_id}", recurring_rule_id=recurring_rule_id,
-        is_investment_topup=True, movement_id=topup_id,
+        is_investment_topup=True, movement_id=topup_id, provenance=system_provenance(ledger_source),
     )
     apply_contribution_delta(cur, user_id, target, amount)
     return topup_response(cur, get_topup(cur, user_id, topup_id))
@@ -320,18 +322,20 @@ def convert_transaction_to_topup(cur, *, user_id: str, transaction_id: str, targ
     expense_category, income_category = ensure_internal_movement_categories(cur, user_id)
     leg_notes = notes or TOPUP_NOTE
     cur.execute(
-        """UPDATE transactions SET movement_id = %s, movement_role = 'outbound', category_id = %s,
-               kakeibo_type = %s, notes = %s, updated_at = NOW()
+        f"""UPDATE transactions SET movement_id = %s, movement_role = 'outbound', category_id = %s,
+               kakeibo_type = %s, notes = %s, review_status = 'reviewed', {OWNER_EDIT_ASSIGNMENTS},
+               updated_at = NOW()
            WHERE user_id = %s AND id = %s""",
         (topup_id, expense_category, movement_kakeibo(source, target), leg_notes, user_id, transaction_id),
     )
     cur.execute(
         """INSERT INTO transactions (
                user_id, account_id, category_id, type, amount, notes, date,
-               idempotency_key, movement_id, movement_role
-           ) VALUES (%s, %s, %s, 'income', %s, %s, %s, %s, %s, 'inbound')""",
+               idempotency_key, movement_id, movement_role,
+               source, review_status, classified_by, classification_confidence
+           ) VALUES (%s, %s, %s, 'income', %s, %s, %s, %s, %s, 'inbound', %s, %s, %s, %s)""",
         (user_id, target_id, income_category, amount, leg_notes, expense["date"],
-         f"investment-topup:{topup_id}:in", topup_id),
+         f"investment-topup:{topup_id}:in", topup_id, *system_provenance("investment").columns()),
     )
     apply_contribution_delta(cur, user_id, target, amount)
     return topup_response(cur, get_topup(cur, user_id, topup_id))
@@ -388,8 +392,14 @@ def mutate_topup(
         tx_date = updates.get("date", row["date"])
         notes = updates.get("notes", row["notes"]) or ""
         cur.execute(
-            "UPDATE transactions SET amount = %s, date = %s, notes = %s, updated_at = NOW() WHERE user_id = %s AND movement_id = %s",
-            (amount, tx_date, notes or TOPUP_NOTE, user_id, topup_id),
+            """UPDATE transactions SET amount = %s, date = %s, notes = %s, updated_at = NOW(),
+                   owner_edited_at = CASE WHEN notes IS DISTINCT FROM %s THEN NOW() ELSE owner_edited_at END,
+                   classified_by = CASE WHEN notes IS DISTINCT FROM %s THEN 'owner' ELSE classified_by END,
+                   classification_confidence = CASE WHEN notes IS DISTINCT FROM %s
+                       THEN NULL ELSE classification_confidence END,
+                   review_status = CASE WHEN notes IS DISTINCT FROM %s THEN 'reviewed' ELSE review_status END
+               WHERE user_id = %s AND movement_id = %s""",
+            (amount, tx_date, notes or TOPUP_NOTE, *([notes or TOPUP_NOTE] * 4), user_id, topup_id),
         )
         cur.execute(
             "UPDATE investment_topups SET amount = %s, date = %s, notes = %s, updated_at = NOW() WHERE id = %s",

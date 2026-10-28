@@ -6,6 +6,8 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
+from app.services.provenance import Provenance
+
 
 LIQUID_ACCOUNT_TYPES = {"cash", "bank", "ewallet", "wallet"}
 
@@ -151,6 +153,7 @@ def create_bilateral_movement(
     is_investment_topup: bool = False,
     movement_id: str | None = None,
     allow_negative: bool = False,
+    provenance: Provenance,
 ) -> dict[str, str]:
     if source_id == target_id:
         raise HTTPException(status_code=400, detail="Source and target accounts must be different")
@@ -173,13 +176,14 @@ def create_bilateral_movement(
         """
         INSERT INTO transactions (
             user_id, account_id, category_id, obligation_id, type, amount, notes, date,
-            recurring_rule_id, kakeibo_type, idempotency_key, movement_id, movement_role
-        ) VALUES (%s, %s, %s, %s, 'expense', %s, %s, %s, %s, %s, %s, %s, 'outbound')
+            recurring_rule_id, kakeibo_type, idempotency_key, movement_id, movement_role,
+            source, review_status, classified_by, classification_confidence
+        ) VALUES (%s, %s, %s, %s, 'expense', %s, %s, %s, %s, %s, %s, %s, 'outbound', %s, %s, %s, %s)
         RETURNING id
         """,
         (
             user_id, source_id, expense_category_id, obligation_id, amount, notes, tx_date,
-            recurring_rule_id, kakeibo, out_key, movement_id,
+            recurring_rule_id, kakeibo, out_key, movement_id, *provenance.columns(),
         ),
     )
     outbound_id = str(cur.fetchone()["id"])
@@ -187,13 +191,14 @@ def create_bilateral_movement(
         """
         INSERT INTO transactions (
             user_id, account_id, category_id, obligation_id, type, amount, notes, date,
-            recurring_rule_id, kakeibo_type, idempotency_key, movement_id, movement_role
-        ) VALUES (%s, %s, %s, %s, 'income', %s, %s, %s, %s, NULL, %s, %s, 'inbound')
+            recurring_rule_id, kakeibo_type, idempotency_key, movement_id, movement_role,
+            source, review_status, classified_by, classification_confidence
+        ) VALUES (%s, %s, %s, %s, 'income', %s, %s, %s, %s, NULL, %s, %s, 'inbound', %s, %s, %s, %s)
         RETURNING id
         """,
         (
             user_id, target_id, income_category_id, obligation_id, amount, notes, tx_date,
-            recurring_rule_id, in_key, movement_id,
+            recurring_rule_id, in_key, movement_id, *provenance.columns(),
         ),
     )
     inbound_id = str(cur.fetchone()["id"])
