@@ -16,7 +16,7 @@ flowchart TD
     D --> E["SSH Transfer to msi (/tmp/...)"]
     E --> F["release_storage.py prepare<br/>/opt/cash-flow-tracker/production/releases/&lt;SHA&gt;/"]
     F --> G["Extract source & docker compose build"]
-    G --> H["Run Flyway DB Migrations (V1..V13)"]
+    G --> H["Run Flyway DB Migrations (all pending versions)"]
     H --> I["docker compose up -d --wait"]
     I --> J["Verify local healthcheck (http://127.0.0.1:8090/healthz)"]
     J --> K["release_storage.py promote<br/>current -> releases/&lt;SHA&gt;"]

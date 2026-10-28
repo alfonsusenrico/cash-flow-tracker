@@ -6,7 +6,7 @@ import psycopg
 import pytest
 
 PILLARS = ("need", "want", "culture", "unexpected", "saving")
-MIRROR_SQL = Path(__file__).resolve().parents[1] / "app/db/full_kakeibo_and_adjustment_category.sql"
+V27_SQL = Path(__file__).resolve().parents[2] / "db/migrations/V27__full_kakeibo_and_adjustment_category.sql"
 
 
 @pytest.fixture
@@ -203,7 +203,7 @@ def test_reconcile_adjustments_use_excluded_system_category(client, owner):
     assert breakdown(owner, datetime.now(timezone.utc).month, 0)["need_spent"] == 0
 
 
-def test_v27_mirror_is_idempotent_and_backfills_only_default_adjustments(owner):
+def test_v27_is_idempotent_and_backfills_only_default_adjustments(owner):
     from app.db.pool import db_conn
 
     note = "Balance Adjustment (Reconciliation)"
@@ -214,8 +214,8 @@ def test_v27_mirror_is_idempotent_and_backfills_only_default_adjustments(owner):
     keyed = insert_tx(owner, None, 6_000, notes=note, key=f"client-{uuid4().hex[:8]}")
 
     with db_conn() as conn:
-        conn.execute(MIRROR_SQL.read_text(encoding="utf-8"))
-        conn.execute(MIRROR_SQL.read_text(encoding="utf-8"))
+        conn.execute(V27_SQL.read_text(encoding="utf-8"))
+        conn.execute(V27_SQL.read_text(encoding="utf-8"))
         conn.commit()
         rows = {
             str(r["id"]): r for r in conn.execute(

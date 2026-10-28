@@ -624,14 +624,12 @@ def test_real_corpus_match_keys():
         assert kinds[label] is None, label
 
 
-def test_v29_matches_mirror_and_is_idempotent(client):
+def test_v29_is_idempotent(client):
     from app.db.pool import db_conn
     versioned = ROOT / "db/migrations/V29__merchant_memory_and_purpose_questions.sql"
-    mirror = ROOT / "backend/app/db/merchant_memory_and_purpose_questions.sql"
-    assert versioned.read_text() == mirror.read_text()
     with db_conn() as conn:
-        conn.execute(mirror.read_text())
-        conn.execute(mirror.read_text())
+        conn.execute(versioned.read_text())
+        conn.execute(versioned.read_text())
         triggers = conn.execute(
             "SELECT COUNT(*) AS n FROM pg_trigger WHERE tgname = 'classification_feedback_append_only'").fetchone()["n"]
         conn.rollback()

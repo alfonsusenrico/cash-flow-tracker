@@ -10,7 +10,7 @@ from app.services.kakeibo import Pillar
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
 
 
-PROMPT_VERSION = "notification-interpretation-9"
+PROMPT_VERSION = "notification-interpretation-10"
 PROMPT_PATH = Path(__file__).with_name("prompts") / "notification_interpretation.md"
 Kakeibo = Pillar
 

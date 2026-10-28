@@ -24,7 +24,6 @@ def test_lifespan_starts_only_permitted_inference_and_closes_in_order(monkeypatc
                        app_env="development" if dry_run else "production",
                        notification_ai_dry_run_enabled=dry_run))
     monkeypatch.setattr(main, "open_db_pool", lambda: events.append("open"))
-    monkeypatch.setattr(main, "init_db_schema", lambda: None)
     monkeypatch.setattr(main, "close_db_pool", lambda: events.append("pool_closed"))
     client = MagicMock()
     client.aclose = AsyncMock(side_effect=lambda: events.append("client_closed"))

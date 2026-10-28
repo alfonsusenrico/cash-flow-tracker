@@ -3,19 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Backend Rejection of Non-Financial Payloads
-The backend ingestion endpoint (`POST /api/ingest/notifications`) SHALL classify each notification from a supported package before it can reach the ledger or the review queue.
-
-A notification is a **recognised transaction** when either:
-- a known institution transaction template matches with an amount; or
-- the text contains exactly one Rupiah amount, settlement wording and a resolvable direction.
-
-The backend SHALL classify the notification as `ignored`, without storing it and without creating a ledger transaction, when any of these holds:
-1. It contains hard-noise wording that cannot describe a completed transaction: a one-time or verification code, failure, pending or in-progress processing, a future transfer, a card authorisation request awaiting confirmation, or a payment instruction with a deadline.
-2. It contains promotional or market-information wording and is not a recognised transaction.
-3. Every Rupiah figure in it is a headline figure written with a magnitude word (for example thousand, million, billion or trillion), and it is not a recognised transaction.
-4. It contains no monetary amount in any currency, and it is not a recognised transaction.
-
-Promotional wording SHALL NOT, on its own, cause a recognised transaction to be ignored. Other notifications SHALL continue through the existing evidence checks, which may hold them for review: unsupported currency, ambiguous amount, unproven settlement, and conflicting mobile hints. The API SHALL answer ignored notifications with status `ignored`.
+The backend ingestion endpoint (`POST /api/ingest/notifications`) SHALL classify each notification from a supported package before it can reach the ledger or the review queue, and SHALL answer ignored notifications with status `ignored`.
 
 #### Scenario: Non-financial or noise event payloads are acknowledged without database storage
 - **GIVEN** an ingestion request to `POST /api/ingest/notifications` for a notification that the rules classify as `ignored`

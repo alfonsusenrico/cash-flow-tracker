@@ -22,6 +22,7 @@ import { ledgerHref, reportPeriodFilters, UNCATEGORIZED } from "@/lib/ledgerFilt
 const CATEGORY_ICONS = [
   { id: "tag", label: "Label" },
   { id: "utensils", label: "Makanan" },
+  { id: "coffee", label: "Jajan" },
   { id: "shopping-cart", label: "Belanja" },
   { id: "shopping-bag", label: "Mall" },
   { id: "car", label: "Transportasi" },
@@ -30,6 +31,7 @@ const CATEGORY_ICONS = [
   { id: "film", label: "Hiburan" },
   { id: "wallet", label: "Dompet" },
   { id: "credit-card", label: "Kartu" },
+  { id: "users", label: "Patungan" },
 ];
 
 const CATEGORY_COLORS = [

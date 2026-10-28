@@ -88,7 +88,7 @@ def test_kakeibo_breakdown_calculation():
 
 
 def test_dashboard_overview_kakeibo_and_comparison_endpoint():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -212,7 +212,7 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
 
 
 def test_category_kakeibo_crud():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -265,7 +265,7 @@ def test_category_kakeibo_crud():
 
 
 def test_transaction_kakeibo_support():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 
@@ -313,7 +313,7 @@ def test_transaction_kakeibo_support():
 
 
 def test_burn_rate_cycle_forecast_and_unrounded_projection():
-    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"), patch("app.main.init_db_schema"):
+    with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
 

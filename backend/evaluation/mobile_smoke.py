@@ -1,4 +1,7 @@
-"""Fictional-only local Android integration fixture; never a production entry point."""
+"""Fictional-only local Android integration fixture; never a production entry point.
+
+Requires a disposable *_test database already migrated with Flyway (db/migrations).
+"""
 import asyncio
 import json
 import os
@@ -9,7 +12,6 @@ from uuid import uuid4
 import uvicorn
 from app.main import app
 from app.db.pool import db_conn, open_db_pool, close_db_pool
-from app.db.init_db import init_db_schema
 from app.services.auth import register_user, hash_token
 from app.services import notification_processing as processing
 from app.services.notification_interpretation import Interpretation
@@ -44,7 +46,6 @@ async def synthetic_lifespan(application):
     if os.environ.get("ALLOW_FICTIONAL_MOBILE_SMOKE") != "true" or not database_name.endswith("_test"):
         raise RuntimeError("Use an explicitly authorized disposable test database")
     open_db_pool()
-    init_db_schema()
     user = register_user('phone_' + uuid4().hex, 'fictional_phone_password', 'TESTCODE', 'Fictional Phone User')
     with db_conn() as conn:
         conn.execute('DELETE FROM api_keys WHERE key_hash=%s', (hash_token('fictional-phone-key'),))

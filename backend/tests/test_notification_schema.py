@@ -5,12 +5,7 @@ import psycopg
 import pytest
 
 
-SCHEMA_PATH = Path(__file__).resolve().parents[1] / "app" / "db" / "notification_processing.sql"
 MIGRATION_PATH = Path(__file__).resolve().parents[2] / "db" / "migrations" / "V20__notification_processing.sql"
-
-
-def test_notification_startup_schema_matches_versioned_migration():
-    assert SCHEMA_PATH.read_text() == MIGRATION_PATH.read_text()
 
 
 def test_additive_notification_upgrade_preserves_legacy_state(db_url, db_available):

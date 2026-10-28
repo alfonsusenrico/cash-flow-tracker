@@ -68,20 +68,13 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
         (user_id, CATEGORY_LIMIT + 1),
     )
     categories = cur.fetchall()
-    cur.execute(
-        """SELECT r.merchant_pattern, r.category_id FROM merchant_category_rules r
-           JOIN categories c ON c.id = r.category_id AND c.user_id = r.user_id
-           WHERE r.user_id = %s AND c.is_archived = FALSE ORDER BY r.id LIMIT 101""",
-        (user_id,),
-    )
-    rules = cur.fetchall()
     key = classification_key(facts, identity)
     memory = load_memory(cur, user_id, key["match_key"] if key else None)
     history = similar_history(cur, user_id, facts, key, history_limit)
     candidates = discover_candidates(cur, user_id, facts)
     incomplete = (
         len(accounts) > ACCOUNT_LIMIT or len(categories) > CATEGORY_LIMIT
-        or len(rules) > 100 or len(candidates) > CANDIDATE_LIMIT
+        or len(candidates) > CANDIDATE_LIMIT
     )
     cur.execute(
         """SELECT al.institution, al.name_normalized, al.name_display, al.source, al.account_id
@@ -122,7 +115,6 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
         "description": sanitize_text(row.get("notes"), identity)[:160] or None,
         "category_id": row["category_id"], "kakeibo": row.get("kakeibo_type"), "source": row["source"],
     } for row in memory]
-    sanitized_rules = [{"merchant_pattern": sanitize_text(row["merchant_pattern"], identity)[:200], "category_id": row["category_id"]} for row in rules[:100]]
     sanitized_candidates = []
     for candidate in candidates[:CANDIDATE_LIMIT]:
         sanitized_candidates.append({
@@ -139,7 +131,7 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
                   "counterparty_is_owner": names_owner(facts.parsed.counterparty, identity),
                   **endpoint_context(facts, sanitized_accounts)},
         "accounts": sanitized_accounts, "categories": sanitized_categories,
-        "rules": sanitized_rules, "memory": sanitized_memory, "similar_history": sanitized_history,
+        "memory": sanitized_memory, "similar_history": sanitized_history,
         "classification": {
             "match_key": sanitize_text(key["match_key"], identity) if key else None,
             "merchant_less": key["merchant_less"] if key else None,

@@ -136,10 +136,8 @@ def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Int
         description = f"Pindah saldo ke {target['name']}"
     else:
         observed = observed_endpoint(facts, accounts)
-        matching_rules = [rule for rule in context["rules"] if rule["merchant_pattern"].lower() in (facts.parsed.counterparty or "").lower()]
-        rule_ids = {str(rule["category_id"]) for rule in matching_rules}
         categories = [row for row in context["categories"] if row["kind"] == facts.direction]
-        matches = [row for row in categories if str(row["id"]) in rule_ids]
+        matches = []
         signature = transfer_signature(facts, context, str(observed["id"]))
         self_transfer = signature["transfer"] and signature["self_identity"]
         if self_transfer:

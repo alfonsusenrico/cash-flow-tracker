@@ -5,7 +5,7 @@ import pytest
 from psycopg import sql
 
 
-def test_populated_v25_upgrade_and_startup_mirror_preserve_existing_data(client, db_available):
+def test_populated_v25_upgrade_is_repeatable_and_preserves_existing_data(client, db_available):
     if not db_available:
         pytest.skip("Disposable database unavailable")
     from app.db.pool import db_conn
@@ -34,10 +34,8 @@ def test_populated_v25_upgrade_and_startup_mirror_preserve_existing_data(client,
             ledger_before = conn.execute("SELECT row_to_json(t) AS row FROM transactions t WHERE id=%s", (transaction,)).fetchone()["row"]
             before = conn.execute("SELECT row_to_json(n) AS row FROM notification_events n WHERE id=%s", (event,)).fetchone()["row"]
             versioned = root / "db/migrations/V26__notification_source_pocket_confirmation.sql"
-            mirror = root / "backend/app/db/notification_source_pocket.sql"
-            assert versioned.read_text() == mirror.read_text()
             conn.execute(versioned.read_text())
-            conn.execute(mirror.read_text())
+            conn.execute(versioned.read_text())
             after = conn.execute("SELECT row_to_json(n) AS row FROM notification_events n WHERE id=%s", (event,)).fetchone()["row"]
             assert after.pop("source_pocket_resolution") is None
             assert after == before
