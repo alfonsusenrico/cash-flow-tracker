@@ -16,6 +16,7 @@ from app.services.ledger_mutations import (
 )
 from app.services.auth import get_current_user
 from app.services.investment_topups import reject_topup_movement
+from app.services.merchant_memory import record_owner_corrections, snapshot_rows
 from app.services.notification_application import account_label, committed_snapshot
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, system_provenance
 
@@ -324,6 +325,10 @@ def update_movement(
             from app.services.ledger_mutations import movement_kakeibo
 
             kakeibo = movement_kakeibo(locked[source_id], locked[target_id])
+            renamed = any(row["notes"] != notes for row in movement_rows)
+            before_classification = (
+                snapshot_rows(cur, user_id, [str(row["id"]) for row in movement_rows]) if renamed else {}
+            )
             cur.execute(
                 """
                 UPDATE transactions
@@ -335,12 +340,13 @@ def update_movement(
                 """,
                 (source_id, target_id, payload.amount, notes, tx_date, kakeibo, user_id, str(movement_id)),
             )
-            if any(row["notes"] != notes for row in movement_rows):
+            if renamed:
                 cur.execute(
                     f"""UPDATE transactions SET review_status = 'reviewed', {OWNER_EDIT_ASSIGNMENTS}
                         WHERE user_id = %s AND movement_id = %s""",
                     (user_id, str(movement_id)),
                 )
+                record_owner_corrections(cur, user_id, before_classification)
             conn.commit()
     return {"ok": True, "movement_id": str(movement_id)}
 

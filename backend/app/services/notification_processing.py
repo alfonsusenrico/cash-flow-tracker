@@ -14,8 +14,7 @@ from psycopg.types.json import Jsonb
 from app.core.config import settings
 from app.db.pool import db_conn
 from app.services.notification_application import (
-    apply_broker_trade, apply_interpretation, apply_manual_resolution, committed_snapshot,
-    deterministic_interpretation,
+    apply_broker_trade, apply_interpretation, apply_manual_resolution, classify_without_model, committed_snapshot,
 )
 from app.services.notification_context import load_context, sanitize_text
 from app.services.notification_evidence import EvidenceError, collect_facts
@@ -31,6 +30,7 @@ from app.services.notification_sender import (
 from app.services.notification_source_pocket import (
     accept_source_answer, resolved_facts, source_pocket_gate,
 )
+from app.services.purpose_questions import open_purpose_question, supports_purpose_question
 
 
 logger = logging.getLogger(__name__)
@@ -82,12 +82,17 @@ def compact_result(cur, event: dict) -> dict:
         result.update(event["result_snapshot"])
         if event.get("transaction_id") and result.get("type") in {"expense", "income"} and not event.get("movement_id"):
             cur.execute(
-                """SELECT id FROM transactions WHERE user_id = %s AND id = %s
+                """SELECT id, review_status FROM transactions WHERE user_id = %s AND id = %s
                    AND type IN ('expense', 'income') AND movement_id IS NULL AND movement_role IS NULL""",
                 (event["user_id"], event["transaction_id"]),
             )
             if transaction := cur.fetchone():
                 result["transaction_id"] = str(transaction["id"])
+                # Companions before 1.8.0 do not know these fields (design D13).
+                if supports_purpose_question(event):
+                    result["review_status"] = transaction["review_status"]
+                    if question := open_purpose_question(event):
+                        result["question"] = question
     elif event.get("error_code"):
         result["error_code"] = event["error_code"]
     if status == "needs_confirmation":
@@ -204,8 +209,8 @@ def accept_event(payload: dict, user_id: str) -> tuple[dict, bool, int]:
                         if facts.institution == "stockbit" and facts.parsed.investment_action:
                             created = apply_broker_trade(cur, event, facts, context)
                         else:
-                            proposal = deterministic_interpretation(facts, context)
-                            created = apply_interpretation(cur, event, facts, proposal, context, source="deterministic")
+                            proposal, source = classify_without_model(facts, context)
+                            created = apply_interpretation(cur, event, facts, proposal, context, source=source)
                 except (EvidenceError, HTTPException) as exc:
                     set_outcome(cur, str(event["id"]), "needs_review", exc.code if isinstance(exc, EvidenceError) else "invalid_current_reference")
                 cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s", (user_id, event["id"]))
@@ -274,6 +279,11 @@ def read_context(event: dict) -> tuple:
     return facts, context
 
 
+def memory_applies(context: dict) -> bool:
+    """An owner memory hit records without the model; unresolved account names still need it."""
+    return bool(context.get("_owner_memory_hit")) and not (context.get("facts") or {}).get("unresolved_names")
+
+
 def apply_deterministic_fallback(conn, cur, event: dict, facts, context: dict, reason_code: str) -> None:
     """Record through the deterministic interpretation when the model could not.
 
@@ -284,8 +294,8 @@ def apply_deterministic_fallback(conn, cur, event: dict, facts, context: dict, r
         raise EvidenceError(facts.error_code or reason_code)
     try:
         with conn.transaction():
-            proposal = deterministic_interpretation(facts, context)
-            apply_interpretation(cur, event, facts, proposal, context, source="deterministic_fallback")
+            proposal, source = classify_without_model(facts, context, fallback=True)
+            apply_interpretation(cur, event, facts, proposal, context, source=source)
     except EvidenceError as exc:
         raise EvidenceError(exc.code) from None
     except HTTPException:
@@ -335,8 +345,12 @@ def apply_claim(event: dict, proposal, provider_error: str | None = None) -> boo
                 if facts.institution == "stockbit" and facts.parsed.investment_action:
                     apply_broker_trade(cur, owned, facts, context)
                 else:
-                    apply_interpretation(cur, owned, facts, deterministic_interpretation(facts, context), context,
-                                         source="deterministic")
+                    deterministic, source = classify_without_model(facts, context)
+                    apply_interpretation(cur, owned, facts, deterministic, context, source=source)
+            elif memory_applies(context) and facts.status == "candidate" and not context["incomplete"]:
+                with conn.transaction():
+                    remembered, source = classify_without_model(facts, context)
+                    apply_interpretation(cur, owned, facts, remembered, context, source=source)
             elif (context["facts"].get("unresolved_names") and proposal is not None
                   and proposal.outcome == "record"):
                 apply_mapped_proposal(conn, cur, owned, facts, context, proposal)
@@ -406,6 +420,9 @@ async def process_claim(event: dict, provider):
             raise ProviderError(facts.error_code or "invalid_interpretation")
         if context["incomplete"]:
             raise ProviderError("incomplete_context")
+        if memory_applies(context):
+            await database_operation(apply_claim, event, None)
+            return
         proposal, provider_error = None, None
         # An unusable model answer is occasional and usually not repeated, so ask once more first.
         for _ in range(2):

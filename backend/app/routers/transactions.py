@@ -22,6 +22,7 @@ from app.services.debt_allocations import (
 )
 from app.services.kakeibo import PILLAR_PATTERN, effective_pillar, effective_pillar_sql
 from app.services.ledger_mutations import ensure_sufficient_funds, get_locked_ledger_balance, lock_owned_accounts
+from app.services.merchant_memory import record_owner_corrections, snapshot_rows
 from app.services.provenance import (
     CLASSIFICATION_FIELDS,
     OWNER_EDIT_ASSIGNMENTS,
@@ -1267,6 +1268,7 @@ def update_transaction(
             else:
                 new_review_status = old_tx["review_status"]
             owner_assignments = f", {OWNER_EDIT_ASSIGNMENTS}" if classification_changed else ""
+            before_classification = snapshot_rows(cur, user_id, [tid]) if classification_changed else {}
 
             # 4. Update the transaction row
             cur.execute(
@@ -1305,6 +1307,8 @@ def update_transaction(
                     tid,
                 ),
             )
+            if classification_changed:
+                record_owner_corrections(cur, user_id, before_classification)
 
             if old_allocations or new_allocations:
                 cur.execute(

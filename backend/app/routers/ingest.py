@@ -73,6 +73,13 @@ class SourcePocketConfirmation(BaseModel):
     account_id: UUID
 
 
+class PurposeAnswer(BaseModel):
+    question_id: UUID
+    reply_id: UUID
+    suggestion_id: str | None = Field(default=None, max_length=16)
+    text: str | None = Field(default=None, max_length=400)
+
+
 class SenderAliasUpdate(BaseModel):
     name: str = Field(max_length=80)
 
@@ -218,6 +225,28 @@ def confirm_notification_sender(
 
     answer = payload.model_dump(mode="json")
     return {"ok": True, "result": confirm_sender(str(event_id), str(current_user["id"]), answer)}
+
+
+@router.post("/notifications/{event_id}/answer-purpose")
+async def answer_notification_purpose(
+    event_id: UUID, payload: PurposeAnswer, request: Request, current_user: dict = Depends(get_current_user),
+):
+    from app.services.purpose_questions import answer_purpose
+
+    response = await answer_purpose(
+        str(event_id), str(current_user["id"]), payload.model_dump(mode="json"),
+        getattr(request.app.state, "notification_provider", None),
+    )
+    return {"ok": True, **response}
+
+
+@router.get("/purpose-questions")
+def list_purpose_questions(
+    limit: int = Query(50, ge=1, le=200), current_user: dict = Depends(get_current_user),
+):
+    from app.services.purpose_questions import list_open_questions
+
+    return {"ok": True, "questions": list_open_questions(str(current_user["id"]), limit)}
 
 
 @router.get("/notifications/{event_id}/source-pockets")

@@ -6,9 +6,13 @@ from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
 
+from app.core.config import settings
 from app.services.ledger_mutations import (
     LIQUID_ACCOUNT_TYPES, create_bilateral_movement, get_locked_ledger_balance, lock_owned_accounts,
     movement_kakeibo,
+)
+from app.services.merchant_memory import (
+    PLACEHOLDER_COUNTERPARTIES, count_memory_hit, learn_from_model, normalize_key_text, stored_key_fields,
 )
 from app.services.movement_linkage import SELF_TRANSFER_NOTES, link_transactions_as_movement, movement_note
 from app.services.notification_context import CANDIDATE_LIMIT, discover_candidates, sanitize_text
@@ -19,7 +23,7 @@ from app.services.notification_resolution import (
     pocket_endpoint, root_account_id, signatures_compatible, transfer_signature,
 )
 from app.services.notification_sender import sender_gate
-from app.services.provenance import Provenance, notification_provenance
+from app.services.provenance import MERCHANT_MAX_LENGTH, Provenance, normalize_merchant, notification_provenance
 
 
 # A second notification may confirm a movement role only when it arrives this close to it.
@@ -57,12 +61,69 @@ def hinted_categories(categories: list[dict], hint: str | None) -> list[dict]:
     return []
 
 
+def generic_description(facts: NotificationFacts) -> str:
+    """Indonesian description for a notification that names no merchant, never a parser placeholder."""
+    hint = " ".join((facts.parsed.category_hint or "").split())
+    folded = hint.casefold()
+    if folded in {"transfer masuk", "transfer keluar"}:
+        return hint[:1].upper() + hint[1:].lower()
+    base = "Pengeluaran" if facts.direction == "expense" else "Pemasukan"
+    if not hint or folded in {"pengeluaran", "pemasukan"} or folded in PLACEHOLDER_COUNTERPARTIES:
+        return base
+    if folded.startswith("pembayaran"):
+        return hint
+    return f"{base} {hint}"
+
+
+def notification_description(facts: NotificationFacts, context: dict) -> str:
+    key = context.get("_classification_key") or {}
+    if key.get("merchant"):
+        return sanitize_text(key["merchant"])[:160]
+    counterparty = " ".join((facts.parsed.counterparty or "").split())
+    if counterparty and normalize_key_text(counterparty) not in PLACEHOLDER_COUNTERPARTIES:
+        return sanitize_text(counterparty)[:160]
+    return generic_description(facts)
+
+
+def memory_interpretation(facts: NotificationFacts, context: dict) -> Interpretation | None:
+    """Classification from the owner's merchant memory, or None when no owner entry applies (design D5)."""
+    hit = context.get("_owner_memory_hit")
+    endpoint_facts = context.get("facts") or {}
+    if (not hit or facts.status != "candidate" or facts.direction not in {"expense", "income"} or not facts.amount
+            or endpoint_facts.get("unresolved_names") or endpoint_facts.get("mapping_error")):
+        return None
+    try:
+        observed = observed_endpoint(facts, context["accounts"])
+    except EvidenceError:
+        return None
+    payload = {
+        "outcome": "record", "direction": facts.direction,
+        "description": sanitize_text(hit["notes"] or hit["merchant"] or notification_description(facts, context))[:160],
+        "merchant": hit["merchant"], "account_id": str(observed["id"]),
+        "source_account_id": None, "target_account_id": None,
+        "category_id": hit["category_id"], "kakeibo": hit["kakeibo"],
+        "amount_evidence": facts.amount_quotes[0], "direction_evidence": context.get("notification", facts.text)[:400],
+        "source_evidence": "", "target_evidence": "", "candidate_transaction_id": None,
+        "confidence": 1.0, "review_reason": "none",
+    }
+    return Interpretation.model_validate_json(json.dumps(payload))
+
+
+def classify_without_model(facts: NotificationFacts, context: dict, *, fallback: bool = False) -> tuple[Interpretation, str]:
+    """Owner memory first, then the deterministic path; returns the interpretation and its source."""
+    proposal = memory_interpretation(facts, context)
+    if proposal is not None:
+        return proposal, "memory"
+    return deterministic_interpretation(facts, context), "deterministic_fallback" if fallback else "deterministic"
+
+
 def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Interpretation:
     if facts.status != "candidate" or not facts.direction or not facts.amount:
         raise EvidenceError(facts.error_code or "direction_unproven")
     accounts = context["accounts"]
     source = target = observed = None
     category = None
+    merchant = None
     if facts.direction == "internal_movement":
         if facts.institution != "jago":
             raise EvidenceError("incomplete_movement")
@@ -84,15 +145,15 @@ def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Int
             matches = [row for row in categories if row["name"] == "Internal Movement"]
         if not matches:
             matches = hinted_categories(categories, facts.parsed.category_hint)
-        if len(matches) != 1:
-            raise EvidenceError("uncertain_category_mapping")
-        category = matches[0]
+        # No single category: the row is still recorded, uncategorised and flagged (design D1).
+        category = matches[0] if len(matches) == 1 else None
         if self_transfer or (context.get("facts") or {}).get("counterparty_is_owner"):
             description = SELF_TRANSFER_NOTES[facts.direction]
         else:
-            description = sanitize_text(facts.parsed.counterparty or "Transaksi bank")[:160]
+            description = notification_description(facts, context)
+            merchant = (context.get("_classification_key") or {}).get("merchant")
     payload = {
-        "outcome": "record", "direction": facts.direction, "description": description,
+        "outcome": "record", "direction": facts.direction, "description": description, "merchant": merchant,
         "account_id": str(observed["id"]) if observed else None,
         "source_account_id": str(source["id"]) if source else None,
         "target_account_id": str(target["id"]) if target else None,
@@ -101,7 +162,7 @@ def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Int
         "source_evidence": "", "target_evidence": "", "candidate_transaction_id": None,
         "confidence": 1.0, "review_reason": "none",
     }
-    return Interpretation.model_validate_json(json.dumps(payload))
+    return Interpretation.model_validate_json(json.dumps(payload), context={"allow_uncategorized": True})
 
 
 
@@ -174,7 +235,7 @@ def resolve_record(facts: NotificationFacts, proposal: Interpretation, context: 
     if account_id != str(proposal.account_id):
         raise EvidenceError("conflicting_observed_account")
     signature = transfer_signature(facts, context, account_id)
-    category_id = str(proposal.category_id)
+    category_id = str(proposal.category_id) if proposal.category_id else None
     kakeibo = proposal.kakeibo
     description = proposal.description
     if signature["transfer"] and signature["self_identity"]:
@@ -207,6 +268,15 @@ def apply_interpretation(
         return 0
     source_name = source
     provenance = notification_provenance(source_name, proposal.confidence)
+    review_reasons = []
+    if source_name == "ai":
+        if proposal.confidence < settings.notification_review_confidence_threshold:
+            review_reasons.append("low_confidence")
+        if proposal.review_reason != "none":
+            review_reasons.append("model_flagged")
+    elif source_name == "deterministic_fallback":
+        review_reasons.append("model_fallback")
+    memory_hit = context.get("_owner_memory_hit") if source_name == "memory" else None
     user_id, event_id = str(event["user_id"]), str(event["id"])
     accounts = context["accounts"]
     key = f"notification:{event_id}"
@@ -234,14 +304,23 @@ def apply_interpretation(
         cur, event, facts, context, observed=resolved["observed"], category_id=resolved["category_id"],
         kakeibo=resolved["kakeibo"], description=resolved["description"],
         signature={**resolved["signature"], "source": source_name}, provenance=provenance,
+        merchant=proposal.merchant, review_reasons=review_reasons,
+        offset_category_id=memory_hit["offset_category_id"] if memory_hit else None,
+        memory_id=memory_hit["memory_id"] if memory_hit else None,
     )
 
 
 def record_observed_leg(
     cur, event: dict, facts: NotificationFacts, context: dict, *, observed: dict,
-    category_id: str, kakeibo: str | None, description: str, signature: dict, provenance: Provenance,
+    category_id: str | None, kakeibo: str | None, description: str, signature: dict, provenance: Provenance,
+    merchant: str | None = None, review_reasons: list[str] | None = None,
+    offset_category_id: str | None = None, memory_id: str | None = None,
 ) -> int:
-    """Record one observed leg, linking it to a unique counterpart leg when evidence allows."""
+    """Record one observed leg, linking it to a unique counterpart leg when evidence allows.
+
+    Without a counterpart the leg is recorded alone and flagged needs_review for every doubt about its
+    classification; a merchant-less leg also gets a purpose question (design D1, D9).
+    """
     from app.services.notification_evidence import requires_source_pocket
     from app.services.notification_source_pocket import resolved_facts, source_pocket_gate
 
@@ -252,7 +331,7 @@ def record_observed_leg(
         raise EvidenceError("conflicting_observed_account")
     user_id, event_id = str(event["user_id"]), str(event["id"])
     accounts = context["accounts"]
-    key = f"notification:{event_id}"
+    record_key = f"notification:{event_id}"
     account_id = str(observed["id"])
     signature = {**signature, "category_id": category_id, "kakeibo": kakeibo}
     if facts.parsed.rdn_deposit:
@@ -311,6 +390,24 @@ def record_observed_leg(
         description = sender_description
     if counterpart:
         movement_categories(context)
+    key = context.get("_classification_key")
+    reasons = [] if counterpart else list(review_reasons or [])
+    if not counterpart and category_id is None:
+        reasons.append("uncertain_category")
+    if not counterpart and (overflow or len(compatible) > 1):
+        reasons.append("ambiguous_movement")
+    self_transfer = bool((signature.get("transfer") and signature.get("self_identity"))
+                         or (context.get("facts") or {}).get("counterparty_is_owner"))
+    ask_purpose = bool(
+        not counterpart and key and key["merchant_less"] and not self_transfer
+        and provenance.classified_by != "owner" and category_id not in movement_category_ids(context)
+    )
+    if ask_purpose:
+        reasons.append("purpose_question")
+    if reasons and provenance.review_status == "auto":
+        provenance = replace(provenance, review_status="needs_review")
+    signature = {**signature, **stored_key_fields(key), "review_reasons": reasons}
+    stored_merchant = None if self_transfer else normalize_merchant((merchant or "")[:MERCHANT_MAX_LENGTH])
     locked_ids = [account_id]
     if counterpart:
         cur.execute("SELECT id FROM transactions WHERE user_id = %s AND id = %s FOR UPDATE", (user_id, counterpart["id"]))
@@ -320,7 +417,7 @@ def record_observed_leg(
     locked = lock_owned_accounts(cur, user_id, locked_ids)
     if any(row["type"] not in LIQUID_ACCOUNT_TYPES or row.get("instrument_type") for row in locked.values()):
         raise EvidenceError("invalid_current_account")
-    expected_categories = {category_id: facts.direction}
+    expected_categories = {category_id: facts.direction} if category_id else {}
     if counterpart:
         exp_category, inc_category = movement_categories(context)
         expected_categories.update({exp_category: "expense", inc_category: "income"})
@@ -329,13 +426,14 @@ def record_observed_leg(
         reconciliation_flag(cur, user_id, event_id, account_id, facts.amount)
     cur.execute(
         """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, kakeibo_type, idempotency_key,
-               source, review_status, classified_by, classification_confidence)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+               merchant, offset_category_id, source, review_status, classified_by, classification_confidence)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
         (user_id, account_id, category_id, facts.direction, facts.amount,
-         sanitize_text(description), facts.timestamp, kakeibo, key, *provenance.columns()),
+         sanitize_text(description), facts.timestamp, kakeibo if category_id else None, record_key,
+         stored_merchant, offset_category_id if facts.direction == "income" else None, *provenance.columns()),
     )
     tx_id = str(cur.fetchone()["id"])
-    snapshot = committed_snapshot(key=key, kind=facts.direction, description=description,
+    snapshot = committed_snapshot(key=record_key, kind=facts.direction, description=description,
                                   amount=facts.amount, source=account_label(observed, accounts) if facts.direction == "expense" else None,
                                   target=account_label(observed, accounts) if facts.direction == "income" else None)
     if counterpart:
@@ -349,10 +447,19 @@ def record_observed_leg(
         snapshot = committed_snapshot(key=counterpart["result_key"], kind="internal_movement",
                                       description=note, amount=facts.amount,
                                       source=account_label(source, accounts), target=account_label(target, accounts))
+        # The counterpart's classification doubts and purpose question ended with the pairing (design D1).
         cur.execute(
-            """UPDATE notification_events SET movement_id = %s, confirmed_role = %s,
-               result_snapshot = %s WHERE user_id = %s AND id = %s""",
+            """UPDATE notification_events SET movement_id = %s, confirmed_role = %s, result_snapshot = %s,
+                   active_question = CASE WHEN active_question ->> 'type' = 'purpose' THEN NULL
+                                          ELSE active_question END
+               WHERE user_id = %s AND id = %s""",
             (result["movement_id"], "inbound" if facts.direction == "expense" else "outbound", json.dumps(snapshot), user_id, counterpart["event_id"]),
+        )
+        cur.execute(
+            """UPDATE transactions SET review_status = 'auto'
+               WHERE user_id = %s AND movement_id = %s AND review_status = 'needs_review'
+                 AND classified_by IS DISTINCT FROM 'owner'""",
+            (user_id, result["movement_id"]),
         )
         save_recorded(cur, event, tx_id, snapshot, signature, movement_id=result["movement_id"],
                       role="outbound" if facts.direction == "expense" else "inbound")
@@ -360,7 +467,27 @@ def record_observed_leg(
         save_recorded(cur, event, tx_id, snapshot, signature)
         if overflow or len(compatible) > 1:
             cur.execute("UPDATE notification_events SET error_code = 'ambiguous_movement' WHERE id = %s", (event_id,))
+        if ask_purpose:
+            from app.services.purpose_questions import attach_purpose_question
+
+            attach_purpose_question(
+                cur, event, facts, context, observed=observed, transaction_id=tx_id, key=key,
+                current={"merchant": stored_merchant, "notes": sanitize_text(description)[:160],
+                         "category_id": category_id, "kakeibo": kakeibo if facts.direction == "expense" else None,
+                         "offset_category_id": None},
+            )
+    if memory_id:
+        count_memory_hit(cur, user_id, memory_id)
+    if provenance.classified_by == "ai" and provenance.review_status == "auto" and not counterpart:
+        learn_from_model(cur, user_id, key, {
+            "merchant": stored_merchant, "notes": sanitize_text(description)[:160], "category_id": category_id,
+            "kakeibo_type": kakeibo if facts.direction == "expense" else None, "offset_category_id": None,
+        })
     return 1
+
+
+def movement_category_ids(context: dict) -> set[str]:
+    return {str(row["id"]) for row in context["categories"] if row["name"] == "Internal Movement"}
 
 
 # The broker confirms an RDN deposit hours after the bank reports it (observed: 3 h).
