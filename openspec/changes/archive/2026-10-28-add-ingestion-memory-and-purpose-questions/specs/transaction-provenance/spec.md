@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Provenance Written by Every Recording Path
-Each path that creates a transaction SHALL write its provenance explicitly, by this table: manual create → manual, reviewed, owner; movement → movement, reviewed, system; recurring execution → recurring, reviewed, system; payroll → payroll, reviewed, system; reconcile → reconcile, reviewed, system; investment trade or top-up → investment, reviewed, system; notification → notification, auto or needs_review, ai or rule. A notification row SHALL be `needs_review` exactly when the record-and-flag rules give it at least one review reason; a merchant-memory hit SHALL be classified by `rule`.
+Each path that creates a transaction SHALL write its provenance explicitly: manual create → manual, reviewed, owner; movement → movement, reviewed, system; recurring → recurring, reviewed, system; payroll → payroll, reviewed, system; reconcile → reconcile, reviewed, system; investment trade or top-up → investment, reviewed, system; notification → notification, auto or needs_review (per the record-and-flag reasons), ai or rule (rule for memory hits).
 
 #### Scenario: Manual expense from the web
 - **WHEN** the owner records an expense through `POST /api/transactions`

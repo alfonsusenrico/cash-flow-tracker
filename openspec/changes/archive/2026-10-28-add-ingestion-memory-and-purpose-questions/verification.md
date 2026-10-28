@@ -78,6 +78,9 @@ Not run: this change touches no frontend file.
 | `openspec validate --all` before archive | 47 passed, 0 failed |
 | `openspec validate --all --strict` before archive | 42 passed, 5 failed: the same five main specs with one over-long requirement each as on phase 2 (`account-reconciliation`, `clean-core-ledger`, `kakeibo-decoupling`, `kakeibo-reconciliation`, `notification-filtering`) |
 | Open changes modifying the same capabilities | none |
+| `openspec archive add-ingestion-memory-and-purpose-questions --yes` | exit 0; 3 specs created, `transaction-provenance` updated |
+| `openspec validate --all` after archive | 49 passed, 0 failed |
+| `openspec validate --all --strict` after archive | 44 passed, 5 failed: the same five pre-existing specs; the three new specs got written Purpose sections and pass |
 | `git diff --check` | clean |
 
 ## Not verified, and why

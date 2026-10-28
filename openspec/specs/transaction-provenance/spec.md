@@ -25,7 +25,7 @@ Every transaction SHALL carry `source` (manual, notification, recurring, payroll
 - **AND** `merchant` SHALL be "Parkir Mal Contoh".
 
 ### Requirement: Provenance Written by Every Recording Path
-Each path that creates a transaction SHALL write its provenance explicitly, by this table: manual create → manual, reviewed, owner; movement → movement, reviewed, system; recurring execution → recurring, reviewed, system; payroll → payroll, reviewed, system; reconcile → reconcile, reviewed, system; investment trade or top-up → investment, reviewed, system; notification → notification, auto, ai or rule.
+Each path that creates a transaction SHALL write its provenance explicitly: manual create → manual, reviewed, owner; movement → movement, reviewed, system; recurring → recurring, reviewed, system; payroll → payroll, reviewed, system; reconcile → reconcile, reviewed, system; investment trade or top-up → investment, reviewed, system; notification → notification, auto or needs_review (per the record-and-flag reasons), ai or rule (rule for memory hits).
 
 #### Scenario: Manual expense from the web
 - **WHEN** the owner records an expense through `POST /api/transactions`
@@ -52,16 +52,24 @@ Each path that creates a transaction SHALL write its provenance explicitly, by t
 - **THEN** every leg SHALL have `source = investment` and `classified_by = system`.
 
 #### Scenario: Notification classified by the model
-- **WHEN** a notification is recorded from an AI interpretation with confidence 0.82
+- **WHEN** a notification naming a merchant is recorded from an AI interpretation with confidence 0.82 and review reason none
 - **THEN** the row SHALL have `source = notification`, `review_status = auto`, `classified_by = ai` and `classification_confidence = 0.82`.
 
 #### Scenario: Notification classified by deterministic rules
-- **WHEN** a notification is recorded by the deterministic path or as a broker trade
+- **WHEN** a notification naming a merchant is recorded by the deterministic path with a category, or as a broker trade
 - **THEN** every row it creates SHALL have `source = notification`, `review_status = auto`, `classified_by = rule` and no confidence.
 
 #### Scenario: Owner resolves an unresolved notification
 - **WHEN** the owner records a needs-review notification with their own type, account and category
 - **THEN** the row SHALL have `source = notification`, `review_status = reviewed` and `classified_by = owner`.
+
+#### Scenario: Notification recorded with a review reason
+- **WHEN** a notification row is recorded without a category, below the confidence gate, through the model fallback, unpaired among ambiguous counterparts, or with a purpose question
+- **THEN** the row SHALL have `source = notification` and `review_status = needs_review`.
+
+#### Scenario: Notification classified from merchant memory
+- **WHEN** a notification row is recorded from an owner merchant-memory entry
+- **THEN** the row SHALL have `source = notification`, `review_status = auto`, `classified_by = rule` and no confidence.
 
 ### Requirement: Provenance Backfill for Existing Transactions
 The migration SHALL assign provenance to every existing row once, deterministically, without changing `updated_at`, amount, date, account, category, notes or pillar. Source SHALL follow the first matching rule in the design's order; review status SHALL be auto only for notification rows never edited; classifier SHALL follow the event's interpretation source for notification rows.
