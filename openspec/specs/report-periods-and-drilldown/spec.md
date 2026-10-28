@@ -1,7 +1,8 @@
 # report-periods-and-drilldown Specification
 
 ## Purpose
-TBD - created by archiving change add-review-queue-and-report-fixes. Update Purpose after archive.
+Make report figures trustworthy and traceable: payday-cycle and calendar-month windows, category
+breakdowns that add up to total outflow, and links from every figure to the ledger rows behind it.
 
 ## Requirements
 

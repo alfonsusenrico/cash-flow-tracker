@@ -1,7 +1,9 @@
 # review-queue Specification
 
 ## Purpose
-TBD - created by archiving change add-review-queue-and-report-fixes. Update Purpose after archive.
+Let the owner confirm or correct every automatically recorded or doubtful row from one web page:
+answer purpose questions, accept, recategorise or rename whole merchant groups, and finish one-sided
+or ambiguous transfers, with every correction teaching merchant memory.
 
 ## Requirements
 
