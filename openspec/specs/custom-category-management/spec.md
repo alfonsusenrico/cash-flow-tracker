@@ -2,7 +2,9 @@
 
 ## Purpose
 Allow users to manage transaction categories and apply category budget variance filters.
+
 ## Requirements
+
 ### Requirement: Custom Category Creation & Management
 The system SHALL provide full category lifecycle management allowing users to create, update, archive, and query custom categories.
 
@@ -28,3 +30,20 @@ The `/insights` category budget matrix SHALL strictly filter and display categor
 - **WHEN** the user views the Category Budget table on the `/insights` page
 - **THEN** only expense categories are shown, each with their `Pokok` or `Opsional` badge, actual spending, and budget ceiling
 
+### Requirement: Snack and Café Default Category
+Every user SHALL have the expense category "Jajan & Nongkrong" with the Kakeibo pillar `want`, separate from daily meals. The migration SHALL create it only where the user has no expense category of that name, SHALL leave an existing one unchanged, and SHALL NOT move any existing transaction into it.
+
+#### Scenario: Existing user without the category
+- **GIVEN** a user whose food spending is all in "Makanan & Minuman"
+- **WHEN** the migration runs
+- **THEN** the user SHALL have the expense category "Jajan & Nongkrong" with pillar `want`
+- **AND** every existing transaction SHALL keep its category.
+
+#### Scenario: Existing category is kept
+- **GIVEN** a user who already has an expense category "Jajan & Nongkrong" with pillar `need`
+- **WHEN** the migration runs
+- **THEN** the category SHALL keep pillar `need`.
+
+#### Scenario: New user defaults
+- **WHEN** a new user registers
+- **THEN** the default categories SHALL include "Jajan & Nongkrong" with pillar `want`.
