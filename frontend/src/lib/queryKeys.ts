@@ -33,6 +33,8 @@ export const queryKeys = {
     all: ["review"] as const,
     queue: ["review", "queue"] as const,
     summary: ["review", "summary"] as const,
+    suggestions: ["review", "suggestions"] as const,
+    suggestionRun: ["review", "suggestions", "run"] as const,
   },
   notificationAliases: ["notification-aliases"] as const,
   senderAliases: ["sender-aliases"] as const,

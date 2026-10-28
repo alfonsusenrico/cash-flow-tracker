@@ -8,6 +8,7 @@ import { chunkIds, reviewErrorMessage, type AmbiguousItem, type ReviewItem, type
 import { PurposeQuestionCard } from "@/components/review/PurposeQuestionCard";
 import { ReviewGroupCard, type CategoryOption, type GroupActionRequest } from "@/components/review/ReviewGroupCard";
 import { AmbiguousMovementCard, AwaitingMovementCard } from "@/components/review/MovementReviewCards";
+import { HistorySuggestionsSection } from "@/components/review/HistorySuggestionsSection";
 import type { AccountOptionItem } from "@/components/ui/AccountSelectOptions";
 
 const ACTION_DONE: Record<GroupActionRequest["action"], string> = {
@@ -219,6 +220,8 @@ export default function ReviewPage() {
           )}
         </>
       )}
+
+      <HistorySuggestionsSection />
     </div>
   );
 }

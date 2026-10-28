@@ -228,7 +228,7 @@ def transaction_event_key(cur, user_id: str, transaction_id: str) -> dict:
 
 def insert_feedback(
     cur, user_id: str, *, kind: str, before: dict | None, after: dict, key: dict,
-    answer: dict | None = None,
+    answer: dict | None = None, history_suggestion_id: str | None = None,
 ) -> None:
     """Append one labelled example; feedback rows are never updated (V29 trigger)."""
     weekday, hour = local_time_features(after.get("date"))
@@ -242,9 +242,9 @@ def insert_feedback(
                after_merchant, after_notes, after_category_id, after_category_name, after_kakeibo_type,
                after_type, after_offset_category_id,
                local_weekday, local_hour, amount, account_id, institution, text_signature, match_key,
-               transaction_source)
+               transaction_source, history_suggestion_id)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                   %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
         (
             user_id, kind, str(after["id"]), key.get("event_id"), answer.get("question_id"),
             answer.get("reply_id"), answer.get("suggestion_id"), answer.get("text"),
@@ -255,7 +255,7 @@ def insert_feedback(
             after.get("category_id"), after.get("category_name"), after.get("effective_kakeibo"),
             after.get("type"), after.get("offset_category_id"),
             weekday, hour, after.get("amount"), after.get("account_id"), key.get("institution"),
-            key.get("text_signature"), key.get("match_key"), after.get("source"),
+            key.get("text_signature"), key.get("match_key"), after.get("source"), history_suggestion_id,
         ),
     )
 
@@ -282,8 +282,15 @@ def close_purpose_question(cur, user_id: str, transaction_id: str) -> None:
     )
 
 
-def record_owner_corrections(cur, user_id: str, before: dict[str, dict]) -> int:
-    """Write feedback and memory for rows whose classification an owner edit changed."""
+def record_owner_corrections(
+    cur, user_id: str, before: dict[str, dict], *, kind: str = "correction",
+    history_suggestions: dict[str, str] | None = None,
+) -> int:
+    """Write feedback and memory for rows whose classification an owner edit changed.
+
+    An accepted history suggestion is an owner edit too; its feedback row carries its own kind and the
+    suggestion id (one per transaction in `history_suggestions`).
+    """
     after_rows = snapshot_rows(cur, user_id, list(before))
     written = 0
     for transaction_id, after in after_rows.items():
@@ -291,7 +298,8 @@ def record_owner_corrections(cur, user_id: str, before: dict[str, dict]) -> int:
         if classification_values(previous) == classification_values(after):
             continue
         key = transaction_event_key(cur, user_id, transaction_id)
-        insert_feedback(cur, user_id, kind="correction", before=previous, after=after, key=key)
+        insert_feedback(cur, user_id, kind=kind, before=previous, after=after, key=key,
+                        history_suggestion_id=(history_suggestions or {}).get(transaction_id))
         learn_from_owner(cur, user_id, after, key)
         close_purpose_question(cur, user_id, transaction_id)
         written += 1

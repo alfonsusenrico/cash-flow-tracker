@@ -21,6 +21,7 @@ from app.routers.obligations import router as obligations_router
 from app.routers.pulse import router as pulse_router
 from app.routers.recurring import router as recurring_router
 from app.routers.recurring import process_due_recurring_rules
+from app.routers.history_suggestions import router as history_suggestions_router
 from app.routers.review import router as review_router
 from app.routers.transactions import router as transactions_router
 
@@ -235,6 +236,7 @@ for prefix in ("", "/api", "/v1"):
     app.include_router(ingest_router, prefix=f"{prefix}/ingest")
     app.include_router(pulse_router, prefix=prefix)
     app.include_router(review_router, prefix=prefix)
+    app.include_router(history_suggestions_router, prefix=prefix)
 
 
 @app.exception_handler(HTTPException)

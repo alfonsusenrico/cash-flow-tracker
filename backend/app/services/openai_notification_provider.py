@@ -168,6 +168,15 @@ class OpenAINotificationProvider:
         except (ValueError, TypeError, ValidationError):
             raise ProviderError("provider_invalid_output") from None
 
+    async def suggest_history(self, context: dict):
+        # Imported here: the suggestion service needs the database, and this module must load without it.
+        from app.services.history_suggestions import HistorySuggestionBatch, history_prompt, parse_batch
+
+        output = await self.respond(
+            history_prompt(), context, response_schema(HistorySuggestionBatch, "history_suggestions"),
+        )
+        return parse_batch(output)
+
     async def respond(self, instructions: str, context: dict, schema: dict) -> str:
         if self.model not in OPERATIONAL_MODELS:
             raise ProviderError("provider_model_not_permitted")

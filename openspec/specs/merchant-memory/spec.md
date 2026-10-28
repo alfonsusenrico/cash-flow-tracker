@@ -23,7 +23,7 @@ The system SHALL derive one match key per recorded expense or income notificatio
 - **THEN** its signature key SHALL include `bca`, `income`, the transfer category and the normalised mask.
 
 ### Requirement: Append-Only Classification Feedback
-The system SHALL store one feedback row for each owner correction and each purpose answer, with the transaction, the values before and after (merchant, notes, category, pillar, type, offset category), and context features: local weekday and hour in the configured time zone, amount, account, institution, text signature and transaction source. Feedback rows SHALL never be updated; an attempt SHALL fail. Feedback SHALL survive deletion of the transaction or category it describes.
+The system SHALL store one feedback row for each owner correction, each purpose answer and each accepted history suggestion that changed the row, with the transaction, the values before and after (merchant, notes, category, pillar, type, offset category), and context features: local weekday and hour in the configured time zone, amount, account, institution, text signature and transaction source. A row written for an accepted history suggestion SHALL have kind `accepted_suggestion` and carry the suggestion id. Feedback rows SHALL never be updated; an attempt SHALL fail. Feedback SHALL survive deletion of the transaction or category it describes.
 
 #### Scenario: Owner recategorises a notification row
 - **GIVEN** an AI-classified row in "Belanja" recorded from a myBCA notification on a Wednesday at 19:40 local time
@@ -37,6 +37,10 @@ The system SHALL store one feedback row for each owner correction and each purpo
 #### Scenario: Edit without classification change
 - **WHEN** the owner changes only the amount or date of a row
 - **THEN** no feedback row SHALL be written.
+
+#### Scenario: Accepted history suggestion
+- **WHEN** the owner accepts a history suggestion that moves a "Kedai Awan" row from "Makanan & Minuman" to "Jajan & Nongkrong"
+- **THEN** one feedback row SHALL have kind `accepted_suggestion`, the suggestion's id, and the before and after values.
 
 ### Requirement: Merchant Memory Learned From the Owner
 The system SHALL keep one memory entry per owner and match key with display merchant, notes, category, pillar, offset, source (`owner` or `ai`), hit count and last use. Each owner correction or purpose answer of a categorised plain expense or income SHALL upsert its key's entry as `owner`. A gated model classification of a named merchant SHALL create an `ai` entry only when no owner entry exists. Movement legs SHALL write feedback but no memory.
