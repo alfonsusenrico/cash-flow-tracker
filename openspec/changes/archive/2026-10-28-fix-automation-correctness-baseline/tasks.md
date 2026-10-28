@@ -64,7 +64,7 @@ Expected Result: nothing in the repository builds, configures or routes to the b
   - Evidence: zero errors. Any strict warnings are recorded as follow-ups.
 - [x] 6.3 Write `verification.md`: revision, commands and counts, environments (synthetic data only), browser widths and themes, and what was not verified and why.
   - Evidence: the file is complete and reviewed against the delta specs.
-- [ ] 6.4 After owner acceptance: sync the delta specs, archive the change, push `fix/automation-correctness-baseline`, and report the compare link. Record in `PROJECT_STATE.md`:
+- [x] 6.4 After owner acceptance: sync the delta specs, archive the change, push `fix/automation-correctness-baseline`, and report the compare link. Record in `PROJECT_STATE.md`:
   - the production checks for after the merge (constraint, backlog, adjustments, bot container gone);
   - the owner actions: revoke the bot token, delete the GitHub secrets, remove the webhook tunnel route.
   - Evidence: archive command exit status 0, and the pushed branch URL.
