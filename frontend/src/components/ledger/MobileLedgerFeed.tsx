@@ -9,8 +9,9 @@ import {
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { kakeiboLabel } from "@/lib/kakeibo";
+import { ReviewStatusMark, feeLinkText, type FeeLinkFields } from "@/components/ledger/LedgerRowMarks";
 
-export interface LedgerTxItem {
+export interface LedgerTxItem extends FeeLinkFields {
   id: string;
   account_id: string;
   account_name: string;
@@ -39,6 +40,7 @@ export interface LedgerTxItem {
   target_account_name?: string;
   target_account_id?: string;
   kakeibo_type?: string | null;
+  review_status?: string;
 }
 
 interface MobileLedgerFeedProps {
@@ -273,8 +275,11 @@ export function MobileLedgerFeed({
                       </div>
 
                       <div className="min-w-0">
-                        <div className="text-xs font-semibold text-[var(--text)] group-hover:text-emerald-500 transition-colors truncate">
-                          {tx.notes || (isMovement ? "Pindah Saldo" : tx.category_name || "Umum")}
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className="text-xs font-semibold text-[var(--text)] group-hover:text-emerald-500 transition-colors truncate">
+                            {tx.notes || (isMovement ? "Pindah Saldo" : tx.category_name || "Umum")}
+                          </span>
+                          <ReviewStatusMark status={tx.review_status} />
                         </div>
 
                         <div className="text-[10px] text-[var(--muted)] flex items-center gap-1.5 mt-0.5 truncate">
@@ -301,6 +306,9 @@ export function MobileLedgerFeed({
                             </>
                           )}
                         </div>
+                        {feeLinkText(tx, bal) && (
+                          <div className="mt-0.5 truncate text-[10px] tabular-nums text-[var(--muted)]">{feeLinkText(tx, bal)}</div>
+                        )}
                         {(tx.obligation_allocations?.length ?? 0) > 1 && (
                           <div className="mt-1 truncate text-[10px] tabular-nums text-[var(--muted)]" title={tx.obligation_allocations?.map((item) => `${item.obligation_name}: ${bal(item.amount)}`).join(" · ")}>
                             {tx.obligation_allocations?.map((item) => `${item.obligation_name} ${bal(item.amount)}`).join(" · ")}

@@ -110,6 +110,7 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
 
         with patch("app.routers.dashboard.db_conn", return_value=mock_conn), \
              patch("app.routers.dashboard.load_spending_offsets", return_value=SpendingOffsets()), \
+             patch("app.routers.dashboard.category_breakdown") as mock_breakdown, \
              patch("app.routers.dashboard.get_accounts_with_balances") as mock_accs:
 
             mock_accs.return_value = [
@@ -125,7 +126,7 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
             # 6. cat_budget
             # 7. upcoming recurring rules: 500k upcoming
             # 8. grouped_days (trendline)
-            # 9. cat_rows (current categories)
+            # 9. category_breakdown (patched)
             # 10. prev_totals_row (inflow 9m, outflow 6m, tx_count 10)
             # 11. prev_cat_map (previous categories)
             # 12. kakeibo expenses fetchall
@@ -149,18 +150,6 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
             mock_cur.fetchall.side_effect = [
                 [],                                                           # goals for ketahanan dana
                 [],                                                           # grouped_days
-                [                                                             # cat_rows
-                    {
-                        "id": food_cid,
-                        "name": "Makan & Minum",
-                        "icon": "utensils",
-                        "color": "#f97316",
-                        "monthly_budget": 5_000_000,
-                        "is_primary": True,
-                        "kakeibo_type": "need",
-                        "spent": 5_000_000,
-                    }
-                ],
                 [{"id": food_cid, "name": "Makan & Minum", "spent": 3_000_000}], # prev_cat_map
                 [                                                             # kakeibo expenses
                     {"pillar": "need", "total_amount": 5_000_000},
@@ -169,6 +158,23 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
                 [],                                                           # goals glance
                 [],                                                           # obligations glance
                 [],                                                           # recent txs
+            ]
+
+            mock_breakdown.return_value = [
+                {
+                    "id": food_cid,
+                    "name": "Makan & Minum",
+                    "icon": "utensils",
+                    "color": "#f97316",
+                    "monthly_budget": 5_000_000,
+                    "is_primary": True,
+                    "kakeibo_type": "need",
+                    "is_archived": False,
+                    "is_uncategorized": False,
+                    "gross_spent": 5_000_000,
+                    "spent": 5_000_000,
+                    "reimbursed": 0,
+                }
             ]
 
             with TestClient(app) as client:
@@ -325,18 +331,17 @@ def test_burn_rate_cycle_forecast_and_unrounded_projection():
         mock_conn.cursor.return_value.__enter__.return_value = mock_cur
 
         with patch("app.routers.dashboard.db_conn", return_value=mock_conn), \
-             patch("app.routers.dashboard.load_spending_offsets", return_value=SpendingOffsets()):
-            # 1. Day of week heatmap
+             patch("app.routers.dashboard.load_spending_offsets", return_value=SpendingOffsets()), \
+             patch("app.routers.dashboard.category_breakdown", return_value=[]):
             mock_cur.fetchall.side_effect = [
-                [],  # dow_rows
-                [],  # daily_rows
-                [],  # cat_rows
+                [],  # daily_rows (the heatmap is derived from them)
                 [],  # prev_cat_map
                 [],  # kakeibo expenses
             ]
             # fetchone side_effects for analytics queries:
             mock_cur.fetchone.side_effect = [
-                {"spent_7d": 50_000, "spent_30d": 50_000},  # burn_row
+                {"spent": 50_000},                           # 7-day burn window
+                {"spent": 50_000},                           # 30-day burn window
                 {"inflow": 0, "outflow": 50_000},            # totals_row
                 {"inflow": 0, "outflow": 0},                 # prev_totals_row
                 {"saving_transfers": 0},                     # saving_transfers in kakeibo

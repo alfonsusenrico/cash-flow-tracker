@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, updateMovement, uploadTransactionReceipt } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import LedgerPage from "./page";
@@ -13,6 +13,18 @@ vi.mock("@/lib/api", () => ({
   deleteMovement: vi.fn(),
   updateMovement: vi.fn(),
   uploadTransactionReceipt: vi.fn(),
+}));
+
+const navigation = vi.hoisted(() => ({
+  params: new URLSearchParams(),
+  replace: vi.fn(),
+  push: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: navigation.replace, push: navigation.push }),
+  useSearchParams: () => navigation.params,
+  usePathname: () => "/ledger",
 }));
 
 vi.mock("@/components/layout/AppLayout", () => ({
@@ -681,5 +693,103 @@ describe("Ledger provenance and reimbursements", () => {
     await user.click(await screen.findByRole("row", { name: /Buka atau ubah: Ganti makan/ }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Kategori" }), "salary");
     expect(screen.queryByRole("combobox", { name: "Mengurangi pengeluaran" })).not.toBeInTheDocument();
+  });
+});
+
+describe("Ledger filters from the URL", () => {
+  const categoryId = "11111111-2222-4333-8444-555555555555";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentTransactions = [];
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [{ id: "account-1", name: "BCA", type: "bank", balance: 100_000 }] };
+      if (path === "/categories") return { categories: [{ id: categoryId, name: "Makan", kind: "expense", kakeibo_type: "need" }] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      if (path === "/transactions/transaction-1") return { transaction };
+      if (path.startsWith("/transactions?")) {
+        return {
+          ok: true,
+          total: currentTransactions.length,
+          transactions: currentTransactions,
+          summary: {
+            cycle: { start: "2026-09-25T00:00:00Z", end: "2026-10-24T23:59:59Z", inflow: 0, outflow: 0, net: 0 },
+            cumulative: { inflow: 0, outflow: 90_000, net: -90_000, gross_outflow: 140_000, reimbursement_offset: 50_000 },
+            period: {
+              basis: "month", offset: -1, label: "September 2026", start: "2026-08-31T17:00:00Z", end: "2026-09-30T16:59:59Z",
+              inflow: 0, outflow: 90_000, net: -90_000, gross_outflow: 140_000, reimbursement_offset: 50_000,
+            },
+          },
+        };
+      }
+      throw new Error(`Unexpected GET ${path}`);
+    });
+  });
+
+  afterEach(() => {
+    navigation.params = new URLSearchParams();
+  });
+
+  const renderLedger = () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    return render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
+  };
+
+  it("loads the drill-down period, category, pillar and review filters", async () => {
+    navigation.params = new URLSearchParams(`period=month&offset=-1&category=${categoryId}&kakeibo=want&type=expense&review=needs_review`);
+    currentTransactions = [{
+      ...transaction,
+      category_id: categoryId,
+      review_status: "needs_review",
+      fee_movement: { movement_id: "movement-1", source_account_name: "BCA", target_account_name: "Jago", amount: 100_000 },
+    } as typeof transaction];
+    const { container } = renderLedger();
+
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(expect.stringMatching(/^\/transactions\?/)));
+    const path = vi.mocked(api.get).mock.calls.map(([called]) => called).find((called) => called.startsWith("/transactions?")) ?? "";
+    const params = new URLSearchParams(path.split("?")[1]);
+    expect(Object.fromEntries(params)).toMatchObject({
+      period: "month", period_offset: "-1", category_id: categoryId, kakeibo_type: "want",
+      type: "expense", review_status: "needs_review",
+    });
+    expect(params.has("logical_movements")).toBe(false);
+
+    expect(await screen.findByText("September 2026")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bulan kalender" })).toHaveAttribute("aria-pressed", "true");
+    const active = screen.getByRole("group", { name: "Filter aktif" });
+    expect(within(active).getByText("Kategori: Makan")).toBeInTheDocument();
+    expect(within(active).getByText("Pilar: Keinginan")).toBeInTheDocument();
+    expect(within(active).getByText("Perlu ditinjau")).toBeInTheDocument();
+    expect(screen.getByText("Uang Keluar (Periode)")).toBeInTheDocument();
+    expect(screen.getByText(/Sudah dikurangi ganti uang Rp 50\.000/)).toBeInTheDocument();
+    const row = await screen.findByRole("row", { name: /Makan siang/ });
+    expect(within(row).getByText("Perlu ditinjau")).toBeInTheDocument();
+    expect(within(row).getByText("Biaya pindah saldo Rp 100.000 · BCA → Jago")).toBeInTheDocument();
+    expect((await axe(container)).violations).toHaveLength(0);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Bulan sebelumnya" }));
+    expect(navigation.replace).toHaveBeenCalledWith(
+      `/ledger?period=month&offset=-2&category=${categoryId}&kakeibo=want&type=expense&review=needs_review`,
+      { scroll: false },
+    );
+  });
+
+  it("maps the Tanpa kategori bucket to the uncategorised filter", async () => {
+    navigation.params = new URLSearchParams("period=cycle&category=uncategorized&type=expense");
+    renderLedger();
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(expect.stringContaining("uncategorized=true")));
+    expect(screen.getByRole("button", { name: "Siklus gajian" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(screen.getByRole("group", { name: "Filter aktif" })).getByText("Tanpa kategori")).toBeInTheDocument();
+  });
+
+  it("opens the edit dialog for ?edit= and returns to the review page on close", async () => {
+    navigation.params = new URLSearchParams("edit=transaction-1&return=review");
+    const user = userEvent.setup();
+    renderLedger();
+    expect(await screen.findByRole("dialog", { name: "Ubah Transaksi" })).toBeInTheDocument();
+    expect(api.get).toHaveBeenCalledWith("/transactions/transaction-1");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(navigation.push).toHaveBeenCalledWith("/review"));
   });
 });

@@ -150,7 +150,7 @@ export default function OverviewPage() {
             </h1>
           </div>
           <p className="text-xs text-[var(--muted)] font-medium mt-0.5">
-            Siklus <span className="font-bold text-[var(--text)]">{timeframeLabel}</span> • Keuanganmu aman terkendali ✨
+            {timeframe === "month" ? "Bulan" : "Siklus"} <span className="font-bold text-[var(--text)]">{timeframeLabel}</span> • Keuanganmu aman terkendali ✨
           </p>
         </div>
 

@@ -41,10 +41,12 @@ from app.services.receipts import (
 )
 from app.services.reimbursements import (
     category_offsets_spending,
-    not_reimbursement_sql,
+    load_spending_offsets,
     offset_not_allowed,
     validate_offset_category,
 )
+from app.services.report_figures import reportable_expense_sql, reportable_income_sql
+from app.services.report_windows import PERIOD_PATTERN, get_timeframe_window
 
 router = APIRouter(tags=["Transactions"])
 
@@ -73,6 +75,79 @@ def provenance_fields(row: dict[str, Any]) -> dict[str, Any]:
         "is_reimbursement": bool(row.get("is_reimbursement")),
         "offset_category_id": str(row["offset_category_id"]) if row.get("offset_category_id") else None,
         "offset_category_name": row.get("offset_category_name"),
+    }
+
+
+# A movement's fee row and, for a fee row, the movement it was charged on (movement pairing D5).
+FEE_LINK_JOINS = """
+    LEFT JOIN transactions fee
+        ON t.movement_id IS NOT NULL AND fee.user_id = t.user_id AND fee.fee_for_movement_id = t.movement_id
+    LEFT JOIN LATERAL (
+        SELECT MAX(CASE WHEN leg.type = 'expense' THEN leg_account.name END) AS source_account_name,
+               MAX(CASE WHEN leg.type = 'income' THEN leg_account.name END) AS target_account_name,
+               MAX(leg.amount) AS amount
+        FROM transactions leg JOIN accounts leg_account ON leg_account.id = leg.account_id
+        WHERE t.fee_for_movement_id IS NOT NULL AND leg.user_id = t.user_id
+          AND leg.movement_id = t.fee_for_movement_id
+        HAVING COUNT(*) > 0
+    ) fee_movement ON TRUE
+"""
+
+
+def fee_link_fields(row: dict[str, Any]) -> dict[str, Any]:
+    movement_fee = None
+    if row.get("movement_fee_id"):
+        movement_fee = {"transaction_id": str(row["movement_fee_id"]), "amount": int(row["movement_fee_amount"])}
+    fee_movement = None
+    if row.get("fee_for_movement_id") and row.get("fee_movement_amount") is not None:
+        fee_movement = {
+            "movement_id": str(row["fee_for_movement_id"]),
+            "source_account_name": row.get("fee_source_account_name"),
+            "target_account_name": row.get("fee_target_account_name"),
+            "amount": int(row["fee_movement_amount"]),
+        }
+    return {"movement_fee": movement_fee, "fee_movement": fee_movement}
+
+
+EARLIEST = datetime(1970, 1, 1, tzinfo=timezone.utc)
+LATEST = datetime(9999, 12, 31, tzinfo=timezone.utc)
+
+
+def aware(value: datetime) -> datetime:
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def later_bound(bound: datetime, other: datetime | None) -> datetime:
+    return max(bound, aware(other)) if other else bound
+
+
+def earlier_bound(bound: datetime, other: datetime | None) -> datetime:
+    return min(bound, aware(other)) if other else bound
+
+
+def ledger_cash_flow(
+    cur, user_id: str, inflow: int, gross_outflow: int,
+    start: datetime | None, end: datetime | None, offset_scope: dict[str, str | None] | None,
+) -> dict[str, int]:
+    """Ledger summary figures; outflow is net of reimbursements the way report figures are.
+
+    `offset_scope` is None when other filters make the rows differ from any report figure; the
+    outflow then stays gross and the offset is reported as 0.
+    """
+    offset = 0
+    start, end = aware(start) if start else EARLIEST, aware(end) if end else LATEST
+    if offset_scope is not None and start <= end:
+        offsets = load_spending_offsets(cur, user_id, start, end)
+        if offset_scope["category_id"]:
+            offset = offsets.for_category(offset_scope["category_id"])
+        elif offset_scope["pillar"]:
+            offset = offsets.for_pillar(offset_scope["pillar"])
+        else:
+            offset = offsets.applied
+    outflow = max(0, gross_outflow - offset)
+    return {
+        "inflow": inflow, "outflow": outflow, "net": inflow - outflow,
+        "gross_outflow": gross_outflow, "reimbursement_offset": gross_outflow - outflow,
     }
 
 
@@ -130,6 +205,9 @@ def list_transactions(
     review_status: str | None = Query(default=None, pattern=REVIEW_STATUS_PATTERN),
     from_date: datetime | None = None,
     to_date: datetime | None = None,
+    period: str | None = Query(default=None, pattern=PERIOD_PATTERN),
+    period_offset: int = Query(default=0, ge=-36, le=12),
+    uncategorized: bool = False,
     q: str | None = None,
     logical_movements: bool = False,
     limit: int = Query(default=50, ge=1, le=200),
@@ -137,6 +215,14 @@ def list_transactions(
     current_user: dict = Depends(get_current_user),
 ):
     user_id = current_user["id"]
+    payday_day = current_user.get("payday_day") or 25
+    if period and (from_date or to_date):
+        raise HTTPException(status_code=422, detail={"code": "period_with_dates", "message": "Gunakan periode atau rentang tanggal, bukan keduanya."})
+    if uncategorized and category_id:
+        raise HTTPException(status_code=422, detail={"code": "uncategorized_with_category", "message": "Pilih satu kategori atau tanpa kategori."})
+    period_label = None
+    if period:
+        from_date, to_date, _, _, period_label = get_timeframe_window(payday_day, period, cycle_offset=period_offset)
     with db_conn() as conn:
         with conn.cursor() as cur:
             conditions = ["t.user_id = %s"]
@@ -157,6 +243,8 @@ def list_transactions(
             if category_id:
                 conditions.append("t.category_id = %s")
                 params.append(str(category_id))
+            if uncategorized:
+                conditions.append("t.category_id IS NULL")
             if goal_id:
                 conditions.append("t.goal_id = %s")
                 params.append(str(goal_id))
@@ -193,7 +281,7 @@ def list_transactions(
             # Filtered views retain individual legs: either side may match independently.
             if logical_movements and not any((
                 account_id, category_id, goal_id, obligation_id, type,
-                kakeibo_type, source, review_status, from_date, to_date, q,
+                kakeibo_type, source, review_status, from_date, to_date, q, uncategorized,
             )):
                 conditions.append(
                     """(
@@ -210,35 +298,16 @@ def list_transactions(
             where_clause = " AND ".join(conditions)
 
             # Combined total count and cash flow summary query
-            payday_day = current_user.get("payday_day") or 25
             cycle_start, cycle_end, _, _ = get_cycle_window(payday_day)
 
             summary_query = f"""
                 SELECT
                     COUNT(*) AS total,
-                    COALESCE(SUM(CASE
-                        WHEN t.type = 'income'
-                             AND COALESCE(c.name, '') != 'Internal Movement'
-                             AND COALESCE(c.is_excluded_from_budget, false) = false
-                             AND {not_reimbursement_sql()}
-                        THEN t.amount ELSE 0 END), 0) AS cumulative_inflow,
-                    COALESCE(SUM(CASE
-                        WHEN t.type = 'expense'
-                             AND COALESCE(c.name, '') != 'Internal Movement'
-                             AND COALESCE(c.is_excluded_from_budget, false) = false
-                        THEN t.amount ELSE 0 END), 0) AS cumulative_outflow,
-                    COALESCE(SUM(CASE
-                        WHEN t.type = 'income'
-                             AND COALESCE(c.name, '') != 'Internal Movement'
-                             AND COALESCE(c.is_excluded_from_budget, false) = false
-                             AND {not_reimbursement_sql()}
-                             AND t.date >= %s AND t.date <= %s
+                    COALESCE(SUM(CASE WHEN {reportable_income_sql()} THEN t.amount ELSE 0 END), 0) AS cumulative_inflow,
+                    COALESCE(SUM(CASE WHEN {reportable_expense_sql()} THEN t.amount ELSE 0 END), 0) AS cumulative_outflow,
+                    COALESCE(SUM(CASE WHEN {reportable_income_sql()} AND t.date >= %s AND t.date <= %s
                         THEN t.amount ELSE 0 END), 0) AS cycle_inflow,
-                    COALESCE(SUM(CASE
-                        WHEN t.type = 'expense'
-                             AND COALESCE(c.name, '') != 'Internal Movement'
-                             AND COALESCE(c.is_excluded_from_budget, false) = false
-                             AND t.date >= %s AND t.date <= %s
+                    COALESCE(SUM(CASE WHEN {reportable_expense_sql()} AND t.date >= %s AND t.date <= %s
                         THEN t.amount ELSE 0 END), 0) AS cycle_outflow
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
@@ -249,10 +318,19 @@ def list_transactions(
             cur.execute(summary_query, [cycle_start, cycle_end, cycle_start, cycle_end] + params)
             agg = cur.fetchone()
             total = agg["total"]
-            cum_inflow = int(agg["cumulative_inflow"] or 0)
-            cum_outflow = int(agg["cumulative_outflow"] or 0)
-            cyc_inflow = int(agg["cycle_inflow"] or 0)
-            cyc_outflow = int(agg["cycle_outflow"] or 0)
+            # Offsets apply where the filtered rows are exactly what a report figure covers.
+            offset_scope = None
+            if not any((account_id, goal_id, obligation_id, source, review_status, q, uncategorized)) \
+                    and type in (None, "expense") and not (category_id and kakeibo_type):
+                offset_scope = {"category_id": str(category_id) if category_id else None, "pillar": kakeibo_type}
+            cumulative = ledger_cash_flow(
+                cur, user_id, int(agg["cumulative_inflow"] or 0), int(agg["cumulative_outflow"] or 0),
+                from_date, to_date, offset_scope,
+            )
+            cycle = ledger_cash_flow(
+                cur, user_id, int(agg["cycle_inflow"] or 0), int(agg["cycle_outflow"] or 0),
+                later_bound(cycle_start, from_date), earlier_bound(cycle_end, to_date), offset_scope,
+            )
 
             # Select page
             select_query = f"""
@@ -278,6 +356,11 @@ def list_transactions(
                     t.movement_id,
                     t.movement_role,
                     t.fee_for_movement_id,
+                    fee.id AS movement_fee_id,
+                    fee.amount AS movement_fee_amount,
+                    fee_movement.source_account_name AS fee_source_account_name,
+                    fee_movement.target_account_name AS fee_target_account_name,
+                    fee_movement.amount AS fee_movement_amount,
                     topup.id AS investment_topup_id,
                     partner.id AS partner_id,
                     partner.account_id AS movement_target_account_id,
@@ -292,6 +375,7 @@ def list_transactions(
                    AND partner.user_id = t.user_id
                    AND partner.id != t.id
                 LEFT JOIN accounts partner_account ON partner_account.id = partner.account_id
+                {FEE_LINK_JOINS}
                 LEFT JOIN investment_topups topup ON topup.id = t.movement_id AND topup.user_id = t.user_id
                 LEFT JOIN categories c ON c.id = t.category_id
                 LEFT JOIN goals g ON g.id = t.goal_id
@@ -310,18 +394,16 @@ def list_transactions(
         "limit": limit,
         "offset": offset,
         "summary": {
-            "cycle": {
-                "start": cycle_start.isoformat(),
-                "end": cycle_end.isoformat(),
-                "inflow": cyc_inflow,
-                "outflow": cyc_outflow,
-                "net": cyc_inflow - cyc_outflow,
-            },
-            "cumulative": {
-                "inflow": cum_inflow,
-                "outflow": cum_outflow,
-                "net": cum_inflow - cum_outflow,
-            },
+            "cycle": {"start": cycle_start.isoformat(), "end": cycle_end.isoformat(), **cycle},
+            "cumulative": cumulative,
+            "period": {
+                "basis": period,
+                "offset": period_offset if period else None,
+                "label": period_label,
+                "start": from_date.isoformat() if from_date else None,
+                "end": to_date.isoformat() if to_date else None,
+                **cumulative,
+            } if (period or from_date or to_date) else None,
         },
         "transactions": [
             {
@@ -345,6 +427,7 @@ def list_transactions(
                 "movement_kind": "investment_topup" if r.get("investment_topup_id") else None,
                 "movement_role": r.get("movement_role"),
                 "fee_for_movement_id": str(r["fee_for_movement_id"]) if r.get("fee_for_movement_id") else None,
+                **fee_link_fields(r),
                 "partner_id": str(r["partner_id"]) if r.get("partner_id") else None,
                 "transfer_target_account_id": str(r["movement_target_account_id"]) if r.get("movement_target_account_id") else None,
                 "transfer_target_account_name": r.get("movement_target_account_name"),

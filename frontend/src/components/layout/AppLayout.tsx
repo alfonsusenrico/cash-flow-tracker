@@ -14,13 +14,16 @@ import { queryKeys } from "@/lib/queryKeys";
 
 type QuickCaptureMode = "expense" | "income" | "movement";
 
+/** Report window basis: payday cycle or calendar month (both stepped by `cycleOffset`), or rolling days. */
+export type ReportTimeframe = "cycle" | "month" | "30d" | "90d";
+
 interface AppCtxType {
   hideBalances: boolean;
   setHideBalances: (v: boolean) => void;
   theme: "light" | "dark";
   setTheme: (v: "light" | "dark") => void;
-  timeframe: "cycle" | "30d" | "90d";
-  setTimeframe: (v: "cycle" | "30d" | "90d") => void;
+  timeframe: ReportTimeframe;
+  setTimeframe: (v: ReportTimeframe) => void;
   cycleOffset: number;
   setCycleOffset: (v: number) => void;
   user: any;
@@ -36,6 +39,8 @@ interface AppCtxType {
   convertAmount: (amountInIDR: number) => number;
   openQuickAdd: (type?: "expense" | "income") => void;
   openMovement: (sourceAccountId?: string, targetAccountId?: string) => void;
+  /** Rows needing the owner's attention on the review page; null until known. */
+  reviewAttention: number | null;
 }
 
 const AppContext = createContext<AppCtxType>({
@@ -55,6 +60,7 @@ const AppContext = createContext<AppCtxType>({
   convertAmount: (amountInIDR: number) => amountInIDR,
   openQuickAdd: () => {},
   openMovement: () => {},
+  reviewAttention: null,
 });
 
 export const useAppCtx = () => useContext(AppContext);
@@ -68,7 +74,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const pathname = usePathname();
   const [hideBalances, setHideBalances] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [timeframe, setTimeframe] = useState<"cycle" | "30d" | "90d">("cycle");
+  const [timeframe, setTimeframe] = useState<ReportTimeframe>("cycle");
   const [cycleOffset, setCycleOffset] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -152,6 +158,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
     staleTime: 60 * 60 * 1000,
   });
 
+  const { data: reviewSummary } = useQuery<{ ok: boolean; attention: number }>({
+    queryKey: queryKeys.review.summary,
+    queryFn: () => api.get("/review/summary"),
+    enabled: Boolean(userData?.user),
+  });
+
   const user = userData?.user;
   const currency: "IDR" | "USD" = user?.currency === "USD" ? "USD" : "IDR";
   const usdidrRate = ratesData?.usdidr && ratesData.usdidr > 0 ? ratesData.usdidr : 16500;
@@ -208,6 +220,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         convertAmount,
         openQuickAdd: handleOpenQuickAdd,
         openMovement: handleOpenMovement,
+        reviewAttention: reviewSummary?.attention ?? null,
       }}
     >
       <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)]">

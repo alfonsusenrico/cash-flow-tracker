@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 
 export interface CategoryBreakdownItem {
-  id: string;
+  /** Null for the "Tanpa kategori" bucket. */
+  id: string | null;
   name: string;
   icon: string | null;
   color: string | null;
@@ -173,7 +174,7 @@ export function CategoryDonutChart({
           const isOver = hasBudget && pctUsed > 100;
 
           return (
-            <div key={cat.id} className="text-xs space-y-1">
+            <div key={cat.id ?? "uncategorized"} className="text-xs space-y-1">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
                   <span

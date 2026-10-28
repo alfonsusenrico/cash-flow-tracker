@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Suspense,
   useState,
   useMemo,
   useEffect,
@@ -10,6 +11,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, uploadTransactionReceipt } from "@/lib/api";
 import { cn, formatNumberWithDots, localDatetimeToISO, toDatetimeLocal } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
@@ -25,6 +27,20 @@ import { InfoHelp } from "@/components/ui/InfoHelp";
 import { queryKeys } from "@/lib/queryKeys";
 import { DebtAllocationEditor, allocationError, totalDebtPayments, type DebtAllocationValue } from "@/components/ui/DebtAllocationEditor";
 import { consolidateLedgerMovements } from "@/lib/ledgerMovements";
+import {
+  DEFAULT_LEDGER_FILTERS,
+  UNCATEGORIZED,
+  hasRowFilters,
+  ledgerApiParams,
+  ledgerFilterQuery,
+  parseLedgerFilters,
+  type LedgerFilters,
+  type LedgerPeriod,
+  type LedgerReviewFilter,
+  type LedgerTypeFilter,
+} from "@/lib/ledgerFilters";
+import { PeriodStepper } from "@/components/ui/PeriodStepper";
+import { ReviewStatusMark, feeLinkText, type FeeLinkFields } from "@/components/ledger/LedgerRowMarks";
 import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
 import { ExpenseTopupConversionModal } from "@/components/ui/ExpenseTopupConversionModal";
 import { canConvertExpenseToTopup } from "@/lib/investmentTopups";
@@ -39,7 +55,7 @@ import {
   sourceLabel,
 } from "@/lib/provenance";
 
-interface TransactionItem {
+interface TransactionItem extends FeeLinkFields {
   id: string;
   account_id: string;
   account_name: string;
@@ -84,6 +100,9 @@ interface CashFlowMetrics {
   inflow: number;
   outflow: number;
   net: number;
+  /** Outflow before reimbursement offsets; outflow is net of them. */
+  gross_outflow?: number;
+  reimbursement_offset?: number;
 }
 
 interface CycleCashFlowMetrics extends CashFlowMetrics {
@@ -91,12 +110,52 @@ interface CycleCashFlowMetrics extends CashFlowMetrics {
   end: string;
 }
 
+interface PeriodCashFlowMetrics extends CashFlowMetrics {
+  basis: "cycle" | "month" | null;
+  label: string | null;
+  start: string | null;
+  end: string | null;
+}
+
 interface TransactionSummary {
   cycle: CycleCashFlowMetrics;
   cumulative: CashFlowMetrics;
+  period?: PeriodCashFlowMetrics | null;
+}
+
+const REVIEW_FILTER_OPTIONS: { value: LedgerReviewFilter; label: string }[] = [
+  { value: "all", label: "Semua status" },
+  { value: "needs_review", label: "Perlu ditinjau" },
+  { value: "auto", label: "Otomatis, belum ditinjau" },
+  { value: "reviewed", label: "Sudah ditinjau" },
+];
+
+const PERIOD_OPTIONS: { value: LedgerPeriod; label: string }[] = [
+  { value: "all", label: "Semua" },
+  { value: "cycle", label: "Siklus gajian" },
+  { value: "month", label: "Bulan kalender" },
+];
+
+function shortDate(value: string): string {
+  return new Date(value).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+}
+
+function periodLabel(period: PeriodCashFlowMetrics | null | undefined, basis: LedgerPeriod): string {
+  if (!period?.start || !period.end) return "Memuat…";
+  if (basis === "month" && period.label) return period.label;
+  return `${shortDate(period.start)} – ${shortDate(period.end)}`;
 }
 
 export default function LedgerPage() {
+  // The page reads its filters from the URL, which needs a suspense boundary for static rendering.
+  return (
+    <Suspense fallback={null}>
+      <LedgerPageContent />
+    </Suspense>
+  );
+}
+
+function LedgerPageContent() {
   const holdTimerRef = useRef<{
     timer: number;
     pointerId: number;
@@ -108,13 +167,26 @@ export default function LedgerPage() {
   const suppressClickResetRef = useRef<number | null>(null);
   const qc = useQueryClient();
   const { openQuickAdd, bal } = useAppCtx();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const searchKey = searchParams?.toString() ?? "";
 
-  // Filters state
+  // Filters live in the URL so a report figure can link to the rows behind it.
+  const filters = useMemo(() => parseLedgerFilters(new URLSearchParams(searchKey)), [searchKey]);
+  const typeFilter = filters.type;
+  const accountFilter = filters.account;
+  const categoryFilter = filters.category;
+  const rowFiltersActive = hasRowFilters(filters);
+  const editTargetId = useMemo(() => new URLSearchParams(searchKey).get("edit"), [searchKey]);
+  const returnTo = useMemo(() => new URLSearchParams(searchKey).get("return"), [searchKey]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [accountFilter, setAccountFilter] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [page, setPage] = useState(0);
+  const [linkError, setLinkError] = useState("");
+  const updateFilters = (patch: Partial<LedgerFilters>) => {
+    const query = ledgerFilterQuery({ ...filters, ...patch });
+    router.replace(query ? `/ledger?${query}` : "/ledger", { scroll: false });
+    setPage(0);
+  };
   const pageSize = 50;
   const [selectedTransactions, setSelectedTransactions] = useState<TransactionItem[]>([]);
   const selectionMode = selectedTransactions.length > 0;
@@ -183,18 +255,15 @@ export default function LedgerPage() {
 
   // Build query params
   const queryParams = useMemo(() => {
-    const p = new URLSearchParams();
+    const p = ledgerApiParams(filters);
     p.set("limit", pageSize.toString());
     p.set("offset", (page * pageSize).toString());
-    if (!searchQuery.trim() && accountFilter === "all" && typeFilter === "all" && categoryFilter === "all") {
+    if (!searchQuery.trim() && filters.period === "all" && !rowFiltersActive) {
       p.set("logical_movements", "true");
     }
     if (searchQuery.trim()) p.set("q", searchQuery.trim());
-    if (typeFilter !== "all") p.set("type", typeFilter);
-    if (accountFilter !== "all") p.set("account_id", accountFilter);
-    if (categoryFilter !== "all") p.set("category_id", categoryFilter);
     return p.toString();
-  }, [searchQuery, typeFilter, accountFilter, categoryFilter, page]);
+  }, [searchQuery, filters, rowFiltersActive, page]);
 
   // Fetch Transactions
   const { data: txData, isLoading } = useQuery<{
@@ -213,11 +282,8 @@ export default function LedgerPage() {
 
   // Consolidate paired internal movements into single visual entries in all-account ledger
   const displayTransactions = useMemo(() => {
-    return consolidateLedgerMovements(
-      transactions,
-      accountFilter === "all" && typeFilter === "all" && categoryFilter === "all",
-    );
-  }, [transactions, accountFilter, typeFilter, categoryFilter]);
+    return consolidateLedgerMovements(transactions, !rowFiltersActive);
+  }, [transactions, rowFiltersActive]);
 
   // Compute page totals (used as resilient fallback if backend summary is omitted)
   const pageInflow = transactions
@@ -238,6 +304,7 @@ export default function LedgerPage() {
     .reduce((sum, t) => sum + t.amount, 0);
 
   const summary = txData?.summary;
+  const periodSummary = filters.period !== "all" ? summary?.period : null;
   const cycleSummary = summary?.cycle;
   const cumulativeSummary = summary?.cumulative;
 
@@ -248,6 +315,18 @@ export default function LedgerPage() {
   const cumulativeInflow = cumulativeSummary ? cumulativeSummary.inflow : pageInflow;
   const cumulativeOutflow = cumulativeSummary ? cumulativeSummary.outflow : pageOutflow;
   const cumulativeNet = cumulativeSummary ? cumulativeSummary.net : (cumulativeInflow - cumulativeOutflow);
+
+  const cycleFigures = { inflow: cycleInflow, outflow: cycleOutflow, net: cycleNet };
+  const cumulativeFigures = { inflow: cumulativeInflow, outflow: cumulativeOutflow, net: cumulativeNet };
+  // With a period filter the filtered rows are the period, so its figures replace the cycle/cumulative pair.
+  const scopeLabel = filters.period !== "all" ? "Periode" : summaryScope === "cycle" ? "Siklus" : "Kumulatif";
+  const shown = filters.period !== "all"
+    ? (periodSummary ?? { inflow: 0, outflow: 0, net: 0 })
+    : summaryScope === "cycle" ? cycleFigures : cumulativeFigures;
+  const other = filters.period !== "all" ? null : summaryScope === "cycle" ? cumulativeFigures : cycleFigures;
+  const shownOffset = filters.period !== "all"
+    ? periodSummary?.reimbursement_offset
+    : summaryScope === "cycle" ? cycleSummary?.reimbursement_offset : cumulativeSummary?.reimbursement_offset;
 
   const cycleStart = cycleSummary?.start;
   const cycleEnd = cycleSummary?.end;
@@ -288,7 +367,32 @@ export default function LedgerPage() {
   const editOffsetsSpending = editType === "income" && categoryOffsetsSpending(categories, editCategoryId);
   const offsetCategories = offsetCategoryOptions(categories);
 
+  // `?edit=<id>` opens the edit dialog of one row, for example from the review page.
+  const openedEditTarget = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editTargetId || openedEditTarget.current === editTargetId) return;
+    openedEditTarget.current = editTargetId;
+    api.get<{ transaction: TransactionItem }>(`/transactions/${editTargetId}`)
+      .then((response) => handleOpenEdit(response.transaction))
+      .catch(() => setLinkError("Transaksi yang ingin diubah tidak ditemukan atau sudah dihapus."));
+    // handleOpenEdit reads the categories of this render; the dialog only needs them once loaded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTargetId]);
+
+  const closeEdit = () => {
+    setEditingTx(null);
+    if (!editTargetId) return;
+    openedEditTarget.current = null;
+    if (returnTo === "review") {
+      router.push("/review");
+      return;
+    }
+    const query = ledgerFilterQuery(filters);
+    router.replace(query ? `/ledger?${query}` : "/ledger", { scroll: false });
+  };
+
   const refreshTransactionViews = () => {
+    qc.invalidateQueries({ queryKey: queryKeys.review.all });
     qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
     qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
     qc.invalidateQueries({ queryKey: queryKeys.accounts });
@@ -337,7 +441,7 @@ export default function LedgerPage() {
     },
     onSuccess: () => {
       refreshTransactionViews();
-      setEditingTx(null);
+      closeEdit();
     },
     onError: (err: any) => {
       setEditError(err?.message || "Gagal memperbarui transaksi");
@@ -348,6 +452,7 @@ export default function LedgerPage() {
     mutationFn: async (tx: TransactionItem) => api.patch(`/transactions/${tx.id}`, { review_status: "reviewed" }),
     onSuccess: (_result, tx) => {
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      qc.invalidateQueries({ queryKey: queryKeys.review.all });
       setEditingTx((current) => (current && current.id === tx.id ? { ...current, review_status: "reviewed" } : current));
     },
     onError: (err: any) => {
@@ -365,7 +470,7 @@ export default function LedgerPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
       setReceiptRetryTransactionId(null);
-      setEditingTx(null);
+      closeEdit();
     },
     onError: (error: Error) => {
       setEditError(`Perubahan tetap tersimpan, tetapi bukti belum terunggah: ${error.message}`);
@@ -387,7 +492,8 @@ export default function LedgerPage() {
       qc.invalidateQueries({ queryKey: queryKeys.accounts });
       qc.invalidateQueries({ queryKey: queryKeys.goals });
       qc.invalidateQueries({ queryKey: queryKeys.obligations });
-      setEditingTx(null);
+      qc.invalidateQueries({ queryKey: queryKeys.review.all });
+      closeEdit();
     },
     onError: (err: any) => {
       setEditError(err?.message || "Gagal menghapus transaksi");
@@ -526,6 +632,18 @@ export default function LedgerPage() {
     handleOpenEdit(tx);
   };
 
+  const activeFilterLabels = [
+    filters.type !== "all" ? (filters.type === "expense" ? "Uang keluar" : "Uang masuk") : null,
+    filters.category === UNCATEGORIZED
+      ? "Tanpa kategori"
+      : filters.category !== "all"
+        ? `Kategori: ${categories.find((category) => category.id === filters.category)?.name ?? "…"}`
+        : null,
+    filters.kakeibo !== "all" ? `Pilar: ${kakeiboPillarInfo(filters.kakeibo)?.label ?? filters.kakeibo}` : null,
+    filters.account !== "all" ? `Rekening: ${accounts.find((account) => account.id === filters.account)?.name ?? "…"}` : null,
+    filters.review !== "all" ? REVIEW_FILTER_OPTIONS.find((option) => option.value === filters.review)?.label ?? null : null,
+  ].filter((label): label is string => Boolean(label));
+
   const prepareMerge = async () => {
     if (selectedTransactions.length !== 2 || preparingMerge || mergeMutation.isPending) return;
     setPreparingMerge(true);
@@ -605,16 +723,71 @@ export default function LedgerPage() {
       {/* Pending Scheduled & Recurring Banner */}
       <PendingScheduledBanner onOpenRulesManager={() => setRecurringModalOpen(true)} />
 
+      {linkError && (
+        <p role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-700 dark:text-rose-300">
+          {linkError}
+        </p>
+      )}
+
+      {/* Period: all time, payday cycle or calendar month, kept in the URL */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div role="group" aria-label="Periode" className="inline-flex items-center rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-0.5 text-xs">
+          {PERIOD_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={filters.period === option.value}
+              onClick={() => updateFilters({ period: option.value, offset: 0 })}
+              className={cn(
+                "min-h-10 rounded-lg px-3 font-medium transition-colors focus-visible:outline-2 focus-visible:outline-[var(--primary)]",
+                filters.period === option.value
+                  ? "bg-[var(--surface)] font-semibold text-[var(--text)] shadow-xs"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text)]",
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        {filters.period !== "all" && (
+          <PeriodStepper
+            unit={filters.period === "month" ? "Bulan" : "Siklus"}
+            label={periodLabel(summary?.period, filters.period)}
+            offset={filters.offset}
+            onChange={(offset) => updateFilters({ offset })}
+          />
+        )}
+      </div>
+
+      {rowFiltersActive && (
+        <div role="group" aria-label="Filter aktif" className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-semibold text-[var(--muted)]">Filter aktif:</span>
+          {activeFilterLabels.map((label) => (
+            <span key={label} className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 font-medium text-[var(--text)]">
+              {label}
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={() => updateFilters({ ...DEFAULT_LEDGER_FILTERS, period: filters.period, offset: filters.offset })}
+            className="min-h-10 px-2 font-semibold text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+          >
+            Hapus filter
+          </button>
+        </div>
+      )}
+
       {/* 2. Ledger Volume Summary Bar */}
       {/* Mobile 1-Row Summary Ribbon (< sm) */}
       <div className="sm:hidden space-y-2">
         <div className="flex items-center justify-between px-0.5">
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">Arus Kas</span>
-            {cycleDateRangeLabel && summaryScope === "cycle" && (
+            {filters.period === "all" && cycleDateRangeLabel && summaryScope === "cycle" && (
               <span className="text-[10px] text-[var(--muted)] font-medium">({cycleDateRangeLabel})</span>
             )}
           </div>
+          {filters.period === "all" && (
           <div className="inline-flex items-center p-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] text-[10px]">
             <button
               type="button"
@@ -643,20 +816,21 @@ export default function LedgerPage() {
               Kumulatif
             </button>
           </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between p-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xs">
           <div className="flex-1 text-center">
             <div className="text-[10px] uppercase font-bold text-[var(--muted)]">Masuk</div>
             <div className="text-xs font-bold text-emerald-500 tabular mt-0.5">
-              +{bal(summaryScope === "cycle" ? cycleInflow : cumulativeInflow)}
+              +{bal(shown.inflow)}
             </div>
           </div>
           <div className="h-6 w-px bg-[var(--border)]" />
           <div className="flex-1 text-center">
             <div className="text-[10px] uppercase font-bold text-[var(--muted)]">Keluar</div>
             <div className="text-xs font-bold text-rose-500 tabular mt-0.5">
-              -{bal(summaryScope === "cycle" ? cycleOutflow : cumulativeOutflow)}
+              -{bal(shown.outflow)}
             </div>
           </div>
           <div className="h-6 w-px bg-[var(--border)]" />
@@ -665,14 +839,17 @@ export default function LedgerPage() {
             <div
               className={cn(
                 "text-xs font-bold tabular mt-0.5",
-                (summaryScope === "cycle" ? cycleNet : cumulativeNet) >= 0 ? "text-emerald-500" : "text-rose-500"
+                (shown.net) >= 0 ? "text-emerald-500" : "text-rose-500"
               )}
             >
-              {(summaryScope === "cycle" ? cycleNet : cumulativeNet) >= 0 ? "+" : ""}
-              {bal(summaryScope === "cycle" ? cycleNet : cumulativeNet)}
+              {(shown.net) >= 0 ? "+" : ""}
+              {bal(shown.net)}
             </div>
           </div>
         </div>
+        {shownOffset ? (
+          <p className="px-0.5 text-[11px] text-[var(--muted)] tabular">Uang keluar sudah dikurangi ganti uang {bal(shownOffset)}</p>
+        ) : null}
       </div>
 
       {/* Desktop 3-Card Summary (>= sm) */}
@@ -680,13 +857,14 @@ export default function LedgerPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Arus Kas</span>
-            {cycleDateRangeLabel && (
+            {filters.period === "all" && cycleDateRangeLabel && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--foreground)]">
                 <Icon name="calendar" className="h-3.5 w-3.5 text-[var(--muted)]" />
                 Siklus {cycleDateRangeLabel}
               </span>
             )}
           </div>
+          {filters.period === "all" && (
           <div className="inline-flex items-center p-0.5 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] text-xs">
             <button
               type="button"
@@ -715,6 +893,7 @@ export default function LedgerPage() {
               Total Kumulatif
             </button>
           </div>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-4">
@@ -723,22 +902,24 @@ export default function LedgerPage() {
             <div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-[var(--muted)] font-medium">
-                  {summaryScope === "cycle" ? "Uang Masuk (Siklus)" : "Uang Masuk (Kumulatif)"}
+                  {`Uang Masuk (${scopeLabel})`}
                 </span>
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
                   Inflow
                 </span>
               </div>
               <div className="text-2xl font-bold tabular tracking-tight text-emerald-500 mt-1.5 select-all">
-                +{bal(summaryScope === "cycle" ? cycleInflow : cumulativeInflow)}
+                +{bal(shown.inflow)}
               </div>
             </div>
+            {other && (
             <div className="mt-3 pt-2.5 border-t border-[var(--border)] flex items-center justify-between text-xs text-[var(--muted)]">
               <span>{summaryScope === "cycle" ? "Kumulatif:" : "Siklus ini:"}</span>
               <span className="font-semibold tabular text-[var(--foreground)]">
-                +{bal(summaryScope === "cycle" ? cumulativeInflow : cycleInflow)}
+                +{bal(other.inflow)}
               </span>
             </div>
+            )}
           </div>
 
           {/* Card 2: Outflow */}
@@ -746,22 +927,27 @@ export default function LedgerPage() {
             <div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-[var(--muted)] font-medium">
-                  {summaryScope === "cycle" ? "Uang Keluar (Siklus)" : "Uang Keluar (Kumulatif)"}
+                  {`Uang Keluar (${scopeLabel})`}
                 </span>
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md">
                   Outflow
                 </span>
               </div>
               <div className="text-2xl font-bold tabular tracking-tight text-rose-500 mt-1.5 select-all">
-                -{bal(summaryScope === "cycle" ? cycleOutflow : cumulativeOutflow)}
+                -{bal(shown.outflow)}
               </div>
+              {shownOffset ? (
+                <p className="mt-1 text-[11px] text-[var(--muted)] tabular">Sudah dikurangi ganti uang {bal(shownOffset)}</p>
+              ) : null}
             </div>
+            {other && (
             <div className="mt-3 pt-2.5 border-t border-[var(--border)] flex items-center justify-between text-xs text-[var(--muted)]">
               <span>{summaryScope === "cycle" ? "Kumulatif:" : "Siklus ini:"}</span>
               <span className="font-semibold tabular text-[var(--foreground)]">
-                -{bal(summaryScope === "cycle" ? cumulativeOutflow : cycleOutflow)}
+                -{bal(other.outflow)}
               </span>
             </div>
+            )}
           </div>
 
           {/* Card 3: Net */}
@@ -769,12 +955,12 @@ export default function LedgerPage() {
             <div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-[var(--muted)] font-medium">
-                  {summaryScope === "cycle" ? "Selisih Bersih (Siklus)" : "Selisih Bersih (Kumulatif)"}
+                  {`Selisih Bersih (${scopeLabel})`}
                 </span>
                 <span
                   className={cn(
                     "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md",
-                    (summaryScope === "cycle" ? cycleNet : cumulativeNet) >= 0
+                    (shown.net) >= 0
                       ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
                       : "text-rose-600 dark:text-rose-400 bg-rose-500/10"
                   )}
@@ -785,25 +971,27 @@ export default function LedgerPage() {
               <div
                 className={cn(
                   "text-2xl font-bold tabular tracking-tight mt-1.5 select-all",
-                  (summaryScope === "cycle" ? cycleNet : cumulativeNet) >= 0 ? "text-emerald-500" : "text-rose-500"
+                  (shown.net) >= 0 ? "text-emerald-500" : "text-rose-500"
                 )}
               >
-                {(summaryScope === "cycle" ? cycleNet : cumulativeNet) >= 0 ? "+" : ""}
-                {bal(summaryScope === "cycle" ? cycleNet : cumulativeNet)}
+                {(shown.net) >= 0 ? "+" : ""}
+                {bal(shown.net)}
               </div>
             </div>
+            {other && (
             <div className="mt-3 pt-2.5 border-t border-[var(--border)] flex items-center justify-between text-xs text-[var(--muted)]">
               <span>{summaryScope === "cycle" ? "Kumulatif:" : "Siklus ini:"}</span>
               <span
                 className={cn(
                   "font-semibold tabular",
-                  (summaryScope === "cycle" ? cumulativeNet : cycleNet) >= 0 ? "text-emerald-500" : "text-rose-500"
+                  (other.net) >= 0 ? "text-emerald-500" : "text-rose-500"
                 )}
               >
-                {(summaryScope === "cycle" ? cumulativeNet : cycleNet) >= 0 ? "+" : ""}
-                {bal(summaryScope === "cycle" ? cumulativeNet : cycleNet)}
+                {(other.net) >= 0 ? "+" : ""}
+                {bal(other.net)}
               </span>
             </div>
+            )}
           </div>
         </div>
       </div>
@@ -848,7 +1036,7 @@ export default function LedgerPage() {
               key={key}
               type="button"
               onClick={() => {
-                setTypeFilter(key);
+                updateFilters({ type: key as LedgerTypeFilter });
                 setPage(0);
               }}
               className={cn(
@@ -868,15 +1056,15 @@ export default function LedgerPage() {
             onClick={() => setFilterDrawerOpen(true)}
             className={cn(
               "ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-[background-color,border-color,color,transform] shrink-0 active:scale-95",
-              accountFilter !== "all" || categoryFilter !== "all"
+              accountFilter !== "all" || categoryFilter !== "all" || filters.kakeibo !== "all" || filters.review !== "all"
                 ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30"
                 : "bg-[var(--surface)] text-[var(--text)] border-[var(--border)] hover:bg-[var(--surface-raised)]"
             )}
           >
             <Icon name="filter" className="h-3.5 w-3.5" />
             <span>Filter</span>
-            {(accountFilter !== "all" || categoryFilter !== "all") && (
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            {(accountFilter !== "all" || categoryFilter !== "all" || filters.kakeibo !== "all" || filters.review !== "all") && (
+              <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
             )}
           </button>
         </div>
@@ -915,9 +1103,10 @@ export default function LedgerPage() {
           {/* Account Filter */}
           <div className="col-span-3">
             <select
+              aria-label="Filter rekening"
               value={accountFilter}
               onChange={(e) => {
-                setAccountFilter(e.target.value);
+                updateFilters({ account: e.target.value });
                 setPage(0);
               }}
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)] focus:outline-none focus:border-income"
@@ -930,18 +1119,50 @@ export default function LedgerPage() {
           {/* Category Filter */}
           <div className="col-span-3">
             <select
+              aria-label="Filter kategori"
               value={categoryFilter}
               onChange={(e) => {
-                setCategoryFilter(e.target.value);
+                updateFilters({ category: e.target.value });
                 setPage(0);
               }}
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)] focus:outline-none focus:border-income"
             >
               <option value="all">Semua Kategori</option>
+              <option value={UNCATEGORIZED}>Tanpa kategori</option>
               {categories.map((cat) => (
                 <option key={cat.id} value={cat.id}>
                   {cat.name} ({cat.kind === "income" ? "Masuk" : "Keluar"})
                 </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-12 gap-3 items-center">
+          <div className="col-span-3">
+            <label htmlFor="ledger-filter-pillar" className="sr-only">Filter pilar Kakeibo</label>
+            <select
+              id="ledger-filter-pillar"
+              value={filters.kakeibo}
+              onChange={(event) => updateFilters({ kakeibo: event.target.value as LedgerFilters["kakeibo"] })}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)] focus:outline-none focus:border-income"
+            >
+              <option value="all">Semua Pilar</option>
+              {KAKEIBO_PILLARS.map((pillar) => (
+                <option key={pillar.value} value={pillar.value}>{pillar.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="col-span-3">
+            <label htmlFor="ledger-filter-review" className="sr-only">Filter status tinjauan</label>
+            <select
+              id="ledger-filter-review"
+              value={filters.review}
+              onChange={(event) => updateFilters({ review: event.target.value as LedgerReviewFilter })}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)] focus:outline-none focus:border-income"
+            >
+              {REVIEW_FILTER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </div>
@@ -959,7 +1180,7 @@ export default function LedgerPage() {
               key={key}
               type="button"
               onClick={() => {
-                setTypeFilter(key);
+                updateFilters({ type: key as LedgerTypeFilter });
                 setPage(0);
               }}
               className={cn(
@@ -973,15 +1194,12 @@ export default function LedgerPage() {
             </button>
           ))}
 
-          {(searchQuery || typeFilter !== "all" || accountFilter !== "all" || categoryFilter !== "all") && (
+          {(searchQuery || rowFiltersActive || filters.period !== "all") && (
             <button
               type="button"
               onClick={() => {
                 setSearchQuery("");
-                setTypeFilter("all");
-                setAccountFilter("all");
-                setCategoryFilter("all");
-                setPage(0);
+                updateFilters(DEFAULT_LEDGER_FILTERS);
               }}
               className="ml-auto text-xs text-income hover:underline font-medium"
             >
@@ -1157,8 +1375,13 @@ export default function LedgerPage() {
                       </td>
 
                       {/* Notes / Description */}
-                      <td className="py-3.5 px-4 font-medium text-[var(--text)] group-hover:text-income transition-colors max-w-xs truncate">
-                        {tx.notes || (isMovement ? "Pindah Saldo" : tx.category_name || "Umum")}
+                      <td className="py-3.5 px-4 font-medium text-[var(--text)] max-w-xs">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate group-hover:text-income transition-colors">
+                            {tx.notes || (isMovement ? "Pindah Saldo" : tx.category_name || "Umum")}
+                          </span>
+                          <ReviewStatusMark status={tx.review_status} />
+                        </span>
                       </td>
 
                       {/* Category */}
@@ -1187,10 +1410,17 @@ export default function LedgerPage() {
 
                       {/* Target Account or Linked Goal/Debt */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        {(tx.is_consolidated_transfer || tx.is_inferred_transfer) && tx.target_account_name ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-500">
-                            <span className="text-xs">→</span>
-                            <span>{tx.target_account_name}</span>
+                        {tx.fee_movement ? (
+                          <span className="text-[11px] font-medium text-[var(--text-secondary)]">{feeLinkText(tx, bal)}</span>
+                        ) : (tx.is_consolidated_transfer || tx.is_inferred_transfer) && tx.target_account_name ? (
+                          <span className="block">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-500">
+                              <span className="text-xs">→</span>
+                              <span>{tx.target_account_name}</span>
+                            </span>
+                            {tx.movement_fee && (
+                              <span className="block text-[10px] text-[var(--text-secondary)] tabular">{feeLinkText(tx, bal)}</span>
+                            )}
                           </span>
                         ) : tx.target_account_name ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-500">
@@ -1320,7 +1550,7 @@ export default function LedgerPage() {
 
       <InternalMovementModal
         open={Boolean(editingTx?.movement_id && !editingTx?.investment_topup_id)}
-        onClose={() => setEditingTx(null)}
+        onClose={closeEdit}
         editingMovement={editingTx?.movement_id ? {
           id: editingTx.movement_id,
           sourceAccountId: editingTx.movement_role === "inbound"
@@ -1337,7 +1567,7 @@ export default function LedgerPage() {
 
       {editingTx?.investment_topup_id && <InvestmentTopupModal
         open
-        onClose={() => setEditingTx(null)}
+        onClose={closeEdit}
         product={accounts.find((account) => account.id === (editingTx.movement_role === "inbound" ? editingTx.account_id : editingTx.target_account_id ?? editingTx.transfer_target_account_id)) ?? {
           id: editingTx.movement_role === "inbound" ? editingTx.account_id : editingTx.target_account_id ?? editingTx.transfer_target_account_id ?? "",
           name: editingTx.movement_role === "inbound" ? editingTx.account_name : editingTx.target_account_name ?? editingTx.transfer_target_account_name ?? "Produk reksadana",
@@ -1363,7 +1593,7 @@ export default function LedgerPage() {
       {editingTx && !editingTx.movement_id && (
         <Modal
           open={Boolean(editingTx)}
-          onClose={() => setEditingTx(null)}
+          onClose={closeEdit}
           title="Ubah Transaksi"
         >
           <form
@@ -1683,7 +1913,7 @@ export default function LedgerPage() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setEditingTx(null)}
+                  onClick={closeEdit}
                   className="btn-secondary"
                 >
                   Batal
@@ -1724,7 +1954,7 @@ export default function LedgerPage() {
                 type="button"
                 aria-pressed={accountFilter === "all"}
                 onClick={() => {
-                  setAccountFilter("all");
+                  updateFilters({ account: "all" });
                   setPage(0);
                 }}
                 className={cn(
@@ -1742,7 +1972,7 @@ export default function LedgerPage() {
                   type="button"
                   aria-pressed={accountFilter === acc.id}
                   onClick={() => {
-                    setAccountFilter(acc.id);
+                    updateFilters({ account: acc.id });
                     setPage(0);
                   }}
                   className={cn(
@@ -1768,7 +1998,7 @@ export default function LedgerPage() {
                 type="button"
                 aria-pressed={categoryFilter === "all"}
                 onClick={() => {
-                  setCategoryFilter("all");
+                  updateFilters({ category: "all" });
                   setPage(0);
                 }}
                 className={cn(
@@ -1780,13 +2010,26 @@ export default function LedgerPage() {
               >
                 Semua Kategori
               </button>
+              <button
+                type="button"
+                aria-pressed={categoryFilter === UNCATEGORIZED}
+                onClick={() => updateFilters({ category: UNCATEGORIZED })}
+                className={cn(
+                  "min-h-11 rounded-xl border px-3 text-xs font-medium transition-colors",
+                  categoryFilter === UNCATEGORIZED
+                    ? "border-[var(--text)] bg-[var(--text)] font-semibold text-[var(--surface)]"
+                    : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text)]"
+                )}
+              >
+                Tanpa kategori
+              </button>
               {categories.map((cat: any) => (
                 <button
                   key={cat.id}
                   type="button"
                   aria-pressed={categoryFilter === cat.id}
                   onClick={() => {
-                    setCategoryFilter(cat.id);
+                    updateFilters({ category: cat.id });
                     setPage(0);
                   }}
                   className={cn(
@@ -1802,15 +2045,41 @@ export default function LedgerPage() {
             </div>
           </div>
 
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label htmlFor="ledger-drawer-pillar" className="block text-xs font-semibold text-[var(--muted)]">Pilar Kakeibo</label>
+              <select
+                id="ledger-drawer-pillar"
+                value={filters.kakeibo}
+                onChange={(event) => updateFilters({ kakeibo: event.target.value as LedgerFilters["kakeibo"] })}
+                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-xs text-[var(--text)]"
+              >
+                <option value="all">Semua Pilar</option>
+                {KAKEIBO_PILLARS.map((pillar) => (
+                  <option key={pillar.value} value={pillar.value}>{pillar.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="ledger-drawer-review" className="block text-xs font-semibold text-[var(--muted)]">Status tinjauan</label>
+              <select
+                id="ledger-drawer-review"
+                value={filters.review}
+                onChange={(event) => updateFilters({ review: event.target.value as LedgerReviewFilter })}
+                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-xs text-[var(--text)]"
+              >
+                {REVIEW_FILTER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           {/* Drawer Actions */}
           <div className="flex items-center gap-2 pt-3 border-t border-[var(--border)]">
             <button
               type="button"
-              onClick={() => {
-                setAccountFilter("all");
-                setCategoryFilter("all");
-                setPage(0);
-              }}
+              onClick={() => updateFilters({ ...DEFAULT_LEDGER_FILTERS, period: filters.period, offset: filters.offset })}
               className="flex-1 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] font-semibold text-center hover:text-[var(--text)]"
             >
               Reset Filter
