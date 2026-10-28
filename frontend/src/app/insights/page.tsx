@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
@@ -16,6 +17,7 @@ import { NarrativeInsightCard } from "@/components/dashboard/NarrativeInsightCar
 import { KakeiboBenchmark } from "@/components/dashboard/KakeiboBenchmark";
 import { KAKEIBO_PILLARS, type KakeiboPillar, kakeiboPillarInfo, pillarOrNeed } from "@/lib/kakeibo";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
+import { ledgerHref, reportPeriodFilters, UNCATEGORIZED } from "@/lib/ledgerFilters";
 
 const CATEGORY_ICONS = [
   { id: "tag", label: "Label" },
@@ -56,7 +58,15 @@ const CATEGORY_COLOR_NAMES: Record<string, string> = {
 
 export default function AnalyticsPage() {
   const qc = useQueryClient();
-  const { timeframe, cycleOffset, bal } = useAppCtx();
+  const { timeframe, setTimeframe, cycleOffset, bal } = useAppCtx();
+  const reportPeriod = reportPeriodFilters(timeframe, cycleOffset);
+  // Drill-down: the ledger rows behind a category figure, for the same period.
+  const categoryHref = (cat: { id: string | null; is_uncategorized?: boolean }) =>
+    reportPeriod
+      ? ledgerHref({ ...reportPeriod, type: "expense", category: cat.is_uncategorized ? UNCATEGORIZED : cat.id ?? "all" })
+      : null;
+  const pillarHref = (pillar: KakeiboPillar) =>
+    reportPeriod ? ledgerHref({ ...reportPeriod, type: "expense", kakeibo: pillar }) : null;
 
   // Active view tab: summary vs compare/kakeibo
   const [activeTab, setActiveTab] = useState<"summary" | "compare">("summary");
@@ -238,6 +248,27 @@ export default function AnalyticsPage() {
             Analisis Pengeluaran & Anggaran
           </h1>
         </div>
+
+        {(timeframe === "cycle" || timeframe === "month") && (
+          <div role="group" aria-label="Dasar periode" className="flex items-center p-1 rounded-2xl bg-[var(--surface-raised)] border border-[var(--border)] self-start sm:self-auto">
+            {([["cycle", "Siklus gajian"], ["month", "Bulan kalender"]] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={timeframe === value}
+                onClick={() => setTimeframe(value)}
+                className={cn(
+                  "min-h-10 px-3 rounded-xl text-xs font-bold transition-[background-color,color] focus-visible:outline-2 focus-visible:outline-[var(--primary)]",
+                  timeframe === value
+                    ? "bg-[var(--surface)] text-[var(--text)] shadow-xs border border-[var(--border)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Segmented Control Switch */}
         <div className="flex items-center p-1 rounded-2xl bg-[var(--surface-raised)] border border-[var(--border)] self-start sm:self-auto">
@@ -448,10 +479,12 @@ export default function AnalyticsPage() {
                         const hasBudget = cat.budget && cat.budget > 0;
                         const isOver = cat.status === "over_budget";
                         const isWarning = cat.status === "warning";
+                        const managed = !cat.is_uncategorized && !cat.is_archived;
+                        const drill = categoryHref(cat);
 
                         return (
                           <tr
-                            key={cat.id}
+                            key={cat.id ?? "uncategorized"}
                             className="hover:bg-[var(--surface-raised)]/50 transition-colors"
                           >
                             <td className="py-3.5 pr-4">
@@ -470,6 +503,9 @@ export default function AnalyticsPage() {
                                     <span className="font-semibold text-[var(--text)]">
                                       {cat.name}
                                     </span>
+                                    {cat.is_archived && (
+                                      <span className="rounded-full border border-[var(--border)] px-1.5 text-[10px] font-semibold text-[var(--text-secondary)]">Diarsipkan</span>
+                                    )}
                                   </div>
                                   {hasBudget && (
                                     <div className="w-24 sm:w-36 h-1.5 rounded-full bg-[var(--border)]/60 overflow-hidden mt-1">
@@ -493,10 +529,19 @@ export default function AnalyticsPage() {
                             </td>
 
                             <td className="py-3.5 text-right font-bold tabular text-[var(--text)]">
-                              {bal(cat.spent)}
+                              {drill ? (
+                                <Link
+                                  href={drill}
+                                  aria-label={`${bal(cat.spent)}, lihat transaksi ${cat.name}`}
+                                  className="rounded underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                                >
+                                  {bal(cat.spent)}
+                                </Link>
+                              ) : bal(cat.spent)}
                             </td>
 
                             <td className="py-3.5 text-right text-[var(--muted)] tabular">
+                              {managed ? (
                               <button
                                 type="button"
                                 onClick={() => openEditCategory(cat)}
@@ -509,6 +554,9 @@ export default function AnalyticsPage() {
                                   className="h-3 w-3 opacity-0 group-hover/btn:opacity-100 text-[var(--muted)] transition-opacity"
                                 />
                               </button>
+                              ) : (
+                                <span>-</span>
+                              )}
                             </td>
 
                             <td className="py-3.5 text-right tabular">
@@ -552,6 +600,7 @@ export default function AnalyticsPage() {
                             </td>
 
                             <td className="py-3.5 text-right">
+                              {managed && (
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   type="button"
@@ -572,6 +621,7 @@ export default function AnalyticsPage() {
                                   <Icon name="trash" className="h-3.5 w-3.5" />
                                 </ConfirmActionButton>
                               </div>
+                              )}
                             </td>
                           </tr>
                         );
@@ -586,10 +636,12 @@ export default function AnalyticsPage() {
                     const hasBudget = cat.budget && cat.budget > 0;
                     const isOver = cat.status === "over_budget";
                     const isWarning = cat.status === "warning";
+                    const managed = !cat.is_uncategorized && !cat.is_archived;
+                    const drill = categoryHref(cat);
 
                     return (
                       <div
-                        key={`mobile-cat-${cat.id}`}
+                        key={`mobile-cat-${cat.id ?? "uncategorized"}`}
                         className="p-3.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]/30 hover:bg-[var(--surface-raised)]/60 transition-colors space-y-2.5"
                       >
                         {/* Row 1: Icon + Name + Terpakai */}
@@ -607,11 +659,24 @@ export default function AnalyticsPage() {
                             <span className="font-bold text-xs text-[var(--text)] truncate">
                               {cat.name}
                             </span>
+                            {cat.is_archived && (
+                              <span className="shrink-0 rounded-full border border-[var(--border)] px-1.5 text-[10px] font-semibold text-[var(--text-secondary)]">Diarsipkan</span>
+                            )}
                           </div>
                           <div className="text-right shrink-0">
-                            <span className="text-xs font-black tabular tracking-tight text-[var(--text)]">
-                              {bal(cat.spent)}
-                            </span>
+                            {drill ? (
+                              <Link
+                                href={drill}
+                                aria-label={`${bal(cat.spent)}, lihat transaksi ${cat.name}`}
+                                className="inline-flex min-h-6 items-center text-xs font-black tabular tracking-tight text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                              >
+                                {bal(cat.spent)}
+                              </Link>
+                            ) : (
+                              <span className="text-xs font-black tabular tracking-tight text-[var(--text)]">
+                                {bal(cat.spent)}
+                              </span>
+                            )}
                             <div className="text-[9px] text-[var(--muted)] font-medium">Terpakai</div>
                           </div>
                         </div>
@@ -680,6 +745,7 @@ export default function AnalyticsPage() {
                         </div>
 
                         {/* Row 4: Subtle Touch Actions */}
+                        {managed && (
                         <div className="border-t border-[var(--border)]/50 pt-2 flex items-center justify-between gap-2">
                           <button
                             type="button"
@@ -700,6 +766,7 @@ export default function AnalyticsPage() {
                             <Icon name="trash" className="h-3.5 w-3.5" />
                           </ConfirmActionButton>
                         </div>
+                        )}
                       </div>
                     );
                   })}
@@ -958,7 +1025,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          <KakeiboBenchmark kakeibo={kakeibo} />
+          <KakeiboBenchmark kakeibo={kakeibo} pillarHref={pillarHref} />
         </div>
       )}
 

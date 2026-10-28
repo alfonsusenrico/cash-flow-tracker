@@ -174,7 +174,9 @@ def test_analytics_insights_and_ledger_follow_the_same_figures(client, owner):
 
     summary = client.get("/api/transactions").json()["summary"]
     assert summary["cycle"]["inflow"] == 5_000_000
-    assert summary["cycle"]["outflow"] == 500_000
+    # Phase 6 nets the ledger summary like the dashboard total (phase 2 open decision 6 resolved).
+    assert summary["cycle"]["outflow"] == 300_000
+    assert summary["cycle"]["gross_outflow"] == 500_000 and summary["cycle"]["reimbursement_offset"] == 200_000
 
 
 def test_pulse_safe_to_spend_uses_net_cycle_spending(client, owner):

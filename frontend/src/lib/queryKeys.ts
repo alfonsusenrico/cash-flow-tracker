@@ -29,6 +29,11 @@ export const queryKeys = {
     apiKey: ["auth", "api-key"] as const,
     currencyRates: ["auth", "currency-rates"] as const,
   },
+  review: {
+    all: ["review"] as const,
+    queue: ["review", "queue"] as const,
+    summary: ["review", "summary"] as const,
+  },
   notificationAliases: ["notification-aliases"] as const,
   senderAliases: ["sender-aliases"] as const,
 } as const;

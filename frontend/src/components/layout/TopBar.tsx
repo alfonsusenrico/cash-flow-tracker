@@ -16,6 +16,7 @@ const TITLES: Record<string, { title: string; subtitle: string }> = {
   "/insights": { title: "Analisis", subtitle: "Laporan Pengeluaran & Anggaran" },
   "/accounts": { title: "Rekening & Saldo", subtitle: "Daftar Rekening, Dompet Digital & Tunai" },
   "/goals": { title: "Target & Tagihan", subtitle: "Target Tabungan & Rencana Pembayaran" },
+  "/review": { title: "Tinjau", subtitle: "Konfirmasi Transaksi Otomatis & Pertanyaan" },
 };
 
 export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
@@ -28,6 +29,7 @@ export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
     setTheme,
     cycleOffset,
     setCycleOffset,
+    reviewAttention,
   } = useAppCtx();
 
   useEffect(() => {
@@ -72,7 +74,22 @@ export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
     <header ref={headerRef} className="sticky top-0 z-30 flex min-h-14 w-full flex-wrap items-center justify-between gap-y-1.5 border-b border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1.5 backdrop-blur-md sm:h-16 sm:flex-nowrap sm:gap-y-0 sm:px-6 sm:py-0 lg:px-8">
       {/* Left: Brand / Title */}
       <div className="order-1 flex min-w-[9rem] flex-1 items-center gap-2.5 sm:flex-none">
-        {onToggleMobileMenu && <button type="button" onClick={onToggleMobileMenu} aria-label="Buka menu" title="Buka menu" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] lg:hidden"><Icon name="menu" className="h-4 w-4" /></button>}
+        {onToggleMobileMenu && (
+          <button
+            type="button"
+            onClick={onToggleMobileMenu}
+            aria-label={reviewAttention ? `Buka menu, ${reviewAttention} transaksi perlu ditinjau` : "Buka menu"}
+            title="Buka menu"
+            className="relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] lg:hidden"
+          >
+            <Icon name="menu" className="h-4 w-4" />
+            {reviewAttention ? (
+              <span aria-hidden="true" className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold tabular text-[#141814]">
+                {reviewAttention > 99 ? "99+" : reviewAttention}
+              </span>
+            ) : null}
+          </button>
+        )}
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <span className="text-sm sm:text-base font-bold tracking-tight text-[var(--text)] leading-tight">

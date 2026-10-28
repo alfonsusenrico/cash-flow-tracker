@@ -290,7 +290,10 @@ def test_list_transactions_summary_cycle_and_cumulative():
     }
     app.dependency_overrides[get_current_user] = lambda: mock_user
 
-    with patch("app.routers.transactions.db_conn") as mock_conn:
+    from app.services.reimbursements import SpendingOffsets
+
+    with patch("app.routers.transactions.db_conn") as mock_conn, \
+         patch("app.routers.transactions.load_spending_offsets", return_value=SpendingOffsets()):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 

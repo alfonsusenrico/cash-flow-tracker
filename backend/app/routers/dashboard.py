@@ -12,46 +12,16 @@ from app.routers.pulse import get_cycle_window
 from app.services.auth import get_current_user
 from app.services.kakeibo import effective_pillar_sql
 from app.services.reimbursements import SpendingOffsets, load_spending_offsets, not_reimbursement_sql
+from app.services.report_figures import (
+    category_breakdown,
+    daily_offsets,
+    reportable_expense_sql,
+    reportable_income_sql,
+    sunday_first_weekday,
+)
+from app.services.report_windows import TIMEFRAME_PATTERN, get_previous_timeframe_window, get_timeframe_window
 
 router = APIRouter(tags=["Dashboard"])
-
-
-def get_timeframe_window(
-    payday_day: int,
-    timeframe: str = "cycle",
-    ref_date: date | None = None,
-    cycle_offset: int = 0,
-) -> tuple[datetime, datetime, date, date, str]:
-    """Returns (start_utc, end_utc, start_date, end_date, label)."""
-    tz = ZoneInfo(settings.tz)
-    target_date = ref_date or datetime.now(tz).date()
-
-    if timeframe == "30d":
-        start_date = target_date - timedelta(days=29)
-        end_date = target_date
-        label = "30 Hari Terakhir"
-    elif timeframe == "90d":
-        start_date = target_date - timedelta(days=89)
-        end_date = target_date
-        label = "90 Hari Terakhir"
-    else:  # cycle
-        curr = target_date
-        step = -1 if cycle_offset < 0 else 1
-        for _ in range(abs(cycle_offset)):
-            c_start, c_end, _, _ = get_cycle_window(payday_day, curr)
-            if step < 0:
-                curr = c_start.astimezone(tz).date() - timedelta(days=1)
-            else:
-                curr = c_end.astimezone(tz).date() + timedelta(days=1)
-
-        c_start, c_end, _, _ = get_cycle_window(payday_day, curr)
-        start_date = c_start.astimezone(tz).date()
-        end_date = c_end.astimezone(tz).date()
-        label = f"Periode {start_date.strftime('%d %b')} - {end_date.strftime('%d %b')}"
-
-    start_utc = datetime.combine(start_date, time.min, tzinfo=tz).astimezone(timezone.utc)
-    end_utc = datetime.combine(end_date, time.max, tzinfo=tz).astimezone(timezone.utc)
-    return start_utc, end_utc, start_date, end_date, label
 
 
 def calc_delta_pct(current: int | float, prev: int | float) -> float:
@@ -110,32 +80,6 @@ def generate_financial_narrative(
         f"{driver_clause}. Arus kas tercatat {cashflow_label} Rp {format_idr_compact(abs(current_net))}."
     )
     return narrative, trend_status
-
-
-def get_previous_timeframe_window(
-    payday_day: int,
-    timeframe: str,
-    start_date: date,
-    end_date: date,
-    cycle_offset: int,
-) -> tuple[datetime, datetime, date, date, str]:
-    tz = ZoneInfo(settings.tz)
-    if timeframe == "30d":
-        prev_start_date = start_date - timedelta(days=30)
-        prev_end_date = start_date - timedelta(days=1)
-        prev_label = "30 Hari Sebelumnya"
-        prev_start_utc = datetime.combine(prev_start_date, time.min, tzinfo=tz).astimezone(timezone.utc)
-        prev_end_utc = datetime.combine(prev_end_date, time.max, tzinfo=tz).astimezone(timezone.utc)
-        return prev_start_utc, prev_end_utc, prev_start_date, prev_end_date, prev_label
-    elif timeframe == "90d":
-        prev_start_date = start_date - timedelta(days=90)
-        prev_end_date = start_date - timedelta(days=1)
-        prev_label = "90 Hari Sebelumnya"
-        prev_start_utc = datetime.combine(prev_start_date, time.min, tzinfo=tz).astimezone(timezone.utc)
-        prev_end_utc = datetime.combine(prev_end_date, time.max, tzinfo=tz).astimezone(timezone.utc)
-        return prev_start_utc, prev_end_utc, prev_start_date, prev_end_date, prev_label
-    else:
-        return get_timeframe_window(payday_day, "cycle", cycle_offset=cycle_offset - 1)
 
 
 def get_kakeibo_breakdown(
@@ -434,7 +378,7 @@ def calculate_ketahanan_dana(
 
 @router.get("/overview")
 def get_dashboard_overview(
-    timeframe: str = Query(default="cycle", pattern="^(cycle|30d|90d)$"),
+    timeframe: str = Query(default="cycle", pattern=TIMEFRAME_PATTERN),
     cycle_offset: int = Query(default=0, ge=-24, le=12),
     current_user: dict = Depends(get_current_user),
 ):
@@ -481,7 +425,7 @@ def get_dashboard_overview(
                 f"""
                 SELECT
                     COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
-                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS outflow,
+                    COALESCE(SUM(CASE WHEN {reportable_expense_sql()} THEN t.amount ELSE 0 END), 0) AS outflow,
                     COUNT(*) AS tx_count
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
@@ -568,7 +512,7 @@ def get_dashboard_overview(
                 SELECT
                     (t.date AT TIME ZONE %s)::date AS tx_day,
                     COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS income,
-                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS expense
+                    COALESCE(SUM(CASE WHEN {reportable_expense_sql()} THEN t.amount ELSE 0 END), 0) AS expense
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
                 WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
@@ -578,9 +522,10 @@ def get_dashboard_overview(
                 (settings.tz, user_id, start_utc, end_utc),
             )
             grouped_days = {r["tx_day"]: r for r in cur.fetchall()}
+            day_offsets = daily_offsets(cur, user_id, start_utc, end_utc, offsets)
 
             # Generate continuous series from start_date to end_date (or today)
-            series_end_date = min(end_date, today_date) if timeframe == "cycle" else end_date
+            series_end_date = min(end_date, today_date) if timeframe in ("cycle", "month") else end_date
 
             cumulative_trendline = []
             burn_cadence = []
@@ -591,7 +536,7 @@ def get_dashboard_overview(
             while curr <= series_end_date:
                 day_data = grouped_days.get(curr)
                 day_income = int(day_data["income"]) if day_data else 0
-                day_expense = int(day_data["expense"]) if day_data else 0
+                day_expense = (int(day_data["expense"]) if day_data else 0) - day_offsets.get(curr, 0)
 
                 running_inflow += day_income
                 running_outflow += day_expense
@@ -620,25 +565,7 @@ def get_dashboard_overview(
                 curr += timedelta(days=1)
 
             # 6. Category Breakdown
-            cur.execute(
-                """
-                SELECT 
-                    c.id, c.name, c.icon, c.color, c.monthly_budget, c.is_primary, c.kakeibo_type,
-                    COALESCE(SUM(t.amount), 0) AS spent
-                FROM categories c
-                LEFT JOIN transactions t ON t.category_id = c.id 
-                    AND t.type = 'expense' 
-                    AND t.date >= %s AND t.date <= %s
-                WHERE c.user_id = %s AND c.is_archived = false AND c.kind = 'expense' AND c.is_excluded_from_budget = false
-                GROUP BY c.id, c.name, c.icon, c.color, c.monthly_budget, c.is_primary, c.kakeibo_type
-                ORDER BY spent DESC, c.name ASC
-                """,
-                (start_utc, end_utc, user_id),
-            )
-            cat_rows = [
-                {**r, "gross_spent": int(r["spent"]), "spent": int(r["spent"]) - offsets.for_category(r["id"])}
-                for r in cur.fetchall()
-            ]
+            cat_rows = category_breakdown(cur, user_id, start_utc, end_utc, offsets)
             categories_data = []
             for r in cat_rows:
                 spent = int(r["spent"])
@@ -649,12 +576,14 @@ def get_dashboard_overview(
                 pct_used = round((spent / budget) * 100, 1) if budget and budget > 0 else None
                 categories_data.append(
                     {
-                        "id": str(r["id"]),
+                        "id": r["id"],
                         "name": r["name"],
                         "icon": r["icon"],
                         "color": r["color"],
-                        "is_primary": bool(r.get("is_primary", True)),
-                        "kakeibo_type": r.get("kakeibo_type") or "need",
+                        "is_primary": r["is_primary"],
+                        "kakeibo_type": r["kakeibo_type"],
+                        "is_archived": r["is_archived"],
+                        "is_uncategorized": r["is_uncategorized"],
                         "spent": spent,
                         "gross_spent": r["gross_spent"],
                         "reimbursed": r["gross_spent"] - spent,
@@ -673,7 +602,7 @@ def get_dashboard_overview(
                 f"""
                 SELECT
                     COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
-                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS outflow,
+                    COALESCE(SUM(CASE WHEN {reportable_expense_sql()} THEN t.amount ELSE 0 END), 0) AS outflow,
                     COUNT(*) AS tx_count
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
@@ -950,7 +879,7 @@ def get_dashboard_overview(
 
 @router.get("/analytics")
 def get_dashboard_analytics(
-    timeframe: str = Query(default="cycle", pattern="^(cycle|30d|90d)$"),
+    timeframe: str = Query(default="cycle", pattern=TIMEFRAME_PATTERN),
     cycle_offset: int = Query(default=0, ge=-24, le=12),
     current_user: dict = Depends(get_current_user),
 ):
@@ -963,49 +892,16 @@ def get_dashboard_analytics(
 
     with db_conn() as conn:
         with conn.cursor() as cur:
-            # 1. Day of Week Heatmap Matrix (0=Sunday to 6=Saturday)
-            cur.execute(
-                """
-                SELECT 
-                    EXTRACT(DOW FROM t.date AT TIME ZONE %s)::int AS dow,
-                    COUNT(*) AS tx_count,
-                    COALESCE(SUM(t.amount), 0) AS total_spent
-                FROM transactions t
-                LEFT JOIN categories c ON c.id = t.category_id
-                WHERE t.user_id = %s AND t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' AND t.date >= %s AND t.date <= %s
-                GROUP BY dow
-                ORDER BY dow ASC
-                """,
-                (settings.tz, user_id, start_utc, end_utc),
-            )
-            dow_rows = {r["dow"]: r for r in cur.fetchall()}
+            analytics_offsets = load_spending_offsets(cur, user_id, start_utc, end_utc)
 
-            day_names = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"]
-            day_short = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"]
-            day_of_week_heatmap = []
-            for i in range(7):
-                row = dow_rows.get(i)
-                spent = int(row["total_spent"]) if row else 0
-                count = int(row["tx_count"]) if row else 0
-                avg = round(spent / count) if count > 0 else 0
-                day_of_week_heatmap.append(
-                    {
-                        "day_index": i,
-                        "day_name": day_names[i],
-                        "day_short": day_short[i],
-                        "total_spent": spent,
-                        "tx_count": count,
-                        "average_spent": avg,
-                    }
-                )
-
-            # 2. Daily Cadence
+            # 1. Daily series: reportable spending net of reimbursements attributed to its days
             cur.execute(
                 f"""
-                SELECT 
+                SELECT
                     (t.date AT TIME ZONE %s)::date AS tx_day,
-                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' THEN t.amount ELSE 0 END), 0) AS expense,
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS income
+                    COALESCE(SUM(CASE WHEN {reportable_expense_sql()} THEN t.amount ELSE 0 END), 0) AS expense,
+                    COUNT(*) FILTER (WHERE {reportable_expense_sql()}) AS expense_count,
+                    COALESCE(SUM(CASE WHEN {reportable_income_sql()} THEN t.amount ELSE 0 END), 0) AS income
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
                 WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
@@ -1015,42 +911,47 @@ def get_dashboard_analytics(
                 (settings.tz, user_id, start_utc, end_utc),
             )
             daily_rows = {r["tx_day"]: r for r in cur.fetchall()}
+            day_offsets = daily_offsets(cur, user_id, start_utc, end_utc, analytics_offsets)
 
             daily_cadence = []
+            dow_spent = [0] * 7
+            dow_count = [0] * 7
             curr = start_date
             while curr <= end_date:
                 r = daily_rows.get(curr)
+                day_expense = (int(r["expense"]) if r else 0) - day_offsets.get(curr, 0)
                 daily_cadence.append(
                     {
                         "date": curr.isoformat(),
                         "label": curr.strftime("%b %d"),
-                        "expense": int(r["expense"]) if r else 0,
+                        "expense": day_expense,
                         "income": int(r["income"]) if r else 0,
                     }
                 )
+                dow = sunday_first_weekday(curr)
+                dow_spent[dow] += day_expense
+                dow_count[dow] += int(r["expense_count"]) if r else 0
                 curr += timedelta(days=1)
 
+            # 2. Day of Week Heatmap Matrix (0=Sunday to 6=Saturday), from the same net daily figures
+            day_names = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"]
+            day_short = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"]
+            day_of_week_heatmap = [
+                {
+                    "day_index": i,
+                    "day_name": day_names[i],
+                    "day_short": day_short[i],
+                    "total_spent": dow_spent[i],
+                    "tx_count": dow_count[i],
+                    "average_spent": round(dow_spent[i] / dow_count[i]) if dow_count[i] > 0 else 0,
+                }
+                for i in range(7)
+            ]
+
             # 3. Category Variance Matrix
-            analytics_offsets = load_spending_offsets(cur, user_id, start_utc, end_utc)
-            cur.execute(
-                """
-                SELECT 
-                    c.id, c.name, c.icon, c.color, c.monthly_budget, c.is_primary, c.kakeibo_type,
-                    COALESCE(SUM(t.amount), 0) AS spent
-                FROM categories c
-                LEFT JOIN transactions t ON t.category_id = c.id 
-                    AND t.type = 'expense' 
-                    AND t.date >= %s AND t.date <= %s
-                WHERE c.user_id = %s AND c.is_archived = false AND c.kind = 'expense' AND c.is_excluded_from_budget = false
-                GROUP BY c.id, c.name, c.icon, c.color, c.monthly_budget, c.is_primary, c.kakeibo_type
-                ORDER BY spent DESC, c.name ASC
-                """,
-                (start_utc, end_utc, user_id),
-            )
             category_variance = []
-            for r in cur.fetchall():
-                gross_spent = int(r["spent"])
-                spent = gross_spent - analytics_offsets.for_category(r["id"])
+            for r in category_breakdown(cur, user_id, start_utc, end_utc, analytics_offsets):
+                spent = r["spent"]
                 budget = int(r["monthly_budget"]) if r["monthly_budget"] else None
                 pct = round((spent / budget) * 100, 1) if budget and budget > 0 else None
                 variance = (budget - spent) if budget else None
@@ -1066,15 +967,17 @@ def get_dashboard_analytics(
 
                 category_variance.append(
                     {
-                        "id": str(r["id"]),
+                        "id": r["id"],
                         "name": r["name"],
                         "icon": r["icon"],
                         "color": r["color"],
-                        "is_primary": bool(r.get("is_primary", True)),
-                        "kakeibo_type": r.get("kakeibo_type") or "need",
+                        "is_primary": r["is_primary"],
+                        "kakeibo_type": r["kakeibo_type"],
+                        "is_archived": r["is_archived"],
+                        "is_uncategorized": r["is_uncategorized"],
                         "spent": spent,
-                        "gross_spent": gross_spent,
-                        "reimbursed": gross_spent - spent,
+                        "gross_spent": r["gross_spent"],
+                        "reimbursed": r["reimbursed"],
                         "budget": budget,
                         "variance": variance,
                         "percentage_used": pct,
@@ -1082,23 +985,24 @@ def get_dashboard_analytics(
                     }
                 )
 
-            # 4. Burn Rate Analytics
+            # 4. Burn Rate Analytics: rolling windows ending now, net of their own reimbursements
             now_utc = datetime.now(timezone.utc)
-            cur.execute(
-                """
-                SELECT
-                    COALESCE(SUM(CASE WHEN t.date >= %s THEN t.amount ELSE 0 END), 0) AS spent_7d,
-                    COALESCE(SUM(CASE WHEN t.date >= %s THEN t.amount ELSE 0 END), 0) AS spent_30d
-                FROM transactions t
-                LEFT JOIN categories c ON c.id = t.category_id
-                WHERE t.user_id = %s AND t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false AND t.date >= %s
-                """,
-                (now_utc - timedelta(days=7), now_utc - timedelta(days=30), user_id, now_utc - timedelta(days=30)),
-            )
-            burn_row = cur.fetchone()
-            spent_7d = int(burn_row["spent_7d"])
-            spent_30d = int(burn_row["spent_30d"])
-            burn_7d = round(spent_7d / 7)
+            burn_spent = {}
+            for days in (7, 30):
+                window_start = now_utc - timedelta(days=days)
+                cur.execute(
+                    f"""
+                    SELECT COALESCE(SUM(t.amount), 0) AS spent
+                    FROM transactions t
+                    LEFT JOIN categories c ON c.id = t.category_id
+                    WHERE t.user_id = %s AND {reportable_expense_sql()} AND t.date >= %s AND t.date <= %s
+                    """,
+                    (user_id, window_start, now_utc),
+                )
+                gross = int(cur.fetchone()["spent"])
+                burn_spent[days] = gross - load_spending_offsets(cur, user_id, window_start, now_utc).applied
+            spent_30d = burn_spent[30]
+            burn_7d = round(burn_spent[7] / 7)
             burn_30d = round(spent_30d / 30)
             projected_30d_outflow = spent_30d
 
@@ -1106,8 +1010,8 @@ def get_dashboard_analytics(
             cur.execute(
                 f"""
                 SELECT
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
-                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS outflow
+                    COALESCE(SUM(CASE WHEN {reportable_income_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN {reportable_expense_sql()} THEN t.amount ELSE 0 END), 0) AS outflow
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
                 WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
@@ -1148,8 +1052,8 @@ def get_dashboard_analytics(
             cur.execute(
                 f"""
                 SELECT
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
-                    COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.is_excluded_from_budget, false) = false THEN t.amount ELSE 0 END), 0) AS outflow
+                    COALESCE(SUM(CASE WHEN {reportable_income_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN {reportable_expense_sql()} THEN t.amount ELSE 0 END), 0) AS outflow
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
                 WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s

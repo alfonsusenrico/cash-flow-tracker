@@ -19,9 +19,28 @@ export const MAIN_NAV: NavItem[] = [
   { href: "/", label: "Beranda", icon: "dashboard" },
   { href: "/ledger", label: "Transaksi", icon: "ledger" },
   { href: "/insights", label: "Analisis", icon: "analysis" },
+  { href: "/review", label: "Tinjau", icon: "check" },
   { href: "/accounts", label: "Rekening & Saldo", icon: "credit-card" },
   { href: "/goals", label: "Target & Tagihan", icon: "goals" },
 ];
+
+export const REVIEW_HREF = "/review";
+
+/** Count badge of the review entry; the visible number is repeated in words for screen readers. */
+export function ReviewCountBadge({ count, compact = false }: { count: number | null; compact?: boolean }) {
+  if (!count) return null;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center justify-center rounded-full bg-amber-500 font-bold tabular text-[#141814]",
+        compact ? "absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[9px]" : "ml-auto h-5 min-w-5 px-1.5 text-[10px]",
+      )}
+    >
+      <span aria-hidden="true">{count > 99 ? "99+" : count}</span>
+      <span className="sr-only">, {count} perlu ditinjau</span>
+    </span>
+  );
+}
 
 interface SidebarProps {
   collapsed: boolean;
@@ -36,7 +55,7 @@ export function Sidebar({
   onOpenSettings,
 }: SidebarProps) {
   const pathname = usePathname();
-  const { user } = useAppCtx();
+  const { user, reviewAttention } = useAppCtx();
   const [collapsedMenuOpen, setCollapsedMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -73,6 +92,13 @@ export function Sidebar({
                 key={item.href}
                 href={item.href}
                 title={collapsed ? item.label : undefined}
+                aria-label={
+                  collapsed
+                    ? item.href === REVIEW_HREF && reviewAttention
+                      ? `${item.label}, ${reviewAttention} perlu ditinjau`
+                      : item.label
+                    : undefined
+                }
                 className={cn(
                   "flex items-center gap-3 rounded-xl transition-all pressable group",
                   collapsed ? "h-10 justify-center px-0" : "px-3 py-2.5 text-xs font-medium",
@@ -81,14 +107,18 @@ export function Sidebar({
                     : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-text-active)]"
                 )}
               >
-                <Icon
-                  name={item.icon}
-                  className={cn(
-                    "h-4 w-4 shrink-0 transition-transform group-hover:scale-110",
-                    active ? "text-primary-contrast" : "text-[var(--sidebar-text)] group-hover:text-[var(--sidebar-text-active)]"
-                  )}
-                />
+                <span className="relative inline-flex shrink-0">
+                  <Icon
+                    name={item.icon}
+                    className={cn(
+                      "h-4 w-4 shrink-0 transition-transform group-hover:scale-110",
+                      active ? "text-primary-contrast" : "text-[var(--sidebar-text)] group-hover:text-[var(--sidebar-text-active)]"
+                    )}
+                  />
+                  {collapsed && item.href === REVIEW_HREF && <ReviewCountBadge count={reviewAttention} compact />}
+                </span>
                 {!collapsed && <span>{item.label}</span>}
+                {!collapsed && item.href === REVIEW_HREF && <ReviewCountBadge count={reviewAttention} />}
               </Link>
             );
           })}
@@ -233,7 +263,7 @@ export function MobileDrawer({
   onOpenSettings?: () => void;
 }) {
   const pathname = usePathname();
-  const { user } = useAppCtx();
+  const { user, reviewAttention } = useAppCtx();
 
   if (!open) return null;
 
@@ -296,6 +326,7 @@ export function MobileDrawer({
                   className={cn("h-4 w-4", active ? "text-income" : "text-[var(--muted)]")}
                 />
                 <span>{item.label}</span>
+                {item.href === REVIEW_HREF && <ReviewCountBadge count={reviewAttention} />}
               </Link>
             );
           })}

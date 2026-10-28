@@ -1,13 +1,17 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { axe } from "vitest-axe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import AnalyticsPage from "./page";
 
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() } }));
+const setTimeframe = vi.fn();
 vi.mock("@/components/layout/AppLayout", () => ({
-  useAppCtx: () => ({ timeframe: "month", cycleOffset: 0, bal: (amount: number) => `Rp ${amount.toLocaleString("id-ID")}` }),
+  useAppCtx: () => ({
+    timeframe: "month", setTimeframe, cycleOffset: -1, bal: (amount: number) => `Rp ${amount.toLocaleString("id-ID")}`,
+  }),
 }));
 vi.mock("@/components/dashboard/BurnCadenceChart", () => ({ BurnCadenceChart: () => null }));
 vi.mock("@/components/dashboard/SpendingHeatmap", () => ({ SpendingHeatmap: () => null }));
@@ -120,5 +124,54 @@ describe("category management form", () => {
     await user.click(screen.getByRole("button", { name: "Ya, lanjutkan" }));
 
     await waitFor(() => expect(api.del).toHaveBeenCalledWith("/categories/category-1"));
+  });
+});
+
+describe("report drill-down", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path.startsWith("/dashboard/analytics?")) {
+        return {
+          timeframe: "month",
+          timeframe_label: "September 2026",
+          category_variance: [
+            expenseCategory,
+            { ...expenseCategory, id: "category-old", name: "Langganan Lama", is_archived: true, budget: null, spent: 30_000, status: "unlimited" },
+            { ...expenseCategory, id: null, name: "Tanpa kategori", is_uncategorized: true, budget: null, spent: 70_000, status: "unlimited" },
+          ],
+          kakeibo: { need_spent: 0, want_spent: 100_000, culture_spent: 0, unexpected_spent: 0, saving_spent: 0 },
+        };
+      }
+      if (path === "/categories?include_archived=true") return { categories: [expenseCategory] };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+  });
+
+  it("links category figures, the Tanpa kategori bucket and archived spending to the same period", async () => {
+    const { container } = renderAnalytics();
+    expect(await screen.findByText("September 2026")).toBeInTheDocument();
+    expect(api.get).toHaveBeenCalledWith("/dashboard/analytics?timeframe=month&cycle_offset=-1");
+    const [hobby] = screen.getAllByRole("link", { name: "Rp 100.000, lihat transaksi Hobi" });
+    expect(hobby).toHaveAttribute("href", "/ledger?period=month&offset=-1&category=category-1&type=expense");
+    const [bucket] = screen.getAllByRole("link", { name: "Rp 70.000, lihat transaksi Tanpa kategori" });
+    expect(bucket).toHaveAttribute("href", "/ledger?period=month&offset=-1&category=uncategorized&type=expense");
+    expect(screen.getAllByText("Diarsipkan").length).toBeGreaterThan(0);
+    // Only real active categories can be edited or archived.
+    expect(screen.queryAllByRole("button", { name: "Edit kategori Tanpa kategori" })).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "Arsipkan kategori Langganan Lama" })).toHaveLength(0);
+    expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  it("switches the report basis and links Kakeibo pillars", async () => {
+    const user = userEvent.setup();
+    renderAnalytics();
+    await user.click(await screen.findByRole("button", { name: "Siklus gajian" }));
+    expect(setTimeframe).toHaveBeenCalledWith("cycle");
+    expect(screen.getByRole("button", { name: "Bulan kalender" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "Bandingkan & Kakeibo" }));
+    expect(screen.getByRole("link", { name: "Rp 100.000, lihat transaksi Keinginan" })).toHaveAttribute(
+      "href", "/ledger?period=month&offset=-1&kakeibo=want&type=expense",
+    );
   });
 });
