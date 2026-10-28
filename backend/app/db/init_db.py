@@ -275,6 +275,7 @@ def init_db_schema() -> None:
             cur.execute(Path(__file__).with_name("transaction_provenance_and_reimbursements.sql").read_text(encoding="utf-8"))
             cur.execute(Path(__file__).with_name("merchant_memory_and_purpose_questions.sql").read_text(encoding="utf-8"))
             cur.execute(Path(__file__).with_name("movement_pairing_fees_and_splits.sql").read_text(encoding="utf-8"))
+            cur.execute(Path(__file__).with_name("history_suggestions.sql").read_text(encoding="utf-8"))
             conn.commit()
 
 

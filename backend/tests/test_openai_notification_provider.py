@@ -245,3 +245,43 @@ def test_purpose_normalizer_rejects_invalid_output():
     with pytest.raises(ProviderError) as error:
         run_normalizer(handler, {"answer": "kopi"})
     assert error.value.code == "provider_invalid_output"
+
+
+def run_history(handler, context):
+    async def run():
+        async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as transport:
+            provider = OpenAINotificationProvider(
+                transport, api_key="synthetic-test-credential", model="gpt-5.6-luna", reasoning_effort="low",
+            )
+            return await provider.suggest_history(context)
+    return asyncio.run(run())
+
+
+def test_history_suggestions_use_their_own_strict_schema_and_prompt():
+    sent = {}
+    answer = {"suggestions": [{
+        "ref": "r1", "merchant": "Kedai Awan", "description": "Ngopi di Kedai Awan",
+        "category_id": "00000000-0000-4000-8000-000000000102", "kakeibo": "want", "offset_category_id": None,
+        "confidence": 0.85, "reason": "Sama dengan pilihan Anda untuk Kedai Awan",
+    }]}
+
+    def handler(request):
+        sent.update(json.loads(request.content))
+        return httpx2.Response(200, json=envelope(answer))
+
+    result = run_history(handler, {"rows": [{"ref": "r1"}], "_internal": "never-sent"})
+    assert result.suggestions[0].merchant == "Kedai Awan" and result.suggestions[0].kakeibo == "want"
+    schema = sent["text"]["format"]
+    assert schema["name"] == "history_suggestions" and schema["strict"] is True
+    assert schema["schema"]["required"] == ["suggestions"]
+    assert set(schema["schema"]["$defs"]["HistoryProposal"]["required"]) == set(answer["suggestions"][0])
+    assert "never-sent" not in sent["input"] and "past rows in one personal-finance ledger" in sent["instructions"]
+
+
+def test_history_suggestions_reject_invalid_output():
+    def handler(request):
+        return httpx2.Response(200, json=envelope({"suggestions": [{"ref": "r1"}]}))
+
+    with pytest.raises(ProviderError) as error:
+        run_history(handler, {"rows": []})
+    assert error.value.code == "provider_invalid_output"

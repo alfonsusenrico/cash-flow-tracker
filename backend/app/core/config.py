@@ -53,6 +53,9 @@ class Settings:
     movement_repair_lookback_hours: int = 48
     movement_repair_max_gap_seconds: int = 21600
     movement_pairing_configuration_error: str | None = None
+    history_suggestion_max_rows: int = 300
+    history_suggestion_batch_size: int = 20
+    history_suggestion_configuration_error: str | None = None
 
 
 def _csv_env(name: str) -> tuple[str, ...]:
@@ -79,6 +82,18 @@ def _movement_pairing_settings() -> dict:
         "movement_repair_interval_seconds": interval, "movement_repair_lookback_hours": lookback,
         "movement_repair_max_gap_seconds": max_gap,
     }
+
+
+def _history_suggestion_settings() -> dict:
+    """Cost bounds of a history suggestion run; an invalid value disables runs."""
+    try:
+        max_rows = int(os.getenv("HISTORY_SUGGESTION_MAX_ROWS", "300"))
+        batch_size = int(os.getenv("HISTORY_SUGGESTION_BATCH_SIZE", "20"))
+        if not 1 <= max_rows <= 2000 or not 1 <= batch_size <= 50:
+            raise ValueError
+    except ValueError:
+        return {"history_suggestion_configuration_error": "suggestion_configuration_invalid"}
+    return {"history_suggestion_max_rows": max_rows, "history_suggestion_batch_size": batch_size}
 
 
 def load_settings() -> Settings:
@@ -162,6 +177,7 @@ def load_settings() -> Settings:
         app_env=app_env,
         notification_ai_dry_run_enabled=os.getenv("NOTIFICATION_AI_DRY_RUN_ENABLED", "false").lower() == "true",
         **_movement_pairing_settings(),
+        **_history_suggestion_settings(),
     )
 
 

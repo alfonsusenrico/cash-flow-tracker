@@ -109,6 +109,8 @@ describe("review page", () => {
         { id: "account-bca", name: "BCA Harian", type: "bank", parent_id: null },
         { id: "account-gopay", name: "GoPay", type: "ewallet", parent_id: null },
       ] };
+      if (path === "/review/suggestions") return { ok: true, truncated: false, pending: 0, groups: [] };
+      if (path === "/review/suggestions/runs/latest") return { ok: true, run: null };
       throw new Error(`Unexpected GET ${path}`);
     });
     vi.mocked(api.post).mockResolvedValue({ ok: true, answer: { status: "applied", notes: "belanja dapur" } });
