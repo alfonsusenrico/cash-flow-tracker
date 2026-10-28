@@ -8,7 +8,7 @@ uncertain, and gate model classifications by confidence.
 ## Requirements
 
 ### Requirement: Record Settled Notifications With a Review Flag
-The system SHALL record a ledger row for a notification whose amount, currency, direction, settlement and owned account are proven, even when its category, name, pillar or movement pairing is uncertain. Such a row SHALL have `review_status = needs_review`, and the event SHALL keep the review reasons. The reasons are `uncertain_category`, `model_fallback`, `low_confidence`, `model_flagged`, `ambiguous_movement` and `purpose_question`.
+The system SHALL record a ledger row for a notification whose amount, currency, direction, settlement and owned account are proven, even when its category, name, pillar or movement pairing is uncertain. Such a row SHALL have `review_status = needs_review`, and the event SHALL keep the review reasons. The reasons are `uncertain_category`, `model_fallback`, `low_confidence`, `model_flagged`, `ambiguous_movement`, `awaiting_counterpart` and `purpose_question`.
 
 #### Scenario: Deterministic category is uncertain
 - **GIVEN** AI processing is disabled and a settled myBCA text "You spent IDR 187,500.00 at Groceries." resolves to the owner's BCA account, but no category matches "Groceries"
@@ -29,11 +29,20 @@ The system SHALL record a ledger row for a notification whose amount, currency, 
 - **GIVEN** two recorded legs that are both compatible counterparts of a new leg
 - **WHEN** the new leg is recorded
 - **THEN** it SHALL be recorded unpaired with `review_status = needs_review` and the reason `ambiguous_movement`
-- **AND** neither existing leg SHALL be linked.
+- **AND** neither existing leg SHALL be linked
+- **AND** each existing leg still classified automatically SHALL also be flagged `needs_review` with the reason `ambiguous_movement`.
 
 #### Scenario: Automatic pairing clears classification doubt
-- **WHEN** a new leg is linked automatically to a unique counterpart as a movement
-- **THEN** both legs SHALL have `review_status = auto` unless the owner classified one of them.
+- **WHEN** a new leg is linked automatically to a unique counterpart as a movement, immediately or by the re-pairing pass
+- **THEN** both legs SHALL have `review_status = auto` unless the owner classified one of them
+- **AND** an open purpose question on either leg's event SHALL be closed.
+
+#### Scenario: One-sided self-transfer awaits its counterpart
+- **GIVEN** a GoPay notification "Rp500.000 udah dikirim ke BCA Raka Purnama." from the owner Raka Purnama and no matching BCA credit
+- **WHEN** the notification is ingested
+- **THEN** a Rp 500.000 GoPay expense SHALL be recorded in "Internal Movement", unlinked, with `review_status = needs_review` and the reason `awaiting_counterpart`, without a purpose question
+- **AND** it SHALL NOT count as spending or income in the reports
+- **AND** it SHALL remain a candidate for automatic pairing.
 
 ### Requirement: Hold Events Whose Money Facts or Account Are Uncertain
 The system SHALL NOT create a ledger row, and SHALL keep the event in `needs_review` or `needs_confirmation`, when the amount, currency, direction, settlement or timestamp is unproven, when the owned account cannot be resolved or needs the owner's mapping, source-pocket or sender confirmation, when the event may be a second report of an existing movement, or when the context is incomplete.

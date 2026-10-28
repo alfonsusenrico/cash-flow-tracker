@@ -92,7 +92,7 @@ def link_transactions_as_movement(
     cur.execute(
         """
         SELECT t.id, t.type, t.account_id, t.amount, t.movement_id,
-               t.goal_id, t.obligation_id, t.recurring_rule_id,
+               t.goal_id, t.obligation_id, t.recurring_rule_id, t.fee_for_movement_id,
                EXISTS (
                    SELECT 1 FROM transaction_obligation_allocations a
                    WHERE a.transaction_id = t.id
@@ -130,11 +130,12 @@ def link_transactions_as_movement(
         or row["obligation_id"]
         or row["recurring_rule_id"]
         or row["has_debt_allocations"]
+        or row["fee_for_movement_id"]
         for row in (expense, income)
     ):
         raise HTTPException(
             status_code=409,
-            detail="A linked, scheduled, goal, or debt transaction cannot be merged",
+            detail="A linked, scheduled, goal, debt, or transfer-fee transaction cannot be merged",
         )
 
     accounts = lock_owned_accounts(cur, user_id, [source_id, target_id])

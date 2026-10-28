@@ -70,6 +70,7 @@ import asyncio
 import logging
 import httpx2 as httpx
 from app.services.market_data import sync_all_tracked_prices
+from app.services.movement_pairing import repair_unpaired_movements
 from app.services.notification_processing import notification_worker, reclassify_review_noise
 from app.services.openai_notification_provider import OpenAINotificationProvider, configuration_error, dry_run_configuration_error
 
@@ -110,6 +111,23 @@ async def _recurring_scheduler_loop():
             break
 
 
+async def _movement_repair_loop():
+    # The first pass waits one interval: legs recorded just before a restart were paired immediately.
+    while True:
+        try:
+            await asyncio.sleep(settings.movement_repair_interval_seconds)
+        except asyncio.CancelledError:
+            break
+        try:
+            counts = await asyncio.to_thread(repair_unpaired_movements)
+            if any(counts.values()):
+                logger.info("Movement re-pairing: %s", counts)
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.warning("Movement re-pairing unavailable: %s", type(exc).__name__)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     open_db_pool()
@@ -148,6 +166,10 @@ async def lifespan(app: FastAPI):
         tasks.append(asyncio.create_task(_daily_price_sync_loop()))
         tasks.append(asyncio.create_task(_recurring_scheduler_loop()))
         tasks.append(asyncio.create_task(notification_worker(worker_provider)))
+        if settings.movement_pairing_configuration_error:
+            logger.warning("Movement pairing configuration invalid; fee tolerance and re-pairing are disabled")
+        else:
+            tasks.append(asyncio.create_task(_movement_repair_loop()))
     try:
         yield
     finally:

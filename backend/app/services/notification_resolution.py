@@ -358,36 +358,54 @@ def transfer_signature(facts: NotificationFacts, context: dict, account_id: str)
         "transfer": transfer, "self_identity": self_identity, "remote_account_id": remote_id,
         "reference_hash": hashlib.sha256(reference.group(1).lower().encode()).hexdigest() if reference else None,
         "root_account_id": root_account_id(context["accounts"], account_id),
+        "remote_root_account_id": root_account_id(context["accounts"], remote_id) if remote_id else None,
         "external_counterparty": bool((context.get("facts") or {}).get("external_counterparty")),
     }
 
 
-def signatures_compatible(left: dict, right: dict) -> bool:
-    """Whether two recorded opposite legs are evidence of one owner transfer.
+def names_counterpart_institution(leg: dict, other: dict) -> bool:
+    remote_root = leg.get("remote_root_account_id")
+    return bool(remote_root and remote_root == other.get("root_account_id"))
 
-    Callers guarantee equal amount, the pairing time window, and ledger eligibility.
+
+def pairing_evidence(left: dict, right: dict) -> str | None:
+    """How strongly two recorded opposite legs prove one owner transfer: "strong", "weak" or None.
+
+    Callers guarantee the amount rule, the time window, and ledger eligibility.
     Explicit transfer evidence (shared reference, or a named remote account plus owner
     identity) links any two accounts. Otherwise legs on different institutions link
     when neither names a third party, which covers wordings such as a card-style BCA
-    debit paired with a ShopeePay top-up.
+    debit paired with a ShopeePay top-up. That link is strong when either leg names the
+    owner or the other leg's institution, and weak otherwise: equal unrelated amounts on
+    two institutions look the same, so callers accept a weak link only when it is unique.
     """
     if left.get("account_id") == right.get("account_id"):
-        return False
+        return None
     if {left.get("direction"), right.get("direction")} != {"expense", "income"}:
-        return False
+        return None
     if left.get("currency") != right.get("currency"):
-        return False
+        return None
     if left.get("transfer") and right.get("transfer"):
         if left.get("reference_hash") and left["reference_hash"] == right.get("reference_hash"):
-            return True
+            return "strong"
         endpoint_support = (
             left.get("remote_account_id") == right.get("account_id")
             or right.get("remote_account_id") == left.get("account_id")
         )
         if endpoint_support and (left.get("self_identity") or right.get("self_identity")):
-            return True
+            return "strong"
     left_root, right_root = left.get("root_account_id"), right.get("root_account_id")
-    return bool(
+    if not (
         left_root and right_root and left_root != right_root
         and not left.get("external_counterparty") and not right.get("external_counterparty")
-    )
+    ):
+        return None
+    if (left.get("self_identity") or right.get("self_identity")
+            or names_counterpart_institution(left, right) or names_counterpart_institution(right, left)):
+        return "strong"
+    return "weak"
+
+
+def signatures_compatible(left: dict, right: dict) -> bool:
+    """Whether two recorded opposite legs are evidence of one owner transfer (see pairing_evidence)."""
+    return pairing_evidence(left, right) is not None

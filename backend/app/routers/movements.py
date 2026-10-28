@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.db.pool import db_conn
 from app.services.ledger_mutations import (
@@ -17,6 +17,7 @@ from app.services.ledger_mutations import (
 from app.services.auth import get_current_user
 from app.services.investment_topups import reject_topup_movement
 from app.services.merchant_memory import record_owner_corrections, snapshot_rows
+from app.services.movement_pairing import complete_movement, undo_movement_fee
 from app.services.notification_application import account_label, committed_snapshot
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, system_provenance
 
@@ -45,6 +46,18 @@ class MovementUpdate(BaseModel):
 class MovementMerge(BaseModel):
     expense_transaction_id: UUID
     income_transaction_id: UUID
+
+
+class MovementCompletion(BaseModel):
+    transaction_id: UUID
+    target_account_id: UUID | None = None
+    source_account_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def one_counterpart_account(self) -> "MovementCompletion":
+        if (self.target_account_id is None) == (self.source_account_id is None):
+            raise ValueError("Give exactly one of target_account_id and source_account_id")
+        return self
 
 
 from app.services.movement_linkage import (
@@ -207,9 +220,27 @@ def merge_transactions_as_movement(
     return result
 
 
+@router.post("/complete")
+def complete_one_sided_movement(payload: MovementCompletion, current_user: dict = Depends(get_current_user)):
+    """Create the missing leg of a one-sided own transfer and link both legs as one movement."""
+    role = "target" if payload.target_account_id else "source"
+    account_id = str(payload.target_account_id or payload.source_account_id)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            result = complete_movement(
+                cur, current_user["id"], str(payload.transaction_id), counterpart_account_id=account_id, role=role,
+            )
+        conn.commit()
+    return result
+
+
 @router.post("/{movement_id}/split")
 def split_movement(movement_id: UUID, current_user: dict = Depends(get_current_user)):
-    """Undo a movement link, keeping both legs' accounts, amounts, dates, and notes."""
+    """Undo a movement link, keeping both legs' accounts, dates, and notes.
+
+    A transfer fee split off at pairing returns to the outbound leg, so each leg again shows the amount
+    its account actually moved.
+    """
     user_id = current_user["id"]
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -222,6 +253,13 @@ def split_movement(movement_id: UUID, current_user: dict = Depends(get_current_u
             legs = cur.fetchall()
             if len(legs) != 2:
                 raise HTTPException(status_code=404, detail="Movement not found")
+            outbound = next(leg for leg in legs if leg["type"] == "expense")
+            outbound["amount"] = int(outbound["amount"]) + undo_movement_fee(cur, user_id, str(movement_id), str(outbound["id"]))
+            # Rows the owner split apart are never paired automatically again.
+            cur.execute(
+                "UPDATE transactions SET owner_split_at = NOW() WHERE user_id = %s AND movement_id = %s",
+                (user_id, str(movement_id)),
+            )
             cur.execute(
                 """SELECT a.id, a.name, a.type, a.parent_id, a.instrument_type
                    FROM accounts a WHERE a.user_id = %s
@@ -364,5 +402,11 @@ def delete_movement(movement_id: UUID, current_user: dict = Depends(get_current_
             deleted = cur.fetchall()
             if len(deleted) != 2:
                 raise HTTPException(status_code=404, detail="Movement not found")
+            # The fee was part of the outbound debit that is deleted with the movement.
+            cur.execute(
+                """DELETE FROM transactions
+                   WHERE user_id = %s AND fee_for_movement_id = %s AND movement_id IS NULL AND type = 'expense'""",
+                (user_id, str(movement_id)),
+            )
             conn.commit()
     return {"ok": True, "movement_id": str(movement_id)}
