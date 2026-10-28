@@ -28,6 +28,7 @@ import { consolidateLedgerMovements } from "@/lib/ledgerMovements";
 import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
 import { ExpenseTopupConversionModal } from "@/components/ui/ExpenseTopupConversionModal";
 import { canConvertExpenseToTopup } from "@/lib/investmentTopups";
+import { KAKEIBO_PILLARS, type KakeiboPillar, kakeiboPillarInfo, pillarOrNeed } from "@/lib/kakeibo";
 
 interface TransactionItem {
   id: string;
@@ -122,7 +123,7 @@ export default function LedgerPage() {
   // Edit form state
   const [editAmount, setEditAmount] = useState("");
   const [editType, setEditType] = useState<"expense" | "income">("expense");
-  const [editKakeiboType, setEditKakeiboType] = useState<"need" | "want" | "saving">("need");
+  const [editKakeiboType, setEditKakeiboType] = useState<KakeiboPillar>("need");
   const [editHasKakeiboOverride, setEditHasKakeiboOverride] = useState(false);
   const [editReceipt, setEditReceipt] = useState<File | null>(null);
   const [receiptRetryTransactionId, setReceiptRetryTransactionId] = useState<string | null>(null);
@@ -247,11 +248,7 @@ export default function LedgerPage() {
     setEditingTx(tx);
     setEditAmount(formatNumberWithDots(tx.amount));
     setEditType(tx.type);
-    setEditKakeiboType(
-      tx.kakeibo_type === "want" || tx.kakeibo_type === "saving"
-        ? tx.kakeibo_type
-        : "need",
-    );
+    setEditKakeiboType(pillarOrNeed(tx.kakeibo_type));
     const originalCategory = categories.find((category) => category.id === tx.category_id);
     setEditHasKakeiboOverride(Boolean(
       tx.kakeibo_type && originalCategory?.kakeibo_type && tx.kakeibo_type !== originalCategory.kakeibo_type,
@@ -1435,7 +1432,7 @@ export default function LedgerPage() {
                       if (editType === "expense" && !editHasKakeiboOverride) {
                         const category = categories.find((item) => item.id === nextCategoryId);
                         const pillar = category?.kakeibo_type;
-                        setEditKakeiboType(pillar === "want" || pillar === "saving" ? pillar : "need");
+                        setEditKakeiboType(pillarOrNeed(pillar));
                       }
                     }}
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
@@ -1458,10 +1455,11 @@ export default function LedgerPage() {
                       <InfoHelp label="Pilar Kakeibo">Mengikuti pilar kategori, kecuali Anda memilih pilar lain untuk transaksi ini.</InfoHelp>
                     </div>
                     <select id="ledger-edit-kakeibo" name="kakeibo_type" value={editKakeiboType} onChange={(event) => { setEditKakeiboType(event.target.value as typeof editKakeiboType); setEditHasKakeiboOverride(true); }} className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]">
-                      <option value="need">Kebutuhan</option>
-                      <option value="want">Keinginan</option>
-                      <option value="saving">Tabungan</option>
+                      {KAKEIBO_PILLARS.map((pillar) => (
+                        <option key={pillar.value} value={pillar.value}>{pillar.label}</option>
+                      ))}
                     </select>
+                    <p className="mt-1 text-[11px] text-[var(--muted)]">{kakeiboPillarInfo(editKakeiboType)?.help}</p>
                   </div>
                 )}
 

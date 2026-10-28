@@ -8,6 +8,7 @@ import {
 } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
+import { kakeiboLabel } from "@/lib/kakeibo";
 
 export interface LedgerTxItem {
   id: string;
@@ -295,7 +296,7 @@ export function MobileLedgerFeed({
                             <>
                               <span>•</span>
                               <span className="uppercase text-[9px] font-bold text-[var(--muted)]">
-                                {tx.kakeibo_type}
+                                {kakeiboLabel(tx.kakeibo_type)}
                               </span>
                             </>
                           )}

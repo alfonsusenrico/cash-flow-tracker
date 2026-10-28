@@ -57,7 +57,7 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
     )
     accounts = cur.fetchall()
     cur.execute(
-        """SELECT id, name, kind FROM categories
+        """SELECT id, name, kind, kakeibo_type FROM categories
            WHERE user_id = %s AND is_archived = FALSE ORDER BY id LIMIT %s""",
         (user_id, CATEGORY_LIMIT + 1),
     )
@@ -105,7 +105,11 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
         row["learned_notification_names"] = learned_names.get(str(row["id"]), [])
     for row in sanitized_accounts:
         row["name"] = sanitize_text(row["name"], identity)[:150]
-    sanitized_categories = [{"id": row["id"], "name": sanitize_text(row["name"], identity)[:100], "kind": row["kind"]} for row in categories[:CATEGORY_LIMIT]]
+    sanitized_categories = [
+        {"id": row["id"], "name": sanitize_text(row["name"], identity)[:100], "kind": row["kind"],
+         "default_kakeibo": row.get("kakeibo_type")}
+        for row in categories[:CATEGORY_LIMIT]
+    ]
     for row in history:
         row["description"] = sanitize_text(row.get("description"), identity)
     sanitized_rules = [{"merchant_pattern": sanitize_text(row["merchant_pattern"], identity)[:200], "category_id": row["category_id"]} for row in rules[:100]]

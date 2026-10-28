@@ -15,6 +15,7 @@ import { listLiquidAccountChoices } from "@/lib/accountOptions";
 import { HeroWalletCard } from "@/components/dashboard/HeroWalletCard";
 import { DailyBudgetBar } from "@/components/dashboard/DailyBudgetBar";
 import { MetricMatrixGrid } from "@/components/dashboard/MetricMatrixGrid";
+import { kakeiboLabel } from "@/lib/kakeibo";
 import { KakeiboPillarCards } from "@/components/dashboard/KakeiboPillarCards";
 import { NarrativeInsightCard } from "@/components/dashboard/NarrativeInsightCard";
 import { CategoryDonutChart } from "@/components/dashboard/CategoryDonutChart";
@@ -334,7 +335,7 @@ export default function OverviewPage() {
                               <>
                                 <span>•</span>
                                 <span className="uppercase text-[9px] font-bold text-[var(--muted)]">
-                                  {tx.kakeibo_type}
+                                  {kakeiboLabel(tx.kakeibo_type)}
                                 </span>
                               </>
                             )}
@@ -654,11 +655,7 @@ export default function OverviewPage() {
               <div className="flex justify-between items-center py-2 border-b border-[var(--border)]">
                 <span className="text-[var(--muted)]">Pilar Kakeibo</span>
                 <span className="font-semibold uppercase text-[var(--text)]">
-                  {selectedTx.kakeibo_type === "need"
-                    ? "🍞 Kebutuhan (Need)"
-                    : selectedTx.kakeibo_type === "want"
-                    ? "👑 Keinginan (Want)"
-                    : "💰 Tabungan (Saving)"}
+                  {kakeiboLabel(selectedTx.kakeibo_type)}
                 </span>
               </div>
             )}

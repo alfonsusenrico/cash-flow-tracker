@@ -4,6 +4,7 @@ import { useAppCtx } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
+import { KAKEIBO_PILLARS, type KakeiboBreakdown, isKakeiboHealthy, kakeiboGroups, pillarPct } from "@/lib/kakeibo";
 
 interface MetricMatrixGridProps {
   totalInflow: number;
@@ -16,15 +17,7 @@ interface MetricMatrixGridProps {
     net_cashflow_delta_pct?: number;
     savings_rate_delta_pts?: number;
   };
-  kakeibo?: {
-    need_spent: number;
-    need_pct: number;
-    want_spent: number;
-    want_pct: number;
-    saving_spent: number;
-    saving_pct: number;
-    kakeibo_status: string;
-  };
+  kakeibo?: KakeiboBreakdown;
 }
 
 export function MetricMatrixGrid({
@@ -189,39 +182,42 @@ export function MetricMatrixGrid({
           <span
             className={cn(
               "text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border",
-              kakeibo?.kakeibo_status === "warning"
-                ? "bg-rose-500/15 text-rose-500 border-rose-500/25"
-                : "bg-sky-500/15 text-sky-500 border-sky-500/25"
+              isKakeiboHealthy(kakeibo?.kakeibo_status)
+                ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/25"
+                : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25"
             )}
           >
-            {kakeibo?.kakeibo_status === "warning" ? "Want > 30%" : "Ideal"}
+            {kakeibo?.kakeibo_status === "warning"
+              ? "Gaya hidup > 30%"
+              : kakeibo?.kakeibo_status === "elevated_needs"
+                ? "Pokok > 50%"
+                : kakeibo
+                  ? "Ideal"
+                  : "Belum ada data"}
           </span>
         </div>
 
         <div className="mt-3.5 space-y-1.5">
-          {/* 3 mini bars with smooth cubic transitions */}
-          <div className="flex h-2 w-full rounded-full overflow-hidden bg-[var(--surface-raised)] border border-[var(--border)] gap-0.5">
-            <div
-              className="transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
-              style={{ width: `${kakeibo?.need_pct ?? 50}%`, backgroundColor: "var(--color-kakeibo-need)" }}
-              title={`Need: ${kakeibo?.need_pct ?? 0}%`}
-            />
-            <div
-              className="transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
-              style={{ width: `${kakeibo?.want_pct ?? 30}%`, backgroundColor: "var(--color-kakeibo-want)" }}
-              title={`Want: ${kakeibo?.want_pct ?? 0}%`}
-            />
-            <div
-              className="transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
-              style={{ width: `${kakeibo?.saving_pct ?? 20}%`, backgroundColor: "var(--color-kakeibo-saving)" }}
-              title={`Saving: ${kakeibo?.saving_pct ?? 0}%`}
-            />
+          <div
+            role="img"
+            aria-label={`Alokasi pilar: ${KAKEIBO_PILLARS.map((pillar) => `${pillar.label} ${pillarPct(kakeibo, pillar.value)}%`).join(", ")}`}
+            className="flex h-2 w-full rounded-full overflow-hidden bg-[var(--surface-raised)] border border-[var(--border)] gap-0.5"
+          >
+            {KAKEIBO_PILLARS.map((pillar) => (
+              <div
+                key={pillar.value}
+                className="transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+                style={{ width: `${Math.min(pillarPct(kakeibo, pillar.value), 100)}%`, backgroundColor: pillar.color }}
+              />
+            ))}
           </div>
 
-          <div className="flex items-center justify-between text-[10px] pt-0.5">
-            <span className="font-bold" style={{ color: "var(--color-kakeibo-need)" }}>{kakeibo?.need_pct ?? 0}% Need</span>
-            <span className="font-bold" style={{ color: "var(--color-kakeibo-want)" }}>{kakeibo?.want_pct ?? 0}% Want</span>
-            <span className="font-bold" style={{ color: "var(--color-kakeibo-saving)" }}>{kakeibo?.saving_pct ?? 0}% Save</span>
+          <div className="flex flex-wrap items-center justify-between gap-x-2 text-[10px] pt-0.5 tabular">
+            {kakeiboGroups(kakeibo).map((group) => (
+              <span key={group.key} className="whitespace-nowrap font-bold text-[var(--text)]">
+                {group.pct}% {group.shortLabel}
+              </span>
+            ))}
           </div>
         </div>
       </div>

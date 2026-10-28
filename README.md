@@ -115,17 +115,13 @@ The 2026-09-29 held-out evaluation failed the required schema-validity and unamb
 ### 2. 🎯 Paycheck Cycle & Daily Pulse
 - **Payday-Aligned Cycles:** Budgets operate on your real financial cadence (e.g. 25th to 24th), not arbitrary calendar months.
 - **Safe-to-Spend Allowance:** Dynamically adjusts your daily allowance based on remaining days and actual burn rate.
-- **Kakeibo Financial Allocation:** Visual 50 / 30 / 20 breakdown (Needs, Wants, Savings & Investment) to keep cash flow balanced.
+- **Kakeibo Financial Allocation:** Five pillars (Kebutuhan, Keinginan, Budaya, Tak Terduga, Tabungan) judged against the 50 / 30 / 20 benchmark as essentials, lifestyle and savings.
 
 ### 3. 🏦 Multi-Vault Liquidity & Asset Portfolio
 - **Cash, Banks & E-Wallets:** Real-time balances for physical cash, bank accounts, and digital wallets with 1-tap internal transfers.
 - **Investment Portfolio & RDN:** Track stock lots and weighted-average buy price (WAC) with direct source account linking.
 
-### 4. 🤖 Telegram AI Companion with Receipt OCR
-- **Natural Language Chat:** Send *"beli makan 50rb pake bca"* or *"transfer 500k dari BCA ke Jago"*. DeepSeek AI parses intent and records the transaction instantly.
-- **Receipt Photo Ingestion:** Snap a photo of any receipt in Telegram — the bot extracts line items, tax, total, and timestamp automatically.
-
-### 5. 🎨 Linear-Grade Craft & Density
+### 4. 🎨 Linear-Grade Craft & Density
 - High-contrast, dark-first Bauhaus visual language.
 - Monospaced tabular digits for currencies, sub-millisecond keyboard shortcuts (`N` for quick entry), and responsive desktop/mobile layouts.
 
@@ -135,15 +131,13 @@ The 2026-09-29 held-out evaluation failed the required schema-validity and unamb
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                   CashFlow Ecosystem                        │
-├─────────────────────────┬───────────────────────────────────┤
-│  📱 Mobile Listener     │  🤖 Telegram Bot                  │
-│  - Android Native       │  - Python + DeepSeek AI           │
-│  - On-Device Regex      │  - Receipt OCR Vision             │
-│  - Secured Bearer Post  │  - Natural Language Interface     │
-└────────────┬────────────┴─────────────────┬─────────────────┘
-             │                              │
-             ▼                              ▼
+│  📱 Mobile Listener (Android companion)                     │
+│  - Native NotificationListenerService                       │
+│  - On-device capture and local inbox                        │
+│  - Secured Bearer Post                                      │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  ⚡️ FastAPI Backend (:8000)                                 │
 │  - Single unified auth (Starlette Sessions + Bearer Tokens) │

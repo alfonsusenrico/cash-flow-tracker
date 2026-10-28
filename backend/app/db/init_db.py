@@ -269,6 +269,7 @@ def init_db_schema() -> None:
             cur.execute(Path(__file__).with_name("notification_source_pocket.sql").read_text(encoding="utf-8"))
             cur.execute(Path(__file__).with_name("investment_topups.sql").read_text(encoding="utf-8"))
             cur.execute(Path(__file__).with_name("investment_topup_conversion.sql").read_text(encoding="utf-8"))
+            cur.execute(Path(__file__).with_name("full_kakeibo_and_adjustment_category.sql").read_text(encoding="utf-8"))
             conn.commit()
 
 

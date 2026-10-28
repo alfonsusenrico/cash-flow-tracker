@@ -38,13 +38,17 @@
   --color-warning-soft: #FEF3C7;
   --color-focus: #FF334B;
 
-  /* Kakeibo 3-Pillar Tokens */
+  /* Kakeibo Pillar Tokens */
   --color-kakeibo-need: #7C3AED;
   --color-kakeibo-need-soft: #F5F3FF;
   --color-kakeibo-want: #FF334B;
   --color-kakeibo-want-soft: #FFE8EC;
   --color-kakeibo-saving: #059669;
   --color-kakeibo-saving-soft: #ECFDF5;
+  --color-kakeibo-culture: #0369A1;
+  --color-kakeibo-culture-soft: #E0F2FE;
+  --color-kakeibo-unexpected: #B45309;
+  --color-kakeibo-unexpected-soft: #FEF3C7;
 
   /* Light Architectural Slate Desktop Sidebar */
   --sidebar: #F0F3F6;
@@ -125,13 +129,17 @@
   --color-warning-soft: rgba(251, 191, 36, 0.16);
   --color-focus: #FF4757;
 
-  /* Kakeibo 3-Pillar Tokens */
+  /* Kakeibo Pillar Tokens */
   --color-kakeibo-need: #8B5CF6;
   --color-kakeibo-need-soft: rgba(139, 92, 246, 0.18);
   --color-kakeibo-want: #FF4757;
   --color-kakeibo-want-soft: rgba(255, 71, 87, 0.18);
   --color-kakeibo-saving: #10B981;
   --color-kakeibo-saving-soft: rgba(16, 185, 129, 0.16);
+  --color-kakeibo-culture: #38BDF8;
+  --color-kakeibo-culture-soft: rgba(56, 189, 248, 0.16);
+  --color-kakeibo-unexpected: #FBBF24;
+  --color-kakeibo-unexpected-soft: rgba(251, 191, 36, 0.16);
 
   /* Pitch Obsidian Desktop Sidebar */
   --sidebar: #020305;

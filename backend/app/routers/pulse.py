@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.db.pool import db_conn
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.services.auth import get_current_user
+from app.services.kakeibo import effective_pillar_sql
 
 router = APIRouter(tags=["Pulse & Insights"])
 
@@ -91,14 +92,14 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
 
             # 2. Today's spent (living expenses only: excludes internal movement & investments)
             cur.execute(
-                """
+                f"""
                 SELECT COALESCE(SUM(t.amount), 0) AS today_spent
                 FROM transactions t
                 LEFT JOIN categories c ON t.category_id = c.id
                 WHERE t.user_id = %s
                   AND t.type = 'expense'
                   AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
-                  AND (c.kakeibo_type IS NULL OR c.kakeibo_type IN ('need', 'want'))
+                  AND {effective_pillar_sql()} <> 'saving'
                   AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
                   AND t.date >= %s AND t.date <= %s
                 """,
@@ -108,12 +109,12 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
 
             # 3. Cycle spending & income (living expenses only for cycle_spent)
             cur.execute(
-                """
+                f"""
                 SELECT
                     COALESCE(SUM(CASE
                         WHEN t.type = 'expense'
                              AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
-                             AND (c.kakeibo_type IS NULL OR c.kakeibo_type IN ('need', 'want'))
+                             AND {effective_pillar_sql()} <> 'saving'
                              AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
                         THEN t.amount ELSE 0 END), 0) AS cycle_spent,
                     COALESCE(SUM(CASE

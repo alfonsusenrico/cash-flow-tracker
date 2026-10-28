@@ -13,6 +13,8 @@ import { FormSection } from "@/components/ui/FormField";
 import { BurnCadenceChart } from "@/components/dashboard/BurnCadenceChart";
 import { SpendingHeatmap } from "@/components/dashboard/SpendingHeatmap";
 import { NarrativeInsightCard } from "@/components/dashboard/NarrativeInsightCard";
+import { KakeiboBenchmark } from "@/components/dashboard/KakeiboBenchmark";
+import { KAKEIBO_PILLARS, type KakeiboPillar, kakeiboPillarInfo, pillarOrNeed } from "@/lib/kakeibo";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 
 const CATEGORY_ICONS = [
@@ -68,7 +70,7 @@ export default function AnalyticsPage() {
   const [catBudget, setCatBudget] = useState("");
   const [catIsPrimary, setCatIsPrimary] = useState(true);
   const [catKind, setCatKind] = useState<"expense" | "income">("expense");
-  const [catKakeiboType, setCatKakeiboType] = useState<"need" | "want" | "saving">("need");
+  const [catKakeiboType, setCatKakeiboType] = useState<KakeiboPillar>("need");
   const [catError, setCatError] = useState("");
 
   const openCreateCategory = (kind: "expense" | "income" = "expense") => {
@@ -93,7 +95,7 @@ export default function AnalyticsPage() {
     setCatBudget(monthlyBudget ? formatNumberWithDots(monthlyBudget) : "");
     setCatIsPrimary(cat.is_primary !== false);
     setCatKind(cat.kind === "income" ? "income" : "expense");
-    setCatKakeiboType(cat.kakeibo_type === "want" || cat.kakeibo_type === "saving" ? cat.kakeibo_type : "need");
+    setCatKakeiboType(pillarOrNeed(cat.kakeibo_type));
     setCatError("");
     setCatModalOpen(true);
   };
@@ -956,180 +958,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* 3. Kakeibo 3-Pillar Budgeting Blueprint (50 / 30 / 20) */}
-          <div className="cockpit-card p-5 sm:p-6 space-y-5 border border-[var(--border)] shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🇯🇵</span>
-                  <h2 className="text-base font-bold tracking-tight text-[var(--text)]">
-                    Metode Kakeibo (50 / 30 / 20)
-                  </h2>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                      kakeibo?.kakeibo_status === "SEHAT"
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                    )}
-                  >
-                    {kakeibo?.kakeibo_status === "SEHAT"
-                      ? "KAKEIBO SEHAT"
-                      : "PERLU PENYESUAIAN"}
-                  </span>
-                </div>
-                <p className="text-xs text-[var(--muted)] mt-0.5">
-                  Filosofi alokasi kas harian: 50% Kebutuhan Pokok, 30% Keinginan, 20% Tabungan & Investasi
-                </p>
-              </div>
-            </div>
-
-            {/* Visual 3-Pillar Proportion Stack Bar */}
-            <div className="space-y-1.5">
-              <div className="h-3.5 w-full rounded-full bg-[var(--surface-raised)] border border-[var(--border)] flex overflow-hidden">
-                <div
-                  style={{ width: `${Math.min(kakeibo?.need_pct ?? 0, 100)}%` }}
-                  className="bg-emerald-500 h-full transition-[width] motion-reduce:transition-none"
-                  title={`Kebutuhan: ${kakeibo?.need_pct ?? 0}%`}
-                />
-                <div
-                  style={{ width: `${Math.min(kakeibo?.want_pct ?? 0, 100)}%` }}
-                  className="bg-blue-500 h-full transition-[width] motion-reduce:transition-none"
-                  title={`Keinginan: ${kakeibo?.want_pct ?? 0}%`}
-                />
-                <div
-                  style={{ width: `${Math.min(kakeibo?.saving_pct ?? 0, 100)}%` }}
-                  className="bg-purple-500 h-full transition-[width] motion-reduce:transition-none"
-                  title={`Tabungan: ${kakeibo?.saving_pct ?? 0}%`}
-                />
-              </div>
-              <div className="flex items-center justify-between text-[10px] text-[var(--muted)] tabular font-medium">
-                <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  Kebutuhan ({kakeibo?.need_pct ?? 0}%)
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                  Keinginan ({kakeibo?.want_pct ?? 0}%)
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
-                  Tabungan ({kakeibo?.saving_pct ?? 0}%)
-                </span>
-              </div>
-            </div>
-
-            {/* 3 Interactive Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Pillar 1: Needs */}
-              <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🍞</span>
-                    <div>
-                      <div className="text-xs font-bold text-[var(--text)]">Kebutuhan (Need)</div>
-                      <div className="text-[10px] text-[var(--muted)]">Target: &le; 50%</div>
-                    </div>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                      (kakeibo?.need_pct ?? 0) <= 50
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                    )}
-                  >
-                    {(kakeibo?.need_pct ?? 0) <= 50 ? "Aman" : "Over 50%"}
-                  </span>
-                </div>
-
-                <div>
-                  <div className="text-xl font-bold text-[var(--text)] tabular">
-                    {bal(kakeibo?.need_spent ?? 0)}
-                  </div>
-                  <div className="text-[11px] text-[var(--muted)] mt-0.5">
-                    {kakeibo?.need_pct ?? 0}% dari total uang masuk
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-[var(--muted)] leading-relaxed">
-                  Belanja makanan pokok, sewa/kost, utilitas, cicilan wajib, dan operasional penting.
-                </p>
-              </div>
-
-              {/* Pillar 2: Wants */}
-              <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">👑</span>
-                    <div>
-                      <div className="text-xs font-bold text-[var(--text)]">Keinginan (Want)</div>
-                      <div className="text-[10px] text-[var(--muted)]">Target: &le; 30%</div>
-                    </div>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                      (kakeibo?.want_pct ?? 0) <= 30
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                    )}
-                  >
-                    {(kakeibo?.want_pct ?? 0) <= 30 ? "Terkendali" : "Over 30%"}
-                  </span>
-                </div>
-
-                <div>
-                  <div className="text-xl font-bold text-[var(--text)] tabular">
-                    {bal(kakeibo?.want_spent ?? 0)}
-                  </div>
-                  <div className="text-[11px] text-[var(--muted)] mt-0.5">
-                    {kakeibo?.want_pct ?? 0}% dari total uang masuk
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-[var(--muted)] leading-relaxed">
-                  Makan di resto, kopi, hobi, langganan hiburan, dan belanja sekunder penunjang gaya hidup.
-                </p>
-              </div>
-
-              {/* Pillar 3: Savings */}
-              <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">💰</span>
-                    <div>
-                      <div className="text-xs font-bold text-[var(--text)]">Tabungan (Saving)</div>
-                      <div className="text-[10px] text-[var(--muted)]">Target: &ge; 20%</div>
-                    </div>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                      (kakeibo?.saving_pct ?? 0) >= 20
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                    )}
-                  >
-                    {(kakeibo?.saving_pct ?? 0) >= 20 ? "Target Tercapai" : "Perlu Ditingkatkan"}
-                  </span>
-                </div>
-
-                <div>
-                  <div className="text-xl font-bold text-[var(--text)] tabular">
-                    {bal(kakeibo?.saving_spent ?? 0)}
-                  </div>
-                  <div className="text-[11px] text-[var(--muted)] mt-0.5">
-                    {kakeibo?.saving_pct ?? 0}% dari total uang masuk
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-[var(--muted)] leading-relaxed">
-                  Dana darurat, tabungan target masa depan, reksadana/saham, dan sisa surplus kas aktif.
-                </p>
-              </div>
-            </div>
-          </div>
+          <KakeiboBenchmark kakeibo={kakeibo} />
         </div>
       )}
 
@@ -1194,10 +1023,11 @@ export default function AnalyticsPage() {
                 <div>
                   <label htmlFor="category-kakeibo" className="text-xs font-medium text-[var(--muted)] block mb-1">Pilar Kakeibo bawaan</label>
                   <select id="category-kakeibo" name="kakeibo_type" value={catKakeiboType} onChange={(event) => setCatKakeiboType(event.target.value as typeof catKakeiboType)} className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]">
-                    <option value="need">Kebutuhan</option>
-                    <option value="want">Keinginan</option>
-                    <option value="saving">Tabungan</option>
+                    {KAKEIBO_PILLARS.map((pillar) => (
+                      <option key={pillar.value} value={pillar.value}>{pillar.label}</option>
+                    ))}
                   </select>
+                  <p className="mt-1 text-[11px] text-[var(--muted)]">{kakeiboPillarInfo(catKakeiboType)?.help}</p>
                 </div>
                 <label htmlFor="category-primary" className="flex min-h-11 items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3">
                   <input id="category-primary" name="is_primary" type="checkbox" checked={catIsPrimary} onChange={(event) => setCatIsPrimary(event.target.checked)} />

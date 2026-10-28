@@ -10,6 +10,7 @@ from app.db.pool import db_conn
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.routers.pulse import get_cycle_window
 from app.services.auth import get_current_user
+from app.services.kakeibo import effective_pillar_sql
 
 router = APIRouter(tags=["Dashboard"])
 
@@ -143,11 +144,11 @@ def get_kakeibo_breakdown(
     end_utc: datetime,
     total_inflow: int,
 ) -> dict[str, Any]:
-    # 1. Expenses by pillar (transaction-level classification, excluding internal movements)
+    # 1. Expenses by effective pillar, excluding internal movements and other excluded categories
     cur.execute(
-        """
-        SELECT 
-            COALESCE(t.kakeibo_type, 'need') AS pillar,
+        f"""
+        SELECT
+            {effective_pillar_sql()} AS pillar,
             COALESCE(SUM(t.amount), 0) AS total_amount
         FROM transactions t
         LEFT JOIN categories c ON c.id = t.category_id
@@ -162,6 +163,8 @@ def get_kakeibo_breakdown(
     pillar_map = {r["pillar"]: int(r["total_amount"]) for r in cur.fetchall()}
     need_spent = pillar_map.get("need", 0)
     want_spent = pillar_map.get("want", 0)
+    culture_spent = pillar_map.get("culture", 0)
+    unexpected_spent = pillar_map.get("unexpected", 0)
     saving_expenses = pillar_map.get("saving", 0)
 
     # 2. Net fresh saving across durably linked movements.
@@ -210,20 +213,24 @@ def get_kakeibo_breakdown(
         net_saving_transfers = 0
     saving_spent = max(0, saving_expenses + net_saving_transfers)
 
-    total_allocated = need_spent + want_spent + saving_spent
+    total_allocated = need_spent + want_spent + culture_spent + unexpected_spent + saving_spent
     base_calc = max(total_inflow, total_allocated)
 
-    if base_calc > 0:
-        need_pct = round((need_spent / base_calc) * 100, 1)
-        want_pct = round((want_spent / base_calc) * 100, 1)
-        saving_pct = round((saving_spent / base_calc) * 100, 1)
-    else:
-        need_pct = 0.0
-        want_pct = 0.0
-        saving_pct = 0.0
+    def pct(amount: int) -> float:
+        return round((amount / base_calc) * 100, 1) if base_calc > 0 else 0.0
 
-    want_status = "warning" if want_pct > 30.0 else "healthy"
-    kakeibo_status = "warning" if want_pct > 30.0 else ("elevated_needs" if need_pct > 50.0 else "healthy")
+    need_pct = pct(need_spent)
+    want_pct = pct(want_spent)
+    culture_pct = pct(culture_spent)
+    unexpected_pct = pct(unexpected_spent)
+    saving_pct = pct(saving_spent)
+    # The 50/30/20 benchmark is judged on groups: unexpected spending is an essential cost,
+    # culture is discretionary lifestyle spending (owner decision, 2026-10-28).
+    essentials_pct = pct(need_spent + unexpected_spent)
+    lifestyle_pct = pct(want_spent + culture_spent)
+
+    want_status = "warning" if lifestyle_pct > 30.0 else "healthy"
+    kakeibo_status = "warning" if lifestyle_pct > 30.0 else ("elevated_needs" if essentials_pct > 50.0 else "healthy")
 
     return {
         "need_spent": need_spent,
@@ -232,9 +239,17 @@ def get_kakeibo_breakdown(
         "want_spent": want_spent,
         "want_pct": want_pct,
         "want_target_pct": 30.0,
+        "culture_spent": culture_spent,
+        "culture_pct": culture_pct,
+        "unexpected_spent": unexpected_spent,
+        "unexpected_pct": unexpected_pct,
         "saving_spent": saving_spent,
         "saving_pct": saving_pct,
         "saving_target_pct": 20.0,
+        "essentials_pct": essentials_pct,
+        "essentials_target_pct": 50.0,
+        "lifestyle_pct": lifestyle_pct,
+        "lifestyle_target_pct": 30.0,
         "total_allocated": total_allocated,
         "kakeibo_status": kakeibo_status,
         "want_status": want_status,
@@ -626,7 +641,7 @@ def get_dashboard_overview(
                         "icon": r["icon"],
                         "color": r["color"],
                         "is_primary": bool(r.get("is_primary", True)),
-                        "kakeibo_type": r.get("kakeibo_type") or ("need" if r.get("is_primary", True) else "want"),
+                        "kakeibo_type": r.get("kakeibo_type") or "need",
                         "spent": spent,
                         "percentage_of_total": pct_total,
                         "budget": budget,
@@ -1037,7 +1052,7 @@ def get_dashboard_analytics(
                         "icon": r["icon"],
                         "color": r["color"],
                         "is_primary": bool(r.get("is_primary", True)),
-                        "kakeibo_type": r.get("kakeibo_type") or ("need" if r.get("is_primary", True) else "want"),
+                        "kakeibo_type": r.get("kakeibo_type") or "need",
                         "spent": spent,
                         "budget": budget,
                         "variance": variance,

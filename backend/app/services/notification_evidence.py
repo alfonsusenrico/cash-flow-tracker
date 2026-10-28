@@ -30,12 +30,30 @@ BALANCE_PATTERN = re.compile(
     r"\s*:?\s*(?:Rp\.?|IDR)?\s*[\d\.,]+",
     re.I,
 )
-NOISE_PATTERN = re.compile(
-    r"\b(?:OTP|one.time password|kode (?:verifikasi|akses)|cashback|promo|diskon|"
-    r"failed|gagal|pending|tertunda|sedang diproses|akan (?:dikirim|ditransfer)|"
-    r"monitoring transactions|notification listener (?:active|running))\b",
+# Wording that never describes a completed transaction: codes, failures, work in progress,
+# authorisation requests awaiting a decision, and instructions with a deadline.
+HARD_NOISE_PATTERN = re.compile(
+    r"\b(?:OTP|one.time password|kode (?:verifikasi|akses)|"
+    r"failed|gagal|pending|tertunda|sedang diproses|lagi memproses|akan (?:dikirim|ditransfer)|"
+    r"is requesting|confirm or reject|menunggu pembayaran|segera (?:bayar|transfer)|"
+    r"monitoring transactions|notification listener (?:active|running))\b"
+    r"|\bsebelum \d{1,2} [A-Za-z]{3,9}\b",
     re.I,
 )
+# Promotional and market wording only marks noise when the text is not a recognised
+# transaction: a settled payment may still mention its cashback.
+PROMOTIONAL_PATTERN = re.compile(
+    r"\b(?:cashback|promo|diskon|bonus|voucher|klaim|up to|hingga)\b|\bs\.d\.", re.I
+)
+MARKET_INFO_PATTERN = re.compile(
+    r"\b(?:IHSG|trending|net (?:buy|sell)|top (?:buy|sell)|YoY|laba bersih|aksi korporasi)\b", re.I
+)
+# Headline figures such as "Rp1,5 T" or "Rp500 M" appear in news and offers, never in bank
+# confirmations, which always write the full amount.
+HEADLINE_AMOUNT_PATTERN = re.compile(
+    r"\b(?:Rp\.?|IDR)\s*\d[\d.,]*\s?(?:rb|ribu|k|jt|juta|m|miliar|t|triliun)\b", re.I
+)
+FOREIGN_CURRENCY_PATTERN = re.compile(r"\b(?:USD|EUR|SGD|MYR)\b|\$\s*\d", re.I)
 INJECTION_PATTERN = re.compile(
     r"ignore (?:all |the |your )?(?:previous|instructions|rules)|"
     r"abaikan (?:semua )?(?:instruksi|aturan)|system prompt|disclose secrets",
@@ -84,6 +102,7 @@ class NotificationFacts:
     amount_quotes: tuple[str, ...]
     parsed: ParsedNotification
     confirmed_source_account_id: str | None = None
+    ignore_reason: str | None = None
 
 
 def source_pocket_evidence(facts: NotificationFacts) -> str | None:
@@ -169,43 +188,59 @@ def collect_facts(event: dict[str, Any]) -> NotificationFacts:
     direction = {"out": "expense", "in": "income", "internal": "internal_movement"}.get(parsed.direction)
     amounts: dict[int, list[str]] = {}
     error = None
+    idr_mentions = 0
     balance_spans = [m.span() for m in BALANCE_PATTERN.finditer(text)]
     for match in MONEY_PATTERN.finditer(text):
         span = match.span()
         if any(b_start <= span[0] and span[1] <= b_end for b_start, b_end in balance_spans):
             continue
+        idr_mentions += 1
         try:
             amount = parse_idr_amount(match.group(1))
             amounts.setdefault(amount, []).append(match.group(0))
         except EvidenceError as exc:
             error = exc.code
-    status = "candidate"
-    if not institution or not text or NOISE_PATTERN.search(text):
-        status = "ignored"
-        error = None
-    elif INJECTION_PATTERN.search(text):
-        error = "unsafe_instructions"
-    elif timestamp.tzinfo is None or timestamp.utcoffset() is None:
-        error = "timestamp_timezone_required"
-    elif re.search(r"\b(?:USD|EUR|SGD|MYR)\b|\$\s*\d", text, re.I):
-        error = "unsupported_currency"
-    elif len(amounts) != 1:
-        error = "ambiguous_amount" if amounts else "missing_amount"
-    elif not SETTLED_PATTERN.search(text):
-        error = "settlement_unproven"
     if not direction:
         outgoing = bool(OUT_PATTERN.search(text))
         incoming = bool(IN_PATTERN.search(text))
         if outgoing != incoming:
             direction = "expense" if outgoing else "income"
     settled = bool(SETTLED_PATTERN.search(text))
+    recognised = (parsed.is_financial and parsed.amount is not None) or (
+        len(amounts) == 1 and settled and direction is not None
+    )
+    status = "candidate"
+    ignore_reason = None
+    if not institution or not text:
+        ignore_reason = "unsupported_source"
+    elif HARD_NOISE_PATTERN.search(text):
+        ignore_reason = "hard_noise"
+    elif not recognised and (PROMOTIONAL_PATTERN.search(text) or MARKET_INFO_PATTERN.search(text)):
+        ignore_reason = "promotional_or_market"
+    elif not recognised and idr_mentions and len(HEADLINE_AMOUNT_PATTERN.findall(text)) >= idr_mentions:
+        ignore_reason = "headline_figures"
+    elif not recognised and not idr_mentions and not FOREIGN_CURRENCY_PATTERN.search(text):
+        ignore_reason = "no_amount"
+    if ignore_reason:
+        status = "ignored"
+        error = None
+    elif INJECTION_PATTERN.search(text):
+        error = "unsafe_instructions"
+    elif timestamp.tzinfo is None or timestamp.utcoffset() is None:
+        error = "timestamp_timezone_required"
+    elif FOREIGN_CURRENCY_PATTERN.search(text):
+        error = "unsupported_currency"
+    elif len(amounts) != 1:
+        error = "ambiguous_amount" if amounts else "missing_amount"
+    elif not SETTLED_PATTERN.search(text):
+        error = "settlement_unproven"
     if status != "ignored" and error == "missing_amount" and (
         not settled or (parsed.is_financial and parsed.amount is None)
     ):
         # Promotions and amount-less confirmations of an earlier transfer carry no ledger fact.
-        status, error = "ignored", None
+        status, error, ignore_reason = "ignored", None, "no_amount"
     elif status != "ignored" and error == "settlement_unproven" and not direction:
-        status, error = "ignored", None
+        status, error, ignore_reason = "ignored", None, "settlement_unproven"
     amount = next(iter(amounts)) if len(amounts) == 1 else None
     expected_fact = parsed.amount if institution == "stockbit" and parsed.investment_action else amount
     if status != "ignored" and expected_fact is not None and event.get("expected_amount") is not None:
@@ -224,4 +259,5 @@ def collect_facts(event: dict[str, Any]) -> NotificationFacts:
         status=status, error_code=error, text=text, institution=institution,
         amount=amount, currency="IDR", timestamp=timestamp, direction=direction,
         amount_quotes=tuple(dict.fromkeys(amounts.get(amount, []))), parsed=parsed,
+        ignore_reason=ignore_reason,
     )

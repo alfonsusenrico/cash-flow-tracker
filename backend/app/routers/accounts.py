@@ -767,6 +767,28 @@ def switch_to_amount_tracking(account_id: UUID, current_user: dict = Depends(get
     return {"ok": True, "account": next((a for a in accounts if a["id"] == aid), None)}
 
 
+ADJUSTMENT_CATEGORY_NAME = "Penyesuaian Saldo"
+
+
+def ensure_adjustment_category(cur, user_id: str, kind: str) -> str:
+    """Return the system category for reconcile adjustments of this kind, creating it if needed.
+
+    Adjustments correct balances; they are neither spending nor income, so the category is
+    excluded from budget reports and carries no Kakeibo pillar.
+    """
+    cur.execute(
+        """
+        INSERT INTO categories (user_id, name, icon, color, kind, kakeibo_type, is_excluded_from_budget)
+        VALUES (%s, %s, 'wallet', '#64748b', %s, NULL, TRUE)
+        ON CONFLICT (user_id, name, kind) DO UPDATE
+        SET is_excluded_from_budget = TRUE, kakeibo_type = NULL, is_archived = FALSE
+        RETURNING id
+        """,
+        (user_id, ADJUSTMENT_CATEGORY_NAME, kind),
+    )
+    return str(cur.fetchone()["id"])
+
+
 @router.post("/{account_id}/reconcile")
 def reconcile_account(
     account_id: UUID,
@@ -787,12 +809,7 @@ def reconcile_account(
             tx_type = "income" if diff > 0 else "expense"
             tx_amount = abs(diff)
             if diff:
-                cur.execute(
-                    "SELECT id FROM categories WHERE user_id = %s AND kind = %s AND (name ILIKE '%%penyesuaian%%' OR name ILIKE '%%adjustment%%') AND is_archived = false LIMIT 1",
-                    (user_id, tx_type),
-                )
-                cat_row = cur.fetchone()
-                category_id = str(cat_row["id"]) if cat_row else None
+                category_id = ensure_adjustment_category(cur, user_id, tx_type)
                 tx_notes = payload.notes or "Balance Adjustment (Reconciliation)"
                 cur.execute(
                     """
