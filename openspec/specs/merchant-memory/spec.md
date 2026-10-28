@@ -23,7 +23,7 @@ The system SHALL derive one match key per recorded expense or income notificatio
 - **THEN** its signature key SHALL include `bca`, `income`, the transfer category and the normalised mask.
 
 ### Requirement: Append-Only Classification Feedback
-The system SHALL store one feedback row for each owner correction, each purpose answer and each accepted history suggestion that changed the row, with the transaction, the values before and after (merchant, notes, category, pillar, type, offset category), and context features: local weekday and hour in the configured time zone, amount, account, institution, text signature and transaction source. A row written for an accepted history suggestion SHALL have kind `accepted_suggestion` and carry the suggestion id. Feedback rows SHALL never be updated; an attempt SHALL fail. Feedback SHALL survive deletion of the transaction or category it describes.
+The system SHALL store one feedback row for each owner correction, each purpose answer and each accepted history suggestion that changed the row.
 
 #### Scenario: Owner recategorises a notification row
 - **GIVEN** an AI-classified row in "Belanja" recorded from a myBCA notification on a Wednesday at 19:40 local time
@@ -98,3 +98,33 @@ The interpretation prompt SHALL forbid generic placeholder descriptions when the
 #### Scenario: Merchant stored
 - **WHEN** the model records "You've paid Rp125.000 to Kedai Awan" with merchant "Kedai Awan"
 - **THEN** the row's `merchant` SHALL be "Kedai Awan".
+
+### Requirement: Feedback Row Contents
+Each feedback row SHALL record the transaction, the values before and after (merchant, notes, category, pillar, type, offset category), and context features: local weekday and hour in the configured time zone, amount, account, institution, text signature and transaction source.
+
+#### Scenario: Purpose answer feedback
+- **GIVEN** a merchant-less payment recorded on a Monday at 12:10 local time
+- **WHEN** the owner answers its purpose question with "makan siang"
+- **THEN** the feedback row SHALL hold the notes before and after, weekday 1, hour 12, the amount, the account and the transaction source.
+
+### Requirement: Accepted Suggestion Feedback Kind
+A row written for an accepted history suggestion SHALL have kind `accepted_suggestion` and carry the suggestion id.
+
+#### Scenario: Direct correction is not a suggestion
+- **WHEN** the owner recategorises a row directly in the ledger
+- **THEN** its feedback row SHALL have a kind other than `accepted_suggestion` and no suggestion id.
+
+### Requirement: Feedback Is Append-Only
+Feedback rows SHALL never be updated; an attempt SHALL fail.
+
+#### Scenario: Two corrections keep two examples
+- **WHEN** the owner corrects the same row twice
+- **THEN** there SHALL be two feedback rows and the first SHALL keep its original values.
+
+### Requirement: Feedback Outlives Its Row
+Feedback SHALL survive deletion of the transaction or category it describes.
+
+#### Scenario: Deleted transaction
+- **GIVEN** a feedback row for an owner correction
+- **WHEN** the owner deletes the corrected transaction
+- **THEN** the feedback row SHALL remain with its before and after values.

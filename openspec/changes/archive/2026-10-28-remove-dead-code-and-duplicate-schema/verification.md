@@ -45,3 +45,8 @@ No browser check: the visible change is four icon glyphs and two picker options,
 - `openspec validate remove-dead-code-and-duplicate-schema --strict`: valid, exit 0.
 - Legacy archive: ten `openspec archive <name> --yes` runs, each exit 0; `openspec validate --all` then
   reported only this change (no deltas yet), which was expected at that point.
+- After `openspec archive remove-dead-code-and-duplicate-schema --yes` (exit 0, "+ 66, ~ 19") and writing the
+  purpose of the new `schema-migrations` spec: `openspec validate --all` **58 passed, 0 failed, exit 0**;
+  `openspec validate --all --strict` **58 passed, 0 failed, exit 0**.
+- Split check: every split main spec kept all of its previous scenarios (scenario count before + new
+  scenarios of the added requirements); `transaction-provenance` changed only its backfill scenario line.

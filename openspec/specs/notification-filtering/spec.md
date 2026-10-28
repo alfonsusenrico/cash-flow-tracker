@@ -23,19 +23,7 @@ The companion mobile notification listener SHALL discard any status bar notifica
 - **AND** the listener SHALL schedule immediate synchronization to the backend.
 
 ### Requirement: Backend Rejection of Non-Financial Payloads
-The backend ingestion endpoint (`POST /api/ingest/notifications`) SHALL classify each notification from a supported package before it can reach the ledger or the review queue.
-
-A notification is a **recognised transaction** when either:
-- a known institution transaction template matches with an amount; or
-- the text contains exactly one Rupiah amount, settlement wording and a resolvable direction.
-
-The backend SHALL classify the notification as `ignored`, without storing it and without creating a ledger transaction, when any of these holds:
-1. It contains hard-noise wording that cannot describe a completed transaction: a one-time or verification code, failure, pending or in-progress processing, a future transfer, a card authorisation request awaiting confirmation, or a payment instruction with a deadline.
-2. It contains promotional or market-information wording and is not a recognised transaction.
-3. Every Rupiah figure in it is a headline figure written with a magnitude word (for example thousand, million, billion or trillion), and it is not a recognised transaction.
-4. It contains no monetary amount in any currency, and it is not a recognised transaction.
-
-Promotional wording SHALL NOT, on its own, cause a recognised transaction to be ignored. Other notifications SHALL continue through the existing evidence checks, which may hold them for review: unsupported currency, ambiguous amount, unproven settlement, and conflicting mobile hints. The API SHALL answer ignored notifications with status `ignored`.
+The backend ingestion endpoint (`POST /api/ingest/notifications`) SHALL classify each notification from a supported package before it can reach the ledger or the review queue, and SHALL answer ignored notifications with status `ignored`.
 
 #### Scenario: Non-financial or noise event payloads are acknowledged without database storage
 - **GIVEN** an ingestion request to `POST /api/ingest/notifications` for a notification that the rules classify as `ignored`
@@ -117,3 +105,51 @@ The mobile companion app and the backend notification ingestion pipeline SHALL r
 - **GIVEN** a Bank Jago notification with text "Rp500.000 has been moved from your Main Pocket Pocket to your GoPay Tabungan Pocket."
 - **WHEN** evaluated by the whitelist parser
 - **THEN** it SHALL be recognized as a verified financial transaction with `event_class = "transfer"`, `expected_amount = 500000`, `expected_direction = "internal"`, `source_pocket = "Main Pocket"`, and `target_pocket = "GoPay Tabungan"`.
+
+### Requirement: Recognised Transaction Definition
+A notification SHALL be a **recognised transaction** when either a known institution transaction template matches with an amount, or the text contains exactly one Rupiah amount, settlement wording and a resolvable direction.
+
+#### Scenario: Unknown template with settlement evidence
+- **GIVEN** a notification from a supported package that matches no institution template but quotes exactly one Rupiah amount, says the payment succeeded and names its direction
+- **WHEN** it is ingested
+- **THEN** it SHALL be treated as a recognised transaction and SHALL NOT be classified as `ignored`.
+
+### Requirement: Hard-Noise Notifications Are Ignored
+The backend SHALL classify a notification as `ignored`, without storing it and without creating a ledger transaction, when it contains hard-noise wording that cannot describe a completed transaction: a one-time or verification code, failure, pending or in-progress processing, a future transfer, a card authorisation request awaiting confirmation, or a payment instruction with a deadline.
+
+#### Scenario: Failed payment
+- **GIVEN** a notification "Pembayaran Rp25.000 ke Toko Contoh gagal"
+- **WHEN** it is ingested
+- **THEN** it SHALL be `ignored` and no notification event or transaction SHALL be stored.
+
+### Requirement: Promotional Wording Without a Transaction Is Ignored
+The backend SHALL classify a notification as `ignored` when it contains promotional or market-information wording and is not a recognised transaction. Promotional wording SHALL NOT, on its own, cause a recognised transaction to be ignored.
+
+#### Scenario: Top-up promotion
+- **GIVEN** a notification "Top up sekarang dan dapatkan bonus Rp10.000!"
+- **WHEN** it is ingested
+- **THEN** it SHALL be `ignored`.
+
+### Requirement: Headline Figures Without a Transaction Are Ignored
+The backend SHALL classify a notification as `ignored` when every Rupiah figure in it is a headline figure written with a magnitude word (for example thousand, million, billion or trillion) and it is not a recognised transaction.
+
+#### Scenario: Earnings headline
+- **GIVEN** a notification "Laba Emiten Contoh naik menjadi Rp2,1 triliun"
+- **WHEN** it is ingested
+- **THEN** it SHALL be `ignored`.
+
+### Requirement: Amount-Less Notifications Are Ignored
+The backend SHALL classify a notification as `ignored` when it contains no monetary amount in any currency and it is not a recognised transaction.
+
+#### Scenario: Account notice without an amount
+- **GIVEN** a notification "Rekening kamu sudah aktif. Selamat bertransaksi"
+- **WHEN** it is ingested
+- **THEN** it SHALL be `ignored`.
+
+### Requirement: Remaining Notifications Pass the Evidence Checks
+Notifications that are not ignored SHALL continue through the existing evidence checks, which may hold them for review: unsupported currency, ambiguous amount, unproven settlement, and conflicting mobile hints.
+
+#### Scenario: Settled payment reaches the evidence checks
+- **GIVEN** a settled payment notification with one Rupiah amount
+- **WHEN** it is ingested
+- **THEN** it SHALL NOT be `ignored` and its amount and settlement SHALL be checked before any ledger effect.

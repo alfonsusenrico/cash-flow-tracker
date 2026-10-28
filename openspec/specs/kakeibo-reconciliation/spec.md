@@ -50,25 +50,7 @@ The system SHALL count only fresh net capital movements from operational account
 - **THEN** the transfer amount SHALL NOT be counted as monthly savings
 
 ### Requirement: Normalized 50/30/20 Allocation Proportions
-The system SHALL compute Kakeibo pillar amounts for `need`, `want`, `culture`, `unexpected` and `saving` (saving is net fresh saving, never below zero). It SHALL express each pillar as a percentage of the larger of total inflow and total allocated living funds:
-
-`total_allocated = need_spent + want_spent + culture_spent + unexpected_spent + max(0, net_saving_spent)`
-
-`base = max(total_inflow, total_allocated)`
-
-The percentages therefore show how much of the money that came in went to each pillar, and they never exceed 100% in total.
-
-The system SHALL judge the 50/30/20 benchmark on three groups:
-- essentials = need + unexpected, target at most 50%;
-- lifestyle = want + culture, target at most 30%;
-- saving, target at least 20%.
-
-The returned `kakeibo_status` SHALL be:
-- `warning` when lifestyle exceeds 30%;
-- otherwise `elevated_needs` when essentials exceed 50%;
-- otherwise `healthy`.
-
-Existing response fields SHALL keep their meaning.
+The system SHALL compute Kakeibo pillar amounts for `need`, `want`, `culture`, `unexpected` and `saving` (saving is net fresh saving, never below zero) and SHALL express each pillar as a percentage of `base = max(total_inflow, total_allocated)`, where `total_allocated = need_spent + want_spent + culture_spent + unexpected_spent + max(0, net_saving_spent)`. The percentages therefore never exceed 100% in total.
 
 #### Scenario: Allocation percentages never exceed 100%
 - **WHEN** the dashboard calculates the Kakeibo breakdown for the cycle
@@ -109,3 +91,26 @@ Existing response fields SHALL keep their meaning.
 - **WHEN** the Kakeibo breakdown is calculated
 - **THEN** every pillar and group percentage SHALL be 0.0
 - **AND** `kakeibo_status` SHALL be `healthy`.
+
+### Requirement: 50/30/20 Group Benchmark
+The system SHALL judge the 50/30/20 benchmark on three groups: essentials = need + unexpected, target at most 50%; lifestyle = want + culture, target at most 30%; saving, target at least 20%.
+
+#### Scenario: Group percentages
+- **GIVEN** a cycle with inflow Rp 1.000.000, need Rp 300.000, unexpected Rp 100.000, want Rp 150.000, culture Rp 50.000 and saving Rp 400.000
+- **WHEN** the Kakeibo breakdown is calculated
+- **THEN** `essentials_pct` SHALL be 40.0 and `lifestyle_pct` SHALL be 20.0.
+
+### Requirement: Kakeibo Status
+The returned `kakeibo_status` SHALL be `warning` when lifestyle exceeds 30%; otherwise `elevated_needs` when essentials exceed 50%; otherwise `healthy`.
+
+#### Scenario: Lifestyle warning takes precedence
+- **GIVEN** a cycle whose lifestyle group is 35% and whose essentials group is 55%
+- **WHEN** the Kakeibo breakdown is calculated
+- **THEN** `kakeibo_status` SHALL be `warning`.
+
+### Requirement: Stable Kakeibo Response Fields
+Existing Kakeibo breakdown response fields SHALL keep their meaning.
+
+#### Scenario: Existing fields keep their meaning
+- **WHEN** a client that predates the five-pillar breakdown reads `need_pct`, `want_pct`, `saving_pct` and `kakeibo_status`
+- **THEN** each field SHALL still be present and carry the meaning defined by this capability.

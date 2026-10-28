@@ -16,7 +16,7 @@ or ambiguous transfers, with every correction teaching merchant memory.
 - **THEN** `attention` SHALL be 4 and `unreviewed` 2.
 
 ### Requirement: Review Queue
-`GET /api/review/queue` SHALL return the owner's open purpose questions, groups of `auto` and `needs_review` expense/income rows, unlinked "Internal Movement" rows awaiting a counterpart, and ambiguous movement legs with their candidate counterparts. Every row SHALL appear in at most one section. Groups SHALL be keyed by type and merchant, else the phase 3 text signature, else notes, else category; linked movement legs SHALL form one non-editable group. Each group SHALL report its count, total, first and last date, counts per review status and its open review reasons. At most 1 000 rows SHALL be read and `truncated` SHALL say when more exist.
+`GET /api/review/queue` SHALL return the owner's open purpose questions, groups of `auto` and `needs_review` expense/income rows, unlinked "Internal Movement" rows awaiting a counterpart, and ambiguous movement legs with their candidate counterparts. Every row SHALL appear in at most one section.
 
 #### Scenario: Sections
 - **GIVEN** a merchant-less payment with an open question, two automatic payments at "Kedai Awan" and two GoPay sends competing for one BCA credit
@@ -35,7 +35,7 @@ or ambiguous transfers, with every correction teaching merchant memory.
 - **THEN** the queue SHALL not show that reason.
 
 ### Requirement: Bulk Review Actions
-`POST /api/review/bulk` SHALL apply one action (`accept`, `recategorise`, `rename`, `keep_separate`) to 1–200 distinct transaction ids of the owner in one database transaction. Any id that is not the owner's SHALL reject the whole request with 404 `transactions_not_found` and change nothing. `accept` SHALL mark rows reviewed without changing their classifier. `recategorise` and `rename` SHALL reject movement legs with 409 `movement_leg_not_editable`, SHALL use the same owner-edit rule as editing one row, and SHALL write exactly one owner `correction` feedback row and owner merchant memory for each row whose classification changed. `keep_separate` SHALL mark unlinked legs reviewed and never pair them automatically again, and SHALL reject linked legs with 409 `already_linked`.
+`POST /api/review/bulk` SHALL apply one action (`accept`, `recategorise`, `rename`, `keep_separate`) to 1–200 distinct transaction ids of the owner in one database transaction. Any id that is not the owner's SHALL reject the whole request with 404 `transactions_not_found` and change nothing.
 
 #### Scenario: Recategorise a merchant group
 - **GIVEN** two automatic "Kedai Awan" payments in another category
@@ -67,7 +67,7 @@ or ambiguous transfers, with every correction teaching merchant memory.
 - **THEN** the response SHALL be 422.
 
 ### Requirement: Tinjau Page
-The `/review` page SHALL show, in Indonesian: open "Apa ini?" questions with suggestion chips and a text answer sent to the existing answer endpoint; groups with "Terima semua", "Ubah kategori semua" (category and Kakeibo pillar) and "Ganti nama" (merchant and notes) actions; each row's link to the ledger edit dialog; awaiting transfers with an account or pocket picker that completes them through `POST /api/movements/complete`; and ambiguous legs whose counterpart is linked through `POST /api/movements/merge` or kept separate. Every action SHALL be operable by keyboard, SHALL report success or failure in text, and SHALL never claim success for a failed request. Groups larger than 200 rows SHALL be sent in batches and a partial failure SHALL state how many rows were saved.
+The `/review` page SHALL show, in Indonesian: open "Apa ini?" questions with suggestion chips and a text answer sent to the existing answer endpoint; groups with "Terima semua", "Ubah kategori semua" (category and Kakeibo pillar) and "Ganti nama" (merchant and notes) actions; each row's link to the ledger edit dialog; awaiting transfers; and ambiguous legs.
 
 #### Scenario: Keyboard group accept
 - **WHEN** the owner tabs to "Terima semua" of a group and presses Enter
@@ -86,3 +86,87 @@ The `/review` page SHALL show, in Indonesian: open "Apa ini?" questions with sug
 #### Scenario: Complete an awaiting transfer
 - **WHEN** the owner chooses "BCA Harian" for a GoPay send and submits
 - **THEN** the page SHALL call the completion endpoint with `target_account_id` of BCA Harian.
+
+### Requirement: Review Group Keys
+Review groups SHALL be keyed by type and merchant, else the phase 3 text signature, else notes, else category; linked movement legs SHALL form one non-editable group.
+
+#### Scenario: Merchant-less rows with one signature
+- **GIVEN** two automatic merchant-less expenses with the same text signature
+- **WHEN** the queue is requested
+- **THEN** both SHALL be in one group.
+
+### Requirement: Review Group Summary
+Each review group SHALL report its count, total, first and last date, counts per review status and its open review reasons.
+
+#### Scenario: Mixed review statuses
+- **GIVEN** a group with one `auto` and one `needs_review` row of Rp 20.000 each on two days
+- **WHEN** the queue is requested
+- **THEN** the group SHALL report count 2, total Rp 40.000, both dates and one row per status.
+
+### Requirement: Review Queue Row Limit
+The review queue SHALL read at most 1 000 rows and `truncated` SHALL say when more exist.
+
+#### Scenario: More rows than the limit
+- **GIVEN** 1 001 rows awaiting review
+- **WHEN** the queue is requested
+- **THEN** `truncated` SHALL be true.
+
+### Requirement: Bulk Accept Keeps the Classifier
+The bulk `accept` action SHALL mark rows reviewed without changing their classifier.
+
+#### Scenario: Accepting an AI row
+- **GIVEN** an AI-classified row with `review_status = auto`
+- **WHEN** the owner accepts it in bulk
+- **THEN** it SHALL be reviewed and still classified by `ai`.
+
+### Requirement: Bulk Recategorise and Rename
+The bulk `recategorise` and `rename` actions SHALL reject movement legs with 409 `movement_leg_not_editable`, SHALL use the same owner-edit rule as editing one row, and SHALL write exactly one owner `correction` feedback row and owner merchant memory for each row whose classification changed.
+
+#### Scenario: Rename two rows
+- **WHEN** the owner renames two automatic rows to the merchant "Kedai Awan"
+- **THEN** both rows SHALL be owner-classified and reviewed with one correction feedback row each.
+
+### Requirement: Keep Movement Legs Separate
+The bulk `keep_separate` action SHALL mark unlinked legs reviewed and never pair them automatically again, and SHALL reject linked legs with 409 `already_linked`.
+
+#### Scenario: Linked leg
+- **WHEN** the owner keeps a linked movement leg separate
+- **THEN** the response SHALL be 409 `already_linked` and nothing SHALL change.
+
+#### Scenario: Unlinked leg stays unpaired
+- **GIVEN** an unlinked leg kept separate by the owner
+- **WHEN** the movement repair pass later finds a matching counterpart
+- **THEN** the leg SHALL stay unlinked and reviewed.
+
+### Requirement: Awaiting Transfer Completion on Tinjau
+The `/review` page SHALL let the owner complete an awaiting transfer with an account or pocket picker through `POST /api/movements/complete`.
+
+#### Scenario: Pocket as target
+- **WHEN** the owner picks a pocket for an awaiting transfer and submits
+- **THEN** the completion request SHALL carry that pocket's id as `target_account_id`.
+
+### Requirement: Ambiguous Leg Resolution on Tinjau
+The `/review` page SHALL let the owner link an ambiguous leg to a candidate through `POST /api/movements/merge` or keep it separate.
+
+#### Scenario: Link to a candidate
+- **WHEN** the owner links an ambiguous send to a listed credit
+- **THEN** the page SHALL call `POST /api/movements/merge` with the expense and income transaction ids.
+
+#### Scenario: Keep separate
+- **WHEN** the owner keeps an ambiguous leg separate
+- **THEN** the page SHALL send the bulk `keep_separate` action for that leg.
+
+### Requirement: Accessible Tinjau Actions
+Every Tinjau action SHALL be operable by keyboard, SHALL report success or failure in text, and SHALL never claim success for a failed request.
+
+#### Scenario: Failed bulk action
+- **WHEN** a group action fails
+- **THEN** the page SHALL report the failure in text and SHALL NOT show a success message.
+
+### Requirement: Batched Group Actions on Tinjau
+Groups larger than 200 rows SHALL be sent in batches and a partial failure SHALL state how many rows were saved.
+
+#### Scenario: Partial failure
+- **GIVEN** a group of 250 rows
+- **WHEN** the owner accepts the group and the second batch fails
+- **THEN** the page SHALL state that 200 rows were saved.

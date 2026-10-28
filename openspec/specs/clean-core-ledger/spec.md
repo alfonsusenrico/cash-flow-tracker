@@ -66,13 +66,7 @@ The system SHALL record transfers between two owned accounts as an atomic moveme
 - **THEN** Account A balance decreases by 500,000, Account B balance increases by 500,000, and net monthly spending remains unchanged
 
 ### Requirement: Payday Cycle Window & Safe-to-Spend Allowance
-The system SHALL calculate the active spending cycle based on the user's configured payday day across the entire calendar range of 1 to 31. For months with fewer days than the configured payday day (e.g. February, April, June, September, November), the cycle calculation SHALL dynamically clamp the cycle start date to the maximum days in that month (`calendar.monthrange(year, month)[1]`). It SHALL expose `GET /api/pulse`.
-
-Living spending for `today_spent` and the cycle covers every expense that meets both conditions:
-- its category is not excluded from budget;
-- its effective Kakeibo pillar (see `kakeibo-decoupling`) is `need`, `want`, `culture` or `unexpected`.
-
-Expenses whose effective pillar is `saving` SHALL NOT count as living spending.
+The system SHALL calculate the active spending cycle from the user's configured payday day, across the entire calendar range of 1 to 31, and SHALL expose it through `GET /api/pulse`.
 
 #### Scenario: Required behavior and constraints
 - **WHEN** the system calculates the active payday cycle and daily allowance
@@ -305,3 +299,19 @@ For investment accounts or pockets without dynamic tickers (e.g. Indonesian Mone
 #### Scenario: Updating valuation on a mutual fund pocket
 - **WHEN** an authenticated user updates the balance of "Bibit RDPU" from 10,000,000 IDR to 10,450,000 IDR with initial cost 10,000,000 IDR
 - **THEN** the system updates the pocket balance to 10,450,000 IDR and reports `capital_gain` as +450,000 IDR (+4.5%)
+
+### Requirement: Payday Clamping in Short Months
+For months with fewer days than the configured payday day (e.g. February, April, June, September, November), the cycle calculation SHALL dynamically clamp the cycle start date to the maximum days in that month (`calendar.monthrange(year, month)[1]`).
+
+#### Scenario: Payday 31 in a 30-day month
+- **GIVEN** a user with a configured payday of 31
+- **WHEN** the cycle that starts in April is calculated
+- **THEN** it SHALL start on 30 April.
+
+### Requirement: Living Spending Definition
+Living spending for `today_spent` and the cycle SHALL cover every expense whose category is not excluded from budget and whose effective Kakeibo pillar (see `kakeibo-decoupling`) is `need`, `want`, `culture` or `unexpected`. Expenses whose effective pillar is `saving` SHALL NOT count as living spending.
+
+#### Scenario: Budget-excluded category is not living spending
+- **GIVEN** today's expense of Rp 40.000 with effective pillar `need` in a category excluded from budget
+- **WHEN** the user requests `GET /api/pulse`
+- **THEN** `today_spent` and the cycle spending SHALL NOT include it.
