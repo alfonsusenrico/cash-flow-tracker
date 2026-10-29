@@ -60,4 +60,33 @@ describe("Modal", () => {
     unmount();
     vi.unstubAllGlobals();
   });
+
+  it("gives the keyboard only to the topmost of two open dialogs", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
+    const closeOuter = vi.fn();
+    const closeInner = vi.fn();
+    const dialogs = (innerOpen: boolean) => (
+      <Modal open onClose={closeOuter} title="Pengaturan">
+        <button>Hubungkan ponsel</button>
+        <Modal open={innerOpen} onClose={closeInner} title="Hubungkan ponsel" centered>
+          <button>Buat kode baru</button>
+        </Modal>
+      </Modal>
+    );
+    const { rerender } = render(dialogs(false));
+    await screen.findByRole("dialog", { name: "Pengaturan" });
+    rerender(dialogs(true));
+    const inner = await screen.findByRole("dialog", { name: "Hubungkan ponsel" });
+
+    for (let step = 0; step < 3; step += 1) {
+      await user.tab();
+      expect(inner).toContainElement(document.activeElement as HTMLElement);
+    }
+    await user.keyboard("{Escape}");
+
+    expect(closeInner).toHaveBeenCalledOnce();
+    expect(closeOuter).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
 });

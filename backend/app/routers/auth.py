@@ -209,7 +209,7 @@ def get_api_key_metadata(current_user: dict = Depends(get_current_user)):
                 """
                 SELECT id, key_prefix, created_at, last_used_at
                 FROM api_keys
-                WHERE user_id = %s
+                WHERE user_id = %s AND created_via = 'manual' AND revoked_at IS NULL
                 ORDER BY created_at DESC
                 LIMIT 1
                 """,
@@ -250,8 +250,8 @@ def reset_api_key(current_user: dict = Depends(get_current_user)):
 
     with db_conn() as conn:
         with conn.cursor() as cur:
-            # Delete old keys
-            cur.execute("DELETE FROM api_keys WHERE user_id = %s", (user_id,))
+            # Paired phones keep their own keys; only the manual fallback key is replaced.
+            cur.execute("DELETE FROM api_keys WHERE user_id = %s AND created_via = 'manual'", (user_id,))
             cur.execute(
                 """
                 INSERT INTO api_keys (user_id, key_hash, key_prefix)
