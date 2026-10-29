@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 
 SOURCES: tuple[str, ...] = (
-    "manual", "notification", "recurring", "payroll", "movement", "reconcile", "investment", "import",
+    "manual", "notification", "recurring", "payroll", "movement", "reconcile", "investment", "import", "capture",
 )
 REVIEW_STATUSES: tuple[str, ...] = ("auto", "needs_review", "reviewed")
 CLASSIFIERS: tuple[str, ...] = ("rule", "ai", "owner", "system")
@@ -66,6 +66,11 @@ def notification_provenance(interpretation_source: str | None, confidence: float
     if interpretation_source == "ai":
         return Provenance("notification", "auto", "ai", confidence)
     return Provenance("notification", "auto", "rule")
+
+
+def capture_provenance(classified_by: str, confidence: float | None = None) -> Provenance:
+    """Rows recorded from the owner's typed text count as reviewed (owner decision 2026-10-29)."""
+    return Provenance("capture", "reviewed", classified_by, confidence if classified_by == "ai" else None)
 
 
 # Applied when the owner changes a classification field; the old confidence described another classifier.

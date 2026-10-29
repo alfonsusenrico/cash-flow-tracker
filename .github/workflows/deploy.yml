@@ -119,6 +119,7 @@ jobs:
           MOVEMENT_REPAIR_MAX_GAP_SECONDS: ${{ secrets.MOVEMENT_REPAIR_MAX_GAP_SECONDS || '21600' }}
           HISTORY_SUGGESTION_MAX_ROWS: ${{ secrets.HISTORY_SUGGESTION_MAX_ROWS || '300' }}
           HISTORY_SUGGESTION_BATCH_SIZE: ${{ secrets.HISTORY_SUGGESTION_BATCH_SIZE || '20' }}
+          CAPTURE_CONFIDENCE_THRESHOLD: ${{ secrets.CAPTURE_CONFIDENCE_THRESHOLD || '0.8' }}
 
       - name: Package Commit Archive
         run: |

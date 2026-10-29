@@ -21,7 +21,12 @@ from app.services.debt_allocations import (
     validate_debt_capacity,
 )
 from app.services.kakeibo import PILLAR_PATTERN, effective_pillar, effective_pillar_sql
-from app.services.ledger_mutations import ensure_sufficient_funds, get_locked_ledger_balance, lock_owned_accounts
+from app.services.ledger_mutations import (
+    delete_transaction_rows,
+    ensure_sufficient_funds,
+    get_locked_ledger_balance,
+    lock_owned_accounts,
+)
 from app.services.merchant_memory import record_owner_corrections, snapshot_rows
 from app.services.provenance import (
     CLASSIFICATION_FIELDS,
@@ -1478,55 +1483,7 @@ def delete_transaction(transaction_id: UUID, current_user: dict = Depends(get_cu
     tid = str(transaction_id)
     with db_conn() as conn:
         with conn.cursor() as cur:
-            # Query transaction to reverse any goal/obligation side effects
-            cur.execute(
-                "SELECT type, amount, goal_id, obligation_id, movement_id, receipt_path FROM transactions WHERE user_id = %s AND id = %s FOR UPDATE",
-                (user_id, tid),
-            )
-            tx = cur.fetchone()
-            if not tx:
-                raise HTTPException(status_code=404, detail="Transaction not found")
-            if tx.get("movement_id"):
-                raise HTTPException(status_code=409, detail="Linked movements must be deleted through the movement endpoint")
-
-            allocation_rows = load_allocation_rows(cur, tid)
-            allocations = [
-                (str(row["obligation_id"]), int(row["amount"]))
-                for row in allocation_rows
-            ]
-            if allocations:
-                lock_debts(cur, user_id, [debt_id for debt_id, _ in allocations])
-                reverse_allocations(cur, user_id, allocations)
-
-            # Reverse obligation adjustment
-            if tx["obligation_id"]:
-                if tx["type"] == "expense":
-                    cur.execute(
-                        """
-                        UPDATE obligations
-                        SET remaining_amount = remaining_amount + %s,
-                            is_archived = CASE WHEN (remaining_amount + %s) > 0 THEN false ELSE is_archived END,
-                            updated_at = NOW()
-                        WHERE id = %s AND user_id = %s
-                        """,
-                        (tx["amount"], tx["amount"], str(tx["obligation_id"]), user_id),
-                    )
-                elif tx["type"] == "income":
-                    cur.execute(
-                        """
-                        UPDATE obligations
-                        SET remaining_amount = GREATEST(0, remaining_amount - %s),
-                            is_archived = CASE WHEN (remaining_amount - %s) <= 0 THEN true ELSE is_archived END,
-                            updated_at = NOW()
-                        WHERE id = %s AND user_id = %s
-                        """,
-                        (tx["amount"], tx["amount"], str(tx["obligation_id"]), user_id),
-                    )
-
-            cur.execute(
-                "DELETE FROM transactions WHERE user_id = %s AND id = %s",
-                (user_id, tid),
-            )
+            tx = delete_transaction_rows(cur, user_id, tid)
             conn.commit()
 
     remove_receipt_file(tx.get("receipt_path"))
