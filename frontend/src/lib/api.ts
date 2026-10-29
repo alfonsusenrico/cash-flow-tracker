@@ -49,8 +49,16 @@ function normalizeApiErrorDetail(detail: unknown): string | ApiErrorDetail {
     transaction_not_convertible: "Transaksi ini tidak dapat dijadikan top up. Hanya pengeluaran tunggal tanpa tagihan, target, atau jadwal yang dapat diubah.",
     liquid_funding_required: "Top up hanya dapat berasal dari rekening bank, e-wallet, atau kas.",
   };
-  if (structured.code && investmentMessages[structured.code]) {
-    return { ...structured, message: investmentMessages[structured.code] };
+  const deviceMessages: Record<string, string> = {
+    device_not_found: "Perangkat sudah dicabut atau tidak ditemukan. Muat ulang daftar perangkat.",
+    pairing_configuration_invalid: "Pemasangan ponsel belum dikonfigurasi di server.",
+    session_required: "Masuk kembali di browser untuk membuat kode pemasangan.",
+  };
+  const knownMessage = structured.code
+    ? investmentMessages[structured.code] ?? deviceMessages[structured.code]
+    : undefined;
+  if (knownMessage) {
+    return { ...structured, message: knownMessage };
   }
   if (structured.message) return structured;
 
@@ -212,6 +220,35 @@ export async function getApiKeyInfo(): Promise<{ ok: boolean; api_key: ApiKeyMet
 
 export async function rotateApiKey(): Promise<{ ok: boolean; api_key: string; key_prefix: string; message: string }> {
   return api.post<{ ok: boolean; api_key: string; key_prefix: string; message: string }>("/auth/api-key/reset");
+}
+
+export interface PairingCode {
+  ok: boolean;
+  code: string;
+  expires_at: string;
+  expires_in_seconds: number;
+  qr_payload: string;
+}
+
+export interface PairedDevice {
+  id: string;
+  name: string;
+  created_via: "manual" | "pairing";
+  key_prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+export async function createPairingCode(): Promise<PairingCode> {
+  return api.post<PairingCode>("/devices/pairing-codes");
+}
+
+export async function getDevices(): Promise<{ ok: boolean; devices: PairedDevice[] }> {
+  return api.get<{ ok: boolean; devices: PairedDevice[] }>("/devices");
+}
+
+export async function revokeDevice(id: string): Promise<{ ok: boolean }> {
+  return api.del<{ ok: boolean }>(`/devices/${id}`);
 }
 
 export { ApiError };

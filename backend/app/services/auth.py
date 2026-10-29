@@ -112,32 +112,39 @@ def authenticate_user(username: str, password: str) -> dict[str, Any]:
     }
 
 
+def _user_view(user: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(user["id"]),
+        "username": user["username"],
+        "name": user.get("name") or user["username"],
+        "payday_day": user["payday_day"],
+        "currency": user["currency"],
+        "emergency_fund_multiplier": user.get("emergency_fund_multiplier", 6),
+        "monthly_spending_budget": user.get("monthly_spending_budget"),
+        "name_aliases": list(user.get("name_aliases") or []),
+    }
+
+
+def _session_user(request: Request) -> dict[str, Any] | None:
+    session = getattr(request, "session", None)
+    if not session or "user_id" not in session:
+        return None
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, username, name, name_aliases, payday_day, currency, emergency_fund_multiplier, monthly_spending_budget FROM users WHERE id = %s",
+                (session["user_id"],),
+            )
+            user = cur.fetchone()
+    return _user_view(user) if user else None
+
+
 def get_current_user(request: Request) -> dict[str, Any]:
     """Unified auth dependency supporting Session Cookie and Bearer API Token."""
-    # 1. Try session cookie
-    session = getattr(request, "session", None)
-    if session and "user_id" in session:
-        user_id = session["user_id"]
-        with db_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id, username, name, name_aliases, payday_day, currency, emergency_fund_multiplier, monthly_spending_budget FROM users WHERE id = %s",
-                    (user_id,),
-                )
-                user = cur.fetchone()
-                if user:
-                    return {
-                        "id": str(user["id"]),
-                        "username": user["username"],
-                        "name": user.get("name") or user["username"],
-                        "payday_day": user["payday_day"],
-                        "currency": user["currency"],
-                        "emergency_fund_multiplier": user.get("emergency_fund_multiplier", 6),
-                        "monthly_spending_budget": user.get("monthly_spending_budget"),
-                        "name_aliases": list(user.get("name_aliases") or []),
-                    }
+    user = _session_user(request)
+    if user:
+        return user
 
-    # 2. Try Bearer API Token
     auth_header = request.headers.get("Authorization", "").strip()
     if auth_header.startswith("Bearer "):
         token = auth_header[7:].strip()
@@ -150,27 +157,31 @@ def get_current_user(request: Request) -> dict[str, Any]:
                         SELECT u.id, u.username, u.name, u.name_aliases, u.payday_day, u.currency, u.emergency_fund_multiplier, u.monthly_spending_budget, k.id AS key_id
                         FROM api_keys k
                         JOIN users u ON u.id = k.user_id
-                        WHERE k.key_hash = %s
+                        WHERE k.key_hash = %s AND k.revoked_at IS NULL
                         """,
                         (token_hash,),
                     )
                     user = cur.fetchone()
                     if user:
-                        # Touch last_used_at asynchronously/inline
                         cur.execute(
                             "UPDATE api_keys SET last_used_at = NOW() WHERE id = %s",
                             (user["key_id"],),
                         )
                         conn.commit()
-                        return {
-                            "id": str(user["id"]),
-                            "username": user["username"],
-                            "name": user.get("name") or user["username"],
-                            "payday_day": user["payday_day"],
-                            "currency": user["currency"],
-                            "emergency_fund_multiplier": user.get("emergency_fund_multiplier", 6),
-                            "monthly_spending_budget": user.get("monthly_spending_budget"),
-                            "name_aliases": list(user.get("name_aliases") or []),
-                        }
+                        return _user_view(user)
 
     raise HTTPException(status_code=401, detail="Not authenticated")
+
+
+def get_session_user(request: Request) -> dict[str, Any]:
+    """Browser-session-only auth for routes that mint credentials.
+
+    A request carrying an Authorization header is refused outright: the CSRF origin check
+    skips such requests, so accepting one alongside a session cookie would bypass it.
+    """
+    if request.headers.get("Authorization", "").strip():
+        raise HTTPException(status_code=403, detail={"code": "session_required"})
+    user = _session_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user

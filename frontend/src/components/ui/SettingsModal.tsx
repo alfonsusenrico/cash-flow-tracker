@@ -13,6 +13,7 @@ import { Icon } from "@/components/ui/Icon";
 import { formatNumberWithDots } from "@/lib/utils";
 import { queryKeys } from "@/lib/queryKeys";
 import { SenderAliasesSection } from "@/components/ui/SenderAliasesSection";
+import { DevicePairingSection } from "@/components/ui/DevicePairingSection";
 
 interface Props {
   open: boolean;
@@ -346,15 +347,21 @@ export function SettingsModal({ open, onClose }: Props) {
         </div>
       </form>
 
-        <section className="space-y-3 pt-3 border-t border-[var(--border)]">
+        <DevicePairingSection enabled={open} />
+
+        <section aria-labelledby="manual-api-key-title" className="space-y-3 pt-3 border-t border-[var(--border)]">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
-              Kunci API (Aplikasi Mobile & Bot)
+            <h3 id="manual-api-key-title" className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+              API key manual (cadangan)
             </h3>
             <span className="text-[10px] text-[var(--muted)] font-mono">
               Bearer Token
             </span>
           </div>
+          <p className="text-[11px] text-[var(--muted)]">
+            Pakai hanya jika ponsel tidak bisa memindai kode QR. Membuat kunci baru hanya mengganti kunci manual;
+            ponsel yang dipasangkan lewat QR tetap terhubung.
+          </p>
 
           {newPlainKey ? (
             <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2.5">
@@ -420,7 +427,7 @@ export function SettingsModal({ open, onClose }: Props) {
               {showRotateConfirm ? (
                 <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-2">
                   <p className="text-xs font-semibold text-rose-500">
-                    Kunci lama akan langsung dicabut dan tidak dapat digunakan lagi. Lanjutkan?
+                    Kunci manual lama langsung dicabut. Ponsel yang dipasangkan lewat QR tetap terhubung. Lanjutkan?
                   </p>
                   <div className="flex items-center justify-end gap-2">
                     <Button

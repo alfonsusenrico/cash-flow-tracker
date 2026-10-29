@@ -2,6 +2,7 @@ import os
 import re
 import math
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,8 @@ class Settings:
     history_suggestion_configuration_error: str | None = None
     capture_confidence_threshold: float = 0.8
     capture_configuration_error: str | None = None
+    pairing_server_url: str = "https://finance.alfonsusenrico.com"
+    pairing_configuration_error: str | None = None
 
 
 def _csv_env(name: str) -> tuple[str, ...]:
@@ -107,6 +110,22 @@ def _capture_settings() -> dict:
     except ValueError:
         return {"capture_configuration_error": "capture_configuration_invalid"}
     return {"capture_confidence_threshold": threshold}
+
+
+def _pairing_settings() -> dict:
+    """Server named in pairing QR codes; the phone refuses any other. An invalid value disables new codes."""
+    raw = os.getenv("PAIRING_SERVER_URL", "https://finance.alfonsusenrico.com").strip()
+    try:
+        parts = urlsplit(raw)
+        valid = (
+            parts.scheme == "https" and bool(parts.hostname) and parts.username is None
+            and parts.path in ("", "/") and not parts.query and not parts.fragment
+        )
+    except ValueError:
+        valid = False
+    if not valid:
+        return {"pairing_configuration_error": "pairing_configuration_invalid"}
+    return {"pairing_server_url": f"https://{parts.netloc.lower()}"}
 
 
 def load_settings() -> Settings:
@@ -192,6 +211,7 @@ def load_settings() -> Settings:
         **_movement_pairing_settings(),
         **_history_suggestion_settings(),
         **_capture_settings(),
+        **_pairing_settings(),
     )
 
 

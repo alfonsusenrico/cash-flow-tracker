@@ -38,4 +38,5 @@ export const queryKeys = {
   },
   notificationAliases: ["notification-aliases"] as const,
   senderAliases: ["sender-aliases"] as const,
+  devices: ["devices"] as const,
 } as const;

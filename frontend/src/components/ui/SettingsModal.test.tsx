@@ -3,7 +3,10 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, deleteNotificationAlias, getApiKeyInfo, getNotificationAliases, getSenderAliases } from "@/lib/api";
+import {
+  api, createPairingCode, deleteNotificationAlias, getApiKeyInfo, getDevices, getNotificationAliases, getSenderAliases,
+  rotateApiKey,
+} from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { SettingsModal } from "./SettingsModal";
 
@@ -16,7 +19,11 @@ vi.mock("@/lib/api", () => ({
   getSenderAliases: vi.fn(),
   updateSenderAlias: vi.fn(),
   deleteSenderAlias: vi.fn(),
+  getDevices: vi.fn(),
+  createPairingCode: vi.fn(),
+  revokeDevice: vi.fn(),
 }));
+vi.mock("qrcode", () => ({ default: { toCanvas: vi.fn().mockResolvedValue(undefined) } }));
 vi.mock("@/components/layout/AppLayout", () => ({
   useAppCtx: () => ({
     user: { username: "owner", name: "Owner", payday_day: 25, currency: "IDR", emergency_fund_multiplier: 6 },
@@ -37,6 +44,7 @@ describe("settings form", () => {
     vi.mocked(getNotificationAliases).mockResolvedValue({ ok: true, aliases: [] });
     vi.mocked(getSenderAliases).mockResolvedValue({ ok: true, aliases: [] });
     vi.mocked(api.patch).mockResolvedValue({ ok: true });
+    vi.mocked(getDevices).mockResolvedValue({ ok: true, devices: [] });
   });
 
   it("saves supported profile settings and refreshes canonical consumers", async () => {
@@ -137,5 +145,60 @@ describe("settings form", () => {
     await user.click(within(section).getByRole("button", { name: "Hapus pemetaan GoPay Tabungan" }));
     await waitFor(() => expect(deleteNotificationAlias).toHaveBeenCalledWith("alias-1"));
     await waitFor(() => expect(getNotificationAliases).toHaveBeenCalledTimes(2));
+  });
+
+  it("labels the manual key as the fallback and rotates it without disconnecting paired phones", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getApiKeyInfo).mockResolvedValue({
+      ok: true,
+      api_key: { id: "key-1", key_prefix: "cfk_abcd", created_at: "2026-10-01T00:00:00Z", last_used_at: null },
+    });
+    vi.mocked(rotateApiKey).mockResolvedValue({ ok: true, api_key: "cfk_synthetic-new-key", key_prefix: "cfk_synt", message: "" });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SettingsModal open onClose={() => {}} />
+      </QueryClientProvider>,
+    );
+
+    const manual = await screen.findByRole("region", { name: "API key manual (cadangan)" });
+    const devices = screen.getByRole("region", { name: "Perangkat terhubung" });
+    expect(devices.compareDocumentPosition(manual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(manual).getByText(/ponsel yang dipasangkan lewat QR tetap terhubung/)).toBeInTheDocument();
+    await user.click(within(manual).getByRole("button", { name: "Buat Kunci Baru (Reset)" }));
+    expect(within(manual).getByText(/Kunci manual lama langsung dicabut/)).toBeInTheDocument();
+    await user.click(within(manual).getByRole("button", { name: "Ya, Buat Kunci Baru" }));
+
+    expect(await within(manual).findByRole("textbox", { name: "Kunci API baru" })).toHaveValue("cfk_synthetic-new-key");
+  });
+
+  it("closes only the pairing dialog on Escape and returns focus to its trigger", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
+    vi.mocked(createPairingCode).mockResolvedValue({
+      ok: true, code: "ABCDE12345", expires_at: new Date(Date.now() + 300_000).toISOString(), expires_in_seconds: 300,
+      qr_payload: "cashflow://pair?v=1&server=https%3A%2F%2Ffinance.alfonsusenrico.com&code=ABCDE12345",
+    });
+    const onClose = vi.fn();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SettingsModal open onClose={onClose} />
+      </QueryClientProvider>,
+    );
+
+    const trigger = await screen.findByRole("button", { name: "Hubungkan ponsel" });
+    await user.click(trigger);
+    const pairing = await screen.findByRole("dialog", { name: "Hubungkan ponsel" });
+    expect(await within(pairing).findByText("ABCDE 12345")).toBeInTheDocument();
+    await user.tab();
+    expect(pairing).toContainElement(document.activeElement as HTMLElement);
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Hubungkan ponsel" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Pengaturan Akun & Keuangan" })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(trigger).toHaveFocus();
+    vi.unstubAllGlobals();
   });
 });

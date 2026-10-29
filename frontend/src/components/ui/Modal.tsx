@@ -37,6 +37,9 @@ export function Modal({ open, onClose, title, children, wide, centered, hideClos
     const firstFocusable = dialog?.querySelector<HTMLElement>(focusableSelector);
     (preferred ?? firstFocusable ?? dialog)?.focus();
     const handler = (event: KeyboardEvent) => {
+      // A dialog opened from inside this one is portalled after it; only the topmost owns the keyboard.
+      const modals = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+      if (dialog && modals[modals.length - 1] !== dialog) return;
       if (event.key === "Escape") {
         event.preventDefault();
         onCloseRef.current();
