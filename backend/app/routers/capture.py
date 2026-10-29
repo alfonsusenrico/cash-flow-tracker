@@ -5,10 +5,10 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from app.services import text_capture
+from app.services import capture_suggestions, text_capture
 from app.services.auth import get_current_user
 from app.services.kakeibo import Pillar
 from app.services.state import rate_limiter
@@ -55,6 +55,12 @@ def answer_capture(capture_id: UUID, payload: CaptureAnswerIn, current_user: dic
 @router.post("/{capture_id}/undo")
 def undo_capture(capture_id: UUID, current_user: dict = Depends(get_current_user)):
     return {"ok": True, "capture": text_capture.undo_capture(str(current_user["id"]), str(capture_id))}
+
+
+@router.get("/suggestions")
+def suggest_captures(device_time: str = Query(max_length=64), current_user: dict = Depends(get_current_user)):
+    moment = capture_suggestions.parse_device_time(device_time)
+    return {"ok": True, "suggestions": capture_suggestions.capture_suggestions(str(current_user["id"]), moment)}
 
 
 @router.get("/{capture_id}")
