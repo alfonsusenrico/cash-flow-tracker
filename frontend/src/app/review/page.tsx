@@ -4,7 +4,15 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
-import { chunkIds, reviewErrorMessage, type AmbiguousItem, type ReviewItem, type ReviewQueue } from "@/lib/review";
+import {
+  chunkIds,
+  completionCandidates,
+  reviewErrorMessage,
+  type AmbiguousItem,
+  type CompletionCandidate,
+  type ReviewItem,
+  type ReviewQueue,
+} from "@/lib/review";
 import { PurposeQuestionCard } from "@/components/review/PurposeQuestionCard";
 import { ReviewGroupCard, type CategoryOption, type GroupActionRequest } from "@/components/review/ReviewGroupCard";
 import { AmbiguousMovementCard, AwaitingMovementCard } from "@/components/review/MovementReviewCards";
@@ -43,6 +51,7 @@ export default function ReviewPage() {
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const [completionChoices, setCompletionChoices] = useState<Record<string, CompletionCandidate[]>>({});
 
   const { data, isLoading, isError, refetch } = useQuery<ReviewQueue>({
     queryKey: queryKeys.review.queue,
@@ -98,13 +107,36 @@ export default function ReviewPage() {
       return `${request.label}: ${done} transaksi ${ACTION_DONE[request.action]}.`;
     });
 
-  const completeMovement = (item: ReviewItem, accountId: string) =>
+  const forgetChoices = (itemId: string) =>
+    setCompletionChoices(({ [itemId]: _done, ...rest }) => rest);
+
+  const completeMovement = (item: ReviewItem, accountId: string, createNew = false) =>
     run(async () => {
-      await api.post("/movements/complete", {
-        transaction_id: item.id,
-        ...(item.type === "expense" ? { target_account_id: accountId } : { source_account_id: accountId }),
-      });
-      return "Pindah saldo dilengkapi.";
+      try {
+        const result = await api.post<{ linked_transaction_id?: string | null }>("/movements/complete", {
+          transaction_id: item.id,
+          ...(item.type === "expense" ? { target_account_id: accountId } : { source_account_id: accountId }),
+          ...(createNew ? { create_new: true } : {}),
+        });
+        forgetChoices(item.id);
+        return result.linked_transaction_id
+          ? "Dihubungkan dengan transaksi yang sudah ada di rekening itu."
+          : "Pindah saldo dilengkapi.";
+      } catch (failure) {
+        const candidates = completionCandidates(failure);
+        if (!candidates) throw failure;
+        // The other leg may already be recorded; creating another would count the money twice.
+        setCompletionChoices((choices) => ({ ...choices, [item.id]: candidates }));
+        return "Rekening itu sudah punya transaksi yang cocok. Hubungkan, atau buat transaksi baru.";
+      }
+    });
+
+  const linkExistingLeg = (item: ReviewItem, candidateId: string) =>
+    run(async () => {
+      const [expense, income] = item.type === "expense" ? [item.id, candidateId] : [candidateId, item.id];
+      await api.post("/movements/merge", { expense_transaction_id: expense, income_transaction_id: income });
+      forgetChoices(item.id);
+      return "Kedua transaksi digabung sebagai pindah saldo.";
     });
 
   const linkMovement = (item: AmbiguousItem, counterpartId: string) =>
@@ -203,7 +235,15 @@ export default function ReviewPage() {
             <Section id="review-awaiting" title="Pindah saldo menunggu pasangan" count={data.awaiting.length} description="Hanya satu sisi yang tercatat. Pilih rekening lainnya untuk melengkapinya.">
               <div className="space-y-3">
                 {data.awaiting.map((item) => (
-                  <AwaitingMovementCard key={item.id} item={item} accounts={accounts} pending={pending} onComplete={completeMovement} />
+                  <AwaitingMovementCard
+                    key={item.id}
+                    item={item}
+                    accounts={accounts}
+                    pending={pending}
+                    candidates={completionChoices[item.id]}
+                    onComplete={completeMovement}
+                    onLinkExisting={linkExistingLeg}
+                  />
                 ))}
               </div>
             </Section>

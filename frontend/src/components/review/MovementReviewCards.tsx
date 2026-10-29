@@ -5,7 +5,7 @@ import { useId, useState, type FormEvent } from "react";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { AccountSelectOptions, type AccountOptionItem } from "@/components/ui/AccountSelectOptions";
 import { filterLiquidAccountChoices } from "@/lib/accountOptions";
-import { reviewReasonLabel, type AmbiguousItem, type ReviewItem } from "@/lib/review";
+import { reviewReasonLabel, type AmbiguousItem, type CompletionCandidate, type ReviewItem } from "@/lib/review";
 
 const PRIMARY = "min-h-11 rounded-xl bg-[#1E201E] px-4 text-xs font-bold text-white transition-transform active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-50 dark:border dark:border-white/15";
 const SECONDARY = "min-h-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--text)] transition-colors hover:bg-[var(--surface-raised)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-50";
@@ -31,14 +31,21 @@ interface AwaitingMovementCardProps {
   item: ReviewItem;
   accounts: AccountOptionItem[];
   pending: boolean;
-  onComplete: (item: ReviewItem, accountId: string) => Promise<boolean>;
+  /** Rows already on the chosen account that may be the missing leg; set after the server refuses to duplicate. */
+  candidates?: CompletionCandidate[];
+  onComplete: (item: ReviewItem, accountId: string, createNew?: boolean) => Promise<boolean>;
+  onLinkExisting: (item: ReviewItem, candidateId: string) => Promise<boolean>;
 }
 
-/** A one-sided own transfer: the owner names the other account and the missing leg is created. */
-export function AwaitingMovementCard({ item, accounts, pending, onComplete }: AwaitingMovementCardProps) {
+/**
+ * A one-sided own transfer: the owner names the other account. When that account already holds a matching
+ * row, the owner links it or explicitly creates a new leg.
+ */
+export function AwaitingMovementCard({ item, accounts, pending, candidates, onComplete, onLinkExisting }: AwaitingMovementCardProps) {
   const { bal } = useAppCtx();
   const baseId = useId();
   const [accountId, setAccountId] = useState("");
+  const [candidateId, setCandidateId] = useState("");
   const [error, setError] = useState("");
   const outgoing = item.type === "expense";
 
@@ -85,6 +92,42 @@ export function AwaitingMovementCard({ item, accounts, pending, onComplete }: Aw
         <button type="submit" disabled={pending} className={PRIMARY}>Lengkapi pindah saldo</button>
         <EditLink item={item} />
       </form>
+      {candidates && candidates.length > 0 && (
+        <fieldset className="space-y-2 rounded-xl border border-[var(--border)] p-3">
+          <legend className="px-1 text-xs font-bold text-[var(--text)]">Sudah ada di rekening ini</legend>
+          <p className="text-[11px] text-[var(--muted)]">
+            Transaksi ini mungkin sisi lain pindah saldo. Hubungkan agar tidak tercatat dua kali.
+          </p>
+          {candidates.map((candidate) => (
+            <label key={candidate.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-[var(--border)] px-3 py-2">
+              <input
+                type="radio"
+                name={`${baseId}-candidate`}
+                value={candidate.id}
+                checked={candidateId === candidate.id}
+                onChange={() => setCandidateId(candidate.id)}
+              />
+              <span className="min-w-0 flex-1 text-xs text-[var(--text)]">
+                {[when(candidate.date), candidate.category_name, candidate.notes].filter(Boolean).join(" · ")}
+              </span>
+              <span className="shrink-0 text-xs font-bold tabular text-[var(--text)]">{bal(candidate.amount)}</span>
+            </label>
+          ))}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={pending || !candidateId}
+              onClick={() => onLinkExisting(item, candidateId)}
+              className={PRIMARY}
+            >
+              Hubungkan
+            </button>
+            <button type="button" disabled={pending} onClick={() => onComplete(item, accountId, true)} className={SECONDARY}>
+              Tetap buat baru
+            </button>
+          </div>
+        </fieldset>
+      )}
       {error && <p role="alert" className="text-[11px] font-medium text-rose-600 dark:text-rose-400">{error}</p>}
     </article>
   );

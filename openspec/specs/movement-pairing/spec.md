@@ -132,7 +132,7 @@ Splitting a movement SHALL record the split on both legs, and automatic pairing 
 - **THEN** both legs SHALL stay unlinked.
 
 ### Requirement: Complete a One-Sided Transfer
-`POST /api/movements/complete` with `transaction_id` and exactly one of `target_account_id` (for an outgoing leg) or `source_account_id` (for an incoming leg) SHALL create the missing leg on the named account with the same amount and date, link both as one movement, and mark both reviewed. Only the owner's unlinked "Internal Movement" rows SHALL be completable.
+`POST /api/movements/complete` with `transaction_id` and exactly one of `target_account_id` (outgoing leg) or `source_account_id` (incoming leg) SHALL complete the transfer on the named account and mark both legs reviewed. It SHALL link an existing matching leg instead of creating a second one, and SHALL create a new leg only when none matches or the owner sends `create_new: true`. Only the owner's unlinked "Internal Movement" rows SHALL be completable.
 
 #### Scenario: Complete an outgoing leg
 - **GIVEN** an unpaired GoPay "Rp500.000 udah dikirim ke BCA Raka Purnama." awaiting its counterpart
@@ -154,6 +154,22 @@ Splitting a movement SHALL record the split on both legs, and automatic pairing 
 #### Scenario: Invalid completion requests
 - **WHEN** the body names neither or both accounts, the side does not match the leg's direction, the transaction or account belongs to no such owner, the account is the leg's own account, an investment position, or a parent account with pockets, or the row is not an unlinked "Internal Movement" row
 - **THEN** the response SHALL be 422 (body, side, same account, investment, pockets, not completable) or 404 (unknown or foreign transaction or account), and nothing SHALL change.
+
+#### Scenario: Existing Internal Movement leg is linked
+- **GIVEN** an awaiting GoPay send of Rp 500.000 and an unlinked BCA "Internal Movement" income of Rp 500.000 one day later that the owner never split
+- **WHEN** the owner completes the send with the BCA account as target
+- **THEN** the two rows SHALL be linked as one movement, no transaction SHALL be created, and the response SHALL carry `linked_transaction_id` with `created_transaction_id = null`
+- **AND** repeating the request SHALL return `idempotent = true` without a new row.
+
+#### Scenario: Other matches need the owner's choice
+- **GIVEN** the BCA account holds an unlinked income of Rp 500.000 within 3 days in an ordinary category, or two such "Internal Movement" incomes
+- **WHEN** the owner completes the send with the BCA account as target
+- **THEN** the response SHALL be 409 `counterpart_candidates` listing the matching rows, and nothing SHALL change
+- **AND** the same request with `create_new: true` SHALL create the new leg.
+
+#### Scenario: Rows outside the window or amount do not block
+- **WHEN** the only BCA income of Rp 500.000 is 5 days away, or the only nearby one is Rp 499.000
+- **THEN** completion SHALL create the new leg as before.
 
 ### Requirement: Pairing Settings
 The fee table, maximum difference, re-pairing interval, lookback and gap SHALL be configurable; an invalid value SHALL disable fee tolerance and the re-pairing pass with the code `movement_pairing_configuration_invalid` instead of applying a silent default, while exact-amount pairing continues.

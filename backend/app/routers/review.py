@@ -233,7 +233,9 @@ def review_queue(current_user: dict = Depends(get_current_user)):
                 # transfer only waits for its counterpart account.
                 if is_ambiguous and (candidates or not row["movement_category"]):
                     ambiguous.append({**queue_item(row), "candidates": candidates})
-                elif unlinked and row["movement_category"]:
+                # Only legs the pairing flagged wait for a counterpart; older one-sided rows the owner left
+                # as they are stay ordinary rows to accept.
+                elif unlinked and row["movement_category"] and "awaiting_counterpart" in review_reasons(row):
                     awaiting.append(queue_item(row))
                 else:
                     grouped.append(row)

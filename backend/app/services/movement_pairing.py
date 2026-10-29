@@ -32,6 +32,9 @@ REPAIR_LEG_LIMIT = 500
 FEE_CATEGORY_NAME = "Biaya Admin & Transfer"
 FEE_NOTES = "Biaya transfer"
 COMPLETION_KEY_PREFIX = "movement-complete:"
+# The other leg of an own transfer may already be on the chosen account as its own row; completing must
+# link it rather than record the money twice.
+COMPLETION_MATCH_WINDOW = timedelta(days=3)
 
 # Eligible unlinked legs: a notification leg the owner has not reclassified, or any row the owner or
 # the pipeline filed as Internal Movement. Rows the owner split apart never pair automatically again.
@@ -416,8 +419,14 @@ def repair_unpaired_movements(*, now: datetime | None = None) -> dict[str, int]:
     return totals
 
 
-def complete_movement(cur, user_id: str, transaction_id: str, *, counterpart_account_id: str, role: str) -> dict:
-    """Create the missing leg of a one-sided own transfer and link both as one movement.
+def complete_movement(
+    cur, user_id: str, transaction_id: str, *, counterpart_account_id: str, role: str, create_new: bool = False,
+) -> dict:
+    """Complete a one-sided own transfer on the account the owner names, and link both legs as one movement.
+
+    An unlinked opposite row of the same amount near that date on the named account is the missing leg:
+    one clean Internal Movement match is linked; any other match is returned for the owner to choose
+    (409 counterpart_candidates) unless `create_new` confirms that a new leg is wanted.
 
     `role` is the side the owner names: "target" for an outbound leg, "source" for an inbound one.
     Idempotent: repeating the same completion returns the existing movement.
@@ -446,8 +455,12 @@ def complete_movement(cur, user_id: str, transaction_id: str, *, counterpart_acc
             (user_id, row["movement_id"], transaction_id),
         )
         partner = cur.fetchone()
-        if partner and partner["idempotency_key"] == completion_key and str(partner["account_id"]) == counterpart_account_id:
-            return completion_response(row, partner, idempotent=True)
+        # Either a leg created by an earlier completion or an existing row linked by it.
+        if partner and str(partner["account_id"]) == counterpart_account_id:
+            response = completion_response(row, partner, idempotent=True)
+            if partner["idempotency_key"] != completion_key:
+                response = {**response, "created_transaction_id": None, "linked_transaction_id": str(partner["id"])}
+            return response
         raise HTTPException(status_code=409, detail={"code": "already_linked", "message": "The transaction is already part of a movement."})
     if row["category_name"] != "Internal Movement":
         raise HTTPException(status_code=422, detail={
@@ -471,6 +484,16 @@ def complete_movement(cur, user_id: str, transaction_id: str, *, counterpart_acc
     new_type = "income" if row["type"] == "expense" else "expense"
     target_id = counterpart_account_id if row["type"] == "expense" else own_account_id
     notes = movement_note(cur, user_id, target_id)
+    candidates = existing_counterparts(cur, user_id, row, counterpart_account_id, new_type)
+    if not create_new and candidates:
+        only = candidates[0]
+        if len(candidates) == 1 and only["category_name"] == "Internal Movement" and only["owner_split_at"] is None:
+            return link_existing_counterpart(cur, user_id, row, only, notes)
+        raise HTTPException(status_code=409, detail={
+            "code": "counterpart_candidates",
+            "message": "The chosen account already has a matching transaction; link it or confirm a new one.",
+            "candidates": [candidate_summary(candidate) for candidate in candidates],
+        })
     cur.execute(
         """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, idempotency_key,
                source, review_status, classified_by, classification_confidence)
@@ -489,6 +512,43 @@ def complete_movement(cur, user_id: str, transaction_id: str, *, counterpart_acc
     attach_events_to_movement(cur, user_id, result["movement_id"], load_accounts(cur, user_id))
     row = {**row, "movement_id": result["movement_id"]}
     return completion_response(row, partner, idempotent=False)
+
+
+def existing_counterparts(cur, user_id: str, row: dict, account_id: str, counterpart_type: str) -> list[dict]:
+    cur.execute(
+        """SELECT t.*, c.name AS category_name FROM transactions t
+           LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
+           WHERE t.user_id = %s AND t.account_id = %s AND t.type = %s AND t.amount = %s
+             AND t.movement_id IS NULL AND t.fee_for_movement_id IS NULL
+             AND t.goal_id IS NULL AND t.obligation_id IS NULL AND t.recurring_rule_id IS NULL
+             AND t.date BETWEEN %s AND %s AND t.id <> %s
+           ORDER BY abs(extract(epoch FROM t.date - %s)), t.id
+           LIMIT 5
+           FOR UPDATE OF t""",
+        (user_id, account_id, counterpart_type, row["amount"], row["date"] - COMPLETION_MATCH_WINDOW,
+         row["date"] + COMPLETION_MATCH_WINDOW, row["id"], row["date"]),
+    )
+    return cur.fetchall()
+
+
+def candidate_summary(candidate: dict) -> dict[str, Any]:
+    return {
+        "id": str(candidate["id"]), "type": candidate["type"], "amount": int(candidate["amount"]),
+        "date": candidate["date"].isoformat(), "account_id": str(candidate["account_id"]),
+        "category_name": candidate["category_name"], "notes": candidate["notes"],
+    }
+
+
+def link_existing_counterpart(cur, user_id: str, row: dict, partner: dict, notes: str | None) -> dict:
+    expense_id, income_id = (str(row["id"]), str(partner["id"])) if row["type"] == "expense" else (str(partner["id"]), str(row["id"]))
+    result = link_transactions_as_movement(cur, user_id, expense_id, income_id, notes=notes)
+    cur.execute(
+        "UPDATE transactions SET review_status = 'reviewed', updated_at = NOW() WHERE user_id = %s AND movement_id = %s",
+        (user_id, result["movement_id"]),
+    )
+    attach_events_to_movement(cur, user_id, result["movement_id"], load_accounts(cur, user_id))
+    response = completion_response({**row, "movement_id": result["movement_id"]}, partner, idempotent=False)
+    return {**response, "created_transaction_id": None, "linked_transaction_id": str(partner["id"])}
 
 
 def completion_response(row: dict, partner: dict, *, idempotent: bool) -> dict[str, Any]:
