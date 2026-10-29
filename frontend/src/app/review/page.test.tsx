@@ -184,6 +184,60 @@ describe("review page", () => {
     }));
   });
 
+  it("offers the existing leg instead of recording a transfer twice", async () => {
+    const user = userEvent.setup();
+    const candidate = {
+      id: "tx-existing-in", type: "income", amount: 50_000, date: "2026-10-20T05:37:00Z",
+      account_id: "account-bca", category_name: "Internal Movement", notes: "Pindah saldo contoh",
+    };
+    vi.mocked(api.post).mockImplementation(async (path, body) => {
+      if (path === "/movements/complete" && !(body as { create_new?: boolean }).create_new) {
+        throw Object.assign(new Error("conflict"), {
+          status: 409, detail: { code: "counterpart_candidates", message: "x", candidates: [candidate] },
+        });
+      }
+      return { ok: true };
+    });
+    renderPage();
+    const awaiting = (await screen.findByRole("heading", { name: "Keluar dari GoPay, ke rekening mana?" })).closest("article") as HTMLElement;
+    await user.selectOptions(within(awaiting).getByRole("combobox", { name: "Rekening tujuan" }), "account-bca");
+    await user.click(within(awaiting).getByRole("button", { name: "Lengkapi pindah saldo" }));
+
+    const existing = await within(awaiting).findByRole("group", { name: "Sudah ada di rekening ini" });
+    expect(within(existing).getByRole("button", { name: "Hubungkan" })).toBeDisabled();
+    await user.click(within(existing).getByRole("radio", { name: /Internal Movement/ }));
+    await user.click(within(existing).getByRole("button", { name: "Hubungkan" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/movements/merge", {
+      expense_transaction_id: "tx-await", income_transaction_id: "tx-existing-in",
+    }));
+    expect(api.post).not.toHaveBeenCalledWith("/movements/complete", expect.objectContaining({ create_new: true }));
+    expect((await axe(awaiting)).violations).toHaveLength(0);
+  });
+
+  it("creates a new leg only when the owner confirms it", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.post).mockImplementation(async (path, body) => {
+      if (path === "/movements/complete" && !(body as { create_new?: boolean }).create_new) {
+        throw Object.assign(new Error("conflict"), {
+          status: 409,
+          detail: { code: "counterpart_candidates", message: "x", candidates: [{
+            id: "tx-other", type: "income", amount: 50_000, date: "2026-10-20T05:37:00Z",
+            account_id: "account-bca", category_name: "Pendapatan Lain", notes: null,
+          }] },
+        });
+      }
+      return { ok: true };
+    });
+    renderPage();
+    const awaiting = (await screen.findByRole("heading", { name: "Keluar dari GoPay, ke rekening mana?" })).closest("article") as HTMLElement;
+    await user.selectOptions(within(awaiting).getByRole("combobox", { name: "Rekening tujuan" }), "account-bca");
+    await user.click(within(awaiting).getByRole("button", { name: "Lengkapi pindah saldo" }));
+    await user.click(await within(awaiting).findByRole("button", { name: "Tetap buat baru" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/movements/complete", {
+      transaction_id: "tx-await", target_account_id: "account-bca", create_new: true,
+    }));
+  });
+
   it("completes an awaiting transfer and resolves an ambiguous one", async () => {
     const user = userEvent.setup();
     renderPage();

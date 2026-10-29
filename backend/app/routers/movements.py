@@ -52,6 +52,8 @@ class MovementCompletion(BaseModel):
     transaction_id: UUID
     target_account_id: UUID | None = None
     source_account_id: UUID | None = None
+    # Confirms a new leg although the chosen account already has a matching transaction.
+    create_new: bool = False
 
     @model_validator(mode="after")
     def one_counterpart_account(self) -> "MovementCompletion":
@@ -229,6 +231,7 @@ def complete_one_sided_movement(payload: MovementCompletion, current_user: dict 
         with conn.cursor() as cur:
             result = complete_movement(
                 cur, current_user["id"], str(payload.transaction_id), counterpart_account_id=account_id, role=role,
+                create_new=payload.create_new,
             )
         conn.commit()
     return result

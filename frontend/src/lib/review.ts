@@ -162,6 +162,26 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_purpose_answer: "Jawaban harus 1–200 karakter tanpa karakter khusus.",
 };
 
+/** An existing row on the chosen account that may already be the missing leg of a transfer. */
+export interface CompletionCandidate {
+  id: string;
+  type: "expense" | "income";
+  amount: number;
+  date: string;
+  account_id: string;
+  category_name: string | null;
+  notes: string | null;
+}
+
+/** Candidates the server returns instead of completing, when the chosen account already has a match. */
+export function completionCandidates(error: unknown): CompletionCandidate[] | null {
+  if (!error || typeof error !== "object" || !("detail" in error)) return null;
+  const detail = (error as { detail: unknown }).detail;
+  if (!detail || typeof detail !== "object") return null;
+  const { code, candidates } = detail as { code?: string; candidates?: unknown };
+  return code === "counterpart_candidates" && Array.isArray(candidates) ? (candidates as CompletionCandidate[]) : null;
+}
+
 /** Message for a failed review request; backend messages are already Indonesian. */
 export function reviewErrorMessage(error: unknown): string {
   if (error && typeof error === "object" && "detail" in error) {

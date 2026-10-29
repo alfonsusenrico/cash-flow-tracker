@@ -498,3 +498,95 @@ def test_v30_is_idempotent(client):
                WHERE table_name = 'transactions' AND column_name IN ('owner_split_at', 'fee_for_movement_id')""").fetchall()}
         conn.rollback()
     assert columns == {"owner_split_at", "fee_for_movement_id"}
+
+
+# --- Completing when the other leg already exists ---------------------------------------------
+
+
+def insert_leg(owner, account_key, tx_type, amount, *, category_key, days_from_row=0, row_date=None, source="notification"):
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        tx_id = conn.execute(
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, source, review_status, classified_by)
+               VALUES (%s, %s, %s, %s, %s, 'Pindah saldo contoh', %s + %s * INTERVAL '1 day', %s, 'auto', 'rule') RETURNING id""",
+            (owner["user_id"], owner[account_key], owner[category_key], tx_type, amount, row_date, days_from_row, source),
+        ).fetchone()["id"]
+        conn.commit()
+    return str(tx_id)
+
+
+def test_complete_links_an_existing_internal_movement_leg_instead_of_creating_one(client, notification_owner):
+    owner = notification_owner
+    outgoing = ingest(client, gopay_to_own_bca(500000))["results"][0]
+    row = tx_of_event(outgoing["event_id"])
+    existing = insert_leg(owner, "bca", "income", 500000, category_key="internal_in", days_from_row=1, row_date=row["date"])
+    body = {"transaction_id": str(row["id"]), "target_account_id": owner["bca"]}
+
+    response = client.post("/api/movements/complete", json=body)
+
+    assert response.status_code == 200, response.text
+    completed = response.json()
+    assert completed["created_transaction_id"] is None and completed["linked_transaction_id"] == existing
+    legs = rows_of(owner)
+    assert len(legs) == 2, "no third row: the existing leg is linked"
+    assert len({leg["movement_id"] for leg in legs}) == 1 and legs[0]["movement_id"]
+    assert {leg["review_status"] for leg in legs} == {"reviewed"}
+    again = client.post("/api/movements/complete", json=body)
+    assert again.status_code == 200 and again.json()["idempotent"] is True
+    assert again.json()["linked_transaction_id"] == existing and len(rows_of(owner)) == 2
+
+
+def test_complete_asks_before_creating_when_another_match_exists(client, notification_owner):
+    owner = notification_owner
+    outgoing = ingest(client, gopay_to_own_bca(500000))["results"][0]
+    row = tx_of_event(outgoing["event_id"])
+    income = insert_leg(owner, "bca", "income", 500000, category_key="income", row_date=row["date"])
+    body = {"transaction_id": str(row["id"]), "target_account_id": owner["bca"]}
+
+    refused = client.post("/api/movements/complete", json=body)
+
+    assert refused.status_code == 409
+    detail = refused.json()["detail"]
+    assert detail["code"] == "counterpart_candidates"
+    assert [candidate["id"] for candidate in detail["candidates"]] == [income]
+    assert len(rows_of(owner)) == 2, "nothing written while the owner decides"
+    confirmed = client.post("/api/movements/complete", json={**body, "create_new": True})
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["created_transaction_id"] not in (None, income)
+    assert len(rows_of(owner)) == 3
+
+
+def test_two_internal_movement_matches_are_never_linked_automatically(client, notification_owner):
+    owner = notification_owner
+    outgoing = ingest(client, gopay_to_own_bca(500000))["results"][0]
+    row = tx_of_event(outgoing["event_id"])
+    first = insert_leg(owner, "bca", "income", 500000, category_key="internal_in", row_date=row["date"])
+    second = insert_leg(owner, "bca", "income", 500000, category_key="internal_in", days_from_row=2, row_date=row["date"])
+    refused = client.post("/api/movements/complete", json={"transaction_id": str(row["id"]), "target_account_id": owner["bca"]})
+    assert refused.status_code == 409
+    assert [candidate["id"] for candidate in refused.json()["detail"]["candidates"]] == [first, second]
+
+
+@pytest.mark.parametrize(("amount", "days"), [(500000, 5), (499000, 0)])
+def test_rows_outside_the_window_or_amount_do_not_block_completion(client, notification_owner, amount, days):
+    owner = notification_owner
+    outgoing = ingest(client, gopay_to_own_bca(500000))["results"][0]
+    row = tx_of_event(outgoing["event_id"])
+    insert_leg(owner, "bca", "income", amount, category_key="internal_in", days_from_row=-days, row_date=row["date"])
+    response = client.post("/api/movements/complete", json={"transaction_id": str(row["id"]), "target_account_id": owner["bca"]})
+    assert response.status_code == 200, response.text
+    assert response.json()["created_transaction_id"]
+
+
+def test_review_queue_waits_only_for_flagged_legs(client, notification_owner):
+    owner = notification_owner
+    outgoing = ingest(client, gopay_to_own_bca(500000))["results"][0]
+    flagged = str(tx_of_event(outgoing["event_id"])["id"])
+    historical = insert_leg(owner, "gopay", "expense", 75000, category_key="internal_out",
+                            row_date=tx_of_event(outgoing["event_id"])["date"], days_from_row=-30)
+
+    queue = client.get("/api/review/queue").json()
+
+    assert [item["id"] for item in queue["awaiting"]] == [flagged]
+    grouped = {item["id"] for group in queue["groups"] for item in group["transactions"]}
+    assert historical in grouped, "an older one-sided row is an ordinary row to accept, not a pending transfer"
