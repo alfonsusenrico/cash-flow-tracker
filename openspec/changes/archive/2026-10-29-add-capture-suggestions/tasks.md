@@ -8,4 +8,4 @@ Expected Result: the capture screen can prefill from the owner's habits.
 ## 2. Verify and deliver
 
 - [x] 2.1 Full backend suite on a fresh database, `openspec validate --all --strict`, and verification.md.
-- [ ] 2.2 Archive, and push `feat/ai-text-capture` (same PR as the capture backend).
+- [x] 2.2 Archive, and push `feat/ai-text-capture` (same PR as the capture backend).
