@@ -15,7 +15,9 @@ from app.services.merchant_memory import (
     PLACEHOLDER_COUNTERPARTIES, count_memory_hit, learn_from_model, normalize_key_text, stored_key_fields,
 )
 from app.services.movement_linkage import SELF_TRANSFER_NOTES, movement_note
-from app.services.movement_pairing import find_counterpart, flag_ambiguous, leg_evidence, link_pair, load_accounts
+from app.services.movement_pairing import (
+    COMPLETION_KEY_PREFIX, find_counterpart, flag_ambiguous, leg_evidence, link_pair, load_accounts,
+)
 from app.services.notification_context import CANDIDATE_LIMIT, discover_candidates, sanitize_text
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
 from app.services.notification_interpretation import Interpretation, validate_interpretation
@@ -187,6 +189,50 @@ def committed_snapshot(*, key: str, kind: str, description: str, amount: int, so
             "source": source, "target": target, "amount": amount, "currency": "IDR"}
 
 
+def confirm_completed_movement(cur, event: dict, facts: NotificationFacts, account_id: str, signature: dict, accounts: list[dict]) -> bool:
+    """Attach a leg the owner already completed on Tinjau to this notification instead of recording it again.
+
+    Completion creates the missing leg with the other leg's date, so the bank's own notification for it can
+    arrive later (a frozen companion, a pending pocket question). One matching completed leg with no
+    notification of its own is this leg; several make the event ambiguous.
+    """
+    user_id = str(event["user_id"])
+    cur.execute(
+        """SELECT t.id, t.movement_id FROM transactions t
+           WHERE t.user_id = %s AND t.account_id = %s AND t.type = %s AND t.amount = %s
+             AND t.movement_id IS NOT NULL AND t.idempotency_key LIKE %s
+             AND abs(extract(epoch FROM t.date - %s)) <= %s
+             AND NOT EXISTS (SELECT 1 FROM notification_events e WHERE e.user_id = t.user_id AND e.transaction_id = t.id)
+           ORDER BY abs(extract(epoch FROM t.date - %s)), t.id
+           LIMIT 2
+           FOR UPDATE OF t""",
+        (user_id, account_id, facts.direction, facts.amount, f"{COMPLETION_KEY_PREFIX}%", facts.timestamp,
+         settings.notification_pairing_window_seconds, facts.timestamp),
+    )
+    matches = cur.fetchall()
+    if not matches:
+        return False
+    if len(matches) > 1:
+        raise EvidenceError("ambiguous_existing_movement")
+    leg = matches[0]
+    cur.execute(
+        "SELECT type, account_id, amount, notes FROM transactions WHERE user_id = %s AND movement_id = %s",
+        (user_id, leg["movement_id"]),
+    )
+    legs = {row["type"]: row for row in cur.fetchall()}
+    by_id = {str(account["id"]): account for account in accounts}
+    snapshot = committed_snapshot(
+        key=f"notification:{event['id']}", kind="internal_movement",
+        description=legs["expense"]["notes"] or "Pindah saldo", amount=int(legs["expense"]["amount"]),
+        source=account_label(by_id[str(legs["expense"]["account_id"])], accounts),
+        target=account_label(by_id[str(legs["income"]["account_id"])], accounts),
+    )
+    role = "outbound" if facts.direction == "expense" else "inbound"
+    save_recorded(cur, event, str(leg["id"]), snapshot, signature, movement_id=str(leg["movement_id"]),
+                  provenance="role_confirmation", role=role)
+    return True
+
+
 def save_recorded(cur, event: dict, tx_id: str, snapshot: dict, signature: dict, *, movement_id: str | None = None, provenance: str = "observed_leg", role: str | None = None):
     cur.execute(
         """UPDATE notification_events SET processing_state = 'recorded', transaction_id = %s,
@@ -338,6 +384,8 @@ def record_observed_leg(
         signature["deposit_source"] = facts.institution
         if confirm_existing_deposit(cur, event, facts, account_id, signature):
             return 0
+    if confirm_completed_movement(cur, event, facts, account_id, signature, accounts):
+        return 0
     candidates = discover_candidates(cur, user_id, facts)
     overflow = len(candidates) > CANDIDATE_LIMIT
     possible_complete = [

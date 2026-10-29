@@ -590,3 +590,52 @@ def test_review_queue_waits_only_for_flagged_legs(client, notification_owner):
     assert [item["id"] for item in queue["awaiting"]] == [flagged]
     grouped = {item["id"] for group in queue["groups"] for item in group["transactions"]}
     assert historical in grouped, "an older one-sided row is an ordinary row to accept, not a pending transfer"
+
+
+# --- A notification leg arriving after the owner completed the transfer ------------------------
+
+JAGO_SELF_TRANSFER = "You've transferred Rp500.000 to RAKA PURNAMA. Need help? Contact Tanya Jago at 1500 746."
+
+
+@pytest.mark.parametrize("delay_seconds", [2, 600])
+def test_late_leg_confirms_a_completed_transfer_instead_of_recording_again(client, notification_owner, delay_seconds):
+    from test_notification_processing_database import ingest_with_source_confirmation
+
+    owner = notification_owner
+    incoming = ingest(client, bca_from_owner(500000))["results"][0]
+    income_row = tx_of_event(incoming["event_id"])
+    completed = client.post("/api/movements/complete", json={
+        "transaction_id": str(income_row["id"]), "source_account_id": owner["main"],
+    })
+    assert completed.status_code == 200, completed.text
+    assert len(rows_of(owner)) == 2
+
+    late = at(notification(JAGO_SELF_TRANSFER, "com.jago.digitalBanking"), delay_seconds)
+    result = ingest_with_source_confirmation(client, late, owner)
+
+    assert result["status"] == "recorded"
+    assert len(rows_of(owner)) == 2, "the late Jago leg is the completed leg, not a second Rp 500.000"
+    event = event_of(result["event_id"])
+    assert str(event["movement_id"]) == completed.json()["movement_id"]
+    assert str(event["transaction_id"]) == completed.json()["created_transaction_id"]
+    assert event["provenance_kind"] == "role_confirmation" and event["confirmed_role"] == "outbound"
+
+
+def test_two_completed_transfers_hold_the_late_leg(client, notification_owner):
+    from test_notification_processing_database import ingest_with_source_confirmation
+
+    owner = notification_owner
+    late = at(notification(JAGO_SELF_TRANSFER, "com.jago.digitalBanking"), 10)
+    from datetime import datetime
+    when = datetime.fromisoformat(late["post_time"])
+    for offset in (0, 0):
+        income = insert_leg(owner, "bca", "income", 500000, category_key="internal_in", row_date=when, days_from_row=offset)
+        done = client.post("/api/movements/complete", json={"transaction_id": income, "source_account_id": owner["main"]})
+        assert done.status_code == 200, done.text
+    before = len(rows_of(owner))
+
+    result = ingest_with_source_confirmation(client, late, owner)
+
+    assert result["status"] != "recorded"
+    assert event_of(result["event_id"])["error_code"] == "ambiguous_existing_movement"
+    assert len(rows_of(owner)) == before, "nothing new is recorded while two completed transfers could match"
