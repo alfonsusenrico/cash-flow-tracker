@@ -6,7 +6,8 @@ export type TransactionSource =
   | "movement"
   | "reconcile"
   | "investment"
-  | "import";
+  | "import"
+  | "capture";
 
 export type ReviewStatus = "auto" | "needs_review" | "reviewed";
 
@@ -21,6 +22,7 @@ const SOURCE_LABELS: Record<TransactionSource, string> = {
   reconcile: "Penyesuaian saldo",
   investment: "Investasi",
   import: "Impor",
+  capture: "Diketik di ponsel",
 };
 
 const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {

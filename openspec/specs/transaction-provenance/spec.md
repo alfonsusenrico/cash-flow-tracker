@@ -7,7 +7,7 @@ still needs to review it and who classified it, so review, learning and reports 
 ## Requirements
 
 ### Requirement: Transaction Provenance Fields
-Every transaction SHALL carry `source` (manual, notification, recurring, payroll, movement, reconcile, investment or import), `review_status` (auto, needs_review or reviewed), `classified_by` (rule, ai, owner, system or empty), `classification_confidence` (empty or 0 to 1), `owner_edited_at` (empty or a time) and `merchant` (empty or a display name of 1–120 characters). The database SHALL reject any other value. `notes` SHALL remain the human description.
+Every transaction SHALL carry `source` (manual, notification, recurring, payroll, movement, reconcile, investment, import or capture), `review_status` (auto, needs_review or reviewed), `classified_by` (rule, ai, owner, system or empty), `classification_confidence` (empty or 0 to 1), `owner_edited_at` (empty or a time) and `merchant` (empty or a display name of 1–120 characters). The database SHALL reject any other value. `notes` SHALL remain the human description.
 
 #### Scenario: Unknown source is rejected by the database
 - **WHEN** any writer stores a transaction with `source = 'bot'`
@@ -23,6 +23,10 @@ Every transaction SHALL carry `source` (manual, notification, recurring, payroll
 - **WHEN** the owner sets its merchant to "Parkir Mal Contoh"
 - **THEN** `notes` SHALL still be "Bayar parkir"
 - **AND** `merchant` SHALL be "Parkir Mal Contoh".
+
+#### Scenario: Capture source accepted
+- **WHEN** a transaction is recorded from the owner's typed text
+- **THEN** its `source` SHALL be `capture` and the database SHALL accept it.
 
 ### Requirement: Provenance Written by Every Recording Path
 Each path that creates a transaction SHALL write its provenance explicitly: manual create → manual, reviewed, owner; movement → movement, reviewed, system; recurring → recurring, reviewed, system; payroll → payroll, reviewed, system; reconcile → reconcile, reviewed, system; investment trade or top-up → investment, reviewed, system; notification → notification, auto or needs_review (per the record-and-flag reasons), ai or rule (rule for memory hits).

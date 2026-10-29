@@ -10,6 +10,7 @@ from app.db.pool import db_conn
 from app.services.ledger_mutations import (
     LIQUID_ACCOUNT_TYPES,
     create_bilateral_movement,
+    delete_movement_rows,
     ensure_generic_movement_accounts,
     lock_owned_accounts,
     movement_kakeibo,
@@ -398,18 +399,6 @@ def delete_movement(movement_id: UUID, current_user: dict = Depends(get_current_
     with db_conn() as conn:
         with conn.cursor() as cur:
             reject_topup_movement(cur, user_id, str(movement_id))
-            cur.execute(
-                "DELETE FROM transactions WHERE user_id = %s AND movement_id = %s RETURNING id",
-                (user_id, str(movement_id)),
-            )
-            deleted = cur.fetchall()
-            if len(deleted) != 2:
-                raise HTTPException(status_code=404, detail="Movement not found")
-            # The fee was part of the outbound debit that is deleted with the movement.
-            cur.execute(
-                """DELETE FROM transactions
-                   WHERE user_id = %s AND fee_for_movement_id = %s AND movement_id IS NULL AND type = 'expense'""",
-                (user_id, str(movement_id)),
-            )
+            delete_movement_rows(cur, user_id, str(movement_id))
             conn.commit()
     return {"ok": True, "movement_id": str(movement_id)}

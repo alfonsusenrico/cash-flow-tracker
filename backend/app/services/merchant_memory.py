@@ -108,7 +108,7 @@ def load_memory(cur, user_id: str, match_key: str | None) -> list[dict]:
     """Usable memory entries, exact key first; entries with an inactive category are left out."""
     cur.execute(
         """SELECT m.id, m.match_key, m.key_kind, m.display_merchant, m.notes, m.category_id,
-                  m.kakeibo_type, m.source, m.hit_count, c.kind AS category_kind,
+                  m.kakeibo_type, m.source, m.hit_count, m.account_id, c.kind AS category_kind,
                   c.offsets_spending AS category_offsets_spending,
                   CASE WHEN oc.id IS NOT NULL AND oc.is_archived = FALSE AND oc.kind = 'expense'
                        THEN m.offset_category_id END AS offset_category_id
@@ -150,20 +150,25 @@ def count_memory_hit(cur, user_id: str, memory_id: str) -> None:
 
 
 def upsert_memory(cur, user_id: str, match_key: str, values: dict, source: str) -> None:
-    """Remember a classification for a key; an AI value never replaces an owner value."""
+    """Remember a classification for a key; an AI value never replaces an owner value.
+
+    Only captures name an account; a write without one keeps the remembered account.
+    """
     cur.execute(
         """INSERT INTO merchant_memory (user_id, match_key, key_kind, display_merchant, notes, category_id,
-               kakeibo_type, offset_category_id, source)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+               kakeibo_type, offset_category_id, account_id, source)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
            ON CONFLICT (user_id, match_key) DO UPDATE
            SET key_kind = EXCLUDED.key_kind, display_merchant = EXCLUDED.display_merchant,
                notes = EXCLUDED.notes, category_id = EXCLUDED.category_id,
                kakeibo_type = EXCLUDED.kakeibo_type, offset_category_id = EXCLUDED.offset_category_id,
+               account_id = COALESCE(EXCLUDED.account_id, merchant_memory.account_id),
                source = EXCLUDED.source, updated_at = NOW()
            WHERE merchant_memory.source = 'ai' OR EXCLUDED.source = 'owner'""",
         (user_id, match_key, "merchant" if match_key.startswith("merchant:") else "signature",
          values.get("merchant"), (values.get("notes") or None) and values["notes"][:500],
-         values["category_id"], values.get("kakeibo_type"), values.get("offset_category_id"), source),
+         values["category_id"], values.get("kakeibo_type"), values.get("offset_category_id"),
+         values.get("account_id"), source),
     )
 
 

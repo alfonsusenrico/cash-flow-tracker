@@ -10,9 +10,9 @@ import {
 
 describe("provenance labels", () => {
   it("names every source, review status and classifier in Indonesian", () => {
-    expect(["manual", "notification", "recurring", "payroll", "movement", "reconcile", "investment", "import"].map(sourceLabel)).toEqual([
+    expect(["manual", "notification", "recurring", "payroll", "movement", "reconcile", "investment", "import", "capture"].map(sourceLabel)).toEqual([
       "Dicatat manual", "Notifikasi bank", "Transaksi rutin", "Alokasi gaji", "Pindah saldo",
-      "Penyesuaian saldo", "Investasi", "Impor",
+      "Penyesuaian saldo", "Investasi", "Impor", "Diketik di ponsel",
     ]);
     expect(["auto", "needs_review", "reviewed"].map(reviewStatusLabel)).toEqual([
       "Otomatis, belum ditinjau", "Perlu ditinjau", "Sudah ditinjau",

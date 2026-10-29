@@ -56,6 +56,8 @@ class Settings:
     history_suggestion_max_rows: int = 300
     history_suggestion_batch_size: int = 20
     history_suggestion_configuration_error: str | None = None
+    capture_confidence_threshold: float = 0.8
+    capture_configuration_error: str | None = None
 
 
 def _csv_env(name: str) -> tuple[str, ...]:
@@ -94,6 +96,17 @@ def _history_suggestion_settings() -> dict:
     except ValueError:
         return {"history_suggestion_configuration_error": "suggestion_configuration_invalid"}
     return {"history_suggestion_max_rows": max_rows, "history_suggestion_batch_size": batch_size}
+
+
+def _capture_settings() -> dict:
+    """Lowest model confidence that records a typed capture without asking; an invalid value disables the model."""
+    try:
+        threshold = float(os.getenv("CAPTURE_CONFIDENCE_THRESHOLD", "0.8"))
+        if not math.isfinite(threshold) or not 0.5 <= threshold <= 1.0:
+            raise ValueError
+    except ValueError:
+        return {"capture_configuration_error": "capture_configuration_invalid"}
+    return {"capture_confidence_threshold": threshold}
 
 
 def load_settings() -> Settings:
@@ -178,6 +191,7 @@ def load_settings() -> Settings:
         notification_ai_dry_run_enabled=os.getenv("NOTIFICATION_AI_DRY_RUN_ENABLED", "false").lower() == "true",
         **_movement_pairing_settings(),
         **_history_suggestion_settings(),
+        **_capture_settings(),
     )
 
 

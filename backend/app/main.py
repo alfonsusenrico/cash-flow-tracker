@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.db.pool import close_db_pool, db_conn, open_db_pool
 from app.routers.accounts import router as accounts_router
 from app.routers.auth import router as auth_router
+from app.routers.capture import router as capture_router
 from app.routers.categories import router as categories_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.goals import router as goals_router
@@ -231,6 +232,7 @@ for prefix in ("", "/api", "/v1"):
     app.include_router(pulse_router, prefix=prefix)
     app.include_router(review_router, prefix=prefix)
     app.include_router(history_suggestions_router, prefix=prefix)
+    app.include_router(capture_router, prefix=prefix)
 
 
 @app.exception_handler(HTTPException)

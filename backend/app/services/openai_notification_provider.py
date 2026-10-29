@@ -19,6 +19,7 @@ from openai import (
 )
 from pydantic import ValidationError
 
+from app.services.capture_normalization import CaptureNormalization, capture_prompt
 from app.services.notification_context import CONTEXT_BYTE_LIMIT
 from app.services.notification_interpretation import Interpretation, system_prompt
 from app.services.purpose_normalization import PurposeNormalization, purpose_prompt
@@ -165,6 +166,15 @@ class OpenAINotificationProvider:
         )
         try:
             return PurposeNormalization.model_validate_json(output)
+        except (ValueError, TypeError, ValidationError):
+            raise ProviderError("provider_invalid_output") from None
+
+    async def normalize_capture(self, context: dict) -> CaptureNormalization:
+        output = await self.respond(
+            capture_prompt(), context, response_schema(CaptureNormalization, "capture_normalization"),
+        )
+        try:
+            return CaptureNormalization.model_validate_json(output)
         except (ValueError, TypeError, ValidationError):
             raise ProviderError("provider_invalid_output") from None
 
