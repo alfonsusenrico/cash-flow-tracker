@@ -9,5 +9,6 @@ Expected Result: older one-sided rows leave the awaiting section, and completing
 ## 2. Verify and deliver
 
 - [x] 2.1 Full backend suite on a fresh V1→V32 database, frontend test/lint/type-check/build, `openspec validate --all --strict`. Evidence: verification.md.
-- [ ] 2.2 Read-only production check of earlier completions for duplicate legs, reported to the owner (no production edit).
-- [ ] 2.3 Archive, push `fix/movement-completion-duplicates`, report the compare link.
+- [x] 2.2 Archive, push `fix/movement-completion-duplicates`, report the compare link. Evidence: archive exit 0, pushed branch.
+
+Production follow-up (tracked in PROJECT_STATE.md, not an implementation task): read-only check of completions made before this fix for a duplicated leg; the owner corrects any in the ledger.
