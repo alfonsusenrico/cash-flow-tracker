@@ -13,5 +13,5 @@ Expected Result: the owner can pair and revoke from the web.
 
 ## 3. Verify and deliver
 
-- [ ] 3.1 Full backend and frontend suites, lint, type-check, build, `openspec validate --all --strict`, and verification.md.
-- [ ] 3.2 Archive, push `feat/qr-device-pairing`, and report the compare link. Merge after the capture branch.
+- [x] 3.1 Full backend and frontend suites, lint, type-check, build, `openspec validate --all --strict`, and verification.md.
+- [x] 3.2 Archive, push `feat/qr-device-pairing`, and report the compare link. Merge after the capture branch.
