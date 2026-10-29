@@ -264,7 +264,8 @@ def transaction_view(cur, user_id: str, capture: dict) -> tuple[dict | None, dic
     cur.execute(
         """SELECT t.id, t.type, t.amount, t.date, t.account_id, a.name AS account_name, p.name AS parent_name,
                   t.merchant, t.notes, t.category_id, c.name AS category_name,
-                  CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type, 'need') END AS kakeibo,
+                  CASE WHEN t.movement_id IS NOT NULL THEN t.kakeibo_type
+                       WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type, 'need') END AS kakeibo,
                   t.offset_category_id, t.source, t.review_status, t.classified_by, t.movement_id, t.movement_role
            FROM transactions t
            JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id
@@ -286,7 +287,8 @@ def transaction_view(cur, user_id: str, capture: dict) -> tuple[dict | None, dic
             "source": row["source"], "review_status": row["review_status"], "classified_by": row["classified_by"],
         }
 
-    first = rows.get(ids[0])
+    # The capture's transaction is the expense or income row, or the outbound leg of a movement.
+    first = rows.get(str(capture["transaction_id"]))
     if first is None:
         return None, None
     movement = None

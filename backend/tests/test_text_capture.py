@@ -418,6 +418,7 @@ def test_cash_withdrawal_is_a_movement_from_the_usual_account(client, owner):
     assert (balance(owner, "bca"), balance(owner, "cash")) == (bca - 200_000, cash + 200_000)
     assert capture["movement"]["source"]["account_id"] == owner["bca"]
     assert capture["movement"]["target"]["account_name"] == "Tunai"
+    assert capture["transaction"]["id"] == str(legs[0]["id"]) and capture["transaction"]["kakeibo"] is None
     assert [row["kind"] for row in feedback(owner)] == ["capture"]
 
 

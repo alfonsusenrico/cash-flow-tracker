@@ -2,6 +2,8 @@
 
 Date: 2026-10-29. Base is origin/main 2e3135c, plus the working tree of `feat/ai-text-capture`, which was then committed. All data is synthetic. Provider calls are mocked; no model was called.
 
+Reading real responses before handover showed that a movement capture's `transaction` was the inbound leg and its outbound leg displayed the pillar `need`. A follow-up commit returns the outbound leg and the leg's own pillar; the assertion added to `test_cash_withdrawal_is_a_movement_from_the_usual_account` fails on the earlier commit and passes now. The results below are from the final tree.
+
 | Check | Result |
 |---|---|
 | Fresh `postgres:16`, Flyway V1→V33 | 33 migrations applied |
