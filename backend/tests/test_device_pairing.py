@@ -460,15 +460,14 @@ def test_invalid_device_fields_are_rejected_without_using_the_code(owner, body):
     assert pair(code).status_code == 200
 
 
-def test_pair_is_rate_limited_per_client_ip(monkeypatch):
+def test_pair_is_rate_limited_per_client_ip(client, monkeypatch):
     import app.routers.devices as devices_router
     from app.core.rate_limit import RateLimiter
 
     limiter = RateLimiter(redis_url=None)
     monkeypatch.setattr(devices_router, "rate_limiter", limiter)
-    client = phone()
     statuses = [pair("ZZZZZZZZZZ").status_code for _ in range(10)]
-    limited = client.post("/api/devices/pair", json={
+    limited = phone().post("/api/devices/pair", json={
         "code": "ZZZZZZZZZZ", "device_id": "android-limit", "device_name": "Synthetic Phone",
     })
 

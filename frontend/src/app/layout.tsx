@@ -1,21 +1,22 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/layout/AppShell";
 
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
+// Self-hosted (OFL-1.1, Latin subset) so builds never depend on fetching Google Fonts.
+const jakarta = localFont({
+  src: "./fonts/PlusJakartaSans-latin-variable.woff2",
   variable: "--font-jakarta",
   display: "swap",
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: "200 800",
 });
 
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
+const geistMono = localFont({
+  src: "./fonts/GeistMono-latin-variable.woff2",
   variable: "--font-geist-mono",
   display: "swap",
-  weight: ["400", "500", "600", "700"],
+  weight: "100 900",
 });
 
 export const metadata: Metadata = {
