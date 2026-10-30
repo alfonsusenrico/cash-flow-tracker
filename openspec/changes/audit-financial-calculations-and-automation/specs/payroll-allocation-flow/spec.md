@@ -7,3 +7,20 @@
 ### Requirement: 1-Tap Payroll Allocation Modal & Execution
 **Reason**: Bulk ledger posting can duplicate actual captured transfers.
 **Migration**: Retire execution while retaining actual recorded transfer history and explicit manual entry for missed events.
+
+## ADDED Requirements
+
+### Requirement: Retired payroll allocation stays non-posting
+The system SHALL NOT post payroll allocation batches. Rules that were flagged as payroll allocations SHALL remain as non-posting plans with their history, and the payroll flag SHALL only be clearable, never newly set.
+
+#### Scenario: Old client requests payroll execution
+- **WHEN** a client calls `POST /api/recurring/payroll/execute`
+- **THEN** the response SHALL be 410 with code `payroll_execution_retired`, and no transaction SHALL be created
+
+#### Scenario: Flagging a rule as payroll allocation
+- **WHEN** a client creates or updates a plan with `is_payroll_allocation` set to true where it was not already set
+- **THEN** the request SHALL be rejected with code `payroll_allocation_retired`, and the plan SHALL be unchanged
+
+#### Scenario: Existing payroll-flagged rule after migration
+- **WHEN** the owner views a plan that was a payroll allocation before the migration
+- **THEN** it SHALL appear as a non-posting plan, and its earlier occurrences and recorded transfers SHALL be unchanged
