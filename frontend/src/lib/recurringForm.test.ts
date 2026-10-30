@@ -11,8 +11,6 @@ const baseRule = {
   obligationId: null,
   scheduleType: "weekly",
   scheduleDay: 1,
-  isPayrollAllocation: false,
-  autoPost: false,
   isActive: true,
   notes: "",
 };
@@ -33,7 +31,6 @@ describe("recurringRuleFormSchema", () => {
       ...baseRule,
       type: "income",
       targetAccountId: null,
-      isPayrollAllocation: false,
       categoryId: null,
       obligationId: "debt",
     });

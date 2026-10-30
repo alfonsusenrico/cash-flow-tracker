@@ -1,48 +1,56 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { fmtMoney } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
-import { RecurringRule } from "@/types/recurring";
-import { useState } from "react";
+import { DueExpectation, OccurrenceCandidate } from "@/types/recurring";
 
 interface Props {
   onOpenRulesManager?: () => void;
 }
 
+type OccurrenceAction =
+  | { kind: "link"; rule: DueExpectation; transactionId: string }
+  | { kind: "skip"; rule: DueExpectation }
+  | { kind: "record"; rule: DueExpectation };
+
+const MATCH_TEXT: Record<DueExpectation["match_state"], string> = {
+  none: "Belum ada transaksi tercatat dengan nominal yang sama.",
+  single: "Ada satu transaksi dengan nominal sama. Periksa sebelum mengaitkan.",
+  ambiguous: "Beberapa transaksi bernominal sama. Pilih yang benar; tidak ada yang dikaitkan otomatis.",
+};
+
+function candidateLabel(candidate: OccurrenceCandidate) {
+  const day = new Date(candidate.date).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+  return `${day} · ${fmtMoney(candidate.amount)} · ${candidate.merchant || candidate.notes || candidate.account_name}`;
+}
+
+/** Due plans are reminders: the owner links an actual payment, skips the occurrence, or records a missed one. */
 export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
   const qc = useQueryClient();
-  const [executionErrors, setExecutionErrors] = useState<string[]>([]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Automatic execution is owned by the server scheduler; the client only lists manual confirmations.
-  const { data } = useQuery<{ ok: boolean; pending_count: number; rules: RecurringRule[] }>({
+  const { data } = useQuery<{ ok: boolean; pending_count: number; rules: DueExpectation[] }>({
     queryKey: queryKeys.recurring.pending,
     queryFn: () => api.get("/recurring/pending"),
     refetchInterval: 30000,
   });
+  const dueRules = data?.rules ?? [];
 
-  const pendingRules = data?.rules ?? [];
-
-  // Execute selected or all pending rules
-  const executeMutation = useMutation({
-    mutationFn: async (ruleIds: string[]) => {
-      setExecutionErrors([]);
-      const scheduledDates = Object.fromEntries(pendingRules
-        .filter((rule) => ruleIds.includes(rule.id) && rule.type === "investment_topup")
-        .map((rule) => [rule.id, rule.next_due_date]));
-      return api.post<{ results?: { rule_id: string; status: string; error_code?: string }[] }>("/recurring/execute", {
-        rule_ids: ruleIds, ...(Object.keys(scheduledDates).length ? { scheduled_dates: scheduledDates } : {}),
-      });
+  const occurrence = useMutation({
+    mutationFn: async (action: OccurrenceAction) => {
+      const base = `/recurring/${action.rule.id}/occurrences`;
+      const scheduled = { scheduled_for: action.rule.next_due_date };
+      if (action.kind === "link") return api.post(`${base}/link`, { ...scheduled, transaction_id: action.transactionId });
+      if (action.kind === "skip") return api.post(`${base}/skip`, scheduled);
+      const reviewed = (action.rule.candidates ?? []).filter((item) => item.exact_amount).map((item) => item.id);
+      return api.post(`${base}/record`, { ...scheduled, acknowledged_candidate_ids: reviewed });
     },
-    onSuccess: (result) => {
-      const failures = result.results?.filter((item) => item.status === "failed") ?? [];
-      setExecutionErrors(failures.map((item) => {
-        const name = pendingRules.find((rule) => rule.id === item.rule_id)?.name ?? "Transaksi";
-        const reason = item.error_code === "insufficient_funds" ? "Saldo sumber tidak mencukupi." : "Periksa rekening, produk, dan jadwal sebelum mencoba lagi.";
-        return `${name} belum tercatat. ${reason}`;
-      }));
+    onMutate: (action) => setErrors((current) => ({ ...current, [action.rule.id]: "" })),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.recurring.all });
       qc.invalidateQueries({ queryKey: queryKeys.accounts });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
@@ -51,98 +59,124 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
       qc.invalidateQueries({ queryKey: queryKeys.pulse });
       qc.invalidateQueries({ queryKey: queryKeys.insights });
     },
+    onError: (error: Error, action) => {
+      setErrors((current) => ({ ...current, [action.rule.id]: error.message || "Rencana belum diperbarui. Coba lagi." }));
+      qc.invalidateQueries({ queryKey: queryKeys.recurring.pending });
+    },
   });
 
-  if (pendingRules.length === 0) return null;
-
-  const totalPendingAmount = pendingRules.reduce((sum, r) => sum + r.amount, 0);
+  if (dueRules.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 sm:p-5 text-[var(--text)] space-y-3">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+    <section
+      aria-labelledby="due-plans-title"
+      className="space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[var(--text)] sm:p-5"
+    >
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+        <div className="flex items-start gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300">
             <Icon name="clock" className="h-4 w-4" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-xs sm:text-sm">
-                {pendingRules.length} Transaksi Terjadwal Jatuh Tempo
-              </span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                Perlu Konfirmasi
-              </span>
-            </div>
-            <p className="text-xs text-[var(--muted)] mt-0.5">
-              Total nominal: <span className="font-bold tabular text-[var(--text)]">{fmtMoney(totalPendingAmount)}</span>. Konfirmasi untuk mencatat ke rekening Anda.
+            <h2 id="due-plans-title" className="text-xs font-bold sm:text-sm">
+              {dueRules.length} rencana jatuh tempo
+            </h2>
+            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+              Rencana tidak mengubah saldo. Kaitkan transaksi yang sudah tercatat, lewati jika tidak terjadi, atau catat
+              manual hanya jika notifikasinya terlewat.
             </p>
-            {pendingRules.some((rule) => rule.type === "investment_topup") && <p className="mt-1 text-xs">Konfirmasi top up investasi hanya setelah debit berhasil.</p>}
           </div>
         </div>
-
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          {onOpenRulesManager && (
-            <button
-              type="button"
-              onClick={onOpenRulesManager}
-              className="min-h-11 px-3 py-2 rounded-xl border border-amber-500/30 bg-white/40 dark:bg-black/20 text-xs font-semibold hover:bg-amber-500/20 transition-colors motion-reduce:transition-none text-amber-700 dark:text-amber-300"
-            >
-              Kelola Aturan
-            </button>
-          )}
-
+        {onOpenRulesManager && (
           <button
             type="button"
-            disabled={executeMutation.isPending}
-            onClick={() => executeMutation.mutate(pendingRules.map((r) => r.id))}
-            className="min-h-11 flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-[background-color,transform] active:scale-95 shadow-xs disabled:opacity-50 motion-reduce:transition-none"
+            onClick={onOpenRulesManager}
+            className="min-h-11 self-start rounded-xl border border-amber-500/30 px-3 text-xs font-semibold text-amber-800 hover:bg-amber-500/20 dark:text-amber-200"
           >
-            <Icon name="check" className="h-3.5 w-3.5" />
-            <span>{executeMutation.isPending ? "Mencatat…" : "Konfirmasi & Catat Semua"}</span>
+            Kelola rencana
           </button>
-        </div>
+        )}
       </div>
 
-      {executeMutation.error && (
-        <p role="alert" className="text-xs font-medium text-rose-700 dark:text-rose-300">
-          {executeMutation.error.message || "Transaksi gagal dicatat. Periksa saldo dan coba lagi."}
-        </p>
-      )}
-      {executionErrors.length > 0 && <div role="alert" className="text-xs text-rose-700 dark:text-rose-300">{executionErrors.map((error) => <p key={error}>{error}</p>)}</div>}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1 border-t border-amber-500/15">
-        {pendingRules.map((rule) => {
+      <ul className="space-y-2 border-t border-amber-500/15 pt-2">
+        {dueRules.map((rule) => {
           const isTransfer = rule.type === "transfer" || rule.type === "investment_topup";
+          const candidates = rule.candidates ?? [];
+          const busy = occurrence.isPending && occurrence.variables?.rule.id === rule.id;
+          const sameAmount = candidates.filter((item) => item.exact_amount);
+          const otherAmounts = candidates.filter((item) => !item.exact_amount);
+          const hasSameAmount = sameAmount.length > 0;
+          const renderCandidate = (candidate: OccurrenceCandidate) => (
+            <li key={candidate.id} className="flex min-w-0 items-center justify-between gap-2">
+              <span className="min-w-0 truncate tabular-nums">{candidateLabel(candidate)}</span>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => occurrence.mutate({ kind: "link", rule, transactionId: candidate.id })}
+                aria-label={`Kaitkan ${candidateLabel(candidate)} ke ${rule.name}`}
+                className="min-h-11 shrink-0 rounded-lg px-2 font-semibold underline underline-offset-2 disabled:opacity-50"
+              >
+                Kaitkan
+              </button>
+            </li>
+          );
           return (
-            <div
-              key={rule.id}
-              className="p-2.5 rounded-xl bg-[var(--surface)]/80 border border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between text-xs"
-            >
-              <div className="min-w-0 pr-2">
-                <div className="font-semibold text-[var(--text)] truncate">{rule.name}</div>
-                <div className="text-[11px] text-[var(--muted)] truncate font-medium">
-                  {isTransfer ? `${rule.source_account_name} → ${rule.target_account_name}` : rule.source_account_name}
+            <li key={rule.id} className="min-w-0 space-y-2 rounded-xl border border-black/[0.06] bg-[var(--surface)]/80 p-3 text-xs dark:border-white/[0.06]">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="truncate font-semibold">{rule.name}</h3>
+                  <p className="truncate text-[11px] text-[var(--muted)]">
+                    {isTransfer ? `${rule.source_account_name} → ${rule.target_account_name}` : rule.source_account_name}
+                    {rule.obligation_name ? ` · ${rule.obligation_name}` : ""}
+                  </p>
+                  <p className="text-[11px] tabular-nums text-[var(--muted)]">Jatuh tempo {rule.next_due_date}</p>
                 </div>
-                {rule.type === "investment_topup" && <div className="mt-1 text-[11px] tabular-nums">Top up Investasi · {rule.next_due_date}</div>}
+                <span className="shrink-0 font-bold tabular-nums">{fmtMoney(rule.amount)}</span>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="font-bold tabular text-xs text-[var(--text)]">
-                  {fmtMoney(rule.amount)}
-                </span>
+
+              <p className="text-[var(--text-secondary)]">{MATCH_TEXT[rule.match_state]}</p>
+              {sameAmount.length > 0 && (
+                <ul aria-label={`Transaksi bernominal sama untuk ${rule.name}`} className="min-w-0 space-y-1">
+                  {sameAmount.map(renderCandidate)}
+                </ul>
+              )}
+              {otherAmounts.length > 0 && (
+                <details className="min-w-0">
+                  <summary className="flex min-h-11 cursor-pointer items-center font-semibold">
+                    Transaksi lain di sekitar jatuh tempo ({otherAmounts.length})
+                  </summary>
+                  <ul className="min-w-0 space-y-1">{otherAmounts.map(renderCandidate)}</ul>
+                </details>
+              )}
+
+              <div className="flex flex-wrap gap-2 border-t border-[var(--border)] pt-2">
                 <button
                   type="button"
-                  disabled={executeMutation.isPending}
-                  onClick={() => executeMutation.mutate([rule.id])}
-                  aria-label={`Catat ${rule.name}`}
-                  className="min-h-11 min-w-11 p-1 rounded-lg hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-colors motion-reduce:transition-none"
+                  disabled={busy}
+                  onClick={() => occurrence.mutate({ kind: "skip", rule })}
+                  className="min-h-11 rounded-lg border border-[var(--border)] px-3 font-semibold disabled:opacity-50"
                 >
-                  <Icon name="check" className="h-3.5 w-3.5" />
+                  Lewati kali ini
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => occurrence.mutate({ kind: "record", rule })}
+                  className="min-h-11 rounded-lg border border-[var(--border)] px-3 font-semibold disabled:opacity-50"
+                >
+                  {hasSameAmount ? "Bukan salah satunya, catat manual" : "Catat manual (tidak tertangkap)"}
                 </button>
               </div>
-            </div>
+              {rule.type === "investment_topup" && <p className="text-[var(--muted)]">Catat top up hanya setelah debit berhasil.</p>}
+              {errors[rule.id] && (
+                <p role="alert" className="font-medium text-rose-700 dark:text-rose-300">
+                  {errors[rule.id]}
+                </p>
+              )}
+            </li>
           );
         })}
-      </div>
-    </div>
+      </ul>
+    </section>
   );
 }

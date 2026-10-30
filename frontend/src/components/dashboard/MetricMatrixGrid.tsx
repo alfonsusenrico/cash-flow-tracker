@@ -4,7 +4,7 @@ import { useAppCtx } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
-import { KAKEIBO_PILLARS, type KakeiboBreakdown, isKakeiboHealthy, kakeiboGroups, pillarPct } from "@/lib/kakeibo";
+import { KAKEIBO_PILLARS, type KakeiboBreakdown, kakeiboGroups, pillarPct } from "@/lib/kakeibo";
 
 interface MetricMatrixGridProps {
   totalInflow: number;
@@ -16,6 +16,9 @@ interface MetricMatrixGridProps {
     outflow_delta_pct?: number;
     net_cashflow_delta_pct?: number;
     savings_rate_delta_pts?: number;
+    prev_inflow?: number;
+    prev_outflow?: number;
+    prev_net_cashflow?: number;
   };
   kakeibo?: KakeiboBreakdown;
 }
@@ -34,9 +37,9 @@ export function MetricMatrixGrid({
   const animOutflow = useAnimatedCounter(totalOutflow);
   const animNet = useAnimatedCounter(netCashflow);
 
-  const inflowDelta = comparison?.inflow_delta_pct ?? 0;
-  const outflowDelta = comparison?.outflow_delta_pct ?? 0;
-  const netDelta = comparison?.net_cashflow_delta_pct ?? 0;
+  const inflowDelta = comparison?.prev_inflow ? comparison?.inflow_delta_pct ?? null : null;
+  const outflowDelta = comparison?.prev_outflow ? comparison?.outflow_delta_pct ?? null : null;
+  const netDelta = comparison?.prev_net_cashflow ? comparison?.net_cashflow_delta_pct ?? null : null;
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
@@ -50,7 +53,7 @@ export function MetricMatrixGrid({
             <span className="text-xs font-bold text-[var(--muted)] truncate">Pemasukan</span>
           </div>
 
-          {inflowDelta !== 0 && (
+          {inflowDelta === null ? <span className="text-[10px] text-[var(--muted)]">Belum ada pembanding</span> : inflowDelta !== 0 && (
             <span
               className={cn(
                 "text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border",
@@ -82,7 +85,7 @@ export function MetricMatrixGrid({
             <span className="text-xs font-bold text-[var(--muted)] truncate">Pengeluaran</span>
           </div>
 
-          {outflowDelta !== 0 && (
+          {outflowDelta === null ? <span className="text-[10px] text-[var(--muted)]">Belum ada pembanding</span> : outflowDelta !== 0 && (
             <span
               className={cn(
                 "text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border",
@@ -129,7 +132,7 @@ export function MetricMatrixGrid({
           </div>
 
           <div className="flex items-center gap-1.5">
-            {netDelta !== 0 && (
+            {netDelta === null ? <span className="text-[10px] text-[var(--muted)]">Belum ada pembanding</span> : netDelta !== 0 && (
               <span
                 className={cn(
                   "text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border",
@@ -164,7 +167,7 @@ export function MetricMatrixGrid({
             {netCashflow >= 0 ? `+${bal(animNet)}` : `-${bal(Math.abs(animNet))}`}
           </div>
           <div className="text-[10px] text-[var(--muted)] mt-0.5">
-            Tabungan: <span className="font-bold text-[var(--text)]">{savingsRate}%</span>
+            Rasio surplus: <span className="font-bold text-[var(--text)]">{totalInflow > 0 ? `${savingsRate}%` : "Tidak tersedia"}</span>
           </div>
         </div>
       </div>
@@ -179,22 +182,7 @@ export function MetricMatrixGrid({
             <span className="text-xs font-bold text-[var(--muted)] truncate">Pilar Kakeibo</span>
           </div>
 
-          <span
-            className={cn(
-              "text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border",
-              isKakeiboHealthy(kakeibo?.kakeibo_status)
-                ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/25"
-                : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25"
-            )}
-          >
-            {kakeibo?.kakeibo_status === "warning"
-              ? "Gaya hidup > 30%"
-              : kakeibo?.kakeibo_status === "elevated_needs"
-                ? "Pokok > 50%"
-                : kakeibo
-                  ? "Ideal"
-                  : "Belum ada data"}
-          </span>
+
         </div>
 
         <div className="mt-3.5 space-y-1.5">

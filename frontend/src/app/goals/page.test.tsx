@@ -44,8 +44,8 @@ const obligation = {
   paid_amount: 3_000_000,
   payoff_percentage: 20,
   due_date: null,
-  minimum_payment: null,
-  estimated_payoff_months: null,
+  minimum_payment: null as number | null,
+  estimated_payoff_months: null as number | null,
   notes: null,
   is_archived: false,
   created_at: "2026-09-01T00:00:00.000Z",
@@ -129,5 +129,36 @@ describe("goal backing forms", () => {
       total_amount: 10_000_000,
       remaining_amount: 8_000_000,
     })));
+  });
+
+  it("links an already recorded payment first and shows no payoff-time estimate", async () => {
+    currentObligations = [{ ...obligation, minimum_payment: 500_000, estimated_payoff_months: 24 }];
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/goals") return { ok: true, goals: [], summary: {} };
+      if (path === "/obligations") return { ok: true, obligations: currentObligations, summary: {} };
+      if (path === "/accounts") return { accounts: [{ id: "account-1", name: "BCA", type: "bank", balance: 1_000_000 }] };
+      if (path === "/obligations/obligation-1/payment-candidates") {
+        return {
+          match_state: "ambiguous", window_days: 45,
+          candidates: ["tx-1", "tx-2"].map((id) => ({
+            id, amount: 500_000, date: "2026-10-01T03:00:00+00:00", notes: null, merchant: "Bank Contoh",
+            account_name: "BCA", exact_amount: true,
+          })),
+        };
+      }
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    const user = userEvent.setup();
+    renderGoals();
+
+    expect(await screen.findByText("20% terbayar")).toBeInTheDocument();
+    expect(screen.queryByText(/bln lagi/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Kaitkan pembayaran/ }));
+    expect(await screen.findByText(/Pilih yang benar/)).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+    const choices = screen.getAllByRole("button", { name: /^Kaitkan 1 Okt/ });
+    await user.click(choices[1]);
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/obligations/obligation-1/payments", { transaction_id: "tx-2" }));
+    expect(api.post).toHaveBeenCalledTimes(1);
   });
 });

@@ -128,7 +128,7 @@ def get_me(current_user: dict = Depends(get_current_user)):
 
 @router.put("/settings")
 @router.patch("/settings")
-def update_settings(payload: SettingsUpdate, current_user: dict = Depends(get_current_user)):
+def update_settings(payload: SettingsUpdate, response: Response, current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
     updates = []
     params = []
@@ -174,7 +174,7 @@ def update_settings(payload: SettingsUpdate, current_user: dict = Depends(get_cu
             updated = cur.fetchone()
             conn.commit()
 
-    return {
+    result: dict = {
         "ok": True,
         "user": {
             "id": str(updated["id"]),
@@ -187,6 +187,15 @@ def update_settings(payload: SettingsUpdate, current_user: dict = Depends(get_cu
             "name_aliases": list(updated.get("name_aliases") or []),
         },
     }
+    if payload.payday_day is not None:
+        # Kept for older clients and legacy plan dates only; cycles come from confirmed salary receipts.
+        response.headers["Deprecation"] = "true"
+        result["deprecations"] = [{
+            "field": "payday_day",
+            "code": "payday_day_deprecated",
+            "message": "Tanggal gajian tetap tidak lagi menentukan siklus. Konfirmasi gaji yang diterima di Pengaturan.",
+        }]
+    return result
 
 
 class PaydayUpdate(BaseModel):
@@ -195,8 +204,8 @@ class PaydayUpdate(BaseModel):
 
 @router.put("/payday")
 @router.patch("/payday")
-def update_payday(payload: PaydayUpdate, current_user: dict = Depends(get_current_user)):
-    return update_settings(SettingsUpdate(payday_day=payload.day), current_user)
+def update_payday(payload: PaydayUpdate, response: Response, current_user: dict = Depends(get_current_user)):
+    return update_settings(SettingsUpdate(payday_day=payload.day), response, current_user)
 
 
 

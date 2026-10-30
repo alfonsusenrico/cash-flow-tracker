@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services.auth import get_current_user
+from app.services.salary_cycles import SalaryCycle
 
 
 def test_create_transaction_by_name():
@@ -158,7 +159,8 @@ def test_create_transaction_idempotent_replay():
         "idempotency_key": "replay_key_789",
     }
 
-    with patch("app.routers.transactions.db_conn") as mock_conn:
+    with patch("app.routers.transactions.db_conn") as mock_conn, \
+         patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
@@ -203,7 +205,8 @@ def test_create_transaction_validation_errors():
     assert res.status_code == 422
 
     # 3. Missing account (neither id nor name) and 4. Transfer missing target
-    with patch("app.routers.transactions.db_conn") as mock_conn:
+    with patch("app.routers.transactions.db_conn") as mock_conn, \
+         patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
         cur.fetchone.return_value = None
@@ -293,7 +296,8 @@ def test_list_transactions_summary_cycle_and_cumulative():
     from app.services.reimbursements import SpendingOffsets
 
     with patch("app.routers.transactions.db_conn") as mock_conn, \
-         patch("app.routers.transactions.load_spending_offsets", return_value=SpendingOffsets()):
+         patch("app.routers.transactions.load_spending_offsets", return_value=SpendingOffsets()), \
+         patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
@@ -361,7 +365,8 @@ def test_list_transactions_summary_with_filters_and_custom_payday():
     filter_account_id = str(uuid4())
     filter_category_id = str(uuid4())
 
-    with patch("app.routers.transactions.db_conn") as mock_conn:
+    with patch("app.routers.transactions.db_conn") as mock_conn, \
+         patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 

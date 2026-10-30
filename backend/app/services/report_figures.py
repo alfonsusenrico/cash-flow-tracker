@@ -10,6 +10,7 @@ from datetime import date, datetime
 from typing import Any
 
 from app.core.config import settings
+from app.services.apportionment import apportion
 from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES, SpendingOffsets
 
 UNCATEGORIZED_NAME = "Tanpa kategori"
@@ -40,6 +41,18 @@ def reportable_income_sql(tx: str = "t", category: str = "c") -> str:
         f"({tx}.type = 'income' AND {reportable_category_sql(category)}"
         f" AND COALESCE({category}.offsets_spending, FALSE) = FALSE)"
     )
+
+
+def cash_flow_totals(inflow: int, gross_outflow: int, reimbursement_offset: int) -> dict[str, int]:
+    """Apply a scoped reimbursement offset to reportable inflow and outflow."""
+    outflow = max(0, gross_outflow - reimbursement_offset)
+    return {
+        "inflow": inflow,
+        "outflow": outflow,
+        "net": inflow - outflow,
+        "gross_outflow": gross_outflow,
+        "reimbursement_offset": gross_outflow - outflow,
+    }
 
 
 def category_breakdown(cur, user_id: str, start: datetime, end: datetime, offsets: SpendingOffsets) -> list[dict[str, Any]]:
@@ -86,21 +99,6 @@ def category_breakdown(cur, user_id: str, start: datetime, end: datetime, offset
         })
         rows.sort(key=lambda item: (-item["spent"], item["name"]))
     return rows
-
-
-def apportion(total: int, weights: dict[Any, int]) -> dict[Any, int]:
-    """Split `total` over keys in proportion to their weights, exactly, by largest remainder.
-
-    With total <= sum(weights), no key receives more than its weight. Ties go to the earlier key.
-    """
-    weight_sum = sum(weights.values())
-    if total <= 0 or weight_sum <= 0:
-        return {}
-    shares = {key: total * weight // weight_sum for key, weight in weights.items()}
-    remainders = sorted(weights, key=lambda key: (-(total * weights[key] % weight_sum), key))
-    for key in remainders[: total - sum(shares.values())]:
-        shares[key] += 1
-    return {key: share for key, share in shares.items() if share}
 
 
 def daily_offsets(cur, user_id: str, start: datetime, end: datetime, offsets: SpendingOffsets) -> dict[date, int]:

@@ -86,6 +86,8 @@ export interface KakeiboBreakdown {
   unexpected_spent?: number;
   unexpected_pct?: number;
   saving_spent: number;
+  saving_expenses?: number;
+  net_saving_transfers?: number;
   saving_pct: number;
   essentials_pct?: number;
   lifestyle_pct?: number;

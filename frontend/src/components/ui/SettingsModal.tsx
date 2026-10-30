@@ -14,6 +14,7 @@ import { formatNumberWithDots } from "@/lib/utils";
 import { queryKeys } from "@/lib/queryKeys";
 import { SenderAliasesSection } from "@/components/ui/SenderAliasesSection";
 import { DevicePairingSection } from "@/components/ui/DevicePairingSection";
+import { SalarySettingsSection } from "@/components/ui/SalarySettingsSection";
 
 interface Props {
   open: boolean;
@@ -26,7 +27,6 @@ export function SettingsModal({ open, onClose }: Props) {
 
   const [name, setName] = useState("");
   const [aliases, setAliases] = useState("");
-  const [day, setDay] = useState("25");
   const [currency, setCurrency] = useState("IDR");
   const [multiplier, setMultiplier] = useState("6");
   const [monthlyBudget, setMonthlyBudget] = useState("");
@@ -77,7 +77,6 @@ export function SettingsModal({ open, onClose }: Props) {
   const persistedUser = userData?.user || user;
   const persistedName = persistedUser?.name;
   const persistedUsername = persistedUser?.username;
-  const persistedPaydayDay = persistedUser?.payday_day;
   const persistedCurrency = persistedUser?.currency;
   const persistedMultiplier = persistedUser?.emergency_fund_multiplier;
   const persistedBudget = persistedUser?.monthly_spending_budget;
@@ -105,7 +104,6 @@ export function SettingsModal({ open, onClose }: Props) {
     if (persistedUsername) {
       setName(persistedName || persistedUsername);
       setAliases(persistedAliases);
-      if (persistedPaydayDay) setDay(String(persistedPaydayDay));
       if (persistedCurrency) setCurrency(persistedCurrency.toUpperCase());
       if (persistedMultiplier) setMultiplier(String(persistedMultiplier));
       if (persistedBudget != null) setMonthlyBudget(formatNumberWithDots(persistedBudget));
@@ -116,13 +114,12 @@ export function SettingsModal({ open, onClose }: Props) {
     setCopiedKey(false);
     setErr("");
     setMsg("");
-  }, [open, persistedName, persistedAliases, persistedUsername, persistedPaydayDay, persistedCurrency, persistedMultiplier, persistedBudget]);
+  }, [open, persistedName, persistedAliases, persistedUsername, persistedCurrency, persistedMultiplier, persistedBudget]);
 
   const settingsMut = useMutation({
     mutationFn: () => {
       const cleanBudget = monthlyBudget.trim().replace(/[^0-9]/g, "");
       const budgetVal = cleanBudget ? parseInt(cleanBudget, 10) : null;
-      const paydayDay = parseInt(day, 10);
       const emergencyMultiplier = parseInt(multiplier, 10);
       if (!name.trim()) throw new Error("Nama tampilan wajib diisi");
       const nameAliases = aliases.split(",").map((alias) => alias.trim()).filter(Boolean);
@@ -130,12 +127,10 @@ export function SettingsModal({ open, onClose }: Props) {
       if (nameAliases.some((alias) => alias.length < 3 || alias.length > 150)) {
         throw new Error("Setiap nama alias harus 3–150 karakter");
       }
-      if (paydayDay < 1 || paydayDay > 31) throw new Error("Tanggal gajian harus antara 1 dan 31");
       if (emergencyMultiplier < 1 || emergencyMultiplier > 36) throw new Error("Target dana darurat harus antara 1 dan 36 bulan");
       if (currency !== "IDR" && currency !== "USD") throw new Error("Mata uang yang didukung hanya IDR dan USD");
       return api.patch("/auth/settings", {
         name: name.trim(),
-        payday_day: paydayDay,
         currency,
         emergency_fund_multiplier: emergencyMultiplier,
         monthly_spending_budget: budgetVal,
@@ -246,25 +241,6 @@ export function SettingsModal({ open, onClose }: Props) {
           </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label htmlFor="settings-payday-day" className="block text-xs font-medium text-[var(--text)] mb-1">
-                Tanggal Gajian (1–31)
-              </label>
-              <Input
-                id="settings-payday-day"
-                name="payday_day"
-                type="number"
-                min={1}
-                max={31}
-                value={day}
-                onChange={(e) => setDay(e.target.value)}
-                className="w-full text-xs tabular font-bold"
-              />
-              <p className="text-[10px] text-[var(--muted)] mt-1">
-                Siklus dihitung ulang tiap tgl {day}.
-              </p>
-            </div>
-
-            <div>
               <label htmlFor="settings-currency" className="block text-xs font-medium text-[var(--text)] mb-1">
                 Mata Uang Utama
               </label>
@@ -286,6 +262,8 @@ export function SettingsModal({ open, onClose }: Props) {
             </div>
           </div>
         </section>
+
+        <SalarySettingsSection open={open} />
 
         {/* Target Ketahanan Dana & Batas Belanja Bulanan */}
         <section className="space-y-3 pt-3 border-t border-[var(--border)]">

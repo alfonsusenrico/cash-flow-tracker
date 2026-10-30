@@ -60,7 +60,7 @@ describe("amount investment top-ups", () => {
     const schedule = vi.fn();
     show({ onSchedule: schedule });
     await user.type(screen.getByLabelText("Nominal top up (IDR)"), "112590");
-    await user.click(screen.getByRole("button", { name: "Jadwalkan bulanan" }));
+    await user.click(screen.getByRole("button", { name: "Buat rencana bulanan (tidak mencatat)" }));
     expect(schedule).toHaveBeenCalledWith({ sourceAccountId: "rdn", targetAccountId: "fund", amount: 112590, productName: "Bibit Fund" });
     expect(api.post).not.toHaveBeenCalled();
   });

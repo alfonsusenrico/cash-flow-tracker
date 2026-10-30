@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import settings
 from app.db.pool import db_conn
-from app.routers.pulse import get_cycle_window
 from app.services.auth import get_current_user
 from app.services.debt_allocations import (
     DebtAllocation,
@@ -21,6 +20,7 @@ from app.services.debt_allocations import (
     validate_debt_capacity,
 )
 from app.services.kakeibo import PILLAR_PATTERN, effective_pillar, effective_pillar_sql
+from app.services.report_figures import cash_flow_totals
 from app.services.ledger_mutations import (
     delete_transaction_rows,
     ensure_sufficient_funds,
@@ -149,11 +149,7 @@ def ledger_cash_flow(
             offset = offsets.for_pillar(offset_scope["pillar"])
         else:
             offset = offsets.applied
-    outflow = max(0, gross_outflow - offset)
-    return {
-        "inflow": inflow, "outflow": outflow, "net": inflow - outflow,
-        "gross_outflow": gross_outflow, "reimbursement_offset": gross_outflow - outflow,
-    }
+    return cash_flow_totals(inflow, gross_outflow, offset)
 
 
 PROVENANCE_SELECT = """
@@ -227,7 +223,7 @@ def list_transactions(
         raise HTTPException(status_code=422, detail={"code": "uncategorized_with_category", "message": "Pilih satu kategori atau tanpa kategori."})
     period_label = None
     if period:
-        from_date, to_date, _, _, period_label = get_timeframe_window(payday_day, period, cycle_offset=period_offset)
+        from_date, to_date, _, _, period_label = get_timeframe_window(payday_day, period, cycle_offset=period_offset, user_id=user_id)
     with db_conn() as conn:
         with conn.cursor() as cur:
             conditions = ["t.user_id = %s"]
@@ -303,7 +299,7 @@ def list_transactions(
             where_clause = " AND ".join(conditions)
 
             # Combined total count and cash flow summary query
-            cycle_start, cycle_end, _, _ = get_cycle_window(payday_day)
+            cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id)
 
             summary_query = f"""
                 SELECT
@@ -399,7 +395,7 @@ def list_transactions(
         "limit": limit,
         "offset": offset,
         "summary": {
-            "cycle": {"start": cycle_start.isoformat(), "end": cycle_end.isoformat(), **cycle},
+            "cycle": {"start": cycle_start.isoformat(), "end": cycle_end.isoformat(), "label": cycle_label, **cycle},
             "cumulative": cumulative,
             "period": {
                 "basis": period,

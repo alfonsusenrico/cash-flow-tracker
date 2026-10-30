@@ -120,9 +120,6 @@ export function SpendingHeatmap({
                 >
                   {day.total_spent > 0 ? `-${bal(day.total_spent)}` : bal(0)}
                 </div>
-                <div className="text-[10px] text-[var(--muted)] mt-0.5 tabular font-medium">
-                  {day.tx_count > 0 ? `Rata-rata ${bal(day.average_spent)}` : "Tanpa belanja"}
-                </div>
               </div>
 
               {/* Density Bar */}

@@ -65,10 +65,10 @@ describe("RecurringRulesModal", () => {
     vi.mocked(api.patch).mockResolvedValue({ ok: true });
   });
 
-  it("creates a weekly liquid transfer with payroll inclusion off by default", async () => {
+  it("creates a weekly liquid transfer plan without posting or payroll options", async () => {
     const user = userEvent.setup();
     renderRules();
-    await user.click(screen.getByRole("button", { name: "+ Tambah Aturan" }));
+    await user.click(screen.getByRole("button", { name: "+ Tambah Rencana" }));
 
     const source = screen.getByRole("combobox", { name: "Dari rekening" });
     await waitFor(() => expect(within(source).getByRole("option", { name: "BCA" })).toBeInTheDocument());
@@ -76,12 +76,13 @@ describe("RecurringRulesModal", () => {
     const target = screen.getByRole("combobox", { name: "Ke Rekening / Kantong Tujuan" });
     await user.selectOptions(target, "account-2");
     expect(screen.queryByRole("option", { name: "BBCA" })).not.toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Masukkan ke alokasi gaji" })).not.toBeChecked();
-    await user.type(screen.getByRole("textbox", { name: "Nama Aturan / Transaksi" }), "Pindah ke Jago");
+    expect(screen.queryByRole("checkbox", { name: /alokasi gaji|otomatis/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /gajian/i })).not.toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Nama Rencana" }), "Pindah ke Jago");
     await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "10000");
     await user.selectOptions(screen.getByRole("combobox", { name: "Jadwal Pengulangan" }), "weekly");
     await user.selectOptions(screen.getByRole("combobox", { name: "Hari pengulangan" }), "5");
-    await user.click(screen.getByRole("button", { name: "Simpan Aturan" }));
+    await user.click(screen.getByRole("button", { name: "Simpan Rencana" }));
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/recurring", expect.objectContaining({
       type: "transfer",
@@ -89,14 +90,26 @@ describe("RecurringRulesModal", () => {
       category_id: null,
       schedule_type: "weekly",
       schedule_day: 5,
-      is_payroll_allocation: false,
     })));
+    const payload = vi.mocked(api.post).mock.calls[0][1] as Record<string, unknown>;
+    expect(payload).not.toHaveProperty("auto_post");
+    expect(payload).not.toHaveProperty("is_payroll_allocation");
+  });
+
+  it("explains a refused delete of a plan with history", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.del).mockRejectedValue(new Error("Rencana ini punya riwayat. Nonaktifkan saja agar riwayat tetap tersimpan."));
+    renderRules();
+    await user.click(await screen.findByRole("button", { name: "Hapus rencana Belanja mingguan" }));
+    await user.click(await screen.findByRole("button", { name: "Ya, lanjutkan" }));
+    await waitFor(() => expect(api.del).toHaveBeenCalledWith("/recurring/rule-1"));
+    expect(await screen.findByText(/Nonaktifkan saja agar riwayat tetap tersimpan/)).toBeInTheDocument();
   });
 
   it("edits the weekday of an existing weekly expense", async () => {
     const user = userEvent.setup();
     renderRules();
-    await user.click(await screen.findByRole("button", { name: "Ubah aturan Belanja mingguan" }));
+    await user.click(await screen.findByRole("button", { name: "Ubah rencana Belanja mingguan" }));
 
     expect(screen.getByRole("combobox", { name: "Hari pengulangan" })).toHaveValue("1");
     await user.selectOptions(screen.getByRole("combobox", { name: "Hari pengulangan" }), "5");
@@ -108,7 +121,7 @@ describe("RecurringRulesModal", () => {
     })));
   });
 
-  it("creates only a manual monthly rule from the selected product shortcut", async () => {
+  it("creates only a non-posting monthly plan from the selected product shortcut", async () => {
     const user = userEvent.setup();
     renderRules({ sourceAccountId: "account-1", targetAccountId: "fund-2", amount: 112_590, productName: "Bibit B" });
     const target = await screen.findByRole("combobox", { name: "Produk reksadana tujuan" });
@@ -119,10 +132,10 @@ describe("RecurringRulesModal", () => {
     expect(api.post).not.toHaveBeenCalled();
     await user.clear(screen.getByRole("spinbutton", { name: "Tanggal Setiap Bulan (1–31)" }));
     await user.type(screen.getByRole("spinbutton", { name: "Tanggal Setiap Bulan (1–31)" }), "10");
-    await user.click(screen.getByRole("button", { name: "Simpan Aturan" }));
+    await user.click(screen.getByRole("button", { name: "Simpan Rencana" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/recurring", expect.objectContaining({
       type: "investment_topup", source_account_id: "account-1", target_account_id: "fund-2",
-      amount: 112_590, auto_post: false, is_payroll_allocation: false, category_id: null,
+      amount: 112_590, category_id: null,
       schedule_type: "monthly_day", schedule_day: 10,
     })));
     expect(api.post).toHaveBeenCalledTimes(1);
@@ -131,8 +144,8 @@ describe("RecurringRulesModal", () => {
   it("clears an expense category before saving a switched transfer", async () => {
     const user = userEvent.setup();
     renderRules();
-    await user.click(await screen.findByRole("button", { name: "Ubah aturan Belanja mingguan" }));
-    await user.selectOptions(screen.getByRole("combobox", { name: "Jenis Transaksi" }), "transfer");
+    await user.click(await screen.findByRole("button", { name: "Ubah rencana Belanja mingguan" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Jenis Rencana" }), "transfer");
     expect(screen.queryByRole("combobox", { name: "Kategori Pengeluaran" })).not.toBeInTheDocument();
     await user.selectOptions(screen.getByRole("combobox", { name: "Ke Rekening / Kantong Tujuan" }), "account-2");
     await user.click(screen.getByRole("button", { name: "Simpan Perubahan" }));

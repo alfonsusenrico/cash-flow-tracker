@@ -148,6 +148,40 @@ describe("report drill-down", () => {
     });
   });
 
+  it("shows observed cash flow instead of average and projection tiles", async () => {
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path.startsWith("/dashboard/analytics?")) return {
+        timeframe_label: "Oktober 2026", category_variance: [],
+        comparison: { total_inflow: 5_000_000, total_outflow: 300_000, net_cashflow: 4_700_000 },
+      };
+      if (path === "/categories?include_archived=true") return { categories: [] };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    renderAnalytics();
+    expect(await screen.findByRole("region", { name: "Arus kas tercatat" })).toBeInTheDocument();
+    expect(screen.getByText("Rp 5.000.000")).toBeInTheDocument();
+    expect(screen.queryByText(/Rata-rata 7 Hari|Rata-rata 30 Hari|Proyeksi Akhir Siklus/)).not.toBeInTheDocument();
+  });
+
+  it("does not invent percentage changes when the prior period is zero", async () => {
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path.startsWith("/dashboard/analytics?")) return {
+        timeframe: "month", timeframe_label: "Oktober 2026", category_variance: [],
+        comparison: { total_inflow: 5_000_000, total_outflow: 300_000, net_cashflow: 4_700_000,
+          prev_inflow: 0, prev_outflow: 0, prev_net_cashflow: 0,
+          inflow_delta_pct: 100, outflow_delta_pct: 100, net_cashflow_delta_pct: 100 },
+      };
+      if (path === "/categories?include_archived=true") return { categories: [] };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    const user = userEvent.setup();
+    renderAnalytics();
+    await user.click(await screen.findByRole("button", { name: "Bandingkan & Kakeibo" }));
+    expect(screen.getAllByText("Belum ada pembanding")).toHaveLength(3);
+    expect(screen.queryByText("+100%")).not.toBeInTheDocument();
+    expect(screen.getByText("Rp 5.000.000")).toBeInTheDocument();
+  });
+
   it("links category figures, the Tanpa kategori bucket and archived spending to the same period", async () => {
     const { container } = renderAnalytics();
     expect(await screen.findByText("September 2026")).toBeInTheDocument();
@@ -170,7 +204,7 @@ describe("report drill-down", () => {
     expect(setTimeframe).toHaveBeenCalledWith("cycle");
     expect(screen.getByRole("button", { name: "Bulan kalender" })).toHaveAttribute("aria-pressed", "true");
     await user.click(screen.getByRole("button", { name: "Bandingkan & Kakeibo" }));
-    expect(screen.getByRole("link", { name: "Rp 100.000, lihat transaksi Keinginan" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Keinginan Rp 100.000, lihat transaksinya" })).toHaveAttribute(
       "href", "/ledger?period=month&offset=-1&kakeibo=want&type=expense",
     );
   });

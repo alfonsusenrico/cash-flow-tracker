@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
-import { kakeiboLabel } from "@/lib/kakeibo";
+import { KAKEIBO_PILLARS, kakeiboLabel, pillarSpent } from "@/lib/kakeibo";
 
 interface MobileHomeViewProps {
   dashboard: any;
@@ -12,7 +12,6 @@ interface MobileHomeViewProps {
   canTransfer: boolean;
   onOpenCapture: (type?: "expense" | "income") => void;
   onOpenTransfer: (sourceId?: string) => void;
-  onOpenPayroll: () => void;
   onOpenRecurring?: () => void;
   onSelectTx: (tx: any) => void;
   bal: (amount: number) => string;
@@ -24,7 +23,7 @@ export function MobileHomeView({
   canTransfer,
   onOpenCapture,
   onOpenTransfer,
-  onOpenPayroll,
+  onOpenRecurring,
   onSelectTx,
   bal,
 }: MobileHomeViewProps) {
@@ -42,20 +41,9 @@ export function MobileHomeView({
   const investmentBalance = kpis?.investment_balance ?? 0;
   const displayedBalance = balanceMode === "total" ? totalBalance : liquidBalance;
 
-  // Safe to spend & flow
-  const safeToSpend = kpis?.safe_to_spend_today ?? 0;
-  const velocityStatus = kpis?.spend_velocity_status ?? "on_track";
+  // Observed cash flow in the selected period.
   const totalInflow = kpis?.total_inflow ?? 0;
   const totalOutflow = kpis?.total_outflow ?? 0;
-
-  // Kakeibo percentages
-  const actualNeeds = kakeibo?.needs?.actual ?? 0;
-  const actualWants = kakeibo?.wants?.actual ?? 0;
-  const actualSavings = kakeibo?.savings?.actual ?? 0;
-  const totalKakeibo = actualNeeds + actualWants + actualSavings || 1;
-  const pctNeeds = Math.round((actualNeeds / totalKakeibo) * 100);
-  const pctWants = Math.round((actualWants / totalKakeibo) * 100);
-  const pctSavings = Math.max(0, 100 - pctNeeds - pctWants);
 
   // Group recent transactions by date for native mobile list
   const today = new Date();
@@ -82,7 +70,7 @@ export function MobileHomeView({
                 : "text-[var(--muted)] hover:text-[var(--text)]"
             )}
           >
-            Total Kekayaan
+            Total Aset
           </button>
           <button
             type="button"
@@ -150,17 +138,19 @@ export function MobileHomeView({
           <span className="text-[11px] font-bold text-[var(--text)]">Transfer</span>
         </button>
 
-        {/* 3. Alokasi Gaji */}
-        <button
-          type="button"
-          onClick={onOpenPayroll}
-          className="flex-1 flex flex-col items-center gap-1.5 group cursor-pointer active:scale-95 transition-transform"
-        >
-          <div className="w-14 h-14 rounded-2xl bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] flex items-center justify-center shadow-2xs group-hover:bg-[var(--surface)]">
-            <Icon name="allocation" className="h-5 w-5 text-amber-500 stroke-[2.5]" />
-          </div>
-          <span className="text-[11px] font-bold text-[var(--text)]">Alokasi</span>
-        </button>
+        {/* 3. Non-posting plans and reminders */}
+        {onOpenRecurring && (
+          <button
+            type="button"
+            onClick={onOpenRecurring}
+            className="flex-1 flex flex-col items-center gap-1.5 group cursor-pointer active:scale-95 transition-transform"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] flex items-center justify-center shadow-2xs group-hover:bg-[var(--surface)]">
+              <Icon name="clock" className="h-5 w-5 text-amber-500 stroke-[2.5]" />
+            </div>
+            <span className="text-[11px] font-bold text-[var(--text)]">Rencana</span>
+          </button>
+        )}
 
         {/* 4. Analisis / Insights */}
         <Link
@@ -254,52 +244,42 @@ export function MobileHomeView({
       </div>
 
       {/* ============================================================ */}
-      {/* 4. DAILY SAFE SPEND & KAKEIBO STRIP (Compact Tactical Strip) */}
+      {/* 4. OBSERVED SPENDING & KAKEIBO STRIP */}
       {/* ============================================================ */}
       <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3.5 space-y-2.5 shadow-2xs">
-        {/* Top: Safe spend today pill */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-3">
           <div className="space-y-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
-              Sisa Aman Hari Ini
-            </span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">Pengeluaran tercatat</span>
             <div className="text-lg font-black tabular tracking-tight text-[var(--text)]">
-              {bal(safeToSpend)}
-              <span className="text-[11px] font-normal text-[var(--muted)] ml-1">/ hari</span>
+              {kpis ? bal(totalOutflow) : "Tidak tersedia"}
             </div>
           </div>
-
-          <span
-            className={cn(
-              "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
-              velocityStatus === "on_track"
-                ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                : velocityStatus === "warning"
-                ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                : "bg-rose-500/10 text-rose-500 border-rose-500/20"
-            )}
-          >
-            {velocityStatus === "on_track" ? "● Terkendali" : "▲ Waspada"}
-          </span>
+          <span className="text-[10px] text-[var(--muted)] text-right">{dashboard?.timeframe_label || "Periode belum tersedia"}</span>
         </div>
 
-        {/* Bottom: 50/30/20 Kakeibo segmented indicator */}
-        <div className="space-y-1 pt-1.5 border-t border-[var(--border)]">
-          <div className="flex items-center justify-between text-[10px] font-semibold text-[var(--muted)]">
-            <span className="uppercase tracking-wider font-bold">Kakeibo 50/30/20</span>
-            <div className="flex items-center gap-2">
-              <span className="text-sky-500 font-bold">Need {pctNeeds}%</span>
-              <span className="text-rose-400 font-bold">Want {pctWants}%</span>
-              <span className="text-emerald-500 font-bold">Save {pctSavings}%</span>
-            </div>
-          </div>
-
-          <div className="h-1.5 w-full rounded-full bg-[var(--surface-raised)] overflow-hidden flex">
-            <div style={{ width: `${pctNeeds}%` }} className="h-full bg-sky-500 transition-all duration-300" />
-            <div style={{ width: `${pctWants}%` }} className="h-full bg-rose-400 transition-all duration-300" />
-            <div style={{ width: `${pctSavings}%` }} className="h-full bg-emerald-500 transition-all duration-300" />
-          </div>
+        <div className="space-y-2 pt-2 border-t border-[var(--border)]">
+          <h2 className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">Klasifikasi Kakeibo</h2>
+          {kakeibo ? (
+            <ul className="space-y-1 text-xs">
+              {KAKEIBO_PILLARS.map((pillar) => (
+                <li key={pillar.value} className="flex items-center justify-between gap-3">
+                  <span>{pillar.label}</span>
+                  <span className="tabular-nums font-semibold">{bal(pillarSpent(kakeibo, pillar.value))}</span>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="text-xs text-[var(--muted)]">Data belum tersedia.</p>}
+          <Link href="/insights" className="inline-flex min-h-11 items-center text-xs font-semibold underline underline-offset-2">
+            Rincian dan acuan 50/30/20 di Analisis
+          </Link>
         </div>
+        {dashboard?.upcoming_commitments && (
+          <p className="border-t border-[var(--border)] pt-2 text-xs text-[var(--text-secondary)]">
+            Rencana {dashboard.upcoming_commitments.window_days} hari ke depan:{" "}
+            <span className="font-semibold tabular-nums text-[var(--text)]">{bal(dashboard.upcoming_commitments.total)}</span>
+            <span className="block text-[var(--muted)]">Pengingat saja, bukan pembayaran.</span>
+          </p>
+        )}
       </div>
 
       {/* ============================================================ */}
@@ -435,7 +415,7 @@ export function MobileHomeView({
           {narrative.top_driver && (
             <div className="text-[10px] text-[var(--muted)] pt-0.5">
               Pengeluaran Terbesar: <strong className="text-[var(--text)]">{narrative.top_driver}</strong>
-              {typeof narrative.top_driver_delta_pct === "number" && (
+              {narrative.top_driver_delta_available === true && typeof narrative.top_driver_delta_pct === "number" && (
                 <span className="ml-1 text-rose-500 font-bold">
                   ({narrative.top_driver_delta_pct > 0 ? "+" : ""}{narrative.top_driver_delta_pct}%)
                 </span>

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const recurringRuleFormSchema = z
   .object({
-    name: z.string().trim().min(1, "Nama transaksi terjadwal wajib diisi").max(100),
+    name: z.string().trim().min(1, "Nama rencana wajib diisi").max(100),
     type: z.enum(["expense", "income", "transfer", "investment_topup"]),
     amount: z.number().int().positive("Nominal harus lebih dari 0"),
     sourceAccountId: z.string().min(1, "Rekening sumber wajib dipilih"),
@@ -11,8 +11,6 @@ export const recurringRuleFormSchema = z
     obligationId: z.string().nullable(),
     scheduleType: z.enum(["monthly_day", "payday", "weekly"]),
     scheduleDay: z.number().int().nullable(),
-    isPayrollAllocation: z.boolean(),
-    autoPost: z.boolean(),
     isActive: z.boolean(),
     notes: z.string().max(500, "Catatan maksimal 500 karakter"),
   })
@@ -39,8 +37,8 @@ export const recurringRuleFormSchema = z
       });
     }
 
-    if (rule.type === "investment_topup" && (rule.autoPost || rule.categoryId || rule.obligationId || rule.isPayrollAllocation)) {
-      context.addIssue({ code: "custom", path: ["autoPost"], message: "Top up investasi harus menunggu konfirmasi debit dan tidak menggunakan kategori atau alokasi gaji." });
+    if (rule.type === "investment_topup" && (rule.categoryId || rule.obligationId)) {
+      context.addIssue({ code: "custom", path: ["categoryId"], message: "Rencana top up investasi tidak memakai kategori atau tagihan." });
     }
 
     if (rule.obligationId && rule.type !== "expense") {
@@ -48,13 +46,6 @@ export const recurringRuleFormSchema = z
         code: "custom",
         path: ["obligationId"],
         message: "Tagihan hanya dapat ditautkan ke transaksi pengeluaran",
-      });
-    }
-    if (rule.isPayrollAllocation && rule.type !== "transfer") {
-      context.addIssue({
-        code: "custom",
-        path: ["isPayrollAllocation"],
-        message: "Alokasi gaji hanya dapat digunakan untuk transfer",
       });
     }
 

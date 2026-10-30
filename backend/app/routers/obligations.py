@@ -1,14 +1,14 @@
 import datetime
-import math
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg.errors import ForeignKeyViolation
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.pool import db_conn
 from app.services.auth import get_current_user
+from app.services.payment_links import link_payment_to_obligation, lock_payment, obligation_payment_candidates
 
 router = APIRouter(tags=["Obligations"])
 
@@ -20,6 +20,11 @@ class ObligationCreate(BaseModel):
     due_date: str | None = None  # YYYY-MM-DD
     minimum_payment: int | None = Field(default=None, ge=0)
     notes: str | None = None
+
+
+class PaymentLinkRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    transaction_id: UUID
 
 
 class ObligationUpdate(BaseModel):
@@ -39,9 +44,6 @@ def format_obligation_row(r: dict[str, Any]) -> dict[str, Any]:
     pct = round((paid / total) * 100, 1) if total > 0 else 0
 
     min_pay = r["minimum_payment"]
-    estimated_months = None
-    if min_pay and min_pay > 0 and remaining > 0:
-        estimated_months = math.ceil(remaining / min_pay)
 
     return {
         "id": str(r["id"]),
@@ -52,7 +54,8 @@ def format_obligation_row(r: dict[str, Any]) -> dict[str, Any]:
         "payoff_percentage": min(100.0, pct),
         "due_date": r["due_date"].isoformat() if r["due_date"] else None,
         "minimum_payment": min_pay,
-        "estimated_payoff_months": estimated_months,
+        # Retired: dividing by the minimum payment ignored interest and payment changes.
+        "estimated_payoff_months": None,
         "notes": r["notes"],
         "is_archived": r["is_archived"],
         "created_at": r["created_at"].isoformat() if r["created_at"] else None,
@@ -261,3 +264,45 @@ def delete_obligation(
                 raise HTTPException(status_code=404, detail="Obligation not found")
             conn.commit()
             return {"ok": True, "deleted": True}
+
+
+@router.get("/{obligation_id}/payment-candidates")
+def list_payment_candidates(obligation_id: UUID, current_user: dict = Depends(get_current_user)):
+    """Recorded expenses the owner may link; an exact amount is only a hint and is never linked automatically."""
+    user_id = current_user["id"]
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, minimum_payment FROM obligations WHERE id = %s AND user_id = %s",
+                (str(obligation_id), user_id),
+            )
+            obligation = cur.fetchone()
+            if not obligation:
+                raise HTTPException(status_code=404, detail="Obligation not found")
+            return {"ok": True, **obligation_payment_candidates(cur, user_id, obligation)}
+
+
+@router.post("/{obligation_id}/payments")
+def link_obligation_payment(
+    obligation_id: UUID,
+    payload: PaymentLinkRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Apply an already recorded expense to this debt once, without adding a transaction."""
+    user_id = current_user["id"]
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            transaction = lock_payment(cur, user_id, str(payload.transaction_id))
+            changed = link_payment_to_obligation(cur, user_id, transaction, str(obligation_id))
+            cur.execute(
+                """
+                SELECT id, name, total_amount, remaining_amount, due_date, minimum_payment, notes, is_archived, created_at, updated_at
+                FROM obligations WHERE id = %s AND user_id = %s
+                """,
+                (str(obligation_id), user_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Obligation not found")
+            conn.commit()
+    return {"ok": True, "changed": changed, "obligation": format_obligation_row(row)}

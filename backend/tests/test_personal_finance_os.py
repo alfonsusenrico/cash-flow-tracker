@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.routers.dashboard import get_timeframe_window
 from app.routers.goals import format_goal_row
 from app.routers.obligations import format_obligation_row
+from app.services.salary_cycles import SalaryCycle
 
 
 def test_format_goal_row_pacing_and_percentage():
@@ -49,7 +50,7 @@ def test_format_obligation_row_payoff_timeline():
     formatted = format_obligation_row(raw_obligation)
     assert formatted["paid_amount"] == 6000000
     assert formatted["payoff_percentage"] == 50.0
-    assert formatted["estimated_payoff_months"] == 6
+    assert formatted["estimated_payoff_months"] is None
 
 
 def test_get_timeframe_window_options():
@@ -189,7 +190,8 @@ def test_zero_balance_runway_calculations():
         with TestClient(app) as client:
             # 1. Zero liquid balance - net-worth
             with patch("app.routers.dashboard.get_accounts_with_balances") as mock_accounts, \
-                 patch("app.routers.dashboard.db_conn") as mock_dash_conn:
+                 patch("app.routers.dashboard.db_conn") as mock_dash_conn, \
+                 patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")):
                 mock_accounts.return_value = [
                     {"id": "a1", "name": "Cash", "type": "cash", "balance": 0, "is_archived": False}
                 ]
@@ -208,7 +210,8 @@ def test_zero_balance_runway_calculations():
 
             # 2. Zero liquid balance - overview
             with patch("app.routers.dashboard.get_accounts_with_balances") as mock_accounts, \
-                 patch("app.routers.dashboard.db_conn") as mock_dash_conn:
+                 patch("app.routers.dashboard.db_conn") as mock_dash_conn, \
+                 patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")):
                 mock_accounts.return_value = [
                     {"id": "a1", "name": "Cash", "type": "cash", "balance": 0, "is_archived": False}
                 ]
@@ -235,7 +238,8 @@ def test_zero_balance_runway_calculations():
 
             # 3. Positive balance with zero burn - net-worth
             with patch("app.routers.dashboard.get_accounts_with_balances") as mock_accounts, \
-                 patch("app.routers.dashboard.db_conn") as mock_dash_conn:
+                 patch("app.routers.dashboard.db_conn") as mock_dash_conn, \
+                 patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")):
                 mock_accounts.return_value = [
                     {"id": "a1", "name": "BCA", "type": "bank", "balance": 10000000, "is_archived": False}
                 ]
@@ -258,7 +262,8 @@ def test_zero_balance_runway_calculations():
 
             # 4. Positive balance with zero burn - overview
             with patch("app.routers.dashboard.get_accounts_with_balances") as mock_accounts, \
-                 patch("app.routers.dashboard.db_conn") as mock_dash_conn:
+                 patch("app.routers.dashboard.db_conn") as mock_dash_conn, \
+                 patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")):
                 mock_accounts.return_value = [
                     {"id": "a1", "name": "BCA", "type": "bank", "balance": 10000000, "is_archived": False}
                 ]

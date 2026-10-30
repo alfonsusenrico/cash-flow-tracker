@@ -10,6 +10,8 @@ import {
 import { queryKeys } from "@/lib/queryKeys";
 import { SettingsModal } from "./SettingsModal";
 
+vi.mock("@/components/ui/SalarySettingsSection", () => ({ SalarySettingsSection: () => null }));
+
 vi.mock("@/lib/api", () => ({
   api: { get: vi.fn(), patch: vi.fn() },
   getApiKeyInfo: vi.fn(),
@@ -68,7 +70,6 @@ describe("settings form", () => {
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/auth/settings", expect.objectContaining({
       name: "Updated Owner",
       currency: "USD",
-      payday_day: 25,
       emergency_fund_multiplier: 6,
     })));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.auth.all });

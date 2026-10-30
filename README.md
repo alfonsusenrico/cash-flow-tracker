@@ -17,7 +17,7 @@ Production uses the base Compose file and rejects insecure cookies at startup. D
 
 ## 🌟 The Magic Flow: Notification ➔ Instant Parse ➔ Live Ledger
 
-You tap your card or QRIS at lunch. By the time you lock your phone, your net worth, category spending, and daily safe-to-spend allowance are already updated. **Zero manual entry. Zero cloud subscription fees. Zero data tracking.**
+You tap your card or QRIS at lunch. By the time you lock your phone, your balances, category spending, and observed cash flow are already updated. **Zero manual entry. Zero cloud subscription fees. Zero data tracking.**
 
 <div align="center">
 
@@ -40,7 +40,7 @@ Traditional personal finance apps fail for two big reasons:
 
 **CashFlow takes the hacker-native approach:**
 - ⚡️ **Zero-Touch Ingestion:** A lightweight Android listener captures banking push notifications, parses the amount, sender, and category entirely on-device, and posts directly to your private server via secured Bearer API.
-- 🎯 **Daily Safe-To-Spend Mindfulness:** No confusing 100-row budget sheets. Just one clear, stress-free number: *"How much is safe to spend today without breaking this month's runway?"*
+- 🎯 **Observed, Explainable Figures:** No guessed paydays or linear forecasts. Every figure states its period and links back to the ledger rows behind it.
 - 🛡️ **100% Self-Hosted Sovereignty:** Built on FastAPI, PostgreSQL, Next.js, and Redis. All ledger entries, accounts, and financial credentials live exclusively on your own infrastructure.
 
 ---
@@ -74,7 +74,7 @@ OPENAI_API_KEY=
 
 For an owner-authorized local parsing check without any event, ledger, balance, retry, or worker mutation, set `APP_ENV=development` and `NOTIFICATION_AI_DRY_RUN_ENABLED=true` locally while keeping `NOTIFICATION_AI_ENABLED=false`. Use authenticated `POST /api/ingest/notifications/dry-run` with `{"event": <normal notification payload>}`, or `POST /api/ingest/notifications/{event_id}/dry-run` for one owned stored local event. These routes return a safe proposed result only and return 404 outside explicitly enabled development.
 
-In this dry-run-only configuration, notification processing, recurring execution, and market-price refresh background jobs are all suspended. Restore normal local runtime flags after testing to resume them. A `would_record` proposal passes the same account/default-pocket and category validation as recording, but does not simulate database application, counterpart merging, or concurrent changes. Uncertain mappings remain `needs_review`; they never become empty successful proposals.
+In this dry-run-only configuration, notification processing, salary detection, and market-price refresh background jobs are all suspended. Restore normal local runtime flags after testing to resume them. A `would_record` proposal passes the same account/default-pocket and category validation as recording, but does not simulate database application, counterpart merging, or concurrent changes. Uncertain mappings remain `needs_review`; they never become empty successful proposals.
 
 Accepted notification responses retain existing batch counters and add one result for every submitted event. A result is `recorded` only after its ledger transaction commits; `queued` only means recoverable asynchronous processing has begun.
 
@@ -112,10 +112,11 @@ The tool reports direct-access denial explicitly and does not activate the proce
 
 The 2026-09-29 held-out evaluation failed the required schema-validity and unambiguous-classification gates for both reasoning settings. Keep `NOTIFICATION_AI_ENABLED=false`; a passing development run or accepted sample descriptions do not authorize activation. See [the synthetic benchmark report](openspec/changes/add-ai-notification-processing/benchmark-report.md) for measured quality, latency, and cost. Local dry runs remain available only under their separate development flags and never write the ledger.
 
-### 2. 🎯 Paycheck Cycle & Daily Pulse
-- **Payday-Aligned Cycles:** Budgets operate on your real financial cadence (e.g. 25th to 24th), not arbitrary calendar months.
-- **Safe-to-Spend Allowance:** Dynamically adjusts your daily allowance based on remaining days and actual burn rate.
-- **Kakeibo Financial Allocation:** Five pillars (Kebutuhan, Keinginan, Budaya, Tak Terduga, Tabungan) judged against the 50 / 30 / 20 benchmark as essentials, lifestyle and savings.
+### 2. 🎯 Salary Cycles & Observed Cash Flow
+- **Confirmed Salary Cycles:** Choose one recorded income as your salary source in Settings. A payment from that source that says *gaji* or *salary* starts a new cycle automatically; bonuses, refunds and unclear payments wait for your review. The current cycle has no guessed end; until a salary is confirmed, reports use calendar months.
+- **Observed, Not Predicted:** Beranda shows inflow, outflow and net cash flow for the period, the remaining monthly budget when you set one, and plans due in the next 30 days. There is no daily allowance or end-of-cycle forecast.
+- **Plans Never Post:** Recurring bills, transfers and monthly investment top-ups are reminders. When one is due, link the transaction your phone already captured, skip it, or record it manually if the notification was missed (same-amount captures must be ruled out first). Debts are paid down by linking the actual payment once.
+- **Kakeibo Classifications:** Five classifications (Kebutuhan, Keinginan, Budaya, Tak Terduga, Tabungan) are shown individually and link to their ledger rows. The 50 / 30 / 20 grouping is an optional reference, not a health verdict, and cash-flow surplus is kept separate from money actually set aside.
 
 ### 3. 🏦 Multi-Vault Liquidity & Asset Portfolio
 - **Cash, Banks & E-Wallets:** Real-time balances for physical cash, bank accounts, and digital wallets with 1-tap internal transfers.

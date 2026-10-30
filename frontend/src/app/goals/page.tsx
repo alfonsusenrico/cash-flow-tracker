@@ -363,7 +363,32 @@ export default function GoalsAndDebtsPage() {
     onError: (err: any) => setActionError(err?.message || "Gagal mencatat progres target"),
   });
 
-  // Payoff Obligation Mutation
+  // Recorded expenses that might be this debt's payment; the owner chooses, nothing links itself.
+  const { data: paymentCandidates, isLoading: paymentCandidatesLoading } = useQuery<{
+    match_state: "none" | "single" | "ambiguous";
+    window_days: number;
+    candidates: { id: string; amount: number; date: string; notes: string | null; merchant: string | null; account_name: string; exact_amount: boolean }[];
+  }>({
+    queryKey: ["obligations", "payment-candidates", payObligation?.id],
+    queryFn: () => api.get(`/obligations/${payObligation!.id}/payment-candidates`),
+    enabled: Boolean(payObligation),
+  });
+
+  const linkPaymentMutation = useMutation({
+    mutationFn: async (transactionId: string) => {
+      if (!payObligation) return;
+      return api.post(`/obligations/${payObligation.id}/payments`, { transaction_id: transactionId });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.obligations });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      setPayObligation(null);
+    },
+    onError: (err: any) => setActionError(err?.message || "Pembayaran gagal dikaitkan"),
+  });
+
+  // Explicit manual record for a payment the phone did not capture.
   const payObligationMutation = useMutation({
     mutationFn: async () => {
       if (!payObligation) return;
@@ -715,9 +740,6 @@ export default function GoalsAndDebtsPage() {
                   {/* Payoff metadata */}
                   <div className="mt-3 flex items-center justify-between text-[11px] text-[var(--muted)]">
                     <span>{o.payoff_percentage}% terbayar</span>
-                    {o.estimated_payoff_months && (
-                      <span>~{o.estimated_payoff_months} bln lagi</span>
-                    )}
                   </div>
                 </div>
 
@@ -740,7 +762,7 @@ export default function GoalsAndDebtsPage() {
                     }}
                     className="flex items-center gap-1 font-semibold text-rose-500 hover:text-rose-400"
                   >
-                    <span>Bayar Tagihan &rarr;</span>
+                    <span>Kaitkan pembayaran &rarr;</span>
                   </button>
                 </div>
               </div>
@@ -1298,8 +1320,53 @@ export default function GoalsAndDebtsPage() {
         <Modal
           open={Boolean(payObligation)}
           onClose={() => setPayObligation(null)}
-          title={`Bayar Tagihan: ${payObligation.name}`}
+          title={`Pembayaran: ${payObligation.name}`}
         >
+          <section aria-labelledby="debt-payment-candidates" className="space-y-2 pt-2 text-xs">
+            <h3 id="debt-payment-candidates" className="font-semibold text-[var(--text)]">Kaitkan transaksi yang sudah tercatat</h3>
+            <p className="text-[var(--muted)]">
+              Pengeluaran {paymentCandidates?.window_days ?? 45} hari terakhir yang belum terkait tagihan. Sisa tagihan
+              berkurang sekali; tidak ada transaksi baru.
+            </p>
+            {paymentCandidatesLoading ? (
+              <p role="status">Memuat transaksi…</p>
+            ) : !paymentCandidates?.candidates.length ? (
+              <p className="text-[var(--muted)]">Belum ada pengeluaran yang bisa dikaitkan.</p>
+            ) : (
+              <>
+                {paymentCandidates.match_state === "ambiguous" && (
+                  <p className="font-medium text-amber-700 dark:text-amber-300">
+                    Beberapa transaksi bernominal sama dengan cicilan. Pilih yang benar.
+                  </p>
+                )}
+                <ul className="space-y-1">
+                  {paymentCandidates.candidates.map((candidate) => {
+                    const label = `${new Date(candidate.date).toLocaleDateString("id-ID", { day: "numeric", month: "short" })} · ${bal(candidate.amount)} · ${candidate.merchant || candidate.notes || candidate.account_name}`;
+                    return (
+                      <li key={candidate.id} className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate tabular">
+                          {label}
+                          {candidate.exact_amount && <span className="ml-1 font-semibold">· nominal cicilan</span>}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={linkPaymentMutation.isPending}
+                          onClick={() => linkPaymentMutation.mutate(candidate.id)}
+                          aria-label={`Kaitkan ${label}`}
+                          className="min-h-11 shrink-0 px-2 font-semibold underline underline-offset-2 disabled:opacity-50"
+                        >
+                          Kaitkan
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+          </section>
+          <h3 className="border-t border-[var(--border)] pt-3 text-xs font-semibold text-[var(--text)]">
+            Tidak tertangkap ponsel? Catat manual
+          </h3>
           <form
             className="space-y-4 pt-2 text-xs"
             onSubmit={(event) => {
@@ -1360,7 +1427,7 @@ export default function GoalsAndDebtsPage() {
                 disabled={payObligationMutation.isPending}
                 className="flex-1 rounded-xl bg-rose-600 text-white py-2 text-xs font-semibold hover:bg-rose-700 disabled:opacity-50"
               >
-                {payObligationMutation.isPending ? "Memproses…" : "Catat Pembayaran"}
+                {payObligationMutation.isPending ? "Memproses…" : "Catat pembayaran manual"}
               </button>
             </div>
           </form>

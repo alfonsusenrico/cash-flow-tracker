@@ -1,57 +1,53 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 import type { KakeiboBreakdown } from "@/lib/kakeibo";
 import { KakeiboBenchmark } from "./KakeiboBenchmark";
 
-vi.mock("@/components/layout/AppLayout", () => ({
-  useAppCtx: () => ({ bal: (amount: number) => `Rp ${amount.toLocaleString("id-ID")}` }),
-}));
+vi.mock("@/components/layout/AppLayout", () => ({ useAppCtx: () => ({ bal: (amount: number) => `Rp ${amount.toLocaleString("id-ID")}` }) }));
 
-const base: KakeiboBreakdown = {
-  need_spent: 450_000, need_pct: 45,
-  want_spent: 100_000, want_pct: 10,
-  culture_spent: 50_000, culture_pct: 5,
-  unexpected_spent: 0, unexpected_pct: 0,
-  saving_spent: 300_000, saving_pct: 30,
-  essentials_pct: 45, lifestyle_pct: 15,
-  kakeibo_status: "healthy",
+const values: KakeiboBreakdown = {
+  need_spent: 450_000, need_pct: 45, want_spent: 100_000, want_pct: 10,
+  culture_spent: 50_000, culture_pct: 5, unexpected_spent: 20_000, unexpected_pct: 2,
+  saving_spent: 300_000, saving_pct: 30, kakeibo_status: "healthy",
 };
 
-describe("KakeiboBenchmark", () => {
-  it("shows the healthy status when the backend reports healthy", () => {
-    render(<KakeiboBenchmark kakeibo={base} />);
-    expect(screen.getByText("Kakeibo sehat")).toBeInTheDocument();
-  });
+it("shows all five recorded figures without a health judgment", async () => {
+  const { container } = render(<KakeiboBenchmark kakeibo={values} pillarHref={(pillar) => `/ledger?kakeibo=${pillar}`} />);
+  const rows = within(screen.getAllByRole("list")[0]).getAllByRole("listitem");
+  expect(rows).toHaveLength(5);
+  expect(within(rows[2]).getByText("Rp 50.000")).toBeInTheDocument();
+  expect(within(rows[3]).getByText("Rp 20.000")).toBeInTheDocument();
+  expect(within(rows[4]).getByText("Rp 300.000")).toBeInTheDocument();
+  expect(within(rows[4]).queryByRole("link")).not.toBeInTheDocument();
+  expect(screen.queryByText("Kakeibo sehat")).not.toBeInTheDocument();
+  expect(within(rows[2]).getByText("5%")).toBeInTheDocument();
+  expect(within(rows[0]).getByRole("link", { name: "Kebutuhan Rp 450.000, lihat transaksinya" })).toHaveAttribute("href", "/ledger?kakeibo=need");
+  expect(screen.getByText(/surplus arus kas, bukan bukti uang sudah disisihkan/i)).toBeInTheDocument();
+  expect(screen.getByText(/bukan penilaian kesehatan keuangan/i)).toBeInTheDocument();
+  expect(screen.queryByText(/sesuai target|melebihi target|kakeibo sehat/i)).not.toBeInTheDocument();
+  expect((await axe(container)).violations).toHaveLength(0);
+});
 
-  it.each([
-    ["warning", "Gaya hidup di atas 30%"],
-    ["elevated_needs", "Kebutuhan di atas 50%"],
-  ])("names the problem for %s instead of a generic warning", (status, label) => {
-    render(<KakeiboBenchmark kakeibo={{ ...base, kakeibo_status: status }} />);
-    expect(screen.getByText(label)).toBeInTheDocument();
-    expect(screen.queryByText("Kakeibo sehat")).not.toBeInTheDocument();
-  });
+it("explains the saving components and the optional grouping with rounding", () => {
+  render(<KakeiboBenchmark kakeibo={{ ...values, saving_expenses: 40_000, net_saving_transfers: 260_000, essentials_pct: 47, lifestyle_pct: 15.25 }} />);
+  expect(screen.getByText(/pengeluaran berklasifikasi tabungan/)).toHaveTextContent("Rp 40.000");
+  expect(screen.getByText(/pengeluaran berklasifikasi tabungan/)).toHaveTextContent("Rp 260.000");
+  expect(screen.getByText("Kebutuhan pokok: 47% (acuan 50%)")).toBeInTheDocument();
+  expect(screen.getByText("Gaya hidup: 15,3% (acuan 30%)")).toBeInTheDocument();
+});
 
-  it("describes all five pillars in the legend and the bar's accessible name", () => {
-    render(<KakeiboBenchmark kakeibo={base} />);
-    const bar = screen.getByRole("img", { name: /Alokasi pilar/ });
-    expect(bar).toHaveAccessibleName("Alokasi pilar: Kebutuhan 45%, Keinginan 10%, Budaya 5%, Tak Terduga 0%, Tabungan 30%");
-    const legend = screen.getAllByRole("list")[0];
-    expect(within(legend).getAllByRole("listitem")).toHaveLength(5);
-  });
+it("shows an empty state instead of a verdict for an empty period", () => {
+  const empty: KakeiboBreakdown = {
+    need_spent: 0, need_pct: 0, want_spent: 0, want_pct: 0, saving_spent: 0, saving_pct: 0,
+    total_allocated: 0, kakeibo_status: "healthy",
+  };
+  render(<KakeiboBenchmark kakeibo={empty} />);
+  expect(screen.getByText("Belum ada pengeluaran atau tabungan tercatat pada periode ini.")).toBeInTheDocument();
+  expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
+});
 
-  it("shows the three benchmark groups with their member pillars", () => {
-    render(<KakeiboBenchmark kakeibo={base} />);
-    expect(screen.getByRole("heading", { name: "Kebutuhan pokok" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Gaya hidup" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Tabungan" })).toBeInTheDocument();
-    expect(screen.getByText("15% dari total uang masuk")).toBeInTheDocument();
-    expect(screen.getByText("Budaya")).toBeInTheDocument();
-  });
-
-  it("has no detectable accessibility violations", async () => {
-    const { container } = render(<KakeiboBenchmark kakeibo={base} />);
-    expect((await axe(container)).violations).toHaveLength(0);
-  });
+it("does not present missing data as zero", () => {
+  render(<KakeiboBenchmark />);
+  expect(screen.getByText("Data belum tersedia.")).toBeInTheDocument();
 });

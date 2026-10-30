@@ -108,6 +108,7 @@ interface CashFlowMetrics {
 interface CycleCashFlowMetrics extends CashFlowMetrics {
   start: string;
   end: string;
+  label?: string;
 }
 
 interface PeriodCashFlowMetrics extends CashFlowMetrics {
@@ -140,9 +141,9 @@ function shortDate(value: string): string {
   return new Date(value).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
 }
 
-function periodLabel(period: PeriodCashFlowMetrics | null | undefined, basis: LedgerPeriod): string {
+function periodLabel(period: PeriodCashFlowMetrics | null | undefined): string {
   if (!period?.start || !period.end) return "Memuat…";
-  if (basis === "month" && period.label) return period.label;
+  if (period.label) return period.label;
   return `${shortDate(period.start)} – ${shortDate(period.end)}`;
 }
 
@@ -332,13 +333,14 @@ function LedgerPageContent() {
   const cycleEnd = cycleSummary?.end;
 
   const cycleDateRangeLabel = useMemo(() => {
+    if (cycleSummary?.label) return cycleSummary.label;
     if (!cycleStart || !cycleEnd) return null;
     const s = new Date(cycleStart);
     const e = new Date(cycleEnd);
     const startStr = s.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
     const endStr = e.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
     return `${startStr} – ${endStr}`;
-  }, [cycleStart, cycleEnd]);
+  }, [cycleStart, cycleEnd, cycleSummary?.label]);
 
   // Open Edit Modal
   const handleOpenEdit = (tx: TransactionItem) => {
@@ -752,7 +754,7 @@ function LedgerPageContent() {
         {filters.period !== "all" && (
           <PeriodStepper
             unit={filters.period === "month" ? "Bulan" : "Siklus"}
-            label={periodLabel(summary?.period, filters.period)}
+            label={periodLabel(summary?.period)}
             offset={filters.offset}
             onChange={(offset) => updateFilters({ offset })}
           />
@@ -860,7 +862,7 @@ function LedgerPageContent() {
             {filters.period === "all" && cycleDateRangeLabel && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--foreground)]">
                 <Icon name="calendar" className="h-3.5 w-3.5 text-[var(--muted)]" />
-                Siklus {cycleDateRangeLabel}
+                {cycleSummary?.label ? cycleDateRangeLabel : `Siklus ${cycleDateRangeLabel}`}
               </span>
             )}
           </div>

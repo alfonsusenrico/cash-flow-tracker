@@ -6,150 +6,103 @@ import {
   KAKEIBO_PILLARS,
   type KakeiboBreakdown,
   type KakeiboPillar,
-  isKakeiboHealthy,
   kakeiboGroups,
-  kakeiboLabel,
-  kakeiboStatusLabel,
   pillarPct,
   pillarSpent,
 } from "@/lib/kakeibo";
-import { cn } from "@/lib/utils";
-
-const GROUP_ICONS = { essentials: "🍞", lifestyle: "👑", saving: "💰" } as const;
 
 interface KakeiboBenchmarkProps {
   kakeibo?: KakeiboBreakdown;
-  /** Ledger link for the rows behind a pillar figure; figures stay plain text without it. */
   pillarHref?: (pillar: KakeiboPillar) => string | null;
 }
 
-function FigureLink({ href, label, children, className }: {
-  href: string | null | undefined;
-  label: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  if (!href) return <span className={className}>{children}</span>;
-  return (
-    <Link
-      href={href}
-      aria-label={label}
-      className={cn("rounded underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]", className)}
-    >
-      {children}
-    </Link>
-  );
+function formatPct(value: number) {
+  return `${value.toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`;
 }
 
+/** Five classifications shown individually; the 50/30/20 grouping is an optional, explained reference. */
 export function KakeiboBenchmark({ kakeibo, pillarHref }: KakeiboBenchmarkProps) {
   const { bal } = useAppCtx();
-  const healthy = isKakeiboHealthy(kakeibo?.kakeibo_status);
-  const groups = kakeiboGroups(kakeibo);
-  const barSummary = KAKEIBO_PILLARS.map((pillar) => `${pillar.label} ${pillarPct(kakeibo, pillar.value)}%`).join(", ");
+  const allocated = kakeibo?.total_allocated ?? KAKEIBO_PILLARS.reduce((sum, pillar) => sum + pillarSpent(kakeibo, pillar.value), 0);
+  const empty = !kakeibo || allocated <= 0;
 
   return (
-    <div className="cockpit-card p-5 sm:p-6 space-y-5 border border-[var(--border)] shadow-xs">
+    <section aria-labelledby="kakeibo-title" className="cockpit-card space-y-5 border border-[var(--border)] p-5 shadow-xs sm:p-6">
       <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-base" aria-hidden="true">🇯🇵</span>
-          <h2 className="text-base font-bold tracking-tight text-[var(--text)]">Metode Kakeibo (50 / 30 / 20)</h2>
-          <span
-            className={cn(
-              "text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase",
-              healthy
-                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
-            )}
-          >
-            {kakeiboStatusLabel(kakeibo?.kakeibo_status)}
-          </span>
-        </div>
-        <p className="text-xs text-[var(--muted)] mt-0.5">
-          50% kebutuhan pokok (Kebutuhan + Tak Terduga), 30% gaya hidup (Keinginan + Budaya), 20% tabungan
+        <h2 id="kakeibo-title" className="text-base font-bold tracking-tight text-[var(--text)]">Klasifikasi Kakeibo</h2>
+        <p className="mt-1 text-xs text-[var(--muted)]">
+          Jumlah tercatat pada periode yang dipilih, setelah penggantian uang. Persentase dihitung dari pemasukan atau total
+          alokasi, mana yang lebih besar.
         </p>
       </div>
 
-      <div className="space-y-1.5">
-        <div
-          role="img"
-          aria-label={`Alokasi pilar: ${barSummary}`}
-          className="h-3.5 w-full rounded-full bg-[var(--surface-raised)] border border-[var(--border)] flex overflow-hidden"
-        >
-          {KAKEIBO_PILLARS.map((pillar) => (
-            <div
-              key={pillar.value}
-              style={{ width: `${Math.min(pillarPct(kakeibo, pillar.value), 100)}%`, backgroundColor: pillar.color }}
-              className="h-full transition-[width] motion-reduce:transition-none"
-            />
-          ))}
-        </div>
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[var(--muted)] tabular font-medium">
-          {KAKEIBO_PILLARS.map((pillar) => (
-            <li key={pillar.value} className="flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: pillar.color }} aria-hidden="true" />
-              {pillar.label} ({pillarPct(kakeibo, pillar.value)}%)
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {groups.map((group) => (
-          <div key={group.key} className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]/40 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-base" aria-hidden="true">{GROUP_ICONS[group.key]}</span>
-                <div>
-                  <h3 className="text-xs font-bold text-[var(--text)]">{group.label}</h3>
-                  <div className="text-[10px] text-[var(--muted)]">
-                    Target: {group.targetIsMinimum ? "≥" : "≤"} {group.targetPct}%
-                  </div>
-                </div>
-              </div>
-              <span
-                className={cn(
-                  "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
-                  group.withinTarget
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                    : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-                )}
-              >
-                {group.withinTarget ? "Sesuai target" : group.targetIsMinimum ? "Di bawah target" : "Melebihi target"}
-              </span>
-            </div>
-
-            <div>
-              <div className="text-xl font-bold text-[var(--text)] tabular">
-                {group.pillars.length === 1 ? (
-                  <FigureLink
-                    href={pillarHref?.(group.pillars[0])}
-                    label={`${bal(group.spent)}, lihat transaksi ${kakeiboLabel(group.pillars[0])}`}
-                  >
-                    {bal(group.spent)}
-                  </FigureLink>
-                ) : bal(group.spent)}
-              </div>
-              <div className="text-[11px] text-[var(--muted)] mt-0.5 tabular">{group.pct}% dari total uang masuk</div>
-            </div>
-
-            {group.pillars.length > 1 && (
-              <ul className="space-y-0.5 text-[11px] text-[var(--muted)] tabular">
-                {group.pillars.map((pillar) => (
-                  <li key={pillar} className="flex justify-between gap-2">
-                    <span>{kakeiboLabel(pillar)}</span>
-                    <FigureLink
-                      href={pillarHref?.(pillar)}
-                      label={`${bal(pillarSpent(kakeibo, pillar))}, lihat transaksi ${kakeiboLabel(pillar)}`}
+      {!kakeibo ? (
+        <p className="text-xs text-[var(--muted)]">Data belum tersedia.</p>
+      ) : empty ? (
+        <p className="text-xs text-[var(--muted)]">Belum ada pengeluaran atau tabungan tercatat pada periode ini.</p>
+      ) : (
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {KAKEIBO_PILLARS.map((pillar) => {
+            const amount = bal(pillarSpent(kakeibo, pillar.value));
+            const share = formatPct(pillarPct(kakeibo, pillar.value));
+            // Saving also contains transfers, so a ledger filter on the pillar would show only part of it.
+            const href = pillar.value === "saving" ? null : pillarHref?.(pillar.value);
+            return (
+              <li key={pillar.value} className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/40 p-3">
+                <h3 className="flex items-center gap-1.5 text-xs font-semibold text-[var(--muted)]">
+                  <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: pillar.color }} />
+                  {pillar.label}
+                </h3>
+                <div className="mt-2 text-base font-bold tabular-nums text-[var(--text)]">
+                  {href ? (
+                    <Link
+                      href={href}
+                      aria-label={`${pillar.label} ${amount}, lihat transaksinya`}
+                      className="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
                     >
-                      {bal(pillarSpent(kakeibo, pillar))}
-                    </FigureLink>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+                      {amount}
+                    </Link>
+                  ) : (
+                    amount
+                  )}
+                </div>
+                <div className="text-[11px] tabular-nums text-[var(--muted)]">{share}</div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {kakeibo && !empty && kakeibo.saving_expenses !== undefined && kakeibo.net_saving_transfers !== undefined && (
+        <p className="text-xs text-[var(--text-secondary)]">
+          Tabungan = pengeluaran berklasifikasi tabungan{" "}
+          <span className="tabular-nums">{bal(kakeibo.saving_expenses)}</span> + perpindahan bersih ke rekening tabungan
+          atau investasi <span className="tabular-nums">{bal(kakeibo.net_saving_transfers)}</span>, minimal nol. Pindah
+          saldo biasa dan jual-beli saham tidak dihitung sebagai tabungan baru.
+        </p>
+      )}
+      <p className="text-xs text-[var(--text-secondary)]">
+        Selisih uang masuk dan keluar adalah surplus arus kas, bukan bukti uang sudah disisihkan.
+      </p>
+
+      <details className="text-xs text-[var(--text-secondary)]">
+        <summary className="flex min-h-11 cursor-pointer items-center font-semibold">Acuan 50/30/20 (opsional)</summary>
+        <div className="space-y-2">
+          <p>
+            Hanya pembanding, bukan penilaian kesehatan keuangan. Kebutuhan dan Tak Terduga dikelompokkan sebagai pokok,
+            Keinginan dan Budaya sebagai gaya hidup, Tabungan tetap sendiri.
+          </p>
+          {kakeibo && !empty && (
+            <ul className="space-y-1 tabular-nums">
+              {kakeiboGroups(kakeibo).map((group) => (
+                <li key={group.key}>
+                  {group.label}: {formatPct(group.pct)} (acuan {group.targetPct}%)
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </details>
+    </section>
   );
 }

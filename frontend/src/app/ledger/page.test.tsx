@@ -551,6 +551,28 @@ describe("Ledger summary metrics (running cycle and cumulative)", () => {
     });
   });
 
+  it("renders the same synthetic ledger totals used by the companion summary", async () => {
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [] };
+      if (path === "/categories") return { categories: [] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      if (path.startsWith("/transactions?")) return {
+        ok: true, total: 0, transactions: [],
+        summary: {
+          cycle: { start: "2026-10-29T17:00:00.000Z", end: "2026-10-30T03:00:00.000Z", inflow: 5_000_000, outflow: 300_000, net: 4_700_000 },
+          cumulative: { inflow: 5_000_000, outflow: 300_000, net: 4_700_000 },
+        },
+      };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
+    expect((await screen.findAllByText("+Rp 5.000.000")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("-Rp 300.000").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+Rp 4.700.000").length).toBeGreaterThan(0);
+  });
+
   it("renders running cycle metrics by default and switches to cumulative metrics on toggle", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
