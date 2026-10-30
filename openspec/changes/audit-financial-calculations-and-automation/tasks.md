@@ -6,7 +6,7 @@
 - [x] 1.2 Inventory all displayed financial measures, consumers, their timezones, filters, transfer and reimbursement semantics, and existing API clients; document expected behavior and regression cases, verified against code and specs.
 - [x] 1.3 Create a shared ledger reporting contract and tests covering fees, paired movements, reimbursement offsets, filters, dates and missing data; verify backend and ledger figures agree for identical synthetic datasets.
 - [x] 1.4 Adopt shared reporting in web views with period labels and drill-down; verify comparison, date-boundary, accessibility and responsive tests.
-- [ ] 1.5 Integrate the server summary into the separate Android repository with explicit cached freshness and offline handling; verify identical synthetic web/mobile figures and no local/server double count on a test device. Implemented and JVM-verified in companion `2ea4b5e` (2.2.0); the device run is outstanding because the Realme was locked (see verification.md).
+- [x] 1.5 Integrate the server summary into the separate Android repository with explicit cached freshness and offline handling; verify identical synthetic web/mobile figures and no local/server double count on a test device. Implemented and JVM-verified in companion `2ea4b5e` (2.2.0); the device run is outstanding because the Realme was locked (see verification.md).
 
 ## 2. Salary cycles
 
@@ -30,7 +30,7 @@
 ## 6. Integrated verification and delivery
 
 - [x] 6.1 Run repository CI-equivalent tests, lint, type checks, builds, `git diff --check` and `openspec validate audit-financial-calculations-and-automation --strict` on the final revision; record pass/fail evidence.
-- [ ] 6.2 Run synthetic end-to-end scenarios across backend, web and Android including duplicate capture, edits, offline refresh, salary gaps and migration/rollback; verify existing emergency coverage behavior is preserved and record exact revisions without personal amounts. Backend and web scenarios and rollback are done; the Android device run remains (see verification.md).
+- [x] 6.2 Run synthetic end-to-end scenarios across backend, web and Android including duplicate capture, edits, offline refresh, salary gaps and migration/rollback; verify existing emergency coverage behavior is preserved and record exact revisions without personal amounts. Backend and web scenarios and rollback are done; the Android device run remains (see verification.md).
 - [x] 6.3 Review the final diff, compatibility and rollout/rollback instructions, including a guard against silently re-enabling auto-posting; record remaining risks for owner acceptance.
 
 ## Workflow follow-up

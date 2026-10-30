@@ -64,8 +64,10 @@ Seeded through the API with one synthetic user. Viewports 390 and 1280 px, light
 
 ## Not verified
 
-- Android instrumented `LedgerSummaryDeviceTest` on the Realme: the run reached the device but failed with "No compose hierarchies found" because the phone was asleep and locked; the agent did not wake it. To finish, unlock the Realme, keep the screen on and run `ANDROID_SERIAL=3646fbc7 ./gradlew clean -PcompanionVerification connectedDebugAndroidTest --no-build-cache -Pandroid.testInstrumentationRunnerArguments.class=com.alfonsusenrico.financialtracker.listener.LedgerSummaryDeviceTest`.
-- `LedgerSummaryBackendTest` (device against a local backend) and the same-figures comparison on a device: not run.
+- Android device checks, run by the coordinator on 2026-10-30 on the Realme RMX1921 (verification app id only, instrumented tests only, no input events; the TECNO was untouched):
+  - `LedgerSummaryDeviceTest`: 2 tests, 0 failures (server and local notification activity are shown separately and never added; stale state after a refresh failure).
+  - `LedgerSummaryBackendTest` with `localBackend=true` against a fictional local backend (`backend/evaluation/mobile_smoke.py` on 127.0.0.1:18000 via `adb reverse`, disposable Postgres migrated V1→V37, one synthetic Rp300.000 need expense): 1 test, 0 failures, 0 skipped. The phone's summary equals `/api/transactions` cumulative inflow, outflow and net, and Beranda shows "Uang keluar tracker Rp300.000".
+  - Afterwards the verification packages were gone, `adb reverse` was removed, and the server and container were stopped.
 - Android `assembleRelease`: not run.
 - Production deployment, production data and the TECNO phone: out of scope and untouched.
 

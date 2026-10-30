@@ -50,6 +50,10 @@ Owner decisions recorded on 2026-10-30: salary cycles start only from a confirme
 10. **Explicit records keep plan provenance.** An owner-requested record of a missed occurrence keeps `recurring_rule_id` and is written as recurring, reviewed, system, as before. Rejected: relabelling it manual, which would change the investment confirmation contract.
 11. **Fresh savings.** The audit found no double count: trades carry no pillar, top-ups and moves between ordinary and savings or investment accounts carry `saving` on the outbound leg only, operational transfers carry none, fee rows are ordinary expenses. Expense pillars sum exactly to net reportable spending (regression test `test_kakeibo_reconciliation.py`).
 
+### Salary marker check against production (2026-10-30)
+
+With the owner's approval, a read-only aggregate query on production checked the two largest incomes of each month over the last eight months. Only dates and yes/no flags were returned, with no names or amounts. Records begin in September 2026. The current myBCA payroll notification (30 October 2026) contains `gaji`/`salary` in both the ledger row and the notification text, so automatic confirmation applies to the current format. In September neither of the two largest incomes carried the marker, so whether that month's salary used another format is unknown. Owner review covers any month whose salary lacks the marker.
+
 ## Open decisions for owner
 
 - **Unused web files.** Resolved 2026-10-30 on the owner's go-ahead: `DailyBudgetBar`, `KakeiboPillarCards`, `KpiRibbon`, `PayrollAllocationModal` (with its test) and the unused `isKakeiboHealthy`/`kakeiboStatusLabel` helpers were removed. The legacy `kakeibo_status`/`want_status` response fields stay for compatibility, per the Kakeibo delta, and no screen reads them.
