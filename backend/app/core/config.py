@@ -61,6 +61,7 @@ class Settings:
     capture_configuration_error: str | None = None
     pairing_server_url: str = "https://finance.alfonsusenrico.com"
     pairing_configuration_error: str | None = None
+    plan_auto_link_enabled: bool = True
 
 
 def _csv_env(name: str) -> tuple[str, ...]:
@@ -212,6 +213,8 @@ def load_settings() -> Settings:
         **_history_suggestion_settings(),
         **_capture_settings(),
         **_pairing_settings(),
+        # Off only as a kill switch; owner-approved automatic plan linking runs by default.
+        plan_auto_link_enabled=os.getenv("PLAN_AUTO_LINK_ENABLED", "true").strip().lower() != "false",
     )
 
 

@@ -1,5 +1,4 @@
-import calendar
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from typing import Any, List, Optional
 from uuid import UUID
 
@@ -10,7 +9,16 @@ from app.db.pool import db_conn
 from app.routers.movements import _ensure_internal_movement_categories
 from app.services.auth import get_current_user
 from app.services.investment_topups import create_topup, resolve_topup_source, validate_topup_accounts
-from app.services.payment_links import CANDIDATE_LIMIT, link_payment_to_obligation, lock_payment, occurrence_candidates
+from app.services.payment_links import CANDIDATE_LIMIT, lock_payment, occurrence_candidates
+from app.services.plan_occurrences import (
+    advance_rule,
+    calculate_next_due_date,
+    link_transaction,
+    next_unresolved_due,
+    recent_auto_links,
+    request_plan_linking,
+    unlink_occurrence,
+)
 from app.services.provenance import system_provenance
 from app.services.ledger_mutations import (
     create_bilateral_movement,
@@ -20,56 +28,6 @@ from app.services.ledger_mutations import (
 )
 
 router = APIRouter(tags=["Recurring"])
-
-
-def calculate_next_due_date(
-    schedule_type: str,
-    schedule_day: Optional[int],
-    user_payday_day: int = 25,
-    from_date: Optional[date] = None,
-    advance: bool = False,
-) -> date:
-    """
-    Computes the next due date for a recurring rule:
-    - 'payday': anchored on the user's monthly payday day.
-    - 'monthly_day': anchored on a specific day of the month (1-31).
-    - 'weekly': anchored on day of week (1=Monday .. 7=Sunday).
-    """
-    ref = from_date or date.today()
-
-    if schedule_type == "weekly":
-        target_weekday = schedule_day if schedule_day and 1 <= schedule_day <= 7 else 1
-        current_weekday = ref.isoweekday()  # 1=Mon, 7=Sun
-        days_ahead = (target_weekday - current_weekday) % 7
-        if days_ahead == 0 and advance:
-            days_ahead = 7
-        return ref + timedelta(days=days_ahead)
-
-    # Monthly or Payday
-    target_day = schedule_day if (schedule_type == "monthly_day" and schedule_day) else user_payday_day
-    target_day = max(1, min(31, target_day))
-
-    year = ref.year
-    month = ref.month
-
-    # Check if due this month
-    max_days_this_month = calendar.monthrange(year, month)[1]
-    candidate_day = min(target_day, max_days_this_month)
-    candidate_date = date(year, month, candidate_day)
-
-    if not advance and candidate_date >= ref:
-        return candidate_date
-
-    # Advance to next month
-    if month == 12:
-        next_year = year + 1
-        next_month = 1
-    else:
-        next_year = year
-        next_month = month + 1
-
-    max_days_next_month = calendar.monthrange(next_year, next_month)[1]
-    return date(next_year, next_month, min(target_day, max_days_next_month))
 
 
 # --- Schemas ---
@@ -362,6 +320,7 @@ def create_recurring_rule(
             )
             rule_id = str(cur.fetchone()["id"])
 
+    request_plan_linking(user_id)
     return {"ok": True, "id": rule_id, "next_due_date": next_due.isoformat()}
 
 
@@ -479,6 +438,7 @@ def update_recurring_rule(
                 ),
             )
 
+    request_plan_linking(user_id)
     return {"ok": True, "id": str(rule_id), "next_due_date": next_due.isoformat() if next_due else None}
 
 
@@ -572,7 +532,12 @@ def list_pending_recurring_rules(
                 item = format_recurring_rule_row(row)
                 item.update(occurrence_candidates(cur, user_id, row, row["next_due_date"]))
                 rules.append(item)
-            return {"ok": True, "pending_count": len(rules), "rules": rules}
+            return {
+                "ok": True,
+                "pending_count": len(rules),
+                "rules": rules,
+                "recent_auto_links": recent_auto_links(cur, user_id),
+            }
 
 
 def _execute_rule_occurrence(
@@ -726,13 +691,7 @@ def _execute_rule_occurrence(
                 (rule["amount"], rule["amount"], rule["obligation_id"], user_id),
             )
 
-        next_due = calculate_next_due_date(
-            schedule_type=rule["schedule_type"],
-            schedule_day=rule["schedule_day"],
-            user_payday_day=payday_day,
-            from_date=scheduled_for,
-            advance=True,
-        )
+        next_due = next_unresolved_due(cur, rule, payday_day, scheduled_for)
         cur.execute(
             """
             UPDATE recurring_rules
@@ -846,21 +805,6 @@ def _require_next_occurrence(rule: dict[str, Any], scheduled_for: date) -> None:
         )
 
 
-def _advance(cur, rule: dict[str, Any], user_id: str, payday_day: int, scheduled_for: date) -> date:
-    next_due = calculate_next_due_date(
-        schedule_type=rule["schedule_type"],
-        schedule_day=rule["schedule_day"],
-        user_payday_day=payday_day,
-        from_date=scheduled_for,
-        advance=True,
-    )
-    cur.execute(
-        "UPDATE recurring_rules SET next_due_date = %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
-        (next_due, str(rule["id"]), user_id),
-    )
-    return next_due
-
-
 @router.get("/{rule_id}/occurrences")
 def list_rule_occurrences(rule_id: UUID, current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
@@ -871,7 +815,7 @@ def list_rule_occurrences(rule_id: UUID, current_user: dict = Depends(get_curren
                 raise HTTPException(status_code=404, detail="Recurring rule not found")
             cur.execute(
                 """
-                SELECT scheduled_for, status, transaction_id, error_code, updated_at
+                SELECT scheduled_for, status, transaction_id, error_code, link_method, updated_at
                 FROM recurring_executions WHERE recurring_rule_id = %s AND user_id = %s
                 ORDER BY scheduled_for DESC LIMIT 24
                 """,
@@ -885,6 +829,7 @@ def list_rule_occurrences(rule_id: UUID, current_user: dict = Depends(get_curren
                         "status": row["status"],
                         "transaction_id": str(row["transaction_id"]) if row["transaction_id"] else None,
                         "error_code": row["error_code"],
+                        "link_method": row["link_method"],
                         "updated_at": row["updated_at"].isoformat(),
                     }
                     for row in cur.fetchall()
@@ -921,36 +866,24 @@ def link_occurrence(rule_id: UUID, payload: OccurrenceLinkRequest, current_user:
                     status_code=422,
                     detail={"code": "transaction_type_mismatch", "message": "Jenis transaksi tidak sesuai dengan rencana."},
                 )
-            cur.execute(
-                """
-                SELECT 1 FROM recurring_executions
-                WHERE transaction_id = %s AND status IN ('linked', 'succeeded')
-                """,
-                (transaction_id,),
-            )
-            if cur.fetchone():
-                raise HTTPException(
-                    status_code=409,
-                    detail={"code": "transaction_already_matched", "message": "Transaksi ini sudah dipakai untuk kejadian lain."},
-                )
-            debt_changed = False
-            if rule["type"] == "expense" and rule.get("obligation_id"):
-                debt_changed = link_payment_to_obligation(cur, user_id, transaction, str(rule["obligation_id"]))
-            cur.execute(
-                """
-                INSERT INTO recurring_executions (recurring_rule_id, user_id, scheduled_for, status, transaction_id, movement_id)
-                VALUES (%s, %s, %s, 'linked', %s, %s)
-                ON CONFLICT (recurring_rule_id, scheduled_for) DO UPDATE
-                SET status = 'linked', transaction_id = EXCLUDED.transaction_id, movement_id = EXCLUDED.movement_id,
-                    error_code = NULL, error_detail = NULL, updated_at = NOW()
-                """,
-                (str(rule_id), user_id, payload.scheduled_for, transaction_id, transaction["movement_id"]),
-            )
+            debt_changed = link_transaction(cur, user_id, rule, payload.scheduled_for, transaction, method="owner")
             next_due = rule["next_due_date"]
             if not relink:
-                next_due = _advance(cur, rule, user_id, payday_day, payload.scheduled_for)
+                next_due = advance_rule(cur, rule, user_id, payday_day, payload.scheduled_for)
             conn.commit()
     return {"ok": True, "changed": True, "debt_changed": debt_changed, "next_due_date": next_due.isoformat()}
+
+
+@router.post("/{rule_id}/occurrences/unlink")
+def unlink_rule_occurrence(rule_id: UUID, payload: OccurrenceRequest, current_user: dict = Depends(get_current_user)):
+    """Undo a link; the occurrence is due again and this pair is never linked automatically again."""
+    user_id = current_user["id"]
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            rule = _lock_rule(cur, user_id, rule_id)
+            result = unlink_occurrence(cur, user_id, rule, payload.scheduled_for)
+            conn.commit()
+    return {"ok": True, **result}
 
 
 @router.post("/{rule_id}/occurrences/skip")
@@ -979,7 +912,7 @@ def skip_occurrence(rule_id: UUID, payload: OccurrenceRequest, current_user: dic
                 """,
                 (str(rule_id), user_id, payload.scheduled_for),
             )
-            next_due = _advance(cur, rule, user_id, payday_day, payload.scheduled_for)
+            next_due = advance_rule(cur, rule, user_id, payday_day, payload.scheduled_for)
             conn.commit()
     return {"ok": True, "changed": True, "next_due_date": next_due.isoformat()}
 

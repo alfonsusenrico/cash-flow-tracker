@@ -12,6 +12,9 @@ describe("queryKeys", () => {
     expect(queryKeys.dashboard.netWorth.slice(0, 1)).toEqual(
       queryKeys.dashboard.all,
     );
+    expect(queryKeys.dashboard.periodComparison("month", -1).slice(0, 1)).toEqual(queryKeys.dashboard.all);
+    expect(queryKeys.dashboard.cashFlowHistory("cycle").slice(0, 1)).toEqual(queryKeys.dashboard.all);
+    expect(queryKeys.dashboard.recurringCharges.slice(0, 1)).toEqual(queryKeys.dashboard.all);
   });
 
   it("groups ledger results under the transaction invalidation prefix", () => {

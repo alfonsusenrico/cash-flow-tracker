@@ -26,6 +26,7 @@ from app.services.capture_resolution import (
     resolved_kind,
 )
 from app.services.kakeibo import PILLARS
+from app.services.plan_occurrences import request_plan_linking
 from app.services.ledger_mutations import (
     create_bilateral_movement, delete_movement_rows, delete_transaction_rows, ensure_generic_movement_accounts,
     lock_owned_accounts,
@@ -384,6 +385,7 @@ def store_capture(user_id: str, request: dict, model: dict | None, classifier: s
             view = capture_view(cur, user_id, stored)
         conn.commit()
     log_capture("submitted", stored)
+    request_plan_linking(user_id)
     return view
 
 
@@ -527,6 +529,7 @@ def answer_capture(user_id: str, capture_id: str, raw: dict) -> dict:
             view = capture_view(cur, user_id, stored)
         conn.commit()
     log_capture("answered", stored)
+    request_plan_linking(user_id)
     return view
 
 

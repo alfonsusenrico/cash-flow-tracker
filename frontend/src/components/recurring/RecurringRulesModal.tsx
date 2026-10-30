@@ -9,7 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { FormSection } from "@/components/ui/FormField";
 import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
-import { RecurringRule } from "@/types/recurring";
+import { ExpensePlanDraft, RecurringRule } from "@/types/recurring";
 import { queryKeys } from "@/lib/queryKeys";
 import { listLiquidAccountChoices } from "@/lib/accountOptions";
 import { parseRecurringRuleForm } from "@/lib/recurringForm";
@@ -19,9 +19,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   investmentDraft?: InvestmentScheduleDraft | null;
+  expenseDraft?: ExpensePlanDraft | null;
 }
 
-export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
+export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDraft }: Props) {
   const qc = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<"list" | "create">("list");
@@ -134,12 +135,32 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
     setFormError("");
     setActiveTab("create");
   }, [open, investmentDraft]);
+  useEffect(() => {
+    if (!open) return;
+    if (!expenseDraft || draftInitialized.current) return;
+    draftInitialized.current = true;
+    setEditingRuleId(null);
+    setType("expense");
+    setName(expenseDraft.name.slice(0, 100));
+    setAmountStr(formatNumberWithDots(expenseDraft.amount));
+    setSourceAccountId(expenseDraft.source_account_id);
+    setTargetAccountId("");
+    setCategoryId(expenseDraft.category_id ?? "");
+    setObligationId("");
+    setScheduleType(expenseDraft.schedule_type);
+    setScheduleDay(expenseDraft.schedule_day);
+    setLegacyPaydaySchedule(false);
+    setIsActive(true);
+    setNotes("");
+    setFormError("");
+    setActiveTab("create");
+  }, [open, expenseDraft]);
   const categories = categoriesData?.categories ?? [];
   const obligations = (obligationsData?.obligations ?? []).filter((o: any) => !o.is_archived);
 
   useEffect(() => {
     if (!open || liquidAccounts.length === 0) return;
-    if (investmentDraft && activeTab !== "create") return;
+    if ((investmentDraft || expenseDraft) && activeTab !== "create") return;
     const sourceChoices = liquidAccounts;
     const getAccountId = (account: any) => String(account.id ?? account.account_id ?? "");
     const firstSourceId = getAccountId(sourceChoices[0]);
@@ -158,7 +179,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
       const target = targetChoices.find((account) => getAccountId(account) !== effectiveSourceId);
       return target ? getAccountId(target) : "";
     });
-  }, [liquidAccounts, targetChoices, open, sourceAccountId, investmentDraft, activeTab]);
+  }, [liquidAccounts, targetChoices, open, sourceAccountId, investmentDraft, expenseDraft, activeTab]);
 
   // Filter rules
   const filteredRules = rules.filter((r) => {
@@ -208,6 +229,8 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.recurring.all });
+      // Plans feed dashboard commitments and the "sudah ada rencana" marks on detected charges.
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       setActiveTab("list");
       setName("");
       setAmountStr("");

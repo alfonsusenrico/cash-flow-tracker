@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.routers.dashboard import get_timeframe_window
 from app.routers.goals import format_goal_row
 from app.routers.obligations import format_obligation_row
+from app.services.essential_cost import EssentialCost
 from app.services.salary_cycles import SalaryCycle
 
 
@@ -174,6 +175,9 @@ def test_settings_routes_and_method_parity():
 
 
 def test_zero_balance_runway_calculations():
+    """Zero balance is zero coverage when the cost is known; a known zero cost never becomes 999 days."""
+    essential = EssentialCost(5_000_000, 5_000_000, 0, "need_budget")
+    zero_cost = EssentialCost(0, 0, 0, "median_need_periods", [{"amount": 0}])
     with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
@@ -191,7 +195,8 @@ def test_zero_balance_runway_calculations():
             # 1. Zero liquid balance - net-worth
             with patch("app.routers.dashboard.get_accounts_with_balances") as mock_accounts, \
                  patch("app.routers.dashboard.db_conn") as mock_dash_conn, \
-                 patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")):
+                 patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")), \
+                 patch("app.routers.dashboard.estimate_essential_cost", return_value=essential):
                 mock_accounts.return_value = [
                     {"id": "a1", "name": "Cash", "type": "cash", "balance": 0, "is_archived": False}
                 ]
@@ -211,7 +216,8 @@ def test_zero_balance_runway_calculations():
             # 2. Zero liquid balance - overview
             with patch("app.routers.dashboard.get_accounts_with_balances") as mock_accounts, \
                  patch("app.routers.dashboard.db_conn") as mock_dash_conn, \
-                 patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")):
+                 patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")), \
+                 patch("app.routers.dashboard.estimate_essential_cost", return_value=essential):
                 mock_accounts.return_value = [
                     {"id": "a1", "name": "Cash", "type": "cash", "balance": 0, "is_archived": False}
                 ]
@@ -239,7 +245,8 @@ def test_zero_balance_runway_calculations():
             # 3. Positive balance with zero burn - net-worth
             with patch("app.routers.dashboard.get_accounts_with_balances") as mock_accounts, \
                  patch("app.routers.dashboard.db_conn") as mock_dash_conn, \
-                 patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")):
+                 patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")), \
+                 patch("app.routers.dashboard.estimate_essential_cost", return_value=zero_cost):
                 mock_accounts.return_value = [
                     {"id": "a1", "name": "BCA", "type": "bank", "balance": 10000000, "is_archived": False}
                 ]
@@ -257,13 +264,16 @@ def test_zero_balance_runway_calculations():
                 assert res_nw.status_code == 200
                 nw_json = res_nw.json()
                 assert nw_json["total_assets"] == 10000000
-                assert nw_json["runway"]["runway_days"] == 999
-                assert nw_json["runway"]["status"] == "healthy"
+                assert nw_json["runway"]["runway_days"] is None
+                assert nw_json["runway"]["coverage_months"] is None
+                assert nw_json["runway"]["status"] == "unknown"
+                assert nw_json["runway"]["coverage_unavailable_reason"] == "essential_cost_zero"
 
             # 4. Positive balance with zero burn - overview
             with patch("app.routers.dashboard.get_accounts_with_balances") as mock_accounts, \
                  patch("app.routers.dashboard.db_conn") as mock_dash_conn, \
-                 patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")):
+                 patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")), \
+                 patch("app.routers.dashboard.estimate_essential_cost", return_value=zero_cost):
                 mock_accounts.return_value = [
                     {"id": "a1", "name": "BCA", "type": "bank", "balance": 10000000, "is_archived": False}
                 ]
@@ -286,7 +296,8 @@ def test_zero_balance_runway_calculations():
                 assert res_ov.status_code == 200
                 ov_json = res_ov.json()
                 assert ov_json["kpis"]["liquid_net_worth"] == 10000000
-                assert ov_json["kpis"]["runway_days"] == 999
+                assert ov_json["kpis"]["runway_days"] is None
+                assert ov_json["kpis"]["runway_status"] == "unknown"
 
         app.dependency_overrides.clear()
 
@@ -733,13 +744,11 @@ def test_calculate_ketahanan_dana_logic():
             {"goal_id": "goal-darurat", "account_id": "acc-emas"},
         ],
     ]
-    cur.fetchone.side_effect = [
-        {"primary_spent_30d": 8000000},   # primary 30d spend
-        {"primary_budget": 9000000},      # primary budget fallback
-        {"monthly_commitments": 2000000}, # obligations
-    ]
-
-    r1 = calculate_ketahanan_dana(cur, user_id, total_liquid, accounts)
+    # Essential cost: median living cost 8M + debt minimums 2M.
+    r1 = calculate_ketahanan_dana(
+        cur, user_id, total_liquid, accounts,
+        essential=EssentialCost(10_000_000, 8_000_000, 2_000_000, "median_need_periods", [{"amount": 8_000_000}] * 3),
+    )
     assert r1["is_flagged"] is True
     assert r1["emergency_fund_balance"] == 60000000
     assert r1["monthly_primary_expense"] == 10000000
@@ -752,13 +761,8 @@ def test_calculate_ketahanan_dana_logic():
         [{"id": "goal-darurat", "name": "Dana Darurat", "current_amount": 15000000, "is_emergency": True}],
         [],  # no linked accounts, uses current_amount
     ]
-    cur.fetchone.side_effect = [
-        {"primary_spent_30d": 5000000},
-        {"primary_budget": 0},
-        {"monthly_commitments": 0},
-    ]
-
-    r2 = calculate_ketahanan_dana(cur, user_id, 15000000, accounts)
+    five_million = EssentialCost(5_000_000, 5_000_000, 0, "median_need_periods", [{"amount": 5_000_000}] * 3)
+    r2 = calculate_ketahanan_dana(cur, user_id, 15000000, accounts, essential=five_million)
     assert r2["emergency_fund_balance"] == 15000000
     assert r2["monthly_primary_expense"] == 5000000
     assert r2["runway_months"] == 3.0
@@ -769,13 +773,7 @@ def test_calculate_ketahanan_dana_logic():
         [{"id": "goal-darurat", "name": "Dana Darurat", "current_amount": 5000000, "is_emergency": True}],
         [],
     ]
-    cur.fetchone.side_effect = [
-        {"primary_spent_30d": 5000000},
-        {"primary_budget": 0},
-        {"monthly_commitments": 0},
-    ]
-
-    r3 = calculate_ketahanan_dana(cur, user_id, 5000000, accounts)
+    r3 = calculate_ketahanan_dana(cur, user_id, 5000000, accounts, essential=five_million)
     assert r3["runway_months"] == 1.0
     assert r3["status"] == "critical"
 
@@ -784,13 +782,7 @@ def test_calculate_ketahanan_dana_logic():
         [{"id": "goal-darurat", "name": "Dana Darurat", "current_amount": 0, "is_emergency": True}],
         [],
     ]
-    cur.fetchone.side_effect = [
-        {"primary_spent_30d": 5000000},
-        {"primary_budget": 0},
-        {"monthly_commitments": 0},
-    ]
-
-    r4 = calculate_ketahanan_dana(cur, user_id, 0, accounts)
+    r4 = calculate_ketahanan_dana(cur, user_id, 0, accounts, essential=five_million)
     assert r4["emergency_fund_balance"] == 0
     assert r4["runway_months"] == 0.0
     assert r4["runway_days"] == 0
@@ -888,13 +880,10 @@ def test_calculate_ketahanan_dana_deduplication():
             {"goal_id": "g-darurat", "account_id": child_id},
         ],
     ]
-    cur.fetchone.side_effect = [
-        {"primary_spent_30d": 5000000},
-        {"primary_budget": 0},
-        {"monthly_commitments": 0},
-    ]
-
-    res = calculate_ketahanan_dana(cur, user_id, 11400615, accounts)
+    res = calculate_ketahanan_dana(
+        cur, user_id, 11400615, accounts,
+        essential=EssentialCost(5_000_000, 5_000_000, 0, "median_need_periods", [{"amount": 5_000_000}] * 3),
+    )
     # Must equal parent balance (11,400,615), NOT double-counted with child (17,112,727)
     assert res["emergency_fund_balance"] == 11400615
 

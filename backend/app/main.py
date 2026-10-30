@@ -24,6 +24,7 @@ from app.routers.recurring import router as recurring_router
 from app.routers.history_suggestions import router as history_suggestions_router
 from app.routers.review import router as review_router
 from app.routers.salary import router as salary_router
+from app.services.plan_occurrences import link_requested_plans, process_due_plan_links, set_plan_link_waker
 from app.services.salary_receipts import process_sources as process_salary_sources
 from app.routers.transactions import router as transactions_router
 
@@ -98,21 +99,50 @@ async def _daily_price_sync_loop():
             break
 
 
-async def _salary_detection_loop():
+async def _ledger_matching_loop():
+    """Salary detection and the plan auto-linking sweep, one bounded page of owners at a time."""
     await asyncio.sleep(15)
-    cursor = None
+    salary_cursor = None
+    plan_cursor = None
     while True:
         try:
-            cursor = await asyncio.to_thread(process_salary_sources, cursor)
+            salary_cursor = await asyncio.to_thread(process_salary_sources, salary_cursor)
         except asyncio.CancelledError:
             break
         except Exception as exc:
             logger.warning("Salary detection unavailable: %s", type(exc).__name__)
-            cursor = None
+            salary_cursor = None
+        if settings.plan_auto_link_enabled:
+            try:
+                plan_cursor = await asyncio.to_thread(process_due_plan_links, plan_cursor)
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.warning("Plan auto-linking unavailable: %s", type(exc).__name__)
+                plan_cursor = None
         try:
-            await asyncio.sleep(5 if cursor else 60)
+            await asyncio.sleep(5 if salary_cursor or plan_cursor else 60)
         except asyncio.CancelledError:
             break
+
+
+async def _plan_link_request_loop():
+    """Check an owner's due plans soon after a recording, without delaying the recording itself."""
+    loop = asyncio.get_running_loop()
+    wake = asyncio.Event()
+    set_plan_link_waker(lambda: loop.call_soon_threadsafe(wake.set))
+    try:
+        while True:
+            await wake.wait()
+            wake.clear()
+            try:
+                await asyncio.to_thread(link_requested_plans)
+            except Exception as exc:
+                logger.warning("Plan auto-linking unavailable: %s", type(exc).__name__)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        set_plan_link_waker(None)
 
 
 async def _movement_repair_loop():
@@ -163,7 +193,9 @@ async def lifespan(app: FastAPI):
     )
     if not dry_run_only:
         tasks.append(asyncio.create_task(_daily_price_sync_loop()))
-        tasks.append(asyncio.create_task(_salary_detection_loop()))
+        tasks.append(asyncio.create_task(_ledger_matching_loop()))
+        if settings.plan_auto_link_enabled:
+            tasks.append(asyncio.create_task(_plan_link_request_loop()))
         tasks.append(asyncio.create_task(notification_worker(worker_provider)))
         if settings.movement_pairing_configuration_error:
             logger.warning("Movement pairing configuration invalid; fee tolerance and re-pairing are disabled")

@@ -15,6 +15,11 @@ export interface LedgerFilters {
   type: LedgerTypeFilter;
   account: string;
   review: LedgerReviewFilter;
+  /** ISO instants of an exact window from a report link; ignored with a period. */
+  from: string | null;
+  to: string | null;
+  /** Search text from a report link, such as a merchant name. */
+  q: string;
 }
 
 export const DEFAULT_LEDGER_FILTERS: LedgerFilters = {
@@ -25,12 +30,21 @@ export const DEFAULT_LEDGER_FILTERS: LedgerFilters = {
   type: "all",
   account: "all",
   review: "all",
+  from: null,
+  to: null,
+  q: "",
 };
 
 // Matches the backend's period_offset bounds.
 const MIN_OFFSET = -36;
 const MAX_OFFSET = 12;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ISO_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})$/;
+const MAX_SEARCH_LENGTH = 100;
+
+function instantOrNull(value: string | null): string | null {
+  return value && ISO_INSTANT_PATTERN.test(value) && !Number.isNaN(Date.parse(value)) ? value : null;
+}
 
 function oneOf<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
   return value && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
@@ -45,6 +59,7 @@ export function parseLedgerFilters(params: URLSearchParams | null): LedgerFilter
   const category = params.get("category");
   const account = params.get("account");
   const kakeibo = params.get("kakeibo");
+  const ranged = period === "all";
   return {
     period,
     offset,
@@ -53,6 +68,9 @@ export function parseLedgerFilters(params: URLSearchParams | null): LedgerFilter
     type: oneOf(params.get("type"), ["expense", "income"] as const, "all"),
     account: account && UUID_PATTERN.test(account) ? account : "all",
     review: oneOf(params.get("review"), ["needs_review", "auto", "reviewed"] as const, "all"),
+    from: ranged ? instantOrNull(params.get("from")) : null,
+    to: ranged ? instantOrNull(params.get("to")) : null,
+    q: (params.get("q") ?? "").trim().slice(0, MAX_SEARCH_LENGTH),
   };
 }
 
@@ -69,6 +87,9 @@ export function ledgerFilterQuery(filters: Partial<LedgerFilters>): string {
   if (merged.type !== "all") params.set("type", merged.type);
   if (merged.account !== "all") params.set("account", merged.account);
   if (merged.review !== "all") params.set("review", merged.review);
+  if (merged.period === "all" && merged.from) params.set("from", merged.from);
+  if (merged.period === "all" && merged.to) params.set("to", merged.to);
+  if (merged.q) params.set("q", merged.q);
   return params.toString();
 }
 
@@ -90,12 +111,18 @@ export function ledgerApiParams(filters: LedgerFilters): URLSearchParams {
   if (filters.type !== "all") params.set("type", filters.type);
   if (filters.account !== "all") params.set("account_id", filters.account);
   if (filters.review !== "all") params.set("review_status", filters.review);
+  if (filters.period === "all" && filters.from) params.set("from_date", filters.from);
+  if (filters.period === "all" && filters.to) params.set("to_date", filters.to);
   return params;
+}
+
+export function hasDateRange(filters: LedgerFilters): boolean {
+  return filters.period === "all" && Boolean(filters.from || filters.to);
 }
 
 export function hasRowFilters(filters: LedgerFilters): boolean {
   return filters.category !== "all" || filters.kakeibo !== "all" || filters.type !== "all"
-    || filters.account !== "all" || filters.review !== "all";
+    || filters.account !== "all" || filters.review !== "all" || hasDateRange(filters);
 }
 
 /** A report period of the dashboard (`timeframe` + `cycle_offset`) as ledger filters; null for rolling windows. */

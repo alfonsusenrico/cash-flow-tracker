@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { fmtMoney } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
-import { DueExpectation, OccurrenceCandidate } from "@/types/recurring";
+import { AutoLinkedOccurrence, DueExpectation, OccurrenceCandidate } from "@/types/recurring";
 
 interface Props {
   onOpenRulesManager?: () => void;
@@ -19,9 +19,19 @@ type OccurrenceAction =
 
 const MATCH_TEXT: Record<DueExpectation["match_state"], string> = {
   none: "Belum ada transaksi tercatat dengan nominal yang sama.",
-  single: "Ada satu transaksi dengan nominal sama. Periksa sebelum mengaitkan.",
+  single: "Ada satu transaksi dengan nominal sama, tetapi belum memenuhi syarat tautan otomatis (rekening, tanggal, atau rencana lain). Periksa sebelum mengaitkan.",
   ambiguous: "Beberapa transaksi bernominal sama. Pilih yang benar; tidak ada yang dikaitkan otomatis.",
 };
+
+function shortDay(value: string) {
+  return new Date(value).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+}
+
+function autoLinkLabel(link: AutoLinkedOccurrence) {
+  const evidence = link.merchant || link.notes || link.account_name || "transaksi tercatat";
+  const day = link.transaction_date ? shortDay(link.transaction_date) : "transaksi dihapus";
+  return `${day} · ${fmtMoney(link.amount)} · ${evidence}`;
+}
 
 function candidateLabel(candidate: OccurrenceCandidate) {
   const day = new Date(candidate.date).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
@@ -33,12 +43,19 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
   const qc = useQueryClient();
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { data } = useQuery<{ ok: boolean; pending_count: number; rules: DueExpectation[] }>({
+  const { data } = useQuery<{
+    ok: boolean;
+    pending_count: number;
+    rules: DueExpectation[];
+    recent_auto_links?: AutoLinkedOccurrence[];
+  }>({
     queryKey: queryKeys.recurring.pending,
     queryFn: () => api.get("/recurring/pending"),
     refetchInterval: 30000,
   });
   const dueRules = data?.rules ?? [];
+  const autoLinks = data?.recent_auto_links ?? [];
+  const [unlinkErrors, setUnlinkErrors] = useState<Record<string, string>>({});
 
   const occurrence = useMutation({
     mutationFn: async (action: OccurrenceAction) => {
@@ -65,118 +82,185 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
     },
   });
 
-  if (dueRules.length === 0) return null;
+  const unlink = useMutation({
+    mutationFn: async (link: AutoLinkedOccurrence) =>
+      api.post(`/recurring/${link.rule_id}/occurrences/unlink`, { scheduled_for: link.scheduled_for }),
+    onMutate: (link) => setUnlinkErrors((current) => ({ ...current, [linkKey(link)]: "" })),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.recurring.all });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      qc.invalidateQueries({ queryKey: queryKeys.obligations });
+    },
+    onError: (error: Error, link) => {
+      setUnlinkErrors((current) => ({ ...current, [linkKey(link)]: error.message || "Tautan belum dibatalkan. Coba lagi." }));
+    },
+  });
+
+  if (dueRules.length === 0 && autoLinks.length === 0) return null;
 
   return (
-    <section
-      aria-labelledby="due-plans-title"
-      className="space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[var(--text)] sm:p-5"
-    >
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-        <div className="flex items-start gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300">
-            <Icon name="clock" className="h-4 w-4" />
-          </div>
+    <div className="space-y-3">
+      {autoLinks.length > 0 && (
+        <section aria-labelledby="auto-linked-title" className="space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 text-xs text-[var(--text)] sm:p-5">
           <div>
-            <h2 id="due-plans-title" className="text-xs font-bold sm:text-sm">
-              {dueRules.length} rencana jatuh tempo
-            </h2>
-            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-              Rencana tidak mengubah saldo. Kaitkan transaksi yang sudah tercatat, lewati jika tidak terjadi, atau catat
-              manual hanya jika notifikasinya terlewat.
+            <h2 id="auto-linked-title" className="text-xs font-bold sm:text-sm">Ditautkan otomatis</h2>
+            <p className="mt-0.5 text-[var(--text-secondary)]">
+              Satu-satunya transaksi tercatat yang sama persis (rekening, nominal, sekitar jatuh tempo) dikaitkan ke rencana
+              ini. Batalkan jika keliru; transaksi itu tidak akan dikaitkan otomatis lagi ke rencana yang sama.
             </p>
           </div>
+          <ul className="space-y-2 border-t border-[var(--border)] pt-2">
+            {autoLinks.map((link) => {
+              const key = linkKey(link);
+              const busy = unlink.isPending && unlink.variables && linkKey(unlink.variables) === key;
+              return (
+                <li key={key} className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">
+                      {link.name}
+                      {link.obligation_name && link.obligation_name !== link.name ? ` · ${link.obligation_name}` : ""}
+                    </p>
+                    <p className="text-[var(--text-secondary)]">
+                      <span className="mr-1 inline-flex rounded-full border border-sky-500/30 bg-sky-500/10 px-1.5 font-semibold text-sky-800 dark:text-sky-200">
+                        Ditautkan otomatis
+                      </span>
+                      <span className="tabular-nums">Jatuh tempo {shortDay(`${link.scheduled_for}T00:00:00`)} · {autoLinkLabel(link)}</span>
+                    </p>
+                    {unlinkErrors[key] && (
+                      <p role="alert" className="font-medium text-rose-700 dark:text-rose-300">{unlinkErrors[key]}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={Boolean(busy)}
+                    onClick={() => unlink.mutate(link)}
+                    aria-label={`Batalkan tautan ${link.name} jatuh tempo ${link.scheduled_for}`}
+                    className="min-h-11 shrink-0 rounded-lg border border-[var(--border)] px-3 font-semibold disabled:opacity-50"
+                  >
+                    Batalkan tautan
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+      {dueRules.length > 0 && (
+      <section
+        aria-labelledby="due-plans-title"
+        className="space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[var(--text)] sm:p-5"
+      >
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+          <div className="flex items-start gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300">
+              <Icon name="clock" className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 id="due-plans-title" className="text-xs font-bold sm:text-sm">
+                {dueRules.length} rencana jatuh tempo
+              </h2>
+              <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+                Rencana tidak mengubah saldo. Kaitkan transaksi yang sudah tercatat, lewati jika tidak terjadi, atau catat
+                manual hanya jika notifikasinya terlewat.
+              </p>
+            </div>
+          </div>
+          {onOpenRulesManager && (
+            <button
+              type="button"
+              onClick={onOpenRulesManager}
+              className="min-h-11 self-start rounded-xl border border-amber-500/30 px-3 text-xs font-semibold text-amber-800 hover:bg-amber-500/20 dark:text-amber-200"
+            >
+              Kelola rencana
+            </button>
+          )}
         </div>
-        {onOpenRulesManager && (
-          <button
-            type="button"
-            onClick={onOpenRulesManager}
-            className="min-h-11 self-start rounded-xl border border-amber-500/30 px-3 text-xs font-semibold text-amber-800 hover:bg-amber-500/20 dark:text-amber-200"
-          >
-            Kelola rencana
-          </button>
-        )}
-      </div>
 
-      <ul className="space-y-2 border-t border-amber-500/15 pt-2">
-        {dueRules.map((rule) => {
-          const isTransfer = rule.type === "transfer" || rule.type === "investment_topup";
-          const candidates = rule.candidates ?? [];
-          const busy = occurrence.isPending && occurrence.variables?.rule.id === rule.id;
-          const sameAmount = candidates.filter((item) => item.exact_amount);
-          const otherAmounts = candidates.filter((item) => !item.exact_amount);
-          const hasSameAmount = sameAmount.length > 0;
-          const renderCandidate = (candidate: OccurrenceCandidate) => (
-            <li key={candidate.id} className="flex min-w-0 items-center justify-between gap-2">
-              <span className="min-w-0 truncate tabular-nums">{candidateLabel(candidate)}</span>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => occurrence.mutate({ kind: "link", rule, transactionId: candidate.id })}
-                aria-label={`Kaitkan ${candidateLabel(candidate)} ke ${rule.name}`}
-                className="min-h-11 shrink-0 rounded-lg px-2 font-semibold underline underline-offset-2 disabled:opacity-50"
-              >
-                Kaitkan
-              </button>
-            </li>
-          );
-          return (
-            <li key={rule.id} className="min-w-0 space-y-2 rounded-xl border border-black/[0.06] bg-[var(--surface)]/80 p-3 text-xs dark:border-white/[0.06]">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <h3 className="truncate font-semibold">{rule.name}</h3>
-                  <p className="truncate text-[11px] text-[var(--muted)]">
-                    {isTransfer ? `${rule.source_account_name} → ${rule.target_account_name}` : rule.source_account_name}
-                    {rule.obligation_name ? ` · ${rule.obligation_name}` : ""}
-                  </p>
-                  <p className="text-[11px] tabular-nums text-[var(--muted)]">Jatuh tempo {rule.next_due_date}</p>
+        <ul className="space-y-2 border-t border-amber-500/15 pt-2">
+          {dueRules.map((rule) => {
+            const isTransfer = rule.type === "transfer" || rule.type === "investment_topup";
+            const candidates = rule.candidates ?? [];
+            const busy = occurrence.isPending && occurrence.variables?.rule.id === rule.id;
+            const sameAmount = candidates.filter((item) => item.exact_amount);
+            const otherAmounts = candidates.filter((item) => !item.exact_amount);
+            const hasSameAmount = sameAmount.length > 0;
+            const renderCandidate = (candidate: OccurrenceCandidate) => (
+              <li key={candidate.id} className="flex min-w-0 items-center justify-between gap-2">
+                <span className="min-w-0 truncate tabular-nums">{candidateLabel(candidate)}</span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => occurrence.mutate({ kind: "link", rule, transactionId: candidate.id })}
+                  aria-label={`Kaitkan ${candidateLabel(candidate)} ke ${rule.name}`}
+                  className="min-h-11 shrink-0 rounded-lg px-2 font-semibold underline underline-offset-2 disabled:opacity-50"
+                >
+                  Kaitkan
+                </button>
+              </li>
+            );
+            return (
+              <li key={rule.id} className="min-w-0 space-y-2 rounded-xl border border-black/[0.06] bg-[var(--surface)]/80 p-3 text-xs dark:border-white/[0.06]">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="truncate font-semibold">{rule.name}</h3>
+                    <p className="truncate text-[11px] text-[var(--muted)]">
+                      {isTransfer ? `${rule.source_account_name} → ${rule.target_account_name}` : rule.source_account_name}
+                      {rule.obligation_name ? ` · ${rule.obligation_name}` : ""}
+                    </p>
+                    <p className="text-[11px] tabular-nums text-[var(--muted)]">Jatuh tempo {rule.next_due_date}</p>
+                  </div>
+                  <span className="shrink-0 font-bold tabular-nums">{fmtMoney(rule.amount)}</span>
                 </div>
-                <span className="shrink-0 font-bold tabular-nums">{fmtMoney(rule.amount)}</span>
-              </div>
 
-              <p className="text-[var(--text-secondary)]">{MATCH_TEXT[rule.match_state]}</p>
-              {sameAmount.length > 0 && (
-                <ul aria-label={`Transaksi bernominal sama untuk ${rule.name}`} className="min-w-0 space-y-1">
-                  {sameAmount.map(renderCandidate)}
-                </ul>
-              )}
-              {otherAmounts.length > 0 && (
-                <details className="min-w-0">
-                  <summary className="flex min-h-11 cursor-pointer items-center font-semibold">
-                    Transaksi lain di sekitar jatuh tempo ({otherAmounts.length})
-                  </summary>
-                  <ul className="min-w-0 space-y-1">{otherAmounts.map(renderCandidate)}</ul>
-                </details>
-              )}
+                <p className="text-[var(--text-secondary)]">{MATCH_TEXT[rule.match_state]}</p>
+                {sameAmount.length > 0 && (
+                  <ul aria-label={`Transaksi bernominal sama untuk ${rule.name}`} className="min-w-0 space-y-1">
+                    {sameAmount.map(renderCandidate)}
+                  </ul>
+                )}
+                {otherAmounts.length > 0 && (
+                  <details className="min-w-0">
+                    <summary className="flex min-h-11 cursor-pointer items-center font-semibold">
+                      Transaksi lain di sekitar jatuh tempo ({otherAmounts.length})
+                    </summary>
+                    <ul className="min-w-0 space-y-1">{otherAmounts.map(renderCandidate)}</ul>
+                  </details>
+                )}
 
-              <div className="flex flex-wrap gap-2 border-t border-[var(--border)] pt-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => occurrence.mutate({ kind: "skip", rule })}
-                  className="min-h-11 rounded-lg border border-[var(--border)] px-3 font-semibold disabled:opacity-50"
-                >
-                  Lewati kali ini
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => occurrence.mutate({ kind: "record", rule })}
-                  className="min-h-11 rounded-lg border border-[var(--border)] px-3 font-semibold disabled:opacity-50"
-                >
-                  {hasSameAmount ? "Bukan salah satunya, catat manual" : "Catat manual (tidak tertangkap)"}
-                </button>
-              </div>
-              {rule.type === "investment_topup" && <p className="text-[var(--muted)]">Catat top up hanya setelah debit berhasil.</p>}
-              {errors[rule.id] && (
-                <p role="alert" className="font-medium text-rose-700 dark:text-rose-300">
-                  {errors[rule.id]}
-                </p>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+                <div className="flex flex-wrap gap-2 border-t border-[var(--border)] pt-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => occurrence.mutate({ kind: "skip", rule })}
+                    className="min-h-11 rounded-lg border border-[var(--border)] px-3 font-semibold disabled:opacity-50"
+                  >
+                    Lewati kali ini
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => occurrence.mutate({ kind: "record", rule })}
+                    className="min-h-11 rounded-lg border border-[var(--border)] px-3 font-semibold disabled:opacity-50"
+                  >
+                    {hasSameAmount ? "Bukan salah satunya, catat manual" : "Catat manual (tidak tertangkap)"}
+                  </button>
+                </div>
+                {rule.type === "investment_topup" && <p className="text-[var(--muted)]">Catat top up hanya setelah debit berhasil.</p>}
+                {errors[rule.id] && (
+                  <p role="alert" className="font-medium text-rose-700 dark:text-rose-300">
+                    {errors[rule.id]}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+      )}
+    </div>
   );
+}
+
+function linkKey(link: AutoLinkedOccurrence) {
+  return `${link.rule_id}:${link.scheduled_for}`;
 }

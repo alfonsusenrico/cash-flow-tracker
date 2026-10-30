@@ -28,6 +28,8 @@ os.environ.setdefault("INVITE_CODE", "TESTCODE")
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("COOKIE_SECURE", "false")
 os.environ.setdefault("REDIS_URL", "")
+# Tests run plan auto-linking explicitly so background passes never race their assertions.
+os.environ.setdefault("PLAN_AUTO_LINK_ENABLED", "false")
 
 import pytest
 from fastapi.testclient import TestClient

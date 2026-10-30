@@ -10,6 +10,7 @@ from app.routers.dashboard import (
     generate_financial_narrative,
     get_kakeibo_breakdown,
 )
+from app.services.essential_cost import EssentialCost
 from app.services.reimbursements import SpendingOffsets
 from app.services.salary_cycles import SalaryCycle
 
@@ -115,6 +116,7 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
              patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")), \
              patch("app.routers.dashboard.load_spending_offsets", return_value=SpendingOffsets()), \
              patch("app.routers.dashboard.category_breakdown") as mock_breakdown, \
+             patch("app.routers.dashboard.estimate_essential_cost", return_value=EssentialCost(4_000_000, 4_000_000, 0, "need_budget")), \
              patch("app.routers.dashboard.get_accounts_with_balances") as mock_accs:
 
             mock_accs.return_value = [
@@ -123,11 +125,8 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
 
             # Sequential DB calls inside get_dashboard_overview:
             # 1. totals_row: inflow 10m, outflow 8m, tx_count 12
-            # 2. calculate_ketahanan_dana: goals fetchall
-            # 3. primary_spent_30d
-            # 4. primary_budget
-            # 5. obligations
-            # 6. cat_budget
+            # 2. calculate_ketahanan_dana: goals fetchall (essential cost patched)
+            # 3. cat_budget
             # 7. expectations due within the commitment window: 500k
             # 8. grouped_days (trendline)
             # 9. category_breakdown (patched)
@@ -141,9 +140,6 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
 
             mock_cur.fetchone.side_effect = [
                 {"inflow": 10_000_000, "outflow": 8_000_000, "tx_count": 12},  # totals_row
-                {"primary_spent_30d": 4_000_000},                              # primary_spent_30d
-                {"primary_budget": 4_000_000},                                # primary_budget
-                {"monthly_commitments": 0},                                   # obligations
                 {"total_budget": 10_000_000},                                 # cat_budget
                 {"inflow": 9_000_000, "outflow": 6_400_000, "tx_count": 10},  # prev_totals_row
                 {"saving_transfers": 1_000_000},                              # kakeibo saving transfers

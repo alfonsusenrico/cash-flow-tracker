@@ -13,6 +13,13 @@ import { Icon } from "@/components/ui/Icon";
 import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { AccountOptions } from "@/components/ui/AccountOptions";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
+import {
+  EmergencyCoverageBasis,
+  coverageText,
+  coverageTone,
+  essentialBasisText,
+  type EmergencyRunway,
+} from "@/components/dashboard/EmergencyCoverage";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { InvestmentTradeModal } from "@/components/ui/InvestmentTradeModal";
 import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
@@ -87,16 +94,7 @@ interface NetWorthResponse {
   total_liabilities: number;
   accounts: any[];
   obligations: any[];
-  runway: {
-    daily_burn_rate: number;
-    runway_days: number;
-    runway_months: number;
-    status: "healthy" | "moderate" | "critical" | "zero";
-    emergency_fund_balance?: number;
-    monthly_primary_expense?: number;
-    is_flagged?: boolean;
-    emergency_goal_names?: string[];
-  };
+  runway: EmergencyRunway;
 }
 
 export default function AccountsPage() {
@@ -1063,32 +1061,11 @@ export default function AccountsPage() {
           {runway && (
             <span
               className={cn(
-                "text-xs px-3 py-1 rounded-full font-bold border inline-flex items-center gap-1.5 shadow-2xs",
-                totalAssets <= 0 || runway.status === "zero"
-                  ? "bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border-zinc-500/20"
-                  : runway.status === "healthy"
-                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                  : runway.status === "moderate"
-                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                "text-xs px-3 py-1 rounded-full font-bold border inline-flex items-center gap-1.5 shadow-2xs tabular",
+                coverageTone(runway.status)
               )}
             >
-              <span
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full",
-                  runway.status === "healthy"
-                    ? "bg-emerald-500"
-                    : runway.status === "moderate"
-                    ? "bg-amber-500"
-                    : "bg-rose-500"
-                )}
-              />
-              Ketahanan Dana:{" "}
-              {totalAssets <= 0 || runway.status === "zero"
-                ? `0 Hari (${bal(0)})`
-                : runway.runway_months >= 99
-                ? "> 12x Biaya Hidup"
-                : `${runway.runway_months}x Biaya Hidup (${runway.runway_days > 365 ? "> 1 Thn" : `${runway.runway_days} Hari`})`}
+              Ketahanan Dana: {coverageText(runway)}
             </span>
           )}
         </div>
@@ -1125,14 +1102,16 @@ export default function AccountsPage() {
           <div>
             <div className="text-[10px] text-[var(--muted)] uppercase tracking-wider font-bold">Biaya Hidup Pokok Bulanan</div>
             <div className="text-base sm:text-lg font-black text-[var(--text)] mt-0.5 tabular select-all">
-              {bal(runway?.monthly_primary_expense ?? (runway?.daily_burn_rate ?? 0) * 30)}/bln
+              {runway?.monthly_primary_expense == null ? "Belum diketahui" : `${bal(runway.monthly_primary_expense)}/bln`}
             </div>
             <div className="text-[10px] text-[var(--muted)] opacity-75 mt-0.5">
-              {runway?.is_flagged ? "Target Dana Darurat Terhubung" : "Pengeluaran Pokok 30 Hari"}
+              {essentialBasisText(runway?.essential_cost)}
             </div>
           </div>
         </div>
       </div>
+
+      {runway && <EmergencyCoverageBasis runway={runway} bal={bal} />}
 
       {/* 3. Liquidity Distribution Bar */}
       <div className="card-squircle p-5 sm:p-6 space-y-3.5 shadow-xs">
@@ -1211,31 +1190,10 @@ export default function AccountsPage() {
               <span
                 className={cn(
                   "text-[10px] px-2.5 py-0.5 rounded-full font-bold border inline-flex items-center gap-1.5 shadow-2xs tabular",
-                  totalAssets <= 0 || runway.status === "zero"
-                    ? "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"
-                    : runway.status === "healthy"
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                    : runway.status === "moderate"
-                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                    : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                  coverageTone(runway.status)
                 )}
               >
-                <span
-                  className={cn(
-                    "h-1.5 w-1.5 rounded-full",
-                    runway.status === "healthy"
-                      ? "bg-emerald-500"
-                      : runway.status === "moderate"
-                      ? "bg-amber-500"
-                      : "bg-rose-500"
-                  )}
-                />
-                Ketahanan:{" "}
-                {totalAssets <= 0 || runway.status === "zero"
-                  ? "0 Hari"
-                  : runway.runway_months >= 99
-                  ? "> 12x Biaya Hidup"
-                  : `${runway.runway_months}x (${runway.runway_days > 365 ? "> 1 Thn" : `${runway.runway_days} Hari`})`}
+                Ketahanan: {coverageText(runway)}
               </span>
             )}
           </div>
@@ -1264,7 +1222,7 @@ export default function AccountsPage() {
             <div className="text-right">
               <span className="text-[10px] text-[var(--muted)] block">Biaya Pokok</span>
               <span className="font-bold text-[var(--text)]">
-                {bal(runway?.monthly_primary_expense ?? (runway?.daily_burn_rate ?? 0) * 30)}/bln
+                {runway?.monthly_primary_expense == null ? "Belum diketahui" : `${bal(runway.monthly_primary_expense)}/bln`}
               </span>
             </div>
           </div>
@@ -1285,6 +1243,8 @@ export default function AccountsPage() {
             </div>
           </div>
         </div>
+
+        {runway && <EmergencyCoverageBasis runway={runway} bal={bal} />}
 
         {/* 2. Account Type Segmented Filter Chips */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">

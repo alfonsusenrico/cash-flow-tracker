@@ -39,6 +39,42 @@ describe("PendingScheduledBanner", () => {
     vi.mocked(api.post).mockResolvedValue({ ok: true });
   });
 
+  it("labels automatic links and undoes one on request", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      rules: [],
+      recent_auto_links: [{
+        rule_id: "bill-rule", scheduled_for: "2026-10-01", linked_at: "2026-10-02T01:00:00+00:00", name: "Listrik bulanan",
+        amount: 250_000, type: "expense", obligation_name: null, transaction_id: "tx-1",
+        transaction_date: "2026-10-02T03:00:00+00:00", merchant: "Listrik Contoh", notes: null, account_name: "BCA",
+      }],
+    });
+    const { container } = renderBanner();
+    const user = userEvent.setup();
+    expect(await screen.findByRole("heading", { name: "Ditautkan otomatis" })).toBeInTheDocument();
+    expect(screen.queryByText(/rencana jatuh tempo/)).not.toBeInTheDocument();
+    expect((await axe(container)).violations).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Batalkan tautan Listrik bulanan jatuh tempo 2026-10-01" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/recurring/bill-rule/occurrences/unlink", {
+      scheduled_for: "2026-10-01",
+    }));
+    expect(api.post).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a refused undo next to the link", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      rules: [],
+      recent_auto_links: [{
+        rule_id: "bill-rule", scheduled_for: "2026-10-01", linked_at: "2026-10-02T01:00:00+00:00", name: "Listrik bulanan",
+        amount: 250_000, type: "expense", transaction_id: null, transaction_date: null,
+      }],
+    });
+    vi.mocked(api.post).mockRejectedValue(new Error("Rencana tidak ditemukan."));
+    renderBanner();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Batalkan tautan/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Rencana tidak ditemukan.");
+  });
+
   it("only reads due plans and never posts by itself", async () => {
     renderBanner();
     await waitFor(() => expect(api.get).toHaveBeenCalledWith("/recurring/pending"));
