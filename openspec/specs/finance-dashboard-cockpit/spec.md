@@ -13,15 +13,20 @@ The dashboard SHALL display an executive summary ribbon containing.
 - **THEN** the following required behavior and constraints hold:
 
   The dashboard SHALL display an executive summary ribbon containing:
-  1. `Liquid Balance (Kas & Bank)`: Total spendable liquid balance across active accounts of type `cash`, `bank`, and `ewallet` (excluding investment assets).
-  2. `Total Inflow`: Actual income recorded within the active timeframe.
-  3. `Total Outflow`: Expenses recorded within the active timeframe.
-  4. `Surplus Arus Kas`: Nominal net cashflow `(Inflow - Outflow)` within the active timeframe.
-  5. `Ketahanan Dana`: Emergency fund coverage ratio evaluated against the user's configured target multiplier (e.g. 6x or 8x monthly primary living costs).
+  1. `Liquid Balance (Kas & Bank)`: total spendable balance across active cash, bank, e-wallet, and wallet accounts, excluding investment instruments and any amount below zero that is pending reconciliation from available-to-spend calculations.
+  2. `Total Inflow`: actual non-transfer income recorded within the active timeframe.
+  3. `Total Outflow`: actual non-transfer expenses recorded within the active timeframe.
+  4. `Surplus Arus Kas`: `Inflow - Outflow` for the active timeframe.
+  5. `Ketahanan Dana`: emergency fund coverage against the configured target multiplier.
+  6. Total balance and investment balance SHALL be returned and labeled separately from liquid balance.
+
+#### Scenario: Separating liquid and investment assets
+- **WHEN** a user has 10,000,000 IDR in bank accounts and 25,000,000 IDR in investment instruments
+- **THEN** the liquid KPI reports 10,000,000 IDR and does not report the 35,000,000 IDR total balance as liquid
 
 #### Scenario: Displaying executive KPIs
 - **WHEN** the user views the Overview dashboard
-- **THEN** the liquid balance card reflects only physical cash and bank accounts, and Ketahanan Dana reflects the user's personalized multiplier target
+- **THEN** liquid balance excludes investments, inflow and outflow exclude internal movements, and Ketahanan Dana uses the configured multiplier
 
 ### Requirement: Cumulative Cash Flow Area Trendline
 The dashboard SHALL render an interactive Recharts Area/Line chart visualizing cumulative cash flow across the selected timeframe:
