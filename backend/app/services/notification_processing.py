@@ -24,6 +24,7 @@ from app.services.notification_mapping import (
     supports_confirmation,
 )
 from app.services.openai_notification_provider import ProviderError, configuration_error
+from app.services.plan_occurrences import request_plan_linking
 from app.services.notification_sender import (
     accept_sender_answer, attach_sender_context, supports_sender_confirmation,
 )
@@ -217,6 +218,8 @@ def accept_event(payload: dict, user_id: str) -> tuple[dict, bool, int]:
                 event = cur.fetchone()
             result = compact_result(cur, event)
         conn.commit()
+    if created:
+        request_plan_linking(user_id)
     return result, True, created
 
 
@@ -373,6 +376,7 @@ def apply_claim(event: dict, proposal, provider_error: str | None = None) -> boo
                     else:
                         apply_deterministic_fallback(conn, cur, owned, facts, context, reason)
         conn.commit()
+    request_plan_linking(str(event["user_id"]))
     return True
 
 
@@ -495,6 +499,7 @@ def resolve_event(event_id: str, user_id: str, resolution: dict) -> dict:
             cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s", (user_id, event_id))
             result = compact_result(cur, cur.fetchone())
         conn.commit()
+    request_plan_linking(user_id)
     return result
 
 

@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.db.pool import db_conn
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.services.auth import get_current_user
+from app.services.essential_cost import DEFAULT_TARGET_MONTHS, EssentialCost, coverage, estimate_essential_cost
 from app.services.kakeibo import effective_pillar_sql
 from app.services.reimbursements import SpendingOffsets, load_spending_offsets, not_reimbursement_sql
 from app.services.report_figures import (
@@ -19,7 +20,13 @@ from app.services.report_figures import (
     reportable_income_sql,
     sunday_first_weekday,
 )
-from app.services.report_windows import TIMEFRAME_PATTERN, get_previous_timeframe_window, get_timeframe_window
+from app.services.observed_insights import cash_flow_history, period_comparison, recurring_charges
+from app.services.report_windows import (
+    PERIOD_PATTERN,
+    TIMEFRAME_PATTERN,
+    get_previous_timeframe_window,
+    get_timeframe_window,
+)
 
 router = APIRouter(tags=["Dashboard"])
 
@@ -252,18 +259,8 @@ def get_kakeibo_breakdown(
     }
 
 
-def calculate_ketahanan_dana(
-    cur,
-    user_id: str,
-    liquid_total: int,
-    accounts: list[dict[str, Any]],
-    target_multiplier: int = 6,
-) -> dict[str, Any]:
-    """
-    Calculates Ketahanan Dana (Emergency Fund Coverage):
-    Coverage = Flagged Emergency Fund Balance / Monthly Primary Living Expense.
-    """
-    # 1. Flagged Emergency Fund Balance
+def emergency_fund_balance(cur, user_id: str, liquid_total: int, accounts: list[dict[str, Any]]) -> dict[str, Any]:
+    """The designated emergency reserve, or all liquid cash when none is designated."""
     cur.execute(
         """
         SELECT id, name, target_amount, current_amount, is_emergency
@@ -287,136 +284,65 @@ def calculate_ketahanan_dana(
     acc_balance_map = {str(a["id"]): int(a.get("balance", 0)) for a in accounts}
     acc_parent_map = {str(a["id"]): str(a["parent_id"]) if a.get("parent_id") else None for a in accounts}
 
-    emergency_goals = []
-    for g in all_goals:
-        gid = str(g["id"])
-        linked_aids = g_linked_map.get(gid, [])
-        if linked_aids:
-            linked_set = set(linked_aids)
-            c_amt = sum(
-                acc_balance_map.get(aid, 0)
-                for aid in linked_aids
-                if not acc_parent_map.get(aid) or acc_parent_map.get(aid) not in linked_set
-            )
-        else:
-            c_amt = int(g.get("current_amount", 0))
+    def goal_amount(goal: dict[str, Any]) -> int:
+        linked_aids = g_linked_map.get(str(goal["id"]), [])
+        if not linked_aids:
+            return int(goal.get("current_amount", 0))
+        linked_set = set(linked_aids)
+        # A linked parent already contains its linked children.
+        return sum(
+            acc_balance_map.get(aid, 0)
+            for aid in linked_aids
+            if not acc_parent_map.get(aid) or acc_parent_map.get(aid) not in linked_set
+        )
 
-        g_dict = {
-            "id": gid,
-            "name": g["name"],
-            "current_amount": c_amt,
-            "is_emergency": bool(g.get("is_emergency", False)),
-        }
-        if g_dict["is_emergency"]:
-            emergency_goals.append(g_dict)
-
-    # Fallback to name pattern if none explicitly flagged with is_emergency
+    emergency_goals = [g for g in all_goals if g.get("is_emergency")]
     if not emergency_goals:
-        for g in all_goals:
-            name_lower = str(g.get("name", "")).lower()
-            if any(k in name_lower for k in ["darurat", "emergency"]):
-                gid = str(g["id"])
-                linked_aids = g_linked_map.get(gid, [])
-                if linked_aids:
-                    linked_set = set(linked_aids)
-                    c_amt = sum(
-                        acc_balance_map.get(aid, 0)
-                        for aid in linked_aids
-                        if not acc_parent_map.get(aid) or acc_parent_map.get(aid) not in linked_set
-                    )
-                else:
-                    c_amt = int(g.get("current_amount", 0))
-                emergency_goals.append({
-                    "id": gid,
-                    "name": g["name"],
-                    "current_amount": c_amt,
-                    "is_emergency": True,
-                })
+        # Goals named as an emergency fund count as designated, as before the explicit flag existed.
+        emergency_goals = [
+            g for g in all_goals if any(k in str(g.get("name", "")).lower() for k in ("darurat", "emergency"))
+        ]
+    if emergency_goals:
+        return {
+            "balance": sum(goal_amount(g) for g in emergency_goals),
+            "basis": "emergency_goals",
+            "goal_names": [g["name"] for g in emergency_goals],
+        }
+    return {"balance": liquid_total, "basis": "all_liquid", "goal_names": []}
 
-    is_flagged = len(emergency_goals) > 0
-    if is_flagged:
-        emergency_fund_balance = sum(g["current_amount"] for g in emergency_goals)
-    else:
-        emergency_fund_balance = liquid_total
 
-    # 2. Monthly Primary Living Expense
-    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
-    cur.execute(
-        """
-        SELECT COALESCE(SUM(t.amount), 0) AS primary_spent_30d
-        FROM transactions t
-        LEFT JOIN categories c ON c.id = t.category_id
-        WHERE t.user_id = %s
-          AND t.type = 'expense'
-          AND t.date >= %s
-          AND COALESCE(c.is_primary, TRUE) = TRUE
-          AND COALESCE(c.is_excluded_from_budget, false) = false
-        """,
-        (user_id, thirty_days_ago),
-    )
-    row_30d = cur.fetchone() or {}
-    primary_spent_30d = int(row_30d.get("primary_spent_30d") or row_30d.get("spent_30d") or 0)
-
-    cur.execute(
-        """
-        SELECT COALESCE(SUM(monthly_budget), 0) AS primary_budget
-        FROM categories
-        WHERE user_id = %s AND kind = 'expense' AND is_archived = FALSE AND is_primary = TRUE
-        """,
-        (user_id,),
-    )
-    row_budget = cur.fetchone() or {}
-    primary_budget = int(row_budget.get("primary_budget") or row_budget.get("total_budget") or 0)
-
-    cur.execute(
-        """
-        SELECT COALESCE(SUM(minimum_payment), 0) AS monthly_commitments
-        FROM obligations
-        WHERE user_id = %s AND is_archived = FALSE AND remaining_amount > 0
-        """,
-        (user_id,),
-    )
-    row_ob = cur.fetchone() or {}
-    monthly_obligations = int(row_ob.get("monthly_commitments") or 0)
-
-    monthly_primary_expense = (primary_spent_30d if primary_spent_30d > 0 else primary_budget) + monthly_obligations
-    daily_primary_burn = round(monthly_primary_expense / 30) if monthly_primary_expense > 0 else 0
-
-    target_months = float(target_multiplier or 6)
-    target_amount = int(round(target_months * monthly_primary_expense))
-
-    # 3. Coverage metrics
-    if emergency_fund_balance <= 0:
-        runway_days = 0
-        runway_months = 0.0
-        coverage_pct = 0.0
-        status = "zero"
-    elif monthly_primary_expense <= 0:
-        runway_days = 999
-        runway_months = 99.9
-        coverage_pct = 100.0
-        status = "healthy"
-    else:
-        runway_months = round(emergency_fund_balance / monthly_primary_expense, 1)
-        runway_days = round(runway_months * 30.4)
-        coverage_pct = round((emergency_fund_balance / target_amount) * 100, 1) if target_amount > 0 else 100.0
-        status = "healthy" if runway_months >= target_months else "moderate" if runway_months >= (target_months / 2) else "critical"
-
+def calculate_ketahanan_dana(
+    cur,
+    user_id: str,
+    liquid_total: int,
+    accounts: list[dict[str, Any]],
+    target_multiplier: int = DEFAULT_TARGET_MONTHS,
+    *,
+    essential: EssentialCost | None = None,
+) -> dict[str, Any]:
+    """Ketahanan Dana: the emergency balance in months of essential monthly cost, with its basis."""
+    reserve = emergency_fund_balance(cur, user_id, liquid_total, accounts)
+    essential = essential or estimate_essential_cost(cur, user_id)
+    covered = coverage(reserve["balance"], essential, target_multiplier)
     return {
-        "daily_burn_rate": daily_primary_burn,
-        "runway_days": runway_days,
-        "runway_months": runway_months,
-        "coverage_months": runway_months,
-        "target_months": target_months,
-        "target_amount": target_amount,
-        "coverage_pct": coverage_pct,
-        "status": status,
-        "emergency_fund_balance": emergency_fund_balance,
-        "monthly_primary_expense": monthly_primary_expense,
-        "is_flagged": is_flagged,
-        "emergency_goal_names": [g["name"] for g in emergency_goals],
-        "primary_spent_30d": primary_spent_30d,
-        "monthly_commitments": monthly_obligations,
+        "daily_burn_rate": covered["daily_burn_rate"],
+        "runway_days": covered["runway_days"],
+        "runway_months": covered["coverage_months"],
+        "coverage_months": covered["coverage_months"],
+        "target_months": float(target_multiplier or DEFAULT_TARGET_MONTHS),
+        "target_amount": covered["target_amount"],
+        "coverage_pct": covered["coverage_pct"],
+        "status": covered["status"],
+        "coverage_unavailable_reason": covered["coverage_unavailable_reason"],
+        "emergency_fund_balance": reserve["balance"],
+        "balance_basis": reserve["basis"],
+        "monthly_primary_expense": essential.amount,
+        "is_flagged": reserve["basis"] == "emergency_goals",
+        "emergency_goal_names": reserve["goal_names"],
+        # Retired 30-day basis; kept for older clients and never filled with an estimate.
+        "primary_spent_30d": None,
+        "monthly_commitments": essential.debt_minimum,
+        "essential_cost": essential.describe(),
     }
 
 
@@ -443,7 +369,7 @@ def get_dashboard_overview(
     liquid_net_worth = liquid_balance
     reconciliation_pending = balance_summary["reconciliation_pending"]
 
-    emergency_multiplier = int(current_user.get("emergency_fund_multiplier") or 6)
+    emergency_multiplier = int(current_user.get("emergency_fund_multiplier") or DEFAULT_TARGET_MONTHS)
     monthly_spending_budget = current_user.get("monthly_spending_budget")
 
     total_positive_balance = sum(max(0, a["balance"]) for a in top_accounts)
@@ -867,12 +793,15 @@ def get_dashboard_overview(
             "daily_burn_rate": daily_burn_rate,
             "runway_days": runway_days,
             "runway_months": runway_info["runway_months"],
-            "target_months": runway_info.get("target_months", 6.0),
-            "target_amount": runway_info.get("target_amount", 0),
-            "coverage_pct": runway_info.get("coverage_pct", 100.0),
+            "coverage_months": runway_info["coverage_months"],
+            "target_months": runway_info["target_months"],
+            "target_amount": runway_info["target_amount"],
+            "coverage_pct": runway_info["coverage_pct"],
             "runway_status": runway_info["status"],
             "emergency_fund_balance": runway_info["emergency_fund_balance"],
+            "emergency_balance_basis": runway_info["balance_basis"],
             "monthly_primary_expense": runway_info["monthly_primary_expense"],
+            "essential_cost": runway_info["essential_cost"],
             "is_emergency_flagged": runway_info["is_flagged"],
             "emergency_goal_names": runway_info["emergency_goal_names"],
             "benchmark_daily": benchmark_daily,
@@ -1220,10 +1149,12 @@ def get_dashboard_analytics(
 @router.get("/net-worth")
 def get_dashboard_net_worth(current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
+    emergency_multiplier = int(current_user.get("emergency_fund_multiplier") or DEFAULT_TARGET_MONTHS)
 
     # 1. Liquid Accounts (Assets)
     accounts = get_accounts_with_balances(user_id, include_archived=False)
     total_assets = sum(a["balance"] for a in accounts if a.get("parent_id") is None)
+    liquid_balance = summarize_account_balances(accounts)["liquid_balance"]
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -1253,7 +1184,10 @@ def get_dashboard_net_worth(current_user: dict = Depends(get_current_user)):
             net_worth = total_assets - total_liabilities
 
             # 3. Ketahanan Dana / Runway calculation
-            runway_info = calculate_ketahanan_dana(cur, user_id, total_assets, accounts)
+            # The no-reserve fallback is liquid cash, as on the overview; investments are not a reserve.
+            runway_info = calculate_ketahanan_dana(
+                cur, user_id, liquid_balance, accounts, target_multiplier=emergency_multiplier
+            )
 
     return {
         "ok": True,
@@ -1273,3 +1207,49 @@ def get_dashboard_net_worth(current_user: dict = Depends(get_current_user)):
         "obligations": obligations,
         "runway": runway_info,
     }
+
+
+@router.get("/period-comparison")
+def get_period_comparison(
+    timeframe: str = Query(default="cycle", pattern=PERIOD_PATTERN),
+    cycle_offset: int = Query(default=0, ge=-24, le=12),
+    current_user: dict = Depends(get_current_user),
+):
+    """The selected period against the previous one, both measured over the same elapsed time."""
+    user_id = current_user["id"]
+    payday_day = current_user.get("payday_day", 25)
+    start_utc, end_utc, start_date, end_date, label = get_timeframe_window(
+        payday_day, timeframe, cycle_offset=cycle_offset, user_id=user_id
+    )
+    prev_start, prev_end, _, _, prev_label = get_previous_timeframe_window(
+        payday_day, timeframe, start_date, end_date, cycle_offset, user_id=user_id
+    )
+    previous = None if prev_end < prev_start else (prev_start, prev_end, prev_label)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            comparison = period_comparison(cur, user_id, current=(start_utc, end_utc, label), previous=previous)
+    return {"ok": True, "timeframe": timeframe, "timezone": settings.tz, **comparison}
+
+
+@router.get("/cash-flow-history")
+def get_cash_flow_history(
+    timeframe: str = Query(default="cycle", pattern=PERIOD_PATTERN),
+    current_user: dict = Depends(get_current_user),
+):
+    """Observed inflow, outflow and net for the last completed periods and the one in progress."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            history = cash_flow_history(cur, current_user["id"], basis="month" if timeframe == "month" else "auto")
+    return {"ok": True, "timezone": settings.tz, **history}
+
+
+@router.get("/recurring-charges")
+def get_recurring_charges(current_user: dict = Depends(get_current_user)):
+    """Charges that recurred weekly or monthly with a steady amount over the last six months."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            charges = recurring_charges(cur, current_user["id"])
+    return {"ok": True, "timezone": settings.tz, **charges}

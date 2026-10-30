@@ -28,6 +28,7 @@ from app.services.ledger_mutations import (
     lock_owned_accounts,
 )
 from app.services.merchant_memory import record_owner_corrections, snapshot_rows
+from app.services.plan_occurrences import request_plan_linking
 from app.services.provenance import (
     CLASSIFICATION_FIELDS,
     OWNER_EDIT_ASSIGNMENTS,
@@ -1036,6 +1037,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
 
             conn.commit()
 
+    request_plan_linking(user_id)
     return {
         "ok": True,
         "transaction_id": str(created["id"]),
@@ -1440,6 +1442,7 @@ def update_transaction(
 
             conn.commit()
 
+    request_plan_linking(user_id)
     return {"ok": True, "message": "Transaction updated successfully"}
 
 

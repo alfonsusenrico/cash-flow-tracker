@@ -45,7 +45,8 @@ def test_lifespan_starts_only_permitted_inference_and_closes_in_order(monkeypatc
             events.append("worker_stopped")
 
     monkeypatch.setattr(main, "_daily_price_sync_loop", idle)
-    monkeypatch.setattr(main, "_salary_detection_loop", idle)
+    monkeypatch.setattr(main, "_ledger_matching_loop", idle)
+    monkeypatch.setattr(main, "_plan_link_request_loop", idle)
     monkeypatch.setattr(main, "notification_worker", worker)
 
     async def run():
@@ -125,6 +126,7 @@ def test_salary_detection_pages_quickly_then_waits_a_minute(monkeypatch):
     import app.main as main
     waits = []
     cursors = iter(["next-owner", None])
+    monkeypatch.setattr(main, "settings", replace(main.settings, plan_auto_link_enabled=False))
     monkeypatch.setattr(main, "process_salary_sources", lambda cursor: next(cursors))
 
     async def sleep(delay):
@@ -133,5 +135,55 @@ def test_salary_detection_pages_quickly_then_waits_a_minute(monkeypatch):
             raise asyncio.CancelledError
 
     monkeypatch.setattr(main.asyncio, "sleep", sleep)
-    asyncio.run(main._salary_detection_loop())
+    asyncio.run(main._ledger_matching_loop())
     assert waits == [15, 5, 60]
+
+
+def test_plan_sweep_shares_the_periodic_loop_and_pages_independently(monkeypatch):
+    import app.main as main
+    waits = []
+    salary = iter([None, None, None])
+    plans = iter(["next-owner", None, None])
+    seen = []
+    monkeypatch.setattr(main, "settings", replace(main.settings, plan_auto_link_enabled=True))
+    monkeypatch.setattr(main, "process_salary_sources", lambda cursor: next(salary))
+
+    def sweep(cursor):
+        seen.append(cursor)
+        return next(plans)
+
+    monkeypatch.setattr(main, "process_due_plan_links", sweep)
+
+    async def sleep(delay):
+        waits.append(delay)
+        if delay == 60:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(main.asyncio, "sleep", sleep)
+    asyncio.run(main._ledger_matching_loop())
+    assert seen == [None, "next-owner"]
+    assert waits == [15, 5, 60]
+
+
+def test_plan_link_requests_wake_the_request_loop(monkeypatch):
+    import app.main as main
+    import app.services.plan_occurrences as plans
+
+    monkeypatch.setattr(plans, "settings", replace(plans.settings, plan_auto_link_enabled=True))
+    linked = []
+
+    def link():
+        linked.append(plans.take_plan_link_requests())
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(main, "link_requested_plans", link)
+
+    async def run():
+        task = asyncio.create_task(main._plan_link_request_loop())
+        await asyncio.sleep(0)
+        await asyncio.to_thread(plans.request_plan_linking, "owner-a")
+        await asyncio.wait_for(task, 2)
+
+    asyncio.run(run())
+    assert linked == [["owner-a"]]
+    assert plans._waker is None
