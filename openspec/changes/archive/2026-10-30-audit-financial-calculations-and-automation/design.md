@@ -52,7 +52,7 @@ Owner decisions recorded on 2026-10-30: salary cycles start only from a confirme
 
 ### Salary marker check against production (2026-10-30)
 
-With the owner's approval, a read-only aggregate query on production checked the two largest incomes of each month over the last eight months. Only dates and yes/no flags were returned, with no names or amounts. Records begin in September 2026. The current myBCA payroll notification (30 October 2026) contains `gaji`/`salary` in both the ledger row and the notification text, so automatic confirmation applies to the current format. In September neither of the two largest incomes carried the marker, so whether that month's salary used another format is unknown. Owner review covers any month whose salary lacks the marker.
+With the owner's approval, a read-only aggregate query checked production. It returned only yes/no flags, with no names, amounts or dates. The owner's most recent salary notification contains `gaji`/`salary` in both the ledger row and the notification text, so automatic confirmation applies to the current format. For an earlier month the check could not confirm the marker, so salaries without it remain owner-reviewed.
 
 ## Open decisions for owner
 
