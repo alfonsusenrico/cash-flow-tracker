@@ -4,7 +4,7 @@ All data is synthetic. No production host, production database, real financial r
 
 ## Revision
 
-Branch `feat/essential-cost-and-insights`, stacked on `feat/financial-reporting-consistency` at `4220bba`. The checks below ran on the working tree that the change's commits contain (2026-10-30).
+Branch `feat/essential-cost-and-insights`, stacked on `feat/financial-reporting-consistency` at `4220bba`; commits `d54428a`, `742d159`, `bc030c3`. Code checks ran on the working tree committed in `742d159` and `bc030c3` (2026-10-30); `openspec validate --all --strict` and `git diff 4220bba --check` were re-run on `bc030c3` after the last planning-text edits.
 
 ## Checks
 
