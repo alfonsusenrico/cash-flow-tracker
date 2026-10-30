@@ -27,7 +27,7 @@ function renderHome(canTransfer: boolean, onOpenTransfer = vi.fn()) {
       canTransfer={canTransfer}
       onOpenCapture={vi.fn()}
       onOpenTransfer={onOpenTransfer}
-      onOpenPayroll={vi.fn()}
+      onOpenRecurring={vi.fn()}
       onSelectTx={vi.fn()}
       bal={(amount) => `Rp ${amount}`}
     />,
@@ -78,7 +78,7 @@ describe("mobile Home transfer entry points", () => {
           canTransfer
           onOpenCapture={vi.fn()}
           onOpenTransfer={(id) => setSourceId(id ?? "cash")}
-          onOpenPayroll={vi.fn()}
+          onOpenRecurring={vi.fn()}
           onSelectTx={vi.fn()}
           bal={(amount) => `Rp ${amount}`}
         />

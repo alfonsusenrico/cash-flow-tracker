@@ -179,19 +179,16 @@ def test_analytics_insights_and_ledger_follow_the_same_figures(client, owner):
     assert summary["cycle"]["gross_outflow"] == 500_000 and summary["cycle"]["reimbursement_offset"] == 200_000
 
 
-def test_pulse_safe_to_spend_uses_net_cycle_spending(client, owner):
-    from app.core.config import settings
-    from app.routers.pulse import get_cycle_window
-
+def test_pulse_reports_net_spending_without_predicting_payday(client, owner):
     shared_dinner_cycle(client, owner)
     pulse = client.get("/api/pulse").json()
     assert pulse["cycle_spent"] == 300_000
     assert pulse["cycle_reimbursed"] == 200_000
     assert pulse["today_spent"] == 500_000
-    today = datetime.now(ZoneInfo(settings.tz)).date()
-    _, _, elapsed, total = get_cycle_window(25, today)
-    remaining = max(1, total - elapsed + 1)
-    assert pulse["safe_to_spend_today"] == 2_700_000 // remaining
+    assert pulse["safe_to_spend_today"] is None
+    assert pulse["cycle_days_remaining"] is None
+    assert pulse["pace_status"] is None
+    assert "siklus gaji belum tersedia" in pulse["cycle_label"]
 
 
 def test_excess_reimbursement_floors_at_zero_and_is_reported(client, owner):
@@ -216,3 +213,42 @@ def test_category_without_pillar_reduces_need(client, owner):
     record(client, owner, "reimbursement", 20_000, tx_type="income", offset="misc")
     kakeibo = client.get("/api/dashboard/overview").json()["kakeibo"]
     assert kakeibo["need_spent"] == 230_000
+
+
+def test_mixed_pillar_reimbursement_reconciles_to_report(client, owner):
+    need = record(client, owner, "dinner", 100_000)["transaction_id"]
+    want = record(client, owner, "dinner", 300_000)["transaction_id"]
+    for transaction_id, pillar in [(need, "need"), (want, "want")]:
+        result = client.patch(f"/api/transactions/{transaction_id}", json={"kakeibo_type": pillar})
+        assert result.status_code == 200, result.text
+    record(client, owner, "reimbursement", 200_000, tx_type="income", offset="dinner")
+
+    response = client.get("/api/dashboard/overview?timeframe=month")
+    assert response.status_code == 200, response.text
+    report = response.json()
+    assert report["kpis"]["total_outflow"] == 200_000
+    assert report["kakeibo"]["need_spent"] == 50_000
+    assert report["kakeibo"]["want_spent"] == 150_000
+
+
+def test_kakeibo_separates_saving_expenses_from_net_fresh_transfers(client, owner):
+    from app.db.pool import db_conn
+
+    savings = str(uuid4())
+    with db_conn() as conn:
+        conn.execute("INSERT INTO accounts (id, user_id, name, type, initial_balance) VALUES (%s, %s, 'Synthetic savings', 'bank', 0)", (savings, owner['user_id']))
+        conn.commit()
+    goal = client.post('/api/goals', json={'name': 'Synthetic savings', 'target_amount': 1_000_000, 'account_ids': [savings]})
+    assert goal.status_code == 200, goal.text
+    expense = client.post('/api/transactions', json={'type': 'expense', 'account_id': owner['cash'], 'category_id': owner['dinner'], 'amount': 50_000, 'kakeibo_type': 'saving'})
+    assert expense.status_code == 200, expense.text
+    deposit = client.post('/api/movements', json={'source_account_id': owner['cash'], 'target_account_id': savings, 'amount': 300_000})
+    assert deposit.status_code == 200, deposit.text
+    withdrawal = client.post('/api/movements', json={'source_account_id': savings, 'target_account_id': owner['cash'], 'amount': 50_000})
+    assert withdrawal.status_code == 200, withdrawal.text
+    overview = client.get('/api/dashboard/overview').json()
+    amounts = overview['kakeibo']
+    assert amounts['saving_expenses'] == 50_000
+    assert amounts['net_saving_transfers'] == 250_000
+    assert amounts['saving_spent'] == 300_000
+    assert overview['kpis']['total_outflow'] == 50_000

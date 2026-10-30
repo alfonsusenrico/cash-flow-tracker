@@ -26,7 +26,7 @@ Personal and freelance rules (agent-framework profile `personal`):
 
 ## Purpose and boundaries
 
-Personal, self-hosted daily cash-flow tracking: record income/outflow, understand payday cycles and safe-to-spend funds, manage accounts/pockets, investments, goals and debts. Bank notifications reduce manual entry. This is not an ERP, double-entry accounting package, FX trading desk or broker; currency conversion is a display feature. No organization profile applies.
+Personal, self-hosted daily cash-flow tracking: record income/outflow, understand confirmed salary cycles and observed cash flow, manage accounts/pockets, investments, goals and debts. Bank notifications reduce manual entry. This is not an ERP, double-entry accounting package, FX trading desk or broker; currency conversion is a display feature. No organization profile applies.
 
 Capabilities: database, deployed, money, personal-data, background-jobs, api-consumers, multi-user, llm
 Design surface: tool
@@ -72,6 +72,7 @@ The local Compose override selects development/HTTP cookies. For a direct loopba
 - Debt payoff archives an obligation when its remaining amount reaches zero; deleting/reversing a payoff restores it. Active debts exclude archived and fully paid entries.
 - Notification ingestion and retries must not duplicate ledger effects. Preserve captured amount/time and event identity. Recorded means committed; queued is not success.
 - Emergency-fund and net-worth aggregation must not double-count linked parent/child balances.
+- Plans (`recurring_rules`) never post: a database check keeps `auto_post` false, retired execute and payroll endpoints answer 410, and a due plan is met only by linking a recorded transaction, skipping it, or an explicit manual record after same-amount captures are ruled out. Salary cycles start only at confirmed salary receipts; the fixed `payday_day` is deprecated.
 - Unit-tracked investments retain trade/unit bookkeeping. Nominal top-ups target explicitly amount-tracked products and preserve paired funding/product effects and reversals. Monthly amount top-ups require confirmation of the actual debit; rule creation alone records nothing.
 - AI interprets supported evidence; deterministic code owns money, timestamps, entity ownership, application and deduplication. It cannot invent accounts/categories or override confirmed financial facts.
 - Exact sender memory is scoped to owner, bank and receiving account; no-name answers learn nothing. Missing Jago outbound pocket evidence requires event-specific pocket confirmation before recording and must never teach a generic default pocket.

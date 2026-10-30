@@ -21,9 +21,10 @@ from app.routers.investment_topups import router as investment_topups_router
 from app.routers.obligations import router as obligations_router
 from app.routers.pulse import router as pulse_router
 from app.routers.recurring import router as recurring_router
-from app.routers.recurring import process_due_recurring_rules
 from app.routers.history_suggestions import router as history_suggestions_router
 from app.routers.review import router as review_router
+from app.routers.salary import router as salary_router
+from app.services.salary_receipts import process_sources as process_salary_sources
 from app.routers.transactions import router as transactions_router
 
 _SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
@@ -97,19 +98,19 @@ async def _daily_price_sync_loop():
             break
 
 
-async def _recurring_scheduler_loop():
+async def _salary_detection_loop():
     await asyncio.sleep(15)
+    cursor = None
     while True:
         try:
-            result = await asyncio.to_thread(process_due_recurring_rules, limit=20)
-            if result["processed_count"]:
-                logger.info("Recurring scheduler processed %s occurrence(s)", result["processed_count"])
+            cursor = await asyncio.to_thread(process_salary_sources, cursor)
         except asyncio.CancelledError:
             break
         except Exception as exc:
-            logger.warning("Recurring scheduler error: %s", exc)
+            logger.warning("Salary detection unavailable: %s", type(exc).__name__)
+            cursor = None
         try:
-            await asyncio.sleep(60)
+            await asyncio.sleep(5 if cursor else 60)
         except asyncio.CancelledError:
             break
 
@@ -162,7 +163,7 @@ async def lifespan(app: FastAPI):
     )
     if not dry_run_only:
         tasks.append(asyncio.create_task(_daily_price_sync_loop()))
-        tasks.append(asyncio.create_task(_recurring_scheduler_loop()))
+        tasks.append(asyncio.create_task(_salary_detection_loop()))
         tasks.append(asyncio.create_task(notification_worker(worker_provider)))
         if settings.movement_pairing_configuration_error:
             logger.warning("Movement pairing configuration invalid; fee tolerance and re-pairing are disabled")
@@ -232,6 +233,7 @@ for prefix in ("", "/api", "/v1"):
     app.include_router(ingest_router, prefix=f"{prefix}/ingest")
     app.include_router(pulse_router, prefix=prefix)
     app.include_router(review_router, prefix=prefix)
+    app.include_router(salary_router, prefix=f"{prefix}/salary")
     app.include_router(history_suggestions_router, prefix=prefix)
     app.include_router(capture_router, prefix=prefix)
     app.include_router(devices_router, prefix=prefix)

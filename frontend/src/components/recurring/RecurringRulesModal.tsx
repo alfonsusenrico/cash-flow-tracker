@@ -25,7 +25,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
   const qc = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<"list" | "create">("list");
-  const [filterType, setFilterType] = useState<"all" | "payroll" | "debt" | "routine">("all");
+  const [filterType, setFilterType] = useState<"all" | "debt" | "routine">("all");
 
   // Form states
   const [name, setName] = useState("");
@@ -35,14 +35,15 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
   const [targetAccountId, setTargetAccountId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [obligationId, setObligationId] = useState("");
-  const [scheduleType, setScheduleType] = useState<"monthly_day" | "payday" | "weekly">("payday");
+  const [scheduleType, setScheduleType] = useState<"monthly_day" | "payday" | "weekly">("monthly_day");
   const [scheduleDay, setScheduleDay] = useState<number>(25);
-  const [isPayrollAllocation, setIsPayrollAllocation] = useState(false);
-  const [autoPost, setAutoPost] = useState(false);
+  // Only an existing plan may keep the retired fixed-payday schedule.
+  const [legacyPaydaySchedule, setLegacyPaydaySchedule] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState("");
+  const [listError, setListError] = useState("");
 
   const handleTypeChange = (nextType: RecurringRule["type"]) => {
     setType(nextType);
@@ -50,10 +51,8 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
     setObligationId("");
     if (nextType !== "transfer") {
       setTargetAccountId("");
-      setIsPayrollAllocation(false);
     }
     if (nextType === "investment_topup") {
-      setAutoPost(false);
       setScheduleType("monthly_day");
       setScheduleDay(0);
     }
@@ -75,10 +74,9 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
     setTargetAccountId("");
     setCategoryId("");
     setObligationId("");
-    setScheduleType("payday");
+    setScheduleType("monthly_day");
     setScheduleDay(25);
-    setIsPayrollAllocation(false);
-    setAutoPost(false);
+    setLegacyPaydaySchedule(false);
     setIsActive(true);
     setNotes("");
     setFormError("");
@@ -130,8 +128,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
     setObligationId("");
     setScheduleType("monthly_day");
     setScheduleDay(0);
-    setAutoPost(false);
-    setIsPayrollAllocation(false);
+    setLegacyPaydaySchedule(false);
     setIsActive(true);
     setNotes("");
     setFormError("");
@@ -165,9 +162,8 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
 
   // Filter rules
   const filteredRules = rules.filter((r) => {
-    if (filterType === "payroll") return r.is_payroll_allocation;
     if (filterType === "debt") return Boolean(r.obligation_id);
-    if (filterType === "routine") return !r.is_payroll_allocation && !r.obligation_id;
+    if (filterType === "routine") return !r.obligation_id;
     return true;
   });
 
@@ -186,13 +182,11 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
         obligationId: obligationId || null,
         scheduleType,
         scheduleDay: scheduleType === "payday" ? null : Number(scheduleDay),
-        isPayrollAllocation,
-        autoPost,
         isActive,
         notes: notes.trim(),
       });
       if (!validation.success) {
-        throw new Error(validation.error.issues[0]?.message ?? "Periksa kembali data transaksi terjadwal");
+        throw new Error(validation.error.issues[0]?.message ?? "Periksa kembali data rencana");
       }
       const rule = validation.data;
       const payload = {
@@ -205,8 +199,6 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
         obligation_id: rule.obligationId,
         schedule_type: rule.scheduleType,
         schedule_day: rule.scheduleDay,
-        is_payroll_allocation: rule.isPayrollAllocation,
-        auto_post: rule.autoPost,
         is_active: rule.isActive,
         notes: rule.notes || null,
       };
@@ -222,12 +214,10 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
       setNotes("");
       setFormError("");
       setEditingRuleId(null);
-      setIsPayrollAllocation(false);
-      setAutoPost(false);
       setIsActive(true);
     },
     onError: (err: any) => {
-      setFormError(err?.message || "Gagal membuat transaksi otomatis");
+      setFormError(err?.message || "Gagal menyimpan rencana");
     },
   });
 
@@ -235,21 +225,28 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
   const toggleMutation = useMutation({
     mutationFn: async (id: string) => api.post(`/recurring/${id}/toggle`),
     onSuccess: () => {
+      setListError("");
       qc.invalidateQueries({ queryKey: queryKeys.recurring.all });
     },
+    onError: (err: any) => setListError(err?.message || "Status rencana gagal diubah."),
   });
 
-  // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => api.del(`/recurring/${id}`),
     onSuccess: () => {
+      setListError("");
       qc.invalidateQueries({ queryKey: queryKeys.recurring.all });
     },
+    onError: (err: any) => setListError(err?.message || "Rencana gagal dihapus."),
   });
 
   return (
-    <Modal open={open} onClose={onClose} title="Transaksi Terjadwal & Otomatis">
+    <Modal open={open} onClose={onClose} title="Rencana & Pengingat">
       <div className="space-y-4 pt-1 text-xs">
+        <p className="text-[var(--text-secondary)]">
+          Rencana tidak mencatat transaksi. Saat jatuh tempo, kaitkan transaksi yang sudah tertangkap ponsel, atau catat
+          manual jika memang terlewat.
+        </p>
         {/* Navigation Tabs */}
         <div className="space-y-3 border-b border-[var(--border)] pb-3">
           <div className="grid grid-cols-2 gap-2">
@@ -263,7 +260,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
                   : "text-[var(--muted)] hover:text-[var(--text)]"
               )}
             >
-              Daftar Aturan ({rules.length})
+              Daftar Rencana ({rules.length})
             </button>
             <button
               type="button"
@@ -275,13 +272,13 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
                   : "text-[var(--muted)] hover:text-[var(--text)]"
               )}
             >
-              + Tambah Aturan
+              + Tambah Rencana
             </button>
           </div>
 
           {activeTab === "list" && (
-            <div role="group" aria-label="Filter aturan terjadwal" className="grid grid-cols-4 gap-1 text-xs font-medium">
-              {(["all", "payroll", "debt", "routine"] as const).map((t) => (
+            <div role="group" aria-label="Filter rencana" className="grid grid-cols-3 gap-1 text-xs font-medium">
+              {(["all", "debt", "routine"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -294,7 +291,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
                       : "text-[var(--muted)] hover:text-[var(--text)]"
                   )}
                 >
-                  {t === "all" ? "Semua" : t === "payroll" ? "Gajian" : t === "debt" ? "Cicilan" : "Rutin"}
+                  {t === "all" ? "Semua" : t === "debt" ? "Cicilan" : "Rutin"}
                 </button>
               ))}
             </div>
@@ -304,9 +301,14 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
         {/* Tab 1: Rules List */}
         {activeTab === "list" && (
           <div className="space-y-2.5">
+            {listError && (
+              <p role="alert" className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 font-medium text-rose-600 dark:text-rose-300">
+                {listError}
+              </p>
+            )}
             {filteredRules.length === 0 ? (
               <div className="py-10 text-center text-[var(--muted)]">
-                Belum ada transaksi terjadwal. Klik &quot;+ Tambah Aturan&quot; untuk memulai.
+                Belum ada rencana. Klik &quot;+ Tambah Rencana&quot; untuk memulai.
               </div>
             ) : (
               filteredRules.map((rule) => {
@@ -329,7 +331,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
                         {rule.type === "investment_topup" && <span className="rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-900 dark:bg-purple-950 dark:text-purple-100">Top up Investasi</span>}
                         {rule.is_payroll_allocation && (
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/15 text-blue-600 dark:text-blue-400">
-                            Alokasi Gaji
+                            Dulu alokasi gaji
                           </span>
                         )}
                         {isDebt && (
@@ -337,16 +339,11 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
                             Cicilan: {rule.obligation_name}
                           </span>
                         )}
-                        <span
-                          className={cn(
-                            "px-1.5 py-0.5 rounded text-[9px] font-bold",
-                            rule.auto_post
-                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                              : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                          )}
-                        >
-                          {rule.auto_post ? "Auto-Post" : "Konfirmasi 1-Tap"}
-                        </span>
+                        {rule.legacy_auto_post && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                            Dulu dicatat otomatis
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-medium text-[var(--muted)]">
@@ -361,7 +358,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
                         )}
                         <span>
                           {rule.schedule_type === "payday"
-                            ? "Setiap Tanggal Gajian"
+                            ? "Perkiraan dari tanggal gajian lama"
                             : rule.schedule_type === "monthly_day"
                             ? `Tiap tgl ${rule.schedule_day}`
                             : "Mingguan"}
@@ -375,7 +372,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
                           {fmtMoney(rule.amount)}
                         </div>
                         <div className="text-[10px] text-[var(--muted)] font-medium tabular">
-                          Jatuh tempo: {rule.next_due_date}
+                          Berikutnya: {rule.next_due_date}
                         </div>
                       </div>
 
@@ -393,15 +390,14 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
                             setObligationId(rule.obligation_id ?? "");
                             setScheduleType(rule.schedule_type);
                             setScheduleDay(rule.schedule_day ?? (rule.schedule_type === "weekly" ? 1 : 25));
-                            setIsPayrollAllocation(rule.is_payroll_allocation);
-                            setAutoPost(rule.auto_post);
+                            setLegacyPaydaySchedule(rule.schedule_type === "payday");
                             setIsActive(rule.is_active);
                             setNotes(rule.notes ?? "");
                             setFormError("");
                             setActiveTab("create");
                           }}
                           className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]"
-                          aria-label={`Ubah aturan ${rule.name}`}
+                          aria-label={`Ubah rencana ${rule.name}`}
                         >
                           <Icon name="edit" className="h-4 w-4" />
                         </button>
@@ -419,8 +415,8 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
                           <Icon name={rule.is_active ? "check" : "close"} className="h-4 w-4" />
                         </button>
                         <ConfirmActionButton
-                          label={`Hapus aturan ${rule.name}`}
-                          confirmation={`Hapus aturan terjadwal "${rule.name}"?`}
+                          label={`Hapus rencana ${rule.name}`}
+                          confirmation={`Hapus rencana "${rule.name}"? Rencana yang punya riwayat hanya bisa dinonaktifkan.`}
                           onConfirm={() => deleteMutation.mutate(rule.id)}
                           className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg hover:bg-rose-500/10 text-[var(--muted)] hover:text-rose-500 transition-colors"
                         >
@@ -450,10 +446,10 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
               </div>
             )}
 
-            <FormSection title="Transaksi yang dijadwalkan" description={type === "transfer" ? "Posisi investasi berubah melalui Beli/Jual, bukan transfer terjadwal." : undefined} className="border-t-0 pt-0">
+            <FormSection title="Yang direncanakan" description={type === "transfer" ? "Posisi investasi berubah melalui Beli/Jual, bukan rencana pindah saldo." : undefined} className="border-t-0 pt-0">
             <div>
               <label htmlFor="recurring-name" className="text-xs font-medium text-[var(--muted)] block mb-1">
-                Nama Aturan / Transaksi
+                Nama Rencana
               </label>
               <input
                 id="recurring-name"
@@ -470,7 +466,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label htmlFor="recurring-type" className="text-xs font-medium text-[var(--muted)] block mb-1">Jenis Transaksi</label>
+                <label htmlFor="recurring-type" className="text-xs font-medium text-[var(--muted)] block mb-1">Jenis Rencana</label>
                 <select
                   id="recurring-type"
                   name="type"
@@ -572,7 +568,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-[var(--muted)]">Saat pembayaran dicatat, sisa tagihan akan berkurang.</p>
+                <p className="mt-1 text-xs text-[var(--muted)]">Sisa tagihan berkurang sekali saat pembayaran nyata dikaitkan atau dicatat.</p>
               </div>
             )}
 
@@ -589,7 +585,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
             </div>
             </FormSection>
 
-            <FormSection title="Jadwal dan pencatatan">
+            <FormSection title="Jadwal">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label htmlFor="recurring-schedule" className="text-xs font-medium text-[var(--muted)] block mb-1">Jadwal Pengulangan</label>
@@ -600,7 +596,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
                   onChange={(e) => handleScheduleTypeChange(e.target.value as "monthly_day" | "payday" | "weekly")}
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
                 >
-                  <option value="payday">Tepat Setiap Tanggal Gajian</option>
+                  {legacyPaydaySchedule && <option value="payday">Tanggal gajian lama (perkiraan)</option>}
                   <option value="monthly_day">Tanggal Tertentu Bulanan</option>
                   <option value="weekly">Mingguan</option>
                 </select>
@@ -652,26 +648,6 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
             </div>
 
             <div className="space-y-2 pt-1">
-              {type === "transfer" && (
-                <>
-                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                    <input
-                      name="is_payroll_allocation"
-                      type="checkbox"
-                      checked={isPayrollAllocation}
-                      onChange={(e) => setIsPayrollAllocation(e.target.checked)}
-                      className="rounded border-[var(--border)] text-blue-600 focus:ring-blue-500 h-4 w-4"
-                    />
-                    <span className="font-semibold text-xs text-[var(--text)]">
-                      Masukkan ke alokasi gaji
-                    </span>
-                  </label>
-                  <p className="pl-7 text-[10px] text-[var(--muted)]">
-                    Tidak otomatis termasuk alokasi gaji; aktifkan hanya untuk pemindahan setelah gajian.
-                  </p>
-                </>
-              )}
-
               {editingRuleId && (
                 <label className="flex items-center gap-2.5 cursor-pointer select-none">
                   <input
@@ -681,24 +657,15 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
                     onChange={(e) => setIsActive(e.target.checked)}
                     className="rounded border-[var(--border)] text-emerald-600 focus:ring-emerald-500 h-4 w-4"
                   />
-                  <span className="font-semibold text-xs text-[var(--text)]">Aturan aktif</span>
+                  <span className="font-semibold text-xs text-[var(--text)]">Rencana aktif</span>
                 </label>
               )}
 
-              {type === "investment_topup" ? <p className="text-xs text-[var(--text)]">Konfirmasi setiap bulan setelah debit berhasil. Membuat aturan tidak mencatat top up hari ini.</p> : <><label className="flex items-center gap-2.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  name="auto_post"
-                  checked={autoPost}
-                  onChange={(e) => setAutoPost(e.target.checked)}
-                  className="rounded border-[var(--border)] text-emerald-600 focus:ring-emerald-500 h-4 w-4"
-                />
-                <span className="font-semibold text-xs text-[var(--text)]">
-                  Catat otomatis tanpa konfirmasi
-                </span>
-              </label>
-              <p className="pl-7 text-xs text-[var(--muted)]">Jika tidak dipilih, transaksi menunggu konfirmasi Anda saat jatuh tempo.</p>
-              </>}
+              <p className="text-xs text-[var(--text)]">
+                {type === "investment_topup"
+                  ? "Rencana bulanan tidak mencatat top up. Setelah debit terjadi, kaitkan transaksinya atau catat manual dari daftar jatuh tempo."
+                  : "Saat jatuh tempo, rencana hanya muncul sebagai pengingat. Saldo dan tagihan tidak berubah sampai transaksi nyata dikaitkan."}
+              </p>
             </div>
             </FormSection>
 
@@ -718,7 +685,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft }: Props) {
                 disabled={createMutation.isPending}
                 className="min-h-11 rounded-xl bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50"
               >
-                {createMutation.isPending ? "Menyimpan…" : editingRuleId ? "Simpan Perubahan" : "Simpan Aturan"}
+                {createMutation.isPending ? "Menyimpan…" : editingRuleId ? "Simpan Perubahan" : "Simpan Rencana"}
               </button>
             </div>
           </form>

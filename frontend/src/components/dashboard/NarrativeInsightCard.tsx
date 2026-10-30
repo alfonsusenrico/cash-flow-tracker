@@ -9,21 +9,26 @@ interface NarrativeInsightCardProps {
     trend_status: "MENURUN" | "MENINGKAT" | "STABIL" | string;
     top_driver?: string | null;
     top_driver_delta_pct?: number | null;
+    top_driver_delta_available?: boolean;
   };
-  outflowDeltaPct?: number;
+  outflowDeltaPct?: number | null;
   timeframeLabel?: string;
 }
 
 export function NarrativeInsightCard({
   narrative,
-  outflowDeltaPct = 0,
+  outflowDeltaPct = null,
   timeframeLabel,
 }: NarrativeInsightCardProps) {
   if (!narrative || !narrative.summary) return null;
 
   const trend = narrative.trend_status || "STABIL";
-  const isDown = trend === "MENURUN";
-  const isUp = trend === "MENINGKAT";
+  const isDown = outflowDeltaPct !== null && trend === "MENURUN";
+  const isUp = outflowDeltaPct !== null && trend === "MENINGKAT";
+  let trendLabel = "STABIL";
+  if (outflowDeltaPct === null) trendLabel = "Belum ada pembanding";
+  else if (isDown) trendLabel = `HEMAT (${outflowDeltaPct}%)`;
+  else if (isUp) trendLabel = `NAIK (+${outflowDeltaPct}%)`;
 
   return (
     <div className="card-squircle p-4 sm:p-5 space-y-3 border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.04] via-[var(--surface)] to-[var(--surface-raised)] shadow-xs">
@@ -60,11 +65,7 @@ export function NarrativeInsightCard({
               : "bg-slate-500/10 text-slate-400 border-slate-500/20"
           )}
         >
-          {trend === "MENURUN"
-            ? `HEMAT (${outflowDeltaPct}%)`
-            : trend === "MENINGKAT"
-            ? `NAIK (+${outflowDeltaPct}%)`
-            : "STABIL"}
+          {trendLabel}
         </span>
       </div>
 
@@ -79,7 +80,7 @@ export function NarrativeInsightCard({
           <span className="text-[var(--muted)]">Driver Utama:</span>
           <span className="font-semibold text-[var(--text)] flex items-center gap-1.5">
             <span>{narrative.top_driver}</span>
-            {narrative.top_driver_delta_pct !== undefined && narrative.top_driver_delta_pct !== null && (
+            {narrative.top_driver_delta_available === true && narrative.top_driver_delta_pct !== undefined && narrative.top_driver_delta_pct !== null && (
               <span
                 className={cn(
                   "px-1.5 py-0.2 rounded text-[10px]",

@@ -66,34 +66,32 @@ The system SHALL record transfers between two owned accounts as an atomic moveme
 - **THEN** Account A balance decreases by 500,000, Account B balance increases by 500,000, and net monthly spending remains unchanged
 
 ### Requirement: Payday Cycle Window & Safe-to-Spend Allowance
-The system SHALL calculate the active spending cycle from the user's configured payday day, across the entire calendar range of 1 to 31, and SHALL expose it through `GET /api/pulse`.
+The system SHALL use confirmed salary receipts to define the active cycle and SHALL expose observed spending and budget information through the pulse contract without predicting a future payday or daily safe-to-spend value.
 
 #### Scenario: Required behavior and constraints
-- **WHEN** the system calculates the active payday cycle and daily allowance
-- **THEN** `GET /api/pulse` SHALL return:
-  1. `today_spent`: total living expenses recorded today.
-  2. `safe_to_spend_today`: `(total_cycle_budget - cycle_spent_so_far) / max(1, remaining_cycle_days)`.
-  3. `cycle_remaining`: total remaining spending budget for the current cycle.
-  4. `cycle_pace`: progress percentage of the cycle days elapsed versus budget percentage consumed.
-  5. `total_liquid_balance`: the sum of all active top-level account balances (`parent_id IS NULL`), reflecting market valuations accurately and avoiding cartesian join multiplication.
-
-#### Scenario: Checking daily pulse with late-month payday
-- **WHEN** a user with a configured payday of 29 requests `GET /api/pulse` in September
-- **THEN** the system calculates the cycle starting from August 29 through September 28, adjusting safe daily spend accordingly
+- **WHEN** the system calculates the active salary cycle
+- **THEN** pulse SHALL provide today living expenses, observed cycle spending and configured budget remaining where available
+- **AND** it SHALL disclose an unknown cycle when no salary receipt has been confirmed
+- **AND** it SHALL NOT calculate a daily allowance from a guessed end date
+- **AND** active liquid balance SHALL avoid duplicate parent and child accounts
 
 #### Scenario: Pulse total liquid balance ignores child duplicates
 - **WHEN** a user has a parent account with 10,000,000 IDR and child pockets totaling 10,000,000 IDR
-- **THEN** `GET /api/pulse` returns `total_liquid_balance` of 10,000,000 IDR rather than 20,000,000 IDR
+- **THEN** pulse returns liquid balance of 10,000,000 IDR rather than 20,000,000 IDR
+
+#### Scenario: Checking daily pulse with late-month payday
+- **WHEN** a user previously configured payday day 29 but has no confirmed salary receipt
+- **THEN** pulse SHALL disclose that the cycle is unknown rather than inventing a boundary
 
 #### Scenario: Culture and unexpected spending reduce the allowance
-- **GIVEN** today's expenses of Rp 50.000 with effective pillar `culture` and Rp 80.000 with effective pillar `unexpected`, both in reportable categories
-- **WHEN** the user requests `GET /api/pulse`
-- **THEN** `today_spent` SHALL include Rp 130.000.
+- **GIVEN** today's reportable culture spending of Rp 50.000 and unexpected spending of Rp 80.000
+- **WHEN** the user requests pulse
+- **THEN** today living spending SHALL include Rp 130.000
 
 #### Scenario: Saving-pillar expense is not living spending
 - **GIVEN** an expense of Rp 200.000 whose effective pillar is `saving`
-- **WHEN** the user requests `GET /api/pulse`
-- **THEN** `today_spent` and the cycle spending SHALL NOT include it.
+- **WHEN** the user requests pulse
+- **THEN** today and cycle living spending SHALL NOT include it
 
 ### Requirement: Unified Authentication for Web and Automation
 The system SHALL authenticate requests using either browser session cookies (`ledger_session`) or Bearer API tokens (`Authorization: Bearer <key>`) through a single unified auth dependency. Bearer tokens serve automation clients such as the Android companion. No chat-bot client is deployed or supported.
@@ -112,35 +110,36 @@ The system SHALL authenticate requests using either browser session cookies (`le
 - **AND** it SHALL NOT resolve any user.
 
 ### Requirement: Time-Series & Multi-Angle Dashboard Aggregations
-The system SHALL expose aggregation endpoints for executive visual analytics.
+The system SHALL expose aggregation endpoints for executive analytics with explicit reporting periods and shared financial semantics.
 
 #### Scenario: Required behavior and constraints
 - **WHEN** the dashboard requests financial analytics
-- **THEN** the following required behavior and constraints hold:
-
-  The system SHALL expose aggregation endpoints for executive visual analytics:
-  1. `GET /api/dashboard/overview`: Returns key metrics (total liquid balance, period inflow, period outflow, savings rate, runway days), cumulative time-series points (date, cumulative inflow, cumulative outflow, net), account breakdown, and top categories.
-  2. `GET /api/dashboard/analytics`: Returns daily and weekly spending cadence with budget reference benchmarks, category spending variance against limits, and a day-of-week by hour/time spending density matrix.
-  3. `GET /api/dashboard/net-worth`: Returns total assets (liquid accounts), total liabilities (active obligations), net worth balance, and liquid runway based on the 30-day average daily burn rate.
+- **THEN** overview SHALL provide observed period income, expense, cash flow, eligible liquid balance, emergency coverage when known, time-series points, account breakdown and categories
+- **AND** analytics SHALL provide descriptive spending series, category variance and a spending density matrix without an invented daily allowance or linear forecast
+- **AND** net worth SHALL provide assets and liabilities and retain existing emergency coverage behavior for the deferred review
 
 #### Scenario: Requesting executive overview time-series
-- **WHEN** an authenticated user requests `GET /api/dashboard/overview?timeframe=cycle`
-- **THEN** the system returns day-by-day cumulative cash flow points ready for direct SVG/Recharts rendering along with KPI metrics
+- **WHEN** an authenticated user requests an available reporting period
+- **THEN** the system returns cumulative cash-flow points and their period context
 
 #### Scenario: Requesting spending cadence and heatmap
-- **WHEN** an authenticated user requests `GET /api/dashboard/analytics?timeframe=cycle`
-- **THEN** the system returns the day-by-day burn cadence bars and 7-day spending heatmap matrix
+- **WHEN** an authenticated user requests analytics for an available reporting period
+- **THEN** the system returns descriptive spending series and heatmap data without representing an unknown end as known
 
 ### Requirement: User Profile and Account Settings Management
-The system SHALL expose endpoints for querying user identity and updating settings under both `/api/*` and `/api/auth/*` (`/me`, `/settings`, `/payday`, `/api-key`, `/api-key/reset`). The settings update endpoint SHALL accept `payday_day` between 1 and 31.
+The system SHALL expose user identity and settings endpoints, preserve existing compatibility as specified by migration, and configure salary source and user preferences without requiring a fixed payday.
+
+#### Scenario: Salary source setup
+- **WHEN** an owner confirms a salary source
+- **THEN** the source SHALL be saved without creating a ledger transaction or fixed-day boundary
 
 #### Scenario: Updating payday to day 29
-- **WHEN** an authenticated user sends `PUT /api/settings` or `PUT /api/auth/settings` with `{"payday_day": 29}`
-- **THEN** the system updates the user's `payday_day` to 29 and returns the updated user record
+- **WHEN** an older client attempts to update a fixed payday setting
+- **THEN** the server SHALL provide explicit compatibility or deprecation behavior and SHALL NOT treat the value as a confirmed salary receipt
 
 #### Scenario: Resetting automation API key
-- **WHEN** an authenticated user sends `POST /api/api-key/reset` or `POST /api/auth/api-key/reset`
-- **THEN** the system generates a new Bearer API token, invalidates prior keys, and returns the plaintext key
+- **WHEN** an authenticated user requests an API-key reset
+- **THEN** the system generates a new Bearer API token, invalidates prior keys, and returns the new key to the authenticated requester
 
 ### Requirement: Hierarchical Accounts and Child Pockets
 The system SHALL support organizing accounts into a clean two-level hierarchy (Parent Account -> Child Pockets / Sub-accounts) using a self-referential `parent_id`.
@@ -299,14 +298,6 @@ For investment accounts or pockets without dynamic tickers (e.g. Indonesian Mone
 #### Scenario: Updating valuation on a mutual fund pocket
 - **WHEN** an authenticated user updates the balance of "Bibit RDPU" from 10,000,000 IDR to 10,450,000 IDR with initial cost 10,000,000 IDR
 - **THEN** the system updates the pocket balance to 10,450,000 IDR and reports `capital_gain` as +450,000 IDR (+4.5%)
-
-### Requirement: Payday Clamping in Short Months
-For months with fewer days than the configured payday day (e.g. February, April, June, September, November), the cycle calculation SHALL dynamically clamp the cycle start date to the maximum days in that month (`calendar.monthrange(year, month)[1]`).
-
-#### Scenario: Payday 31 in a 30-day month
-- **GIVEN** a user with a configured payday of 31
-- **WHEN** the cycle that starts in April is calculated
-- **THEN** it SHALL start on 30 April.
 
 ### Requirement: Living Spending Definition
 Living spending for `today_spent` and the cycle SHALL cover every expense whose category is not excluded from budget and whose effective Kakeibo pillar (see `kakeibo-decoupling`) is `need`, `want`, `culture` or `unexpected`. Expenses whose effective pillar is `saving` SHALL NOT count as living spending.

@@ -11,6 +11,7 @@ from app.routers.accounts import get_accounts_with_balances, summarize_account_b
 from app.services.auth import get_current_user
 from app.services.kakeibo import effective_pillar_sql
 from app.services.reimbursements import load_spending_offsets, not_reimbursement_sql
+from app.services.report_windows import get_timeframe_window
 
 router = APIRouter(tags=["Pulse & Insights"])
 
@@ -78,8 +79,8 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
     today_start = datetime.combine(now_local.date(), time.min, tzinfo=tz).astimezone(timezone.utc)
     today_end = datetime.combine(now_local.date(), time.max, tzinfo=tz).astimezone(timezone.utc)
 
-    cycle_start, cycle_end, elapsed_days, total_days = get_cycle_window(payday_day, now_local.date())
-    remaining_days = max(1, total_days - elapsed_days + 1)
+    cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id)
+    elapsed_days = (now_local.date() - cycle_start.astimezone(tz).date()).days + 1
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -150,12 +151,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
             cat_budget = int(cur.fetchone()["total_budget"] or 0)
             effective_budget = monthly_spending_budget if (monthly_spending_budget and monthly_spending_budget > 0) else cat_budget
 
-            if effective_budget > 0:
-                remaining_budget = max(0, effective_budget - cycle_spent)
-                safe_to_spend_today = remaining_budget // remaining_days
-            else:
-                safe_to_spend_today = 0
-                remaining_budget = 0
+            remaining_budget = max(0, effective_budget - cycle_spent) if effective_budget > 0 else None
 
             # 5. Today's transactions
             cur.execute(
@@ -189,16 +185,6 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
             )
             recent_cats = cur.fetchall()
 
-    # Pace status
-    time_elapsed_pct = (elapsed_days / total_days) * 100
-    budget_spent_pct = (cycle_spent / effective_budget * 100) if effective_budget > 0 else 0
-    if budget_spent_pct <= time_elapsed_pct + 5:
-        pace_status = "on_track"
-    elif budget_spent_pct <= time_elapsed_pct + 15:
-        pace_status = "warning"
-    else:
-        pace_status = "over_budget"
-
     return {
         "ok": True,
         "currency": current_user.get("currency", "IDR"),
@@ -207,15 +193,16 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
         "total_net_worth": total_balance,
         "reconciliation_pending": reconciliation_pending,
         "today_spent": today_spent,
-        "safe_to_spend_today": safe_to_spend_today,
+        "safe_to_spend_today": None,
         "cycle_spent": cycle_spent,
         "cycle_reimbursed": cycle_reimbursed,
         "cycle_total_budget": effective_budget,
         "cycle_remaining": remaining_budget,
-        "cycle_days_total": total_days,
+        "cycle_days_total": None,
         "cycle_day_current": elapsed_days,
-        "cycle_days_remaining": remaining_days,
-        "pace_status": pace_status,
+        "cycle_days_remaining": None,
+        "pace_status": None,
+        "cycle_label": cycle_label,
         "today_transactions": [
             {
                 "id": str(r["id"]),
@@ -250,7 +237,8 @@ def get_insights(current_user: dict = Depends(get_current_user)):
     tz = ZoneInfo(settings.tz)
     now_local = datetime.now(tz)
 
-    cycle_start, cycle_end, elapsed_days, total_days = get_cycle_window(payday_day, now_local.date())
+    cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id)
+    elapsed_days = (now_local.date() - cycle_start.astimezone(tz).date()).days + 1
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -358,9 +346,10 @@ def get_insights(current_user: dict = Depends(get_current_user)):
         "ok": True,
         "cycle": {
             "start": cycle_start.isoformat(),
-            "end": cycle_end.isoformat(),
+            "end": None,
+            "label": cycle_label,
             "elapsed_days": elapsed_days,
-            "total_days": total_days,
+            "total_days": None,
         },
         "total_income": total_income,
         "total_expense": total_expense,

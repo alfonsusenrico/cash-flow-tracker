@@ -10,6 +10,7 @@ from app.main import app
 from app.services.auth import get_current_user
 from app.services.ledger_mutations import create_bilateral_movement
 from app.services.provenance import system_provenance
+from app.services.salary_cycles import SalaryCycle
 
 
 def test_generic_bilateral_movement_rejects_investment_positions_before_writes():
@@ -253,7 +254,8 @@ def test_post_movement_excluded_from_pulse():
     app.dependency_overrides[get_current_user] = lambda: mock_user
 
     with patch("app.routers.pulse.db_conn") as mock_conn, \
-         patch("app.routers.pulse.get_accounts_with_balances", return_value=[]):
+         patch("app.routers.pulse.get_accounts_with_balances", return_value=[]), \
+         patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")):
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 

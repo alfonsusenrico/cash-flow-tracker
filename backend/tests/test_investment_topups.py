@@ -279,38 +279,35 @@ def create_rule(client, source, target, **overrides):
 
 
 def confirm(client, rule_id, scheduled=None, **overrides):
-    return client.post("/api/recurring/execute", json={
-        "rule_ids": [rule_id], "scheduled_dates": {rule_id: scheduled or date.today().isoformat()}, **overrides,
+    return client.post(f"/api/recurring/{rule_id}/occurrences/record", json={
+        "scheduled_for": scheduled or date.today().isoformat(), **overrides,
     })
 
 
 def test_monthly_topup_waits_then_records_once(auth_client, portfolio):
-    from app.routers.recurring import process_due_recurring_rules
-
     source, target, _ = portfolio
     rule_id = create_rule(auth_client, source, target)
-    owner = auth_client.get("/api/auth/me").json()["user"]["id"]
-    process_due_recurring_rules(user_id=owner)
+    assert auth_client.post("/api/recurring/process-due").status_code == 410
     assert balances(auth_client)[source]["balance"] == 500_000
     pending = auth_client.get("/api/recurring/pending").json()["rules"]
     assert any(rule["id"] == rule_id for rule in pending)
     first = confirm(auth_client, rule_id)
     assert first.status_code == 200, first.text
-    assert first.json()["results"][0]["status"] == "succeeded"
+    assert first.json()["result"]["status"] == "succeeded"
     replay = confirm(auth_client, rule_id)
-    assert replay.json()["results"][0]["idempotent"] is True
+    assert replay.json()["result"]["idempotent"] is True
     assert balances(auth_client)[source]["balance"] == 387_410
     rules = auth_client.get("/api/recurring").json()["rules"]
     advanced = next(rule for rule in rules if rule["id"] == rule_id)
     assert date.fromisoformat(advanced["next_due_date"]) > date.today()
-    mid = first.json()["results"][0]["movement_id"]
+    mid = first.json()["result"]["movement_id"]
     assert auth_client.delete(f"/api/investment-topups/{mid}").status_code == 200
-    assert confirm(auth_client, rule_id).json()["results"][0]["idempotent"] is True
+    assert confirm(auth_client, rule_id).json()["result"]["idempotent"] is True
     assert balances(auth_client)[source]["balance"] == 500_000
 
 
 @pytest.mark.parametrize("overrides", [
-    {"auto_post": True}, {"is_payroll_allocation": True},
+    {"auto_post": True}, {"is_payroll_allocation": True}, {"schedule_type": "payday"},
     {"category_id": str(uuid4())}, {"obligation_id": str(uuid4())},
 ])
 def test_topup_rule_forbidden_options_rejected_on_create_and_update(auth_client, portfolio, overrides):
@@ -322,17 +319,18 @@ def test_topup_rule_forbidden_options_rejected_on_create_and_update(auth_client,
     assert auth_client.post(f"/api/recurring/{rule_id}/toggle").status_code == 200
 
 
-def test_confirmation_failure_and_partial_batch_leave_failed_occurrence_pending(auth_client):
+def test_confirmation_failure_leaves_failed_occurrence_pending(auth_client):
     source = account(auth_client, balance=200_000)
     target = account(auth_client, instrument="mutual_fund")
-    ids = [create_rule(auth_client, source, target) for _ in range(2)]
-    response = auth_client.post("/api/recurring/execute", json={"rule_ids": ids, "scheduled_dates": dict.fromkeys(ids, date.today().isoformat())})
-    assert response.status_code == 200, response.text
-    assert sorted(result["status"] for result in response.json()["results"]) == ["failed", "succeeded"]
-    failed_id = next(result["rule_id"] for result in response.json()["results"] if result["status"] == "failed")
+    first_id, second_id = [create_rule(auth_client, source, target) for _ in range(2)]
+    assert confirm(auth_client, first_id).status_code == 200
+    # The first plan's own debit is not offered as a duplicate of the second plan.
+    failed = confirm(auth_client, second_id)
+    assert failed.status_code == 409, failed.text
+    assert failed.json()["detail"]["code"] == "insufficient_funds"
     pending = auth_client.get("/api/recurring/pending").json()["rules"]
-    failed = next(rule for rule in pending if rule["id"] == failed_id)
-    assert failed["next_due_date"] == date.today().isoformat()
+    still_due = next(rule for rule in pending if rule["id"] == second_id)
+    assert still_due["next_due_date"] == date.today().isoformat()
     assert balances(auth_client)[source]["balance"] == 87_410
 
 
@@ -348,7 +346,7 @@ def test_concurrent_and_delayed_monthly_confirmation(auth_client, portfolio):
     with ThreadPoolExecutor(max_workers=2) as executor:
         responses = list(executor.map(lambda client: confirm(client, rule_id, yesterday.isoformat()), clients))
     assert all(response.status_code == 200 for response in responses)
-    assert all(response.json()["results"][0]["status"] == "succeeded" for response in responses)
+    assert sorted(bool(response.json()["result"].get("idempotent")) for response in responses) == [False, True]
     assert balances(auth_client)[source]["balance"] == 387_410
     with db_conn() as conn:
         row = conn.execute("SELECT date FROM investment_topups WHERE recurring_execution_id IN (SELECT id FROM recurring_executions WHERE recurring_rule_id = %s)", (rule_id,)).fetchone()
@@ -360,9 +358,13 @@ def test_stale_future_and_missing_occurrence_do_not_execute(auth_client, portfol
     rule_id = create_rule(auth_client, source, target)
     for scheduled in ((date.today() - timedelta(days=1)).isoformat(), (date.today() + timedelta(days=1)).isoformat()):
         response = confirm(auth_client, rule_id, scheduled)
-        assert response.json()["results"][0]["status"] == "failed"
-    response = auth_client.post("/api/recurring/execute", json={"rule_ids": [rule_id]})
-    assert response.json()["results"][0]["error_code"] == "scheduled_date_required"
+        assert response.status_code == 409
+        assert response.json()["detail"]["code"] == "invalid_scheduled_occurrence"
+    response = auth_client.post(f"/api/recurring/{rule_id}/occurrences/record", json={})
+    assert response.status_code == 422
+    legacy = auth_client.post("/api/recurring/execute", json={"rule_ids": [rule_id], "scheduled_dates": {rule_id: date.today().isoformat()}})
+    assert legacy.status_code == 410
+    assert legacy.json()["detail"]["code"] == "scheduled_posting_retired"
     assert balances(auth_client)[source]["balance"] == 500_000
 
 
@@ -374,6 +376,8 @@ def test_migration_preserves_legacy_accounts_and_rules(db_available, db_url):
 
     schema = f"topups_upgrade_{uuid4().hex}"
     migrations = sorted((Path(__file__).resolve().parents[2] / "db/migrations").glob("V*.sql"), key=lambda p: int(p.name.split("__")[0][1:]))
+    # V23 introduced top-ups; later migrations have their own upgrade tests.
+    migrations = [path for path in migrations if int(path.name.split("__")[0][1:]) <= 23]
     with psycopg.connect(db_url) as conn:
         conn.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
         conn.execute(sql.SQL("SET search_path TO {}, public").format(sql.Identifier(schema)))

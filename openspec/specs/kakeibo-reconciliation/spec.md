@@ -50,67 +50,69 @@ The system SHALL count only fresh net capital movements from operational account
 - **THEN** the transfer amount SHALL NOT be counted as monthly savings
 
 ### Requirement: Normalized 50/30/20 Allocation Proportions
-The system SHALL compute Kakeibo pillar amounts for `need`, `want`, `culture`, `unexpected` and `saving` (saving is net fresh saving, never below zero) and SHALL express each pillar as a percentage of `base = max(total_inflow, total_allocated)`, where `total_allocated = need_spent + want_spent + culture_spent + unexpected_spent + max(0, net_saving_spent)`. The percentages therefore never exceed 100% in total.
+The system SHALL calculate the five pillar amounts and percentages using `base = max(total_inflow, total_allocated)`, where total allocated is the sum of the five amounts and fresh saving is floored at zero.
 
 #### Scenario: Allocation percentages never exceed 100%
-- **WHEN** the dashboard calculates the Kakeibo breakdown for the cycle
-- **THEN** `need_pct`, `want_pct`, `culture_pct`, `unexpected_pct` and `saving_pct` SHALL be computed relative to `base`
-- **AND** the five percentages SHALL sum to at most 100% (within rounding).
+- **WHEN** a Kakeibo breakdown has a positive base
+- **THEN** each pillar percentage SHALL use that base and their total SHALL be at most 100% within rounding
 
 #### Scenario: Allocation percentages always sum to 100%
-- **GIVEN** a cycle whose `total_allocated` is at least its `total_inflow`
-- **WHEN** the dashboard calculates the Kakeibo breakdown
-- **THEN** `need_pct`, `want_pct`, `culture_pct`, `unexpected_pct` and `saving_pct` SHALL sum to 100% (within rounding).
+- **WHEN** total allocated is positive and at least total inflow
+- **THEN** the five percentages SHALL sum to 100% within rounding
 
 #### Scenario: Unallocated inflow stays unallocated
-- **GIVEN** a cycle with inflow Rp 2.000.000, need Rp 500.000 and no other allocation
-- **WHEN** the Kakeibo breakdown is calculated
-- **THEN** `need_pct` SHALL be 25.0
-- **AND** the remaining 75% SHALL NOT be attributed to any pillar.
+- **WHEN** income is Rp 2.000.000, need is Rp 500.000 and the other allocations are zero
+- **THEN** need SHALL be 25% and the remainder SHALL not be assigned to a pillar
 
 #### Scenario: Lifestyle group over target
-- **GIVEN** a cycle with inflow Rp 1.000.000, need Rp 400.000, want Rp 250.000, culture Rp 150.000, unexpected Rp 0 and saving Rp 200.000
-- **WHEN** the Kakeibo breakdown is calculated
-- **THEN** `lifestyle_pct` SHALL be 40.0
-- **AND** `kakeibo_status` SHALL be `warning`.
+- **WHEN** want and culture sum to Rp 400.000 on a base of Rp 1.000.000
+- **THEN** lifestyle SHALL be 40% and any optional benchmark SHALL explain the mapping
 
 #### Scenario: Essentials group over target
-- **GIVEN** a cycle with inflow Rp 1.000.000, need Rp 450.000, unexpected Rp 150.000, want Rp 100.000, culture Rp 0 and saving Rp 300.000
-- **WHEN** the Kakeibo breakdown is calculated
-- **THEN** `essentials_pct` SHALL be 60.0 and `lifestyle_pct` SHALL be 10.0
-- **AND** `kakeibo_status` SHALL be `elevated_needs`.
+- **WHEN** need and unexpected sum to Rp 600.000 on a base of Rp 1.000.000
+- **THEN** essentials SHALL be 60% and any optional benchmark SHALL explain the mapping
 
 #### Scenario: Healthy allocation is shown as healthy
-- **GIVEN** a breakdown with `kakeibo_status = healthy`
-- **WHEN** the owner opens the Kakeibo section in Insights
-- **THEN** the status badge SHALL show the healthy label
-- **AND** it SHALL show the warning label only for `warning` or `elevated_needs`.
+- **WHEN** the owner views a breakdown that meets the optional benchmark
+- **THEN** the interface SHALL present the actual figures without a financial-health verdict
 
 #### Scenario: Empty cycle
-- **GIVEN** a cycle with no inflow and no allocated spending
-- **WHEN** the Kakeibo breakdown is calculated
-- **THEN** every pillar and group percentage SHALL be 0.0
-- **AND** `kakeibo_status` SHALL be `healthy`.
+- **WHEN** no inflow or allocation is available for the selected period
+- **THEN** the interface SHALL show an empty state rather than a healthy verdict
 
 ### Requirement: 50/30/20 Group Benchmark
-The system SHALL judge the 50/30/20 benchmark on three groups: essentials = need + unexpected, target at most 50%; lifestyle = want + culture, target at most 30%; saving, target at least 20%.
+The system SHALL explain an optional 50/30/20 comparison using essentials = need + unexpected, lifestyle = want + culture and saving.
 
 #### Scenario: Group percentages
-- **GIVEN** a cycle with inflow Rp 1.000.000, need Rp 300.000, unexpected Rp 100.000, want Rp 150.000, culture Rp 50.000 and saving Rp 400.000
-- **WHEN** the Kakeibo breakdown is calculated
-- **THEN** `essentials_pct` SHALL be 40.0 and `lifestyle_pct` SHALL be 20.0.
-
-### Requirement: Kakeibo Status
-The returned `kakeibo_status` SHALL be `warning` when lifestyle exceeds 30%; otherwise `elevated_needs` when essentials exceed 50%; otherwise `healthy`.
-
-#### Scenario: Lifestyle warning takes precedence
-- **GIVEN** a cycle whose lifestyle group is 35% and whose essentials group is 55%
-- **WHEN** the Kakeibo breakdown is calculated
-- **THEN** `kakeibo_status` SHALL be `warning`.
+- **WHEN** need is Rp 300.000, unexpected Rp 100.000, want Rp 150.000, culture Rp 50.000 and saving Rp 400.000 against a Rp 1.000.000 base
+- **THEN** essentials SHALL be 40% and lifestyle SHALL be 20%
 
 ### Requirement: Stable Kakeibo Response Fields
-Existing Kakeibo breakdown response fields SHALL keep their meaning.
+The system SHALL preserve the legacy Kakeibo response fields and their documented meanings on the compatibility contract until clients are migrated, while the updated interface avoids financial-health verdicts.
 
 #### Scenario: Existing fields keep their meaning
-- **WHEN** a client that predates the five-pillar breakdown reads `need_pct`, `want_pct`, `saving_pct` and `kakeibo_status`
-- **THEN** each field SHALL still be present and carry the meaning defined by this capability.
+- **WHEN** an older client reads the legacy response
+- **THEN** its need, want, saving and legacy status fields SHALL remain present with their legacy semantics
+
+### Requirement: Five classifications visible and traceable
+The system SHALL present need, want, culture, unexpected and saving individually with their amount, basis, and relevant ledger drill-down.
+
+#### Scenario: Review unexpected spending
+- **WHEN** a user views the breakdown
+- **THEN** unexpected spending SHALL be distinguishable from need even if a grouped benchmark is also shown
+
+#### Scenario: Reimbursement of mixed-classification spending
+- **WHEN** a category contains expenses in multiple effective classifications and receives a reimbursement without an individual expense link
+- **THEN** the applied category offset SHALL be distributed proportionally across those classifications with exact integer totals and deterministic rounding
+- **AND** net expense classifications before adding savings movements SHALL reconcile to net reportable spending
+
+### Requirement: Explain savings and benchmark
+The system SHALL distinguish net cash-flow surplus from fresh savings and explain any optional 50/30/20 mapping without presenting the benchmark as a health verdict.
+
+#### Scenario: Transfer and investment trade
+- **WHEN** an operational transfer, a qualifying fresh-saving movement and an investment trade occur
+- **THEN** the savings figure SHALL identify the qualifying contribution once and SHALL NOT count ordinary transfers or trade turnover as new savings
+
+#### Scenario: Explain the combined savings figure
+- **WHEN** the savings classification includes reportable saving-classified expenses and qualifying savings movements
+- **THEN** the response SHALL show those components separately and explain the combined figure, while retaining the legacy combined field

@@ -16,7 +16,6 @@ import { SpendingHeatmap } from "@/components/dashboard/SpendingHeatmap";
 import { NarrativeInsightCard } from "@/components/dashboard/NarrativeInsightCard";
 import { KakeiboBenchmark } from "@/components/dashboard/KakeiboBenchmark";
 import { KAKEIBO_PILLARS, type KakeiboPillar, kakeiboPillarInfo, pillarOrNeed } from "@/lib/kakeibo";
-import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { ledgerHref, reportPeriodFilters, UNCATEGORIZED } from "@/lib/ledgerFilters";
 
 const CATEGORY_ICONS = [
@@ -57,6 +56,19 @@ const CATEGORY_COLOR_NAMES: Record<string, string> = {
   "#14b8a6": "Teal",
   "#64748b": "Abu-abu",
 };
+
+function comparisonLabel(baseline: number | undefined, change: number | undefined): string {
+  if (!baseline || change == null) return "Belum ada pembanding";
+  const sign = change > 0 ? "+" : "";
+  return `${sign}${change}%`;
+}
+
+function comparisonColor(hasBaseline: boolean, positive: boolean): string {
+  if (!hasBaseline) return "bg-[var(--surface-raised)] text-[var(--muted)] border-[var(--border)]";
+  return positive
+    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+    : "bg-rose-500/10 text-rose-500 border-rose-500/20";
+}
 
 export default function AnalyticsPage() {
   const qc = useQueryClient();
@@ -189,19 +201,6 @@ export default function AnalyticsPage() {
     (category) => category.is_archived,
   );
 
-  const burnRate = data?.burn_rate;
-  const targetProjected =
-    (timeframe === "cycle"
-      ? burnRate?.projected_cycle_outflow
-      : burnRate?.projected_30d_outflow) ??
-    burnRate?.projected_cycle_outflow ??
-    burnRate?.projected_30d_outflow ??
-    0;
-
-  const animBurn7d = useAnimatedCounter(burnRate?.daily_burn_7d ?? 0);
-  const animBurn30d = useAnimatedCounter(burnRate?.daily_burn_30d ?? 0);
-  const animProjected = useAnimatedCounter(targetProjected);
-
   if (isLoading) {
     return (
       <div className="space-y-6 animate-pulse">
@@ -305,103 +304,18 @@ export default function AnalyticsPage() {
       {/* ===================== TAB 1: SUMMARY & BUDGETS ===================== */}
       {activeTab === "summary" && (
         <div className="space-y-6">
-          {/* Mobile Metric Strip (< lg) */}
-          <div className="lg:hidden grid grid-cols-3 gap-2">
-            <div className="p-2.5 rounded-2xl bg-rose-500/[0.04] border border-rose-500/20 flex flex-col justify-center min-h-[72px] space-y-1">
-              <div className="text-[10px] font-bold text-[var(--muted)] truncate">Rata 7 Hari</div>
-              <div className="text-xs sm:text-sm font-black tabular tracking-tight text-rose-500 truncate">
-                {bal(animBurn7d)}
+          <section aria-label="Arus kas tercatat" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { label: "Uang masuk", amount: comparison?.total_inflow },
+              { label: "Uang keluar", amount: comparison?.total_outflow },
+              { label: "Selisih bersih", amount: comparison?.net_cashflow },
+            ].map((item) => (
+              <div key={item.label} className="card-squircle border border-[var(--border)] p-4 space-y-1">
+                <div className="text-xs font-bold text-[var(--muted)]">{item.label}</div>
+                <div className="text-xl font-black tabular text-[var(--text)]">{typeof item.amount === "number" ? bal(item.amount) : "Tidak tersedia"}</div>
               </div>
-              <div className="text-[9px] text-[var(--muted)]">/ hari</div>
-            </div>
-
-            <div className="p-2.5 rounded-2xl bg-amber-500/[0.04] border border-amber-500/20 flex flex-col justify-center min-h-[72px] space-y-1">
-              <div className="text-[10px] font-bold text-[var(--muted)] truncate">Rata 30 Hari</div>
-              <div className="text-xs sm:text-sm font-black tabular tracking-tight text-amber-500 truncate">
-                {bal(animBurn30d)}
-              </div>
-              <div className="text-[9px] text-[var(--muted)]">/ hari</div>
-            </div>
-
-            <div className="p-2.5 rounded-2xl bg-indigo-500/[0.04] border border-indigo-500/20 flex flex-col justify-center min-h-[72px] space-y-1">
-              <div className="text-[10px] font-bold text-[var(--muted)] truncate">Proyeksi</div>
-              <div className="text-xs sm:text-sm font-black tabular tracking-tight text-[var(--text)] truncate">
-                {bal(animProjected)}
-              </div>
-              <div className="text-[9px] text-[var(--muted)]">estimasi</div>
-            </div>
-          </div>
-
-          {/* Desktop Burn Rate KPI Tiles (>= lg) */}
-          <div className="hidden lg:grid lg:grid-cols-3 gap-4">
-            <div className="card-squircle bg-rose-500/[0.04] border-rose-500/20 p-5 space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--muted)] font-bold">Rata-rata 7 Hari</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-500 border border-rose-500/25">
-                  7 Hari
-                </span>
-              </div>
-              <div className="text-2xl sm:text-3xl font-black tabular tracking-tight text-rose-500 select-all">
-                {bal(animBurn7d)}
-                <span className="text-xs text-[var(--muted)] font-bold font-sans"> / hari</span>
-              </div>
-              <p className="text-[11px] text-[var(--muted)] font-medium">Laju pengeluaran harian terkini</p>
-            </div>
-
-            <div className="card-squircle bg-amber-500/[0.04] border-amber-500/20 p-5 space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--muted)] font-bold">Rata-rata 30 Hari</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-500 border border-amber-500/25">
-                  30 Hari
-                </span>
-              </div>
-              <div className="text-2xl sm:text-3xl font-black tabular tracking-tight text-amber-500 select-all">
-                {bal(animBurn30d)}
-                <span className="text-xs text-[var(--muted)] font-bold font-sans"> / hari</span>
-              </div>
-              <p className="text-[11px] text-[var(--muted)] font-medium">Rata-rata pengeluaran harian sebulan</p>
-            </div>
-
-            <div className="card-squircle bg-indigo-500/[0.04] border-indigo-500/20 p-5 space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--muted)] font-bold">
-                  {timeframe === "cycle"
-                    ? "Proyeksi Akhir Siklus"
-                    : timeframe === "90d"
-                    ? "Proyeksi 90 Hari"
-                    : "Proyeksi 30 Hari"}
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/15 text-indigo-500 border border-indigo-500/25">
-                  {timeframe === "cycle" ? "Siklus" : "Horizon"}
-                </span>
-              </div>
-              <div className="text-2xl sm:text-3xl font-black tabular tracking-tight text-[var(--text)] select-all">
-                {bal(animProjected)}
-              </div>
-              <p className="text-[11px] text-[var(--muted)] font-medium">
-                {timeframe === "cycle" && burnRate?.cycle_end_date ? (
-                  <>
-                    Estimasi total s.d.{" "}
-                    <span className="font-bold text-[var(--text)]">
-                      {(() => {
-                        const parts = (burnRate.cycle_end_date as string).split("-");
-                        if (parts.length === 3) {
-                          const m = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-                          return `${parseInt(parts[2], 10)} ${m[parseInt(parts[1], 10) - 1] || ""}`;
-                        }
-                        return burnRate.cycle_end_date;
-                      })()}
-                    </span>{" "}
-                    <span className="text-[10px] text-[var(--muted)] tabular font-medium">
-                      ({burnRate.cycle_elapsed_days ?? 0}/{burnRate.cycle_total_days ?? 0} hari)
-                    </span>
-                  </>
-                ) : (
-                  "Berdasarkan tren pengeluaran saat ini"
-                )}
-              </p>
-            </div>
-          </div>
+            ))}
+          </section>
 
           {/* Daily Burn Cadence Chart */}
           <BurnCadenceChart
@@ -901,7 +815,7 @@ export default function AnalyticsPage() {
           {/* 1. Conversational Financial Narrative */}
           <NarrativeInsightCard
             narrative={narrative}
-            outflowDeltaPct={comparison?.outflow_delta_pct ?? 0}
+            outflowDeltaPct={comparison?.prev_outflow ? comparison?.outflow_delta_pct ?? null : null}
             timeframeLabel={timeframeLabel}
           />
 
@@ -929,13 +843,10 @@ export default function AnalyticsPage() {
                   <span
                     className={cn(
                       "text-[10px] font-bold px-1.5 py-0.5 rounded border",
-                      (comparison?.inflow_delta_pct ?? 0) >= 0
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                      comparisonColor(Boolean(comparison?.prev_inflow), (comparison?.inflow_delta_pct ?? 0) >= 0)
                     )}
                   >
-                    {(comparison?.inflow_delta_pct ?? 0) >= 0 ? "+" : ""}
-                    {comparison?.inflow_delta_pct ?? 0}%
+                    {comparisonLabel(comparison?.prev_inflow, comparison?.inflow_delta_pct)}
                   </span>
                 </div>
                 <div className="text-xl font-bold text-[var(--text)] tabular">
@@ -953,13 +864,10 @@ export default function AnalyticsPage() {
                   <span
                     className={cn(
                       "text-[10px] font-bold px-1.5 py-0.5 rounded border",
-                      (comparison?.outflow_delta_pct ?? 0) <= 0
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                      comparisonColor(Boolean(comparison?.prev_outflow), (comparison?.outflow_delta_pct ?? 0) <= 0)
                     )}
                   >
-                    {(comparison?.outflow_delta_pct ?? 0) > 0 ? "+" : ""}
-                    {comparison?.outflow_delta_pct ?? 0}%
+                    {comparisonLabel(comparison?.prev_outflow, comparison?.outflow_delta_pct)}
                   </span>
                 </div>
                 <div className="text-base sm:text-xl font-bold text-[var(--text)] tabular truncate">
@@ -977,13 +885,10 @@ export default function AnalyticsPage() {
                   <span
                     className={cn(
                       "text-[10px] font-bold px-1.5 py-0.5 rounded border",
-                      (comparison?.net_cashflow ?? 0) >= 0
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                      comparisonColor(Boolean(comparison?.prev_net_cashflow), (comparison?.net_cashflow ?? 0) >= 0)
                     )}
                   >
-                    {(comparison?.net_cashflow_delta_pct ?? 0) >= 0 ? "+" : ""}
-                    {comparison?.net_cashflow_delta_pct ?? 0}%
+                    {comparisonLabel(comparison?.prev_net_cashflow, comparison?.net_cashflow_delta_pct)}
                   </span>
                 </div>
                 <div
@@ -1001,10 +906,11 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              {/* Card 4: Savings Rate Delta */}
+              {/* Card 4: Cash-flow surplus ratio */}
               <div className="cockpit-card p-3 sm:p-4 space-y-1.5 sm:space-y-2 border border-[var(--border)]">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--muted)]">Tabungan</span>
+                  <span className="text-xs font-medium text-[var(--muted)]">Rasio surplus</span>
+                  {(comparison?.total_inflow ?? 0) > 0 && (comparison?.prev_inflow ?? 0) > 0 && (
                   <span
                     className={cn(
                       "text-[10px] font-bold px-1.5 py-0.5 rounded border",
@@ -1016,12 +922,13 @@ export default function AnalyticsPage() {
                     {(comparison?.savings_rate_delta_pts ?? 0) >= 0 ? "+" : ""}
                     {comparison?.savings_rate_delta_pts ?? 0} pts
                   </span>
+                  )}
                 </div>
                 <div className="text-base sm:text-xl font-bold text-[var(--text)] tabular truncate">
-                  {comparison?.savings_rate ?? 0}%
+                  {(comparison?.total_inflow ?? 0) > 0 ? `${comparison?.savings_rate ?? 0}%` : "Tidak tersedia"}
                 </div>
                 <div className="text-[10px] text-[var(--muted)] truncate">
-                  Siklus lalu: {comparison?.prev_savings_rate ?? 0}%
+                  Periode lalu: {(comparison?.prev_inflow ?? 0) > 0 ? `${comparison?.prev_savings_rate ?? 0}%` : "Tidak tersedia"}
                 </div>
               </div>
             </div>

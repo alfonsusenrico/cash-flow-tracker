@@ -12,7 +12,6 @@ import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { Icon } from "@/components/ui/Icon";
 import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { AccountOptions } from "@/components/ui/AccountOptions";
-import { PayrollAllocationModal } from "@/components/recurring/PayrollAllocationModal";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { InvestmentTradeModal } from "@/components/ui/InvestmentTradeModal";
@@ -106,7 +105,6 @@ export default function AccountsPage() {
 
   // Modals state
   const [accountModalOpen, setAccountModalOpen] = useState(false);
-  const [payrollModalOpen, setPayrollModalOpen] = useState(false);
   const [recurringModalOpen, setRecurringModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<AccountItem | null>(null);
   const [reconcileAccount, setReconcileAccount] = useState<AccountItem | null>(null);
@@ -384,7 +382,7 @@ export default function AccountsPage() {
     queryFn: () => api.get("/accounts"),
   });
 
-  const { data: netWorthData, isLoading: netWorthLoading } = useQuery<NetWorthResponse>({
+  const { data: netWorthData, isLoading: netWorthLoading, isError: netWorthError } = useQuery<NetWorthResponse>({
     queryKey: queryKeys.dashboard.netWorth,
     queryFn: () => api.get("/dashboard/net-worth"),
   });
@@ -430,10 +428,17 @@ export default function AccountsPage() {
     return topAccounts;
   }, [topAccounts, mobileAccountFilter]);
 
-  const netWorth = netWorthData?.net_worth ?? totalBalance;
+  const netWorthAvailable = !netWorthError && netWorthData?.net_worth != null && netWorthData?.total_liabilities != null;
+  const netWorth = netWorthAvailable ? netWorthData!.net_worth : 0;
   const totalAssets = netWorthData?.total_assets ?? totalBalance;
   const totalLiabilities = netWorthData?.total_liabilities ?? 0;
   const runway = netWorthData?.runway;
+  let netWorthExplanation = "Kekayaan bersih belum dapat dihitung";
+  if (netWorthAvailable) {
+    netWorthExplanation = totalAssets >= totalLiabilities
+      ? "Total aset mencukupi seluruh kewajiban"
+      : "Total kewajiban melebihi total aset";
+  }
 
   const animNetWorth = useAnimatedCounter(netWorth);
   const animTotalAssets = useAnimatedCounter(totalAssets);
@@ -998,15 +1003,6 @@ export default function AccountsPage() {
             >
               <Icon name="refresh-cw" className={cn("h-4 w-4", syncPricesMutation.isPending && "animate-spin")} />
             </button>
-            <button
-              type="button"
-              onClick={() => setPayrollModalOpen(true)}
-              aria-label="Buka alokasi gaji"
-              className="flex min-h-11 min-w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] dark:text-emerald-400"
-              title="Alokasi Gaji"
-            >
-              <Icon name="allocation" className="h-4 w-4 stroke-[2.5]" />
-            </button>
           </div>
         </div>
 
@@ -1034,22 +1030,12 @@ export default function AccountsPage() {
 
           <button
             type="button"
-            onClick={() => setPayrollModalOpen(true)}
-            className="flex min-h-11 items-center gap-1.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3.5 text-xs font-bold text-[var(--text)] shadow-2xs hover:bg-[var(--surface-raised)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-            title="Buka Alokasi Gaji Bulanan"
-          >
-            <Icon name="allocation" className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
-            <span>Alokasi Gaji</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => setRecurringModalOpen(true)}
             className="flex min-h-11 items-center gap-1.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3.5 text-xs font-bold text-[var(--text)] shadow-2xs hover:bg-[var(--surface-raised)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-            title="Kelola Transaksi Rutin & Otomatis"
+            title="Kelola rencana dan pengingat"
           >
             <Icon name="repeat" className="h-3.5 w-3.5 text-[var(--muted)] stroke-[2.5]" />
-            <span>Rutin</span>
+            <span>Rencana</span>
           </button>
 
           <button
@@ -1072,7 +1058,7 @@ export default function AccountsPage() {
 
         <div className="relative flex items-center justify-between">
           <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
-            Total Kekayaan Bersih (Total saldo kas dikurangi sisa cicilan & utang)
+            Total Kekayaan Bersih (Total aset dikurangi sisa cicilan & utang)
           </span>
           {runway && (
             <span
@@ -1109,17 +1095,17 @@ export default function AccountsPage() {
 
         <div className="relative mt-3.5">
           <div className="text-3xl sm:text-5xl font-black tracking-tight tabular select-all text-[var(--text)]">
-            {bal(animNetWorth)}
+            {netWorthAvailable ? bal(animNetWorth) : "Tidak tersedia"}
           </div>
           <p className="text-xs text-[var(--muted)] mt-1">
-            {totalAssets >= totalLiabilities ? "Saldo kas mencukupi seluruh kewajiban" : "Total kewajiban melebihi saldo kas tersedia"}
+            {netWorthExplanation}
           </p>
         </div>
 
         {/* 3-Column Asset vs Liability Ribbon */}
         <div className="relative mt-6 pt-5 border-t border-[var(--border)] grid grid-cols-3 gap-3 sm:gap-6 text-xs">
           <div>
-            <div className="text-[10px] text-[var(--muted)] uppercase tracking-wider font-bold">Saldo Kas Tersedia</div>
+            <div className="text-[10px] text-[var(--muted)] uppercase tracking-wider font-bold">Total Aset</div>
             <div className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5 tabular select-all">
               {bal(animTotalAssets)}
             </div>
@@ -1129,10 +1115,10 @@ export default function AccountsPage() {
           <div>
             <div className="text-[10px] text-[var(--muted)] uppercase tracking-wider font-bold">Total Cicilan & Utang</div>
             <div className="text-base sm:text-lg font-black text-rose-600 dark:text-rose-400 mt-0.5 tabular select-all">
-              {bal(animTotalLiabilities)}
+              {netWorthAvailable ? bal(animTotalLiabilities) : "Tidak tersedia"}
             </div>
             <div className="text-[10px] text-[var(--muted)] opacity-75 mt-0.5">
-              {netWorthData?.obligations?.length || 0} cicilan aktif
+              {netWorthAvailable ? `${netWorthData?.obligations?.length || 0} cicilan aktif` : "Data cicilan tidak tersedia"}
             </div>
           </div>
 
@@ -1256,25 +1242,23 @@ export default function AccountsPage() {
 
           <div>
             <div className="text-2xl sm:text-3xl font-black tracking-tight tabular text-[var(--text)] select-all">
-              {bal(animNetWorth)}
+              {netWorthAvailable ? bal(animNetWorth) : "Tidak tersedia"}
             </div>
             <p className="text-[11px] text-[var(--muted)] mt-0.5">
-              {totalAssets >= totalLiabilities
-                ? "Saldo kas mencukupi seluruh kewajiban"
-                : "Total kewajiban melebihi saldo kas"}
+              {netWorthExplanation}
             </p>
           </div>
 
           {/* Asset vs Liability Strip */}
           <div className="flex items-center justify-between text-[11px] pt-2 border-t border-[var(--border)]/60 text-[var(--muted)] tabular">
             <div>
-              <span className="text-[10px] text-[var(--muted)] block">Kas Tersedia</span>
+              <span className="text-[10px] text-[var(--muted)] block">Total Aset</span>
               <span className="font-bold text-emerald-600 dark:text-emerald-400">{bal(animTotalAssets)}</span>
             </div>
             <span className="text-[var(--border)]">•</span>
             <div>
               <span className="text-[10px] text-[var(--muted)] block">Cicilan & Utang</span>
-              <span className="font-bold text-rose-600 dark:text-rose-400">{bal(animTotalLiabilities)}</span>
+              <span className="font-bold text-rose-600 dark:text-rose-400">{netWorthAvailable ? bal(animTotalLiabilities) : "Tidak tersedia"}</span>
             </div>
             <span className="text-[var(--border)]">•</span>
             <div className="text-right">
@@ -2303,16 +2287,6 @@ export default function AccountsPage() {
           </form>
         </Modal>
       )}
-
-      {/* Payroll Allocation Modal */}
-      <PayrollAllocationModal
-        open={payrollModalOpen}
-        onClose={() => setPayrollModalOpen(false)}
-        onOpenRulesManager={() => {
-          setPayrollModalOpen(false);
-          setRecurringModalOpen(true);
-        }}
-      />
 
       {/* Recurring Rules Management Modal */}
       <RecurringRulesModal

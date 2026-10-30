@@ -111,7 +111,7 @@ export function InvestmentTopupModal({ open, onClose, product, allAccounts, edit
         {onSchedule && !editingTopup && (
           <button type="button" className="min-h-11 text-sm font-semibold underline underline-offset-4 disabled:opacity-50" disabled={busy || !sourceId || parseNumberFromDots(amount) <= 0} onClick={() => {
             onSchedule({ sourceAccountId: sourceId, targetAccountId: product.id, amount: parseNumberFromDots(amount), productName: product.name });
-          }}>Jadwalkan bulanan</button>
+          }}>Buat rencana bulanan (tidak mencatat)</button>
         )}
         {!editingTopup && <p className="text-xs text-[var(--text-secondary)]">Catat setelah debit berhasil. Pastikan debit yang sama belum tercatat di buku kas.</p>}
         {editingTopup && <p className="text-xs text-[var(--text-secondary)]">Koreksi nominal menyesuaikan modal dan estimasi nilai. Periksa kembali nilai aktual di Bibit setelah mengubahnya.</p>}

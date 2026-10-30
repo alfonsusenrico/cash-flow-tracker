@@ -158,6 +158,10 @@ def test_known_fee_pairs_with_equal_legs_and_a_fee_row(client, notification_owne
     assert result_of(client, outgoing["event_id"])["type"] == "internal_movement"
     listed = client.get("/api/transactions?limit=10").json()["transactions"]
     assert [entry["amount"] for entry in listed if entry["fee_for_movement_id"] == str(legs[0]["movement_id"])] == [fee]
+    summary = client.get("/api/transactions?limit=10").json()["summary"]["cumulative"]
+    assert summary["inflow"] == 0
+    assert summary["outflow"] == fee
+    assert summary["net"] == -fee
 
 
 def test_unknown_or_too_large_difference_is_not_paired(client, notification_owner):

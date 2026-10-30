@@ -10,27 +10,22 @@ The system SHALL persist and present user settings and profile information throu
 
 #### Scenario: Required behavior and constraints
 - **WHEN** an owner registers, views or updates profile and settings information
-- **THEN** the following required behavior and constraints hold:
-
-  The system SHALL persist and present user settings and profile information through aligned registration and settings contracts:
-  1. Registration SHALL either persist the submitted display name or omit that control; it SHALL NOT accept and silently discard it.
-  2. Settings SHALL display username and permit updating the persisted display name.
-  3. Settings SHALL permit configuring payday day from 1 through 31, a supported currency from the explicit `IDR` and `USD` set, emergency-fund multiplier, and optional monthly spending budget.
-  4. Unsupported currency values and invalid numeric ranges SHALL be rejected by both form and server without changing saved settings.
-  5. Successful changes SHALL refresh every view that consumes the affected user settings.
-  6. The interface SHALL NOT display redundant view toggles or unconfigured integrations.
+- **THEN** registration SHALL persist a submitted display name or omit the control, and settings SHALL display username and permit updating display name
+- **AND** settings SHALL support salary-source configuration, IDR and USD, an emergency-fund multiplier and an optional monthly spending budget
+- **AND** unsupported currencies and invalid numeric ranges SHALL be rejected by both form and server without changing saved settings
+- **AND** successful changes SHALL refresh all affected consumers and the interface SHALL omit redundant toggles and unconfigured integrations
 
 #### Scenario: Registering with a display name
 - **WHEN** a new user submits a valid optional display name during registration
-- **THEN** the name is persisted and appears in authenticated profile settings
+- **THEN** it is persisted and appears in authenticated profile settings
 
 #### Scenario: Rejecting an unsupported currency
 - **WHEN** a client attempts to save a currency other than IDR or USD
 - **THEN** the server rejects the request and preserves the existing currency
 
 #### Scenario: Updating user profile settings
-- **WHEN** a user updates the emergency-fund multiplier to 8 and monthly spending budget to 12,000,000 IDR
-- **THEN** the system persists both values and refreshes runway and safe-to-spend consumers
+- **WHEN** a user updates the emergency multiplier and monthly budget
+- **THEN** both values are persisted and the affected coverage and budget views are refreshed
 
 ### Requirement: Automated Daily Currency Conversion
 The system SHALL support dynamic currency conversion and formatting between `IDR` and `USD`.

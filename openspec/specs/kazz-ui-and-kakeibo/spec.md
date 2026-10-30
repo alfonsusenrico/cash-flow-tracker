@@ -2,15 +2,15 @@
 
 ## Purpose
 Describe Kakeibo insight presentation, rapid touch amount entry and mobile navigation behavior.
+
 ## Requirements
+
 ### Requirement: Kakeibo Lifestyle Tracking
-The system SHALL classify expense categories and transactions into three Kakeibo pillars: `need` (Kebutuhan), `want` (Keinginan), and `saving` (Tabungan / Investasi).
+The system SHALL support need, want, culture, unexpected and saving as individually visible classifications, and SHALL explain any optional grouped benchmark without labeling users healthy or unhealthy.
 
 #### Scenario: Categorize and evaluate Kakeibo spending ratios
-- **GIVEN** a user has recorded income of Rp 10.000.000 in the current monthly cycle
-- **WHEN** the user spends Rp 4.500.000 on primary categories (`need`), Rp 3.500.000 on lifestyle categories (`want`), and allocates Rp 2.000.000 to emergency fund/savings (`saving`)
-- **THEN** the system SHALL compute `need_pct` as 45.0%, `want_pct` as 35.0%, and `saving_pct` as 20.0%
-- **AND** the system SHALL flag `want_status` as "warning" or "elevated" since it exceeds the 30% ideal ceiling.
+- **WHEN** the user views Kakeibo spending
+- **THEN** all five classifications SHALL be identifiable individually, with figures traceable to their reporting inputs
 
 ### Requirement: Narrative Financial Insights
 The system SHALL compute period-over-period comparison deltas and generate natural language summaries identifying top spend drivers.
@@ -39,4 +39,3 @@ The system SHALL render a floating rounded capsule navigation dock on mobile scr
 - **WHEN** a user navigates between routes (`/`, `/ledger`, `/insights`, `/accounts`)
 - **THEN** the active tab SHALL be wrapped in a highlighted pill container
 - **AND** the dock SHALL float above the bottom edge with backdrop-filter blur.
-

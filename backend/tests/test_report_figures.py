@@ -190,3 +190,60 @@ def test_fee_rows_and_their_movement_link_each_other(client, owner):
     for leg in legs.values():
         assert items[leg]["movement_fee"] == {"transaction_id": linked["fee_transaction_id"], "amount": 2_500}
         assert items[leg]["fee_movement"] is None
+
+
+def test_non_reportable_categories_are_excluded_from_kakeibo(client, owner):
+    record(client, owner, "investment", 400_000)
+    record(client, owner, "movement", 900_000)
+    response = client.get("/api/dashboard/overview?timeframe=month")
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["kpis"]["total_outflow"] == 0
+    assert sum(result["kakeibo"][f"{pillar}_spent"] for pillar in ("need", "want", "culture", "unexpected", "saving")) == 0
+
+
+def test_cash_flow_summary_matches_ledger_for_its_explicit_bounds(client, owner):
+    shared_dinner_cycle(client, owner)
+    response = client.get("/api/dashboard/cash-flow-summary?period=today")
+    assert response.status_code == 200, response.text
+    report = response.json()
+    ledger = client.get("/api/transactions", params={"from_date": report["start"], "to_date": report["end"]})
+    assert ledger.status_code == 200, ledger.text
+    summary = ledger.json()["summary"]["cumulative"]
+    for field in ("inflow", "outflow", "net", "gross_outflow", "reimbursement_offset"):
+        assert report[field] == summary[field]
+    assert report["period"] == "today"
+    assert report["timezone"]
+    assert report["generated_at"]
+
+
+def test_cash_flow_summary_rejects_unknown_period(client, owner):
+    assert client.get("/api/dashboard/cash-flow-summary?period=cycle").status_code == 422
+
+
+def test_cash_flow_summary_requires_authentication(client, owner):
+    from app.main import app
+    from app.services.auth import get_current_user
+    from fastapi.testclient import TestClient
+
+    app.dependency_overrides.pop(get_current_user)
+    anonymous = TestClient(app, base_url="https://testserver")
+    assert anonymous.get("/api/dashboard/cash-flow-summary").status_code == 401
+
+
+def test_cash_flow_summary_ignores_future_transactions(client, owner):
+    add_expense(owner, 70_000, when=datetime.now(timezone.utc) + timedelta(hours=2))
+    response = client.get("/api/dashboard/cash-flow-summary?period=today")
+    assert response.status_code == 200, response.text
+    assert response.json()["outflow"] == 0
+
+
+def test_current_month_excludes_future_dated_transactions_in_all_reports(client, owner):
+    add_expense(owner, 70_000, when=datetime.now(timezone.utc) + timedelta(minutes=1))
+    overview = client.get("/api/dashboard/overview?timeframe=month")
+    analytics = client.get("/api/dashboard/analytics?timeframe=month")
+    ledger = client.get("/api/transactions?period=month")
+    assert overview.status_code == analytics.status_code == ledger.status_code == 200
+    assert overview.json()["kpis"]["total_outflow"] == 0
+    assert analytics.json()["comparison"]["total_outflow"] == 0
+    assert ledger.json()["summary"]["period"]["outflow"] == 0

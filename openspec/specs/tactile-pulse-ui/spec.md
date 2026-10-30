@@ -30,31 +30,15 @@ The application SHALL provide a prominent quick-capture interface accessible on 
 
 #### Scenario: Required behavior and constraints
 - **WHEN** an owner opens and completes rapid transaction capture
-- **THEN** the following required behavior and constraints hold:
-
-  The application SHALL provide a prominent quick-capture interface accessible on the main screen and via keyboard shortcut (`N` key).
-  1. It SHALL feature an organized, structured category dropdown selector with category icons and clean borders, replacing scattered tag clusters.
-  2. It SHALL default to the last-used or primary spend account.
-  3. It SHALL support rapid amount entry with inline arithmetic calculation.
-  4. Completing an entry SHALL immediately update the daily allowance and feed without full page reload.
+- **THEN** it SHALL provide an organized category selector with icons, default to the last-used or primary spend account, support inline arithmetic, and refresh observed figures and activity without a full page reload
 
 #### Scenario: Organized category selection in quick capture
-- **WHEN** a user opens the quick-capture modal and selects a category from the organized category dropdown
-- **THEN** the category is cleanly selected with visual icon and name, without scattering unwieldy tag chips across the form
+- **WHEN** a user opens the quick-capture modal and selects a category
+- **THEN** the category is selected with its icon and name
 
 #### Scenario: Desktop keyboard shortcut capture
 - **WHEN** a user presses `N` on any screen
-- **THEN** the quick-capture modal/sheet opens immediately with the amount input auto-focused
-
-### Requirement: Daily Spending Pulse Glance
-The Pulse screen SHALL prominently display:
-1. `Batas Belanja Hari Ini`: The dynamic daily spending allowance.
-2. `Pengeluaran Hari Ini`: The total amount spent today.
-3. `Laju Pengeluaran`: A visual indicator showing whether spending is on-track relative to cycle days elapsed.
-
-#### Scenario: Over-budget visual feedback
-- **WHEN** spending today exceeds the daily allowance
-- **THEN** the pulse tile displays a clear, calm status indicator reflecting the pace adjustment for remaining cycle days without punitive scoring or guilt dialogs
+- **THEN** quick capture opens with the amount input auto-focused
 
 ### Requirement: Anti-AI-Slop Visual Design Standard
 The design system SHALL adhere to modern digital banking craftsmanship standards (Bank Jago, Bibit, SeaBank).

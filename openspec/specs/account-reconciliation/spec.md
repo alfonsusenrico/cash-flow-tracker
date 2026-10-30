@@ -9,26 +9,22 @@ Allow users to reconcile tracked account balances with an actual balance and ret
 The application SHALL provide a balance reconciliation action on every account card in `/accounts`.
 
 #### Scenario: Reconciling an account balance discrepancy
-- **WHEN** the user inputs an actual balance of 10,000,000 IDR for an account currently tracking at 9,950,000 IDR
-- **THEN** the backend updates the account balance to 10,000,000 IDR and creates an income adjustment transaction of 50,000 IDR dated today
-- **AND** the adjustment SHALL belong to the income category "Penyesuaian Saldo".
+- **WHEN** an actual balance exceeds the tracked balance by 50,000 IDR
+- **THEN** the backend SHALL update the account balance and create an income adjustment of 50,000 IDR dated today in the income category `Penyesuaian Saldo`
 
 #### Scenario: Reconciling negative balance discrepancy
-- **WHEN** the user inputs an actual balance of 9,900,000 IDR for an account currently tracking at 9,950,000 IDR
-- **THEN** the backend updates the account balance to 9,900,000 IDR and creates an expense adjustment transaction of 50,000 IDR labeled "Balance Adjustment"
-- **AND** the adjustment SHALL belong to the expense category "Penyesuaian Saldo".
+- **WHEN** an actual balance is 50,000 IDR below the tracked balance
+- **THEN** the backend SHALL update the account balance and create a 50,000 IDR expense adjustment in the expense category `Penyesuaian Saldo`
 
 #### Scenario: Adjustments do not distort reports
-- **GIVEN** an expense adjustment of 50,000 IDR in the current cycle
-- **WHEN** the dashboard computes spending, Kakeibo allocation and safe-to-spend
-- **THEN** the adjustment SHALL NOT be counted in any of them
-- **AND** the account balance SHALL still reflect it.
+- **WHEN** the dashboard calculates spending or Kakeibo
+- **THEN** reconciliation adjustments SHALL be excluded while account balance reflects them
 
 #### Scenario: Existing uncategorised adjustments are migrated
-- **GIVEN** a stored transaction with notes "Balance Adjustment (Reconciliation)", no category, no movement and no idempotency key
+- **GIVEN** a stored transaction with notes `Balance Adjustment (Reconciliation)`, no category, no movement and no idempotency key
 - **WHEN** the schema migration runs
-- **THEN** the transaction SHALL move to the "Penyesuaian Saldo" category of its kind
-- **AND** transactions with any other notes or an existing category SHALL NOT change.
+- **THEN** the transaction SHALL move to the `Penyesuaian Saldo` category of its kind
+- **AND** transactions with other notes or an existing category SHALL not change
 
 ### Requirement: Reconciliation Variance Preview
 The reconciliation modal SHALL display the current tracked balance, provide an input for the user's actual real-world balance, and display the calculated variance (e.g. `+15,000 IDR` or `-8,500 IDR`).

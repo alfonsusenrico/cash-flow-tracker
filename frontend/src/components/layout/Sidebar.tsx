@@ -157,7 +157,7 @@ export function Sidebar({
                   {user?.username || "User"}
                 </span>
                 <span className="block text-[10px] text-[var(--sidebar-text)] font-medium">
-                  {user?.currency || "IDR"} • Gajian Tgl {user?.payday_day || 25}
+                  {user?.currency || "IDR"}
                 </span>
               </div>
             </div>
@@ -213,7 +213,7 @@ export function Sidebar({
                       {user?.username || "Pengguna"}
                     </span>
                     <span className="block text-[10px] text-[var(--muted)] font-medium">
-                      {user?.currency || "IDR"} • Gajian Tgl {user?.payday_day || 25}
+                      {user?.currency || "IDR"}
                     </span>
                   </div>
 
@@ -344,7 +344,7 @@ export function MobileDrawer({
                   {user?.username || "Pengguna"}
                 </span>
                 <span className="block text-[10px] text-[var(--muted)] font-medium">
-                  {user?.currency || "IDR"} • Gajian Tgl {user?.payday_day || 25}
+                  {user?.currency || "IDR"}
                 </span>
               </div>
             </div>

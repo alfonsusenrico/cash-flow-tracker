@@ -8,12 +8,12 @@ from fastapi import APIRouter, Depends, Query
 from app.core.config import settings
 from app.db.pool import db_conn
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
-from app.routers.pulse import get_cycle_window
 from app.services.auth import get_current_user
 from app.services.kakeibo import effective_pillar_sql
 from app.services.reimbursements import SpendingOffsets, load_spending_offsets, not_reimbursement_sql
 from app.services.report_figures import (
     category_breakdown,
+    cash_flow_totals,
     daily_offsets,
     reportable_expense_sql,
     reportable_income_sql,
@@ -22,6 +22,47 @@ from app.services.report_figures import (
 from app.services.report_windows import TIMEFRAME_PATTERN, get_previous_timeframe_window, get_timeframe_window
 
 router = APIRouter(tags=["Dashboard"])
+
+COMMITMENT_WINDOW_DAYS = 30
+
+
+@router.get("/cash-flow-summary")
+def get_cash_flow_summary(
+    period: str = Query(default="today", pattern="^(today|month)$"),
+    current_user: dict = Depends(get_current_user),
+):
+    """Observed ledger cash flow through this instant in the application timezone."""
+    now = datetime.now(timezone.utc)
+    local_now = now.astimezone(ZoneInfo(settings.tz))
+    first = local_now.date() if period == "today" else local_now.date().replace(day=1)
+    start = datetime.combine(first, time.min, tzinfo=ZoneInfo(settings.tz)).astimezone(timezone.utc)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            cur.execute(
+                f"""SELECT
+                       COALESCE(SUM(CASE WHEN {reportable_income_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
+                       COALESCE(SUM(CASE WHEN {reportable_expense_sql()} THEN t.amount ELSE 0 END), 0) AS outflow
+                    FROM transactions t
+                    LEFT JOIN categories c ON c.id = t.category_id
+                    WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s""",
+                (current_user["id"], start, now),
+            )
+            totals = cur.fetchone()
+            offsets = load_spending_offsets(cur, current_user["id"], start, now)
+            flow = cash_flow_totals(int(totals["inflow"]), int(totals["outflow"]), offsets.applied)
+    return {
+        "ok": True,
+        "period": period,
+        "timezone": settings.tz,
+        "start": start.isoformat(),
+        "end": now.isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "currency": "IDR",
+        **flow,
+        "reimbursement_unallocated": offsets.unallocated,
+        "reimbursement_excess": offsets.excess,
+    }
 
 
 def calc_delta_pct(current: int | float, prev: int | float) -> float:
@@ -71,9 +112,11 @@ def generate_financial_narrative(
         direction = "stabil (0.0%)"
 
     driver_clause = ""
-    if top_driver_name:
-        sign = "+" if (top_driver_delta_pct or 0) > 0 else ""
+    if top_driver_name and top_driver_delta_pct is not None:
+        sign = "+" if top_driver_delta_pct > 0 else ""
         driver_clause = f", terutama dipengaruhi oleh {top_driver_name} ({sign}{top_driver_delta_pct:.1f}%)"
+    elif top_driver_name:
+        driver_clause = f", terutama dipengaruhi oleh {top_driver_name} (belum ada pembanding)"
 
     narrative = (
         f"Dibanding periode sebelumnya, pengeluaran {direction} menjadi Rp {format_idr_compact(current_outflow)}"
@@ -100,9 +143,8 @@ def get_kakeibo_breakdown(
             COALESCE(SUM(t.amount), 0) AS total_amount
         FROM transactions t
         LEFT JOIN categories c ON c.id = t.category_id
-        WHERE t.user_id = %s 
-          AND t.type = 'expense' 
-          AND COALESCE(c.is_excluded_from_budget, false) = false
+        WHERE t.user_id = %s
+          AND {reportable_expense_sql()}
           AND t.date >= %s AND t.date <= %s
         GROUP BY pillar
         """,
@@ -196,6 +238,8 @@ def get_kakeibo_breakdown(
         "unexpected_spent": unexpected_spent,
         "unexpected_pct": unexpected_pct,
         "saving_spent": saving_spent,
+        "saving_expenses": saving_expenses,
+        "net_saving_transfers": net_saving_transfers,
         "saving_pct": saving_pct,
         "saving_target_pct": 20.0,
         "essentials_pct": essentials_pct,
@@ -386,7 +430,7 @@ def get_dashboard_overview(
     payday_day = current_user.get("payday_day", 25)
 
     start_utc, end_utc, start_date, end_date, timeframe_label = get_timeframe_window(
-        payday_day, timeframe, cycle_offset=cycle_offset
+        payday_day, timeframe, cycle_offset=cycle_offset, user_id=user_id
     )
 
     # 1. Accounts & Liquid Balances
@@ -437,8 +481,9 @@ def get_dashboard_overview(
             total_inflow = int(totals_row["inflow"])
             gross_outflow = int(totals_row["outflow"])
             offsets = load_spending_offsets(cur, user_id, start_utc, end_utc)
-            total_outflow = gross_outflow - offsets.applied
-            net_cashflow = total_inflow - total_outflow
+            flow = cash_flow_totals(total_inflow, gross_outflow, offsets.applied)
+            total_outflow = flow["outflow"]
+            net_cashflow = flow["net"]
             savings_rate = (
                 round(((total_inflow - total_outflow) / total_inflow) * 100, 1)
                 if total_inflow > 0
@@ -461,50 +506,40 @@ def get_dashboard_overview(
             tz = ZoneInfo(settings.tz)
             today_date = datetime.now(tz).date()
 
-            # Query upcoming recurring expenses in this cycle
+            # Identified commitments use an explicit horizon: an open salary cycle has no known end.
             cur.execute(
                 """
-                SELECT COALESCE(SUM(amount), 0) AS upcoming_amount
-                FROM recurring_rules
-                WHERE user_id = %s 
-                  AND is_active = TRUE 
-                  AND type = 'expense'
-                  AND next_due_date >= %s 
-                  AND next_due_date <= %s
+                SELECT r.id, r.name, r.amount, r.next_due_date, o.name AS obligation_name
+                FROM recurring_rules r
+                LEFT JOIN obligations o ON o.id = r.obligation_id
+                WHERE r.user_id = %s AND r.is_active = TRUE AND r.type = 'expense'
+                  AND r.next_due_date <= %s
+                ORDER BY r.next_due_date, r.name
                 """,
-                (user_id, today_date, end_date),
+                (user_id, today_date + timedelta(days=COMMITMENT_WINDOW_DAYS)),
             )
-            upcoming_row = cur.fetchone()
-            if upcoming_row:
-                if isinstance(upcoming_row, dict):
-                    upcoming_recurring_expense = int(upcoming_row.get("upcoming_amount") or 0)
-                else:
-                    upcoming_recurring_expense = int(upcoming_row[0] or 0)
-            else:
-                upcoming_recurring_expense = 0
+            upcoming_items = [
+                {
+                    "id": str(row["id"]),
+                    "name": row["name"],
+                    "amount": int(row["amount"]),
+                    "due_date": row["next_due_date"].isoformat(),
+                    "overdue": row["next_due_date"] < today_date,
+                    "obligation_name": row["obligation_name"],
+                }
+                for row in cur.fetchall()
+            ]
+            upcoming_recurring_expense = sum(item["amount"] for item in upcoming_items)
 
-            # Compute cycle remaining days
-            c_start, c_end, elapsed_days, total_days = get_cycle_window(payday_day)
-            remaining_cycle_days = max(1, total_days - elapsed_days)
-
-            if effective_budget > 0:
-                safe_discretionary = max(0, effective_budget - total_outflow - upcoming_recurring_expense)
-                safe_to_spend_today = max(0, round(safe_discretionary / remaining_cycle_days))
-                benchmark_daily = round(effective_budget / total_days)
-                has_budget = True
-            else:
-                safe_to_spend_today = 0
-                benchmark_daily = 0
-                has_budget = False
-
-            expected_spent = benchmark_daily * elapsed_days
-            velocity_ratio = round(total_outflow / expected_spent, 2) if expected_spent > 0 else 1.0
-            if velocity_ratio > 1.15:
-                velocity_status = "fast"
-            elif velocity_ratio < 0.85:
-                velocity_status = "frugal"
-            else:
-                velocity_status = "on_track"
+            # A future salary date is unknown, so no daily allowance or pace is inferred.
+            safe_to_spend_today = None
+            benchmark_daily = None
+            expected_spent = None
+            velocity_ratio = None
+            velocity_status = None
+            has_budget = effective_budget > 0
+            # A monthly budget only compares with month-length windows, not 30/90-day rolling ones.
+            budget_remaining = effective_budget - total_outflow if has_budget and timeframe in ("month", "cycle") else None
 
             # 5. Day-by-Day Time Series for Cumulative Trendline & Burn Cadence
             cur.execute(
@@ -595,7 +630,7 @@ def get_dashboard_overview(
 
             # 6b. Period Comparison, Narrative, and Kakeibo
             prev_start_utc, prev_end_utc, prev_start_date, prev_end_date, prev_label = get_previous_timeframe_window(
-                payday_day, timeframe, start_date, end_date, cycle_offset
+                payday_day, timeframe, start_date, end_date, cycle_offset, user_id=user_id
             )
 
             cur.execute(
@@ -645,6 +680,7 @@ def get_dashboard_overview(
 
             top_driver_name = None
             top_driver_delta = 0.0
+            top_driver_delta_available = False
             max_impact = -1
 
             for r in cat_rows:
@@ -659,11 +695,13 @@ def get_dashboard_overview(
                         max_impact = diff
                         top_driver_name = cname
                         top_driver_delta = calc_delta_pct(curr_spent, prev_spent)
+                        top_driver_delta_available = prev_spent != 0
                 else:
                     if -diff > max_impact and prev_spent > 0:
                         max_impact = -diff
                         top_driver_name = cname
                         top_driver_delta = calc_delta_pct(curr_spent, prev_spent)
+                        top_driver_delta_available = prev_spent != 0
 
             if not top_driver_name and cat_rows and total_outflow > 0:
                 top_cat = max(cat_rows, key=lambda x: int(x["spent"]))
@@ -671,6 +709,7 @@ def get_dashboard_overview(
                     top_driver_name = top_cat["name"]
                     p_spent = prev_cat_map.get(str(top_cat["id"]), 0)
                     top_driver_delta = calc_delta_pct(int(top_cat["spent"]), p_spent)
+                    top_driver_delta_available = p_spent != 0
 
             narrative_summary, trend_status = generate_financial_narrative(
                 current_outflow=total_outflow,
@@ -678,7 +717,7 @@ def get_dashboard_overview(
                 outflow_delta_pct=outflow_delta_pct,
                 current_net=net_cashflow,
                 top_driver_name=top_driver_name,
-                top_driver_delta_pct=top_driver_delta,
+                top_driver_delta_pct=top_driver_delta if top_driver_delta_available else None,
             )
 
             kakeibo_data = get_kakeibo_breakdown(cur, user_id, start_utc, end_utc, total_inflow, offsets)
@@ -838,6 +877,7 @@ def get_dashboard_overview(
             "emergency_goal_names": runway_info["emergency_goal_names"],
             "benchmark_daily": benchmark_daily,
             "upcoming_recurring_expense": upcoming_recurring_expense,
+            "budget_remaining": budget_remaining,
             "spend_velocity_ratio": velocity_ratio,
             "spend_velocity_status": velocity_status,
         },
@@ -858,6 +898,7 @@ def get_dashboard_overview(
             "trend_status": trend_status,
             "top_driver": top_driver_name,
             "top_driver_delta_pct": top_driver_delta,
+            "top_driver_delta_available": top_driver_delta_available,
         },
         "spend_velocity": {
             "velocity_ratio": velocity_ratio,
@@ -866,6 +907,11 @@ def get_dashboard_overview(
             "expected_spent": expected_spent,
             "upcoming_recurring_expense": upcoming_recurring_expense,
             "safe_to_spend_today": safe_to_spend_today,
+        },
+        "upcoming_commitments": {
+            "window_days": COMMITMENT_WINDOW_DAYS,
+            "total": upcoming_recurring_expense,
+            "items": upcoming_items,
         },
         "cumulative_trendline": cumulative_trendline,
         "burn_cadence": burn_cadence,
@@ -887,7 +933,7 @@ def get_dashboard_analytics(
     payday_day = current_user.get("payday_day", 25)
 
     start_utc, end_utc, start_date, end_date, timeframe_label = get_timeframe_window(
-        payday_day, timeframe, cycle_offset=cycle_offset
+        payday_day, timeframe, cycle_offset=cycle_offset, user_id=user_id
     )
 
     with db_conn() as conn:
@@ -1004,7 +1050,6 @@ def get_dashboard_analytics(
             spent_30d = burn_spent[30]
             burn_7d = round(burn_spent[7] / 7)
             burn_30d = round(spent_30d / 30)
-            projected_30d_outflow = spent_30d
 
             # 5. Inflow / Outflow & Period Comparison
             cur.execute(
@@ -1021,32 +1066,22 @@ def get_dashboard_analytics(
             totals_row = cur.fetchone() or {}
             total_inflow = int(totals_row.get("inflow", 0))
             gross_outflow = int(totals_row.get("outflow", 0))
-            total_outflow = gross_outflow - analytics_offsets.applied
-            net_cashflow = total_inflow - total_outflow
+            flow = cash_flow_totals(total_inflow, gross_outflow, analytics_offsets.applied)
+            total_outflow = flow["outflow"]
+            net_cashflow = flow["net"]
             savings_rate = (
                 round(((total_inflow - total_outflow) / total_inflow) * 100, 1)
                 if total_inflow > 0
                 else 0.0
             )
 
-            # Active Cycle Forecast calculation
-            tz_app = ZoneInfo(settings.tz)
-            today_local = datetime.now(tz_app).date()
-            total_cycle_days = (end_date - start_date).days + 1
-            if today_local < start_date:
-                cycle_elapsed_days = 1
-            elif today_local > end_date:
-                cycle_elapsed_days = total_cycle_days
-            else:
-                cycle_elapsed_days = max(1, (today_local - start_date).days + 1)
-
-            if total_outflow > 0:
-                projected_cycle_outflow = round((total_outflow / cycle_elapsed_days) * total_cycle_days)
-            else:
-                projected_cycle_outflow = 0
+            # Legacy forecast fields remain present but are unavailable.
+            cycle_elapsed_days = None
+            total_cycle_days = None
+            projected_cycle_outflow = None
 
             prev_start_utc, prev_end_utc, prev_start_date, prev_end_date, prev_label = get_previous_timeframe_window(
-                payday_day, timeframe, start_date, end_date, cycle_offset
+                payday_day, timeframe, start_date, end_date, cycle_offset, user_id=user_id
             )
 
             cur.execute(
@@ -1095,6 +1130,7 @@ def get_dashboard_analytics(
 
             top_driver_name = None
             top_driver_delta = 0.0
+            top_driver_delta_available = False
             max_impact = -1
 
             for r in category_variance:
@@ -1109,11 +1145,13 @@ def get_dashboard_analytics(
                         max_impact = diff
                         top_driver_name = cname
                         top_driver_delta = calc_delta_pct(curr_spent, prev_spent)
+                        top_driver_delta_available = prev_spent != 0
                 else:
                     if -diff > max_impact and prev_spent > 0:
                         max_impact = -diff
                         top_driver_name = cname
                         top_driver_delta = calc_delta_pct(curr_spent, prev_spent)
+                        top_driver_delta_available = prev_spent != 0
 
             if not top_driver_name and category_variance and total_outflow > 0:
                 top_cat = max(category_variance, key=lambda x: int(x["spent"]))
@@ -1121,6 +1159,7 @@ def get_dashboard_analytics(
                     top_driver_name = top_cat["name"]
                     p_spent = prev_cat_map.get(str(top_cat["id"]), 0)
                     top_driver_delta = calc_delta_pct(int(top_cat["spent"]), p_spent)
+                    top_driver_delta_available = p_spent != 0
 
             narrative_summary, trend_status = generate_financial_narrative(
                 current_outflow=total_outflow,
@@ -1128,7 +1167,7 @@ def get_dashboard_analytics(
                 outflow_delta_pct=outflow_delta_pct,
                 current_net=net_cashflow,
                 top_driver_name=top_driver_name,
-                top_driver_delta_pct=top_driver_delta,
+                top_driver_delta_pct=top_driver_delta if top_driver_delta_available else None,
             )
 
             kakeibo_data = get_kakeibo_breakdown(cur, user_id, start_utc, end_utc, total_inflow, analytics_offsets)
@@ -1144,10 +1183,12 @@ def get_dashboard_analytics(
             "daily_burn_7d": burn_7d,
             "daily_burn_30d": burn_30d,
             "projected_cycle_outflow": projected_cycle_outflow,
-            "projected_30d_outflow": projected_30d_outflow,
+            # Legacy name for the observed trailing 30 days; it is not a projection.
+            "projected_30d_outflow": spent_30d,
+            "trailing_30d_outflow": spent_30d,
             "cycle_elapsed_days": cycle_elapsed_days,
             "cycle_total_days": total_cycle_days,
-            "cycle_end_date": end_date.isoformat(),
+            "cycle_end_date": None,
         },
         "comparison": {
             "inflow_delta_pct": inflow_delta_pct,
@@ -1171,6 +1212,7 @@ def get_dashboard_analytics(
             "trend_status": trend_status,
             "top_driver": top_driver_name,
             "top_driver_delta_pct": top_driver_delta,
+            "top_driver_delta_available": top_driver_delta_available,
         },
     }
 

@@ -11,6 +11,7 @@ from app.routers.dashboard import (
     get_kakeibo_breakdown,
 )
 from app.services.reimbursements import SpendingOffsets
+from app.services.salary_cycles import SalaryCycle
 
 
 def test_delta_percentage_calculator():
@@ -82,6 +83,8 @@ def test_kakeibo_breakdown_calculation():
     assert res["want_spent"] == 3_500_000
     assert res["want_pct"] == 35.0
     assert res["saving_spent"] == 2_000_000
+    assert res["saving_expenses"] == 0
+    assert res["net_saving_transfers"] == 2_000_000
     assert res["saving_pct"] == 20.0
     assert res["want_status"] == "warning"  # > 30%
     assert res["kakeibo_status"] == "warning"
@@ -109,6 +112,7 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
         mock_conn.cursor.return_value.__enter__.return_value = mock_cur
 
         with patch("app.routers.dashboard.db_conn", return_value=mock_conn), \
+             patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")), \
              patch("app.routers.dashboard.load_spending_offsets", return_value=SpendingOffsets()), \
              patch("app.routers.dashboard.category_breakdown") as mock_breakdown, \
              patch("app.routers.dashboard.get_accounts_with_balances") as mock_accs:
@@ -124,7 +128,7 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
             # 4. primary_budget
             # 5. obligations
             # 6. cat_budget
-            # 7. upcoming recurring rules: 500k upcoming
+            # 7. expectations due within the commitment window: 500k
             # 8. grouped_days (trendline)
             # 9. category_breakdown (patched)
             # 10. prev_totals_row (inflow 9m, outflow 6m, tx_count 10)
@@ -141,7 +145,6 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
                 {"primary_budget": 4_000_000},                                # primary_budget
                 {"monthly_commitments": 0},                                   # obligations
                 {"total_budget": 10_000_000},                                 # cat_budget
-                {"upcoming_amount": 500_000},                                 # upcoming recurring rules
                 {"inflow": 9_000_000, "outflow": 6_400_000, "tx_count": 10},  # prev_totals_row
                 {"saving_transfers": 1_000_000},                              # kakeibo saving transfers
             ]
@@ -149,6 +152,8 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
             food_cid = str(uuid.uuid4())
             mock_cur.fetchall.side_effect = [
                 [],                                                           # goals for ketahanan dana
+                [{"id": uuid.uuid4(), "name": "Listrik Contoh", "amount": 500_000,  # expectations due within 30 days
+                  "next_due_date": date.today() + timedelta(days=3), "obligation_name": None}],
                 [],                                                           # grouped_days
                 [{"id": food_cid, "name": "Makan & Minum", "spent": 3_000_000}], # prev_cat_map
                 [                                                             # kakeibo expenses
@@ -187,6 +192,12 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
                 comp = data["comparison"]
                 assert comp["outflow_delta_pct"] == 25.0  # (8m - 6.4m)/6.4m = +25%
                 assert comp["inflow_delta_pct"] == 11.1   # (10m - 9m)/9m = +11.1%
+
+                commitments = data["upcoming_commitments"]
+                assert (commitments["window_days"], commitments["total"]) == (30, 500_000)
+                assert commitments["items"][0]["overdue"] is False
+                assert data["kpis"]["budget_remaining"] == 2_000_000
+                assert data["kpis"]["safe_to_spend_today"] is None
 
                 # Check Kakeibo
                 kakeibo = data["kakeibo"]
@@ -312,7 +323,7 @@ def test_transaction_kakeibo_support():
         app.dependency_overrides.clear()
 
 
-def test_burn_rate_cycle_forecast_and_unrounded_projection():
+def test_burn_rate_keeps_observed_averages_but_retires_forecasts():
     with patch("app.main.open_db_pool"), patch("app.main.close_db_pool"):
         from app.main import app
         from app.services.auth import get_current_user
@@ -331,6 +342,7 @@ def test_burn_rate_cycle_forecast_and_unrounded_projection():
         mock_conn.cursor.return_value.__enter__.return_value = mock_cur
 
         with patch("app.routers.dashboard.db_conn", return_value=mock_conn), \
+             patch("app.services.report_windows.load_user_cycle", return_value=SalaryCycle("not_configured")), \
              patch("app.routers.dashboard.load_spending_offsets", return_value=SpendingOffsets()), \
              patch("app.routers.dashboard.category_breakdown", return_value=[]):
             mock_cur.fetchall.side_effect = [
@@ -354,17 +366,23 @@ def test_burn_rate_cycle_forecast_and_unrounded_projection():
                 assert data["ok"] is True
                 burn = data["burn_rate"]
 
-                # Check unrounded 30d projection (must be 50_000, not 50_010!)
                 assert burn["daily_burn_7d"] == 7_143
                 assert burn["daily_burn_30d"] == 1_667
+                # The legacy name carries the observed trailing 30 days, not a projection.
                 assert burn["projected_30d_outflow"] == 50_000
-                assert burn["projected_30d_outflow"] != 50_010
-
-                # Check cycle forecast metadata
-                assert "projected_cycle_outflow" in burn
-                assert burn["projected_cycle_outflow"] > 0
-                assert burn["cycle_elapsed_days"] >= 1
-                assert burn["cycle_total_days"] >= 28
-                assert "cycle_end_date" in burn
+                assert burn["trailing_30d_outflow"] == 50_000
+                assert burn["projected_cycle_outflow"] is None
+                assert burn["cycle_elapsed_days"] is None
+                assert burn["cycle_total_days"] is None
+                assert burn["cycle_end_date"] is None
 
         app.dependency_overrides.clear()
+
+
+def test_narrative_does_not_invent_a_percentage_for_a_new_category():
+    narrative, _ = generate_financial_narrative(
+        current_outflow=200_000, prev_outflow=100_000, outflow_delta_pct=100.0,
+        current_net=0, top_driver_name="Kategori Baru", top_driver_delta_pct=None,
+    )
+    assert "Kategori Baru (belum ada pembanding)" in narrative
+    assert "Kategori Baru (+100.0%)" not in narrative

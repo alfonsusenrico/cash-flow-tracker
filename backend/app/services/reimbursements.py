@@ -14,7 +14,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from app.services.kakeibo import effective_pillar
+from app.services.apportionment import apportion
 
 REIMBURSEMENT_CATEGORY_NAME = "Patungan & Ganti Uang"
 # Categories that report totals already leave out by name.
@@ -70,7 +70,18 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
                        WHERE e.user_id = r.user_id AND e.type = 'expense' AND e.category_id = oc.id
                          AND e.date >= %s AND e.date <= %s
                    ), 0)
-               END AS gross_spent
+               END AS gross_spent,
+               COALESCE((
+                   SELECT jsonb_object_agg(expense_pillars.pillar, expense_pillars.spent)
+                   FROM (
+                       SELECT COALESCE(e.kakeibo_type, oc.kakeibo_type, 'need') AS pillar,
+                              SUM(e.amount) AS spent
+                       FROM transactions e
+                       WHERE e.user_id = r.user_id AND e.type = 'expense' AND e.category_id = oc.id
+                         AND e.date >= %s AND e.date <= %s
+                       GROUP BY COALESCE(e.kakeibo_type, oc.kakeibo_type, 'need')
+                   ) expense_pillars
+               ), '{}'::jsonb) AS pillar_spending
         FROM (
             SELECT t.user_id, t.offset_category_id, SUM(t.amount) AS reimbursed
             FROM transactions t
@@ -81,7 +92,7 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
         ) r
         LEFT JOIN categories oc ON oc.id = r.offset_category_id AND oc.user_id = r.user_id
         """,
-        (list(NON_REPORTABLE_CATEGORY_NAMES), start, end, user_id, start, end),
+        (list(NON_REPORTABLE_CATEGORY_NAMES), start, end, start, end, user_id, start, end),
     )
     by_category: dict[str, int] = {}
     by_pillar: dict[str, int] = {}
@@ -97,8 +108,9 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
             continue
         applied += category_applied
         by_category[str(row["offset_category_id"])] = category_applied
-        pillar = effective_pillar("expense", None, row["category_pillar"])
-        by_pillar[pillar] = by_pillar.get(pillar, 0) + category_applied
+        pillar_spending = {pillar: int(amount) for pillar, amount in row["pillar_spending"].items()}
+        for pillar, share in apportion(category_applied, pillar_spending).items():
+            by_pillar[pillar] = by_pillar.get(pillar, 0) + share
     return SpendingOffsets(by_category, by_pillar, applied, excess, unallocated)
 
 

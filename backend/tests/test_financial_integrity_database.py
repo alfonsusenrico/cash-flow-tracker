@@ -397,7 +397,8 @@ def test_category_delete_archives_when_recurring_rule_references_it(auth_client)
             "amount": 10_000,
             "source_account_id": source_id,
             "category_id": category_id,
-            "schedule_type": "payday",
+            "schedule_type": "monthly_day",
+            "schedule_day": 25,
         },
     )
     assert rule_response.status_code == 200, rule_response.text
@@ -698,43 +699,29 @@ def test_receipt_database_failure_removes_new_file_and_keeps_old(auth_client, tm
     assert [path for path in Path(tmp_path).rglob("*.pdf.gz")] == [Path(tmp_path, first_path)]
 
 
-def test_payroll_rejects_duplicate_rule_without_financial_effect(auth_client):
-    source_id = _create_account(
-        auth_client,
-        name=f"Payroll duplicate source {uuid4().hex[:8]}",
-        balance=1_000,
-    )
-    target_id = _create_account(
-        auth_client,
-        name=f"Payroll duplicate target {uuid4().hex[:8]}",
-        balance=0,
-    )
-    created = auth_client.post(
-        "/api/recurring",
-        json={
-            "name": f"Payroll duplicate {uuid4().hex[:8]}",
-            "type": "transfer",
-            "amount": 100,
-            "source_account_id": source_id,
-            "target_account_id": target_id,
-            "schedule_type": "payday",
-            "is_payroll_allocation": True,
-        },
-    )
-    assert created.status_code == 200, created.text
-    rule_id = created.json()["id"]
-    item = {
-        "rule_id": rule_id,
+def test_payroll_execution_is_retired_without_financial_effect(auth_client):
+    source_id = _create_account(auth_client, name=f"Payroll retired source {uuid4().hex[:8]}", balance=1_000)
+    target_id = _create_account(auth_client, name=f"Payroll retired target {uuid4().hex[:8]}", balance=0)
+    rule = {
+        "name": f"Payroll retired {uuid4().hex[:8]}",
+        "type": "transfer",
+        "amount": 100,
         "source_account_id": source_id,
         "target_account_id": target_id,
-        "amount": 100,
+        "schedule_type": "monthly_day",
+        "schedule_day": 25,
+        "is_payroll_allocation": True,
     }
+    created = auth_client.post("/api/recurring", json=rule)
+    assert created.status_code == 422
+    assert created.json()["detail"]["code"] == "payroll_allocation_retired"
+    item = {"source_account_id": source_id, "target_account_id": target_id, "amount": 100}
     result = auth_client.post("/api/recurring/payroll/execute", json={"items": [item, item]})
-    assert result.status_code == 422
-    assert "only be selected once" in result.json()["detail"]
-    source = auth_client.get("/api/accounts").json()["accounts"]
-    account = next(account for account in source if account["id"] == source_id)
-    assert account["balance"] == 1_000
+    assert result.status_code == 410
+    assert result.json()["detail"]["code"] == "payroll_execution_retired"
+    accounts = {account["id"]: account for account in auth_client.get("/api/accounts").json()["accounts"]}
+    assert accounts[source_id]["balance"] == 1_000
+    assert accounts[target_id]["balance"] == 0
 
 
 def test_pulse_and_dashboard_separate_child_investment_from_parent_cash(auth_client):
@@ -891,7 +878,7 @@ def test_recurring_rule_clears_optional_fields_and_type_incompatible_fields(auth
     assert cleared.status_code == 200, cleared.text
     switched = auth_client.patch(
         f"/api/recurring/{rule_id}",
-        json={"type": "transfer", "target_account_id": target_id, "schedule_type": "payday"},
+        json={"type": "transfer", "target_account_id": target_id, "schedule_type": "monthly_day", "schedule_day": 10},
     )
     assert switched.status_code == 200, switched.text
     rules = auth_client.get("/api/recurring").json()["rules"]
@@ -899,7 +886,7 @@ def test_recurring_rule_clears_optional_fields_and_type_incompatible_fields(auth
     assert rule["category_id"] is None
     assert rule["obligation_id"] is None
     assert rule["notes"] is None
-    assert rule["schedule_day"] is None
+    assert rule["schedule_day"] == 10
     assert rule["target_account_id"] == target_id
 
     invalid = auth_client.patch(f"/api/recurring/{rule_id}", json={"schedule_type": "weekly", "schedule_day": 8})
@@ -944,45 +931,12 @@ def test_recurring_rule_rejects_foreign_account_on_create_and_update(auth_client
     assert next(rule for rule in rules if rule["id"] == rule_id)["target_account_id"] == target_id
 
 
-def test_payroll_batch_checks_aggregate_source_before_writing(auth_client):
-    from app.db.pool import db_conn
-
-    source_id = _create_account(
-        auth_client,
-        name=f"Aggregate payroll source {uuid4().hex[:8]}",
-        balance=100,
-    )
-    target_ids = [
-        _create_account(auth_client, name=f"Aggregate payroll target {uuid4().hex[:8]}", balance=0)
-        for _ in range(2)
-    ]
-    response = auth_client.post(
-        "/api/recurring/payroll/execute",
-        json={
-            "items": [
-                {"source_account_id": source_id, "target_account_id": target_id, "amount": 70}
-                for target_id in target_ids
-            ]
-        },
-    )
-    assert response.status_code == 409
-    assert response.json()["detail"]["code"] == "insufficient_funds"
-
-    with db_conn() as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT COUNT(*) AS count FROM transactions WHERE account_id = ANY(%s)",
-                ([source_id, *target_ids],),
-            )
-            assert cursor.fetchone()["count"] == 0
-
-
-def test_manual_recurring_and_payroll_movements_share_savings_classification(auth_client):
+def test_manual_and_explicitly_recorded_plan_movements_share_savings_classification(auth_client):
     from app.db.pool import db_conn
 
     source_id = _create_account(auth_client, name=f"Savings source {uuid4().hex[:8]}", balance=1_000)
     savings_id = _create_account(auth_client, name=f"Savings target {uuid4().hex[:8]}", balance=0)
-    operations_id = _create_account(auth_client, name=f"Operations target {uuid4().hex[:8]}", balance=0)
+    operations_id = _create_account(auth_client, name=f"Operations target {uuid4().hex[:8]}", balance=500)
     linked_goal = auth_client.post(
         "/api/goals",
         json={"name": f"Savings link {uuid4().hex[:8]}", "target_amount": 1_000, "account_ids": [savings_id]},
@@ -994,12 +948,7 @@ def test_manual_recurring_and_payroll_movements_share_savings_classification(aut
         json={"source_account_id": source_id, "target_account_id": savings_id, "amount": 300},
     )
     assert manual.status_code == 200, manual.text
-    payroll = auth_client.post(
-        "/api/recurring/payroll/execute",
-        json={"items": [{"source_account_id": source_id, "target_account_id": operations_id, "amount": 100}]},
-    )
-    assert payroll.status_code == 200, payroll.text
-    recurring = auth_client.post(
+    plan = auth_client.post(
         "/api/recurring",
         json={
             "name": f"Savings transfer {uuid4().hex[:8]}",
@@ -1007,12 +956,17 @@ def test_manual_recurring_and_payroll_movements_share_savings_classification(aut
             "amount": 50,
             "source_account_id": operations_id,
             "target_account_id": savings_id,
-            "schedule_type": "payday",
+            "schedule_type": "monthly_day",
+            "schedule_day": date.today().day,
         },
     )
-    assert recurring.status_code == 200, recurring.text
-    executed = auth_client.post("/api/recurring/execute", json={"rule_ids": [recurring.json()["id"]]})
-    assert executed.status_code == 200, executed.text
+    assert plan.status_code == 200, plan.text
+    recorded = auth_client.post(
+        f"/api/recurring/{plan.json()['id']}/occurrences/record",
+        json={"scheduled_for": plan.json()["next_due_date"]},
+    )
+    assert recorded.status_code == 200, recorded.text
+    plan_movement_id = recorded.json()["result"]["movement_id"]
     withdrawal = auth_client.post(
         "/api/movements",
         json={"source_account_id": savings_id, "target_account_id": source_id, "amount": 50},
@@ -1024,87 +978,17 @@ def test_manual_recurring_and_payroll_movements_share_savings_classification(aut
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT movement_id, account_id, amount, kakeibo_type
+                SELECT movement_id, kakeibo_type
                 FROM transactions
-                WHERE user_id = %s AND movement_role = 'outbound'
-                  AND account_id = ANY(%s)
-                  AND movement_id = ANY(%s)
+                WHERE user_id = %s AND movement_role = 'outbound' AND movement_id = ANY(%s)
                 """,
-                (
-                    user_id,
-                    [source_id, operations_id, savings_id],
-                    [
-                        manual.json()["movement_id"],
-                        payroll.json()["results"][0]["movement_id"],
-                        executed.json()["results"][0]["movement_id"],
-                        withdrawal.json()["movement_id"],
-                    ],
-                ),
+                (user_id, [manual.json()["movement_id"], plan_movement_id, withdrawal.json()["movement_id"]]),
             )
             rows = {str(row["movement_id"]): row for row in cursor.fetchall()}
 
     assert rows[manual.json()["movement_id"]]["kakeibo_type"] == "saving"
-    assert rows[payroll.json()["results"][0]["movement_id"]]["kakeibo_type"] is None
-    assert rows[executed.json()["results"][0]["movement_id"]]["kakeibo_type"] == "saving"
+    assert rows[plan_movement_id]["kakeibo_type"] == "saving"
     assert rows[withdrawal.json()["movement_id"]]["kakeibo_type"] == "saving"
-
-
-def test_payroll_mid_batch_failure_rolls_back_movements_and_rule_date(auth_client, monkeypatch):
-    from app.db.pool import db_conn
-    import app.routers.recurring as recurring_router
-
-    source_id = _create_account(auth_client, name=f"Rollback payroll source {uuid4().hex[:8]}", balance=1_000)
-    target_ids = [
-        _create_account(auth_client, name=f"Rollback payroll target {uuid4().hex[:8]}", balance=0)
-        for _ in range(2)
-    ]
-    rule = auth_client.post(
-        "/api/recurring",
-        json={
-            "name": f"Rollback payroll rule {uuid4().hex[:8]}",
-            "type": "transfer",
-            "amount": 100,
-            "source_account_id": source_id,
-            "target_account_id": target_ids[0],
-            "schedule_type": "payday",
-            "is_payroll_allocation": True,
-        },
-    )
-    assert rule.status_code == 200, rule.text
-    rule_id = rule.json()["id"]
-    due_before = rule.json()["next_due_date"]
-
-    original_create = recurring_router.create_bilateral_movement
-    calls = 0
-
-    def fail_second_movement(*args, **kwargs):
-        nonlocal calls
-        calls += 1
-        if calls == 2:
-            raise RuntimeError("Injected second movement failure")
-        return original_create(*args, **kwargs)
-
-    monkeypatch.setattr(recurring_router, "create_bilateral_movement", fail_second_movement)
-    with pytest.raises(RuntimeError, match="Injected second movement failure"):
-        auth_client.post(
-            "/api/recurring/payroll/execute",
-            json={
-                "items": [
-                    {"rule_id": rule_id, "source_account_id": source_id, "target_account_id": target_ids[0], "amount": 100},
-                    {"source_account_id": source_id, "target_account_id": target_ids[1], "amount": 100},
-                ]
-            },
-        )
-
-    with db_conn() as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT COUNT(*) AS count FROM transactions WHERE account_id = ANY(%s)",
-                ([source_id, *target_ids],),
-            )
-            assert cursor.fetchone()["count"] == 0
-            cursor.execute("SELECT next_due_date FROM recurring_rules WHERE id = %s", (rule_id,))
-            assert cursor.fetchone()["next_due_date"].isoformat() == due_before
 
 
 def test_movement_can_use_the_exact_available_balance(auth_client):
@@ -1637,20 +1521,12 @@ def test_investment_buy_rejects_insufficient_funding_without_movement(auth_clien
     assert units == 0
 
 
-def test_concurrent_recurring_scheduler_commits_one_occurrence(auth_client):
+def test_concurrent_explicit_records_commit_one_occurrence(auth_client):
     from app.db.pool import db_conn
-    from app.routers.recurring import process_due_recurring_rules
+    from app.main import app
 
-    source_id = _create_account(
-        auth_client,
-        name=f"Recurring source {uuid4().hex[:8]}",
-        balance=1_000,
-    )
-    target_id = _create_account(
-        auth_client,
-        name=f"Recurring target {uuid4().hex[:8]}",
-        balance=0,
-    )
+    source_id = _create_account(auth_client, name=f"Recurring source {uuid4().hex[:8]}", balance=1_000)
+    target_id = _create_account(auth_client, name=f"Recurring target {uuid4().hex[:8]}", balance=0)
     created = auth_client.post(
         "/api/recurring",
         json={
@@ -1661,7 +1537,6 @@ def test_concurrent_recurring_scheduler_commits_one_occurrence(auth_client):
             "target_account_id": target_id,
             "schedule_type": "monthly_day",
             "schedule_day": date.today().day,
-            "auto_post": True,
         },
     )
     assert created.status_code == 200, created.text
@@ -1669,22 +1544,22 @@ def test_concurrent_recurring_scheduler_commits_one_occurrence(auth_client):
     due_date = date.today() - timedelta(days=1)
     with db_conn() as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                "UPDATE recurring_rules SET next_due_date = %s WHERE id = %s",
-                (due_date, rule_id),
-            )
+            cursor.execute("UPDATE recurring_rules SET next_due_date = %s WHERE id = %s", (due_date, rule_id))
 
-    user_id = auth_client.get("/api/auth/me").json()["user"]["id"]
+    clients = [TestClient(app, base_url="https://testserver") for _ in range(2)]
+    for client in clients:
+        client.headers["Origin"] = "https://testserver"
+        client.cookies.update(auth_client.cookies)
     with ThreadPoolExecutor(max_workers=2) as executor:
-        results = list(
-            executor.map(
-                lambda _: process_due_recurring_rules(user_id=user_id, limit=20),
-                range(2),
-            )
-        )
+        responses = list(executor.map(
+            lambda client: client.post(
+                f"/api/recurring/{rule_id}/occurrences/record", json={"scheduled_for": due_date.isoformat()}
+            ),
+            clients,
+        ))
 
-    assert sum(result["processed_count"] for result in results) == 1
-    assert sum(len(result["executed_rule_ids"]) for result in results) == 1
+    assert [response.status_code for response in responses] == [200, 200]
+    assert sum(1 for response in responses if response.json()["result"].get("idempotent")) == 1
     with db_conn() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -1692,15 +1567,9 @@ def test_concurrent_recurring_scheduler_commits_one_occurrence(auth_client):
                 (rule_id, due_date),
             )
             occurrence = cursor.fetchone()
-            cursor.execute(
-                "SELECT COUNT(*) AS count FROM transactions WHERE movement_id = %s",
-                (occurrence["movement_id"],),
-            )
+            cursor.execute("SELECT COUNT(*) AS count FROM transactions WHERE movement_id = %s", (occurrence["movement_id"],))
             movement_legs = cursor.fetchone()["count"]
-            cursor.execute(
-                "SELECT next_due_date FROM recurring_rules WHERE id = %s",
-                (rule_id,),
-            )
+            cursor.execute("SELECT next_due_date FROM recurring_rules WHERE id = %s", (rule_id,))
             next_due_date = cursor.fetchone()["next_due_date"]
 
     assert occurrence["status"] == "succeeded"
@@ -1708,15 +1577,10 @@ def test_concurrent_recurring_scheduler_commits_one_occurrence(auth_client):
     assert next_due_date > due_date
 
 
-def test_failed_recurring_occurrence_preserves_schedule_and_ledger(auth_client):
+def test_failed_explicit_record_preserves_schedule_and_ledger(auth_client):
     from app.db.pool import db_conn
-    from app.routers.recurring import process_due_recurring_rules
 
-    source_id = _create_account(
-        auth_client,
-        name=f"Recurring low source {uuid4().hex[:8]}",
-        balance=100,
-    )
+    source_id = _create_account(auth_client, name=f"Recurring low source {uuid4().hex[:8]}", balance=100)
     category_response = auth_client.get("/api/categories")
     assert category_response.status_code == 200
     category = next(
@@ -1734,7 +1598,6 @@ def test_failed_recurring_occurrence_preserves_schedule_and_ledger(auth_client):
             "category_id": category["id"],
             "schedule_type": "monthly_day",
             "schedule_day": date.today().day,
-            "auto_post": True,
         },
     )
     assert created.status_code == 200, created.text
@@ -1742,17 +1605,12 @@ def test_failed_recurring_occurrence_preserves_schedule_and_ledger(auth_client):
     due_date = date.today() - timedelta(days=1)
     with db_conn() as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                "UPDATE recurring_rules SET next_due_date = %s WHERE id = %s",
-                (due_date, rule_id),
-            )
+            cursor.execute("UPDATE recurring_rules SET next_due_date = %s WHERE id = %s", (due_date, rule_id))
 
-    user_id = auth_client.get("/api/auth/me").json()["user"]["id"]
-    result = process_due_recurring_rules(user_id=user_id, limit=20)
+    result = auth_client.post(f"/api/recurring/{rule_id}/occurrences/record", json={"scheduled_for": due_date.isoformat()})
 
-    # Other shared-fixture rules can still be due when yesterday is in the previous month.
-    own_result = next(item for item in result["results"] if item["rule_id"] == rule_id)
-    assert own_result["status"] == "failed"
+    assert result.status_code == 409
+    assert result.json()["detail"]["code"] == "insufficient_funds"
     with db_conn() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -1760,10 +1618,7 @@ def test_failed_recurring_occurrence_preserves_schedule_and_ledger(auth_client):
                 (rule_id, due_date),
             )
             occurrence = cursor.fetchone()
-            cursor.execute(
-                "SELECT next_due_date FROM recurring_rules WHERE id = %s",
-                (rule_id,),
-            )
+            cursor.execute("SELECT next_due_date FROM recurring_rules WHERE id = %s", (rule_id,))
             next_due_date = cursor.fetchone()["next_due_date"]
             cursor.execute(
                 "SELECT COUNT(*) AS count FROM transactions WHERE account_id = %s AND amount = 101",

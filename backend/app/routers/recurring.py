@@ -4,12 +4,13 @@ from typing import Any, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.pool import db_conn
 from app.routers.movements import _ensure_internal_movement_categories
 from app.services.auth import get_current_user
 from app.services.investment_topups import create_topup, resolve_topup_source, validate_topup_accounts
+from app.services.payment_links import CANDIDATE_LIMIT, link_payment_to_obligation, lock_payment, occurrence_candidates
 from app.services.provenance import system_provenance
 from app.services.ledger_mutations import (
     create_bilateral_movement,
@@ -105,23 +106,23 @@ class RecurringRuleUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
-class ExecuteRulesRequest(BaseModel):
-    rule_ids: List[UUID]
-    execution_date: Optional[date] = None
-    scheduled_dates: dict[UUID, date] = Field(default_factory=dict)
-
-
-class PayrollExecutionItem(BaseModel):
-    rule_id: Optional[UUID] = None
-    source_account_id: UUID
-    target_account_id: UUID
-    amount: int = Field(gt=0)
-    notes: Optional[str] = None
-
-
-class PayrollBatchExecuteRequest(BaseModel):
-    items: List[PayrollExecutionItem]
-    execution_date: Optional[date] = None
+def _reject_retired_options(*, auto_post: bool | None, is_payroll_allocation: bool | None, new_payday_schedule: bool) -> None:
+    """Old clients can still send these fields; enabling them must fail rather than be ignored."""
+    if auto_post:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "auto_post_retired", "message": "Rencana tidak lagi mencatat transaksi otomatis."},
+        )
+    if is_payroll_allocation:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "payroll_allocation_retired", "message": "Alokasi gaji sekaligus tidak lagi tersedia."},
+        )
+    if new_payday_schedule:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "payday_schedule_retired", "message": "Pilih tanggal atau hari tertentu; tanggal gajian tetap tidak lagi dipakai."},
+        )
 
 
 def _validate_schedule(schedule_type: str, schedule_day: int | None) -> int | None:
@@ -231,6 +232,8 @@ def format_recurring_rule_row(r: dict[str, Any]) -> dict[str, Any]:
         "notes": r["notes"],
         "is_payroll_allocation": bool(r["is_payroll_allocation"]),
         "auto_post": bool(r["auto_post"]),
+        "legacy_auto_post": r.get("legacy_auto_post"),
+        "converted_to_expectation_at": r["converted_to_expectation_at"].isoformat() if r.get("converted_to_expectation_at") else None,
         "last_executed_at": r["last_executed_at"].isoformat() if r.get("last_executed_at") else None,
         "next_due_date": r["next_due_date"].isoformat() if r.get("next_due_date") else None,
         "is_active": bool(r["is_active"]),
@@ -298,10 +301,11 @@ def create_recurring_rule(
 
     if not payload.name.strip():
         raise HTTPException(status_code=422, detail="Rule name is required")
-    if payload.is_payroll_allocation and payload.type != "transfer":
-        raise HTTPException(status_code=422, detail="Payroll allocation requires a transfer rule")
-    if payload.type == "investment_topup" and payload.auto_post:
-        raise HTTPException(status_code=422, detail={"code": "investment_confirmation_required"})
+    _reject_retired_options(
+        auto_post=payload.auto_post,
+        is_payroll_allocation=payload.is_payroll_allocation,
+        new_payday_schedule=payload.schedule_type == "payday",
+    )
 
     source_id = str(payload.source_account_id)
     target_id = str(payload.target_account_id) if payload.target_account_id else None
@@ -350,8 +354,8 @@ def create_recurring_rule(
                     payload.schedule_type,
                     schedule_day,
                     payload.notes,
-                    payload.is_payroll_allocation,
-                    payload.auto_post,
+                    False,
+                    False,
                     next_due,
                     payload.is_active,
                 ),
@@ -404,14 +408,19 @@ def update_recurring_rule(
             stype = payload.schedule_type if payload.schedule_type is not None else existing["schedule_type"]
             sday = payload.schedule_day if "schedule_day" in payload.model_fields_set else existing["schedule_day"]
             notes = payload.notes if "notes" in payload.model_fields_set else existing["notes"]
-            is_payroll = payload.is_payroll_allocation if payload.is_payroll_allocation is not None else existing["is_payroll_allocation"]
-            auto_post = payload.auto_post if payload.auto_post is not None else existing["auto_post"]
+            _reject_retired_options(
+                auto_post=payload.auto_post,
+                is_payroll_allocation=payload.is_payroll_allocation,
+                new_payday_schedule=stype == "payday" and existing["schedule_type"] != "payday",
+            )
+            # The historical payroll flag can only be cleared.
+            is_payroll = existing["is_payroll_allocation"] and payload.is_payroll_allocation is not False
             is_active = payload.is_active if payload.is_active is not None else existing["is_active"]
 
             if not name.strip():
                 raise HTTPException(status_code=422, detail="Rule name is required")
             if rtype == "investment_topup":
-                if auto_post or is_payroll or cat_id or ob_id:
+                if is_payroll or cat_id or ob_id:
                     raise HTTPException(status_code=422, detail={"code": "invalid_investment_topup_rule"})
             elif rtype != "transfer":
                 target_id = None
@@ -447,7 +456,7 @@ def update_recurring_rule(
                 UPDATE recurring_rules
                 SET name = %s, type = %s, amount = %s, source_account_id = %s, target_account_id = %s,
                     category_id = %s, obligation_id = %s, schedule_type = %s, schedule_day = %s,
-                    notes = %s, is_payroll_allocation = %s, auto_post = %s, next_due_date = %s,
+                    notes = %s, is_payroll_allocation = %s, auto_post = FALSE, next_due_date = %s,
                     is_active = %s, updated_at = NOW()
                 WHERE id = %s AND user_id = %s
                 """,
@@ -463,7 +472,6 @@ def update_recurring_rule(
                     sday,
                     notes,
                     is_payroll,
-                    auto_post,
                     next_due,
                     is_active,
                     str(rule_id),
@@ -482,12 +490,23 @@ def delete_recurring_rule(
     user_id = current_user["id"]
     with db_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM recurring_rules WHERE id = %s AND user_id = %s RETURNING id",
-                (str(rule_id), user_id),
-            )
+            cur.execute("SELECT id FROM recurring_rules WHERE id = %s AND user_id = %s FOR UPDATE", (str(rule_id), user_id))
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Recurring rule not found")
+            cur.execute(
+                """
+                SELECT EXISTS (SELECT 1 FROM recurring_executions WHERE recurring_rule_id = %s)
+                    OR EXISTS (SELECT 1 FROM transactions WHERE recurring_rule_id = %s) AS has_history
+                """,
+                (str(rule_id), str(rule_id)),
+            )
+            if cur.fetchone()["has_history"]:
+                # Deleting would cascade away occurrence history; deactivating keeps it.
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": "expectation_has_history", "message": "Rencana ini punya riwayat. Nonaktifkan saja agar riwayat tetap tersimpan."},
+                )
+            cur.execute("DELETE FROM recurring_rules WHERE id = %s AND user_id = %s", (str(rule_id), user_id))
     return {"ok": True, "deleted_id": str(rule_id)}
 
 
@@ -520,9 +539,7 @@ def toggle_recurring_rule(
 def list_pending_recurring_rules(
     current_user: dict = Depends(get_current_user),
 ):
-    """
-    Returns rules that are currently due (next_due_date <= today) and require manual confirmation (auto_post = false).
-    """
+    """Due expectations with recorded transactions that might satisfy them; nothing is posted."""
     user_id = current_user["id"]
     today = date.today()
 
@@ -543,7 +560,6 @@ def list_pending_recurring_rules(
         WHERE r.user_id = %s 
           AND r.is_active = true 
           AND r.next_due_date <= %s
-          AND r.auto_post = false
         ORDER BY r.next_due_date ASC
     """
 
@@ -551,11 +567,12 @@ def list_pending_recurring_rules(
         with conn.cursor() as cur:
             cur.execute(query, (user_id, today))
             rows = cur.fetchall()
-            return {
-                "ok": True,
-                "pending_count": len(rows),
-                "rules": [format_recurring_rule_row(r) for r in rows],
-            }
+            rules = []
+            for row in rows:
+                item = format_recurring_rule_row(row)
+                item.update(occurrence_candidates(cur, user_id, row, row["next_due_date"]))
+                rules.append(item)
+            return {"ok": True, "pending_count": len(rules), "rules": rules}
 
 
 def _execute_rule_occurrence(
@@ -589,7 +606,7 @@ def _execute_rule_occurrence(
             (rule_id, scheduled_for),
         )
         occurrence = cur.fetchone()
-        if occurrence and occurrence["status"] in {"processing", "succeeded"}:
+        if occurrence and occurrence["status"] in {"processing", "succeeded", "linked", "skipped"}:
             return {
                 "rule_id": rule_id,
                 "scheduled_for": scheduled_for.isoformat(),
@@ -762,200 +779,251 @@ def _execute_rule_occurrence(
         }
 
 
-def process_due_recurring_rules(*, user_id: str | None = None, limit: int = 20) -> dict[str, Any]:
-    today = date.today()
-    results = []
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            conditions = ["r.is_active = TRUE", "r.auto_post = TRUE", "r.next_due_date <= %s", "r.type <> 'investment_topup'"]
-            params: list[Any] = [today]
-            if user_id:
-                conditions.append("r.user_id = %s")
-                params.append(user_id)
-            cur.execute(
-                f"""
-                SELECT r.*, u.payday_day
-                FROM recurring_rules r
-                JOIN users u ON u.id = r.user_id
-                WHERE {' AND '.join(conditions)}
-                ORDER BY r.next_due_date, r.id
-                FOR UPDATE OF r SKIP LOCKED
-                LIMIT %s
-                """,
-                (*params, max(1, min(limit, 100))),
-            )
-            rules = cur.fetchall()
-            for rule in rules:
-                results.append(
-                    _execute_rule_occurrence(
-                        cur,
-                        rule,
-                        str(rule["user_id"]),
-                        int(rule.get("payday_day") or 25),
-                        rule["next_due_date"],
-                    )
-                )
-            conn.commit()
-    succeeded = [result["rule_id"] for result in results if result["status"] == "succeeded"]
-    return {
-        "processed_count": len(results),
-        "executed_rule_ids": succeeded,
-        "results": results,
-    }
+
+
+def _retired(code: str, message: str) -> HTTPException:
+    return HTTPException(status_code=410, detail={"code": code, "message": message})
 
 
 @router.post("/process-due")
-def process_auto_post_due_rules(
-    current_user: dict = Depends(get_current_user),
-):
-    result = process_due_recurring_rules(user_id=current_user["id"], limit=20)
-    return {"ok": True, **result}
+def process_auto_post_due_rules(current_user: dict = Depends(get_current_user)):
+    raise _retired("scheduled_posting_retired", "Jadwal tidak lagi mencatat transaksi otomatis.")
 
 
 @router.post("/execute")
-def execute_selected_rules(
-    payload: ExecuteRulesRequest,
-    current_user: dict = Depends(get_current_user),
-):
-    user_id = current_user["id"]
-    payday_day = int(current_user.get("payday_day") or 25)
-    exec_date = payload.execution_date or date.today()
-    results = []
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            for r_id in sorted(set(payload.rule_ids), key=str):
-                cur.execute(
-                    "SELECT * FROM recurring_rules WHERE id = %s AND user_id = %s FOR UPDATE",
-                    (str(r_id), user_id),
-                )
-                rule = cur.fetchone()
-                if not rule:
-                    raise HTTPException(status_code=404, detail="Recurring rule not found")
-                if not rule["is_active"]:
-                    raise HTTPException(status_code=409, detail="Inactive recurring rules cannot be executed")
-                if rule["type"] == "investment_topup":
-                    scheduled_for = payload.scheduled_dates.get(r_id)
-                    if scheduled_for is None:
-                        results.append({"rule_id": str(r_id), "status": "failed", "error_code": "scheduled_date_required"})
-                        continue
-                    cur.execute(
-                        "SELECT status FROM recurring_executions WHERE recurring_rule_id = %s AND scheduled_for = %s",
-                        (str(r_id), scheduled_for),
-                    )
-                    occurrence = cur.fetchone()
-                    if occurrence and occurrence["status"] == "succeeded":
-                        results.append({"rule_id": str(r_id), "scheduled_for": scheduled_for.isoformat(), "status": "succeeded", "idempotent": True})
-                        continue
-                    if scheduled_for != rule["next_due_date"] or scheduled_for > date.today() or exec_date > date.today():
-                        results.append({"rule_id": str(r_id), "status": "failed", "error_code": "invalid_scheduled_occurrence"})
-                        continue
-                    results.append(_execute_rule_occurrence(cur, rule, user_id, payday_day, scheduled_for, actual_date=exec_date))
-                else:
-                    results.append(_execute_rule_occurrence(cur, rule, user_id, payday_day, exec_date))
-            conn.commit()
-
-    return {
-        "ok": True,
-        "executed_count": len([result for result in results if result["status"] == "succeeded"]),
-        "results": results,
-    }
+def execute_selected_rules(current_user: dict = Depends(get_current_user)):
+    raise _retired(
+        "scheduled_posting_retired",
+        "Rencana tidak lagi dicatat sekaligus. Kaitkan transaksi yang sudah tercatat atau catat satu kejadian secara manual.",
+    )
 
 
 @router.post("/payroll/execute")
-def execute_payroll_batch(
-    payload: PayrollBatchExecuteRequest,
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Atomic 1-tap execution of multiple payroll allocation transfers into accounts and pockets.
-    """
+def execute_payroll_batch(current_user: dict = Depends(get_current_user)):
+    raise _retired("payroll_execution_retired", "Alokasi gaji tidak lagi dicatat sekaligus. Catat perpindahan yang benar-benar terjadi.")
+
+
+class OccurrenceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    scheduled_for: date
+
+
+class OccurrenceLinkRequest(OccurrenceRequest):
+    transaction_id: UUID
+
+
+class OccurrenceRecordRequest(OccurrenceRequest):
+    execution_date: Optional[date] = None
+    acknowledged_candidate_ids: List[UUID] = Field(default_factory=list, max_length=CANDIDATE_LIMIT)
+
+
+def _lock_rule(cur, user_id: str, rule_id: UUID) -> dict[str, Any]:
+    cur.execute("SELECT * FROM recurring_rules WHERE id = %s AND user_id = %s FOR UPDATE", (str(rule_id), user_id))
+    rule = cur.fetchone()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Recurring rule not found")
+    return rule
+
+
+def _occurrence(cur, rule_id: str, scheduled_for: date) -> dict[str, Any] | None:
+    cur.execute(
+        """
+        SELECT id, status, transaction_id FROM recurring_executions
+        WHERE recurring_rule_id = %s AND scheduled_for = %s FOR UPDATE
+        """,
+        (rule_id, scheduled_for),
+    )
+    return cur.fetchone()
+
+
+def _require_next_occurrence(rule: dict[str, Any], scheduled_for: date) -> None:
+    if not rule["is_active"]:
+        raise HTTPException(status_code=409, detail={"code": "expectation_inactive", "message": "Rencana ini tidak aktif."})
+    if scheduled_for != rule["next_due_date"]:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "invalid_scheduled_occurrence", "message": "Jadwal ini bukan kejadian berikutnya dari rencana."},
+        )
+
+
+def _advance(cur, rule: dict[str, Any], user_id: str, payday_day: int, scheduled_for: date) -> date:
+    next_due = calculate_next_due_date(
+        schedule_type=rule["schedule_type"],
+        schedule_day=rule["schedule_day"],
+        user_payday_day=payday_day,
+        from_date=scheduled_for,
+        advance=True,
+    )
+    cur.execute(
+        "UPDATE recurring_rules SET next_due_date = %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
+        (next_due, str(rule["id"]), user_id),
+    )
+    return next_due
+
+
+@router.get("/{rule_id}/occurrences")
+def list_rule_occurrences(rule_id: UUID, current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
-    payday_day = int(current_user.get("payday_day") or 25)
-    exec_date = payload.execution_date or date.today()
-    tx_dt = datetime(exec_date.year, exec_date.month, exec_date.day, 12, 0, 0, tzinfo=timezone.utc)
-
-    if not payload.items:
-        raise HTTPException(status_code=400, detail="No allocation items provided")
-
     with db_conn() as conn:
         with conn.cursor() as cur:
-            exp_cat_id, inc_cat_id = _ensure_internal_movement_categories(cur, user_id)
-            account_ids = [str(item.source_account_id) for item in payload.items]
-            account_ids.extend(str(item.target_account_id) for item in payload.items)
-            locked = lock_owned_accounts(cur, user_id, account_ids)
-            required_by_source: dict[str, int] = {}
-            rules_by_id: dict[str, dict[str, Any]] = {}
-            for item in payload.items:
-                source_id = str(item.source_account_id)
-                target_id = str(item.target_account_id)
-                if source_id == target_id:
-                    raise HTTPException(status_code=400, detail="Payroll source and target must be different")
-                ensure_generic_movement_accounts(locked[source_id], locked[target_id])
-                required_by_source[source_id] = required_by_source.get(source_id, 0) + item.amount
-                if item.rule_id:
-                    if str(item.rule_id) in rules_by_id:
-                        raise HTTPException(status_code=422, detail="A payroll rule can only be selected once per batch")
-                    cur.execute(
-                        """
-                        SELECT * FROM recurring_rules
-                        WHERE id = %s AND user_id = %s AND is_active = TRUE
-                          AND is_payroll_allocation = TRUE
-                        FOR UPDATE
-                        """,
-                        (str(item.rule_id), user_id),
-                    )
-                    rule = cur.fetchone()
-                    if not rule:
-                        raise HTTPException(status_code=404, detail="Payroll recurring rule not found")
-                    if str(rule["source_account_id"]) != source_id or str(rule["target_account_id"]) != target_id:
-                        raise HTTPException(status_code=400, detail="Payroll item accounts do not match the rule")
-                    rules_by_id[str(item.rule_id)] = rule
+            cur.execute("SELECT id FROM recurring_rules WHERE id = %s AND user_id = %s", (str(rule_id), user_id))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Recurring rule not found")
+            cur.execute(
+                """
+                SELECT scheduled_for, status, transaction_id, error_code, updated_at
+                FROM recurring_executions WHERE recurring_rule_id = %s AND user_id = %s
+                ORDER BY scheduled_for DESC LIMIT 24
+                """,
+                (str(rule_id), user_id),
+            )
+            return {
+                "ok": True,
+                "occurrences": [
+                    {
+                        "scheduled_for": row["scheduled_for"].isoformat(),
+                        "status": row["status"],
+                        "transaction_id": str(row["transaction_id"]) if row["transaction_id"] else None,
+                        "error_code": row["error_code"],
+                        "updated_at": row["updated_at"].isoformat(),
+                    }
+                    for row in cur.fetchall()
+                ],
+            }
 
-            for source_id, required in required_by_source.items():
-                ensure_sufficient_funds(cur, user_id, locked[source_id], required)
 
-            results = []
-            for item in payload.items:
-                source_id = str(item.source_account_id)
-                target_id = str(item.target_account_id)
-                notes = item.notes or "Alokasi Gaji Bulanan"
-                r_id = str(item.rule_id) if item.rule_id else None
-                movement = create_bilateral_movement(
-                    cur,
-                    user_id=user_id,
-                    source_id=source_id,
-                    target_id=target_id,
-                    amount=item.amount,
-                    notes=notes,
-                    tx_date=tx_dt,
-                    expense_category_id=exp_cat_id,
-                    income_category_id=inc_cat_id,
-                    source_account=locked[source_id],
-                    target_account=locked[target_id],
-                    idempotency_key=f"payroll:{r_id}:{exec_date.isoformat()}" if r_id else None,
-                    recurring_rule_id=r_id,
-                    provenance=system_provenance("payroll"),
+@router.post("/{rule_id}/occurrences/link")
+def link_occurrence(rule_id: UUID, payload: OccurrenceLinkRequest, current_user: dict = Depends(get_current_user)):
+    """Mark an occurrence as met by a transaction that was already recorded."""
+    user_id = current_user["id"]
+    payday_day = int(current_user.get("payday_day") or 25)
+    transaction_id = str(payload.transaction_id)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            rule = _lock_rule(cur, user_id, rule_id)
+            existing = _occurrence(cur, str(rule_id), payload.scheduled_for)
+            if existing and existing["status"] == "linked" and str(existing["transaction_id"]) == transaction_id:
+                return {"ok": True, "changed": False, "next_due_date": rule["next_due_date"].isoformat()}
+            relink = bool(existing and existing["status"] == "linked" and existing["transaction_id"] is None)
+            if existing and existing["status"] != "failed" and not relink:
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": "occurrence_already_resolved", "message": "Kejadian ini sudah dicatat, dikaitkan, atau dilewati."},
                 )
-                results.append({"rule_id": r_id, **movement})
-
-                # If rule_id provided, advance rule next_due_date
-                if item.rule_id:
-                    rule = rules_by_id[str(item.rule_id)]
-                    next_due = calculate_next_due_date(
-                        schedule_type=rule["schedule_type"],
-                        schedule_day=rule["schedule_day"],
-                        user_payday_day=payday_day,
-                        from_date=rule["next_due_date"],
-                        advance=True,
-                    )
-                    cur.execute(
-                        """
-                        UPDATE recurring_rules
-                        SET last_executed_at = NOW(), next_due_date = %s, updated_at = NOW()
-                        WHERE id = %s AND user_id = %s
-                        """,
-                        (next_due, str(item.rule_id), user_id),
-                    )
+            if not relink:
+                _require_next_occurrence(rule, payload.scheduled_for)
+            transaction = lock_payment(cur, user_id, transaction_id)
+            if transaction["date"] > datetime.now(timezone.utc):
+                raise HTTPException(status_code=422, detail={"code": "future_transaction", "message": "Transaksi masa depan tidak dapat dikaitkan."})
+            expected_type = "expense" if rule["type"] in {"transfer", "investment_topup"} else rule["type"]
+            if transaction["type"] != expected_type:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"code": "transaction_type_mismatch", "message": "Jenis transaksi tidak sesuai dengan rencana."},
+                )
+            cur.execute(
+                """
+                SELECT 1 FROM recurring_executions
+                WHERE transaction_id = %s AND status IN ('linked', 'succeeded')
+                """,
+                (transaction_id,),
+            )
+            if cur.fetchone():
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": "transaction_already_matched", "message": "Transaksi ini sudah dipakai untuk kejadian lain."},
+                )
+            debt_changed = False
+            if rule["type"] == "expense" and rule.get("obligation_id"):
+                debt_changed = link_payment_to_obligation(cur, user_id, transaction, str(rule["obligation_id"]))
+            cur.execute(
+                """
+                INSERT INTO recurring_executions (recurring_rule_id, user_id, scheduled_for, status, transaction_id, movement_id)
+                VALUES (%s, %s, %s, 'linked', %s, %s)
+                ON CONFLICT (recurring_rule_id, scheduled_for) DO UPDATE
+                SET status = 'linked', transaction_id = EXCLUDED.transaction_id, movement_id = EXCLUDED.movement_id,
+                    error_code = NULL, error_detail = NULL, updated_at = NOW()
+                """,
+                (str(rule_id), user_id, payload.scheduled_for, transaction_id, transaction["movement_id"]),
+            )
+            next_due = rule["next_due_date"]
+            if not relink:
+                next_due = _advance(cur, rule, user_id, payday_day, payload.scheduled_for)
             conn.commit()
+    return {"ok": True, "changed": True, "debt_changed": debt_changed, "next_due_date": next_due.isoformat()}
 
-    return {"ok": True, "allocated_items_count": len(payload.items), "results": results}
+
+@router.post("/{rule_id}/occurrences/skip")
+def skip_occurrence(rule_id: UUID, payload: OccurrenceRequest, current_user: dict = Depends(get_current_user)):
+    """The owner states that this occurrence did not happen; nothing is recorded."""
+    user_id = current_user["id"]
+    payday_day = int(current_user.get("payday_day") or 25)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            rule = _lock_rule(cur, user_id, rule_id)
+            existing = _occurrence(cur, str(rule_id), payload.scheduled_for)
+            if existing and existing["status"] == "skipped":
+                return {"ok": True, "changed": False, "next_due_date": rule["next_due_date"].isoformat()}
+            if existing and existing["status"] != "failed":
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": "occurrence_already_resolved", "message": "Kejadian ini sudah dicatat, dikaitkan, atau dilewati."},
+                )
+            _require_next_occurrence(rule, payload.scheduled_for)
+            cur.execute(
+                """
+                INSERT INTO recurring_executions (recurring_rule_id, user_id, scheduled_for, status)
+                VALUES (%s, %s, %s, 'skipped')
+                ON CONFLICT (recurring_rule_id, scheduled_for) DO UPDATE
+                SET status = 'skipped', error_code = NULL, error_detail = NULL, updated_at = NOW()
+                """,
+                (str(rule_id), user_id, payload.scheduled_for),
+            )
+            next_due = _advance(cur, rule, user_id, payday_day, payload.scheduled_for)
+            conn.commit()
+    return {"ok": True, "changed": True, "next_due_date": next_due.isoformat()}
+
+
+@router.post("/{rule_id}/occurrences/record")
+def record_occurrence(rule_id: UUID, payload: OccurrenceRecordRequest, current_user: dict = Depends(get_current_user)):
+    """Explicitly record one missed occurrence, after the owner has ruled out captured candidates."""
+    user_id = current_user["id"]
+    payday_day = int(current_user.get("payday_day") or 25)
+    today = date.today()
+    execution_date = payload.execution_date or today
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            rule = _lock_rule(cur, user_id, rule_id)
+            existing = _occurrence(cur, str(rule_id), payload.scheduled_for)
+            if existing and existing["status"] in {"succeeded", "linked", "skipped", "processing"}:
+                return {
+                    "ok": True,
+                    "result": {"rule_id": str(rule_id), "scheduled_for": payload.scheduled_for.isoformat(), "status": existing["status"], "idempotent": True},
+                }
+            _require_next_occurrence(rule, payload.scheduled_for)
+            if payload.scheduled_for > today or execution_date > today:
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": "invalid_scheduled_occurrence", "message": "Kejadian yang belum terjadi tidak dapat dicatat."},
+                )
+            found = occurrence_candidates(cur, user_id, rule, payload.scheduled_for)["candidates"]
+            acknowledged = {str(item) for item in payload.acknowledged_candidate_ids}
+            # Same-amount captures are the plausible duplicates; other suggestions do not block.
+            unreviewed = [item for item in found if item["exact_amount"] and item["id"] not in acknowledged]
+            if unreviewed:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "possible_duplicate",
+                        "message": "Ada transaksi tercatat yang mungkin sama. Kaitkan transaksi itu atau pastikan bukan pembayaran ini.",
+                        "candidates": unreviewed,
+                    },
+                )
+            result = _execute_rule_occurrence(cur, rule, user_id, payday_day, payload.scheduled_for, actual_date=execution_date)
+            conn.commit()
+    if result["status"] == "failed":
+        raise HTTPException(
+            status_code=409,
+            detail={"code": result["error_code"], "message": "Kejadian belum tercatat. Periksa rekening, saldo, dan produk."},
+        )
+    return {"ok": True, "result": result}

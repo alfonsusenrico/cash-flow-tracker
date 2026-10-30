@@ -157,8 +157,9 @@ def test_api_create_and_list_recurring_rules():
                     "amount": 2000000,
                     "source_account_id": src_acc_id,
                     "target_account_id": target_acc_id,
-                    "schedule_type": "payday",
-                    "is_payroll_allocation": True,
+                    "schedule_type": "monthly_day",
+                    "schedule_day": 25,
+                    "is_payroll_allocation": False,
                     "auto_post": False,
                 },
             )
@@ -207,108 +208,46 @@ def test_api_create_and_list_recurring_rules():
         app.dependency_overrides.clear()
 
 
-def test_api_payroll_batch_execute():
-    user_id = str(uuid4())
-    src_id = str(uuid4())
-    dst1_id = str(uuid4())
-    dst2_id = str(uuid4())
-    rule1_id = str(uuid4())
-
-    mock_user = {"id": user_id, "username": "enrico", "payday_day": 25}
-    app.dependency_overrides[get_current_user] = lambda: mock_user
-
+@pytest.mark.parametrize(
+    ("overrides", "code"),
+    [
+        ({"auto_post": True}, "auto_post_retired"),
+        ({"is_payroll_allocation": True}, "payroll_allocation_retired"),
+        ({"schedule_type": "payday", "schedule_day": None}, "payday_schedule_retired"),
+    ],
+)
+def test_create_rejects_retired_posting_options_before_touching_the_database(overrides, code):
+    app.dependency_overrides[get_current_user] = lambda: {"id": str(uuid4()), "username": "contoh", "payday_day": 25}
     try:
-        client = TestClient(app)
-
-        with patch("app.routers.recurring.db_conn") as mock_conn, \
-             patch("app.routers.recurring._ensure_internal_movement_categories", return_value=("expense", "income")), \
-             patch("app.routers.recurring.lock_owned_accounts", return_value={
-                 src_id: {"id": src_id, "type": "bank", "is_savings": False},
-                 dst1_id: {"id": dst1_id, "type": "bank", "is_savings": False},
-                 dst2_id: {"id": dst2_id, "type": "bank", "is_savings": False},
-             }), \
-             patch("app.routers.recurring.ensure_sufficient_funds"), \
-             patch("app.routers.recurring.create_bilateral_movement", return_value={
-                 "movement_id": "movement", "expense_transaction_id": "out", "income_transaction_id": "in",
-             }):
-            mock_cur = MagicMock()
-            mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = mock_cur
-
-            mock_cur.fetchone.side_effect = [
-                {
-                    "id": rule1_id,
-                    "source_account_id": src_id,
-                    "target_account_id": dst1_id,
-                    "is_payroll_allocation": True,
-                    "schedule_type": "payday",
-                    "schedule_day": None,
-                    "next_due_date": date(2026, 9, 25),
-                },
-            ]
-
-            resp = client.post(
-                "/api/recurring/payroll/execute",
+        with patch("app.routers.recurring.db_conn") as mock_conn:
+            response = TestClient(app).post(
+                "/api/recurring",
                 json={
-                    "items": [
-                        {
-                            "rule_id": rule1_id,
-                            "source_account_id": src_id,
-                            "target_account_id": dst1_id,
-                            "amount": 2500000,
-                            "notes": "Alokasi Makan",
-                        },
-                        {
-                            "source_account_id": src_id,
-                            "target_account_id": dst2_id,
-                            "amount": 500000,
-                            "notes": "Alokasi Transport",
-                        },
-                    ]
+                    "name": "Rencana contoh",
+                    "type": "transfer",
+                    "amount": 100_000,
+                    "source_account_id": str(uuid4()),
+                    "target_account_id": str(uuid4()),
+                    "schedule_type": "monthly_day",
+                    "schedule_day": 5,
+                    **overrides,
                 },
             )
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["ok"] is True
-            assert data["allocated_items_count"] == 2
+        assert response.status_code == 422
+        assert response.json()["detail"]["code"] == code
+        mock_conn.assert_not_called()
     finally:
         app.dependency_overrides.clear()
 
 
-def test_payroll_batch_rejects_investment_position_without_committing():
-    user_id = str(uuid4())
-    source_id = str(uuid4())
-    position_id = str(uuid4())
-    app.dependency_overrides[get_current_user] = lambda: {
-        "id": user_id,
-        "username": "tester",
-        "payday_day": 25,
-    }
-
+@pytest.mark.parametrize("path", ["/api/recurring/execute", "/api/recurring/process-due", "/api/recurring/payroll/execute"])
+def test_retired_posting_endpoints_answer_gone_without_database_access(path):
+    app.dependency_overrides[get_current_user] = lambda: {"id": str(uuid4()), "username": "contoh", "payday_day": 25}
     try:
-        with patch("app.routers.recurring.db_conn") as mock_conn, \
-             patch("app.routers.recurring._ensure_internal_movement_categories", return_value=("expense", "income")), \
-             patch("app.routers.recurring.lock_owned_accounts", return_value={
-                 source_id: {"id": source_id, "type": "bank"},
-                 position_id: {"id": position_id, "type": "investment", "instrument_type": "stock"},
-             }), \
-             patch("app.routers.recurring.create_bilateral_movement") as create_movement:
-            cursor = MagicMock()
-            connection = mock_conn.return_value.__enter__.return_value
-            connection.cursor.return_value.__enter__.return_value = cursor
-            client = TestClient(app, raise_server_exceptions=True)
-
-            response = client.post(
-                "/api/recurring/payroll/execute",
-                json={"items": [{
-                    "source_account_id": source_id,
-                    "target_account_id": position_id,
-                    "amount": 1000,
-                }]},
-            )
-
-            assert response.status_code == 422
-            assert response.json()["detail"]["code"] == "investment_trade_required"
-            create_movement.assert_not_called()
-            connection.commit.assert_not_called()
+        with patch("app.routers.recurring.db_conn") as mock_conn:
+            response = TestClient(app).post(path, json={"rule_ids": [str(uuid4())], "items": []})
+        assert response.status_code == 410
+        assert response.json()["detail"]["code"] in {"scheduled_posting_retired", "payroll_execution_retired"}
+        mock_conn.assert_not_called()
     finally:
         app.dependency_overrides.clear()

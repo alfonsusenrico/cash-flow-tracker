@@ -13,22 +13,21 @@ import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { listLiquidAccountChoices } from "@/lib/accountOptions";
 
 import { HeroWalletCard } from "@/components/dashboard/HeroWalletCard";
-import { DailyBudgetBar } from "@/components/dashboard/DailyBudgetBar";
 import { MetricMatrixGrid } from "@/components/dashboard/MetricMatrixGrid";
-import { kakeiboLabel } from "@/lib/kakeibo";
-import { KakeiboPillarCards } from "@/components/dashboard/KakeiboPillarCards";
+import { type KakeiboPillar, kakeiboLabel } from "@/lib/kakeibo";
+import { KakeiboBenchmark } from "@/components/dashboard/KakeiboBenchmark";
+import { ObservedCashFlowCard } from "@/components/dashboard/ObservedCashFlowCard";
+import { ledgerHref, reportPeriodFilters } from "@/lib/ledgerFilters";
 import { NarrativeInsightCard } from "@/components/dashboard/NarrativeInsightCard";
 import { CategoryDonutChart } from "@/components/dashboard/CategoryDonutChart";
 import { MobileHomeView } from "@/components/dashboard/MobileHomeView";
 import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
-import { PayrollAllocationModal } from "@/components/recurring/PayrollAllocationModal";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 
 export default function OverviewPage() {
   const { timeframe, cycleOffset, openQuickAdd, openMovement, user, bal } = useAppCtx();
   const qc = useQueryClient();
 
-  const [payrollModalOpen, setPayrollModalOpen] = useState(false);
   const [recurringModalOpen, setRecurringModalOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState<any>(null);
 
@@ -101,6 +100,9 @@ export default function OverviewPage() {
   const comparison = dashboard?.comparison;
   const kakeibo = dashboard?.kakeibo;
   const narrative = dashboard?.narrative;
+  const reportPeriod = reportPeriodFilters(timeframe, cycleOffset);
+  const pillarHref = (pillar: KakeiboPillar) =>
+    reportPeriod ? ledgerHref({ ...reportPeriod, type: "expense", kakeibo: pillar }) : null;
 
   const currentHour = new Date().getHours();
   const greetingText =
@@ -121,7 +123,7 @@ export default function OverviewPage() {
     <div className="w-full">
       {/* 0. Pending Scheduled Due Banner */}
       <div className="mb-4 sm:mb-6">
-        <PendingScheduledBanner />
+        <PendingScheduledBanner onOpenRulesManager={() => setRecurringModalOpen(true)} />
       </div>
 
       {/* Mobile-Native Experience (Handheld Viewports < 1024px) */}
@@ -132,7 +134,6 @@ export default function OverviewPage() {
           onOpenCapture={(type) => openQuickAdd(type)}
           onOpenTransfer={handleOpenTransfer}
           canTransfer={canTransfer}
-          onOpenPayroll={() => setPayrollModalOpen(true)}
           onOpenRecurring={() => setRecurringModalOpen(true)}
           onSelectTx={(tx) => setSelectedTx(tx)}
           bal={bal}
@@ -150,29 +151,19 @@ export default function OverviewPage() {
             </h1>
           </div>
           <p className="text-xs text-[var(--muted)] font-medium mt-0.5">
-            {timeframe === "month" ? "Bulan" : "Siklus"} <span className="font-bold text-[var(--text)]">{timeframeLabel}</span> • Keuanganmu aman terkendali ✨
+            Periode <span className="font-bold text-[var(--text)]">{timeframeLabel || "belum tersedia"}</span>
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={() => setPayrollModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] pressable shadow-2xs transition-[background-color,transform]"
-            title="Alokasi Gaji Bulanan"
-          >
-            <Icon name="calendar" className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
-            <span>Alokasi Gaji</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => setRecurringModalOpen(true)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-xs font-bold text-[var(--text)] pressable shadow-2xs transition-[background-color,transform]"
-            title="Kelola Transaksi Rutin"
+            title="Kelola rencana dan pengingat"
           >
             <Icon name="clock" className="h-3.5 w-3.5 text-[var(--muted)] stroke-[2.5]" />
-            <span>Aturan Rutin</span>
+            <span>Rencana</span>
           </button>
 
           <Link
@@ -202,29 +193,29 @@ export default function OverviewPage() {
           />
         </div>
 
-        {/* Right: Daily Safe Fuel & Immediate Narrative Insight */}
+        {/* Right: observed cash flow and narrative */}
         <div className="lg:col-span-5 flex flex-col justify-between gap-4 sm:gap-5">
-          <DailyBudgetBar
-            safeToSpendToday={kpis?.safe_to_spend_today ?? 0}
-            hasBudget={Boolean(kpis?.benchmark_daily && kpis?.benchmark_daily > 0)}
-            effectiveBudget={kpis?.effective_budget ?? 0}
-            totalOutflow={kpis?.total_outflow ?? 0}
-            upcomingRecurring={kpis?.upcoming_recurring_committed ?? 0}
-            spendVelocityRatio={kpis?.spend_velocity_ratio ?? 1.0}
-            spendVelocityStatus={kpis?.spend_velocity_status ?? "on_track"}
-            benchmarkDaily={kpis?.benchmark_daily ?? 0}
+          <ObservedCashFlowCard
+            periodLabel={timeframeLabel}
+            inflow={kpis?.total_inflow}
+            outflow={kpis?.total_outflow}
+            net={kpis?.net_cashflow}
+            budget={kpis?.has_budget ? kpis?.effective_budget : undefined}
+            budgetRemaining={kpis?.budget_remaining}
+            commitments={dashboard?.upcoming_commitments}
+            bal={bal}
+            onOpenPlans={() => setRecurringModalOpen(true)}
           />
 
           <NarrativeInsightCard
             narrative={narrative}
-            outflowDeltaPct={comparison?.outflow_delta_pct ?? 0}
+            outflowDeltaPct={comparison?.prev_outflow ? comparison?.outflow_delta_pct ?? null : null}
             timeframeLabel={timeframeLabel}
           />
         </div>
       </div>
 
-      {/* 4. Mindful 3-Pillar Kakeibo Allocation (50/30/20) */}
-      <KakeiboPillarCards kakeibo={kakeibo} />
+      <KakeiboBenchmark kakeibo={kakeibo} pillarHref={pillarHref} />
 
       {/* 5. 4-Pillar Financial Metrics Ribbon (Full Width) */}
       <MetricMatrixGrid
@@ -696,16 +687,6 @@ export default function OverviewPage() {
           </div>
         </Modal>
       )}
-
-      {/* Payroll Allocation Modal */}
-      <PayrollAllocationModal
-        open={payrollModalOpen}
-        onClose={() => setPayrollModalOpen(false)}
-        onOpenRulesManager={() => {
-          setPayrollModalOpen(false);
-          setRecurringModalOpen(true);
-        }}
-      />
 
       {/* Recurring Rules Management Modal */}
       <RecurringRulesModal

@@ -129,17 +129,24 @@ def test_system_paths_write_their_source(auth_client):
     payroll = auth_client.post("/api/recurring/payroll/execute", json={
         "items": [{"source_account_id": source, "target_account_id": target, "amount": 50_000}],
     })
-    assert payroll.status_code == 200, payroll.text
-    assert provenance_of(movement_legs(payroll.json()["results"][0]["movement_id"])) == {("payroll", "reviewed", "system")}
+    assert payroll.status_code == 410, payroll.text
 
     rule = auth_client.post("/api/recurring", json={
         "name": "Langganan contoh", "type": "expense", "amount": 30_000, "source_account_id": source,
         "category_id": category(auth_client, "Hiburan"), "schedule_type": "monthly_day", "schedule_day": date.today().day,
     })
     assert rule.status_code == 200, rule.text
-    executed = auth_client.post("/api/recurring/execute", json={"rule_ids": [rule.json()["id"]]})
-    assert executed.json()["results"][0]["status"] == "succeeded", executed.text
-    recurring_row = stored(executed.json()["results"][0]["transaction_id"])
+    executed = auth_client.post(
+        f"/api/recurring/{rule.json()['id']}/occurrences/record", json={"scheduled_for": rule.json()["next_due_date"]}
+    )
+    if executed.status_code == 409 and executed.json()["detail"]["code"] == "possible_duplicate":
+        seen = [item["id"] for item in executed.json()["detail"]["candidates"]]
+        executed = auth_client.post(
+            f"/api/recurring/{rule.json()['id']}/occurrences/record",
+            json={"scheduled_for": rule.json()["next_due_date"], "acknowledged_candidate_ids": seen},
+        )
+    assert executed.json()["result"]["status"] == "succeeded", executed.text
+    recurring_row = stored(executed.json()["result"]["transaction_id"])
     assert (recurring_row["source"], recurring_row["classified_by"]) == ("recurring", "system")
 
     reconciled = auth_client.post(f"/api/accounts/{target}/reconcile", json={"actual_balance": 140_000})

@@ -47,6 +47,19 @@ describe("account and pocket forms", () => {
     vi.mocked(api.post).mockResolvedValue({ ok: true });
   });
 
+  it("does not present assets as net worth when liabilities are unavailable", async () => {
+    const liquid = { id: "cash-a", name: "Cash A", type: "cash", initial_balance: 1000, balance: 1000, is_archived: false, children: [] };
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { ok: true, accounts: [liquid], total_balance: 1000 };
+      if (path === "/dashboard/net-worth") throw new Error("unavailable");
+      return { ok: true, rules: [], accounts: [], results: [] };
+    });
+    renderAccounts();
+    expect((await screen.findAllByText("Kekayaan bersih belum dapat dihitung")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Tidak tersedia").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Saldo kas mencukupi seluruh kewajiban")).not.toBeInTheDocument();
+  });
+
   it("removes dedicated transfer controls from account actions", async () => {
     const liquid = [
       { id: "cash-a", name: "Cash A", type: "cash", initial_balance: 1000, balance: 1000, is_archived: false, children: [] },

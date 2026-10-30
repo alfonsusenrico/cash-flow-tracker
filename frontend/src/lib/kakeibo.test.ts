@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   KAKEIBO_PILLARS,
-  isKakeiboHealthy,
   kakeiboGroups,
   kakeiboLabel,
-  kakeiboStatusLabel,
   pillarOrNeed,
   type KakeiboBreakdown,
 } from "./kakeibo";
@@ -39,15 +37,6 @@ describe("kakeibo vocabulary", () => {
   it("labels known pillars and leaves anything else readable", () => {
     expect(kakeiboLabel("unexpected")).toBe("Tak Terduga");
     expect(kakeiboLabel(null)).toBe("");
-  });
-
-  it("maps every backend status, and only healthy counts as healthy", () => {
-    expect(isKakeiboHealthy("healthy")).toBe(true);
-    expect(isKakeiboHealthy("warning")).toBe(false);
-    expect(isKakeiboHealthy("elevated_needs")).toBe(false);
-    expect(isKakeiboHealthy("SEHAT")).toBe(false);
-    expect(kakeiboStatusLabel("elevated_needs")).toBe("Kebutuhan di atas 50%");
-    expect(kakeiboStatusLabel(undefined)).toBe("Belum ada data");
   });
 });
 

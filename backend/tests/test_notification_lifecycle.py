@@ -45,7 +45,7 @@ def test_lifespan_starts_only_permitted_inference_and_closes_in_order(monkeypatc
             events.append("worker_stopped")
 
     monkeypatch.setattr(main, "_daily_price_sync_loop", idle)
-    monkeypatch.setattr(main, "_recurring_scheduler_loop", idle)
+    monkeypatch.setattr(main, "_salary_detection_loop", idle)
     monkeypatch.setattr(main, "notification_worker", worker)
 
     async def run():
@@ -64,6 +64,8 @@ def test_lifespan_starts_only_permitted_inference_and_closes_in_order(monkeypatc
         assert events.index("worker_stopped") < events.index("client_closed") < events.index("pool_closed")
     else:
         assert events.index("worker_stopped") < events.index("pool_closed")
+    # Price sync and salary detection only; no background task posts scheduled transactions.
+    assert events.count("background_started") == 3
 
 
 def test_shutdown_waits_for_in_flight_database_operation():
@@ -111,16 +113,25 @@ def test_daily_price_sync_waits_a_day_after_success_or_failure(monkeypatch, fail
     assert sync.await_count == 1
 
 
-def test_recurring_scheduler_retains_one_minute_cadence(monkeypatch):
+def test_no_scheduled_posting_loop_remains():
+    import app.main as main
+    import app.routers.recurring as recurring
+
+    assert not hasattr(main, "_recurring_scheduler_loop")
+    assert not hasattr(recurring, "process_due_recurring_rules")
+
+
+def test_salary_detection_pages_quickly_then_waits_a_minute(monkeypatch):
     import app.main as main
     waits = []
-    monkeypatch.setattr(main, "process_due_recurring_rules", lambda **kwargs: {"processed_count": 0})
+    cursors = iter(["next-owner", None])
+    monkeypatch.setattr(main, "process_salary_sources", lambda cursor: next(cursors))
 
     async def sleep(delay):
         waits.append(delay)
-        if waits.count(60) == 2:
+        if delay == 60:
             raise asyncio.CancelledError
 
     monkeypatch.setattr(main.asyncio, "sleep", sleep)
-    asyncio.run(main._recurring_scheduler_loop())
-    assert waits == [15, 60, 60]
+    asyncio.run(main._salary_detection_loop())
+    assert waits == [15, 5, 60]
