@@ -60,6 +60,27 @@ describe("account and pocket forms", () => {
     expect(screen.queryByText("Saldo kas mencukupi seluruh kewajiban")).not.toBeInTheDocument();
   });
 
+  it("shows unknown coverage and the all-liquid basis instead of a sentinel", async () => {
+    const liquid = { id: "cash-a", name: "Cash A", type: "cash", initial_balance: 1000, balance: 1000, is_archived: false, children: [] };
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { ok: true, accounts: [liquid], total_balance: 1000 };
+      if (path === "/dashboard/net-worth") return {
+        ok: true, net_worth: 1000, total_assets: 1000, total_liabilities: 0, accounts: [], obligations: [],
+        runway: {
+          runway_days: null, runway_months: null, coverage_months: null, status: "unknown", daily_burn_rate: null,
+          emergency_fund_balance: 1000, balance_basis: "all_liquid", emergency_goal_names: [], monthly_primary_expense: null,
+          essential_cost: { amount: null, living_amount: null, debt_minimum: 0, method: "unknown", basis: "unknown",
+            period_count: 0, periods_used: [], limited_history: false },
+        },
+      };
+      return { ok: true, rules: [], accounts: [], results: [] };
+    });
+    renderAccounts();
+    expect((await screen.findAllByText("Ketahanan Dana: Belum dapat dihitung")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Belum ada dana darurat khusus — dihitung dari seluruh saldo kas").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/> 12x|999/)).not.toBeInTheDocument();
+  });
+
   it("removes dedicated transfer controls from account actions", async () => {
     const liquid = [
       { id: "cash-a", name: "Cash A", type: "cash", initial_balance: 1000, balance: 1000, is_archived: false, children: [] },

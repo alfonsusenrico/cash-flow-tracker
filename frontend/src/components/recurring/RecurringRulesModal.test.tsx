@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import type { InvestmentScheduleDraft } from "@/lib/investmentTopups";
+import type { ExpensePlanDraft } from "@/types/recurring";
 import { RecurringRulesModal } from "./RecurringRulesModal";
 
 vi.mock("@/lib/api", () => ({
@@ -30,13 +31,13 @@ const weeklyExpense = {
   notes: null,
 };
 
-function renderRules(investmentDraft?: InvestmentScheduleDraft) {
+function renderRules(investmentDraft?: InvestmentScheduleDraft, expenseDraft?: ExpensePlanDraft) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <RecurringRulesModal open onClose={() => {}} investmentDraft={investmentDraft} />
+      <RecurringRulesModal open onClose={() => {}} investmentDraft={investmentDraft} expenseDraft={expenseDraft} />
     </QueryClientProvider>,
   );
 }
@@ -94,6 +95,25 @@ describe("RecurringRulesModal", () => {
     const payload = vi.mocked(api.post).mock.calls[0][1] as Record<string, unknown>;
     expect(payload).not.toHaveProperty("auto_post");
     expect(payload).not.toHaveProperty("is_payroll_allocation");
+  });
+
+  it("prefills a detected recurring charge and saves it only on confirmation", async () => {
+    const user = userEvent.setup();
+    renderRules(undefined, {
+      name: "Musik Contoh", type: "expense", amount: 54_990, source_account_id: "account-2",
+      category_id: "category-expense", schedule_type: "monthly_day", schedule_day: 28,
+    });
+    const name = await screen.findByRole("textbox", { name: "Nama Rencana" });
+    expect(name).toHaveValue("Musik Contoh");
+    expect(screen.getByRole("textbox", { name: "Nominal (IDR)" })).toHaveValue("54.990");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Dari rekening" })).toHaveValue("account-2"));
+    expect(api.post).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Simpan Rencana" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/recurring", expect.objectContaining({
+      type: "expense", amount: 54_990, source_account_id: "account-2", category_id: "category-expense",
+      schedule_type: "monthly_day", schedule_day: 28,
+    })));
+    expect(vi.mocked(api.post).mock.calls[0][1]).not.toHaveProperty("auto_post");
   });
 
   it("explains a refused delete of a plan with history", async () => {

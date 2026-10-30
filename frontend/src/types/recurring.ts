@@ -53,3 +53,30 @@ export interface DueExpectation extends RecurringRule {
   window_days: number;
   candidates: OccurrenceCandidate[];
 }
+
+/** An occurrence linked automatically to its one certain recorded payment; the owner can undo it. */
+export interface AutoLinkedOccurrence {
+  rule_id: string;
+  scheduled_for: string;
+  linked_at: string;
+  name: string;
+  amount: number;
+  type: RecurringRule["type"];
+  obligation_name?: string | null;
+  transaction_id?: string | null;
+  transaction_date?: string | null;
+  merchant?: string | null;
+  notes?: string | null;
+  account_name?: string | null;
+}
+
+/** Prefill for a non-posting expense plan, from a detected recurring charge; the owner confirms it. */
+export interface ExpensePlanDraft {
+  name: string;
+  type: "expense";
+  amount: number;
+  source_account_id: string;
+  category_id: string | null;
+  schedule_type: "monthly_day" | "weekly";
+  schedule_day: number;
+}

@@ -30,6 +30,7 @@ import { consolidateLedgerMovements } from "@/lib/ledgerMovements";
 import {
   DEFAULT_LEDGER_FILTERS,
   UNCATEGORIZED,
+  hasDateRange,
   hasRowFilters,
   ledgerApiParams,
   ledgerFilterQuery,
@@ -141,6 +142,11 @@ function shortDate(value: string): string {
   return new Date(value).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
 }
 
+function rangeLabel(from: string | null, to: string | null): string {
+  if (from && to) return `${shortDate(from)} – ${shortDate(to)}`;
+  return from ? `sejak ${shortDate(from)}` : `sampai ${shortDate(to ?? "")}`;
+}
+
 function periodLabel(period: PeriodCashFlowMetrics | null | undefined): string {
   if (!period?.start || !period.end) return "Memuat…";
   if (period.label) return period.label;
@@ -180,7 +186,11 @@ function LedgerPageContent() {
   const rowFiltersActive = hasRowFilters(filters);
   const editTargetId = useMemo(() => new URLSearchParams(searchKey).get("edit"), [searchKey]);
   const returnTo = useMemo(() => new URLSearchParams(searchKey).get("return"), [searchKey]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(filters.q);
+  // A report link may carry search text; it seeds the search box, which the owner can then edit.
+  useEffect(() => setSearchQuery(filters.q), [filters.q]);
+  const rangeScoped = hasDateRange(filters);
+  const periodScoped = filters.period !== "all" || rangeScoped;
   const [page, setPage] = useState(0);
   const [linkError, setLinkError] = useState("");
   const updateFilters = (patch: Partial<LedgerFilters>) => {
@@ -305,7 +315,7 @@ function LedgerPageContent() {
     .reduce((sum, t) => sum + t.amount, 0);
 
   const summary = txData?.summary;
-  const periodSummary = filters.period !== "all" ? summary?.period : null;
+  const periodSummary = periodScoped ? summary?.period : null;
   const cycleSummary = summary?.cycle;
   const cumulativeSummary = summary?.cumulative;
 
@@ -320,12 +330,12 @@ function LedgerPageContent() {
   const cycleFigures = { inflow: cycleInflow, outflow: cycleOutflow, net: cycleNet };
   const cumulativeFigures = { inflow: cumulativeInflow, outflow: cumulativeOutflow, net: cumulativeNet };
   // With a period filter the filtered rows are the period, so its figures replace the cycle/cumulative pair.
-  const scopeLabel = filters.period !== "all" ? "Periode" : summaryScope === "cycle" ? "Siklus" : "Kumulatif";
-  const shown = filters.period !== "all"
+  const scopeLabel = periodScoped ? "Periode" : summaryScope === "cycle" ? "Siklus" : "Kumulatif";
+  const shown = periodScoped
     ? (periodSummary ?? { inflow: 0, outflow: 0, net: 0 })
     : summaryScope === "cycle" ? cycleFigures : cumulativeFigures;
-  const other = filters.period !== "all" ? null : summaryScope === "cycle" ? cumulativeFigures : cycleFigures;
-  const shownOffset = filters.period !== "all"
+  const other = periodScoped ? null : summaryScope === "cycle" ? cumulativeFigures : cycleFigures;
+  const shownOffset = periodScoped
     ? periodSummary?.reimbursement_offset
     : summaryScope === "cycle" ? cycleSummary?.reimbursement_offset : cumulativeSummary?.reimbursement_offset;
 
@@ -644,6 +654,7 @@ function LedgerPageContent() {
     filters.kakeibo !== "all" ? `Pilar: ${kakeiboPillarInfo(filters.kakeibo)?.label ?? filters.kakeibo}` : null,
     filters.account !== "all" ? `Rekening: ${accounts.find((account) => account.id === filters.account)?.name ?? "…"}` : null,
     filters.review !== "all" ? REVIEW_FILTER_OPTIONS.find((option) => option.value === filters.review)?.label ?? null : null,
+    rangeScoped ? `Rentang: ${rangeLabel(filters.from, filters.to)}` : null,
   ].filter((label): label is string => Boolean(label));
 
   const prepareMerge = async () => {
@@ -785,11 +796,11 @@ function LedgerPageContent() {
         <div className="flex items-center justify-between px-0.5">
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">Arus Kas</span>
-            {filters.period === "all" && cycleDateRangeLabel && summaryScope === "cycle" && (
+            {!periodScoped && cycleDateRangeLabel && summaryScope === "cycle" && (
               <span className="text-[10px] text-[var(--muted)] font-medium">({cycleDateRangeLabel})</span>
             )}
           </div>
-          {filters.period === "all" && (
+          {!periodScoped && (
           <div className="inline-flex items-center p-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] text-[10px]">
             <button
               type="button"
@@ -859,14 +870,14 @@ function LedgerPageContent() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Arus Kas</span>
-            {filters.period === "all" && cycleDateRangeLabel && (
+            {!periodScoped && cycleDateRangeLabel && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--foreground)]">
                 <Icon name="calendar" className="h-3.5 w-3.5 text-[var(--muted)]" />
                 {cycleSummary?.label ? cycleDateRangeLabel : `Siklus ${cycleDateRangeLabel}`}
               </span>
             )}
           </div>
-          {filters.period === "all" && (
+          {!periodScoped && (
           <div className="inline-flex items-center p-0.5 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] text-xs">
             <button
               type="button"

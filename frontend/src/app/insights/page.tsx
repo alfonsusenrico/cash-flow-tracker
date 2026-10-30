@@ -13,8 +13,10 @@ import { Modal } from "@/components/ui/Modal";
 import { FormSection } from "@/components/ui/FormField";
 import { BurnCadenceChart } from "@/components/dashboard/BurnCadenceChart";
 import { SpendingHeatmap } from "@/components/dashboard/SpendingHeatmap";
-import { NarrativeInsightCard } from "@/components/dashboard/NarrativeInsightCard";
 import { KakeiboBenchmark } from "@/components/dashboard/KakeiboBenchmark";
+import { CashFlowHistory, PeriodComparison, RecurringCharges } from "@/components/insights/ObservedInsights";
+import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
+import type { ExpensePlanDraft } from "@/types/recurring";
 import { KAKEIBO_PILLARS, type KakeiboPillar, kakeiboPillarInfo, pillarOrNeed } from "@/lib/kakeibo";
 import { ledgerHref, reportPeriodFilters, UNCATEGORIZED } from "@/lib/ledgerFilters";
 
@@ -57,19 +59,6 @@ const CATEGORY_COLOR_NAMES: Record<string, string> = {
   "#64748b": "Abu-abu",
 };
 
-function comparisonLabel(baseline: number | undefined, change: number | undefined): string {
-  if (!baseline || change == null) return "Belum ada pembanding";
-  const sign = change > 0 ? "+" : "";
-  return `${sign}${change}%`;
-}
-
-function comparisonColor(hasBaseline: boolean, positive: boolean): string {
-  if (!hasBaseline) return "bg-[var(--surface-raised)] text-[var(--muted)] border-[var(--border)]";
-  return positive
-    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-    : "bg-rose-500/10 text-rose-500 border-rose-500/20";
-}
-
 export default function AnalyticsPage() {
   const qc = useQueryClient();
   const { timeframe, setTimeframe, cycleOffset, bal } = useAppCtx();
@@ -81,6 +70,10 @@ export default function AnalyticsPage() {
       : null;
   const pillarHref = (pillar: KakeiboPillar) =>
     reportPeriod ? ledgerHref({ ...reportPeriod, type: "expense", kakeibo: pillar }) : null;
+  // Observed insights use salary cycles or calendar months; rolling windows have no previous period.
+  const insightBasis = timeframe === "month" ? "month" : "cycle";
+  const insightOffset = reportPeriod ? cycleOffset : 0;
+  const [planDraft, setPlanDraft] = useState<ExpensePlanDraft | null>(null);
 
   // Active view tab: summary vs compare/kakeibo
   const [activeTab, setActiveTab] = useState<"summary" | "compare">("summary");
@@ -92,7 +85,6 @@ export default function AnalyticsPage() {
   const [catIcon, setCatIcon] = useState("tag");
   const [catColor, setCatColor] = useState("#3b82f6");
   const [catBudget, setCatBudget] = useState("");
-  const [catIsPrimary, setCatIsPrimary] = useState(true);
   const [catKind, setCatKind] = useState<"expense" | "income">("expense");
   const [catKakeiboType, setCatKakeiboType] = useState<KakeiboPillar>("need");
   const [catError, setCatError] = useState("");
@@ -103,7 +95,6 @@ export default function AnalyticsPage() {
     setCatIcon("tag");
     setCatColor("#3b82f6");
     setCatBudget("");
-    setCatIsPrimary(true);
     setCatKind(kind);
     setCatKakeiboType("need");
     setCatError("");
@@ -117,7 +108,6 @@ export default function AnalyticsPage() {
     setCatColor(cat.color || "#3b82f6");
     const monthlyBudget = cat.monthly_budget ?? cat.budget;
     setCatBudget(monthlyBudget ? formatNumberWithDots(monthlyBudget) : "");
-    setCatIsPrimary(cat.is_primary !== false);
     setCatKind(cat.kind === "income" ? "income" : "expense");
     setCatKakeiboType(pillarOrNeed(cat.kakeibo_type));
     setCatError("");
@@ -136,7 +126,6 @@ export default function AnalyticsPage() {
         color: catColor,
         kind: catKind,
         monthly_budget: catKind === "expense" ? budgetVal : null,
-        is_primary: catIsPrimary,
         kakeibo_type: catKind === "expense" ? catKakeiboType : null,
       };
 
@@ -221,7 +210,6 @@ export default function AnalyticsPage() {
   const rawCategories = data?.category_variance ?? [];
   const comparison = data?.comparison;
   const kakeibo = data?.kakeibo;
-  const narrative = data?.narrative;
   const timeframeLabel = data?.timeframe_label;
 
   // Ensure strict filtering for expense categories only
@@ -812,131 +800,15 @@ export default function AnalyticsPage() {
       {/* ===================== TAB 2: COMPARE & KAKEIBO ===================== */}
       {activeTab === "compare" && (
         <div className="space-y-6">
-          {/* 1. Conversational Financial Narrative */}
-          <NarrativeInsightCard
-            narrative={narrative}
-            outflowDeltaPct={comparison?.prev_outflow ? comparison?.outflow_delta_pct ?? null : null}
-            timeframeLabel={timeframeLabel}
-          />
-
-          {/* 2. Period-over-Period Delta Metric Cards ($T_0$ vs $T_{-1}$) */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold tracking-tight text-[var(--text)]">
-                  Komparasi Siklus Berjalan vs Siklus Lalu
-                </h2>
-                <p className="text-xs text-[var(--muted)]">
-                  Membandingkan performa {timeframeLabel} dengan{" "}
-                  <span className="font-semibold text-[var(--text)]">
-                    {comparison?.prev_timeframe_label || "periode sebelumnya"}
-                  </span>
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-              {/* Card 1: Inflow Delta */}
-              <div className="cockpit-card p-3 sm:p-4 space-y-1.5 sm:space-y-2 border border-[var(--border)]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--muted)]">Pemasukan</span>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-1.5 py-0.5 rounded border",
-                      comparisonColor(Boolean(comparison?.prev_inflow), (comparison?.inflow_delta_pct ?? 0) >= 0)
-                    )}
-                  >
-                    {comparisonLabel(comparison?.prev_inflow, comparison?.inflow_delta_pct)}
-                  </span>
-                </div>
-                <div className="text-xl font-bold text-[var(--text)] tabular">
-                  {bal(comparison?.total_inflow ?? 0)}
-                </div>
-                <div className="text-[10px] text-[var(--muted)]">
-                  Siklus lalu: {bal(comparison?.prev_inflow ?? 0)}
-                </div>
-              </div>
-
-              {/* Card 2: Outflow Delta */}
-              <div className="cockpit-card p-3 sm:p-4 space-y-1.5 sm:space-y-2 border border-[var(--border)]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--muted)]">Pengeluaran</span>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-1.5 py-0.5 rounded border",
-                      comparisonColor(Boolean(comparison?.prev_outflow), (comparison?.outflow_delta_pct ?? 0) <= 0)
-                    )}
-                  >
-                    {comparisonLabel(comparison?.prev_outflow, comparison?.outflow_delta_pct)}
-                  </span>
-                </div>
-                <div className="text-base sm:text-xl font-bold text-[var(--text)] tabular truncate">
-                  {bal(comparison?.total_outflow ?? 0)}
-                </div>
-                <div className="text-[10px] text-[var(--muted)] truncate">
-                  Siklus lalu: {bal(comparison?.prev_outflow ?? 0)}
-                </div>
-              </div>
-
-              {/* Card 3: Net Cashflow Delta */}
-              <div className="cockpit-card p-3 sm:p-4 space-y-1.5 sm:space-y-2 border border-[var(--border)]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--muted)]">Arus Kas</span>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-1.5 py-0.5 rounded border",
-                      comparisonColor(Boolean(comparison?.prev_net_cashflow), (comparison?.net_cashflow ?? 0) >= 0)
-                    )}
-                  >
-                    {comparisonLabel(comparison?.prev_net_cashflow, comparison?.net_cashflow_delta_pct)}
-                  </span>
-                </div>
-                <div
-                  className={cn(
-                    "text-base sm:text-xl font-bold tabular truncate",
-                    (comparison?.net_cashflow ?? 0) >= 0
-                      ? "text-emerald-500"
-                      : "text-rose-500"
-                  )}
-                >
-                  {bal(comparison?.net_cashflow ?? 0)}
-                </div>
-                <div className="text-[10px] text-[var(--muted)] truncate">
-                  Siklus lalu: {bal(comparison?.prev_net_cashflow ?? 0)}
-                </div>
-              </div>
-
-              {/* Card 4: Cash-flow surplus ratio */}
-              <div className="cockpit-card p-3 sm:p-4 space-y-1.5 sm:space-y-2 border border-[var(--border)]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--muted)]">Rasio surplus</span>
-                  {(comparison?.total_inflow ?? 0) > 0 && (comparison?.prev_inflow ?? 0) > 0 && (
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-1.5 py-0.5 rounded border",
-                      (comparison?.savings_rate_delta_pts ?? 0) >= 0
-                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                    )}
-                  >
-                    {(comparison?.savings_rate_delta_pts ?? 0) >= 0 ? "+" : ""}
-                    {comparison?.savings_rate_delta_pts ?? 0} pts
-                  </span>
-                  )}
-                </div>
-                <div className="text-base sm:text-xl font-bold text-[var(--text)] tabular truncate">
-                  {(comparison?.total_inflow ?? 0) > 0 ? `${comparison?.savings_rate ?? 0}%` : "Tidak tersedia"}
-                </div>
-                <div className="text-[10px] text-[var(--muted)] truncate">
-                  Periode lalu: {(comparison?.prev_inflow ?? 0) > 0 ? `${comparison?.prev_savings_rate ?? 0}%` : "Tidak tersedia"}
-                </div>
-              </div>
-            </div>
-          </div>
+          <PeriodComparison basis={insightBasis} offset={insightOffset} bal={bal} />
+          <CashFlowHistory basis={insightBasis} bal={bal} />
+          <RecurringCharges bal={bal} onCreatePlan={setPlanDraft} />
 
           <KakeiboBenchmark kakeibo={kakeibo} pillarHref={pillarHref} />
         </div>
       )}
+
+      <RecurringRulesModal open={planDraft !== null} onClose={() => setPlanDraft(null)} expenseDraft={planDraft} />
 
       {/* ===================== CATEGORY MODAL ===================== */}
       {catModalOpen && (
@@ -995,7 +867,7 @@ export default function AnalyticsPage() {
             </div>
 
             {catKind === "expense" && (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
                 <div>
                   <label htmlFor="category-kakeibo" className="text-xs font-medium text-[var(--muted)] block mb-1">Pilar Kakeibo bawaan</label>
                   <select id="category-kakeibo" name="kakeibo_type" value={catKakeiboType} onChange={(event) => setCatKakeiboType(event.target.value as typeof catKakeiboType)} className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]">
@@ -1005,13 +877,9 @@ export default function AnalyticsPage() {
                   </select>
                   <p className="mt-1 text-[11px] text-[var(--muted)]">{kakeiboPillarInfo(catKakeiboType)?.help}</p>
                 </div>
-                <label htmlFor="category-primary" className="flex min-h-11 items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3">
-                  <input id="category-primary" name="is_primary" type="checkbox" checked={catIsPrimary} onChange={(event) => setCatIsPrimary(event.target.checked)} />
-                  <span className="text-xs font-medium text-[var(--text)]">Hitung sebagai pengeluaran utama</span>
-                </label>
               </div>
             )}
-            {catKind === "expense" && <p className="text-xs text-[var(--muted)]">Pengeluaran utama digunakan untuk memperkirakan biaya hidup dan ketahanan dana.</p>}
+            {catKind === "expense" && <p className="text-xs text-[var(--muted)]">Biaya hidup pokok dan Ketahanan Dana memakai pengeluaran berpilar Kebutuhan.</p>}
             </FormSection>
 
             <FormSection title="Tampilan kategori">
