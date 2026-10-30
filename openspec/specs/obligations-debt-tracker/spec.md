@@ -61,7 +61,7 @@ The transaction recording system SHALL support an optional legacy `obligation_id
   4. Deleting an allocated payment SHALL reverse every allocation and restore affected debts, including reactivation when applicable.
   5. Retrying an idempotent creation request SHALL return the original transaction without applying cash or debt effects again.
   6. Linking an already recorded ordinary expense to a debt SHALL allocate its full amount to that debt once; repeating the link SHALL change nothing, and an expense already linked to another debt SHALL be refused.
-  7. Suggested candidates SHALL never be linked without the owner choosing one; several same-amount candidates SHALL be presented for review.
+  7. Suggested debt candidates SHALL never be linked without the owner choosing one; several same-amount candidates SHALL be presented for review. The only exception is a debt plan occurrence linked automatically under the single-certain-payment rule of `automated-transactions`, which applies the debt progress once through the same link path; undoing that link SHALL reverse exactly the progress it applied.
 
 #### Scenario: Logging a debt payment
 - **WHEN** a user records an expense of 1,000,000 IDR linked to an obligation
@@ -98,6 +98,10 @@ The transaction recording system SHALL support an optional legacy `obligation_id
 #### Scenario: Linking a captured payment
 - **WHEN** the owner links a captured 500,000 IDR expense to a debt with 500,000 IDR remaining, twice or from two requests at once
 - **THEN** the debt SHALL reach 0 and be archived once, no transaction SHALL be added, and deleting the expense later SHALL restore and reactivate the debt
+
+#### Scenario: Automatic link of a debt plan payment
+- **WHEN** a debt plan occurrence is linked automatically to its one certain payment and the owner later undoes the link
+- **THEN** the debt SHALL decrease once when linked and be restored once when undone, and a payment already applied to that debt before the link SHALL NOT be reversed by the undo
 
 ### Requirement: Coherent Obligation Form Validation
 The obligation form SHALL collect total amount, remaining amount, optional minimum payment, due date, and notes with field-level validation against the final combined state. It SHALL prevent a negative remaining amount, a remaining amount above total, or an invalid date, and SHALL explain automatic archive or reactivation behavior before submission.

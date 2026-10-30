@@ -131,9 +131,9 @@ The system SHALL expose aggregation endpoints for executive analytics with expli
 
 #### Scenario: Required behavior and constraints
 - **WHEN** the dashboard requests financial analytics
-- **THEN** overview SHALL provide observed period income, expense, cash flow, eligible liquid balance, emergency coverage when known, time-series points, account breakdown and categories
+- **THEN** overview SHALL provide observed period income, expense, cash flow, eligible liquid balance, emergency coverage when known with its balance and cost basis, time-series points, account breakdown and categories
 - **AND** analytics SHALL provide descriptive spending series, category variance and a spending density matrix without an invented daily allowance or linear forecast
-- **AND** net worth SHALL provide assets and liabilities and retain existing emergency coverage behavior for the deferred review
+- **AND** net worth SHALL provide assets and liabilities and the emergency coverage of `emergency-cost-estimation`, using liquid cash as the no-reserve fallback and the owner's target multiplier
 
 #### Scenario: Requesting executive overview time-series
 - **WHEN** an authenticated user requests an available reporting period
@@ -231,30 +231,34 @@ The system SHALL support flagging one or more goals as an emergency fund via `is
 - **THEN** the goal is recorded with `is_emergency = true`, and its accumulated balance is designated as the user's emergency fund balance
 
 ### Requirement: Primary Expense Category Flagging
-The system SHALL support designating expense categories as primary/essential (`is_primary = true`) or secondary/discretionary (`is_primary = false`). When calculating living expenses and runway, the system SHALL isolate expenses associated with primary categories.
+The system SHALL keep the `is_primary` flag on expense categories for compatibility and SHALL use it only to derive a default Kakeibo pillar for a category without one (`need` when primary, `want` otherwise). Living expenses and runway SHALL be based on the effective Kakeibo pillar `need` as defined by `emergency-cost-estimation`, not on `is_primary`.
 
 #### Scenario: Categorizing primary expenses
-- **WHEN** an expense transaction is recorded in a category where `is_primary = true`
-- **THEN** the transaction amount is included in the user's primary living expense baseline
+- **WHEN** an expense transaction is recorded in a category where `is_primary = true` and whose Kakeibo pillar is `want`
+- **THEN** the transaction amount is not included in the essential cost, because its effective pillar is `want`
 
 ### Requirement: Real-World Ketahanan Dana Calculation
-The system SHALL calculate "Ketahanan Dana" (Emergency Fund Coverage) as the ratio between the flagged emergency fund balance and the monthly primary living expenses.
+The system SHALL calculate "Ketahanan Dana" (Emergency Fund Coverage) as the ratio between the emergency fund balance and the essential monthly cost defined by `emergency-cost-estimation`, and SHALL report the balance basis and the cost basis.
 
 #### Scenario: Required behavior and constraints
 - **WHEN** the system calculates emergency fund coverage
 - **THEN** the following required behavior and constraints hold:
 
-  The system SHALL calculate "Ketahanan Dana" (Emergency Fund Coverage) as the ratio between the flagged emergency fund balance and the monthly primary living expenses:
-  $$\text{Ketahanan Dana} = \frac{\text{Emergency Fund Balance}}{\text{Monthly Primary Expense}}$$
-  Where `Monthly Primary Expense` is computed from the trailing 30-day primary category expenses plus active monthly debt/obligation payments (with fallback to the sum of primary category monthly budgets if no expenses have been recorded).
+  The system SHALL calculate "Ketahanan Dana" (Emergency Fund Coverage) as the ratio between the emergency fund balance and the essential monthly cost:
+  $$\text{Ketahanan Dana} = \frac{\text{Emergency Fund Balance}}{\text{Essential Monthly Cost}}$$
+  Where `Essential Monthly Cost` is the median `need` spending of up to six completed periods plus active debt minimums, with fallback to the sum of `need` category monthly budgets when no completed period exists, and unknown otherwise. The trailing 30-day primary-category sum SHALL NOT be used. When the essential cost is unknown or zero, coverage SHALL be `null` with status `unknown`.
 
 #### Scenario: Sufficient emergency fund coverage
-- **WHEN** a user has an emergency fund balance of 30,000,000 IDR and a monthly primary expense of 5,000,000 IDR
-- **THEN** the system reports Ketahanan Dana as 6.0 months (6.0x monthly living cost) with status `healthy` (Aman)
+- **WHEN** a user has an emergency fund balance of 30,000,000 IDR and an essential monthly cost of 5,000,000 IDR
+- **THEN** the system reports Ketahanan Dana as 6.0 months (6.0x monthly essential cost) with status `healthy` (Aman)
 
 #### Scenario: Zero emergency fund balance
-- **WHEN** a user has 0 IDR in flagged emergency fund accounts
+- **WHEN** a user has 0 IDR in flagged emergency fund accounts and a known essential cost
 - **THEN** the system reports Ketahanan Dana as 0 months with status `zero`
+
+#### Scenario: Essential cost unknown
+- **WHEN** no completed period and no `need` budget exist
+- **THEN** the system reports Ketahanan Dana as `null` with status `unknown` and does not report 999 days or a healthy status
 
 ### Requirement: Investment Instrument Classification
 The system SHALL support classifying investment accounts and pockets by instrument type (`stock`, `mutual_fund`, `gold`, `crypto`, `deposit`, `other`). Standalone accounts or parent accounts classified as `investment`, as well as child pockets under an investment account, SHALL accept an optional `instrument_type` and optional `instrument_symbol`.
