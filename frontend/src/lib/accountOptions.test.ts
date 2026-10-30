@@ -12,4 +12,17 @@ describe("account choices", () => {
 
     expect(listLiquidAccountChoices(accounts).map((account) => account.id)).toEqual(["cash", "rdn"]);
   });
+
+  it("lists each pocket once when the API returns pockets both flat and nested", () => {
+    const pocketA = { id: "pocket-a", type: "bank", parent_id: "bank" };
+    const pocketB = { id: "pocket-b", type: "bank", parent_id: "bank" };
+    const accounts = [
+      pocketA,
+      { id: "bank", type: "bank", children: [pocketA, pocketB] },
+      { id: "cash", type: "cash" },
+      pocketB,
+    ];
+
+    expect(listLiquidAccountChoices(accounts).map((account) => account.id)).toEqual(["bank", "pocket-a", "pocket-b", "cash"]);
+  });
 });

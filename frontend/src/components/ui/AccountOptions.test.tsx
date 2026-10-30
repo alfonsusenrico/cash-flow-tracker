@@ -27,4 +27,29 @@ describe("AccountOptions", () => {
     expect(menu).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
+
+  it("closes and returns focus to the trigger when Tab leaves either end of the menu", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccountOptions name="Tabungan">
+        <button type="button">Ubah kantong</button>
+        <button type="button" disabled>Naikkan urutan</button>
+        <button type="button">Arsipkan kantong</button>
+      </AccountOptions>,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Opsi Tabungan" });
+    await user.click(trigger);
+    expect(screen.getByRole("button", { name: "Ubah kantong" })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Arsipkan kantong" })).toHaveFocus();
+    await user.tab();
+    expect(screen.queryByRole("group", { name: "Opsi Tabungan" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+
+    await user.click(trigger);
+    await user.tab({ shift: true });
+    expect(screen.queryByRole("group", { name: "Opsi Tabungan" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
 });

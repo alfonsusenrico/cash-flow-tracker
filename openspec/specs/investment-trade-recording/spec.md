@@ -6,16 +6,32 @@ Record instrument trades with unit and cost inputs and preview their effect on i
 ## Requirements
 
 ### Requirement: Investment Trade Transaction Creation
+The system SHALL accept `investment_action`, positive `units`, and positive `price_per_unit` and SHALL settle the cash and position effects atomically.
 
-The system SHALL accept investment trade parameters (`investment_action`, `units`, `price_per_unit`) when creating a transaction and execute position mutation alongside ledger transfer entry. It SHALL reject unit-based trades against a product already using amount tracking with contribution history, rather than implicitly converting that product or replacing its contributed capital.
+#### Scenario: Required behavior and constraints
+- **WHEN** an investment trade is submitted for recording
+- **THEN** the following required behavior and constraints hold:
+
+  The system SHALL accept `investment_action`, positive `units`, and positive `price_per_unit` and SHALL settle the cash and position effects atomically:
+  1. A purchase SHALL debit the selected funding account, credit the investment movement destination, increment units, and recalculate weighted average purchase price.
+  2. A sale SHALL decrement the instrument units and credit the selected funding account with the proceeds.
+  3. The funding and instrument accounts SHALL be active, user-owned, distinct, and compatible with the requested trade.
+  4. A purchase SHALL obey liquid source balance protection.
+  5. A sale SHALL be rejected when requested units exceed owned units; units SHALL never be silently clamped.
+  6. Invalid, missing, zero, or non-finite trade quantities or prices SHALL be rejected without creating a ledger record.
+  7. Unit-based trades against a product already using amount tracking with contribution history SHALL be rejected rather than implicitly converting that product or replacing its contributed capital.
+
+#### Scenario: Rejecting an oversell
+- **WHEN** a user owning 300 units attempts to sell 400 units
+- **THEN** the system rejects the trade and leaves both cash and position unchanged
 
 #### Scenario: Successfully record a stock purchase with position accumulation
-- **WHEN** user records a buy trade for 6 lots of BBRI at Rp3.200 funded by RDN BCA
-- **THEN** system records a transfer from RDN BCA to BBRI for Rp 1.920.000, increments BBRI units by 600, and recalculates the weighted average purchase price
+- **WHEN** a user records 6 lots of BBRI at 3,200 IDR funded by RDN BCA
+- **THEN** the system settles 1,920,000 IDR from RDN BCA, adds 600 units, and recalculates weighted average cost atomically
 
 #### Scenario: Successfully record an investment sale
-- **WHEN** user records a sell trade for 400 units of BBRI to RDN BCA at Rp3.500
-- **THEN** system records a transfer from BBRI to RDN BCA for Rp 1.400.000 and decrements BBRI units by 400
+- **WHEN** a user records a sale of 400 owned BBRI units at 3,500 IDR to RDN BCA
+- **THEN** the system credits 1,400,000 IDR to RDN BCA and decrements the position by 400 atomically
 
 #### Scenario: Prevent implicit conversion of an amount portfolio
 - **WHEN** a unit-based buy or sell targets an amount-tracked mutual-fund product with contribution history
