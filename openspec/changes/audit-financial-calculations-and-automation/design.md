@@ -52,7 +52,7 @@ Owner decisions recorded on 2026-10-30: salary cycles start only from a confirme
 
 ## Open decisions for owner
 
-- **Unused web files.** `frontend/src/components/dashboard/DailyBudgetBar.tsx`, `KakeiboPillarCards.tsx`, `KpiRibbon.tsx` (already unused before this change) and `frontend/src/components/recurring/PayrollAllocationModal.tsx` with its test are no longer rendered. They were left in place because this delivery did not delete files it did not create; deleting them is recommended.
+- **Unused web files.** Resolved 2026-10-30 on the owner's go-ahead: `DailyBudgetBar`, `KakeiboPillarCards`, `KpiRibbon`, `PayrollAllocationModal` (with its test) and the unused `isKakeiboHealthy`/`kakeiboStatusLabel` helpers were removed. The legacy `kakeibo_status`/`want_status` response fields stay for compatibility, per the Kakeibo delta, and no screen reads them.
 - **Legacy payday-scheduled plans.** Existing plans with `schedule_type = payday` keep dates derived from the old `payday_day` and are labelled as estimates; new ones cannot be created. Converting them to a fixed day or to "after the next confirmed salary" needs an owner choice.
 - **Remaining fixed-day helper.** `get_cycle_window` and the fixed-day branch of `get_timeframe_window` remain only for callers without a user; no HTTP route uses them. Remove them with the payday column in a later change.
 - **Auto-linking a single exact candidate.** Kept manual (conservative). The owner may later approve automatic linking of one exact, same-account candidate.

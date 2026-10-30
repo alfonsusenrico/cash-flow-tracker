@@ -63,18 +63,6 @@ export function kakeiboLabel(value: string | null | undefined): string {
   return kakeiboPillarInfo(value)?.label ?? value ?? "";
 }
 
-/** The backend judges the 50/30/20 benchmark on groups and reports healthy, warning or elevated_needs. */
-export function isKakeiboHealthy(status: string | null | undefined): boolean {
-  return status === "healthy";
-}
-
-export function kakeiboStatusLabel(status: string | null | undefined): string {
-  if (status === "healthy") return "Kakeibo sehat";
-  if (status === "warning") return "Gaya hidup di atas 30%";
-  if (status === "elevated_needs") return "Kebutuhan di atas 50%";
-  return "Belum ada data";
-}
-
 /** Kakeibo section of the dashboard and insights responses; the culture, unexpected and group fields are newer. */
 export interface KakeiboBreakdown {
   need_spent: number;
