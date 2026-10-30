@@ -28,10 +28,20 @@ export function filterLiquidAccountChoices<T extends AccountChoice>(accounts: T[
   });
 }
 
+function choiceId(account: AccountChoice): string | undefined {
+  return account.id ?? account.account_id;
+}
+
 export function listLiquidAccountChoices<T extends AccountChoice>(accounts: T[]): T[] {
   const nested = accounts.some((account) => (account.children?.length ?? 0) > 0);
-  const candidates = nested
-    ? accounts.flatMap((account) => [account, ...((account.children ?? []) as T[])])
-    : accounts;
-  return candidates.filter(isLiquidAccountChoice);
+  if (!nested) return accounts.filter(isLiquidAccountChoice);
+  // GET /api/accounts lists each pocket at the top level and again in its parent's `children`;
+  // keep one entry per pocket, placed directly under its parent.
+  const nestedIds = new Set(
+    accounts.flatMap((account) => (account.children ?? []).map(choiceId)).filter(Boolean),
+  );
+  return accounts
+    .filter((account) => !nestedIds.has(choiceId(account)))
+    .flatMap((account) => [account, ...((account.children ?? []) as T[])])
+    .filter(isLiquidAccountChoice);
 }

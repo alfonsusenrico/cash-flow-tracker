@@ -28,9 +28,10 @@ export function InvestmentTopupModal({ open, onClose, product, allAccounts, edit
   const [error, setError] = useState("");
   const retryKey = useRef("");
   const initialized = useRef<string | null>(null);
-  const funding = useMemo(() => [...new Map(listLiquidAccountChoices(allAccounts)
-    .filter((account) => !account.is_archived)
-    .map((account) => [account.id, account])).values()], [allAccounts]);
+  const funding = useMemo(
+    () => listLiquidAccountChoices(allAccounts).filter((account) => !account.is_archived),
+    [allAccounts],
+  );
 
   useEffect(() => {
     if (!open) {

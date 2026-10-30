@@ -46,6 +46,18 @@ export function AccountOptions({ name, children, iconOnly = false }: AccountOpti
     });
   };
 
+  // The menu is portalled to the end of <body>, so tabbing past either end would leave the card
+  // with the menu still open; close it and hand focus back to the trigger instead.
+  const keepTabOrder = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab") return;
+    const items = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
+    const leavingEnd = !event.shiftKey && document.activeElement === items[items.length - 1];
+    const leavingStart = event.shiftKey && document.activeElement === items[0];
+    if (!leavingEnd && !leavingStart) return;
+    event.preventDefault();
+    close(true);
+  };
+
   useEffect(() => {
     if (!position) return;
 
@@ -98,6 +110,7 @@ export function AccountOptions({ name, children, iconOnly = false }: AccountOpti
           id={menuId}
           role="group"
           aria-label={`Opsi ${name}`}
+          onKeyDown={keepTabOrder}
           style={{ left: position.left, top: position.top, maxHeight: position.maxHeight }}
           className="fixed z-[100] flex w-60 max-w-[calc(100vw-1rem)] flex-col gap-1 overflow-y-auto overscroll-contain rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-2 text-[var(--text)] shadow-lg [&_button]:min-h-11 [&_button]:w-full [&_button]:rounded-lg [&_button]:px-3 [&_button]:text-left [&_button]:text-sm [&_button]:font-medium [&_button:hover]:bg-[var(--surface-raised)] [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-2 [&_button:focus-visible]:outline-[var(--primary)]"
         >
