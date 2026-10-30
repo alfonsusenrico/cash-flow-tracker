@@ -2,7 +2,9 @@
 
 ## Purpose
 Provide natural Indonesian financial vocabulary, accessible form labels and locally formatted amount entry.
+
 ## Requirements
+
 ### Requirement: Default Bahasa Indonesia Localization
 The user interface SHALL render all text in Bahasa Indonesia by default, without requiring users to configure language settings.
 
@@ -14,32 +16,19 @@ The user interface SHALL render all text in Bahasa Indonesia by default, without
 The application SHALL use simple, everyday consumer finance vocabulary rather than technical, literal, or bureaucratic financial jargon.
 
 #### Scenario: Required behavior and constraints
-- **WHEN** the application presents finance labels or transaction names to the owner
-- **THEN** the following required behavior and constraints hold:
-
-  The application SHALL use simple, everyday consumer finance vocabulary rather than technical, literal, or bureaucratic financial jargon:
-  1. Transaction directions:
-     - Expense SHALL be labeled `Uang Keluar`
-     - Income SHALL be labeled `Uang Masuk`
-     - Internal Transfer SHALL be labeled `Pindah Saldo`
-  2. Metrics and allowances:
-     - Daily spending comparison SHALL be labeled `Pengeluaran Harian` (not "Laju Pengeluaran")
-     - Monthly category limits SHALL be labeled `Batas Anggaran Kategori`
-     - Realized spending in categories SHALL be labeled `Terpakai` (not "Realisasi")
-     - Net cash balance explanation SHALL be labeled `Total Kekayaan Bersih (Total saldo kas dikurangi sisa cicilan & utang)`
-     - Savings portfolio SHALL be labeled `Target Tabungan` (not "Portofolio Target Tabungan")
-     - Debt and liabilities SHALL be labeled `Tagihan & Cicilan` or `Pelunasan Cicilan & Utang`
-  3. Reconciliation and Accuracy:
-     - Account reconciliation SHALL be labeled `Sesuaikan Saldo`
-     - The application SHALL NOT use informal slang words (such as "Boncos", "Tekor", or "Jebol")
+- **WHEN** the application presents finance labels or transaction names
+- **THEN** it SHALL label expense `Uang Keluar`, income `Uang Masuk`, and internal transfer `Pindah Saldo`
+- **AND** it SHALL use `Pengeluaran Harian`, `Batas Anggaran Kategori`, `Terpakai`, `Target Tabungan`, `Tagihan & Cicilan` or `Pelunasan Cicilan & Utang`, and `Sesuaikan Saldo` where applicable
+- **AND** net worth SHALL be explained as total assets less outstanding installments and debt, not cash alone
+- **AND** the application SHALL avoid informal slang such as `Boncos`, `Tekor`, or `Jebol`
 
 #### Scenario: User views category budget breakdown
 - **WHEN** a user navigates to the Insights page
-- **THEN** the table column displays "Terpakai" instead of "Realisasi", and the section header displays "Batas Anggaran Kategori"
+- **THEN** the table uses `Terpakai` and the budget section uses `Batas Anggaran Kategori`
 
 #### Scenario: User views net worth and account reconciliation
-- **WHEN** a user views an account card on the Accounts page
-- **THEN** the reconciliation action is labeled "Sesuaikan" / "Sesuaikan Saldo", retaining natural and accurate banking Indonesian
+- **WHEN** a user views an account card
+- **THEN** the reconciliation action is labeled `Sesuaikan` or `Sesuaikan Saldo` in natural Indonesian
 
 ### Requirement: Friendly Form Input and Action Buttons
 All transaction entry forms, account creation dialogs, and settings modals SHALL provide clear, helpful Indonesian labels:
@@ -77,4 +66,3 @@ The user interface SHALL automatically format all numeric currency and amount in
 #### Scenario: Form submission sends clean integer
 - **WHEN** a user submits a goal or transaction with `20.000.000` in the amount input
 - **THEN** the application sends integer `20000000` to the backend API
-

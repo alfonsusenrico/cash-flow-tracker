@@ -29,51 +29,51 @@ Every transaction SHALL carry `source` (manual, notification, recurring, payroll
 - **THEN** its `source` SHALL be `capture` and the database SHALL accept it.
 
 ### Requirement: Provenance Written by Every Recording Path
-Each path that creates a transaction SHALL write its provenance explicitly: manual create → manual, reviewed, owner; movement → movement, reviewed, system; recurring → recurring, reviewed, system; payroll → payroll, reviewed, system; reconcile → reconcile, reviewed, system; investment trade or top-up → investment, reviewed, system; notification → notification, auto or needs_review (per the record-and-flag reasons), ai or rule (rule for memory hits).
+Each path that creates a transaction SHALL write its provenance explicitly: manual create → manual, reviewed, owner; movement → movement, reviewed, system; reconcile → reconcile, reviewed, system; investment trade or top-up → investment, reviewed, system; notification → notification, auto or needs_review, ai or rule. Existing recurring and payroll provenance SHALL remain intact; an owner-requested record of one missed plan occurrence keeps the plan link and is written as recurring, reviewed, system.
 
 #### Scenario: Manual expense from the web
-- **WHEN** the owner records an expense through `POST /api/transactions`
-- **THEN** the row SHALL have `source = manual`, `review_status = reviewed` and `classified_by = owner`.
+- **WHEN** the owner records an expense through the transactions API
+- **THEN** its source SHALL be manual, its review status reviewed and its classifier owner
 
 #### Scenario: Both legs of a movement
-- **WHEN** the owner moves Rp 500.000 between two pockets
-- **THEN** both legs SHALL have `source = movement`, `review_status = reviewed` and `classified_by = system`.
+- **WHEN** the owner records a movement between pockets
+- **THEN** both legs SHALL have movement source, reviewed status and system classifier
 
 #### Scenario: Scheduled recurring payment
-- **WHEN** a recurring rule posts its occurrence
-- **THEN** the posted row or legs SHALL have `source = recurring` and `classified_by = system`.
+- **WHEN** a historical transaction was posted by a recurring rule
+- **THEN** its recurring source and system classifier SHALL remain intact and the schedule SHALL not create a new transaction
 
 #### Scenario: Payroll allocation
-- **WHEN** the owner executes a payroll allocation batch
-- **THEN** every leg SHALL have `source = payroll` and `classified_by = system`.
+- **WHEN** a historical transaction was created by payroll allocation
+- **THEN** its payroll source and system classifier SHALL remain intact and no new allocation batch SHALL be posted
 
 #### Scenario: Reconcile adjustment
 - **WHEN** the owner reconciles an account and an adjustment is recorded
-- **THEN** the adjustment SHALL have `source = reconcile` and `classified_by = system`.
+- **THEN** the adjustment SHALL have reconcile source, reviewed status and system classifier
 
 #### Scenario: Investment top-up and trade
-- **WHEN** the owner records an amount top-up or a Beli/Jual trade
-- **THEN** every leg SHALL have `source = investment` and `classified_by = system`.
+- **WHEN** the owner records an investment top-up or trade
+- **THEN** its legs SHALL have investment source, reviewed status and system classifier
 
 #### Scenario: Notification classified by the model
-- **WHEN** a notification naming a merchant is recorded from an AI interpretation with confidence 0.82 and review reason none
-- **THEN** the row SHALL have `source = notification`, `review_status = auto`, `classified_by = ai` and `classification_confidence = 0.82`.
+- **WHEN** a notification is recorded from an AI interpretation with confidence 0.82 and no review reason
+- **THEN** it SHALL have notification source, auto review, AI classifier and confidence 0.82
 
 #### Scenario: Notification classified by deterministic rules
-- **WHEN** a notification naming a merchant is recorded by the deterministic path with a category, or as a broker trade
-- **THEN** every row it creates SHALL have `source = notification`, `review_status = auto`, `classified_by = rule` and no confidence.
+- **WHEN** a notification is recorded by the deterministic path with a category or as a broker trade
+- **THEN** each row SHALL have notification source, auto review, rule classifier and no confidence
 
 #### Scenario: Owner resolves an unresolved notification
 - **WHEN** the owner records a needs-review notification with their own type, account and category
-- **THEN** the row SHALL have `source = notification`, `review_status = reviewed` and `classified_by = owner`.
+- **THEN** the row SHALL have notification source, reviewed status and owner classifier
 
 #### Scenario: Notification recorded with a review reason
-- **WHEN** a notification row is recorded without a category, below the confidence gate, through the model fallback, unpaired among ambiguous counterparts, or with a purpose question
-- **THEN** the row SHALL have `source = notification` and `review_status = needs_review`.
+- **WHEN** a notification is recorded with an unresolved review reason
+- **THEN** it SHALL have notification source and needs-review status
 
 #### Scenario: Notification classified from merchant memory
-- **WHEN** a notification row is recorded from an owner merchant-memory entry
-- **THEN** the row SHALL have `source = notification`, `review_status = auto`, `classified_by = rule` and no confidence.
+- **WHEN** a notification is recorded from an owner merchant-memory entry
+- **THEN** it SHALL have notification source, auto review, rule classifier and no confidence
 
 ### Requirement: Provenance Backfill for Existing Transactions
 The migration SHALL assign provenance to every existing row once, deterministically, without changing `updated_at`, amount, date, account, category, notes or pillar. Source SHALL follow the first matching rule in the design's order; review status SHALL be auto only for notification rows never edited; classifier SHALL follow the event's interpretation source for notification rows.

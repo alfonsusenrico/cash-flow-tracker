@@ -77,3 +77,8 @@ Seeded through the API with one synthetic user. Viewports 390 and 1280 px, light
 - Candidate matching is deliberately simple (exact amount within a window); a changed bill amount appears under "Transaksi lain" and must be linked by hand.
 - The background salary detector confirms any matching income that says `gaji` or `salary` without a bonus or refund marker; a mislabelled bonus would need the owner to revoke it.
 - Unused web components remain until the owner approves deleting them (see design.md, Open decisions for owner).
+
+## After archiving
+
+- `openspec validate --all` passes: 62 items, 0 failed.
+- `--strict` has one warning, not an error. The merged `transaction-provenance` requirement text is longer than 500 characters. Splitting that requirement is a follow-up; the specs were not reshaped just to silence the warning.

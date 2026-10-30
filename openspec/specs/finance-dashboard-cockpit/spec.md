@@ -2,7 +2,9 @@
 
 ## Purpose
 Present financial summaries, cash-flow trends, budget comparisons and account allocation in an analytical dashboard.
+
 ## Requirements
+
 ### Requirement: Executive KPI Summary Ribbon
 The dashboard SHALL display an executive summary ribbon containing.
 
@@ -31,22 +33,6 @@ The dashboard SHALL render an interactive Recharts Area/Line chart visualizing c
 - **WHEN** the user hovers over a date on the cumulative cash flow chart
 - **THEN** the tooltip displays the exact cumulative income, cumulative expense, and net spread on that date
 
-### Requirement: Burn Cadence Bar Chart with Allowance Benchmark
-The dashboard SHALL render an interactive Bar chart displaying daily spending throughout the cycle, with a reference line representing the daily safe-to-spend allowance budget ceiling.
-
-#### Scenario: Required behavior and constraints
-- **WHEN** the dashboard renders daily spending against the daily allowance
-- **THEN** the following required behavior and constraints hold:
-
-  The dashboard SHALL render an interactive Bar chart displaying daily spending throughout the cycle, with a reference line representing the daily safe-to-spend allowance budget ceiling:
-  1. When a user has configured a monthly spending budget, the daily allowance SHALL equal `(monthly_spending_budget - current_month_expenses) / remaining_cycle_days`.
-  2. When only category budgets are defined, the sum of category budgets SHALL be used.
-  3. When neither is configured, the system SHALL display an unconfigured state prompting the user to set a budget, rather than applying an arbitrary fallback formula.
-
-#### Scenario: Displaying daily allowance with configured budget
-- **WHEN** a user with a 15,000,000 IDR monthly budget has spent 3,000,000 IDR with 15 days remaining in the cycle
-- **THEN** the daily allowance benchmark line renders at 800,000 IDR/day
-
 ### Requirement: Category Spend Donut & Variance Matrix
 The dashboard SHALL render an interactive Donut chart displaying the proportion of spending by category, coupled with a ranked variance list showing actual spend versus monthly budget ceiling.
 
@@ -63,16 +49,6 @@ The `/insights` Spending Analytics page SHALL allow users to set or update any c
 #### Scenario: Setting a category budget limit
 - **WHEN** the user clicks "No limit" on the "Food & Dining" category and enters `3000000`
 - **THEN** the system sets the category's `monthly_budget` to 3,000,000 IDR and updates the progress bar and remaining variance immediately
-
-### Requirement: Historical Payday Cycle Navigation
-The dashboard header and filter controls SHALL support navigating backwards and forwards through historical payday cycles:
-1. The user can click previous (`‹`) and next (`›`) cycle chevrons.
-2. Navigating cycles SHALL query `/api/dashboard/overview` and `/api/dashboard/analytics` with the corresponding cycle offset.
-3. The timeframe label SHALL dynamically update to reflect the specific date range of the active historical cycle (e.g. "Cycle: Jul 25 - Aug 24").
-
-#### Scenario: Viewing the previous pay cycle
-- **WHEN** the user clicks the previous cycle button (`‹`)
-- **THEN** all dashboard charts, KPIs, and cadence bars update to reflect the cash flow data of the previous cycle window
 
 ### Requirement: Bibit-Style Hero Portfolio Action Pills
 The Overview dashboard hero area SHALL feature high-visibility action pills inspired by the Bibit dashboard:
@@ -95,3 +71,17 @@ The system SHALL provide a dedicated summary display card showing the separation
 - **WHEN** the user views the Asset Breakdown card on the Dashboard or Accounts view
 - **THEN** it renders distinct totals for Liquid Cash, Investment Portfolio, and Aggregate Balance
 
+### Requirement: Observed dashboard planning information
+The dashboard SHALL display observed period cash flow, configured budget remaining and separately identified upcoming commitments without representing them as guaranteed funds available to spend.
+
+#### Scenario: Unknown next salary date
+- **WHEN** the next salary date is unknown
+- **THEN** no daily safe-to-spend figure SHALL be inferred from a guessed cycle end
+
+#### Scenario: Upcoming commitments
+- **WHEN** active expense plans are due within the next 30 days or overdue
+- **THEN** the dashboard SHALL list them with their dates and a total labelled with the 30-day window and SHALL state that plans are reminders, not payments
+
+#### Scenario: Budget remaining
+- **WHEN** a monthly budget is configured and the period is a calendar month or salary cycle
+- **THEN** the dashboard SHALL show the budget less observed net spending for that period, and SHALL omit it for rolling 30- or 90-day windows

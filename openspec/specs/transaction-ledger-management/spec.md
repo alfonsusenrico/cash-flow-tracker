@@ -16,7 +16,7 @@ The application SHALL provide a dedicated `/ledger` screen displaying all record
   1. Full-text search by notes, merchant, or category name.
   2. Filter chips by transaction type (`All`, `Expense`, `Income`, `Transfer`).
   3. Account filter dropdown and category filter dropdown.
-  4. Cash flow summary display providing both running payday cycle totals (inbound, outbound, net) and cumulative overall totals (inbound, outbound, net) matching active filters, independent of pagination boundaries.
+  4. Cash flow summary display providing both running salary-cycle totals (inbound, outbound, net) from the latest confirmed salary receipt, or the labelled calendar month when no receipt is confirmed, and cumulative overall totals (inbound, outbound, net) matching active filters, independent of pagination boundaries.
 
 #### Scenario: Searching transactions by note
 - **WHEN** the user types "coffee" in the ledger search input
@@ -28,7 +28,7 @@ The application SHALL provide a dedicated `/ledger` screen displaying all record
 
 #### Scenario: Displaying running cycle and cumulative cash flow
 - **WHEN** the user views the ledger on any pagination page
-- **THEN** the summary cards display the running payday cycle inbound, outbound, and net cash flow alongside the cumulative overall totals, rather than merely summing the current page's rows
+- **THEN** the summary cards display the running salary-cycle (or labelled calendar-month) inbound, outbound, and net cash flow alongside the cumulative overall totals, rather than merely summing the current page's rows
 
 #### Scenario: Filtering ledger updates both cycle and cumulative summaries
 - **WHEN** the user applies an account, category, or search filter
@@ -80,13 +80,11 @@ The application SHALL allow users to click any transaction row to open a detail 
 - **THEN** the saved breakdown appears unchanged until the user edits it, the transaction total follows the edited amounts, and the updated transaction still appears as one ledger row with the new breakdown
 
 ### Requirement: Recurring Rule Origin Tracking in Ledger
-The ledger and transaction models SHALL support tracking the originating recurring rule ID (`recurring_rule_id`):
-1. Transactions created via automated execution or 1-tap confirmation SHALL store `recurring_rule_id`.
-2. The ledger UI SHALL render a subtle recurring badge indicator for transactions originating from recurring rules or payroll allocations.
+The ledger and transaction models SHALL retain originating rule identifiers and visible origin indicators for historical recurring and payroll transactions.
 
 #### Scenario: Viewing recurring badge on ledger transaction
-- **WHEN** user inspects a transaction created by the automated recurring engine
-- **THEN** ledger displays a recurring icon badge indicating it was generated from a scheduled rule
+- **WHEN** a user inspects a historical transaction created by a recurring rule
+- **THEN** the ledger SHALL show its recurring origin without creating another transaction
 
 ### Requirement: Flexible Transaction Creation Contract
 The transaction creation API SHALL support both explicit UUID references and human-readable string references.

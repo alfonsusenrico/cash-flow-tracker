@@ -10,19 +10,15 @@ The web application SHALL render a dedicated mobile-first layout when viewed on 
 
 #### Scenario: Required behavior and constraints
 - **WHEN** the application renders the home screen below 1024 pixels
-- **THEN** the following required behavior and constraints hold:
-
-  The web application SHALL render a dedicated mobile-first layout when viewed on viewports below 1024px:
-  1. The top header SHALL feature a compact sticky bar containing greeting, statement month stepper pill, balance visibility toggle, and settings trigger.
-  2. The primary balance tile SHALL present liquid funds and invested assets with a toggle and immediate action pills: `[ + Catat ]`, `[ ⇄ Pindah Saldo ]`, `[ ⚡ Alokasi ]`.
-  3. The Kakeibo 50/30/20 allocation SHALL be presented as a compact, single-row segmented pace bar showing Kebutuhan, Keinginan, and Tabungan distributions.
-  4. Recent activity SHALL be positioned directly below the pulse glance in a clean, scroll-efficient timeline with colored transaction glyphs and counterparty details.
-  5. Secondary analytical charts (e.g. cumulative trendlines, spending heatmaps, burn cadence) SHALL be deferred to dedicated sub-views or the Analisis screen to eliminate infinite vertical scrolling on the home view.
+- **THEN** it SHALL show a compact sticky header with greeting, period control, balance visibility toggle and settings
+- **AND** the balance tile SHALL present liquid funds and invested assets with explicit record and movement actions, without payroll bulk execution
+- **AND** Kakeibo SHALL make five classifications identifiable and explain any optional grouped benchmark
+- **AND** recent activity SHALL follow the primary summary in a compact timeline
+- **AND** secondary analytical charts SHALL remain in dedicated sub-views or Analisis
 
 #### Scenario: Viewing home dashboard on mobile phone
-- **WHEN** a user accesses the dashboard on a smartphone (e.g. 390px width)
-- **THEN** the interface displays the compact balance card, thumb-zone action buttons, Kakeibo pace bar, and recent transactions without requiring multi-page scrolling
-- **AND** desktop command-center sidebars and multi-column matrices are not displayed
+- **WHEN** a user accesses the dashboard on a smartphone
+- **THEN** the interface displays the compact balance, relevant actions, classification summary and recent activity without desktop sidebars
 
 ### Requirement: Mobile Bottom-Sheet Quick Capture
 The application SHALL render the canonical transaction-capture form as a touch-first bottom sheet on mobile screens.

@@ -18,8 +18,8 @@ The system SHALL NOT post payroll allocation batches. Rules that were flagged as
 - **THEN** the response SHALL be 410 with code `payroll_execution_retired`, and no transaction SHALL be created
 
 #### Scenario: Flagging a rule as payroll allocation
-- **WHEN** a client creates or updates a plan with `is_payroll_allocation` set to true where it was not already set
-- **THEN** the request SHALL be rejected with code `payroll_allocation_retired`, and the plan SHALL be unchanged
+- **WHEN** a client creates or updates a plan and sends `is_payroll_allocation` set to true
+- **THEN** the request SHALL be rejected with 422 and code `payroll_allocation_retired`, and the plan SHALL be unchanged
 
 #### Scenario: Existing payroll-flagged rule after migration
 - **WHEN** the owner views a plan that was a payroll allocation before the migration

@@ -32,28 +32,28 @@ The system SHALL support creating, editing, querying, and deleting recurring obl
 - **THEN** the system updates `remaining_amount` to 0 and automatically sets `is_archived` to `true`
 
 ### Requirement: Payoff Progress & Estimated Timeline
-The system SHALL compute payoff progress and estimated payoff duration:
-1. `payoff_percentage`: `min(100, round(((total_amount - remaining_amount) / total_amount) * 100))`.
-2. `estimated_payoff_months`: `ceil(remaining_amount / max(1, minimum_payment))` when minimum payment is specified.
+The system SHALL compute payoff progress from the total and remaining debt and SHALL NOT display an estimated payoff duration that ignores interest or changes to payments.
 
 #### Scenario: Viewing debt payoff status
-- **WHEN** a user views an obligation with 6,000,000 remaining out of 12,000,000 and minimum payment 1,000,000/month
-- **THEN** the card renders 50% paid off and indicates approximately 6 months remaining to payoff
+- **WHEN** a user views an obligation with 6,000,000 IDR remaining out of 12,000,000 IDR
+- **THEN** the card SHALL show 50% paid and SHALL NOT claim an estimated payoff time
 
 ### Requirement: Linking Ledger Payments to Obligations
-The transaction recording system SHALL support an optional legacy `obligation_id` and an optional `obligation_allocations` list of distinct obligation IDs and positive integer amounts.
+The transaction recording system SHALL support an optional legacy `obligation_id` and an optional `obligation_allocations` list of distinct obligation IDs and positive integer amounts, and SHALL let the owner link an already recorded expense to a debt without creating another transaction.
 
 #### Scenario: Required behavior and constraints
-- **WHEN** an expense linked to one or more debts is created, retried, edited or deleted
+- **WHEN** an expense linked to one or more debts is created, retried, edited, deleted or linked after recording
 - **THEN** the following required behavior and constraints hold:
 
-  The transaction recording system SHALL support an optional legacy `obligation_id` and an optional `obligation_allocations` list of distinct obligation IDs and positive integer amounts. A manually recorded expense MAY use either field, but SHALL NOT use both. When allocations are supplied, their sum SHALL equal the expense amount, each debt SHALL be active and owned by the user at creation, and no allocation SHALL exceed that debt's outstanding amount. The system SHALL persist one ledger expense and debit its source account once. It SHALL apply all allocated debt reductions and related archival changes atomically with that expense. Existing single-debt payments and recurring-rule payments using `obligation_id` SHALL retain their current behavior.
+  The transaction recording system SHALL support an optional legacy `obligation_id` and an optional `obligation_allocations` list of distinct obligation IDs and positive integer amounts. A manually recorded expense MAY use either field, but SHALL NOT use both. When allocations are supplied, their sum SHALL equal the expense amount, each debt SHALL be active and owned by the user at creation, and no allocation SHALL exceed that debt's outstanding amount. The system SHALL persist one ledger expense and debit its source account once. It SHALL apply all allocated debt reductions and related archival changes atomically with that expense. Existing single-debt payments and historical recurring-rule payments using `obligation_id` SHALL retain their current behavior.
 
   1. When an expense transaction payment reduces a debt's `remaining_amount` to 0 or less, the system SHALL set `remaining_amount = 0` and automatically set `is_archived = true`.
   2. When an existing payment transaction linked to a debt is modified or deleted such that the debt's `remaining_amount` becomes greater than 0, the system SHALL automatically set `is_archived = false`.
   3. Editing a payment's amount or allocations SHALL reverse its previous debt effects and apply the replacement effects in one atomic operation. A failed edit SHALL preserve the original transaction and all debt balances.
   4. Deleting an allocated payment SHALL reverse every allocation and restore affected debts, including reactivation when applicable.
   5. Retrying an idempotent creation request SHALL return the original transaction without applying cash or debt effects again.
+  6. Linking an already recorded ordinary expense to a debt SHALL allocate its full amount to that debt once; repeating the link SHALL change nothing, and an expense already linked to another debt SHALL be refused.
+  7. Suggested candidates SHALL never be linked without the owner choosing one; several same-amount candidates SHALL be presented for review.
 
 #### Scenario: Logging a debt payment
 - **WHEN** a user records an expense of 1,000,000 IDR linked to an obligation
@@ -87,18 +87,9 @@ The transaction recording system SHALL support an optional legacy `obligation_id
 - **WHEN** the same idempotency key is submitted again after an allocated payment succeeds
 - **THEN** the original transaction is returned and no cash or debt balance changes again
 
-### Requirement: Automated Recurring Debt Amortization
-The system SHALL support linking recurring payment rules directly to active debt obligations (`obligation_id`):
-1. When a recurring rule linked to an obligation executes (whether automatically or via 1-tap confirmation), it SHALL record the expense and decrement `obligations.remaining_amount` by the payment amount.
-2. If `remaining_amount` reaches 0, the obligation status SHALL indicate that it is fully paid off and the system SHALL automatically set `is_archived = true`.
-
-#### Scenario: Recurring debt amortization execution
-- **WHEN** a recurring rule of Rp 1.500.000 linked to an obligation with Rp 3.000.000 remaining executes
-- **THEN** the system logs the transaction and updates the obligation's `remaining_amount` to Rp 1.500.000
-
-#### Scenario: Recurring debt amortization payoff execution
-- **WHEN** a recurring rule of Rp 1.500.000 linked to an obligation with Rp 1.500.000 remaining executes
-- **THEN** the system logs the transaction, updates the obligation's `remaining_amount` to 0, and sets `is_archived` to `true`
+#### Scenario: Linking a captured payment
+- **WHEN** the owner links a captured 500,000 IDR expense to a debt with 500,000 IDR remaining, twice or from two requests at once
+- **THEN** the debt SHALL reach 0 and be archived once, no transaction SHALL be added, and deleting the expense later SHALL restore and reactivate the debt
 
 ### Requirement: Coherent Obligation Form Validation
 The obligation form SHALL collect total amount, remaining amount, optional minimum payment, due date, and notes with field-level validation against the final combined state. It SHALL prevent a negative remaining amount, a remaining amount above total, or an invalid date, and SHALL explain automatic archive or reactivation behavior before submission.

@@ -64,25 +64,27 @@ Every income total SHALL exclude reimbursements: dashboard overview and analytic
 - **AND** `total_outflow` SHALL be unchanged by it.
 
 ### Requirement: Reimbursements Reduce Spending of Their Offset Category
-For a report window, the applied offset of category X SHALL be the smaller of X's reportable expenses and the reimbursements naming X, both in the window. Total spending, X's category spending and the Kakeibo pillar of X SHALL be reduced by it. The pillar SHALL follow the effective-pillar rule for a row without its own pillar in X.
+For a report window, the applied offset of category X SHALL be the smaller of X's reportable expenses and reimbursements naming X in the window. Total spending and X's category spending SHALL be reduced by that amount. The applied amount SHALL be allocated proportionally among the effective pillars of X's expenses with exact integer totals and deterministic rounding.
 
 #### Scenario: Shared dinner partly repaid
-- **GIVEN** a cycle with salary Rp 5.000.000, Rp 300.000 spent in "Makan Bareng" (want), Rp 200.000 in "Belanja Dapur" (need), a Rp 200.000 reimbursement offsetting "Makan Bareng" and a Rp 80.000 reimbursement without an offset
-- **WHEN** the dashboard overview is requested
-- **THEN** `total_inflow` SHALL be Rp 5.000.000 and `gross_outflow` Rp 500.000
-- **AND** `reimbursement_offset` SHALL be Rp 200.000 and `total_outflow` Rp 300.000
-- **AND** "Makan Bareng" SHALL show `spent` Rp 100.000, `gross_spent` Rp 300.000 and `reimbursed` Rp 200.000
-- **AND** Kakeibo SHALL show `want_spent` Rp 100.000 and `need_spent` Rp 200.000, with `want_pct` 2.0 and `need_pct` 4.0.
+- **GIVEN** salary Rp 5.000.000, Rp 300.000 spent in a want category, Rp 200.000 in a need category, a Rp 200.000 reimbursement offsetting the want category and Rp 80.000 unallocated reimbursement in the same window
+- **WHEN** dashboard overview is requested
+- **THEN** inflow SHALL be Rp 5.000.000, gross outflow Rp 500.000, applied offset Rp 200.000, net outflow Rp 300.000, want spending Rp 100.000 and need spending Rp 200.000
+- **AND** the unallocated reimbursement SHALL not reduce spending
 
 #### Scenario: Analytics follow the same figures
-- **GIVEN** the cycle of the previous scenario
-- **WHEN** dashboard analytics are requested
-- **THEN** `total_outflow` SHALL be Rp 300.000 and "Makan Bareng" in the category variance SHALL show `spent` Rp 100.000.
+- **WHEN** the same shared-dinner window is requested in analytics
+- **THEN** net outflow and category spending SHALL agree with overview
+
+#### Scenario: Mixed transaction pillars
+- **GIVEN** a category has Rp 100.000 of need and Rp 300.000 of want expenses, and a category-linked reimbursement of Rp 200.000
+- **WHEN** Kakeibo amounts are calculated for that window
+- **THEN** the offset SHALL reduce need by Rp 50.000 and want by Rp 150.000
+- **AND** total net pillar spending SHALL equal Rp 200.000
 
 #### Scenario: Category without its own pillar
-- **GIVEN** an offset category with no pillar
-- **WHEN** a reimbursement offsets it
-- **THEN** the reduction SHALL apply to `need`.
+- **WHEN** an expense has no transaction or category pillar
+- **THEN** its effective pillar SHALL remain `need`
 
 ### Requirement: Excess Reimbursement
 When reimbursements naming X exceed X's reportable expenses in the window, X's spending and the reduction of its pillar SHALL floor at zero. The remainder SHALL be returned as `reimbursement_excess`; it SHALL count neither as income nor as a reduction of any other category, and SHALL NOT carry into another window.
@@ -95,13 +97,12 @@ When reimbursements naming X exceed X's reportable expenses in the window, X's s
 - **AND** `total_inflow` SHALL be Rp 5.000.000.
 
 ### Requirement: Reimbursements in Cycle Spending and Safe-to-Spend
-Pulse cycle spending SHALL be reduced by the applied offsets of categories whose pillar is not saving, floored at zero, and safe-to-spend SHALL use the reduced figure. Pulse SHALL return the reduction as `cycle_reimbursed`. Pulse today's spending, the pulse insights histogram and the emergency-fund runway SHALL remain gross spending; dashboard daily series, heatmaps and burn rates SHALL follow the requirement "Reimbursement-Net Series and Ledger Summary".
+The system SHALL apply eligible reimbursements to observed cycle spending according to its reporting scope, without deriving a daily allowance from an assumed cycle end. The existing emergency-fund calculation SHALL remain unchanged until its deferred review.
 
 #### Scenario: Repayment restores safe-to-spend
-- **GIVEN** a monthly budget of Rp 3.000.000 and the cycle of the "Shared dinner partly repaid" scenario
-- **WHEN** pulse is requested with R days remaining in the cycle
-- **THEN** `cycle_spent` SHALL be Rp 300.000 and `cycle_reimbursed` Rp 200.000
-- **AND** `safe_to_spend_today` SHALL be Rp 2.700.000 divided by R, rounded down.
+- **WHEN** a cycle contains reportable spending of Rp 500.000 and an applicable Rp 200.000 offset
+- **THEN** cycle spending SHALL report Rp 300.000 net and disclose the Rp 200.000 offset
+- **AND** it SHALL NOT infer a daily allowance from a guessed payday
 
 ### Requirement: Choosing the Offset Category in Forms
 Quick capture and the ledger edit dialog SHALL show an expense-category select labelled "Mengurangi pengeluaran" when the chosen income category offsets spending, SHALL list only active budget-reportable expense categories, SHALL allow leaving it empty, and SHALL send the choice as `offset_category_id`.

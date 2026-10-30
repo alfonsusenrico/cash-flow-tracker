@@ -54,24 +54,19 @@ The Category creation and edit interface SHALL NOT require or force users to ass
 ---
 
 ### Requirement: Pure Transaction-Level Kakeibo Aggregation
-The system SHALL resolve every expense's effective Kakeibo pillar with one shared rule: the transaction's own pillar when set, otherwise its category's pillar when set, otherwise `need`. Ledger listing, ledger pillar filtering, transaction detail, Kakeibo report aggregation and safe-to-spend calculations SHALL all use this rule. Category pillars SHALL remain optional.
+The system SHALL resolve every expense's effective Kakeibo pillar from the transaction's own pillar, otherwise its category's pillar, otherwise `need`. Ledger listing, pillar filtering, transaction detail and report aggregation SHALL use this shared rule. Category pillars SHALL remain optional.
 
 #### Scenario: Aggregating mixed transactions under the same category
-- **GIVEN** two expense transactions under category "Makanan & Minuman": one marked `need` for Rp 30.000 and one marked `want` for Rp 70.000
-- **WHEN** the Kakeibo breakdown endpoint is executed
-- **THEN** Rp 30.000 SHALL be counted in `need_spent`
-- **AND** Rp 70.000 SHALL be counted in `want_spent`.
+- **WHEN** a category contains a need expense of Rp 30.000 and a want expense of Rp 70.000
+- **THEN** those amounts SHALL be counted under their respective effective pillars before applicable reimbursement offsets
 
 #### Scenario: Transaction without its own pillar follows its category
-- **GIVEN** a recurring expense of Rp 100.000 with no transaction pillar, in a category whose pillar is `want`
-- **WHEN** the ledger lists the transaction and the Kakeibo breakdown is executed
-- **THEN** the ledger SHALL show the pillar `want`
-- **AND** the report SHALL count Rp 100.000 in `want_spent`.
+- **WHEN** an expense has no transaction pillar but its category is `want`
+- **THEN** the ledger and Kakeibo reports SHALL use `want`
 
 #### Scenario: No pillar anywhere defaults to need
-- **GIVEN** an expense with no transaction pillar in a reportable category with no pillar
-- **WHEN** the Kakeibo breakdown is executed
-- **THEN** the amount SHALL be counted in `need_spent`.
+- **WHEN** an expense has no transaction or category pillar
+- **THEN** it SHALL be counted as `need`
 
 ### Requirement: Kakeibo Pillar Vocabulary
 The backend SHALL accept exactly the pillars `need`, `want`, `culture`, `unexpected` and `saving` wherever a transaction or category pillar is written: manual transactions, category defaults, notification resolution and AI interpretation. It SHALL reject any other value with a validation error.
