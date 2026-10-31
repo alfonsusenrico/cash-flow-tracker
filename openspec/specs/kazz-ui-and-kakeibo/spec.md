@@ -13,7 +13,7 @@ The system SHALL support need, want, culture, unexpected and saving as individua
 - **THEN** all five classifications SHALL be identifiable individually, with figures traceable to their reporting inputs
 
 ### Requirement: Narrative Financial Insights
-The system SHALL compute period-over-period comparison deltas and generate natural language summaries identifying top spend drivers.
+The system SHALL compute period-over-period comparison deltas and generate natural language summaries identifying top spend drivers. The overview response SHALL keep these fields for compatibility, but the web Beranda SHALL NOT present them as its insight headline; Beranda follows the fair period comparison in `observed-insights`.
 
 #### Scenario: Generate comparative narrative insight
 - **GIVEN** the user spent Rp 8.000.000 in the previous cycle and Rp 10.000.000 in the current cycle
@@ -21,6 +21,10 @@ The system SHALL compute period-over-period comparison deltas and generate natur
 - **WHEN** the dashboard overview endpoint `GET /api/dashboard/overview` is called
 - **THEN** the response SHALL include `comparison.outflow_delta_pct` as +25.0%
 - **AND** the response SHALL include a natural language narrative string explicitly mentioning the overall spend jump (+25.0%) and the primary driver ("Makan & Minum").
+
+#### Scenario: Beranda does not show the unequal-window narrative
+- **WHEN** the owner opens Beranda on desktop or phone
+- **THEN** the overview narrative text and its percentage SHALL NOT be shown
 
 ### Requirement: Tactile Calculator Keypad
 The system SHALL provide a tactile 4x4 keypad with built-in arithmetic operators for mobile touch inputs and rapid modal entry.

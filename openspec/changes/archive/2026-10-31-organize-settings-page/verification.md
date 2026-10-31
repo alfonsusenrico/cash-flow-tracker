@@ -39,3 +39,9 @@ Screenshots and logs are in the scratch area and are not tracked.
 - Assistive technology (VoiceOver, TalkBack) was not used.
 - 400% browser zoom was approximated by the 320 px width; 200% text was checked on one section only.
 - No real phone or production host was used; the pairing QR flow was exercised only in unit tests.
+
+## Archive
+
+- `openspec archive organize-settings-page --yes`: applied 5 added and 5 modified requirements to seven main specs; no other open change touched them.
+- After the archive, `openspec validate --all --strict` first flagged the modified "Responsive Settings Entry" in `clean-core-ledger` as longer than 500 characters. Its added sentence was shortened (488 characters) in the main spec and in this archived delta, with the current-page detail moved into its desktop scenario.
+- Then `openspec validate --all`: exit 0, 62 passed. `--strict`: only the known `transaction-provenance` long-requirement warning remains.
