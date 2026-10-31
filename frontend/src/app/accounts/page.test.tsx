@@ -538,4 +538,72 @@ describe("account and pocket forms", () => {
     fireEvent.drop(secondPocket, { dataTransfer: dragData });
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/accounts/reorder", { account_ids: ["second-pocket", "first-pocket"] }));
   });
+
+  it("flags accounts and pockets that need reconciliation and opens Sesuaikan Saldo from the flag", async () => {
+    const flaggedPocket = {
+      id: "jago-main", parent_id: "jago", name: "Kantong Utama", type: "bank", initial_balance: 0, balance: -25_000,
+      is_archived: false, reconciliation_required: true, created_at: "2026-09-01T00:00:00.000Z",
+    };
+    const calmPocket = { ...flaggedPocket, id: "jago-save", name: "Tabungan", balance: 10_000, reconciliation_required: false };
+    const jago = { ...investmentParent, id: "jago", name: "Bank Jago", type: "bank", balance: -15_000, children: [flaggedPocket, calmPocket] };
+    const cash = { ...investmentParent, id: "cash", name: "Kas", type: "cash", balance: -5_000, reconciliation_required: true };
+    const fine = { ...investmentParent, id: "fine", name: "GoPay", type: "wallet", balance: 5_000, reconciliation_required: false };
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { ok: true, accounts: [jago, cash, fine, flaggedPocket, calmPocket], total_balance: -15_000 };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [] };
+      return { ok: true, rules: [], accounts: [], results: [] };
+    });
+    const user = userEvent.setup();
+    renderAccounts();
+
+    for (const region of await screen.findAllByRole("region", { name: "Rekening Kas" })) {
+      expect(within(region).getByRole("button", { name: "Perlu rekonsiliasi: sesuaikan saldo Kas" })).toHaveTextContent("Perlu rekonsiliasi");
+    }
+    for (const region of screen.getAllByRole("region", { name: "Rekening Bank Jago" })) {
+      expect(within(region).getByText("1 kantong perlu rekonsiliasi")).toBeInTheDocument();
+      expect(within(within(region).getByRole("group", { name: "Kantong Kantong Utama" })).getByRole("button", { name: "Perlu rekonsiliasi: sesuaikan saldo Kantong Utama" })).toBeInTheDocument();
+      expect(within(within(region).getByRole("group", { name: "Kantong Tabungan" })).queryByText(/rekonsiliasi/i)).not.toBeInTheDocument();
+    }
+    for (const region of screen.getAllByRole("region", { name: "Rekening GoPay" })) {
+      expect(within(region).queryByText(/rekonsiliasi/i)).not.toBeInTheDocument();
+    }
+    const jagoCard = screen.getAllByRole("region", { name: "Rekening Bank Jago" })[0];
+    expect((await axe(jagoCard)).violations).toHaveLength(0);
+    expect((await axe(screen.getAllByRole("region", { name: "Rekening Kas" })[0])).violations).toHaveLength(0);
+
+    const pocketFlag = within(jagoCard).getByRole("button", { name: "Perlu rekonsiliasi: sesuaikan saldo Kantong Utama" });
+    pocketFlag.focus();
+    await user.keyboard("{Enter}");
+    const dialog = screen.getByRole("dialog", { name: "Sesuaikan Saldo: Kantong Utama" });
+    const actualBalance = within(dialog).getByRole("textbox", { name: /saldo sebenarnya/i });
+    await user.clear(actualBalance);
+    await user.type(actualBalance, "0");
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") {
+        const cleared = { ...flaggedPocket, balance: 0, reconciliation_required: false };
+        return { ok: true, accounts: [{ ...jago, children: [cleared, calmPocket] }, cash, fine, cleared, calmPocket], total_balance: 10_000 };
+      }
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [] };
+      return { ok: true, rules: [], accounts: [], results: [] };
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Konfirmasi & Sesuaikan Saldo" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/accounts/jago-main/reconcile", { actual_balance: 0, notes: null }));
+    await waitFor(() => expect(screen.queryByText("1 kantong perlu rekonsiliasi")).not.toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /sesuaikan saldo Kantong Utama/ })).not.toBeInTheDocument();
+  });
+
+  it("shows a flagged amount-tracked product without offering a reconciliation it cannot take", async () => {
+    const product = {
+      ...investmentParent, id: "fund", name: "Reksa Contoh", investment_tracking_mode: "amount", reconciliation_required: true,
+    };
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { ok: true, accounts: [product], total_balance: 0 };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [] };
+      return { ok: true, rules: [], accounts: [], results: [] };
+    });
+    renderAccounts();
+    const card = (await screen.findAllByRole("region", { name: "Rekening Reksa Contoh" }))[0];
+    expect(within(card).getByText("Perlu rekonsiliasi")).toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: /perlu rekonsiliasi/i })).not.toBeInTheDocument();
+  });
 });

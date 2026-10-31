@@ -41,6 +41,7 @@ interface IconProps extends SVGProps<SVGSVGElement> {
 
 const paths: Record<string, ReactNode> = {
   info: <><circle cx="12" cy="12" r="10" /><path d="M12 11v5" /><path d="M12 8h.01" /></>,
+  "alert-triangle": <><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></>,
   accounts: <><path d="M4 10h16" /><path d="M6 10v8" /><path d="M10 10v8" /><path d="M14 10v8" /><path d="M18 10v8" /><path d="M3 18h18" /><path d="M12 3 4 8h16l-8-5Z" /></>,
   allocation: <><path d="M4 5h16" /><path d="M4 12h10" /><path d="M4 19h7" /><path d="m17 14 3 3-3 3" /><path d="M14 17h6" /></>,
   analysis: <><path d="M4 19V5" /><path d="M4 19h16" /><path d="m7 15 3-4 4 2 5-7" /></>,
