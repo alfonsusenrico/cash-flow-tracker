@@ -71,3 +71,9 @@ The run covered 7 pages (Beranda, Transaksi, Analisis, Tinjau, Rekening & Saldo,
 
 - An installed phone. The 2.3.3 behaviour comes from code reading and a JVM/Robolectric probe on its source, not from a device.
 - Production behaviour and data. Release is the owner's pipeline step.
+
+## Archive
+
+- `openspec archive polish-top-categories-and-surfaces --yes`: + 0, ~ 2, − 0 (`financial-reporting-consistency`, `tactile-pulse-ui`). No other change was open.
+- After the archive, `openspec validate --all --strict`: exit 0, 63 passed.
+- Main-spec names went from 379 requirements and 1011 scenarios to 379 and 1015. The comparison shows additions only, the 4 new scenarios. No requirement or scenario name was removed.

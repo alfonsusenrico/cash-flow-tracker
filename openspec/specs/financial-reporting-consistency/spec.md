@@ -47,7 +47,7 @@ The system SHALL explain filter-sensitive gross and reimbursement treatment when
 - **THEN** the user SHALL see that the outflow is gross and the offset unavailable
 
 ### Requirement: Top spending categories in the cash-flow summary
-`GET /api/dashboard/cash-flow-summary`, for `period` `today` or `month` and with session or Bearer authentication, SHALL return `top_categories`: at most 3 of the owner's categories with the most net spending, as `category_id`, `name`, `kakeibo_type` and integer rupiah `outflow`, sorted by outflow descending, then name. The list SHALL use the same window and spending rules as the response's `outflow`, SHALL omit a category at 0 or less, and SHALL be `[]`, never `null`, without spending.
+`GET /api/dashboard/cash-flow-summary`, for `period` `today` or `month` and with session or Bearer authentication, SHALL return `top_categories`: at most 3 entries with the most net spending, each an owner category or uncategorised spending, as `category_id`, `name`, `kakeibo_type` and integer rupiah `outflow`, sorted by outflow descending, then name. It SHALL use the window and spending rules of the response's `outflow`, omit an entry at 0 or less, and be `[]`, never `null`, without spending.
 
 #### Scenario: Reimbursement netted per category
 - **GIVEN** today's expenses of Rp 300.000 in "Makan Bareng" and Rp 200.000 in "Belanja Dapur", and a reimbursement of Rp 200.000 that offsets "Makan Bareng"
@@ -64,7 +64,21 @@ The system SHALL explain filter-sensitive gross and reimbursement treatment when
 
 #### Scenario: Listed amounts never exceed the outflow
 - **WHEN** any summary is returned
-- **THEN** the sum of the listed `outflow` amounts SHALL be at most the response's `outflow`; spending without a category counts in `outflow` but SHALL NOT be listed
+- **THEN** the sum of the listed `outflow` amounts SHALL be at most the response's `outflow`, and SHALL fall short of it only by the entries cut by the limit of 3
+
+#### Scenario: Uncategorised spending ranks with the categories
+- **GIVEN** today's expenses of Rp 90.000 in "Belanja Dapur", Rp 75.000 without a category, Rp 40.000 in "Makan Bareng" and Rp 10.000 in "Lain-lain"
+- **WHEN** the phone requests the summary for `today`
+- **THEN** `top_categories` SHALL list "Belanja Dapur" Rp 90.000, then `{"category_id": null, "name": "Tanpa kategori", "kakeibo_type": null, "outflow": 75000}`, then "Makan Bareng" Rp 40.000
+- **AND** `outflow` SHALL be Rp 215.000, Rp 10.000 more than the listed sum
+
+#### Scenario: Listed amounts equal the outflow when none is cut
+- **WHEN** the window holds three or fewer entries with spending, uncategorised spending included
+- **THEN** every entry SHALL be listed and the listed amounts SHALL add up exactly to `outflow`
+
+#### Scenario: Uncategorised spending is not reimbursed
+- **WHEN** a reimbursement offsets a category, or names no category to offset
+- **THEN** the "Tanpa kategori" entry SHALL keep its full amount, and the offset category SHALL be listed net of the reimbursement
 
 #### Scenario: Today and month
 - **WHEN** the owner spent today in one category and earlier this month in another
@@ -79,9 +93,9 @@ The system SHALL explain filter-sensitive gross and reimbursement treatment when
 - **THEN** the first three by name SHALL be listed
 
 #### Scenario: Owner scope and authentication
-- **WHEN** another owner spends in a category of the same name, or the phone calls with its Bearer key
+- **WHEN** another owner spends in a category of the same name or without a category, or the phone calls with its Bearer key
 - **THEN** the other owner's spending SHALL NOT be listed, and the Bearer response SHALL equal the session response; an unknown key SHALL get HTTP 401
 
 #### Scenario: Older clients
 - **WHEN** a client that does not know `top_categories` reads the summary
-- **THEN** every other field SHALL keep its name, type and value
+- **THEN** every other field SHALL keep its name, type and value, and each `top_categories` entry SHALL keep its four fields, of which only `category_id` and `kakeibo_type` can be `null`
