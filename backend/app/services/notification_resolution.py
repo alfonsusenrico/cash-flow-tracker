@@ -67,7 +67,7 @@ def owner_name_spans(text: str, aliases: list[str]) -> list[tuple[int, int]]:
     Words align by position with alias words; an asterisk stands for one letter and only
     the final matched word may be truncated. A span needs two aligned words (one for a
     single-word alias) and at least two literal letters, so masked third parties such as
-    "****LIN VALE**IA P" do not match "Alfonsus Enrico Soebijanto".
+    "****LIN VALE**IA P" do not match "Raka Purnama".
     """
     tokens = list(NAME_TOKEN.finditer(text or ""))
     spans: list[tuple[int, int]] = []

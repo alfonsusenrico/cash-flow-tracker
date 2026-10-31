@@ -208,7 +208,7 @@ export function SettingsModal({ open, onClose }: Props) {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Contoh: Enrico"
+              placeholder="Contoh: Raka Purnama"
               className="w-full text-xs"
             />
           </div>
@@ -229,7 +229,7 @@ export function SettingsModal({ open, onClose }: Props) {
             />
             <p id="settings-name-aliases-hint" className="text-[10px] text-[var(--muted)] mt-1">
               Pisahkan dengan koma. Dipakai untuk mengenali transfer ke rekening sendiri, termasuk nama yang
-              disamarkan bank seperti &quot;ALFO**US&quot;. Nama tampilan selalu ikut dipakai.
+              disamarkan bank seperti &quot;RA*A PUR***&quot;. Nama tampilan selalu ikut dipakai.
             </p>
           </div>
         </section>

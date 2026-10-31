@@ -194,12 +194,12 @@ def test_ingest_supported_apps_scope_verification():
     assert p3.event_class == "transfer"
 
     # 4. GoPay
-    p4 = parse_notification("com.gojek.gopay", "Bayar Berhasil", "Rp 25.000 udah dikirim ke BCA ALFONSUS ENRICO SOEBIJAN.")
+    p4 = parse_notification("com.gojek.gopay", "Bayar Berhasil", "Rp 25.000 udah dikirim ke BCA RAKA PURNAM.")
     assert p4.is_financial is True
     assert p4.amount == 25000
 
     # 5. ShopeePay
-    p5 = parse_notification("com.shopeepay.id", "Transfer Diterima", "ALFONSUS ENRICO SOEBIJANTO mengirimkan dana sebesar Rp500.000 ke ShopeePay-mu melalui BI-Fast.")
+    p5 = parse_notification("com.shopeepay.id", "Transfer Diterima", "RAKA PURNAMA mengirimkan dana sebesar Rp500.000 ke ShopeePay-mu melalui BI-Fast.")
     assert p5.is_financial is True
     assert p5.amount == 500000
 

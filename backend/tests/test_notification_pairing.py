@@ -13,14 +13,14 @@ from app.services.notification_resolution import (
     signatures_compatible, transfer_signature,
 )
 
-OWNER = "Alfonsus Enrico Soebijanto"
+OWNER = "Raka Purnama"
 
 
 @pytest.mark.parametrize("text", [
-    "ALFONSUS ENRICO SOEBIJANTO mengirimkan dana sebesar Rp7.491.557 ke ShopeePay-mu",
-    "Alfonsus Enrico Soebijanto has sent Rp7.491.557 to you.",
-    "You received IDR 1,500,000.00 from ALFO**US ***ICO *O at Account Transfer category.",
-    "Rp500.000 udah dikirim ke BCA ALFONSUS ENRICO SOEBIJAN.",
+    "RAKA PURNAMA mengirimkan dana sebesar Rp7.491.557 ke ShopeePay-mu",
+    "Raka Purnama has sent Rp7.491.557 to you.",
+    "You received IDR 1,500,000.00 from R**A PU* at Account Transfer category.",
+    "Rp500.000 udah dikirim ke BCA RAKA PURNAM.",
 ])
 def test_owner_is_recognised_literally_masked_and_truncated(text):
     assert names_owner(text, [OWNER])
@@ -29,7 +29,7 @@ def test_owner_is_recognised_literally_masked_and_truncated(text):
 @pytest.mark.parametrize("text", [
     "You received IDR 43,000.00 from ****LIN VALE**IA P at Account Transfer category.",
     "Pemasukan sebesar IDR 500,000.00 dari ***PET **AK ***GSA di kategori Transfer Rekening.",
-    "Al sent Rp5.000",
+    "Ra sent Rp5.000",
     "Rp500.000 udah dikirim ke BCA Mira Langit.",
 ])
 def test_third_parties_and_short_tokens_are_not_the_owner(text):
@@ -37,23 +37,23 @@ def test_third_parties_and_short_tokens_are_not_the_owner(text):
 
 
 def test_single_word_alias_requires_whole_word():
-    assert names_owner("Transfer dari ENRICO berhasil", ["Enrico"])
-    assert not names_owner("Transfer dari ENRICHMENT berhasil", ["Enrico"])
+    assert names_owner("Transfer dari RAKA berhasil", ["Raka"])
+    assert not names_owner("Transfer dari RAKAMIN berhasil", ["Raka"])
 
 
 def test_redaction_replaces_masked_owner_span_only():
-    text = "You received IDR 1,500,000.00 from ALFO**US ***ICO *O at Account Transfer category."
+    text = "You received IDR 1,500,000.00 from R**A PU* at Account Transfer category."
     assert redact_owner_names(text, [OWNER]) == "You received IDR 1,500,000.00 from [SELF] at Account Transfer category."
 
 
 def test_sanitize_text_redacts_every_alias_and_keeps_money():
-    text = "ALFONSUS ENRICO SOEBIJANTO mengirimkan dana sebesar Rp7.491.557 ke ShopeePay-mu"
-    assert sanitize_text(text, ["Enrico Personal", OWNER]) == "[SELF] mengirimkan dana sebesar Rp7.491.557 ke ShopeePay-mu"
+    text = "RAKA PURNAMA mengirimkan dana sebesar Rp7.491.557 ke ShopeePay-mu"
+    assert sanitize_text(text, ["Raka Personal", OWNER]) == "[SELF] mengirimkan dana sebesar Rp7.491.557 ke ShopeePay-mu"
 
 
 def test_owner_aliases_include_profile_name_and_deduplicate():
-    profile = {"name": OWNER, "name_aliases": ["  alfonsus   enrico soebijanto ", "ENRICO S", "ab"]}
-    assert owner_aliases(profile) == [OWNER, "ENRICO S"]
+    profile = {"name": OWNER, "name_aliases": ["  raka   purnama ", "RAKA P", "ab"]}
+    assert owner_aliases(profile) == [OWNER, "RAKA P"]
 
 
 @pytest.mark.parametrize("counterparty,hint,expected", [
@@ -61,7 +61,7 @@ def test_owner_aliases_include_profile_name_and_deduplicate():
     ("ShopeePay Top Up", "Transfer Masuk", False),
     ("Bank Jago Payment", None, False),
     ("Tabungan by Jago", None, False),
-    ("BCA ALFONSUS ENRICO SOEBIJAN", "Transfer Keluar", False),
+    ("BCA RAKA PURNAM", "Transfer Keluar", False),
     ("BCA Mira Langit", "Transfer Keluar", True),
     ("****LIN VALE**IA P", "Transfer Masuk", True),
     ("Kedai Awan", "Tagihan & Utilitas", True),
@@ -99,17 +99,17 @@ def test_bca_debit_pairs_with_shopeepay_top_up_without_transfer_wording():
 def test_indonesian_send_verb_counts_as_transfer_evidence():
     shopee = signature_for(
         "com.shopeepay.id",
-        "ALFONSUS ENRICO SOEBIJANTO mengirimkan dana sebesar Rp7.491.557 ke ShopeePay-mu melalui BI-Fast.",
+        "RAKA PURNAMA mengirimkan dana sebesar Rp7.491.557 ke ShopeePay-mu melalui BI-Fast.",
         "2026-09-29T14:38:18+07:00",
     )
     assert shopee["transfer"] and shopee["self_identity"] and not shopee["external_counterparty"]
 
 
 def test_two_incoming_legs_never_pair():
-    jago = signature_for("com.jago.digitalbanking", "Alfonsus Enrico Soebijanto has sent Rp7.491.557 to you.", "2026-09-29T14:34:21+07:00")
+    jago = signature_for("com.jago.digitalbanking", "Raka Purnama has sent Rp7.491.557 to you.", "2026-09-29T14:34:21+07:00")
     shopee = signature_for(
         "com.shopeepay.id",
-        "ALFONSUS ENRICO SOEBIJANTO mengirimkan dana sebesar Rp7.491.557 ke ShopeePay-mu melalui BI-Fast.",
+        "RAKA PURNAMA mengirimkan dana sebesar Rp7.491.557 ke ShopeePay-mu melalui BI-Fast.",
         "2026-09-29T14:38:18+07:00",
     )
     assert not signatures_compatible(jago, shopee)

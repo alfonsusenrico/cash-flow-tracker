@@ -366,7 +366,7 @@ def test_user_settings_and_currency_rates():
         mock_cur.fetchone.return_value = {
             "id": user_id,
             "username": "tester",
-            "name": "Enrico Updated",
+            "name": "Raka Purnama",
             "payday_day": 28,
             "currency": "USD",
             "emergency_fund_multiplier": 8,
@@ -377,7 +377,7 @@ def test_user_settings_and_currency_rates():
             res_patch = client.patch(
                 "/api/auth/settings",
                 json={
-                    "name": "Enrico Updated",
+                    "name": "Raka Purnama",
                     "payday_day": 28,
                     "currency": "USD",
                     "emergency_fund_multiplier": 8,

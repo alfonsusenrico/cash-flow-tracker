@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localDatetimeToISO, toDatetimeLocal } from "./utils";
+import { greetingName, localDatetimeToISO, toDatetimeLocal } from "./utils";
 
 describe("financial date-time input", () => {
   it("retains nonzero seconds when opening and submitting a stored timestamp", () => {
@@ -8,5 +8,13 @@ describe("financial date-time input", () => {
 
     expect(inputValue).toMatch(/T\d{2}:\d{2}:27$/);
     expect(new Date(localDatetimeToISO(inputValue)).toISOString()).toBe(timestamp);
+  });
+});
+
+describe("greeting name", () => {
+  it("capitalises the username and has no built-in name while the profile loads", () => {
+    expect(greetingName({ username: "raka01" })).toBe("Raka01");
+    expect(greetingName(null)).toBeNull();
+    expect(greetingName({ username: "  " })).toBeNull();
   });
 });

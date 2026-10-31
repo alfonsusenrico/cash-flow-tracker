@@ -20,8 +20,8 @@ describe("registration form", () => {
     await user.click(screen.getByRole("button", { name: "Daftar sekarang" }));
     expect((await axe(container)).violations).toHaveLength(0);
 
-    await user.type(screen.getByRole("textbox", { name: "Nama Tampilan" }), "Enrico");
-    await user.type(screen.getByRole("textbox", { name: "Nama Pengguna" }), "enrico01");
+    await user.type(screen.getByRole("textbox", { name: "Nama Tampilan" }), "Raka Purnama");
+    await user.type(screen.getByRole("textbox", { name: "Nama Pengguna" }), "raka01");
     await user.type(screen.getByLabelText("Kata Sandi"), "short");
     await user.type(screen.getByRole("textbox", { name: "Kode Undangan" }), "TESTCODE");
     await user.click(screen.getByRole("button", { name: "Daftar Akun" }));
@@ -30,9 +30,9 @@ describe("registration form", () => {
     await user.type(screen.getByLabelText("Kata Sandi"), "-valid");
     await user.click(screen.getByRole("button", { name: "Daftar Akun" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/auth/register", {
-      username: "enrico01",
+      username: "raka01",
       password: "short-valid",
-      name: "Enrico",
+      name: "Raka Purnama",
       invite_code: "TESTCODE",
     }));
     expect(screen.getByRole("alert")).toHaveTextContent("Registration unavailable");

@@ -73,7 +73,7 @@ def test_bank_jago_single_pocket_out_id():
 
 
 def test_bank_jago_inbound_transfer():
-    text = "Alfonsus Enrico Soebijanto has sent Rp500.050 to you. Need help? Contact Tanya Jago at 1500 746."
+    text = "Raka Purnama has sent Rp500.050 to you. Need help? Contact Tanya Jago at 1500 746."
     parsed = parse_notification(
         package_name="com.jago.digitalBanking",
         title="Jago",
@@ -84,11 +84,11 @@ def test_bank_jago_inbound_transfer():
     assert parsed.event_class == "income"
     assert parsed.amount == 500050
     assert parsed.direction == "in"
-    assert "Alfonsus Enrico Soebijanto" in (parsed.counterparty or "")
+    assert "Raka Purnama" in (parsed.counterparty or "")
 
 
 def test_gopay_outbound_transfer():
-    text = "Rp500.000 udah dikirim ke BCA ALFONSUS ENRICO SOEBIJAN."
+    text = "Rp500.000 udah dikirim ke BCA RAKA PURNAM."
     parsed = parse_notification(
         package_name="com.gojek.gopay",
         title="Transfer berhasil",
@@ -99,7 +99,7 @@ def test_gopay_outbound_transfer():
     assert parsed.event_class == "expense"
     assert parsed.amount == 500000
     assert parsed.direction == "out"
-    assert parsed.counterparty == "BCA ALFONSUS ENRICO SOEBIJAN"
+    assert parsed.counterparty == "BCA RAKA PURNAM"
 
 
 def test_gopay_inbound_tabungan():
@@ -194,7 +194,7 @@ def test_mybca_outbound():
 
 
 def test_shopeepay_inbound():
-    text = "ALFONSUS ENRICO SOEBIJANTO mengirimkan dana sebesar Rp500.000 ke ShopeePay-mu melalui BI-Fast."
+    text = "RAKA PURNAMA mengirimkan dana sebesar Rp500.000 ke ShopeePay-mu melalui BI-Fast."
     parsed = parse_notification(
         package_name="com.shopeepay.id",
         title="Saldo ShopeePay diterima!",
@@ -205,7 +205,7 @@ def test_shopeepay_inbound():
     assert parsed.event_class == "income"
     assert parsed.amount == 500000
     assert parsed.direction == "in"
-    assert parsed.counterparty == "ALFONSUS ENRICO SOEBIJANTO"
+    assert parsed.counterparty == "RAKA PURNAMA"
 
 
 def test_shopeepay_topup_indonesian():
@@ -251,7 +251,7 @@ def test_noise_filtering():
     assert parsed_promo.is_financial is False
     assert parsed_promo.event_class == "noise"
 
-    va_text = "Transfer Rp500.000 ke BCA Virtual Account sebelum 16 Sep 2026, 08:25 untuk kami teruskan ke ALFONSUS ENRICO SOEBIJANTO TABUNGAN BY JAGO."
+    va_text = "Transfer Rp500.000 ke BCA Virtual Account sebelum 16 Sep 2026, 08:25 untuk kami teruskan ke RAKA PURNAMA TABUNGAN BY JAGO."
     parsed_va = parse_notification(
         package_name="com.gojek.gopay",
         title="Transfer ke nomor VA sekarang, ya 🔔",
