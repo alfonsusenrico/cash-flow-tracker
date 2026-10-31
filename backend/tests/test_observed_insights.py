@@ -118,6 +118,39 @@ def test_a_shorter_previous_cycle_shortens_both_windows(client, shopper):
     assert result["compared_days"] == 28
 
 
+def test_spending_so_far_includes_days_left_out_of_a_shortened_comparison(client, shopper):
+    # The 31st of a month after a 30-day month: the comparison stops at the end of the 30th.
+    insert(shopper, "groceries", 1_400_000, local(date(2026, 10, 31), 9))
+    insert(shopper, "fun", 200_000, local(date(2026, 10, 5)))
+    current = (local(date(2026, 10, 1), 0).astimezone(timezone.utc), local(date(2026, 10, 31), 14).astimezone(timezone.utc), "Oktober 2026")
+    previous = (local(date(2026, 9, 1), 0).astimezone(timezone.utc),
+                datetime.combine(date(2026, 9, 30), time.max, JAKARTA).astimezone(timezone.utc), "September 2026")
+
+    result = compare(shopper, current, previous)
+    assert result["current_truncated"] is True
+    assert result["current"]["outflow"] == 200_000
+    assert result["current_to_date"]["outflow"] == 1_600_000
+    assert (result["current_to_date"]["start_date"], result["current_to_date"]["end_date"]) == ("2026-10-01", "2026-10-31")
+
+    insert(shopper, "bills", 300_000, local(date(2026, 9, 12)))
+    compared = compare(shopper, current, previous)
+    assert compared["previous_has_data"] is True
+    assert (compared["current"]["outflow"], compared["current_to_date"]["outflow"]) == (200_000, 1_600_000)
+
+
+def test_spending_so_far_matches_the_overview_for_the_same_period(client, shopper):
+    insert(shopper, "groceries", 1_400_000, datetime.now(JAKARTA) - timedelta(minutes=5))
+    insert(shopper, "salary", 6_000_000, datetime.now(JAKARTA) - timedelta(minutes=10), tx_type="income")
+    for timeframe in ("month", "cycle"):
+        comparison = client.get(f"/api/dashboard/period-comparison?timeframe={timeframe}")
+        overview = client.get(f"/api/dashboard/overview?timeframe={timeframe}")
+        assert comparison.status_code == 200, comparison.text
+        assert overview.status_code == 200, overview.text
+        to_date = comparison.json()["current_to_date"]
+        assert to_date["outflow"] == overview.json()["kpis"]["total_outflow"] == 1_400_000
+        assert to_date["end_date"] == datetime.now(JAKARTA).date().isoformat()
+
+
 def test_comparison_endpoint_returns_its_windows(client, shopper):
     # Halfway into the month so far: inside the compared window even on a 31st, when the
     # comparison is shortened to the previous month's 30 days and leaves today out.

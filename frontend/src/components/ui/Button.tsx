@@ -17,9 +17,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       className={cn(
         "inline-flex items-center justify-center font-medium rounded-[var(--radius-md)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]",
         size === "sm" ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm",
-        variant === "primary" && "bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white",
+        variant === "primary" && "bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--primary-contrast)]",
         variant === "secondary" && "bg-[var(--surface)] border border-[var(--border)] hover:bg-[var(--bg)] text-[var(--text)]",
-        variant === "danger" && "bg-[var(--danger)] hover:bg-[var(--danger-hover)] text-white",
+        variant === "danger" && "bg-[var(--danger-solid)] hover:bg-[var(--danger-solid-hover)] text-[var(--danger-contrast)]",
         variant === "ghost" && "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)]",
         className
       )}

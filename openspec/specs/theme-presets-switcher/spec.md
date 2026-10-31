@@ -2,7 +2,9 @@
 
 ## Purpose
 Specify theme preset selection and persistence together with consistent shared button styling.
+
 ## Requirements
+
 ### Requirement: Interactive Design System Preset Switcher
 The application SHALL provide an interactive design system switcher supporting 4 distinct modern styles with seamless, borderless digital bank aesthetics.
 
@@ -32,11 +34,19 @@ The application SHALL provide a consistent, modern button styling hierarchy.
 - **THEN** the following required behavior and constraints hold:
 
   The application SHALL provide a consistent, modern button styling hierarchy:
-  1. **Primary Action Buttons**: Solid background adhering to active preset colors, subtle 1px border, high-contrast text, smooth hover elevation, and tactile press scaling (`:active:scale-[0.98]`).
+  1. **Primary Action Buttons**: Solid background adhering to active preset colors, subtle 1px border, high-contrast text, smooth hover elevation, and tactile press scaling (`:active:scale-[0.98]`). Text and icons on the primary colour SHALL use `--primary-contrast` and SHALL measure at least 4.5:1 (WCAG 2.2 AA) against both `--primary` and `--primary-hover` in light and dark themes.
   2. **Secondary / Outlined Buttons**: Clean border (`var(--border)`), surface background (`var(--surface)`), and subtle hover state.
   3. **Preset-Adaptive Geometry**: Corner radii SHALL dynamically adapt to the active preset (`--radius-btn`), using compact geometry for Swiss Tech (`8px`), sleek curves for Nordic (`10px`), pill geometry for Bauhaus (`9999px`), and structured geometry for Stripe (`8px`).
+  4. **Destructive and Debt Action Buttons**: Solid rose fill from `--danger-solid` (`--danger-solid-hover` on hover) with `--danger-contrast` text, measuring at least 4.5:1 (WCAG 2.2 AA) in light and dark themes. A confirmation button SHALL keep this styling regardless of the styling of the control that opened it.
 
 #### Scenario: Tactile button press feedback
 - **WHEN** a user clicks or taps any primary or secondary action button
 - **THEN** the button provides instant tactile feedback with smooth micro-transition and active scale dampening
 
+#### Scenario: Primary button text contrast
+- **WHEN** a primary action button such as "Simpan profil" or the top-bar "Catat" is shown at rest or under the pointer, in the light or the dark theme
+- **THEN** its label, icon and shortcut badge measure at least 4.5:1 against the button's background, and the coral background at rest is unchanged
+
+#### Scenario: Destructive button text contrast
+- **WHEN** a destructive or debt action such as "Ya, lanjutkan", "Ya, hapus", "Cabut perangkat" or "+ Tagihan Baru" is shown at rest or under the pointer, in the light or the dark theme
+- **THEN** its label measures at least 4.5:1 against the button's rose background

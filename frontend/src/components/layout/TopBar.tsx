@@ -181,7 +181,7 @@ export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
           >
             <Icon name="plus" className="h-3.5 w-3.5" />
             <span>Catat</span>
-            <kbd className="rounded bg-black/20 px-1 py-0.2 text-[9px] font-mono text-white/90">
+            <kbd className="rounded bg-white/30 px-1 py-0.2 text-[9px] font-mono text-primary-contrast">
               N
             </kbd>
           </button>

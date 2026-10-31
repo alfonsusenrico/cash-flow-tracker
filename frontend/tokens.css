@@ -20,9 +20,10 @@
 
   /* Primary Brand Action: Hot Coral Vivid */
   --primary: #FF334B;
-  --primary-hover: #E02038;
+  --primary-hover: #F02A42;
   --primary-soft: #FFE8EC;
-  --primary-contrast: #FFFFFF;
+  /* Dark ink keeps primary text at WCAG AA (4.5:1) on the coral and its hover in both themes. */
+  --primary-contrast: #0A0D14;
 
   /* Semantic Movements */
   --color-income: #059669;
@@ -70,6 +71,25 @@
   --danger: var(--color-expense);
   --danger-hover: var(--color-expense-hover);
   --danger-soft: var(--color-expense-soft);
+  --danger-light: var(--danger-soft);
+  /* Fill for destructive actions with white text; 4.5:1 or better in both themes. */
+  --danger-solid: #E02038;
+  --danger-solid-hover: #9F1239;
+  --danger-contrast: #FFFFFF;
+
+  --primary-light: var(--primary-soft);
+  /* Status ink and pastel badge pairs; the ink reaches 4.5:1 on its pastel and on surfaces. */
+  --warning: #B45309;
+  --warning-light: var(--color-warning-soft);
+  --info: #0369A1;
+  --info-light: #E0F2FE;
+
+  /* Signature Spring Lime: active phone navigation pill and quick actions. */
+  --accent-lime: #66CC55;
+  /* Emerald fill behind `.card-green`, with white ink at 4.5:1 or better in both themes. */
+  --color-accent: #047857;
+  --color-accent-2: #065F46;
+  --color-accent-ink: #FFFFFF;
 
   /* Typography */
   --font-display: var(--font-jakarta), "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -87,6 +107,10 @@
   --radius-btn: 14px;
   --radius-card: 24px;
   --radius-pill: 9999px;
+
+  /* Spacing */
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
 
   /* Shadows */
   --shadow-sm: 0 2px 8px -1px rgba(8, 10, 14, 0.06);
@@ -113,7 +137,7 @@
   --primary: #FF4757;
   --primary-hover: #FF6675;
   --primary-soft: rgba(255, 71, 87, 0.18);
-  --primary-contrast: #FFFFFF;
+  --primary-contrast: #0A0D14;
 
   /* Semantic Movements */
   --color-income: #10B981;
@@ -160,6 +184,12 @@
   --danger: var(--color-expense);
   --danger-hover: var(--color-expense-hover);
   --danger-soft: var(--color-expense-soft);
+  --danger-solid: #9F1239;
+  --danger-solid-hover: #881337;
+
+  --warning: #FBBF24;
+  --info: #38BDF8;
+  --info-light: rgba(56, 189, 248, 0.16);
 
   --shadow-sm: 0 4px 14px -2px rgba(0, 0, 0, 0.7);
   --shadow-md: 0 14px 36px -4px rgba(0, 0, 0, 0.9);

@@ -43,6 +43,8 @@ export interface PeriodComparisonData {
   compared_days: number;
   current_truncated: boolean;
   current: PeriodWindow;
+  /** The whole period so far; differs from `current` when the comparison is shortened. */
+  current_to_date: PeriodWindow;
   previous: PeriodWindow | null;
   previous_label: string | null;
   previous_has_data: boolean;

@@ -121,7 +121,7 @@ export function MobileHomeView({
           className="flex-1 flex flex-col items-center gap-1.5 group cursor-pointer active:scale-95 transition-transform"
         >
           <div className="w-14 h-14 rounded-2xl bg-[#1E201E] text-white flex items-center justify-center shadow-sm border border-white/10 group-hover:bg-[#2A2D2A]">
-            <Icon name="plus" className="h-6 w-6 text-[var(--accent-lime,#66CC55)] stroke-[2.5]" />
+            <Icon name="plus" className="h-6 w-6 text-[var(--accent-lime)] stroke-[2.5]" />
           </div>
           <span className="text-[11px] font-bold text-[var(--text)]">Catat</span>
         </button>
@@ -179,7 +179,7 @@ export function MobileHomeView({
           </div>
           <Link
             href="/accounts"
-            className="text-xs font-semibold text-[var(--accent-lime,#66CC55)] hover:underline"
+            className="text-xs font-semibold text-[var(--accent-lime)] hover:underline"
           >
             Kelola &rarr;
           </Link>
@@ -294,7 +294,7 @@ export function MobileHomeView({
           </h2>
           <Link
             href="/ledger"
-            className="text-xs font-semibold text-[var(--accent-lime,#66CC55)] hover:underline"
+            className="text-xs font-semibold text-[var(--accent-lime)] hover:underline"
           >
             Lihat Semua &rarr;
           </Link>

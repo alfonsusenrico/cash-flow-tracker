@@ -6,7 +6,7 @@ Give the owner observed, actionable insights on Analisis instead of averages and
 ## Requirements
 
 ### Requirement: Fair period comparison
-The system SHALL compare the selected salary cycle or calendar month with the previous one over the same elapsed time from each period's start, shortening both windows to the previous period's length when it is shorter. It SHALL report inflow, outflow and net, spending per Kakeibo pillar, and the top three category and merchant increases and decreases with amounts, and SHALL NOT present a percentage change.
+The system SHALL compare the selected salary cycle or calendar month with the previous one over the same elapsed time from each period's start, shortening both windows to the previous period's length when it is shorter. It SHALL report inflow, outflow and net, spending per Kakeibo pillar, and the top three category and merchant increases and decreases with amounts, and SHALL NOT present a percentage change. It SHALL also report the selected period's inflow, outflow and net from its start to now as `current_to_date`, never shortened, covering the same window and using the same reportable-flow rules as the dashboard overview for that period.
 
 #### Scenario: Same elapsed days
 - **GIVEN** the current month observed through its 10th day, previous-month spending of Rp 100.000 on the 5th and Rp 900.000 on the 20th
@@ -20,6 +20,11 @@ The system SHALL compare the selected salary cycle or calendar month with the pr
 #### Scenario: Drill-down from a change
 - **WHEN** the owner selects a category or merchant change
 - **THEN** the ledger SHALL open filtered to the current comparison window and that category or merchant
+
+#### Scenario: Spending so far includes days a shortened comparison leaves out
+- **GIVEN** 31 October with Rp 1.400.000 spent today and Rp 200.000 on 5 October, after a 30-day September
+- **WHEN** the comparison is requested
+- **THEN** the compared current outflow SHALL be Rp 200.000 over 1–30 October, `current_to_date` SHALL report Rp 1.600.000 over 1–31 October, and `current_to_date.outflow` SHALL equal the dashboard overview's `total_outflow` for the same period
 
 ### Requirement: Net cash flow history
 The system SHALL list observed inflow, outflow net of reimbursements and net cash flow for the last six completed periods and the current period, using the same period rule as the essential cost, and SHALL label the current period as in progress ("berjalan"). Calendar months SHALL be used when the owner selects the calendar-month basis.
@@ -55,7 +60,7 @@ A detected charge that already matches an active plan SHALL be marked "sudah ada
 - **THEN** a non-posting monthly plan SHALL be created, no transaction SHALL be added, and the charge SHALL then be marked as having a plan
 
 ### Requirement: Beranda insight uses the fair comparison
-The Beranda insight card, on desktop and phone, SHALL be built from the fair period comparison for the selected salary cycle or calendar month. It SHALL name the period and the number of compared days, state the change in outflow and the largest category increases and decreases as amounts, and SHALL NOT show a percentage change or a savings verdict. Below 3 compared days, or without previous data, it SHALL say so instead of comparing.
+The Beranda insight card, on desktop and phone, SHALL be built from the fair period comparison for the selected salary cycle or calendar month. It SHALL name the period and the number of compared days, state the change in outflow and the largest category increases and decreases as amounts, and SHALL NOT show a percentage change or a savings verdict. Below 3 compared days, or without previous data, it SHALL say so instead of comparing. Any figure the card calls spending so far ("sejauh ini") SHALL be the period's outflow to date, not the shortened comparison figure.
 
 #### Scenario: Day one of a salary cycle
 - **GIVEN** a salary cycle that started today and a previous cycle with Rp 4.000.000 of spending
@@ -69,7 +74,7 @@ The Beranda insight card, on desktop and phone, SHALL be built from the fair per
 
 #### Scenario: Previous period without transactions
 - **WHEN** the previous period has no recorded transactions
-- **THEN** the card SHALL say that there is no previous data to compare with and SHALL show only the current outflow
+- **THEN** the card SHALL say that there is no previous data to compare with and SHALL show only the current outflow to date, which SHALL match the Beranda spending summary for the same period
 
 #### Scenario: Comparison unavailable
 - **WHEN** the comparison request fails
