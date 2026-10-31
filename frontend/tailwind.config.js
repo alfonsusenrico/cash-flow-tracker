@@ -58,6 +58,22 @@ module.exports = {
           700: "var(--color-expense-hover)",
         },
       },
+      // Coral text uses the darker text inks so it reads at 4.5:1 on light surfaces;
+      // bg-, border-, ring- and shadow- utilities keep the vivid fills from `colors`.
+      textColor: {
+        expense: {
+          DEFAULT: "var(--expense-text)",
+        },
+        primary: {
+          DEFAULT: "var(--primary-text)",
+        },
+        rose: {
+          400: "var(--expense-text)",
+          500: "var(--expense-text)",
+          600: "var(--expense-text)",
+          700: "var(--expense-text)",
+        },
+      },
       fontFamily: {
         sans: ["var(--font-jakarta)", "Plus Jakarta Sans", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
         display: ["var(--font-jakarta)", "Plus Jakarta Sans", "-apple-system", "BlinkMacSystemFont", "sans-serif"],

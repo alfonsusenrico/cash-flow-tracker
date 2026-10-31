@@ -10,8 +10,8 @@ interface MetricTileProps {
 
 const toneClass = {
   neutral: "text-[var(--text)]",
-  positive: "text-[var(--primary)]",
-  negative: "text-[var(--danger)]",
+  positive: "text-[var(--primary-text)]",
+  negative: "text-[var(--danger-text)]",
   warning: "text-[var(--warning)]",
   info: "text-[var(--info)]",
 };
