@@ -1,0 +1,6 @@
+## REMOVED Requirements
+
+### Requirement: Discard Non-Financial Notifications at Listener Entrance
+**Reason**: The requirement describes the Android companion's on-device storage ("SHALL NOT insert the notification into the local Room database"), which this backend repository neither implements nor verifies. The companion now gives each capture one outcome (drop, keep on the phone, or send): it drops only one-time codes, ongoing, empty and its own notifications before storage, and it stores promotional and other noise on the phone without sending it. That behaviour is owned and tested by the companion repository's `notification-capture` specification. The backend's own filtering stays in "Backend Rejection of Non-Financial Payloads" and the ignore requirements of this capability.
+
+**Migration**: Use the companion repository's `openspec/specs/notification-capture/spec.md` (financial-tracker-mobile-listener) for what the listener stores and forwards. Backend classification of forwarded notifications is unchanged and remains specified by "Backend Rejection of Non-Financial Payloads", "Hard-Noise Notifications Are Ignored", "Promotional Wording Without a Transaction Is Ignored", "Headline Figures Without a Transaction Are Ignored", "Amount-Less Notifications Are Ignored" and "Remaining Notifications Pass the Evidence Checks".
