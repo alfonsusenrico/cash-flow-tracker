@@ -191,7 +191,9 @@ async def lifespan(app: FastAPI):
         and settings.notification_ai_dry_run_enabled
         and not settings.notification_ai_enabled
     )
-    if not dry_run_only:
+    if not settings.background_jobs_enabled:
+        logger.warning("Background jobs disabled; queued notifications wait until they are enabled")
+    elif not dry_run_only:
         tasks.append(asyncio.create_task(_daily_price_sync_loop()))
         tasks.append(asyncio.create_task(_ledger_matching_loop()))
         if settings.plan_auto_link_enabled:

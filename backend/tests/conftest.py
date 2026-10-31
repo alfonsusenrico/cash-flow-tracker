@@ -30,6 +30,9 @@ os.environ.setdefault("COOKIE_SECURE", "false")
 os.environ.setdefault("REDIS_URL", "")
 # Tests run plan auto-linking explicitly so background passes never race their assertions.
 os.environ.setdefault("PLAN_AUTO_LINK_ENABLED", "false")
+# The shared TestClient runs the app lifespan; its notification worker would otherwise claim
+# events that tests claim and process themselves.
+os.environ.setdefault("BACKGROUND_JOBS_ENABLED", "false")
 
 import pytest
 from fastapi.testclient import TestClient
