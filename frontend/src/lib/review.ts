@@ -1,4 +1,5 @@
 import type { KakeiboPillar } from "@/lib/kakeibo";
+import type { HabitBasis } from "@/lib/provenance";
 
 export type ReviewAction = "accept" | "recategorise" | "rename" | "keep_separate";
 
@@ -45,10 +46,12 @@ export interface ReviewGroup {
 
 export interface PurposeSuggestion {
   id: string;
-  kind: "history" | "current" | "repayment";
+  kind: "habit" | "history" | "current" | "repayment";
   label: string;
   category_name: string | null;
   kakeibo: KakeiboPillar | null;
+  /** Present on a `habit` guess: how many earlier owner answers agree with it. */
+  basis?: HabitBasis | null;
 }
 
 export interface PurposeQuestionEntry {

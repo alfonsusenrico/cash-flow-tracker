@@ -101,6 +101,23 @@ def category_breakdown(cur, user_id: str, start: datetime, end: datetime, offset
     return rows
 
 
+TOP_CATEGORY_LIMIT = 3
+
+
+def top_categories(breakdown: list[dict[str, Any]], limit: int = TOP_CATEGORY_LIMIT) -> list[dict[str, Any]]:
+    """The categories with the most net spending in a `category_breakdown`, largest first, then by name.
+
+    Categories at zero or below after reimbursement offsets are left out. Uncategorised spending has no
+    category to name, so it is not listed; the listed amounts therefore never exceed the total outflow.
+    """
+    spending = [row for row in breakdown if not row["is_uncategorized"] and row["spent"] > 0]
+    spending.sort(key=lambda row: (-row["spent"], row["name"], row["id"]))
+    return [
+        {"category_id": row["id"], "name": row["name"], "kakeibo_type": row["kakeibo_type"], "outflow": row["spent"]}
+        for row in spending[:limit]
+    ]
+
+
 def daily_offsets(cur, user_id: str, start: datetime, end: datetime, offsets: SpendingOffsets) -> dict[date, int]:
     """The applied reimbursement offsets of a window, attributed to local days.
 

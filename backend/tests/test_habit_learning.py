@@ -233,6 +233,10 @@ def test_two_answers_only_put_the_guess_first(client, owner, monkeypatch):
         "habit", "Sepertinya Makanan & Minuman?", owner["makan"], "makan siang")
     assert guess["basis"] == {"agreeing": 2, "support": 2}
     assert tx_for(third["event_id"])["review_status"] == "needs_review"
+    queue = client.get("/api/review/queue")
+    assert queue.status_code == 200, queue.text
+    [listed] = [item for item in queue.json()["questions"] if item["event_id"] == third["event_id"]]
+    assert listed["question"]["suggestions"][0] == guess
 
 
 def test_three_of_four_agreeing_answers_still_ask(client, owner, monkeypatch):
