@@ -104,11 +104,6 @@ body {
   transform: scale(0.96);
 }
 
-.card-green {
-  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-2) 100%);
-  color: var(--color-accent-ink);
-}
-
 .donut-ring {
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
@@ -132,10 +127,6 @@ body {
   padding-top: var(--topbar-height);
 }
 
-.workbench-page {
-  padding: var(--space-md);
-}
-
 @media (max-width: 900px) {
   :root {
     --topbar-height: 56px;
@@ -146,7 +137,6 @@ body {
     padding-bottom: 72px;
   }
 
-  .workbench-page,
   .p-5 {
     padding: var(--space-sm);
   }
@@ -279,23 +269,6 @@ html, body { overflow-x: clip; }
 .keypad-btn:active {
   transform: scale(0.94);
   filter: brightness(1.2);
-}
-
-/* Kakeibo Pillar Chips */
-.kakeibo-chip-need {
-  background: var(--color-kakeibo-need-soft);
-  color: var(--color-kakeibo-need);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-}
-.kakeibo-chip-want {
-  background: var(--color-kakeibo-want-soft);
-  color: var(--color-kakeibo-want);
-  border: 1px solid rgba(244, 63, 94, 0.3);
-}
-.kakeibo-chip-saving {
-  background: var(--color-kakeibo-saving-soft);
-  color: var(--color-kakeibo-saving);
-  border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 /* Tactile Spring Physics & Consumer Geometry (Bibit / Cashew / Kazz) */

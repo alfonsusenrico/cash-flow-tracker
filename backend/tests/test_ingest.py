@@ -175,6 +175,21 @@ def test_unknown_pocket_is_not_a_substring_fallback():
         pocket_endpoint("Dana", accounts[0], accounts, institution="jago")
 
 
+def test_a_notification_without_a_pocket_lands_in_the_default_pocket():
+    bca = {"id": "bca", "name": "BCA", "parent_id": None, "default_pocket_id": "harian"}
+    accounts = [
+        bca,
+        {"id": "giro", "name": "BCA Giro", "parent_id": "bca"},
+        {"id": "harian", "name": "BCA Harian", "parent_id": "bca"},
+        {"id": "gopay", "name": "GoPay", "parent_id": None},
+    ]
+    assert pocket_endpoint(None, bca, accounts, institution="bca")["id"] == "harian"
+    assert pocket_endpoint("BCA Giro", bca, accounts, institution="bca")["id"] == "giro"
+    assert pocket_endpoint(None, accounts[3], accounts, institution="gopay")["id"] == "gopay"
+    with pytest.raises(EvidenceError, match="main_pocket_unconfigured"):
+        pocket_endpoint(None, {**bca, "default_pocket_id": None}, accounts, institution="bca")
+
+
 def test_ingest_supported_apps_scope_verification():
     """Verify legacy parser coverage for supported packages; trusted application validates owned configuration separately."""
     from app.services.notification_parser import parse_notification

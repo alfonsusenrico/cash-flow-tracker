@@ -147,6 +147,37 @@ describe("review page", () => {
     })));
   });
 
+  it("names the habit guess with its basis", async () => {
+    const user = userEvent.setup();
+    const base = queue();
+    const [entry] = base.questions;
+    currentQueue = {
+      ...base,
+      questions: [{
+        ...entry,
+        question: {
+          ...entry.question,
+          suggestions: [
+            { id: "s1", kind: "habit", label: "Sepertinya Makanan & Minuman?", category_name: "Makanan & Minuman", kakeibo: "need", basis: { agreeing: 3, support: 4 } },
+            ...entry.question.suggestions.map((suggestion, index) => ({ ...suggestion, id: `s${index + 2}` })),
+          ],
+        },
+      }],
+    };
+    const { container } = renderPage();
+    const card = (await screen.findByRole("heading", { name: /Apa ini\? Rp187\.500/ })).closest("article") as HTMLElement;
+    const guess = within(card).getByRole("button", { name: /^Sepertinya Makanan & Minuman\?.*3 dari 4 jawaban sebelumnya$/ });
+    expect(within(card).getAllByText(/jawaban sebelumnya/)).toHaveLength(1);
+    expect(within(card).getByRole("button", { name: /belanja dapur/ })).not.toHaveTextContent("jawaban sebelumnya");
+    expect((await axe(container)).violations).toHaveLength(0);
+
+    guess.focus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/ingest/notifications/event-1/answer-purpose", expect.objectContaining({
+      question_id: "question-1", suggestion_id: "s1",
+    })));
+  });
+
   it("accepts a whole group from the keyboard", async () => {
     const user = userEvent.setup();
     renderPage();

@@ -75,13 +75,10 @@ function contrast(first: Rgb, second: Rgb): number {
 const textPairs: [string, string[]][] = [
   ["--primary-contrast", ["--primary", "--primary-hover"]],
   ["--danger-contrast", ["--danger-solid", "--danger-solid-hover"]],
-  ["--warning", ["--warning-light", "--surface"]],
-  ["--info", ["--info-light", "--surface"]],
-  ["--color-accent-ink", ["--color-accent", "--color-accent-2"]],
   ["--accent-text", ["--surface", "--bg", "--surface-raised"]],
   ["--expense-text", ["--surface", "--bg", "--surface-raised", "--color-expense-soft"]],
   ["--primary-text", ["--surface", "--bg", "--surface-raised", "--sidebar-hover"]],
-  ["--danger-text", ["--surface", "--bg", "--surface-raised", "--danger-soft"]],
+  ["--danger-text", ["--surface", "--bg", "--surface-raised"]],
 ];
 
 const tailwindTheme = resolveConfig(createRequire(import.meta.url)("../../tailwind.config.js")).theme as unknown as Record<

@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { kakeiboLabel } from "@/lib/kakeibo";
+import { habitBasisText } from "@/lib/provenance";
 import { newReplyId, reviewErrorMessage, type PurposeQuestionEntry } from "@/lib/review";
 
 interface AnswerResponse {
@@ -89,6 +90,12 @@ export function PurposeQuestionCard({ entry, onAnswered }: PurposeQuestionCardPr
                 <span className="block text-[11px] text-[var(--muted)]">
                   {[suggestion.category_name, suggestion.kakeibo ? kakeiboLabel(suggestion.kakeibo) : null].filter(Boolean).join(" · ")}
                 </span>
+              )}
+              {suggestion.kind === "habit" && suggestion.basis && (
+                <>
+                  {" "}
+                  <span className="block text-[11px] tabular-nums text-[var(--muted)]">{habitBasisText(suggestion.basis)}</span>
+                </>
               )}
             </button>
           ))}

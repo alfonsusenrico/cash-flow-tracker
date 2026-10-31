@@ -19,6 +19,7 @@ from app.services.report_figures import (
     reportable_expense_sql,
     reportable_income_sql,
     sunday_first_weekday,
+    top_categories,
 )
 from app.services.observed_insights import cash_flow_history, period_comparison, recurring_charges
 from app.services.question_rate import MAX_WEEKS, question_rate
@@ -59,6 +60,7 @@ def get_cash_flow_summary(
             totals = cur.fetchone()
             offsets = load_spending_offsets(cur, current_user["id"], start, now)
             flow = cash_flow_totals(int(totals["inflow"]), int(totals["outflow"]), offsets.applied)
+            leading = top_categories(category_breakdown(cur, current_user["id"], start, now, offsets))
     return {
         "ok": True,
         "period": period,
@@ -70,6 +72,7 @@ def get_cash_flow_summary(
         **flow,
         "reimbursement_unallocated": offsets.unallocated,
         "reimbursement_excess": offsets.excess,
+        "top_categories": leading,
     }
 
 
