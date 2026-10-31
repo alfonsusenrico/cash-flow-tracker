@@ -15,7 +15,6 @@ vi.mock("@/lib/api", () => ({
 vi.mock("./Sidebar", () => ({ Sidebar: () => null, MobileDrawer: () => null }));
 vi.mock("./TopBar", () => ({ TopBar: () => null }));
 vi.mock("./BottomNav", () => ({ BottomNav: () => null }));
-vi.mock("@/components/ui/SettingsModal", () => ({ SettingsModal: () => null }));
 
 function MovementTrigger() {
   const { openMovement } = useAppCtx();

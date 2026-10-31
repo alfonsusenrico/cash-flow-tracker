@@ -15,6 +15,8 @@ interface MobileHomeViewProps {
   onOpenRecurring?: () => void;
   onSelectTx: (tx: any) => void;
   bal: (amount: number) => string;
+  /** The period insight card; Beranda supplies it so this view stays free of data fetching. */
+  insight?: React.ReactNode;
 }
 
 export function MobileHomeView({
@@ -26,13 +28,13 @@ export function MobileHomeView({
   onOpenRecurring,
   onSelectTx,
   bal,
+  insight,
 }: MobileHomeViewProps) {
   const [balanceMode, setBalanceMode] = useState<"total" | "liquid">("total");
 
   const kpis = dashboard?.kpis;
   const recentTxs = dashboard?.recent_transactions ?? [];
   const kakeibo = dashboard?.kakeibo;
-  const narrative = dashboard?.narrative;
   const accountsLiquidity = dashboard?.accounts_liquidity ?? accounts ?? [];
 
   // Balances
@@ -394,36 +396,7 @@ export function MobileHomeView({
         )}
       </div>
 
-      {/* ============================================================ */}
-      {/* 6. COMPACT NARRATIVE SUMMARY                                 */}
-      {/* ============================================================ */}
-      {narrative && (typeof narrative === "string" ? narrative : narrative.summary) && (
-        <div className="p-4 rounded-3xl border border-indigo-500/20 bg-indigo-500/[0.04] space-y-1.5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
-              ✨ Evaluasi Arus Kas
-            </span>
-            {narrative.trend_status && (
-              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[var(--surface)] border border-[var(--border)]">
-                {narrative.trend_status}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-[var(--text)] leading-relaxed font-medium">
-            {typeof narrative === "string" ? narrative : narrative.summary}
-          </p>
-          {narrative.top_driver && (
-            <div className="text-[10px] text-[var(--muted)] pt-0.5">
-              Pengeluaran Terbesar: <strong className="text-[var(--text)]">{narrative.top_driver}</strong>
-              {narrative.top_driver_delta_available === true && typeof narrative.top_driver_delta_pct === "number" && (
-                <span className="ml-1 text-rose-500 font-bold">
-                  ({narrative.top_driver_delta_pct > 0 ? "+" : ""}{narrative.top_driver_delta_pct}%)
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      {insight}
     </div>
   );
 }

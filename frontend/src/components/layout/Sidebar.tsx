@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { api } from "@/lib/api";
+import { SETTINGS_HOME } from "@/components/settings/sections";
 
 export interface NavItem {
   href: string;
@@ -46,13 +47,11 @@ interface SidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   onQuickAdd?: () => void;
-  onOpenSettings?: () => void;
 }
 
 export function Sidebar({
   collapsed,
   onToggleCollapse,
-  onOpenSettings,
 }: SidebarProps) {
   const pathname = usePathname();
   const { user, reviewAttention } = useAppCtx();
@@ -66,6 +65,7 @@ export function Sidebar({
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
   };
+  const settingsActive = isActive(SETTINGS_HOME);
 
   async function logout() {
     try {
@@ -162,17 +162,18 @@ export function Sidebar({
               </div>
             </div>
             <div className="flex items-center gap-0.5 shrink-0">
-              {onOpenSettings && (
-                <button
-                  type="button"
-                  onClick={onOpenSettings}
-                  aria-label="Pengaturan"
-                  title="Pengaturan"
-                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active)] hover:text-[var(--sidebar-text-active)] focus-visible:outline-2 focus-visible:outline-[var(--primary)] transition-colors"
-                >
-                  <Icon name="settings" className="h-3.5 w-3.5" />
-                </button>
-              )}
+              <Link
+                href={SETTINGS_HOME}
+                aria-label="Pengaturan"
+                aria-current={settingsActive ? "page" : undefined}
+                title="Pengaturan"
+                className={cn(
+                  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg hover:bg-[var(--sidebar-active)] hover:text-[var(--sidebar-text-active)] focus-visible:outline-2 focus-visible:outline-[var(--primary)] transition-colors",
+                  settingsActive ? "bg-[var(--sidebar-active)] text-[var(--sidebar-text-active)]" : "text-[var(--sidebar-text)]",
+                )}
+              >
+                <Icon name="settings" className="h-3.5 w-3.5" />
+              </Link>
               <button
                 type="button"
                 onClick={logout}
@@ -217,19 +218,15 @@ export function Sidebar({
                     </span>
                   </div>
 
-                  {onOpenSettings && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCollapsedMenuOpen(false);
-                        onOpenSettings();
-                      }}
-                      className="flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors text-left"
-                    >
-                      <Icon name="settings" className="h-4 w-4 text-[var(--muted)]" />
-                      <span>Pengaturan</span>
-                    </button>
-                  )}
+                  <Link
+                    href={SETTINGS_HOME}
+                    aria-current={settingsActive ? "page" : undefined}
+                    onClick={() => setCollapsedMenuOpen(false)}
+                    className="flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors text-left"
+                  >
+                    <Icon name="settings" className="h-4 w-4 text-[var(--muted)]" />
+                    <span>Pengaturan</span>
+                  </Link>
 
                   <button
                     type="button"
@@ -255,12 +252,10 @@ export function Sidebar({
 export function MobileDrawer({
   open,
   onClose,
-  onOpenSettings,
 }: {
   open: boolean;
   onClose: () => void;
   onQuickAdd?: () => void;
-  onOpenSettings?: () => void;
 }) {
   const pathname = usePathname();
   const { user, reviewAttention } = useAppCtx();
@@ -271,6 +266,7 @@ export function MobileDrawer({
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
   };
+  const settingsActive = isActive(SETTINGS_HOME);
 
   async function logout() {
     try {
@@ -349,17 +345,16 @@ export function MobileDrawer({
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              {onOpenSettings && (
-                <button
-                  type="button"
-                  onClick={onOpenSettings}
-                  aria-label="Pengaturan"
-                  title="Pengaturan"
-                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--primary)] transition-colors"
-                >
-                  <Icon name="settings" className="h-4 w-4" />
-                </button>
-              )}
+              <Link
+                href={SETTINGS_HOME}
+                onClick={onClose}
+                aria-label="Pengaturan"
+                aria-current={settingsActive ? "page" : undefined}
+                title="Pengaturan"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--primary)] transition-colors"
+              >
+                <Icon name="settings" className="h-4 w-4" />
+              </Link>
               <button
                 type="button"
                 onClick={logout}

@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -5,9 +6,13 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   size?: "sm" | "md";
 }
 
-export function Button({ variant = "secondary", size = "md", className, children, ...props }: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = "secondary", size = "md", className, children, ...props },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       {...props}
       className={cn(
         "inline-flex items-center justify-center font-medium rounded-[var(--radius-md)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]",
@@ -22,4 +27,4 @@ export function Button({ variant = "secondary", size = "md", className, children
       {children}
     </button>
   );
-}
+});

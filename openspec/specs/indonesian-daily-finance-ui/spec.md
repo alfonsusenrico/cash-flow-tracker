@@ -31,7 +31,7 @@ The application SHALL use simple, everyday consumer finance vocabulary rather th
 - **THEN** the reconciliation action is labeled `Sesuaikan` or `Sesuaikan Saldo` in natural Indonesian
 
 ### Requirement: Friendly Form Input and Action Buttons
-All transaction entry forms, account creation dialogs, and settings modals SHALL provide clear, helpful Indonesian labels:
+All transaction entry forms, account creation dialogs, and the settings page SHALL provide clear, helpful Indonesian labels:
 1. Quick capture CTA: `Catat Transaksi` (shortcut: `N`)
 2. Form fields: `Nominal Uang`, `Kategori`, `Dari Rekening`, `Ke Rekening`, `Catatan (Opsional)`, `Tanggal Transaksi`
 3. Primary submit action: `Simpan Transaksi`

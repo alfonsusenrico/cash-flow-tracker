@@ -1,100 +1,146 @@
 "use client";
 
+import { useId } from "react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
-import { Icon } from "@/components/ui/Icon";
+import { useAppCtx } from "@/components/layout/AppLayout";
+import type { PeriodComparisonData } from "@/components/insights/ObservedInsights";
 
-interface NarrativeInsightCardProps {
-  narrative?: {
-    summary: string;
-    trend_status: "MENURUN" | "MENINGKAT" | "STABIL" | string;
-    top_driver?: string | null;
-    top_driver_delta_pct?: number | null;
-    top_driver_delta_available?: boolean;
-  };
-  outflowDeltaPct?: number | null;
-  timeframeLabel?: string;
+/** Day 1 and 2 of a period are dominated by single bills, so a comparison then misleads. */
+export const MIN_COMPARISON_DAYS = 3;
+
+type Change = PeriodComparisonData["categories"]["increases"][number];
+
+function shortDate(isoDate: string) {
+  return new Date(`${isoDate}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
 }
 
-export function NarrativeInsightCard({
-  narrative,
-  outflowDeltaPct = null,
-  timeframeLabel,
-}: NarrativeInsightCardProps) {
-  if (!narrative || !narrative.summary) return null;
+function dateRange(span: { start_date: string; end_date: string }) {
+  return span.start_date === span.end_date ? shortDate(span.start_date) : `${shortDate(span.start_date)} – ${shortDate(span.end_date)}`;
+}
 
-  const trend = narrative.trend_status || "STABIL";
-  const isDown = outflowDeltaPct !== null && trend === "MENURUN";
-  const isUp = outflowDeltaPct !== null && trend === "MENINGKAT";
-  let trendLabel = "STABIL";
-  if (outflowDeltaPct === null) trendLabel = "Belum ada pembanding";
-  else if (isDown) trendLabel = `HEMAT (${outflowDeltaPct}%)`;
-  else if (isUp) trendLabel = `NAIK (+${outflowDeltaPct}%)`;
+function ChangeRows({ title, items, bal, increase }: { title: string; items: Change[]; bal: (n: number) => string; increase: boolean }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="min-w-0 space-y-1">
+      <h3 className="text-[11px] font-semibold text-[var(--text-secondary)]">{title}</h3>
+      <ul className="space-y-1">
+        {items.map((item) => (
+          <li key={item.key} className="flex min-w-0 items-baseline justify-between gap-2">
+            <span className="min-w-0 break-words text-[var(--text)]">{item.name}</span>
+            <span className="shrink-0 text-right tabular-nums">
+              <span className={cn("font-bold", increase ? "text-rose-700 dark:text-rose-300" : "text-emerald-700 dark:text-emerald-300")}>
+                {increase ? "+" : "−"}{bal(Math.abs(item.change))}
+              </span>
+              <span className="block text-[11px] text-[var(--muted)]">{bal(item.previous)} → {bal(item.current)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function Headline({ data, bal }: { data: PeriodComparisonData; bal: (n: number) => string }) {
+  const days = data.compared_days;
+  const current = data.current.outflow;
+  if (data.current_truncated && days < MIN_COMPARISON_DAYS) {
+    return <p>Periode lalu hanya {days} hari, terlalu pendek untuk dibandingkan. Uang keluar sejauh ini <strong className="tabular-nums">{bal(current)}</strong>.</p>;
+  }
+  if (days < MIN_COMPARISON_DAYS) {
+    return (
+      <p>
+        Baru {days} hari berjalan. Perbandingan muncul setelah {MIN_COMPARISON_DAYS} hari agar tidak menyesatkan. Uang keluar sejauh
+        ini <strong className="tabular-nums">{bal(current)}</strong>.
+      </p>
+    );
+  }
+  if (!data.previous_has_data || !data.previous) {
+    return (
+      <p>
+        Periode lalu belum punya transaksi tercatat, jadi belum ada pembanding. Uang keluar sejauh ini{" "}
+        <strong className="tabular-nums">{bal(current)}</strong>.
+      </p>
+    );
+  }
+  const difference = current - data.previous.outflow;
+  return (
+    <>
+      <p>
+        Dalam {days} hari pertama, uang keluar <strong className="tabular-nums">{bal(current)}</strong>
+        {difference === 0 ? (
+          <>, sama dengan periode lalu pada hari yang sama.</>
+        ) : (
+          <>
+            , <strong className="tabular-nums">{bal(Math.abs(difference))}</strong> {difference > 0 ? "lebih tinggi" : "lebih rendah"} dari
+            periode lalu pada hari yang sama.
+          </>
+        )}
+      </p>
+      <p className="mt-1 text-xs text-[var(--text-secondary)]">
+        Pembanding: {data.previous_label ?? "periode lalu"}, <span className="tabular-nums">{dateRange(data.previous)}</span>
+      </p>
+    </>
+  );
+}
+
+/** Beranda insight from the fair comparison: same elapsed days, amounts only, honest when data is too thin. */
+export function NarrativeInsightCard() {
+  const { timeframe, cycleOffset, bal } = useAppCtx();
+  const titleId = useId();
+  const basis = timeframe === "cycle" || timeframe === "month" ? timeframe : null;
+  const { data, isPending, isError } = useQuery<PeriodComparisonData>({
+    queryKey: queryKeys.dashboard.periodComparison(basis ?? "none", cycleOffset),
+    queryFn: () => api.get(`/dashboard/period-comparison?timeframe=${basis}&cycle_offset=${cycleOffset}`),
+    enabled: basis !== null,
+  });
+  const comparable = data !== undefined && data.compared_days >= MIN_COMPARISON_DAYS && data.previous_has_data;
 
   return (
-    <div className="card-squircle p-4 sm:p-5 space-y-3 border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.04] via-[var(--surface)] to-[var(--surface-raised)] shadow-xs">
-      {/* Header with Icon and Trend Badge */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <div
-            className={cn(
-              "h-7 w-7 rounded-lg flex items-center justify-center shrink-0",
-              isDown
-                ? "bg-emerald-500/10 text-emerald-500"
-                : isUp
-                ? "bg-rose-500/10 text-rose-500"
-                : "bg-slate-500/10 text-slate-400"
-            )}
-          >
-            <Icon
-              name={isDown ? "trending-down" : isUp ? "trending-up" : "activity"}
-              className="h-4 w-4"
-            />
-          </div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
-            Insight & Komparasi {timeframeLabel ? `• ${timeframeLabel}` : ""}
-          </span>
-        </div>
-
-        <span
-          className={cn(
-            "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
-            isDown
-              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-              : isUp
-              ? "bg-rose-500/10 text-rose-500 border-rose-500/20"
-              : "bg-slate-500/10 text-slate-400 border-slate-500/20"
-          )}
-        >
-          {trendLabel}
-        </span>
+    <section aria-labelledby={titleId} className="card-squircle space-y-3 p-4 text-xs text-[var(--text)] sm:p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h2 id={titleId} className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+          Dibanding periode lalu
+        </h2>
+        {data && <span className="text-[11px] text-[var(--muted)]">{data.label}</span>}
       </div>
 
-      {/* Conversational Indonesian Narrative Text */}
-      <p className="text-xs sm:text-sm font-medium leading-relaxed text-[var(--text)]">
-        {narrative.summary}
-      </p>
-
-      {/* Top Driver Highlight Pill */}
-      {narrative.top_driver && (
-        <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between text-[11px]">
-          <span className="text-[var(--muted)]">Driver Utama:</span>
-          <span className="font-semibold text-[var(--text)] flex items-center gap-1.5">
-            <span>{narrative.top_driver}</span>
-            {narrative.top_driver_delta_available === true && narrative.top_driver_delta_pct !== undefined && narrative.top_driver_delta_pct !== null && (
-              <span
-                className={cn(
-                  "px-1.5 py-0.2 rounded text-[10px]",
-                  narrative.top_driver_delta_pct > 0
-                    ? "bg-rose-500/10 text-rose-500"
-                    : "bg-emerald-500/10 text-emerald-500"
-                )}
-              >
-                {narrative.top_driver_delta_pct > 0 ? `+${narrative.top_driver_delta_pct}%` : `${narrative.top_driver_delta_pct}%`}
-              </span>
-            )}
-          </span>
-        </div>
+      {basis === null ? (
+        <p className="text-[var(--text-secondary)]">Perbandingan tersedia untuk siklus gajian atau bulan kalender.</p>
+      ) : isError ? (
+        <p className="text-[var(--text-secondary)]">Perbandingan belum dapat dimuat.</p>
+      ) : isPending || !data ? (
+        <p role="status" className="text-[var(--text-secondary)]">Memuat perbandingan…</p>
+      ) : (
+        <>
+          <div className="text-sm leading-relaxed">
+            <Headline data={data} bal={bal} />
+          </div>
+          {comparable && data.current_truncated && (
+            <p className="text-[var(--text-secondary)]">Periode lalu lebih pendek, jadi periode ini juga dipotong agar adil.</p>
+          )}
+          {comparable && (
+            data.categories.increases.length + data.categories.decreases.length === 0 ? (
+              <p className="text-[var(--text-secondary)]">Tidak ada perubahan per kategori.</p>
+            ) : (
+              <div className="space-y-3 border-t border-[var(--border)] pt-3">
+                <ChangeRows title="Naik paling banyak" items={data.categories.increases} bal={bal} increase />
+                <ChangeRows title="Turun paling banyak" items={data.categories.decreases} bal={bal} increase={false} />
+              </div>
+            )
+          )}
+        </>
       )}
-    </div>
+
+      <Link
+        href="/insights"
+        className="inline-flex min-h-11 items-center text-xs font-semibold text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
+      >
+        Lihat perbandingan lengkap di Analisis
+      </Link>
+    </section>
   );
 }

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,7 +19,7 @@ const alias = {
 function show() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   const invalidate = vi.spyOn(client, "invalidateQueries");
-  render(<QueryClientProvider client={client}><SenderAliasesSection enabled /></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><SenderAliasesSection /></QueryClientProvider>);
   return { invalidate, user: userEvent.setup() };
 }
 
@@ -79,15 +79,75 @@ describe("sender memory", () => {
     expect(await screen.findByText(/Nama berbeda pernah dikonfirmasi/)).toBeInTheDocument();
     expect((await axe(screen.getByRole("region", { name: "Nama pengirim" }))).violations).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "Hapus nama pengirim AN**RA**" }));
+    const confirm = screen.getByRole("group", { name: "Hapus AN**RA** → Andra?" });
+    expect(within(confirm).getByRole("button", { name: "Batal" })).toHaveFocus();
+    expect(deleteSenderAlias).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole("button", { name: "Ya, hapus" }));
     await waitFor(() => expect(deleteSenderAlias).toHaveBeenCalledWith("sender-1"));
+    expect(deleteSenderAlias).toHaveBeenCalledTimes(1);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.senderAliases });
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Nama pengirim" })).toHaveFocus());
+  });
+
+  it("cancels a removal by button or Escape and returns focus to Hapus", async () => {
+    const { user } = show();
+    const remove = await screen.findByRole("button", { name: "Hapus nama pengirim AN**RA**" });
+    await user.click(remove);
+    await user.click(screen.getByRole("button", { name: "Batal" }));
+    expect(screen.getByRole("button", { name: "Hapus nama pengirim AN**RA**" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Hapus nama pengirim AN**RA**" }));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("button", { name: "Ya, hapus" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hapus nama pengirim AN**RA**" })).toHaveFocus();
+    expect(deleteSenderAlias).not.toHaveBeenCalled();
   });
 
   it("reports failed removal and preserves memory", async () => {
     vi.mocked(deleteSenderAlias).mockRejectedValue(new Error("offline"));
     const { user } = show();
     await user.click(await screen.findByRole("button", { name: "Hapus nama pengirim AN**RA**" }));
+    await user.click(screen.getByRole("button", { name: "Ya, hapus" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("gagal dihapus");
     expect(screen.getByText(/BCA · Harian/)).toBeInTheDocument();
+  });
+
+  it("offers search only above eight names and filters by mask, name, bank or account", async () => {
+    const many = Array.from({ length: 12 }, (_, index) => ({
+      ...alias,
+      id: `sender-${index}`,
+      mask: `SY**${index}`,
+      name: index === 3 ? "Bima Sétiawan" : `Sintetis ${index}`,
+      institution: index < 4 ? "jago" : "bca",
+      account: index === 7 ? "Dompet Harian" : "BCA · Harian",
+    }));
+    vi.mocked(getSenderAliases).mockResolvedValue({ ok: true, aliases: many });
+    const { user } = show();
+    const search = await screen.findByRole("searchbox", { name: "Cari nama pengirim" });
+    expect(screen.getByRole("status")).toHaveTextContent("12 dari 12 nama");
+    await user.type(search, "JAGO");
+    expect(within(screen.getByRole("list", { name: "Nama pengirim tersimpan" })).getAllByRole("listitem")).toHaveLength(4);
+    expect(screen.getByRole("status")).toHaveTextContent("4 dari 12 nama");
+    await user.clear(search);
+    await user.type(search, "setiawan");
+    expect(screen.getByText(/Bima Sétiawan/)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("1 dari 12 nama");
+    await user.clear(search);
+    await user.type(search, "dompet");
+    expect(screen.getByRole("button", { name: "Ubah nama pengirim SY**7" })).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, "sy**11");
+    expect(screen.getByRole("status")).toHaveTextContent("1 dari 12 nama");
+    await user.clear(search);
+    await user.type(search, "tidak ada");
+    expect(screen.getByText("Tidak ada nama yang cocok.")).toBeInTheDocument();
+    expect((await axe(screen.getByRole("region", { name: "Nama pengirim" }))).violations).toHaveLength(0);
+  });
+
+  it("shows no search for eight names or fewer", async () => {
+    const eight = Array.from({ length: 8 }, (_, index) => ({ ...alias, id: `sender-${index}`, mask: `SY**${index}` }));
+    vi.mocked(getSenderAliases).mockResolvedValue({ ok: true, aliases: eight });
+    show();
+    expect(await screen.findByRole("button", { name: "Ubah nama pengirim SY**7" })).toBeInTheDocument();
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
   });
 });
