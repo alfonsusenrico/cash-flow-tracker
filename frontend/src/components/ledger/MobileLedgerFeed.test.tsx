@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { axe } from "vitest-axe";
 import { describe, expect, it, vi } from "vitest";
 import { MobileLedgerFeed, type LedgerTxItem } from "./MobileLedgerFeed";
 
@@ -36,6 +37,13 @@ const holdHandlers = {
 };
 
 describe("MobileLedgerFeed", () => {
+  it("labels a habit-recorded payment with the answers it followed", async () => {
+    const habit = { ...payment, obligation_allocations: [], notes: "Makan siang", classified_by: "habit",
+      review_status: "reviewed", habit_basis: { agreeing: 4, support: 4 } };
+    const { container } = render(<MobileLedgerFeed transactions={[habit]} onOpenEdit={vi.fn()} {...holdHandlers} bal={(amount) => `Rp ${amount.toLocaleString("id-ID")}`} />);
+    expect(screen.getByRole("button", { name: /Makan siang/ })).toHaveTextContent("Dicatat dari kebiasaan · 4 dari 4");
+    expect((await axe(container)).violations).toHaveLength(0);
+  });
   it("shows one investment top-up row and opens its contribution", async () => {
     const topup = { ...payment, investment_topup_id: "topup-1", movement_id: "topup-1", is_consolidated_transfer: true };
     const onOpenEdit = vi.fn();

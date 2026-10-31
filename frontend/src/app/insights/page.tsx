@@ -15,6 +15,7 @@ import { BurnCadenceChart } from "@/components/dashboard/BurnCadenceChart";
 import { SpendingHeatmap } from "@/components/dashboard/SpendingHeatmap";
 import { KakeiboBenchmark } from "@/components/dashboard/KakeiboBenchmark";
 import { CashFlowHistory, PeriodComparison, RecurringCharges } from "@/components/insights/ObservedInsights";
+import { QuestionRate } from "@/components/insights/QuestionRate";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import type { ExpensePlanDraft } from "@/types/recurring";
 import { KAKEIBO_PILLARS, type KakeiboPillar, kakeiboPillarInfo, pillarOrNeed } from "@/lib/kakeibo";
@@ -803,6 +804,7 @@ export default function AnalyticsPage() {
           <PeriodComparison basis={insightBasis} offset={insightOffset} bal={bal} />
           <CashFlowHistory basis={insightBasis} bal={bal} />
           <RecurringCharges bal={bal} onCreatePlan={setPlanDraft} />
+          <QuestionRate />
 
           <KakeiboBenchmark kakeibo={kakeibo} pillarHref={pillarHref} />
         </div>

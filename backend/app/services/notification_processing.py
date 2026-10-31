@@ -16,6 +16,7 @@ from app.db.pool import db_conn
 from app.services.notification_application import (
     apply_broker_trade, apply_interpretation, apply_manual_resolution, classify_without_model, committed_snapshot,
 )
+from app.services.habits import basis_text, habit_applies, habit_label
 from app.services.notification_context import load_context, sanitize_text
 from app.services.notification_evidence import EvidenceError, collect_facts
 from app.services.notification_interpretation import PROMPT_VERSION
@@ -83,8 +84,10 @@ def compact_result(cur, event: dict) -> dict:
         result.update(event["result_snapshot"])
         if event.get("transaction_id") and result.get("type") in {"expense", "income"} and not event.get("movement_id"):
             cur.execute(
-                """SELECT id, review_status FROM transactions WHERE user_id = %s AND id = %s
-                   AND type IN ('expense', 'income') AND movement_id IS NULL AND movement_role IS NULL""",
+                """SELECT t.id, t.review_status, t.classified_by, c.name AS category_name
+                   FROM transactions t LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
+                   WHERE t.user_id = %s AND t.id = %s
+                   AND t.type IN ('expense', 'income') AND t.movement_id IS NULL AND t.movement_role IS NULL""",
                 (event["user_id"], event["transaction_id"]),
             )
             if transaction := cur.fetchone():
@@ -94,6 +97,10 @@ def compact_result(cur, event: dict) -> dict:
                     result["review_status"] = transaction["review_status"]
                     if question := open_purpose_question(event):
                         result["question"] = question
+                    basis = (event.get("interpretation") or {}).get("habit")
+                    if transaction["classified_by"] == "habit" and basis:
+                        result["habit"] = {"label": habit_label(transaction["category_name"]),
+                                           "basis": basis_text(basis["agreeing"], basis["support"])}
     elif event.get("error_code"):
         result["error_code"] = event["error_code"]
     if status == "needs_confirmation":
@@ -283,8 +290,10 @@ def read_context(event: dict) -> tuple:
 
 
 def memory_applies(context: dict) -> bool:
-    """An owner memory hit records without the model; unresolved account names still need it."""
-    return bool(context.get("_owner_memory_hit")) and not (context.get("facts") or {}).get("unresolved_names")
+    """An owner memory hit or a learned habit records without the model; unresolved account names still need it."""
+    if (context.get("facts") or {}).get("unresolved_names"):
+        return False
+    return bool(context.get("_owner_memory_hit")) or habit_applies(context)
 
 
 def apply_deterministic_fallback(conn, cur, event: dict, facts, context: dict, reason_code: str) -> None:

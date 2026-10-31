@@ -13,6 +13,7 @@ from psycopg.types.json import Jsonb
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.services.habits import HabitDecision, guess_label
 from app.services.merchant_memory import (
     insert_feedback, is_masked, learn_from_owner, local_time_features, owner_identity, snapshot_rows,
     transaction_event_key,
@@ -111,11 +112,22 @@ def suggestion(kind: str, values: dict, categories: dict[str, dict]) -> dict:
     }
 
 
+def habit_suggestion(habit: HabitDecision, categories: dict[str, dict]) -> dict | None:
+    """The habit's best guess, offered first as "Sepertinya <kategori>?" (learn-habits-to-ask-less D8)."""
+    category = categories.get(habit.category_id)
+    if not category or category["is_archived"] or category["kind"] != "expense":
+        return None
+    values = {"merchant": habit.merchant, "notes": habit.notes or category["name"],
+              "category_id": habit.category_id, "kakeibo": habit.kakeibo, "offset_category_id": None}
+    return {**suggestion("habit", values, categories), "label": guess_label(category["name"])[:160],
+            "basis": {"agreeing": habit.agreeing, "support": habit.support}}
+
+
 def rank_suggestions(
     cur, user_id: str, *, direction: str, signature: str | None, account_id: str, amount: int,
-    moment: datetime, current: dict | None, repayment_note: str | None,
+    moment: datetime, current: dict | None, repayment_note: str | None, habit: HabitDecision | None = None,
 ) -> list[dict]:
-    """Owner history first, then the current classification, then a repayment option (design D10)."""
+    """The habit's guess, then owner history, the current classification and a repayment option (design D10)."""
     categories = owner_categories(cur, user_id)
     weekday, hour = local_time_features(moment)
     cur.execute(
@@ -145,8 +157,15 @@ def rank_suggestions(
                                                                  "latest": example["created_at"]})
         group["score"] += score
     ranked = sorted(groups.values(), key=lambda item: (item["score"], item["latest"]), reverse=True)
-    suggestions = [suggestion("history", item["values"], categories) for item in ranked[:SUGGESTION_LIMIT]]
-    seen = {classification_group(item["values"]) for item in ranked[:SUGGESTION_LIMIT]}
+    guess = habit_suggestion(habit, categories) if habit is not None and direction == "expense" else None
+    if guess is not None:
+        guessed = classification_group(guess)
+        ranked = [item for item in ranked if classification_group(item["values"]) != guessed]
+    history_slots = SUGGESTION_LIMIT - (1 if guess is not None else 0)
+    suggestions = ([guess] if guess is not None else []) + [
+        suggestion("history", item["values"], categories) for item in ranked[:history_slots]
+    ]
+    seen = {classification_group(item) for item in suggestions}
     if current and current.get("category_id") and classification_group(current) not in seen:
         if len(suggestions) < SUGGESTION_LIMIT:
             suggestions.append(suggestion("current", current, categories))
@@ -196,6 +215,8 @@ def attach_purpose_question(
         name = (event.get("sender_resolution") or {}).get("name")
         repayment_note = f"Ganti uang dari {name}" if name else "Ganti uang patungan"
     hint = (facts.parsed.category_hint or "").strip() or None
+    learned = context.get("_habit")
+    habit = learned["decision"] if learned and learned["account_id"] == str(observed["id"]) else None
     question = {
         "type": "purpose", "question_id": str(uuid4()), "transaction_id": transaction_id,
         "direction": facts.direction, "amount": facts.amount, "currency": facts.currency,
@@ -206,7 +227,7 @@ def attach_purpose_question(
         "suggestions": rank_suggestions(
             cur, user_id, direction=facts.direction, signature=key.get("text_signature"),
             account_id=str(observed["id"]), amount=facts.amount, moment=facts.timestamp,
-            current=current, repayment_note=repayment_note,
+            current=current, repayment_note=repayment_note, habit=habit,
         ),
     }
     cur.execute(

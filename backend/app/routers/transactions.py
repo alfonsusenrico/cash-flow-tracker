@@ -81,7 +81,15 @@ def provenance_fields(row: dict[str, Any]) -> dict[str, Any]:
         "is_reimbursement": bool(row.get("is_reimbursement")),
         "offset_category_id": str(row["offset_category_id"]) if row.get("offset_category_id") else None,
         "offset_category_name": row.get("offset_category_name"),
+        "habit_basis": habit_basis_fields(row.get("habit_basis")),
     }
+
+
+def habit_basis_fields(basis: dict | None) -> dict[str, int] | None:
+    """How many earlier owner answers a habit-recorded row followed (learn-habits-to-ask-less D10)."""
+    if not basis:
+        return None
+    return {"agreeing": int(basis["agreeing"]), "support": int(basis["support"])}
 
 
 # A movement's fee row and, for a fee row, the movement it was charged on (movement pairing D5).
@@ -156,7 +164,12 @@ def ledger_cash_flow(
 PROVENANCE_SELECT = """
     t.source, t.merchant, t.review_status, t.classified_by, t.classification_confidence,
     t.owner_edited_at, t.offset_category_id, offset_category.name AS offset_category_name,
-    COALESCE(c.offsets_spending, FALSE) AND t.type = 'income' AS is_reimbursement
+    COALESCE(c.offsets_spending, FALSE) AND t.type = 'income' AS is_reimbursement,
+    CASE WHEN t.classified_by = 'habit' THEN (
+        SELECT habit_event.interpretation -> 'habit' FROM notification_events habit_event
+        WHERE habit_event.user_id = t.user_id AND habit_event.transaction_id = t.id
+        ORDER BY habit_event.post_time, habit_event.id LIMIT 1
+    ) END AS habit_basis
 """
 
 

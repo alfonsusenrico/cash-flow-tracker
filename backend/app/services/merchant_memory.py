@@ -179,7 +179,7 @@ def snapshot_rows(cur, user_id: str, transaction_ids: list[str]) -> dict[str, di
     cur.execute(
         """SELECT t.id, t.type, t.amount, t.date, t.account_id, t.merchant, t.notes, t.category_id,
                   c.name AS category_name, t.kakeibo_type, c.kakeibo_type AS category_kakeibo_type,
-                  t.offset_category_id, t.movement_id, t.source, t.review_status
+                  t.offset_category_id, t.movement_id, t.source, t.review_status, t.classified_by
            FROM transactions t LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
            WHERE t.user_id = %s AND t.id = ANY(%s::uuid[])""",
         (user_id, transaction_ids),
@@ -247,9 +247,10 @@ def insert_feedback(
                after_merchant, after_notes, after_category_id, after_category_name, after_kakeibo_type,
                after_type, after_offset_category_id,
                local_weekday, local_hour, amount, account_id, institution, text_signature, match_key,
-               transaction_source, history_suggestion_id)
+               transaction_source, history_suggestion_id, before_classified_by, after_classified_by,
+               after_review_status)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                   %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
         (
             user_id, kind, str(after["id"]), key.get("event_id"), answer.get("question_id"),
             answer.get("reply_id"), answer.get("suggestion_id"), answer.get("text"),
@@ -261,6 +262,7 @@ def insert_feedback(
             after.get("type"), after.get("offset_category_id"),
             weekday, hour, after.get("amount"), after.get("account_id"), key.get("institution"),
             key.get("text_signature"), key.get("match_key"), after.get("source"), history_suggestion_id,
+            before.get("classified_by"), after.get("classified_by"), after.get("review_status"),
         ),
     )
 

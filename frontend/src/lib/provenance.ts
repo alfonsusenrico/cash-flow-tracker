@@ -11,7 +11,13 @@ export type TransactionSource =
 
 export type ReviewStatus = "auto" | "needs_review" | "reviewed";
 
-export type Classifier = "rule" | "ai" | "owner" | "system";
+export type Classifier = "rule" | "ai" | "owner" | "system" | "habit";
+
+/** How many earlier owner answers a habit-recorded row followed. */
+export interface HabitBasis {
+  agreeing: number;
+  support: number;
+}
 
 const SOURCE_LABELS: Record<TransactionSource, string> = {
   manual: "Dicatat manual",
@@ -36,6 +42,7 @@ const CLASSIFIER_LABELS: Record<Classifier, string> = {
   ai: "AI",
   owner: "Anda",
   system: "Sistem",
+  habit: "Kebiasaan",
 };
 
 export const MERCHANT_MAX_LENGTH = 120;
@@ -54,6 +61,18 @@ export function reviewStatusLabel(value: string | null | undefined): string | nu
 export function classifierLabel(value: string | null | undefined): string | null {
   if (!value) return null;
   return CLASSIFIER_LABELS[value as Classifier] ?? value;
+}
+
+export function isHabitRecorded(classifiedBy: string | null | undefined, basis: HabitBasis | null | undefined): basis is HabitBasis {
+  return classifiedBy === "habit" && Boolean(basis);
+}
+
+export function habitBasisText(basis: HabitBasis): string {
+  return `${basis.agreeing} dari ${basis.support} jawaban sebelumnya`;
+}
+
+export function habitRecordLabel(categoryName: string | null | undefined): string {
+  return categoryName ? `Dicatat dari kebiasaan: ${categoryName}` : "Dicatat dari kebiasaan";
 }
 
 export function needsOwnerReview(value: string | null | undefined): boolean {

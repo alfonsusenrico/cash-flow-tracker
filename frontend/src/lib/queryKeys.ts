@@ -20,6 +20,7 @@ export const queryKeys = {
     periodComparison: (basis: string, offset: number) => ["dashboard", "period-comparison", basis, offset] as const,
     cashFlowHistory: (basis: string) => ["dashboard", "cash-flow-history", basis] as const,
     recurringCharges: ["dashboard", "recurring-charges"] as const,
+    questionRate: (weeks: number) => ["dashboard", "question-rate", weeks] as const,
   },
   recurring: {
     all: ["recurring"] as const,

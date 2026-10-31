@@ -164,7 +164,8 @@ def similar_rows(cur, user_id: str, facts: dict, kind: str | None = None) -> lis
     cur.execute(
         """SELECT t.merchant, LEFT(t.notes, 160) AS description, t.category_id, t.type, t.amount, t.account_id,
                   CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo,
-                  (t.classified_by = 'owner' OR t.review_status = 'reviewed') AS owner_confirmed
+                  (t.classified_by = 'owner'
+                   OR (t.review_status = 'reviewed' AND t.classified_by IS DISTINCT FROM 'habit')) AS owner_confirmed
            FROM transactions t
            JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id AND c.is_archived = FALSE
            WHERE t.user_id = %s AND t.movement_id IS NULL AND t.type IN ('expense', 'income')

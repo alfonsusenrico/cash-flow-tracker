@@ -189,6 +189,7 @@ function insightResponse(path: string, previousHasData = true) {
   if (path.startsWith("/dashboard/period-comparison?")) return comparisonData(previousHasData);
   if (path.startsWith("/dashboard/cash-flow-history?")) return historyData;
   if (path === "/dashboard/recurring-charges") return chargesData;
+  if (path === "/dashboard/question-rate?weeks=8") return { weeks: [], has_data: false };
   return null;
 }
 
@@ -218,6 +219,7 @@ describe("observed insights", () => {
     const need = screen.getAllByRole("link", { name: "Kebutuhan" }).find((link) => link.getAttribute("href")?.includes("from="));
     expect(need).toHaveAttribute("href", `/ledger?kakeibo=need&type=expense&${window}`);
     expect(within(screen.getByRole("region", { name: "Periode ini vs periode lalu" })).queryByText(/%/)).not.toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Seberapa sering ditanya" })).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
   });
 

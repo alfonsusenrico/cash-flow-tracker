@@ -5,6 +5,7 @@ import re
 from datetime import timedelta
 from typing import Any
 
+from app.services.habits import evaluate_habit
 from app.services.merchant_memory import (
     classification_key, institution_packages, load_memory, merchant_match_key, owner_memory_hit,
 )
@@ -142,6 +143,7 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
     # Internal fields stay out of the model input (the provider drops underscore-prefixed keys).
     context["_classification_key"] = key
     context["_owner_memory_hit"] = owner_memory_hit(memory, key, facts.direction)
+    context["_habit"] = evaluate_habit(cur, user_id, facts, context)
     return context
 
 
@@ -156,7 +158,8 @@ def similar_history(cur, user_id: str, facts: NotificationFacts, key: dict | Non
         SELECT * FROM (
             SELECT t.id, t.merchant, LEFT(t.notes, 160) AS description, t.category_id, t.amount, t.date,
                    CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo,
-                   (t.classified_by = 'owner' OR t.review_status = 'reviewed') AS owner_confirmed,
+                   (t.classified_by = 'owner'
+                    OR (t.review_status = 'reviewed' AND t.classified_by IS DISTINCT FROM 'habit')) AS owner_confirmed,
                    (n.interpretation ->> 'match_key' = %(match_key)s
                     OR ('merchant:' || lower(regexp_replace(trim(t.merchant), '[[:space:]]+', ' ', 'g'))) = %(merchant_key)s
                    ) AS same_key,
