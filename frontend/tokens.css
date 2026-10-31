@@ -31,9 +31,6 @@
   --color-expense: #FF334B;
   --color-expense-hover: #E02038;
   --color-expense-soft: #FFE8EC;
-  --color-transfer: #7C3AED;
-  --color-transfer-hover: #6D28D9;
-  --color-transfer-soft: #F5F3FF;
   --color-warning: #F59E0B;
   --color-warning-soft: #FEF3C7;
   --color-focus: #FF334B;
@@ -105,7 +102,8 @@
   /* Spacing */
   --space-sm: 1rem;
 
-  /* Shadows */
+  /* Shadows. --shadow-xs is the 1px raise of plain cards and chips; the hairline border still separates them. */
+  --shadow-xs: 0 1px 2px 0 rgba(8, 10, 14, 0.04);
   --shadow-sm: 0 2px 8px -1px rgba(8, 10, 14, 0.06);
   --shadow-md: 0 10px 28px -4px rgba(8, 10, 14, 0.1);
 
@@ -142,9 +140,6 @@
   --color-expense: #FF4757;
   --color-expense-hover: #FF6675;
   --color-expense-soft: rgba(255, 71, 87, 0.18);
-  --color-transfer: #8B5CF6;
-  --color-transfer-hover: #A78BFA;
-  --color-transfer-soft: rgba(139, 92, 246, 0.18);
   --color-warning: #FBBF24;
   --color-warning-soft: rgba(251, 191, 36, 0.16);
   --color-focus: #FF4757;
@@ -182,6 +177,7 @@
   --danger-solid: #9F1239;
   --danger-solid-hover: #881337;
 
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 4px 14px -2px rgba(0, 0, 0, 0.7);
   --shadow-md: 0 14px 36px -4px rgba(0, 0, 0, 0.9);
 }

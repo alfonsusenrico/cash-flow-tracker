@@ -23,11 +23,6 @@ module.exports = {
           hover: "var(--color-expense-hover)",
           soft: "var(--color-expense-soft)",
         },
-        transfer: {
-          DEFAULT: "var(--color-transfer)",
-          hover: "var(--color-transfer-hover)",
-          soft: "var(--color-transfer-soft)",
-        },
         warning: {
           DEFAULT: "var(--color-warning)",
           soft: "var(--color-warning-soft)",
@@ -88,6 +83,7 @@ module.exports = {
         card: "var(--radius-card)",
       },
       boxShadow: {
+        xs: "var(--shadow-xs)",
         sm: "var(--shadow-sm)",
         md: "var(--shadow-md)",
       },

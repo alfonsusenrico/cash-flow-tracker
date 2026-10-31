@@ -105,15 +105,21 @@ TOP_CATEGORY_LIMIT = 3
 
 
 def top_categories(breakdown: list[dict[str, Any]], limit: int = TOP_CATEGORY_LIMIT) -> list[dict[str, Any]]:
-    """The categories with the most net spending in a `category_breakdown`, largest first, then by name.
+    """The rows of a `category_breakdown` with the most net spending, largest first, then by name.
 
-    Categories at zero or below after reimbursement offsets are left out. Uncategorised spending has no
-    category to name, so it is not listed; the listed amounts therefore never exceed the total outflow.
+    Rows at zero or below after reimbursement offsets are left out. Uncategorised spending ranks with the
+    categories as "Tanpa kategori", with `category_id` and `kakeibo_type` None: it has neither a category
+    nor a classification. When no row is cut by the limit, the amounts add up to the total outflow.
     """
-    spending = [row for row in breakdown if not row["is_uncategorized"] and row["spent"] > 0]
-    spending.sort(key=lambda row: (-row["spent"], row["name"], row["id"]))
+    spending = [row for row in breakdown if row["spent"] > 0]
+    spending.sort(key=lambda row: (-row["spent"], row["name"], row["id"] or ""))
     return [
-        {"category_id": row["id"], "name": row["name"], "kakeibo_type": row["kakeibo_type"], "outflow": row["spent"]}
+        {
+            "category_id": row["id"],
+            "name": row["name"],
+            "kakeibo_type": None if row["is_uncategorized"] else row["kakeibo_type"],
+            "outflow": row["spent"],
+        }
         for row in spending[:limit]
     ]
 
