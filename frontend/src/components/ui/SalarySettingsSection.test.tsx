@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -27,19 +27,57 @@ beforeEach(() => {
 it("allows source selection and explicitly rejects ambiguous income", async () => {
   const user = userEvent.setup();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  const { container } = render(<QueryClientProvider client={client}><SalarySettingsSection open /></QueryClientProvider>);
-  expect(await screen.findByText(/sumber: synthetic employer/i)).toBeInTheDocument();
+  const { container } = render(<QueryClientProvider client={client}><SalarySettingsSection /></QueryClientProvider>);
+  const current = await screen.findByRole("region", { name: "Sumber gaji saat ini" });
+  expect(current).toHaveTextContent("Synthetic employer");
+  expect(current).toHaveTextContent("Dikenali dari nama pengirim");
   expect((await axe(container)).violations).toHaveLength(0);
+  await user.click(screen.getByText("Ganti sumber"));
   await user.selectOptions(screen.getByRole("combobox", { name: /pilih pemasukan/i }), income.id);
-  await user.click(screen.getByRole("button", { name: /gunakan sebagai sumber/i }));
+  await user.click(screen.getByRole("button", { name: "Jadikan sumber gaji" }));
   await waitFor(() => expect(api.put).toHaveBeenCalledWith("/salary/source", { transaction_id: income.id }));
   await user.click(screen.getByRole("button", { name: /^Bukan gaji: / }));
   await waitFor(() => expect(api.post).toHaveBeenCalledWith("/salary/reject", { transaction_id: income.id }));
 });
 
+it("keeps marking, checking, revoking and paging behind aligned buttons", async () => {
+  const receipt = { ...income, id: "income-9", notes: "Gaji", confirmation_method: "owner" };
+  vi.mocked(api.get).mockImplementation(async (path) => {
+    if (path === "/salary/source") return { source: { field: "merchant", value: "Synthetic employer" } };
+    if (path === "/salary/candidates") return { candidates: [] };
+    if (path === "/salary/invalidated-detections") return { detections: [] };
+    if (path === "/salary/receipts") return { receipts: [receipt] };
+    if (path.startsWith("/transactions?")) return { transactions: [income, receipt], total: 120 };
+    throw new Error(`Unexpected request ${path}`);
+  });
+  vi.mocked(api.del).mockResolvedValue({ ok: true });
+  const user = userEvent.setup();
+  renderSection();
+
+  await user.click(await screen.findByRole("button", { name: "Periksa pemasukan dari sumber ini" }));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith("/salary/detect"));
+
+  await user.click(screen.getByText("Ganti sumber"));
+  const select = screen.getByRole("combobox", { name: /pilih pemasukan/i });
+  expect(select).toHaveAccessibleDescription("Pilih satu pemasukan dari pemberi gaji.");
+  const paging = screen.getByRole("group", { name: "Halaman pemasukan" });
+  expect(within(paging).getByRole("button", { name: "Lebih baru" })).toBeDisabled();
+  await user.selectOptions(select, receipt.id);
+  expect(screen.getByRole("button", { name: "Tandai sebagai gaji" })).toBeDisabled();
+  await user.selectOptions(select, income.id);
+  await user.click(screen.getByRole("button", { name: "Tandai sebagai gaji" }));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith("/salary/receipts", { transaction_id: income.id }));
+
+  await user.click(within(paging).getByRole("button", { name: "Lebih lama" }));
+  await waitFor(() => expect(api.get).toHaveBeenCalledWith("/transactions?type=income&limit=50&offset=50"));
+
+  await user.click(screen.getByRole("button", { name: /^Batalkan konfirmasi gaji: / }));
+  await waitFor(() => expect(api.del).toHaveBeenCalledWith("/salary/receipts/income-9"));
+});
+
 function renderSection() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={client}><SalarySettingsSection open /></QueryClientProvider>);
+  return render(<QueryClientProvider client={client}><SalarySettingsSection /></QueryClientProvider>);
 }
 
 it("names each review action after its income and works from the keyboard", async () => {
@@ -58,6 +96,7 @@ it("names each review action after its income and works from the keyboard", asyn
   const user = userEvent.setup();
   renderSection();
   const confirmButtons = await screen.findAllByRole("button", { name: /^Konfirmasi gaji: / });
+  expect(confirmButtons.map((button) => button.textContent)).toEqual(["Ini gaji", "Ini gaji"]);
   expect(new Set(confirmButtons.map((button) => button.getAttribute("aria-label"))).size).toBe(2);
   confirmButtons[1].focus();
   await user.keyboard("{Enter}");

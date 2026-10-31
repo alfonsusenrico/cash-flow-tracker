@@ -7,6 +7,9 @@ import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { DevicePairingDialog } from "@/components/ui/DevicePairingDialog";
+import {
+  SettingsAlert, SettingsList, SettingsSubsection, confirmDangerClass, quietDangerClass,
+} from "@/components/settings/SettingsCard";
 
 function formatDate(value: string, withTime: boolean) {
   return new Date(value).toLocaleDateString("id-ID", {
@@ -17,9 +20,9 @@ function formatDate(value: string, withTime: boolean) {
   });
 }
 
-export function DevicePairingSection({ enabled }: { enabled: boolean }) {
+export function DevicePairingSection() {
   const queryClient = useQueryClient();
-  const { data, isError } = useQuery({ queryKey: queryKeys.devices, queryFn: getDevices, enabled });
+  const { data, isError } = useQuery({ queryKey: queryKeys.devices, queryFn: getDevices });
   const [pairing, setPairing] = useState(false);
   const [confirming, setConfirming] = useState<PairedDevice | null>(null);
   const [error, setError] = useState("");
@@ -45,16 +48,12 @@ export function DevicePairingSection({ enabled }: { enabled: boolean }) {
   const devices = data?.devices.filter((device) => device.created_via === "pairing") ?? [];
 
   return (
-    <section aria-labelledby="paired-devices-title" className="space-y-3 border-t border-[var(--border)] pt-3 text-xs">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3
-          ref={heading}
-          tabIndex={-1}
-          id="paired-devices-title"
-          className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] focus-visible:outline focus-visible:outline-2"
-        >
-          Perangkat terhubung
-        </h3>
+    <SettingsSubsection
+      id="paired-devices-title"
+      headingRef={heading}
+      title="Perangkat terhubung"
+      description="Pindai kode QR dari aplikasi pendamping. Setiap ponsel punya kunci sendiri dan bisa dicabut kapan saja."
+      action={
         <Button
           type="button"
           variant="primary"
@@ -67,34 +66,30 @@ export function DevicePairingSection({ enabled }: { enabled: boolean }) {
         >
           Hubungkan ponsel
         </Button>
-      </div>
-      <p className="text-[var(--muted)]">
-        Pindai kode QR dari aplikasi pendamping. Setiap ponsel mendapat kuncinya sendiri dan bisa dicabut kapan saja.
-      </p>
+      }
+    >
       {notice && <p role="status" className="font-semibold text-[var(--text)]">{notice}</p>}
-      {error && <p role="alert" className="text-[var(--danger)]">{error}</p>}
+      {error && <SettingsAlert>{error}</SettingsAlert>}
       {isError ? (
-        <p role="alert" className="text-[var(--danger)]">Daftar perangkat gagal dimuat.</p>
+        <SettingsAlert>Daftar perangkat gagal dimuat.</SettingsAlert>
       ) : !data ? (
         <p role="status" className="text-[var(--muted)]">Memuat perangkat…</p>
       ) : devices.length === 0 ? (
         <p className="text-[var(--muted)]">Belum ada ponsel yang dipasangkan.</p>
       ) : (
-        <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+        <SettingsList label="Ponsel yang dipasangkan">
           {devices.map((device) => (
-            <li key={device.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+            <li key={device.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2.5">
               <div className="min-w-0 flex-1 break-words">
                 <p className="font-semibold text-[var(--text)]">{device.name}</p>
-                <p className="text-[var(--muted)] tabular-nums">
+                <p className="text-xs text-[var(--muted)] tabular-nums">
                   Dipasangkan {formatDate(device.created_at, false)} · Terakhir aktif{" "}
                   {device.last_used_at ? formatDate(device.last_used_at, true) : "belum pernah"}
                 </p>
               </div>
-              <Button
+              <button
                 type="button"
-                variant="secondary"
-                size="sm"
-                className="min-h-11"
+                className={quietDangerClass}
                 aria-label={`Cabut ${device.name}`}
                 disabled={revoke.isPending}
                 onClick={() => {
@@ -103,10 +98,10 @@ export function DevicePairingSection({ enabled }: { enabled: boolean }) {
                 }}
               >
                 Cabut
-              </Button>
+              </button>
             </li>
           ))}
-        </ul>
+        </SettingsList>
       )}
 
       {pairing && (
@@ -137,7 +132,7 @@ export function DevicePairingSection({ enabled }: { enabled: boolean }) {
               type="button"
               variant="danger"
               size="sm"
-              className="min-h-11"
+              className={`min-h-11 ${confirmDangerClass}`}
               disabled={revoke.isPending}
               onClick={() => confirming && revoke.mutate(confirming)}
             >
@@ -146,6 +141,6 @@ export function DevicePairingSection({ enabled }: { enabled: boolean }) {
           </div>
         </div>
       </Modal>
-    </section>
+    </SettingsSubsection>
   );
 }

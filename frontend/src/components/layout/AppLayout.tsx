@@ -7,7 +7,6 @@ import { Sidebar, MobileDrawer } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { QuickCaptureModal } from "@/components/ui/QuickCaptureModal";
-import { SettingsModal } from "@/components/ui/SettingsModal";
 import { api, ApiError } from "@/lib/api";
 import { cn, setCurrencyConfig, fmtMoney as globalFmtMoney, convertAmount as globalConvertAmount } from "@/lib/utils";
 import { queryKeys } from "@/lib/queryKeys";
@@ -82,7 +81,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [quickAddType, setQuickAddType] = useState<"expense" | "income">("expense");
   const [quickAddDefaultType, setQuickAddDefaultType] = useState<QuickCaptureMode>("expense");
   const [movementDefaults, setMovementDefaults] = useState({ sourceAccountId: "", targetAccountId: "" });
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleOpenQuickAdd = (type?: "expense" | "income") => {
     const defaultType = type ?? quickAddType;
@@ -229,7 +227,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
           collapsed={sidebarCollapsed}
           onToggleCollapse={handleToggleSidebar}
           onQuickAdd={() => handleOpenQuickAdd()}
-          onOpenSettings={() => setSettingsOpen(true)}
         />
 
         {/* Mobile Slide-Over Navigation Drawer */}
@@ -239,10 +236,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
           onQuickAdd={() => {
             setMobileMenuOpen(false);
             handleOpenQuickAdd();
-          }}
-          onOpenSettings={() => {
-            setMobileMenuOpen(false);
-            setSettingsOpen(true);
           }}
         />
 
@@ -274,11 +267,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
           defaultType={quickAddDefaultType}
           defaultSourceAccountId={movementDefaults.sourceAccountId}
           defaultTargetAccountId={movementDefaults.targetAccountId}
-        />
-
-        <SettingsModal
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
         />
       </div>
     </AppContext.Provider>
