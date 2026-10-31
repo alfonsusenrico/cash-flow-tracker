@@ -1,5 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
+import resolveConfig from "tailwindcss/resolveConfig";
 import { describe, expect, it } from "vitest";
 
 const appDir = path.resolve(__dirname);
@@ -76,7 +78,16 @@ const textPairs: [string, string[]][] = [
   ["--warning", ["--warning-light", "--surface"]],
   ["--info", ["--info-light", "--surface"]],
   ["--color-accent-ink", ["--color-accent", "--color-accent-2"]],
+  ["--accent-text", ["--surface", "--bg", "--surface-raised"]],
+  ["--expense-text", ["--surface", "--bg", "--surface-raised", "--color-expense-soft"]],
+  ["--primary-text", ["--surface", "--bg", "--surface-raised", "--sidebar-hover"]],
+  ["--danger-text", ["--surface", "--bg", "--surface-raised", "--danger-soft"]],
 ];
+
+const tailwindTheme = resolveConfig(createRequire(import.meta.url)("../../tailwind.config.js")).theme as unknown as Record<
+  string,
+  Record<string, Record<string, string>>
+>;
 
 describe("design tokens", () => {
   it("defines every custom property the stylesheets and components use", () => {
@@ -85,6 +96,25 @@ describe("design tokens", () => {
     const used = new Set([tokens, globals, ...componentSources(srcDir)].flatMap((source) => [...usedIn(source)]));
 
     expect([...used].filter((name) => !defined.has(name)).sort()).toEqual([]);
+  });
+
+  it("paints coral text utilities with the text inks and keeps the vivid fills", () => {
+    const { textColor, backgroundColor } = tailwindTheme;
+    for (const shade of ["400", "500", "600", "700"]) {
+      expect(textColor.rose[shade], `text-rose-${shade}`).toBe("var(--expense-text)");
+    }
+    expect(textColor.expense.DEFAULT).toBe("var(--expense-text)");
+    expect(textColor.primary.DEFAULT).toBe("var(--primary-text)");
+    expect(textColor.primary.contrast).toBe("var(--primary-contrast)");
+    expect(backgroundColor.rose["500"]).toBe("var(--color-expense)");
+    expect(backgroundColor.expense.DEFAULT).toBe("var(--color-expense)");
+    expect(backgroundColor.primary.DEFAULT).toBe("var(--primary)");
+  });
+
+  it("keeps the signature lime and coral fills unchanged", () => {
+    expect(resolve(themes[":root"], "--accent-lime")).toBe("#66CC55");
+    expect(resolve(themes[":root"], "--color-expense")).toBe("#FF334B");
+    expect(resolve(themes[":root"], "--primary")).toBe("#FF334B");
   });
 
   describe.each(Object.entries(themes))("in %s", (selector, theme) => {

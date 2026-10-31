@@ -179,7 +179,7 @@ export function MobileHomeView({
           </div>
           <Link
             href="/accounts"
-            className="text-xs font-semibold text-[var(--accent-lime)] hover:underline"
+            className="text-xs font-semibold text-[var(--accent-text)] hover:underline"
           >
             Kelola &rarr;
           </Link>
@@ -294,7 +294,7 @@ export function MobileHomeView({
           </h2>
           <Link
             href="/ledger"
-            className="text-xs font-semibold text-[var(--accent-lime)] hover:underline"
+            className="text-xs font-semibold text-[var(--accent-text)] hover:underline"
           >
             Lihat Semua &rarr;
           </Link>

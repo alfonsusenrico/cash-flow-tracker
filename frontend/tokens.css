@@ -72,6 +72,7 @@
   --danger-hover: var(--color-expense-hover);
   --danger-soft: var(--color-expense-soft);
   --danger-light: var(--danger-soft);
+  --danger-text: var(--expense-text);
   /* Fill for destructive actions with white text; 4.5:1 or better in both themes. */
   --danger-solid: #E02038;
   --danger-solid-hover: #9F1239;
@@ -86,6 +87,14 @@
 
   /* Signature Spring Lime: active phone navigation pill and quick actions. */
   --accent-lime: #66CC55;
+
+  /* Text and icon inks for the lime and coral families. The vivid fills measure 1.71:1 (lime) and
+   * 3.03:1 (coral) on the light paper, so text uses these darker inks of the same hue: 4.5:1 or better
+   * on --surface, --bg and --surface-raised in both themes. */
+  --accent-text: #2D6E22;
+  --expense-text: #B8142D;
+  --primary-text: #B8142D;
+
   /* Emerald fill behind `.card-green`, with white ink at 4.5:1 or better in both themes. */
   --color-accent: #047857;
   --color-accent-2: #065F46;
@@ -138,6 +147,10 @@
   --primary-hover: #FF6675;
   --primary-soft: rgba(255, 71, 87, 0.18);
   --primary-contrast: #0A0D14;
+
+  --accent-text: var(--accent-lime);
+  --expense-text: var(--color-expense);
+  --primary-text: var(--primary);
 
   /* Semantic Movements */
   --color-income: #10B981;

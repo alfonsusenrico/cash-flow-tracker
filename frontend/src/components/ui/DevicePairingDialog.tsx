@@ -137,7 +137,7 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
                 />
               </div>
               {qrFailed && (
-                <p role="alert" className="text-center text-[var(--danger)]">
+                <p role="alert" className="text-center text-[var(--danger-text)]">
                   Kode QR gagal ditampilkan. Ketik kode di bawah pada ponsel.
                 </p>
               )}
@@ -164,7 +164,7 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
           )}
           <p role="status" className="min-h-4 text-center font-semibold text-[var(--text)]">{status}</p>
           {requestError && (
-            <p role="alert" className="text-center text-[var(--danger)]">{requestError}</p>
+            <p role="alert" className="text-center text-[var(--danger-text)]">{requestError}</p>
           )}
         </div>
 

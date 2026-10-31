@@ -19,7 +19,7 @@ export function Input({ label, error, className, id, ...props }: InputProps) {
           className
         )}
       />
-      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger-text)]">{error}</p>}
     </div>
   );
 }

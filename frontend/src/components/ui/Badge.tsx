@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 type BadgeVariant = "green" | "red" | "yellow" | "blue" | "gray" | "purple" | "orange";
 
 const VARIANTS: Record<BadgeVariant, string> = {
-  green: "bg-[var(--primary-light)] text-[var(--primary)]",
-  red: "bg-[var(--danger-light)] text-[var(--danger)]",
+  green: "bg-[var(--primary-light)] text-[var(--primary-text)]",
+  red: "bg-[var(--danger-light)] text-[var(--danger-text)]",
   yellow: "bg-[var(--warning-light)] text-[var(--warning)]",
   blue: "bg-[var(--info-light)] text-[var(--info)]",
   gray: "bg-[var(--color-paper-2)] text-[var(--muted)]",
