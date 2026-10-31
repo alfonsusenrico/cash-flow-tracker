@@ -99,7 +99,6 @@ export default function OverviewPage() {
   const timeframeLabel = dashboard?.timeframe_label;
   const comparison = dashboard?.comparison;
   const kakeibo = dashboard?.kakeibo;
-  const narrative = dashboard?.narrative;
   const reportPeriod = reportPeriodFilters(timeframe, cycleOffset);
   const pillarHref = (pillar: KakeiboPillar) =>
     reportPeriod ? ledgerHref({ ...reportPeriod, type: "expense", kakeibo: pillar }) : null;
@@ -135,6 +134,7 @@ export default function OverviewPage() {
           onOpenRecurring={() => setRecurringModalOpen(true)}
           onSelectTx={(tx) => setSelectedTx(tx)}
           bal={bal}
+          insight={<NarrativeInsightCard />}
         />
       </div>
 
@@ -205,11 +205,7 @@ export default function OverviewPage() {
             onOpenPlans={() => setRecurringModalOpen(true)}
           />
 
-          <NarrativeInsightCard
-            narrative={narrative}
-            outflowDeltaPct={comparison?.prev_outflow ? comparison?.outflow_delta_pct ?? null : null}
-            timeframeLabel={timeframeLabel}
-          />
+          <NarrativeInsightCard />
         </div>
       </div>
 
