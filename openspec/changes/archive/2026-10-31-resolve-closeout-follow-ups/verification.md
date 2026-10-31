@@ -39,4 +39,6 @@ Branch `fix/closeout-follow-ups` from origin/main 02f4468. All checks ran locall
 
 ## Archive
 
-Recorded below after `openspec archive`.
+- `openspec archive resolve-closeout-follow-ups` produced + 1, ~ 3, - 1. It added the account-reconciliation flag requirement; modified idempotent-public-transactions, tactile-pulse-ui and transaction-ledger-management; and removed one notification-filtering requirement. No new capability was created, so no Purpose placeholder exists.
+- After the archive, `openspec validate --all` exited 0 (62 passed). `--strict` reported 61 passed and 1 failed: only the known `transaction-provenance` long-requirement warning.
+- Main-spec names went from 358 requirements and 929 scenarios before to 358 and 937 after. The only removals are the intended C2 requirement "Discard Non-Financial Notifications at Listener Entrance" and its two scenarios. The additions are the new flag requirement with its 4 scenarios and 6 new name-resolution scenarios.

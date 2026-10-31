@@ -43,6 +43,6 @@ Expected Result: the backend suite has no background-worker race and no calendar
 - [x] 6.1 Backend on a fresh PostgreSQL 16 migrated V1→V38 with flyway/flyway:10, plus a CI-style run without a database. Evidence: counts in verification.md.
 - [x] 6.2 Frontend `npm ci`, test, lint, type-check, build. Evidence: counts in verification.md.
 - [x] 6.3 `openspec validate --all` and `--strict`, `git diff --check`, before/after requirement and scenario names, and a final diff review. Evidence: verification.md.
-- [ ] 6.4 Commit, archive in the same branch, and push `fix/closeout-follow-ups` without opening a pull request. Evidence: `git log` and the pushed branch.
+- [x] 6.4 Commit, archive in the same branch, and push `fix/closeout-follow-ups` without opening a pull request. Evidence: `git log` and the pushed branch.
 
 Expected Result: verified, archived and pushed, ready for owner review.
