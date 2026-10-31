@@ -9,7 +9,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
 import { kakeiboLabel } from "@/lib/kakeibo";
-import { ReviewStatusMark, feeLinkText, type FeeLinkFields } from "@/components/ledger/LedgerRowMarks";
+import { HabitMark, ReviewStatusMark, feeLinkText, type FeeLinkFields } from "@/components/ledger/LedgerRowMarks";
+import type { HabitBasis } from "@/lib/provenance";
 
 export interface LedgerTxItem extends FeeLinkFields {
   id: string;
@@ -41,6 +42,8 @@ export interface LedgerTxItem extends FeeLinkFields {
   target_account_id?: string;
   kakeibo_type?: string | null;
   review_status?: string;
+  classified_by?: string | null;
+  habit_basis?: HabitBasis | null;
 }
 
 interface MobileLedgerFeedProps {
@@ -280,6 +283,7 @@ export function MobileLedgerFeed({
                             {tx.notes || (isMovement ? "Pindah Saldo" : tx.category_name || "Umum")}
                           </span>
                           <ReviewStatusMark status={tx.review_status} />
+                          <HabitMark classifiedBy={tx.classified_by} basis={tx.habit_basis} />
                         </div>
 
                         <div className="text-[10px] text-[var(--muted)] flex items-center gap-1.5 mt-0.5 truncate">

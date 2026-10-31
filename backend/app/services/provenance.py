@@ -9,7 +9,7 @@ SOURCES: tuple[str, ...] = (
     "manual", "notification", "recurring", "payroll", "movement", "reconcile", "investment", "import", "capture",
 )
 REVIEW_STATUSES: tuple[str, ...] = ("auto", "needs_review", "reviewed")
-CLASSIFIERS: tuple[str, ...] = ("rule", "ai", "owner", "system")
+CLASSIFIERS: tuple[str, ...] = ("rule", "ai", "owner", "system", "habit")
 
 SOURCE_PATTERN = "^(" + "|".join(SOURCES) + ")$"
 REVIEW_STATUS_PATTERN = "^(" + "|".join(REVIEW_STATUSES) + ")$"
@@ -66,6 +66,11 @@ def notification_provenance(interpretation_source: str | None, confidence: float
     if interpretation_source == "ai":
         return Provenance("notification", "auto", "ai", confidence)
     return Provenance("notification", "auto", "rule")
+
+
+def habit_provenance() -> Provenance:
+    """A merchant-less payment recorded from the owner's own repeated answers (learn-habits-to-ask-less D7)."""
+    return Provenance("notification", "reviewed", "habit")
 
 
 def capture_provenance(classified_by: str, confidence: float | None = None) -> Provenance:

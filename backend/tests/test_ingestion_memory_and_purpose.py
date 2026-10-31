@@ -453,15 +453,17 @@ def test_suggestions_rank_by_time_amount_and_signature(client, owner):
     from app.services.merchant_memory import local_time_features
     payload = bca(GROCERIES)
     weekday, hour = local_time_features(datetime.fromisoformat(payload["post_time"]))
-    add_feedback(owner, notes="makan kafe senja", category="jajan", amount=200000, weekday=weekday, hour=hour, times=3)
+    # Two answers are below the habit's three, so the payment is asked and the habit only guesses first.
+    add_feedback(owner, notes="makan kafe senja", category="jajan", amount=200000, weekday=weekday, hour=hour, times=2)
     add_feedback(owner, notes="beli roti bakar", category="jajan", amount=30000, weekday=weekday % 7 + 1,
-                 hour=(hour + 8) % 24, times=4)
+                 hour=(hour + 8) % 24, times=3)
     add_feedback(owner, notes="tidak mirip", category="makan", amount=5, weekday=weekday % 7 + 1,
                  hour=(hour + 8) % 24, signature="gopay|expense|qris", account="gopay")
     suggestions = ingest(client, {**payload, "source_version": "1.8.0"})["results"][0]["question"]["suggestions"]
-    assert [item["label"] for item in suggestions] == ["makan kafe senja", "beli roti bakar"]
+    assert [item["label"] for item in suggestions] == ["Sepertinya Jajan & Nongkrong?", "beli roti bakar"]
     assert [item["id"] for item in suggestions] == ["s1", "s2"]
-    assert suggestions[0]["category_name"] == "Jajan & Nongkrong" and suggestions[0]["kind"] == "history"
+    assert suggestions[0]["kind"] == "habit" and suggestions[0]["notes"] == "makan kafe senja"
+    assert suggestions[0]["category_name"] == "Jajan & Nongkrong" and suggestions[1]["kind"] == "history"
 
 
 def test_cold_start_offers_only_current_classification(client, owner):

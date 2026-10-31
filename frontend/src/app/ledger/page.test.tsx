@@ -669,6 +669,35 @@ describe("Ledger provenance and reimbursements", () => {
     expect(within(dialog).queryByRole("button", { name: "Tandai sudah ditinjau" })).not.toBeInTheDocument();
   });
 
+  it("labels a habit-recorded row and explains its basis in the dialog", async () => {
+    currentTransactions = [{
+      ...transaction, source: "notification", review_status: "reviewed", classified_by: "habit", merchant: null,
+      habit_basis: { agreeing: 3, support: 3 },
+    } as typeof transaction];
+    const user = userEvent.setup();
+    renderLedger();
+
+    const row = await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ });
+    expect(within(row).getByText(/Dicatat dari kebiasaan/)).toHaveTextContent("Dicatat dari kebiasaan · 3 dari 3");
+    await user.click(row);
+    const dialog = screen.getByRole("dialog", { name: "Ubah Transaksi" });
+    expect(within(dialog).getByText("Kebiasaan")).toBeInTheDocument();
+    expect(within(dialog).getByText("Dicatat dari kebiasaan: Makan")).toBeInTheDocument();
+    expect(within(dialog).getByText("3 dari 3 jawaban sebelumnya")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Tandai sudah ditinjau" })).not.toBeInTheDocument();
+    expect((await axe(dialog)).violations).toHaveLength(0);
+  });
+
+  it("shows no habit label once the owner classified the row", async () => {
+    currentTransactions = [{
+      ...transaction, source: "notification", review_status: "reviewed", classified_by: "owner", merchant: null,
+      habit_basis: null,
+    } as typeof transaction];
+    renderLedger();
+    await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ });
+    expect(screen.queryByText(/Dicatat dari kebiasaan/)).not.toBeInTheDocument();
+  });
+
   it("saves the merchant with the edit and hides the offset select for expenses", async () => {
     currentTransactions = [{ ...transaction, source: "manual", review_status: "reviewed", classified_by: "owner", merchant: "Warung Lama" } as typeof transaction];
     const user = userEvent.setup();

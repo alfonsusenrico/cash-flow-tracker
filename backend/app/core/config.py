@@ -62,6 +62,7 @@ class Settings:
     pairing_server_url: str = "https://finance.alfonsusenrico.com"
     pairing_configuration_error: str | None = None
     plan_auto_link_enabled: bool = True
+    habit_auto_record_enabled: bool = True
     background_jobs_enabled: bool = True
 
 
@@ -216,6 +217,8 @@ def load_settings() -> Settings:
         **_pairing_settings(),
         # Off only as a kill switch; owner-approved automatic plan linking runs by default.
         plan_auto_link_enabled=os.getenv("PLAN_AUTO_LINK_ENABLED", "true").strip().lower() != "false",
+        # Off only as a kill switch: habits then only order the suggestions and never record a payment.
+        habit_auto_record_enabled=os.getenv("HABIT_AUTO_RECORD_ENABLED", "true").strip().lower() != "false",
         # Off only where a caller drives the jobs itself (the test suite); accepted events stay queued.
         background_jobs_enabled=os.getenv("BACKGROUND_JOBS_ENABLED", "true").strip().lower() != "false",
     )

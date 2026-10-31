@@ -59,7 +59,7 @@ The system SHALL keep one memory entry per owner and match key with display merc
 - **THEN** each leg SHALL get a feedback row and no memory entry SHALL change.
 
 ### Requirement: Classification Order
-For an expense or income, an owner memory entry with the notification's merchant key and an active category of that direction SHALL be applied first: the row is recorded from memory with `classified_by = rule` and `review_status = auto`, the hit is counted and the model SHALL NOT be called. Otherwise the model SHALL classify when AI is enabled, and the deterministic path when it is not or the model's answer is unusable. Signature keys SHALL never short-circuit.
+For an expense or income, an owner memory entry with the notification's merchant key and an active category of that direction SHALL be applied first: the row is recorded from memory with `classified_by = rule` and `review_status = auto`, the hit is counted and the model SHALL NOT be called. Otherwise a qualifying habit, else the model SHALL classify when AI is enabled, and the deterministic path when it is not or the model's answer is unusable. Signature keys SHALL never short-circuit.
 
 #### Scenario: Memory hit skips the model
 - **GIVEN** an owner memory entry for "kedai awan" in "Jajan & Nongkrong"
@@ -72,9 +72,14 @@ For an expense or income, an owner memory entry with the notification's merchant
 - **THEN** memory SHALL NOT apply and normal classification SHALL run.
 
 #### Scenario: Signature memory does not auto-classify
-- **GIVEN** an owner entry for the signature of myBCA "at Groceries" expenses
+- **GIVEN** an owner entry for the signature of myBCA "at Groceries" expenses and fewer than three owner labels for the payment's habit key
 - **WHEN** another "at Groceries" notification arrives
 - **THEN** the model or deterministic path SHALL classify it and it SHALL get a purpose question.
+
+#### Scenario: Habit skips the model
+- **GIVEN** three agreeing owner answers for the payment's habit key and AI enabled
+- **WHEN** another payment of that key is processed
+- **THEN** the provider SHALL NOT be called and the row SHALL be recorded with `classified_by = habit`.
 
 ### Requirement: Model Context From Memory and Similar History
 The model input SHALL include the categories with default pillars, up to 30 memory entries (exact key first, owner before AI) and up to the history limit of similar past rows (same key first, then same institution and direction at half to double the amount; owner-confirmed first) with their final labels. It SHALL stay within 60 000 bytes by dropping history and then memory from the end, and stay redacted.
@@ -100,12 +105,16 @@ The interpretation prompt SHALL forbid generic placeholder descriptions when the
 - **THEN** the row's `merchant` SHALL be "Kedai Awan".
 
 ### Requirement: Feedback Row Contents
-Each feedback row SHALL record the transaction, the values before and after (merchant, notes, category, pillar, type, offset category), and context features: local weekday and hour in the configured time zone, amount, account, institution, text signature and transaction source.
+Each feedback row SHALL record the transaction, the values before and after (merchant, notes, category, pillar, type, offset category), the classifier before and after and the review status after, and context features: local weekday and hour in the configured time zone, amount, account, institution, text signature and transaction source.
 
 #### Scenario: Purpose answer feedback
 - **GIVEN** a merchant-less payment recorded on a Monday at 12:10 local time
 - **WHEN** the owner answers its purpose question with "makan siang"
 - **THEN** the feedback row SHALL hold the notes before and after, weekday 1, hour 12, the amount, the account and the transaction source.
+
+#### Scenario: Correction of a habit record
+- **WHEN** the owner changes the category of a row recorded from a habit
+- **THEN** the correction feedback row SHALL hold the classifier `habit` before and `owner` after, and the review status after.
 
 ### Requirement: Accepted Suggestion Feedback Kind
 A row written for an accepted history suggestion SHALL have kind `accepted_suggestion` and carry the suggestion id.

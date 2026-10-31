@@ -292,6 +292,12 @@ def link_pair(cur, user_id: str, expense_id: str, income_id: str, *, fee: int, n
              AND classified_by IS DISTINCT FROM 'owner'""",
         (user_id, result["movement_id"]),
     )
+    # A movement leg is classified by the pairing, no longer by a spending habit.
+    cur.execute(
+        """UPDATE transactions SET classified_by = 'system'
+           WHERE user_id = %s AND movement_id = %s AND classified_by = 'habit'""",
+        (user_id, result["movement_id"]),
+    )
     return {**result, "fee": fee, "fee_transaction_id": fee_transaction_id}
 
 

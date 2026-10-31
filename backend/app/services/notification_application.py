@@ -26,7 +26,10 @@ from app.services.notification_resolution import (
     pocket_endpoint, root_account_id, transfer_signature,
 )
 from app.services.notification_sender import sender_gate
-from app.services.provenance import MERCHANT_MAX_LENGTH, Provenance, normalize_merchant, notification_provenance
+from app.services.habits import HabitDecision
+from app.services.provenance import (
+    MERCHANT_MAX_LENGTH, Provenance, habit_provenance, normalize_merchant, notification_provenance,
+)
 
 
 # A second notification may confirm a movement role only when it arrives this close to it.
@@ -443,6 +446,18 @@ def record_observed_leg(
         not counterpart and key and key["merchant_less"] and not self_transfer
         and provenance.classified_by != "owner" and not in_movement_category
     )
+    habit = recordable_habit(context, facts, account_id, signature, ask_purpose=ask_purpose,
+                             ambiguous=bool(pairing.ambiguous))
+    if habit is not None:
+        # The owner's repeated answers replace the automatic classification and its doubts
+        # (learn-habits-to-ask-less D7).
+        category_id, kakeibo = habit.category_id, habit.kakeibo
+        description = habit.notes or habit_category_name(context, habit.category_id)
+        merchant = habit.merchant
+        provenance = habit_provenance()
+        reasons, ask_purpose = [], False
+        signature = {**signature, "category_id": category_id, "kakeibo": kakeibo, "source": "habit",
+                     "habit": habit.basis()}
     if ask_purpose:
         reasons.append("purpose_question")
     if reasons and provenance.review_status == "auto":
@@ -522,6 +537,28 @@ def record_observed_leg(
             "kakeibo_type": kakeibo if facts.direction == "expense" else None, "offset_category_id": None,
         })
     return 1
+
+
+def recordable_habit(
+    context: dict, facts: NotificationFacts, account_id: str, signature: dict, *, ask_purpose: bool, ambiguous: bool,
+) -> HabitDecision | None:
+    """The habit that records this leg without a question, or None (learn-habits-to-ask-less D6, D7).
+
+    Only a leg that would otherwise get "Apa ini?" qualifies: an unpaired merchant-less expense on the
+    account the habit was learned for, not transfer-shaped and not competing for a movement counterpart.
+    """
+    habit = context.get("_habit")
+    if (not habit or not habit["decision"].auto or not ask_purpose or facts.direction != "expense"
+            or ambiguous or signature.get("transfer") or habit["account_id"] != account_id):
+        return None
+    decision = habit["decision"]
+    if not any(str(row["id"]) == decision.category_id and row["kind"] == "expense" for row in context["categories"]):
+        return None
+    return decision
+
+
+def habit_category_name(context: dict, category_id: str) -> str:
+    return next(row["name"] for row in context["categories"] if str(row["id"]) == category_id)
 
 
 def movement_category_ids(context: dict) -> set[str]:

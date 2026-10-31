@@ -1,3 +1,4 @@
+import { isHabitRecorded, type HabitBasis } from "@/lib/provenance";
 import { cn } from "@/lib/utils";
 
 export interface FeeLinkFields {
@@ -24,6 +25,25 @@ export function ReviewStatusMark({ status, className }: { status?: string | null
       )}
     >
       {status === "needs_review" ? "Perlu ditinjau" : "Otomatis"}
+    </span>
+  );
+}
+
+/** A row recorded from the owner's own repeated answers, with the count it followed. */
+export function HabitMark({ classifiedBy, basis, className }: {
+  classifiedBy?: string | null;
+  basis?: HabitBasis | null;
+  className?: string;
+}) {
+  if (!isHabitRecorded(classifiedBy, basis)) return null;
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--surface-raised)]/60 px-1.5 py-px text-[10px] font-semibold text-[var(--text-secondary)]",
+        className,
+      )}
+    >
+      Dicatat dari kebiasaan · <span className="tabular-nums">{basis.agreeing} dari {basis.support}</span>
     </span>
   );
 }

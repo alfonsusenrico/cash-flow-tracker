@@ -21,6 +21,7 @@ from app.services.report_figures import (
     sunday_first_weekday,
 )
 from app.services.observed_insights import cash_flow_history, period_comparison, recurring_charges
+from app.services.question_rate import MAX_WEEKS, question_rate
 from app.services.report_windows import (
     PERIOD_PATTERN,
     TIMEFRAME_PATTERN,
@@ -1253,3 +1254,17 @@ def get_recurring_charges(current_user: dict = Depends(get_current_user)):
             cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
             charges = recurring_charges(cur, current_user["id"])
     return {"ok": True, "timezone": settings.tz, **charges}
+
+
+@router.get("/question-rate")
+def get_question_rate(
+    weeks: int = Query(default=8, ge=1, le=MAX_WEEKS),
+    current_user: dict = Depends(get_current_user),
+):
+    """Per local week: recorded payments, how many the owner was asked about and who recorded the rest."""
+    today = datetime.now(ZoneInfo(settings.tz)).date()
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            rate = question_rate(cur, current_user["id"], weeks=weeks, today=today, tz=settings.tz)
+    return {"ok": True, "timezone": settings.tz, **rate}

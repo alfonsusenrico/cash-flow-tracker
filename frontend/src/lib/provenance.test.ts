@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   categoryOffsetsSpending,
   classifierLabel,
+  habitBasisText,
+  habitRecordLabel,
+  isHabitRecorded,
   needsOwnerReview,
   offsetCategoryOptions,
   reviewStatusLabel,
@@ -17,7 +20,9 @@ describe("provenance labels", () => {
     expect(["auto", "needs_review", "reviewed"].map(reviewStatusLabel)).toEqual([
       "Otomatis, belum ditinjau", "Perlu ditinjau", "Sudah ditinjau",
     ]);
-    expect(["rule", "ai", "owner", "system"].map(classifierLabel)).toEqual(["Aturan", "AI", "Anda", "Sistem"]);
+    expect(["rule", "ai", "owner", "system", "habit"].map(classifierLabel)).toEqual([
+      "Aturan", "AI", "Anda", "Sistem", "Kebiasaan",
+    ]);
   });
 
   it("shows unknown values as sent and missing values as absent", () => {
@@ -30,6 +35,20 @@ describe("provenance labels", () => {
     expect(needsOwnerReview("needs_review")).toBe(true);
     expect(needsOwnerReview("reviewed")).toBe(false);
     expect(needsOwnerReview(undefined)).toBe(false);
+  });
+});
+
+describe("habit labels", () => {
+  it("names the category and the answers a habit record followed", () => {
+    expect(habitRecordLabel("Makanan & Minuman")).toBe("Dicatat dari kebiasaan: Makanan & Minuman");
+    expect(habitRecordLabel(null)).toBe("Dicatat dari kebiasaan");
+    expect(habitBasisText({ agreeing: 9, support: 10 })).toBe("9 dari 10 jawaban sebelumnya");
+  });
+
+  it("treats only habit-classified rows with a basis as habit records", () => {
+    expect(isHabitRecorded("habit", { agreeing: 3, support: 3 })).toBe(true);
+    expect(isHabitRecorded("owner", { agreeing: 3, support: 3 })).toBe(false);
+    expect(isHabitRecorded("habit", null)).toBe(false);
   });
 });
 

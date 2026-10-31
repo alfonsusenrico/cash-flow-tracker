@@ -41,7 +41,7 @@ import {
   type LedgerTypeFilter,
 } from "@/lib/ledgerFilters";
 import { PeriodStepper } from "@/components/ui/PeriodStepper";
-import { ReviewStatusMark, feeLinkText, type FeeLinkFields } from "@/components/ledger/LedgerRowMarks";
+import { HabitMark, ReviewStatusMark, feeLinkText, type FeeLinkFields } from "@/components/ledger/LedgerRowMarks";
 import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
 import { ExpenseTopupConversionModal } from "@/components/ui/ExpenseTopupConversionModal";
 import { canConvertExpenseToTopup } from "@/lib/investmentTopups";
@@ -50,10 +50,14 @@ import {
   MERCHANT_MAX_LENGTH,
   categoryOffsetsSpending,
   classifierLabel,
+  habitBasisText,
+  habitRecordLabel,
+  isHabitRecorded,
   needsOwnerReview,
   offsetCategoryOptions,
   reviewStatusLabel,
   sourceLabel,
+  type HabitBasis,
 } from "@/lib/provenance";
 
 interface TransactionItem extends FeeLinkFields {
@@ -92,6 +96,7 @@ interface TransactionItem extends FeeLinkFields {
   merchant?: string | null;
   review_status?: string;
   classified_by?: string | null;
+  habit_basis?: HabitBasis | null;
   offset_category_id?: string | null;
   offset_category_name?: string | null;
   is_reimbursement?: boolean;
@@ -1394,6 +1399,7 @@ function LedgerPageContent() {
                             {tx.notes || (isMovement ? "Pindah Saldo" : tx.category_name || "Umum")}
                           </span>
                           <ReviewStatusMark status={tx.review_status} />
+                          <HabitMark classifiedBy={tx.classified_by} basis={tx.habit_basis} />
                         </span>
                       </td>
 
@@ -1653,6 +1659,14 @@ function LedgerPageContent() {
                     <dd className="text-sm font-semibold text-[var(--text)]">{classifierLabel(editingTx.classified_by) ?? "—"}</dd>
                   </div>
                 </dl>
+                {isHabitRecorded(editingTx.classified_by, editingTx.habit_basis) && (
+                  <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                    <span className="font-semibold text-[var(--text)]">{habitRecordLabel(editingTx.category_name)}</span>
+                    {" · "}
+                    <span className="tabular-nums">{habitBasisText(editingTx.habit_basis)}</span>. Ubah kategorinya bila
+                    keliru; pembayaran serupa berikutnya akan ditanyakan lagi.
+                  </p>
+                )}
                 {needsOwnerReview(editingTx.review_status) && (
                   <button
                     type="button"

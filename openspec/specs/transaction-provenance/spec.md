@@ -7,7 +7,7 @@ still needs to review it and who classified it, so review, learning and reports 
 ## Requirements
 
 ### Requirement: Transaction Provenance Fields
-Every transaction SHALL carry `source` (manual, notification, recurring, payroll, movement, reconcile, investment, import or capture), `review_status` (auto, needs_review or reviewed), `classified_by` (rule, ai, owner, system or empty), `classification_confidence` (empty or 0 to 1), `owner_edited_at` (empty or a time) and `merchant` (empty or a display name of 1–120 characters). The database SHALL reject any other value. `notes` SHALL remain the human description.
+Every transaction SHALL carry `source` (manual, notification, recurring, payroll, movement, reconcile, investment, import or capture), `review_status` (auto, needs_review or reviewed), `classified_by` (rule, ai, owner, system, habit or empty), `classification_confidence` (empty or 0 to 1), `owner_edited_at` (empty or a time) and `merchant` (empty or a display name of 1–120 characters). The database SHALL reject any other value. `notes` SHALL remain the human description.
 
 #### Scenario: Unknown source is rejected by the database
 - **WHEN** any writer stores a transaction with `source = 'bot'`
@@ -28,8 +28,12 @@ Every transaction SHALL carry `source` (manual, notification, recurring, payroll
 - **WHEN** a transaction is recorded from the owner's typed text
 - **THEN** its `source` SHALL be `capture` and the database SHALL accept it.
 
+#### Scenario: Habit classifier accepted
+- **WHEN** a transaction is recorded from a habit
+- **THEN** its `classified_by` SHALL be `habit` and the database SHALL accept it.
+
 ### Requirement: Provenance Written by Every Recording Path
-Each path that creates a transaction SHALL write its provenance explicitly: manual create → manual, reviewed, owner; movement → movement, reviewed, system; reconcile → reconcile, reviewed, system; investment trade or top-up → investment, reviewed, system; notification → notification, auto or needs_review, ai or rule. Existing recurring and payroll provenance SHALL remain intact; an owner-requested record of one missed plan occurrence keeps the plan link and is written as recurring, reviewed, system.
+Each path that creates a transaction SHALL write its provenance explicitly: manual create → manual, reviewed, owner; movement → movement, reviewed, system; reconcile → reconcile, reviewed, system; investment trade or top-up → investment, reviewed, system; notification → notification, auto or needs_review, ai or rule, or notification, reviewed, habit when recorded from a habit. Existing recurring and payroll provenance SHALL remain intact; an owner-requested record of one missed plan occurrence keeps the plan link and is written as recurring, reviewed, system.
 
 #### Scenario: Manual expense from the web
 - **WHEN** the owner records an expense through the transactions API
@@ -74,6 +78,10 @@ Each path that creates a transaction SHALL write its provenance explicitly: manu
 #### Scenario: Notification classified from merchant memory
 - **WHEN** a notification is recorded from an owner merchant-memory entry
 - **THEN** it SHALL have notification source, auto review, rule classifier and no confidence
+
+#### Scenario: Notification recorded from a habit
+- **WHEN** a merchant-less notification is recorded from a habit
+- **THEN** it SHALL have notification source, reviewed status, habit classifier and no confidence
 
 ### Requirement: Provenance Backfill for Existing Transactions
 The migration SHALL assign provenance to every existing row once, deterministically, without changing `updated_at`, amount, date, account, category, notes or pillar. Source SHALL follow the first matching rule in the design's order; review status SHALL be auto only for notification rows never edited; classifier SHALL follow the event's interpretation source for notification rows.
