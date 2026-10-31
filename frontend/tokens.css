@@ -20,9 +20,10 @@
 
   /* Primary Brand Action: Hot Coral Vivid */
   --primary: #FF334B;
-  --primary-hover: #E02038;
+  --primary-hover: #F02A42;
   --primary-soft: #FFE8EC;
-  --primary-contrast: #FFFFFF;
+  /* Dark ink keeps primary text at WCAG AA (4.5:1) on the coral and its hover in both themes. */
+  --primary-contrast: #0A0D14;
 
   /* Semantic Movements */
   --color-income: #059669;
@@ -88,6 +89,10 @@
   --radius-card: 24px;
   --radius-pill: 9999px;
 
+  /* Spacing */
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+
   /* Shadows */
   --shadow-sm: 0 2px 8px -1px rgba(8, 10, 14, 0.06);
   --shadow-md: 0 10px 28px -4px rgba(8, 10, 14, 0.1);
@@ -113,7 +118,7 @@
   --primary: #FF4757;
   --primary-hover: #FF6675;
   --primary-soft: rgba(255, 71, 87, 0.18);
-  --primary-contrast: #FFFFFF;
+  --primary-contrast: #0A0D14;
 
   /* Semantic Movements */
   --color-income: #10B981;

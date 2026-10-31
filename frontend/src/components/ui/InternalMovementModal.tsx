@@ -325,7 +325,7 @@ export function InternalMovementModal({
             disabled={parsedAmount <= 0 || mutation.isPending || isSuccess}
             className={cn(
               "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--text)] px-5 text-sm font-semibold text-[var(--surface)] transition-colors hover:opacity-90 motion-reduce:transition-none",
-              isSuccess && "bg-[var(--primary)] text-[var(--text)]",
+              isSuccess && "bg-[var(--primary)] text-[var(--primary-contrast)]",
               "disabled:cursor-not-allowed disabled:opacity-40"
             )}
           >

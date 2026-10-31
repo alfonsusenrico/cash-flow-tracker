@@ -882,7 +882,7 @@ export function QuickCaptureModal({
             className={cn(
               "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold transition-colors motion-reduce:transition-none",
               isSuccess
-                ? "bg-[var(--primary)] text-[var(--text)]"
+                ? "bg-[var(--primary)] text-[var(--primary-contrast)]"
                 : "bg-[var(--text)] text-[var(--surface)] hover:opacity-90",
               "disabled:cursor-not-allowed disabled:opacity-40"
             )}

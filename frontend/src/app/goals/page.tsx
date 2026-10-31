@@ -501,7 +501,7 @@ export default function GoalsAndDebtsPage() {
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex min-w-0 items-center gap-2.5">
                       <span
                         className="h-3 w-3 rounded-full shrink-0"
                         style={{ backgroundColor: g.color || "#10b981" }}
@@ -516,7 +516,7 @@ export default function GoalsAndDebtsPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                       <button
                         type="button"
                         onClick={() => handleOpenEditGoal(g)}
