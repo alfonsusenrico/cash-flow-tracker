@@ -12,6 +12,7 @@ import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { Icon } from "@/components/ui/Icon";
 import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { AccountOptions } from "@/components/ui/AccountOptions";
+import { ReconciliationFlag } from "@/components/ui/ReconciliationFlag";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import {
   EmergencyCoverageBasis,
@@ -74,6 +75,7 @@ interface AccountItem {
   cost_basis?: number | null;
   investment_tracking_mode?: string | null;
   investment_value_estimated?: boolean;
+  reconciliation_required?: boolean;
   is_archived: boolean;
   is_parent?: boolean;
   default_pocket_id?: string | null;
@@ -763,6 +765,8 @@ export default function AccountsPage() {
       account.last_price !== null && account.last_price !== undefined
     );
     const kind = account.type === "wallet" ? "Dompet digital" : account.type === "cash" ? "Tunai" : account.type === "investment" ? "Investasi" : "Bank";
+    const canReconcile = !hasChildren && account.investment_tracking_mode !== "amount";
+    const flaggedPockets = children.filter((pocket) => pocket.reconciliation_required).length;
 
     return (
       <section
@@ -818,6 +822,10 @@ export default function AccountsPage() {
               </h2>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--muted)]">
                 <span>{kind}</span>
+                {account.reconciliation_required && (
+                  <ReconciliationFlag name={account.name} onReconcile={canReconcile ? () => openReconciliation(account) : undefined} />
+                )}
+                {flaggedPockets > 0 && <ReconciliationFlag name={account.name} pocketCount={flaggedPockets} />}
                 {hasChildren && <span className="inline-flex items-center gap-0.5">{children.length} kantong <button type="button" onClick={() => toggleExpand(account.id)} aria-label={`${expanded ? "Tutup" : "Buka"} kantong ${account.name}`} aria-expanded={expanded} aria-controls={expanded ? `pockets-${viewport}-${account.id}` : undefined} title={expanded ? "Tutup kantong" : "Buka kantong"} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg hover:bg-[var(--surface-raised)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]"><Icon name="chevron-down" className={cn("h-4 w-4 transition-transform", !expanded && "-rotate-90")} /></button></span>}
                 {account.instrument_symbol && <span>{account.instrument_symbol}</span>}
                 {account.instrument_type && <span>{INSTRUMENT_OPTIONS.find((option) => option.value === account.instrument_type)?.label}</span>}
@@ -847,7 +855,7 @@ export default function AccountsPage() {
             <AccountOptions name={account.name} iconOnly>
               {isPosition && <button type="button" onClick={() => handleOpenValuation(account)}>Update Nilai</button>}
               {canSwitchToAmountTracking(account) && <button type="button" onClick={() => setAmountSwitchProduct(account)}>Ubah ke pelacakan nominal</button>}
-              {!hasChildren && account.investment_tracking_mode !== "amount" && <button type="button" onClick={() => openReconciliation(account)}>Sesuaikan Saldo</button>}
+              {canReconcile && <button type="button" onClick={() => openReconciliation(account)}>Sesuaikan Saldo</button>}
               <button type="button" onClick={() => handleOpenEditAccount(account)}>Ubah rekening</button>
               <button type="button" onClick={() => moveId(topAccounts.map((item) => item.id), account.id, topIndex - 1)} disabled={topIndex === 0 || reorderMutation.isPending}>Naikkan urutan</button>
               <button type="button" onClick={() => moveId(topAccounts.map((item) => item.id), account.id, topIndex + 1)} disabled={topIndex === topAccounts.length - 1 || reorderMutation.isPending}>Turunkan urutan</button>
@@ -918,7 +926,13 @@ export default function AccountsPage() {
                     <span draggable aria-hidden="true" onDragStart={(event) => { event.stopPropagation(); setDraggedPocketId(pocket.id); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", pocket.id); }} onDragEnd={(event) => { event.stopPropagation(); setDraggedPocketId(null); setDragOverPocketId(null); }} className="hidden cursor-grab select-none pt-1 text-base text-[var(--muted)] lg:inline-flex" title="Geser untuk mengubah urutan kantong">⋮⋮</span>
                     <div className="min-w-0 space-y-1">
                       <h3 className="break-words text-sm font-semibold text-[var(--text)]">{pocket.name}</h3>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--muted)]">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--muted)]">
+                        {pocket.reconciliation_required && (
+                          <ReconciliationFlag
+                            name={pocket.name}
+                            onReconcile={pocket.investment_tracking_mode !== "amount" ? () => openReconciliation(pocket) : undefined}
+                          />
+                        )}
                         {pocket.instrument_symbol && <span>{pocket.instrument_symbol}</span>}
                         {pocket.instrument_type && <span>{INSTRUMENT_OPTIONS.find((option) => option.value === pocket.instrument_type)?.label}</span>}
                         {pocket.units ? <span className="tabular-nums">{pocket.units.toLocaleString("id-ID")} {getInstrumentConfig(pocket.instrument_type).unitUnit}{pocket.instrument_type === "stock" ? ` (${(pocket.units / 100).toLocaleString("id-ID")} lot)` : ""}</span> : null}

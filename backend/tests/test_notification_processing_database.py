@@ -1026,10 +1026,10 @@ def test_split_rejects_investment_trades(client, notification_owner):
 def test_owner_aliases_drive_self_transfer_recognition(client, top_up_owner):
     from app.db.pool import db_conn
     with db_conn() as conn:
-        conn.execute("UPDATE users SET name_aliases = %s WHERE id = %s", (["Alfonsus Enrico Soebijanto"], top_up_owner["user_id"]))
-    ingest_with_source_confirmation(client, at(notification("You've sent Rp1.500.000 to ALFONSUS ENRICO SOEBIJANTO.", "com.jago.digitalbanking"), 0), top_up_owner)
+        conn.execute("UPDATE users SET name = %s, name_aliases = %s WHERE id = %s", ("Pemilik Contoh", ["Raka Purnama"], top_up_owner["user_id"]))
+    ingest_with_source_confirmation(client, at(notification("You've sent Rp1.500.000 to RAKA PURNAMA.", "com.jago.digitalbanking"), 0), top_up_owner)
     result = ingest(client, at(notification(
-        "You received IDR 1,500,000.00 from ALFO**US ***ICO *O at Account Transfer category.", "com.bca.mybca.omni.android"), 90))["results"][0]
+        "You received IDR 1,500,000.00 from R**A PU* at Account Transfer category.", "com.bca.mybca.omni.android"), 90))["results"][0]
     assert result["type"] == "internal_movement" and result["target"] == "BCA Harian"
 
 

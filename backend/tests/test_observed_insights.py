@@ -119,7 +119,11 @@ def test_a_shorter_previous_cycle_shortens_both_windows(client, shopper):
 
 
 def test_comparison_endpoint_returns_its_windows(client, shopper):
-    insert(shopper, "groceries", 50_000, datetime.now(JAKARTA) - timedelta(minutes=5))
+    # Halfway into the month so far: inside the compared window even on a 31st, when the
+    # comparison is shortened to the previous month's 30 days and leaves today out.
+    now = datetime.now(JAKARTA)
+    month_start = datetime.combine(now.date().replace(day=1), time.min, JAKARTA)
+    insert(shopper, "groceries", 50_000, month_start + (now - month_start) / 2)
     response = client.get("/api/dashboard/period-comparison?timeframe=month")
     assert response.status_code == 200, response.text
     body = response.json()

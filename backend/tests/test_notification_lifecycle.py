@@ -22,7 +22,7 @@ def test_lifespan_starts_only_permitted_inference_and_closes_in_order(monkeypatc
                        openai_api_key=key, notification_ai_model=model,
                        notification_ai_reasoning_effort=reasoning_effort,
                        app_env="development" if dry_run else "production",
-                       notification_ai_dry_run_enabled=dry_run))
+                       notification_ai_dry_run_enabled=dry_run, background_jobs_enabled=True))
     monkeypatch.setattr(main, "open_db_pool", lambda: events.append("open"))
     monkeypatch.setattr(main, "close_db_pool", lambda: events.append("pool_closed"))
     client = MagicMock()
@@ -67,6 +67,41 @@ def test_lifespan_starts_only_permitted_inference_and_closes_in_order(monkeypatc
         assert events.index("worker_stopped") < events.index("pool_closed")
     # Price sync and salary detection only; no background task posts scheduled transactions.
     assert events.count("background_started") == 3
+
+
+def test_disabled_background_jobs_start_no_loop(monkeypatch, caplog):
+    import app.main as main
+
+    started = []
+    monkeypatch.setattr(main, "settings", replace(main.settings, background_jobs_enabled=False, app_env="production"))
+    monkeypatch.setattr(main, "open_db_pool", lambda: None)
+    monkeypatch.setattr(main, "close_db_pool", lambda: None)
+    monkeypatch.setattr(main, "reclassify_review_noise", lambda: 0)
+
+    async def loop(*_args):
+        started.append("loop")
+
+    for name in ("_daily_price_sync_loop", "_ledger_matching_loop", "_plan_link_request_loop",
+                 "_movement_repair_loop", "notification_worker"):
+        monkeypatch.setattr(main, name, loop)
+
+    async def run():
+        async with main.lifespan(main.app):
+            await asyncio.sleep(0)
+
+    with caplog.at_level("WARNING", logger="api"):
+        asyncio.run(run())
+    assert started == []
+    assert "Background jobs disabled" in caplog.text
+
+
+def test_background_jobs_are_enabled_unless_switched_off(monkeypatch):
+    from app.core.config import load_settings
+
+    monkeypatch.delenv("BACKGROUND_JOBS_ENABLED", raising=False)
+    assert load_settings().background_jobs_enabled is True
+    monkeypatch.setenv("BACKGROUND_JOBS_ENABLED", "false")
+    assert load_settings().background_jobs_enabled is False
 
 
 def test_shutdown_waits_for_in_flight_database_operation():

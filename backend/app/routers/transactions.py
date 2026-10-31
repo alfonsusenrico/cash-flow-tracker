@@ -1,4 +1,3 @@
-import re
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -19,6 +18,7 @@ from app.services.debt_allocations import (
     validate_allocation_request,
     validate_debt_capacity,
 )
+from app.services.entity_names import resolve_account_name, resolve_category_name
 from app.services.kakeibo import PILLAR_PATTERN, effective_pillar, effective_pillar_sql
 from app.services.report_figures import cash_flow_totals
 from app.services.ledger_mutations import (
@@ -445,185 +445,6 @@ def list_transactions(
     }
 
 
-def _match_account_by_name(
-    cur,
-    user_id: str,
-    raw_name: str,
-    accounts: list[dict[str, Any]],
-    parent_account: dict[str, Any] | None = None,
-) -> dict[str, Any] | None:
-    if not raw_name:
-        return None
-    raw = raw_name.strip()
-    raw_lower = raw.lower()
-
-    # 0. Match by instrument symbol (e.g. "BBRI" matching "BBRI" or "BBRI.JK")
-    for acc in accounts:
-        sym = (acc.get("instrument_symbol") or "").strip().upper()
-        if sym:
-            sym_clean = re.sub(r"\.(JK|IDX)$", "", sym, flags=re.IGNORECASE)
-            if raw.upper() == sym or raw.upper() == sym_clean:
-                return acc
-
-    # 1. Exact match
-    for acc in accounts:
-        if (acc.get("name") or "").strip().lower() == raw_lower:
-            return acc
-
-    # 2. Match without "pocket" or "kantong"
-    norm = re.sub(r"\bpocket\b|\bkantong\b", "", raw_lower, flags=re.IGNORECASE).strip()
-    if norm:
-        for acc in accounts:
-            acc_name = (acc.get("name") or "").strip().lower()
-            acc_norm = re.sub(r"\bpocket\b|\bkantong\b", "", acc_name, flags=re.IGNORECASE).strip()
-            if acc_name == norm or acc_norm == norm:
-                return acc
-
-    # 3. Synonym dictionary
-    synonyms = {
-        "emergency fund": "dana darurat",
-        "emergency": "dana darurat",
-        "darurat": "dana darurat",
-        "savings": "tabungan",
-        "saving": "tabungan",
-        "rdn bca": "rdn",
-        "rdn": "rdn",
-        "rekening dana nasabah": "rdn",
-        "dana nasabah": "rdn",
-    }
-    for syn_key, syn_val in synonyms.items():
-        if syn_key in norm or syn_key in raw_lower:
-            for acc in accounts:
-                if syn_val in (acc.get("name") or "").lower():
-                    return acc
-
-    # 4. Main/Utama fallback to parent or designated main account
-    if norm in ("main", "utama", "kantong utama", "") or raw_lower in ("main", "utama", "kantong utama"):
-        if parent_account:
-            return parent_account
-        jago_acc = next((a for a in accounts if "jago" in (a.get("name") or "").lower() and not a.get("parent_id")), None)
-        if jago_acc:
-            return jago_acc
-        for acc in accounts:
-            if any(k in (acc.get("name") or "").lower() for k in ("utama", "main")):
-                return acc
-        return next((a for a in accounts if not a.get("parent_id")), None)
-
-    # 5. Substring match
-    for acc in accounts:
-        acc_name = (acc.get("name") or "").strip().lower()
-        if norm and (norm in acc_name or acc_name in norm):
-            return acc
-        if raw_lower in acc_name or acc_name in raw_lower:
-            return acc
-
-    # 6. Auto-provision child pocket under parent bank if applicable
-    if norm and norm not in ("main", "utama", "kantong utama"):
-        target_parent = parent_account
-        if not target_parent:
-            target_parent = next((a for a in accounts if "jago" in (a.get("name") or "").lower() and not a.get("parent_id")), None)
-        if target_parent and "id" in target_parent:
-            cur.execute(
-                """
-                INSERT INTO accounts (user_id, parent_id, name, type, initial_balance)
-                VALUES (%s, %s, %s, 'bank', 0)
-                RETURNING id, name, parent_id, type
-                """,
-                (user_id, target_parent["id"], raw),
-            )
-            created = cur.fetchone()
-            if created:
-                accounts.append(created)
-                return created
-
-    return None
-
-
-def _resolve_category_by_name(
-    cur,
-    user_id: str,
-    raw_name: str,
-    categories: list[dict[str, Any]],
-) -> dict[str, Any] | None:
-    if not raw_name:
-        return None
-    raw = raw_name.strip()
-    raw_lower = raw.lower()
-
-    for cat in categories:
-        if (cat.get("name") or "").strip().lower() == raw_lower:
-            return cat
-
-    # Common English/Indonesian synonyms
-    synonyms = {
-        "food & beverage": "makanan & minuman",
-        "food and beverage": "makanan & minuman",
-        "f&b": "makanan & minuman",
-        "food": "makanan & minuman",
-        "beverage": "makanan & minuman",
-        "groceries": "belanja",
-        "shopping": "belanja",
-        "transport": "transportasi",
-        "transportation": "transportasi",
-        "salary": "gaji",
-        "health": "kesehatan",
-        "medical": "kesehatan",
-        "bills & utilities": "tagihan & utilitas",
-        "utilities": "tagihan & utilitas",
-        "payment": "tagihan & utilitas",
-        "account transfer": "pendapatan lain",
-        "transfer masuk": "pendapatan lain",
-        "transfer": "internal movement",
-    }
-    target_syn = synonyms.get(raw_lower)
-    if target_syn:
-        for cat in categories:
-            if (cat.get("name") or "").strip().lower() == target_syn:
-                return cat
-
-    # Auto-seed standard categories if missing
-    icon = "tag"
-    color = "#3b82f6"
-    kind = "expense"
-    if raw_lower == "internal movement":
-        icon = "repeat"
-        color = "#64748b"
-    elif raw_lower == "investasi":
-        icon = "trending-up"
-        color = "#0ea5e9"
-    elif raw_lower in ("gaji", "pendapatan lain"):
-        icon = "dollar-sign"
-        color = "#22c55e"
-        kind = "income"
-    elif raw_lower == "makanan & minuman":
-        icon = "utensils"
-        color = "#f97316"
-
-    cur.execute(
-        """
-        INSERT INTO categories (user_id, name, icon, color, kind)
-        VALUES (%s, %s, %s, %s, %s)
-        ON CONFLICT DO NOTHING
-        RETURNING id, name, kind, icon, color
-        """,
-        (user_id, raw, icon, color, kind),
-    )
-    created = cur.fetchone()
-    if created:
-        categories.append(created)
-        return created
-
-    cur.execute(
-        "SELECT id, name, kind, icon, color FROM categories WHERE user_id = %s AND LOWER(name) = %s LIMIT 1",
-        (user_id, raw_lower),
-    )
-    found = cur.fetchone()
-    if found:
-        categories.append(found)
-        return found
-    return None
-
-
 def resolve_effective_account(
     cur,
     user_id: str,
@@ -758,9 +579,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 if not matched_source:
                     raise HTTPException(status_code=404, detail="Source account not found")
             elif payload.account_name:
-                matched_source = _match_account_by_name(cur, user_id, payload.account_name, accounts)
-                if not matched_source:
-                    raise HTTPException(status_code=400, detail=f"Source account '{payload.account_name}' could not be resolved")
+                matched_source = resolve_account_name(payload.account_name, accounts, field="account_name")
                 account_id = str(matched_source["id"])
             else:
                 raise HTTPException(status_code=422, detail="Either account_id or account_name must be provided")
@@ -783,12 +602,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     matched_target = effective_target
                     target_account_id = str(effective_target["id"])
             elif payload.target_account_name:
-                matched_target = _match_account_by_name(cur, user_id, payload.target_account_name, accounts)
-                if not matched_target:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Target account '{payload.target_account_name}' could not be resolved",
-                    )
+                matched_target = resolve_account_name(payload.target_account_name, accounts, field="target_account_name")
                 effective_target = resolve_effective_account(cur, user_id, matched_target, accounts)
                 if effective_target:
                     matched_target = effective_target
@@ -808,11 +622,10 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 if not payload.investment_action and category["kind"] != payload.type:
                     raise HTTPException(status_code=400, detail="Category is incompatible with transaction type")
             elif payload.category_name:
-                matched_cat = _resolve_category_by_name(cur, user_id, payload.category_name, categories)
-                if matched_cat:
-                    category_id = str(matched_cat["id"])
-                else:
-                    raise HTTPException(status_code=400, detail="Category could not be resolved")
+                matched_cat = resolve_category_name(payload.category_name, categories, transaction_type=payload.type)
+                if not payload.investment_action and matched_cat["kind"] != payload.type:
+                    raise HTTPException(status_code=400, detail="Category is incompatible with transaction type")
+                category_id = str(matched_cat["id"])
 
             if not payload.investment_action and (payload.target_account_id or payload.target_account_name):
                 raise HTTPException(status_code=400, detail="A target account is only valid for an investment trade")

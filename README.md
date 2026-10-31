@@ -220,7 +220,7 @@ Open **`http://localhost:8090`** in your browser.
 
 Every account can authenticate via Session Cookie (browser) or Bearer Token (mobile companion & automation scripts).
 
-- `POST /api/transactions` — 1-call expense, income, or transfer entry.
+- `POST /api/transactions` — 1-call expense or income entry (internal movements use `POST /api/movements`).
   ```json
   {
     "type": "income",
@@ -231,6 +231,7 @@ Every account can authenticate via Session Cookie (browser) or Bearer Token (mob
     "date": "2026-09-16T15:33:14Z"
   }
   ```
+  Names must match one of your active accounts or categories exactly (case and extra spaces are ignored). An unknown or ambiguous name returns HTTP 422 with `account_name_unresolved` or `category_name_unresolved` and up to five candidates, and nothing is created. Send `account_id` or `category_id` to be explicit.
 - `GET /api/pulse` — Returns today's spending, remaining daily allowance, and monthly pace.
 - `GET /api/dashboard/overview?timeframe=cycle` — Full financial health KPIs, cumulative cashflow, and Kakeibo breakdown.
 - `GET /api/accounts` — Balance snapshot across all liquid and investment accounts.

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
-import { cn } from "@/lib/utils";
+import { cn, greetingName } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
 import { Modal } from "@/components/ui/Modal";
@@ -115,9 +115,7 @@ export default function OverviewPage() {
       : "Selamat Malam";
   const greetingEmoji =
     currentHour < 11 ? "☀️" : currentHour < 15 ? "🌤️" : currentHour < 18 ? "🌇" : "🌙";
-  const displayName = user?.username
-    ? user.username.charAt(0).toUpperCase() + user.username.slice(1)
-    : "Enrico";
+  const displayName = greetingName(user);
 
   return (
     <div className="w-full">
@@ -147,7 +145,7 @@ export default function OverviewPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-[var(--text)]">
-              {greetingText}, {displayName}! {greetingEmoji}
+              {greetingText}{displayName ? `, ${displayName}` : ""}! {greetingEmoji}
             </h1>
           </div>
           <p className="text-xs text-[var(--muted)] font-medium mt-0.5">

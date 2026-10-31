@@ -16,6 +16,7 @@ from app.services.ledger_mutations import (
     movement_kakeibo,
 )
 from app.services.auth import get_current_user
+from app.services.entity_names import resolve_account_name
 from app.services.investment_topups import reject_topup_movement
 from app.services.merchant_memory import record_owner_corrections, snapshot_rows
 from app.services.movement_pairing import complete_movement, undo_movement_fee
@@ -28,8 +29,8 @@ router = APIRouter(prefix="/movements", tags=["Movements"])
 class MovementCreate(BaseModel):
     source_account_id: UUID | None = None
     target_account_id: UUID | None = None
-    source_account_name: str | None = None
-    target_account_name: str | None = None
+    source_account_name: str | None = Field(default=None, max_length=100)
+    target_account_name: str | None = Field(default=None, max_length=100)
     amount: int = Field(gt=0)
     notes: str | None = Field(default=None, max_length=500)
     date: datetime | None = None
@@ -73,7 +74,7 @@ from app.services.movement_linkage import (
 @router.post("")
 def create_movement(payload: MovementCreate, current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
-    from app.routers.transactions import _match_account_by_name, resolve_effective_account
+    from app.routers.transactions import resolve_effective_account
 
     if payload.source_account_id and payload.target_account_id and payload.source_account_id == payload.target_account_id:
         raise HTTPException(status_code=400, detail="Source and target accounts must be different")
@@ -100,9 +101,7 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
                 if not matched_source:
                     raise HTTPException(status_code=404, detail="Source account not found")
             elif payload.source_account_name:
-                matched_source = _match_account_by_name(cur, user_id, payload.source_account_name, accounts)
-                if not matched_source:
-                    raise HTTPException(status_code=400, detail=f"Source account '{payload.source_account_name}' could not be resolved")
+                matched_source = resolve_account_name(payload.source_account_name, accounts, field="source_account_name")
             else:
                 raise HTTPException(status_code=422, detail="Either source_account_id or source_account_name must be provided")
 
@@ -120,9 +119,7 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
                 if not matched_target:
                     raise HTTPException(status_code=404, detail="Target account not found")
             elif payload.target_account_name:
-                matched_target = _match_account_by_name(cur, user_id, payload.target_account_name, accounts)
-                if not matched_target:
-                    raise HTTPException(status_code=400, detail=f"Target account '{payload.target_account_name}' could not be resolved")
+                matched_target = resolve_account_name(payload.target_account_name, accounts, field="target_account_name")
             else:
                 raise HTTPException(status_code=422, detail="Either target_account_id or target_account_name must be provided")
 

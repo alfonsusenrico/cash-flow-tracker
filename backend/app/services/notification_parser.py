@@ -99,21 +99,21 @@ JAGO_PAYMENT_SIMPLE_PATTERN = re.compile(
 )
 
 # 2e. Bank Jago transfer to another bank account (observed 2026-09-30)
-# "You've transferred Rp625.000 to ALFONSUS ENRICO SOEBIJAN. Need help? Contact Tanya Jago at 1500 746."
+# "You've transferred Rp625.000 to RAKA PURNAM. Need help? Contact Tanya Jago at 1500 746."
 JAGO_TRANSFER_OUT_PATTERN = re.compile(
     r"You(?:\x27ve|\s+have)\s+transferred\s+(?:Rp|IDR)\s*(?P<amount>[\d\.,]+)\s+to\s+(?P<recipient>.+?)(?:\.\s|\.$|\s+Need help)",
     re.IGNORECASE,
 )
 
 # 3. Bank Jago Incoming Transfer
-# "Alfonsus Enrico Soebijanto has sent Rp500.050 to you. Need help? Contact Tanya Jago at 1500 746."
+# "Raka Purnama has sent Rp500.050 to you. Need help? Contact Tanya Jago at 1500 746."
 JAGO_INBOUND_PATTERN = re.compile(
     r"(?P<sender>.+?)\s+has sent\s+(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)\s+to you",
     re.IGNORECASE,
 )
 
 # 4. GoPay Outbound Transfer
-# "Rp500.000 udah dikirim ke BCA ALFONSUS ENRICO SOEBIJAN."
+# "Rp500.000 udah dikirim ke BCA RAKA PURNAM."
 GOPAY_OUTBOUND_PATTERN = re.compile(
     r"(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)\s+udah dikirim ke\s+(?P<bank>\w+)\s+(?P<recipient>.+?)\.",
     re.IGNORECASE,
@@ -162,7 +162,7 @@ BCA_OUTBOUND_EN_PATTERN = re.compile(
 )
 
 # 11. ShopeePay Inbound BI-Fast
-# "ALFONSUS ENRICO SOEBIJANTO mengirimkan dana sebesar Rp500.000 ke ShopeePay-mu melalui BI-Fast."
+# "RAKA PURNAMA mengirimkan dana sebesar Rp500.000 ke ShopeePay-mu melalui BI-Fast."
 SHOPEEPAY_INBOUND_PATTERN = re.compile(
     r"(?P<sender>.+?)\s+mengirimkan dana sebesar\s+(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)\s+ke ShopeePay-mu",
     re.IGNORECASE,

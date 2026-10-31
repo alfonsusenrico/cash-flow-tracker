@@ -242,3 +242,9 @@ export function parseUnits(val: string | number | null | undefined): number {
   const num = parseFloat(clean);
   return isNaN(num) ? 0 : num;
 }
+
+/** The signed-in owner's username, capitalised for the greeting; none while the profile loads. */
+export function greetingName(user?: { username?: string | null } | null): string | null {
+  const username = user?.username?.trim();
+  return username ? username.charAt(0).toUpperCase() + username.slice(1) : null;
+}

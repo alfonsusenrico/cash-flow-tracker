@@ -488,21 +488,12 @@ def test_record_investment_buy_rejects_unknown_stock_ticker():
     app.dependency_overrides[get_current_user] = lambda: mock_user
 
     rdn_id = str(uuid4())
-    new_stock_id = str(uuid4())
     invest_cat_id = str(uuid4())
 
     with patch("app.routers.transactions.db_conn") as mock_conn:
         cur = MagicMock()
         mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
 
-        # 1. auto-provision INSERT RETURNING
-        # 2. tx insert RETURNING
-        # 3. invest_acc query
-        cur.fetchone.side_effect = [
-            {"id": new_stock_id, "parent_id": None, "name": "TLKM", "type": "investment", "instrument_type": "stock", "instrument_symbol": "TLKM.JK", "default_funding_account_id": rdn_id},
-            {"id": str(uuid4()), "created_at": datetime.datetime.now(datetime.timezone.utc)},
-            {"id": new_stock_id, "units": 0.0, "avg_buy_price": 0, "last_price": None},
-        ]
         cur.fetchall.side_effect = [
             [
                 {"id": rdn_id, "name": "RDN BCA", "type": "bank", "parent_id": None, "instrument_type": None, "instrument_symbol": None, "default_funding_account_id": None},
@@ -526,8 +517,9 @@ def test_record_investment_buy_rejects_unknown_stock_ticker():
                 "price_per_unit": 3000.0,
             },
         )
-        assert res.status_code == 400
-        assert "could not be resolved" in res.json()["detail"]
+        assert res.status_code == 422
+        detail = res.json()["detail"]
+        assert (detail["code"], detail["field"], detail["reason"]) == ("account_name_unresolved", "target_account_name", "not_found")
 
         provision_calls = [c for c in cur.execute.call_args_list if "INSERT INTO accounts" in str(c)]
         assert len(provision_calls) == 0

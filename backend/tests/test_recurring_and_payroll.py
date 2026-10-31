@@ -131,7 +131,7 @@ def test_api_create_and_list_recurring_rules():
     target_acc_id = str(uuid4())
     rule_id = str(uuid4())
 
-    mock_user = {"id": user_id, "username": "enrico", "payday_day": 25}
+    mock_user = {"id": user_id, "username": "raka", "payday_day": 25}
     app.dependency_overrides[get_current_user] = lambda: mock_user
 
     try:
