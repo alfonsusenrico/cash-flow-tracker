@@ -33,7 +33,7 @@ Every transaction SHALL carry `source` (manual, notification, recurring, payroll
 - **THEN** its `classified_by` SHALL be `habit` and the database SHALL accept it.
 
 ### Requirement: Provenance Written by Every Recording Path
-Each path that creates a transaction SHALL write its provenance explicitly: manual create → manual, reviewed, owner; movement → movement, reviewed, system; reconcile → reconcile, reviewed, system; investment trade or top-up → investment, reviewed, system; notification → notification, auto or needs_review, ai or rule, or notification, reviewed, habit when recorded from a habit. Existing recurring and payroll provenance SHALL remain intact; an owner-requested record of one missed plan occurrence keeps the plan link and is written as recurring, reviewed, system.
+Each path that creates a transaction SHALL write its provenance explicitly: manual create → manual, reviewed, owner; movement → movement, reviewed, system; reconcile → reconcile, reviewed, system; investment trade or top-up → investment, reviewed, system; a notification as "Provenance of Notification Records" states; a plan or payroll row as "Provenance of Plan and Payroll Records" states.
 
 #### Scenario: Manual expense from the web
 - **WHEN** the owner records an expense through the transactions API
@@ -209,3 +209,17 @@ A transfer-fee row split off at automatic pairing SHALL have provenance movement
 #### Scenario: Notification row awaiting its counterpart
 - **WHEN** a one-sided self-transfer notification is recorded in "Internal Movement" without a counterpart
 - **THEN** the row SHALL have `source = notification` and `review_status = needs_review`.
+
+### Requirement: Provenance of Notification Records
+A transaction recorded from a notification SHALL have source notification and SHALL be written as auto or needs_review with classifier ai or rule, or as reviewed with classifier habit when it is recorded from a habit.
+
+#### Scenario: Model interpretation with a review reason
+- **WHEN** a notification is recorded from an AI interpretation that carries an unresolved review reason
+- **THEN** it SHALL have notification source, needs-review status and AI classifier
+
+### Requirement: Provenance of Plan and Payroll Records
+Existing recurring and payroll provenance SHALL remain intact; an owner-requested record of one missed plan occurrence SHALL keep the plan link and SHALL be written as recurring, reviewed, system.
+
+#### Scenario: Recording one missed plan occurrence
+- **WHEN** the owner records one missed occurrence of a plan
+- **THEN** the new row SHALL keep the plan link and SHALL have recurring source, reviewed status and system classifier

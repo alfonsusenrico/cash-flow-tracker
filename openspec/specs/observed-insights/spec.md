@@ -6,7 +6,7 @@ Give the owner observed, actionable insights on Analisis instead of averages and
 ## Requirements
 
 ### Requirement: Fair period comparison
-The system SHALL compare the selected salary cycle or calendar month with the previous one over the same elapsed time from each period's start, shortening both windows to the previous period's length when it is shorter. It SHALL report inflow, outflow and net, spending per Kakeibo pillar, and the top three category and merchant increases and decreases with amounts, and SHALL NOT present a percentage change. It SHALL also report the selected period's inflow, outflow and net from its start to now as `current_to_date`, never shortened, covering the same window and using the same reportable-flow rules as the dashboard overview for that period.
+The system SHALL compare the selected salary cycle or calendar month with the previous one over the same elapsed time from each period's start, shortening both windows to the previous period's length when it is shorter. It SHALL report inflow, outflow and net, spending per Kakeibo pillar, and the top three category and merchant increases and decreases with amounts, and SHALL NOT present a percentage change.
 
 #### Scenario: Same elapsed days
 - **GIVEN** the current month observed through its 10th day, previous-month spending of Rp 100.000 on the 5th and Rp 900.000 on the 20th
@@ -60,7 +60,7 @@ A detected charge that already matches an active plan SHALL be marked "sudah ada
 - **THEN** a non-posting monthly plan SHALL be created, no transaction SHALL be added, and the charge SHALL then be marked as having a plan
 
 ### Requirement: Beranda insight uses the fair comparison
-The Beranda insight card, on desktop and phone, SHALL be built from the fair period comparison for the selected salary cycle or calendar month. It SHALL name the period and the number of compared days, state the change in outflow and the largest category increases and decreases as amounts, and SHALL NOT show a percentage change or a savings verdict. Below 3 compared days, or without previous data, it SHALL say so instead of comparing. Any figure the card calls spending so far ("sejauh ini") SHALL be the period's outflow to date, not the shortened comparison figure.
+The Beranda insight card, on desktop and phone, SHALL be built from the fair period comparison for the selected salary cycle or calendar month. It SHALL name the period and the number of compared days, state the change in outflow and the largest category increases and decreases as amounts, and SHALL NOT show a percentage change or a savings verdict. Below 3 compared days, or without previous data, it SHALL say so instead of comparing.
 
 #### Scenario: Day one of a salary cycle
 - **GIVEN** a salary cycle that started today and a previous cycle with Rp 4.000.000 of spending
@@ -79,3 +79,18 @@ The Beranda insight card, on desktop and phone, SHALL be built from the fair per
 #### Scenario: Comparison unavailable
 - **WHEN** the comparison request fails
 - **THEN** the card SHALL say that the comparison could not be loaded and SHALL show no figures
+
+### Requirement: Period outflow to date
+The comparison SHALL also report the selected period's inflow, outflow and net from its start to now as `current_to_date`, never shortened, covering the same window and using the same reportable-flow rules as the dashboard overview for that period.
+
+#### Scenario: Outflow to date matches the overview
+- **WHEN** the comparison is requested for the current salary cycle or calendar month
+- **THEN** `current_to_date` SHALL run from the period's first local day to today and its outflow SHALL equal the dashboard overview's `total_outflow` for the same period
+
+### Requirement: Beranda spending so far
+Any figure the Beranda insight card calls spending so far ("sejauh ini") SHALL be the period's outflow to date, not the shortened comparison figure.
+
+#### Scenario: Spending so far after a shortened comparison
+- **GIVEN** 31 October after a 30-day September without transactions, no spending on 1–30 October and Rp 3.600.000 spent today
+- **WHEN** the owner opens Beranda with the calendar-month basis
+- **THEN** the card SHALL say "Uang keluar sejauh ini Rp 3.600.000", not the compared Rp 0

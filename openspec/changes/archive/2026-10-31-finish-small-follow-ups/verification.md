@@ -46,6 +46,12 @@ Only the habit chip shows a basis. Console errors: 0. Both servers and the brows
 - `git diff --check` exit 0.
 - Final diff review: no secrets, no real names or notification text, no dead code left by the deletions, no unrelated change.
 
+## Archive
+
+- `openspec archive finish-small-follow-ups --yes`: + 5 added, ~ 7 modified, − 0 across `default-pocket`, `financial-reporting-consistency`, `habit-learning`, `idempotent-public-transactions`, `observed-insights`, `tactile-pulse-ui` and `transaction-provenance`. No other open change touched these requirements.
+- After the archive, `openspec validate --all --strict` exit 0 (63 passed, 0 warnings).
+- Main-spec names went from 374 requirements and 995 scenarios to 379 and 1011. The comparison shows additions only: the 5 new requirements with their 13 scenarios and 3 new scenarios in modified requirements. No requirement or scenario name was removed.
+
 ## Not verified
 
 - The Android companion reading `top_categories` (built in parallel, outside this repository).
