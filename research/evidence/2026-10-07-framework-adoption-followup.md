@@ -20,7 +20,7 @@ Full .git/hooks backup: ~/.local/state/cash-flow-tracker/hooks-backup-2026-10-07
 
 Read-only `git ls-remote origin 'refs/notes/*'` exited 0 with no advertised references. `git notes --ref=bob list | wc -l` returned **5**. Notes were not deleted or modified; this proves current remote state, not whether notes were ever published historically. No note contents were read.
 
-Installed using `/Users/enrico/enrico/agent-framework/tools/af hooks install . --apply`. Generated executable .githooks/commit-msg and .githooks/pre-push; core.hooksPath=.githooks. No hook bypass flags were used.
+Installed using `<framework-checkout>/tools/af hooks install . --apply`. Generated executable .githooks/commit-msg and .githooks/pre-push; core.hooksPath=.githooks. No hook bypass flags were used.
 
 Hook proof, directly against temporary message files, without throwaway commits:
 
@@ -47,7 +47,7 @@ Application source tested is unchanged from b5851a9. Tests ran with the design/h
 Backend command from the adoption root:
 
 ```sh
-TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5548/ledger_test SKIP_TEST_MIGRATIONS=1 PYTHONPATH=backend /Users/enrico/enrico/project/enrico/cash-flow-tracker/backend/.venv/bin/python -m pytest backend/tests -q --tb=short
+TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5548/ledger_test SKIP_TEST_MIGRATIONS=1 PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests -q --tb=short
 ```
 
 SKIP_TEST_MIGRATIONS bypasses only the host fixture after independent numeric-order migration application; no database tests were skipped. Existing local stacks were not used for test data. Frontend commands from frontend/: npm ci --no-audit --no-fund, npm test, npm run lint, npm run type-check, npm run build. npm's existing blocked install-script policy remained intact. Local test outputs are cft-adoption-followup-*.log under /private/tmp; durable commands/results are recorded here and in the owner's state.

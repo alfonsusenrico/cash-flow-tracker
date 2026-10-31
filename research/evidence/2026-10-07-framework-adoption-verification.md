@@ -31,7 +31,7 @@ After summary and format repair: **44 passed / 0 failed**, exit 0, using exactly
 ## Backend regression suite
 
 ```sh
-TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5548/ledger_test SKIP_TEST_MIGRATIONS=1 PYTHONPATH=backend /Users/enrico/enrico/project/enrico/cash-flow-tracker/backend/.venv/bin/python -m pytest backend/tests -q --tb=short
+TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5548/ledger_test SKIP_TEST_MIGRATIONS=1 PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests -q --tb=short
 ```
 
 **716 passed, zero skipped** (19.78 s), exit 0. All 26 versioned migrations were applied in numeric order to a verified empty, separately named disposable database. The existing host migration fixture lacks Flyway/psql, so SKIP_TEST_MIGRATIONS bypassed only that fixture after independent migration application; it did not skip database tests. Synthetic data only; existing local stacks were not used as test data. Local output reference: /private/tmp/cft-adoption-backend-tests.log.
