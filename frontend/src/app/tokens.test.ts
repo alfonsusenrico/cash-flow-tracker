@@ -114,7 +114,27 @@ describe("design tokens", () => {
     expect(resolve(themes[":root"], "--primary")).toBe("#FF334B");
   });
 
+  it("generates shadow-xs from the --shadow-xs token", () => {
+    const boxShadow = tailwindTheme.boxShadow as unknown as Record<string, string>;
+    expect(boxShadow.xs).toBe("var(--shadow-xs)");
+    expect(boxShadow.sm).toBe("var(--shadow-sm)");
+  });
+
   describe.each(Object.entries(themes))("in %s", (selector, theme) => {
+    it("keeps --shadow-xs a 1px raise lighter than --shadow-sm", () => {
+      const shadow = (name: string) => {
+        const match = resolve(theme, name).match(/^0 (\d+)px (\d+)px (?:-?\d+(?:px)? )?rgba\(\d+, \d+, \d+, ([\d.]+)\)$/);
+        expect(match, `${name} in ${selector}`).not.toBeNull();
+        return { offset: Number(match![1]), blur: Number(match![2]), alpha: Number(match![3]) };
+      };
+      const xs = shadow("--shadow-xs");
+      const sm = shadow("--shadow-sm");
+      expect(xs.offset).toBe(1);
+      expect(xs.blur).toBeLessThanOrEqual(2);
+      expect(xs.blur).toBeLessThan(sm.blur);
+      expect(xs.alpha).toBeLessThan(sm.alpha);
+    });
+
     it.each(textPairs)("keeps %s at WCAG AA on its backgrounds", (text, backgrounds) => {
       for (const background of backgrounds) {
         expect(contrast(painted(theme, text), painted(theme, background)), `${text} on ${background} in ${selector}`)
