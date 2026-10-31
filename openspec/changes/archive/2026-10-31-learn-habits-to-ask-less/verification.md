@@ -21,6 +21,7 @@ Branch `feat/habit-learning` from `origin/main` `e1bde53`. Checks ran on the fin
 | `git diff --check` including new files | clean |
 | `openspec validate learn-habits-to-ask-less --strict` | valid |
 | `openspec validate --all` | 63 passed, 0 failed |
+| After `openspec archive`: `openspec validate --all` / `--all --strict` | 63 passed, 0 failed / 62 passed, 1 failed: the known `transaction-provenance` long-requirement warning, also present on `e1bde53` (61 passed, 1 failed). Two modified requirement texts were tightened after archiving to stay under 500 characters. |
 | MODIFIED deltas keep every source scenario name (script against the main specs) | no scenario dropped; 5 scenarios added |
 
 ## Evidence per decision

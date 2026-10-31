@@ -26,7 +26,7 @@ When a notification is recorded as a single unpaired expense or income with a si
 - **THEN** no purpose question SHALL be attached and the row SHALL NOT be flagged `needs_review`.
 
 ### Requirement: Ranked Purpose Suggestions
-Suggestions SHALL start with the habit's guess when the payment has habit labels (habit-learning), then rank the owner's feedback of the same direction with an active category by signature, account, amount band, local hour and weekday, as scored in the design, summing identical classifications and leaving out the one the guess already offers. Then the current classification SHALL follow when it has a category, and incoming transfers SHALL include a "Patungan & Ganti Uang" suggestion when the owner has that category. At most five suggestions SHALL be offered.
+After a habit guess (habit-learning), suggestions SHALL rank the owner's other feedback of the same direction with an active category by signature, account, amount band, local hour and weekday, as scored in the design, summing identical classifications. Then the current classification SHALL follow when it has a category, and incoming transfers SHALL include a "Patungan & Ganti Uang" suggestion when the owner has that category. At most five suggestions SHALL be offered.
 
 #### Scenario: Time and amount ranking
 - **GIVEN** owner answers "makan kafe senja" twice on Wednesday evenings around Rp200.000 and "beli roti bakar" three times on Monday mornings around Rp30.000, all for the same signature

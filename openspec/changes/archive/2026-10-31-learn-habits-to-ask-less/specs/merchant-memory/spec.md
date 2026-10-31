@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Classification Order
-For an expense or income, an owner memory entry with the notification's merchant key and an active category of that direction SHALL be applied first: the row is recorded from memory with `classified_by = rule` and `review_status = auto`, the hit is counted and the model SHALL NOT be called. Next, a merchant-less expense whose habit qualifies (habit-learning) SHALL be recorded from the habit without the model. Otherwise the model SHALL classify when AI is enabled, and the deterministic path when it is not or the model's answer is unusable. Signature memory entries SHALL never short-circuit.
+For an expense or income, an owner memory entry with the notification's merchant key and an active category of that direction SHALL be applied first: the row is recorded from memory with `classified_by = rule` and `review_status = auto`, the hit is counted and the model SHALL NOT be called. Otherwise a qualifying habit, else the model SHALL classify when AI is enabled, and the deterministic path when it is not or the model's answer is unusable. Signature keys SHALL never short-circuit.
 
 #### Scenario: Memory hit skips the model
 - **GIVEN** an owner memory entry for "kedai awan" in "Jajan & Nongkrong"
