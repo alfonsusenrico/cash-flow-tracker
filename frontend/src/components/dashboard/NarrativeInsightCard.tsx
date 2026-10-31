@@ -47,14 +47,15 @@ function ChangeRows({ title, items, bal, increase }: { title: string; items: Cha
 function Headline({ data, bal }: { data: PeriodComparisonData; bal: (n: number) => string }) {
   const days = data.compared_days;
   const current = data.current.outflow;
+  const soFar = data.current_to_date.outflow;
   if (data.current_truncated && days < MIN_COMPARISON_DAYS) {
-    return <p>Periode lalu hanya {days} hari, terlalu pendek untuk dibandingkan. Uang keluar sejauh ini <strong className="tabular-nums">{bal(current)}</strong>.</p>;
+    return <p>Periode lalu hanya {days} hari, terlalu pendek untuk dibandingkan. Uang keluar sejauh ini <strong className="tabular-nums">{bal(soFar)}</strong>.</p>;
   }
   if (days < MIN_COMPARISON_DAYS) {
     return (
       <p>
         Baru {days} hari berjalan. Perbandingan muncul setelah {MIN_COMPARISON_DAYS} hari agar tidak menyesatkan. Uang keluar sejauh
-        ini <strong className="tabular-nums">{bal(current)}</strong>.
+        ini <strong className="tabular-nums">{bal(soFar)}</strong>.
       </p>
     );
   }
@@ -62,7 +63,7 @@ function Headline({ data, bal }: { data: PeriodComparisonData; bal: (n: number) 
     return (
       <p>
         Periode lalu belum punya transaksi tercatat, jadi belum ada pembanding. Uang keluar sejauh ini{" "}
-        <strong className="tabular-nums">{bal(current)}</strong>.
+        <strong className="tabular-nums">{bal(soFar)}</strong>.
       </p>
     );
   }

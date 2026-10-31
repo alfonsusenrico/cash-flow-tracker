@@ -21,9 +21,10 @@ const change = (key: string, name: string, previous: number, current: number) =>
 const noChanges = { increases: [], decreases: [] };
 
 function comparison(overrides: Partial<PeriodComparisonData>): PeriodComparisonData {
+  const current = overrides.current ?? span("2026-10-01", "2026-10-10", 1_200_000);
   return {
     label: "Siklus 25 Okt 2026", compared_days: 10, current_truncated: false,
-    current: span("2026-10-01", "2026-10-10", 1_200_000), previous: span("2026-09-01", "2026-09-10", 1_000_000),
+    current, current_to_date: current, previous: span("2026-09-01", "2026-09-10", 1_000_000),
     previous_label: "September 2026", previous_has_data: true, pillars: [], categories: noChanges, merchants: noChanges,
     ...overrides,
   };
@@ -96,6 +97,23 @@ describe("Beranda insight card", () => {
     show(comparison({ previous_has_data: false }));
     expect(await screen.findByText(/belum ada pembanding/)).toHaveTextContent("Uang keluar sejauh ini Rp 1.200.000");
     expect(screen.queryByText(/lebih tinggi|lebih rendah/)).not.toBeInTheDocument();
+  });
+
+  it("counts the days a shortened comparison leaves out in the spending so far", async () => {
+    // The 31st after a 30-day month: the comparison window ends on the 30th, today's spending is after it.
+    show(comparison({
+      label: "Oktober 2026", compared_days: 30, current_truncated: true, previous_has_data: false,
+      current: span("2026-10-01", "2026-10-30", 0), current_to_date: span("2026-10-01", "2026-10-31", 3_600_000),
+    }));
+    expect(await screen.findByText(/belum ada pembanding/)).toHaveTextContent("Uang keluar sejauh ini Rp 3.600.000");
+  });
+
+  it("uses the spending so far when the previous period is too short", async () => {
+    show(comparison({
+      compared_days: 2, current_truncated: true,
+      current: span("2026-10-01", "2026-10-02", 50_000), current_to_date: span("2026-10-01", "2026-10-10", 1_200_000),
+    }));
+    expect(await screen.findByText(/hanya 2 hari, terlalu pendek/)).toHaveTextContent("Uang keluar sejauh ini Rp 1.200.000");
   });
 
   it("says when the previous period is too short to compare", async () => {

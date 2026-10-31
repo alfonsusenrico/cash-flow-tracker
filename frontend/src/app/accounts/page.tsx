@@ -999,7 +999,7 @@ export default function AccountsPage() {
               onClick={handleOpenNewAccount}
               className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-[#1E201E] px-3 text-xs font-bold text-white shadow-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
             >
-              <span className="text-sm leading-none text-[var(--accent-lime,#66CC55)] font-black">+</span>
+              <span className="text-sm leading-none text-[var(--accent-lime)] font-black">+</span>
               <span>Rekening</span>
             </button>
           </div>

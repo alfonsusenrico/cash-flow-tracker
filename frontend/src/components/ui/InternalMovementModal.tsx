@@ -292,7 +292,7 @@ export function InternalMovementModal({
             confirmDelete ? (
               <div className="mr-auto flex items-center gap-2" role="alert">
                 <span className="text-[11px] font-medium text-rose-600">Hapus kedua catatan?</span>
-                <button type="button" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending} className="min-h-11 rounded-xl bg-rose-600 px-3 text-xs font-bold text-white disabled:opacity-50">
+                <button type="button" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending} className="min-h-11 rounded-xl bg-[var(--danger-solid)] px-3 text-xs font-bold text-[var(--danger-contrast)] hover:bg-[var(--danger-solid-hover)] disabled:opacity-50">
                   {deleteMutation.isPending ? "Menghapus…" : "Ya, hapus"}
                 </button>
                 <button type="button" onClick={() => setConfirmDelete(false)} className="min-h-11 rounded-xl px-3 text-xs font-semibold text-[var(--muted)]">Tidak</button>

@@ -29,7 +29,7 @@ export function BottomNav({ onQuickAdd }: BottomNavProps) {
           className={cn(
             "flex flex-col sm:flex-row items-center justify-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all",
             isActive("/")
-              ? "bg-[var(--accent-lime,#66CC55)] text-[#141814] font-bold shadow-xs"
+              ? "bg-[var(--accent-lime)] text-[#141814] font-bold shadow-xs"
               : "text-[var(--muted)] hover:text-[var(--text)]"
           )}
         >
@@ -43,7 +43,7 @@ export function BottomNav({ onQuickAdd }: BottomNavProps) {
           className={cn(
             "flex flex-col sm:flex-row items-center justify-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all",
             isActive("/ledger")
-              ? "bg-[var(--accent-lime,#66CC55)] text-[#141814] font-bold shadow-xs"
+              ? "bg-[var(--accent-lime)] text-[#141814] font-bold shadow-xs"
               : "text-[var(--muted)] hover:text-[var(--text)]"
           )}
         >
@@ -59,7 +59,7 @@ export function BottomNav({ onQuickAdd }: BottomNavProps) {
           title="Catat Transaksi Cepat"
           className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1E201E] text-white border border-white/10 shadow-lg active:scale-95 transition-transform shrink-0 cursor-pointer -my-1"
         >
-          <Icon name="plus" className="h-5 w-5 text-[var(--accent-lime,#66CC55)]" />
+          <Icon name="plus" className="h-5 w-5 text-[var(--accent-lime)]" />
         </button>
 
         {/* 3. Analisis / Insights */}
@@ -68,7 +68,7 @@ export function BottomNav({ onQuickAdd }: BottomNavProps) {
           className={cn(
             "flex flex-col sm:flex-row items-center justify-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all",
             isActive("/insights")
-              ? "bg-[var(--accent-lime,#66CC55)] text-[#141814] font-bold shadow-xs"
+              ? "bg-[var(--accent-lime)] text-[#141814] font-bold shadow-xs"
               : "text-[var(--muted)] hover:text-[var(--text)]"
           )}
         >
@@ -82,7 +82,7 @@ export function BottomNav({ onQuickAdd }: BottomNavProps) {
           className={cn(
             "flex flex-col sm:flex-row items-center justify-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all",
             isActive("/accounts")
-              ? "bg-[var(--accent-lime,#66CC55)] text-[#141814] font-bold shadow-xs"
+              ? "bg-[var(--accent-lime)] text-[#141814] font-bold shadow-xs"
               : "text-[var(--muted)] hover:text-[var(--text)]"
           )}
         >

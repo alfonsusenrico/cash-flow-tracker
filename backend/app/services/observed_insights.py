@@ -168,12 +168,16 @@ def period_comparison(
     now_pillars = _pillar_spending(cur, user_id, *cur_window, now_figures["offsets"])
     now_categories = _category_amounts(cur, user_id, *cur_window, now_figures["offsets"])
     now_merchants = _merchant_spending(cur, user_id, *cur_window)
+    # A shortened comparison leaves the latest days out; "so far" figures must still cover them.
+    to_date = now_figures if cur_window == (start, end) else _window_figures(cur, user_id, start, end)
     result: dict[str, Any] = {
         "label": label,
         "compared_days": days,
         "current_truncated": cur_window[1] < end,
         "current": {**_window_dates(*cur_window), "inflow": now_figures["inflow"], "outflow": now_figures["outflow"],
                     "net": now_figures["net"], "reimbursement_offset": now_figures["reimbursement_offset"]},
+        "current_to_date": {**_window_dates(start, end), "inflow": to_date["inflow"], "outflow": to_date["outflow"],
+                            "net": to_date["net"], "reimbursement_offset": to_date["reimbursement_offset"]},
         "previous": None,
         "previous_label": previous[2] if previous else None,
         "previous_has_data": False,

@@ -55,7 +55,7 @@ export function ConfirmActionButton({
           onConfirm();
         }}
         disabled={disabled}
-        className={cn("min-h-11 rounded-lg bg-rose-600 px-2.5 text-[11px] font-semibold text-white", className)}
+        className="min-h-11 rounded-lg bg-[var(--danger-solid)] px-2.5 text-[11px] font-semibold text-[var(--danger-contrast)] hover:bg-[var(--danger-solid-hover)]"
       >
         Ya, lanjutkan
       </button>

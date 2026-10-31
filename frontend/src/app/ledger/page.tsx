@@ -808,8 +808,8 @@ function LedgerPageContent() {
               className={cn(
                 "px-2 py-0.5 rounded-md font-medium transition-all duration-150",
                 summaryScope === "cycle"
-                  ? "bg-[var(--surface)] text-[var(--foreground)] shadow-xs font-semibold"
-                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                  ? "bg-[var(--surface)] text-[var(--text)] shadow-xs font-semibold"
+                  : "text-[var(--muted)] hover:text-[var(--text)]"
               )}
               aria-pressed={summaryScope === "cycle"}
             >
@@ -821,8 +821,8 @@ function LedgerPageContent() {
               className={cn(
                 "px-2 py-0.5 rounded-md font-medium transition-all duration-150",
                 summaryScope === "cumulative"
-                  ? "bg-[var(--surface)] text-[var(--foreground)] shadow-xs font-semibold"
-                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                  ? "bg-[var(--surface)] text-[var(--text)] shadow-xs font-semibold"
+                  : "text-[var(--muted)] hover:text-[var(--text)]"
               )}
               aria-pressed={summaryScope === "cumulative"}
             >
@@ -871,7 +871,7 @@ function LedgerPageContent() {
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Arus Kas</span>
             {!periodScoped && cycleDateRangeLabel && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--foreground)]">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]">
                 <Icon name="calendar" className="h-3.5 w-3.5 text-[var(--muted)]" />
                 {cycleSummary?.label ? cycleDateRangeLabel : `Siklus ${cycleDateRangeLabel}`}
               </span>
@@ -885,8 +885,8 @@ function LedgerPageContent() {
               className={cn(
                 "px-3 py-1 rounded-lg font-medium transition-all duration-150",
                 summaryScope === "cycle"
-                  ? "bg-[var(--surface)] text-[var(--foreground)] shadow-xs font-semibold"
-                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                  ? "bg-[var(--surface)] text-[var(--text)] shadow-xs font-semibold"
+                  : "text-[var(--muted)] hover:text-[var(--text)]"
               )}
               aria-pressed={summaryScope === "cycle"}
             >
@@ -898,8 +898,8 @@ function LedgerPageContent() {
               className={cn(
                 "px-3 py-1 rounded-lg font-medium transition-all duration-150",
                 summaryScope === "cumulative"
-                  ? "bg-[var(--surface)] text-[var(--foreground)] shadow-xs font-semibold"
-                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                  ? "bg-[var(--surface)] text-[var(--text)] shadow-xs font-semibold"
+                  : "text-[var(--muted)] hover:text-[var(--text)]"
               )}
               aria-pressed={summaryScope === "cumulative"}
             >
@@ -928,7 +928,7 @@ function LedgerPageContent() {
             {other && (
             <div className="mt-3 pt-2.5 border-t border-[var(--border)] flex items-center justify-between text-xs text-[var(--muted)]">
               <span>{summaryScope === "cycle" ? "Kumulatif:" : "Siklus ini:"}</span>
-              <span className="font-semibold tabular text-[var(--foreground)]">
+              <span className="font-semibold tabular text-[var(--text)]">
                 +{bal(other.inflow)}
               </span>
             </div>
@@ -956,7 +956,7 @@ function LedgerPageContent() {
             {other && (
             <div className="mt-3 pt-2.5 border-t border-[var(--border)] flex items-center justify-between text-xs text-[var(--muted)]">
               <span>{summaryScope === "cycle" ? "Kumulatif:" : "Siklus ini:"}</span>
-              <span className="font-semibold tabular text-[var(--foreground)]">
+              <span className="font-semibold tabular text-[var(--text)]">
                 -{bal(other.outflow)}
               </span>
             </div>
@@ -1529,7 +1529,7 @@ function LedgerPageContent() {
             onClick={prepareMerge}
             className="pointer-events-auto inline-flex min-h-12 w-full max-w-sm items-center justify-center gap-2 rounded-full bg-[#1E201E] px-5 text-sm font-semibold text-white shadow-xl transition-colors hover:bg-[#303330] disabled:cursor-wait disabled:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
           >
-            <Icon name="repeat" className="h-4 w-4 text-[var(--accent-lime,#66CC55)]" />
+            <Icon name="repeat" className="h-4 w-4 text-[var(--accent-lime)]" />
             {preparingMerge ? "Memeriksa transaksi…" : mergeMutation.isPending ? "Menyimpan…" : "Jadikan Pindah Saldo"}
           </button>
         </div>

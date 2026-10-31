@@ -11,7 +11,7 @@ export const settingsControlClass =
  * Confirmed destructive action. `rose-700` maps to the expense hover token, which is light coral in dark
  * mode, so dark mode uses Tailwind's rose 800 to keep white text above 4.5:1.
  */
-export const confirmDangerClass = "bg-rose-700 text-white hover:bg-rose-800 dark:bg-rose-800 dark:hover:bg-rose-900";
+export const confirmDangerClass = "bg-[var(--danger-solid)] text-[var(--danger-contrast)] hover:bg-[var(--danger-solid-hover)]";
 
 /** Quiet destructive text button; rose 700/300 keep 4.5:1 on both surfaces where the coral token does not. */
 export const quietDangerClass =

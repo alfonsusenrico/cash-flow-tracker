@@ -455,7 +455,7 @@ export default function GoalsAndDebtsPage() {
           <button
             type="button"
             onClick={handleOpenNewObligation}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-btn bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-2xs transition-[background-color,transform] active:scale-95"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-btn bg-[var(--danger-solid)] hover:bg-[var(--danger-solid-hover)] text-[var(--danger-contrast)] text-xs font-semibold shadow-2xs transition-[background-color,transform] active:scale-95"
           >
             <span className="font-bold text-sm leading-none">+</span>
             <span>Tagihan Baru</span>
@@ -1425,7 +1425,7 @@ export default function GoalsAndDebtsPage() {
               <button
                 type="submit"
                 disabled={payObligationMutation.isPending}
-                className="flex-1 rounded-xl bg-rose-600 text-white py-2 text-xs font-semibold hover:bg-rose-700 disabled:opacity-50"
+                className="flex-1 rounded-xl bg-[var(--danger-solid)] text-[var(--danger-contrast)] py-2 text-xs font-semibold hover:bg-[var(--danger-solid-hover)] disabled:opacity-50"
               >
                 {payObligationMutation.isPending ? "Memproses…" : "Catat pembayaran manual"}
               </button>
