@@ -95,7 +95,11 @@ def db_url() -> str:
 
 @pytest.fixture(scope="session")
 def db_available(db_url: str) -> bool:
-    return _db_is_reachable(db_url)
+    reachable = _db_is_reachable(db_url)
+    # CI sets this so an unreachable database fails the run instead of skipping its tests.
+    if not reachable and os.getenv("REQUIRE_TEST_DATABASE") == "1":
+        pytest.fail("REQUIRE_TEST_DATABASE=1 but TEST_DATABASE_URL is not reachable")
+    return reachable
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -66,7 +66,9 @@ def debt_state(client, obligation_id):
 def plan(client, owner, *, amount=500_000, obligation_id=None, plan_type="expense", due=None):
     body = {
         "name": f"Rencana Contoh {uuid4().hex[:6]}", "type": plan_type, "amount": amount,
-        "source_account_id": owner["cash"], "schedule_type": "monthly_day", "schedule_day": date.today().day,
+        # The schedule day follows the due date, so the occurrence after it is a month later. With
+        # today's day instead, a due date in the previous month made the next one fall due today.
+        "source_account_id": owner["cash"], "schedule_type": "monthly_day", "schedule_day": (due or date.today()).day,
     }
     if plan_type == "transfer":
         body["target_account_id"] = owner["savings"]
