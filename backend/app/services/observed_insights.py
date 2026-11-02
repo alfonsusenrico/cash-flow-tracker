@@ -148,20 +148,23 @@ def _window_dates(start: datetime, end: datetime) -> dict[str, str]:
     }
 
 
+def comparison_windows(
+    current: tuple[datetime, datetime, str], previous: tuple[datetime, datetime, str] | None,
+) -> tuple[tuple[datetime, datetime], tuple[datetime, datetime] | None]:
+    """The current and previous windows cut to the same elapsed time from each start."""
+    start, end, _ = current
+    if previous is None or previous[1] < previous[0]:
+        return (start, end), None
+    compared = min(end - start, previous[1] - previous[0])
+    return (start, start + compared), (previous[0], previous[0] + compared)
+
+
 def period_comparison(
     cur, user_id: str, *, current: tuple[datetime, datetime, str], previous: tuple[datetime, datetime, str] | None,
 ) -> dict[str, Any]:
     """The current period against the previous one over the same elapsed time from each start."""
     start, end, label = current
-    elapsed = end - start
-    if previous is None or previous[1] < previous[0]:
-        cur_window = (start, end)
-        prev_window = None
-        compared = elapsed
-    else:
-        compared = min(elapsed, previous[1] - previous[0])
-        cur_window = (start, start + compared)
-        prev_window = (previous[0], previous[0] + compared)
+    cur_window, prev_window = comparison_windows(current, previous)
     zone = ZoneInfo(settings.tz)
     days = (cur_window[1].astimezone(zone).date() - cur_window[0].astimezone(zone).date()).days + 1
     now_figures = window_figures(cur, user_id, *cur_window)
