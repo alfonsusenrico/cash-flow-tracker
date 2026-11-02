@@ -37,7 +37,7 @@ The web SHALL show "Belum diklasifikasi" with its amount wherever the Kakeibo sp
 - **THEN** the summary outflow SHALL equal the month's `unclassified_spent`
 
 ### Requirement: Forms keep a row unclassified until the owner chooses
-Recording or recategorising a transaction into a category without a pillar SHALL store no transaction pillar, so that the row follows the category. The web ledger edit form and the category form SHALL show "Belum diklasifikasi" for a row or category without a pillar and SHALL NOT store `need` unless the owner chooses it.
+Recording or recategorising a transaction into a category without a pillar SHALL store no transaction pillar, so that the row follows the category. The web ledger edit form and the category form SHALL show "Belum diklasifikasi" for a row or category without a pillar and SHALL NOT store `need` unless the owner chooses it. A typed capture SHALL keep a model pillar that meets the capture confidence threshold, an explicit classification and not a default.
 
 #### Scenario: Editing notes of an unclassified row
 - **WHEN** the owner changes only the notes of an unclassified expense in the ledger edit form and saves
@@ -55,6 +55,11 @@ Recording or recategorising a transaction into a category without a pillar SHALL
 #### Scenario: Category created without a pillar
 - **WHEN** an expense category is created through `POST /api/categories` without `kakeibo_type`, with `is_primary` true or false
 - **THEN** it SHALL be stored and listed with `kakeibo_type: null`
+
+#### Scenario: Typed capture with a confident model pillar
+- **GIVEN** an expense category without a pillar
+- **WHEN** a typed capture is recorded in it and the model proposes that category and the pillar `want` with a category confidence that meets the capture confidence threshold
+- **THEN** the transaction SHALL be recorded with `kakeibo_type = 'want'` and classifier `ai`
 
 ### Requirement: Lengkapi klasifikasi
 The system SHALL offer "Lengkapi klasifikasi", reachable from the report's data-quality box, listing for a window the active expense categories without a pillar, with the count and amount of their unclassified rows, and the unclassified rows themselves (`GET /api/classification/gaps`). Every classification route SHALL be owner-scoped.

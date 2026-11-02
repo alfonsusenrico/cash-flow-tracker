@@ -50,7 +50,7 @@ The design system SHALL adhere to modern digital banking craftsmanship standards
   The design system SHALL adhere to modern digital banking craftsmanship standards (Bank Jago, Bibit, SeaBank):
   1. **Typography:** Plus Jakarta Sans for interface text and Geist Mono for numeric code text, both self-hosted from the app's own origin as defined by `web-font-hosting`, paired with tabular figures (`font-variant-numeric: tabular-nums`) for currency and timestamps.
   2. **Seamless Surface Elevation:** Card surfaces SHALL be separated from the page by the tonal contrast between `--surface` and `--bg` and a 1px hairline `--border` (ink at 9% opacity in the light theme, white at 8% in the dark theme), never by heavy wireframe outlines. A raised surface SHALL use the `--shadow-xs`, `--shadow-sm` or `--shadow-md` token of `frontend/tokens.css`, where `--shadow-xs` is the 1px raise of plain cards, chips and buttons and stays lighter than `--shadow-sm` in both themes; deeper shadows are reserved for floating layers such as dialogs, menus, the phone navigation bar and the selection bar.
-  3. **Accents:** Emerald green for Income/Cash In, coral/rose for Expense/Cash Out, sky blue for internal transfers ("Pindah Saldo") and lavender for investment top-ups. Spring Lime and coral keep their vivid colours for fills (navigation pills, chart peaks, buttons, chart marks); lime and coral used as text or as a meaningful icon on a theme surface SHALL use a text ink of the same hue (darker than the fill in the light theme), measuring at least 4.5:1 for text and 3:1 for icons against the surface it sits on in the light and the dark theme.
+  3. **Accents:** Emerald green for Income/Cash In, coral/rose for Expense/Cash Out, sky blue for internal transfers ("Pindah Saldo") and lavender for investment top-ups. Spring Lime, emerald and coral keep their vivid colours for fills (navigation pills, chart peaks, buttons, chart marks); lime, emerald and coral used as text or as a meaningful icon on a theme surface SHALL use a text ink of the same hue (darker than the fill in the light theme), measuring at least 4.5:1 for text and 3:1 for icons against the surface it sits on in the light and the dark theme. Text on an emerald fill SHALL use an ink that measures at least 4.5:1 against that fill in both themes.
   4. **Prohibitions:** The UI SHALL NOT contain harsh box outlines, rainbow gradients, blurry purple glow drop-shadows, 0–100 health meters, or unformatted text blocks.
 
 #### Scenario: Dark mode contrast validation
@@ -64,6 +64,10 @@ The design system SHALL adhere to modern digital banking craftsmanship standards
 #### Scenario: Plain cards carry a subtle raise
 - **WHEN** a card, chip or button styled with the `shadow-xs` utility renders in the light or the dark theme
 - **THEN** its computed `box-shadow` SHALL be the `--shadow-xs` value of that theme (a 1px offset with at most 2px blur, lighter than `--shadow-sm`), and a surface that already has `--shadow-sm` or a deeper shadow SHALL keep it
+
+#### Scenario: Emerald income text and buttons
+- **WHEN** Beranda, Transaksi or Analisis shows emerald text such as an income amount or the "Uang Masuk" badge, or text on an emerald button such as "Tambah Kategori" or "Catat Transaksi", in the light or the dark theme at 390 or 1280 px
+- **THEN** the text measures at least 4.5:1 against the surface or fill it sits on, income still reads as emerald, and the emerald fills are unchanged
 
 ### Requirement: Quick Capture Linking to Goals and Obligations
 The global transaction quick-capture interface (`N`) SHALL allow optional direct linking to savings goals and debt obligations.

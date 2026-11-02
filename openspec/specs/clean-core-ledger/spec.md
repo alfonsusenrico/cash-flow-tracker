@@ -231,7 +231,7 @@ The system SHALL support flagging one or more goals as an emergency fund via `is
 - **THEN** the goal is recorded with `is_emergency = true`, and its accumulated balance is designated as the user's emergency fund balance
 
 ### Requirement: Primary Expense Category Flagging
-The system SHALL keep the `is_primary` flag on expense categories for compatibility and SHALL use it only to derive the stored pillar of a category updated without one (`need` when primary, `want` otherwise), never when a category is created or when a category or transaction is read or recorded. Living expenses and runway SHALL be based on the effective Kakeibo pillar `need` as defined by `emergency-cost-estimation`, not on `is_primary`.
+The system SHALL keep the `is_primary` flag on expense categories for compatibility and SHALL never use it to derive a pillar: not when a category is created, not when a category is updated, and not when a category or transaction is read or recorded. A category update that sends no `kakeibo_type` SHALL leave the stored pillar unchanged. Living expenses and runway SHALL be based on the effective Kakeibo pillar `need` as defined by `emergency-cost-estimation`, not on `is_primary`.
 
 #### Scenario: Categorizing primary expenses
 - **WHEN** an expense transaction is recorded in a category where `is_primary = true` and whose Kakeibo pillar is `want`
@@ -244,6 +244,11 @@ The system SHALL keep the `is_primary` flag on expense categories for compatibil
 #### Scenario: Primary category created without a pillar
 - **WHEN** an expense category is created with `is_primary = true` and no `kakeibo_type`
 - **THEN** it SHALL be stored without a pillar, not with `need`
+
+#### Scenario: Primary flag changed without a pillar
+- **GIVEN** expense categories with no pillar, with `want` and with `need`
+- **WHEN** each is updated through `PATCH /api/categories/{id}` with only `is_primary`, true or false
+- **THEN** each SHALL keep its stored pillar (none, `want`, `need`), the response SHALL report 0 corrections, and no feedback row SHALL be written
 
 ### Requirement: Real-World Ketahanan Dana Calculation
 The system SHALL calculate "Ketahanan Dana" (Emergency Fund Coverage) as the ratio between the emergency fund balance and the essential monthly cost defined by `emergency-cost-estimation`, and SHALL report the balance basis and the cost basis.
