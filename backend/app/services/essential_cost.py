@@ -1,8 +1,10 @@
 """Essential monthly cost ("Biaya hidup pokok bulanan") and emergency coverage ("Ketahanan Dana").
 
-The cost is the median of observed `need` spending per completed period plus the active debt minimums
-once. Debt-linked expenses are left out of the periods so a debt payment is never counted twice.
-Unknown inputs stay `None`; no sentinel stands in for them.
+The cost is the median of observed essential spending per completed period plus the active debt
+minimums once. Essential spending is `need` plus spending nobody classified yet: leaving unclassified
+rows out would make the reserve look larger only because a pillar is missing (design D6 of
+add-monthly-report). Debt-linked expenses are left out of the periods so a debt payment is never
+counted twice. Unknown inputs stay `None`; no sentinel stands in for them.
 """
 
 from __future__ import annotations
@@ -12,11 +14,13 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.services.apportionment import apportion
+from app.services.kakeibo import UNCLASSIFIED, pillar_bucket_sql
 from app.services.observed_periods import COMPLETED_PERIOD_LIMIT, ObservedPeriod, load_period_history
 from app.services.reimbursements import load_spending_offsets
 from app.services.report_figures import reportable_category_sql
 
 LIMITED_HISTORY_PERIODS = 3
+ESSENTIAL_BUCKETS = ("need", UNCLASSIFIED)
 # Average days per month; turns months of coverage into days.
 DAYS_PER_MONTH = 30.4
 DEFAULT_TARGET_MONTHS = 6
@@ -61,16 +65,17 @@ def median_rupiah(values: list[int]) -> int:
 
 
 def period_need_spending(cur, user_id: str, period: ObservedPeriod) -> dict[str, int]:
-    """Essential `need` spending of one period, net of its share of applied reimbursements.
+    """Essential spending of one period (`need` and unclassified), net of its share of applied reimbursements.
 
     Each category's applied reimbursement is apportioned across all its expenses in the period by
-    effective pillar and by whether the expense counts here, so excluded rows keep their own share.
+    pillar bucket and by whether the expense counts here, so excluded rows keep their own share.
+    `amount` includes `unclassified_amount`, which is reported so the share can be shown and fixed.
     """
     start, last = period.start, period.last_instant
     cur.execute(
         f"""
         SELECT t.category_id,
-               COALESCE(t.kakeibo_type, c.kakeibo_type, 'need') AS pillar,
+               {pillar_bucket_sql()} AS pillar,
                ({reportable_category_sql('c')}
                 AND t.movement_id IS NULL
                 AND a.type <> 'investment'
@@ -86,22 +91,30 @@ def period_need_spending(cur, user_id: str, period: ObservedPeriod) -> dict[str,
         """,
         (user_id, start, last),
     )
-    gross = 0
+    gross = {bucket: 0 for bucket in ESSENTIAL_BUCKETS}
     weights_by_category: dict[str, dict[tuple[str, bool], int]] = {}
     for row in cur.fetchall():
         spent = int(row["spent"] or 0)
         counted = bool(row["counted"])
-        if counted and row["pillar"] == "need":
-            gross += spent
+        if counted and row["pillar"] in gross:
+            gross[row["pillar"]] += spent
         if row["category_id"] is not None:
             weights = weights_by_category.setdefault(str(row["category_id"]), {})
             key = (row["pillar"], counted)
             weights[key] = weights.get(key, 0) + spent
     offsets = load_spending_offsets(cur, user_id, start, last)
-    offset = 0
+    offset = {bucket: 0 for bucket in ESSENTIAL_BUCKETS}
     for category_id, applied in offsets.applied_by_category.items():
-        offset += apportion(applied, weights_by_category.get(category_id, {})).get(("need", True), 0)
-    return {"gross_need": gross, "reimbursement_offset": offset, "amount": max(0, gross - offset)}
+        shares = apportion(applied, weights_by_category.get(category_id, {}))
+        for bucket in ESSENTIAL_BUCKETS:
+            offset[bucket] += shares.get((bucket, True), 0)
+    unclassified = max(0, gross[UNCLASSIFIED] - offset[UNCLASSIFIED])
+    return {
+        "gross_need": gross["need"] + gross[UNCLASSIFIED],
+        "reimbursement_offset": offset["need"] + offset[UNCLASSIFIED],
+        "amount": max(0, gross["need"] - offset["need"]) + unclassified,
+        "unclassified_amount": unclassified,
+    }
 
 
 def debt_minimum_total(cur, user_id: str) -> int:
@@ -125,6 +138,7 @@ def need_budget_total(cur, user_id: str) -> int:
         FROM categories c
         WHERE c.user_id = %s AND c.kind = 'expense' AND c.is_archived = FALSE
           AND COALESCE(c.kakeibo_type, 'need') = 'need' AND {reportable_category_sql('c')}
+          -- A budget of a category without a pillar counts, as its unclassified spending does.
         """,
         (user_id,),
     )

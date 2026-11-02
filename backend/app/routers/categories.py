@@ -73,9 +73,8 @@ def list_categories(
                 "kind": r["kind"],
                 "monthly_budget": r["monthly_budget"],
                 "is_primary": bool(r.get("is_primary", True)),
-                "kakeibo_type": (
-                    r.get("kakeibo_type") or ("need" if r.get("is_primary", True) else "want")
-                ) if r["kind"] == "expense" else None,
+                # The stored pillar; a category without one is unclassified, never derived from is_primary.
+                "kakeibo_type": r.get("kakeibo_type") if r["kind"] == "expense" else None,
                 "is_archived": r["is_archived"],
                 "is_excluded_from_budget": bool(r.get("is_excluded_from_budget", False)),
                 "offsets_spending": bool(r.get("offsets_spending", False)),
@@ -135,9 +134,7 @@ def create_category(payload: CategoryCreate, current_user: dict = Depends(get_cu
             "kind": cat["kind"],
             "monthly_budget": cat["monthly_budget"],
             "is_primary": bool(cat.get("is_primary", True)),
-            "kakeibo_type": (
-                cat.get("kakeibo_type") or ("need" if cat.get("is_primary", True) else "want")
-            ) if cat["kind"] == "expense" else None,
+            "kakeibo_type": cat.get("kakeibo_type") if cat["kind"] == "expense" else None,
             "is_archived": cat["is_archived"],
             "created_at": cat["created_at"].isoformat(),
         },
@@ -243,9 +240,7 @@ def update_category(
             "kind": cat["kind"],
             "monthly_budget": cat["monthly_budget"],
             "is_primary": bool(cat.get("is_primary", True)),
-            "kakeibo_type": (
-                cat.get("kakeibo_type") or ("need" if cat.get("is_primary", True) else "want")
-            ) if cat["kind"] == "expense" else None,
+            "kakeibo_type": cat.get("kakeibo_type") if cat["kind"] == "expense" else None,
             "is_archived": cat["is_archived"],
             "created_at": cat["created_at"].isoformat() if cat["created_at"] else None,
         },

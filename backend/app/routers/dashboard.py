@@ -10,7 +10,7 @@ from app.db.pool import db_conn
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.services.auth import get_current_user
 from app.services.essential_cost import DEFAULT_TARGET_MONTHS, EssentialCost, coverage, estimate_essential_cost
-from app.services.kakeibo import effective_pillar_sql
+from app.services.kakeibo import UNCLASSIFIED, pillar_bucket_sql
 from app.services.reimbursements import SpendingOffsets, load_spending_offsets, not_reimbursement_sql
 from app.services.report_figures import (
     category_breakdown,
@@ -150,7 +150,7 @@ def get_kakeibo_breakdown(
     cur.execute(
         f"""
         SELECT
-            {effective_pillar_sql()} AS pillar,
+            {pillar_bucket_sql()} AS pillar,
             COALESCE(SUM(t.amount), 0) AS total_amount
         FROM transactions t
         LEFT JOIN categories c ON c.id = t.category_id
@@ -171,6 +171,7 @@ def get_kakeibo_breakdown(
     culture_spent = pillar_map.get("culture", 0)
     unexpected_spent = pillar_map.get("unexpected", 0)
     saving_expenses = pillar_map.get("saving", 0)
+    unclassified_spent = pillar_map.get(UNCLASSIFIED, 0)
 
     # 2. Net fresh saving across durably linked movements.
     cur.execute(
@@ -218,7 +219,7 @@ def get_kakeibo_breakdown(
         net_saving_transfers = 0
     saving_spent = max(0, saving_expenses + net_saving_transfers)
 
-    total_allocated = need_spent + want_spent + culture_spent + unexpected_spent + saving_spent
+    total_allocated = need_spent + want_spent + culture_spent + unexpected_spent + saving_spent + unclassified_spent
     base_calc = max(total_inflow, total_allocated)
 
     def pct(amount: int) -> float:
@@ -229,6 +230,7 @@ def get_kakeibo_breakdown(
     culture_pct = pct(culture_spent)
     unexpected_pct = pct(unexpected_spent)
     saving_pct = pct(saving_spent)
+    unclassified_pct = pct(unclassified_spent)
     # The 50/30/20 benchmark is judged on groups: unexpected spending is an essential cost,
     # culture is discretionary lifestyle spending (owner decision, 2026-10-28).
     essentials_pct = pct(need_spent + unexpected_spent)
@@ -253,6 +255,9 @@ def get_kakeibo_breakdown(
         "net_saving_transfers": net_saving_transfers,
         "saving_pct": saving_pct,
         "saving_target_pct": 20.0,
+        # Spending with no transaction or category pillar; outside the 50/30/20 groups.
+        "unclassified_spent": unclassified_spent,
+        "unclassified_pct": unclassified_pct,
         "essentials_pct": essentials_pct,
         "essentials_target_pct": 50.0,
         "lifestyle_pct": lifestyle_pct,

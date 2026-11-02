@@ -201,10 +201,11 @@ def test_owner_classification_edit_marks_row_reviewed(auth_client):
     assert (row["review_status"], row["classified_by"], row["owner_edited_at"]) == ("auto", "ai", None)
     assert float(row["classification_confidence"]) == 0.7
 
-    # The edit form re-sends the pillar it displays; an unchanged effective pillar is not a reclassification.
+    # The edit form re-sends the pillar it displays, none for an unclassified row; an unchanged
+    # effective pillar is not a reclassification.
     resent = auth_client.patch(f"/api/transactions/{tx_id}", json={
         "type": "expense", "amount": 30_000, "account_id": cash, "category_id": food,
-        "kakeibo_type": "need", "notes": "Bayar Kedai Contoh ", "merchant": None,
+        "kakeibo_type": None, "notes": "Bayar Kedai Contoh ", "merchant": None,
     })
     assert resent.status_code == 200, resent.text
     assert stored(tx_id)["classified_by"] == "ai"

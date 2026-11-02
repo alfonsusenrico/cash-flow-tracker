@@ -291,12 +291,13 @@ def close_purpose_question(cur, user_id: str, transaction_id: str) -> None:
 
 def record_owner_corrections(
     cur, user_id: str, before: dict[str, dict], *, kind: str = "correction",
-    history_suggestions: dict[str, str] | None = None,
+    history_suggestions: dict[str, str] | None = None, close_questions: bool = True,
 ) -> int:
     """Write feedback and memory for rows whose classification an owner edit changed.
 
     An accepted history suggestion is an owner edit too; its feedback row carries its own kind and the
-    suggestion id (one per transaction in `history_suggestions`).
+    suggestion id (one per transaction in `history_suggestions`). `close_questions` is False when the
+    owner classified a whole category: no row's purpose was answered, so its open question stays.
     """
     after_rows = snapshot_rows(cur, user_id, list(before))
     written = 0
@@ -308,7 +309,8 @@ def record_owner_corrections(
         insert_feedback(cur, user_id, kind=kind, before=previous, after=after, key=key,
                         history_suggestion_id=(history_suggestions or {}).get(transaction_id))
         learn_from_owner(cur, user_id, after, key)
-        close_purpose_question(cur, user_id, transaction_id)
+        if close_questions:
+            close_purpose_question(cur, user_id, transaction_id)
         written += 1
     return written
 

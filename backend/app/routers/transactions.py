@@ -19,7 +19,7 @@ from app.services.debt_allocations import (
     validate_debt_capacity,
 )
 from app.services.entity_names import resolve_account_name, resolve_category_name
-from app.services.kakeibo import PILLAR_PATTERN, effective_pillar, effective_pillar_sql
+from app.services.kakeibo import PILLAR_FILTER_PATTERN, PILLAR_PATTERN, effective_pillar, effective_pillar_sql, pillar_bucket_sql
 from app.services.report_figures import cash_flow_totals
 from app.services.ledger_mutations import (
     delete_transaction_rows,
@@ -51,7 +51,7 @@ from app.services.reimbursements import (
     offset_not_allowed,
     validate_offset_category,
 )
-from app.services.report_figures import reportable_expense_sql, reportable_income_sql
+from app.services.report_figures import possible_duplicate_sql, reportable_expense_sql, reportable_income_sql
 from app.services.report_windows import PERIOD_PATTERN, get_timeframe_window
 
 router = APIRouter(tags=["Transactions"])
@@ -215,7 +215,7 @@ def list_transactions(
     goal_id: UUID | None = None,
     obligation_id: UUID | None = None,
     type: str | None = Query(default=None, pattern="^(expense|income|transfer)$"),
-    kakeibo_type: str | None = Query(default=None, pattern=PILLAR_PATTERN),
+    kakeibo_type: str | None = Query(default=None, pattern=PILLAR_FILTER_PATTERN),
     source: str | None = Query(default=None, pattern=SOURCE_PATTERN),
     review_status: str | None = Query(default=None, pattern=REVIEW_STATUS_PATTERN),
     from_date: datetime | None = None,
@@ -223,6 +223,7 @@ def list_transactions(
     period: str | None = Query(default=None, pattern=PERIOD_PATTERN),
     period_offset: int = Query(default=0, ge=-36, le=12),
     uncategorized: bool = False,
+    possible_duplicates: bool = False,
     q: str | None = None,
     logical_movements: bool = False,
     limit: int = Query(default=50, ge=1, le=200),
@@ -274,8 +275,11 @@ def list_transactions(
                 elif type == "income":
                     conditions.append("t.type = 'income' AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND COALESCE(c.is_excluded_from_budget, false) = false")
             if kakeibo_type and isinstance(kakeibo_type, str):
-                conditions.append(f"{effective_pillar_sql()} = %s")
+                # "unclassified" selects expenses with neither a row nor a category pillar.
+                conditions.append(f"{pillar_bucket_sql()} = %s")
                 params.append(kakeibo_type)
+            if possible_duplicates:
+                conditions.append(possible_duplicate_sql("t"))
             if source:
                 conditions.append("t.source = %s")
                 params.append(source)
@@ -296,7 +300,7 @@ def list_transactions(
             # Filtered views retain individual legs: either side may match independently.
             if logical_movements and not any((
                 account_id, category_id, goal_id, obligation_id, type,
-                kakeibo_type, source, review_status, from_date, to_date, q, uncategorized,
+                kakeibo_type, source, review_status, from_date, to_date, q, uncategorized, possible_duplicates,
             )):
                 conditions.append(
                     """(
@@ -335,7 +339,7 @@ def list_transactions(
             total = agg["total"]
             # Offsets apply where the filtered rows are exactly what a report figure covers.
             offset_scope = None
-            if not any((account_id, goal_id, obligation_id, source, review_status, q, uncategorized)) \
+            if not any((account_id, goal_id, obligation_id, source, review_status, q, uncategorized, possible_duplicates)) \
                     and type in (None, "expense") and not (category_id and kakeibo_type):
                 offset_scope = {"category_id": str(category_id) if category_id else None, "pillar": kakeibo_type}
             cumulative = ledger_cash_flow(
@@ -684,8 +688,9 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     (category_id,),
                 )
                 crow = cur.fetchone()
+                # A category without a pillar leaves the row unclassified, following the category.
                 if crow:
-                    kakeibo_val = crow.get("kakeibo_type") or ("need" if crow.get("is_primary", True) else "want")
+                    kakeibo_val = crow.get("kakeibo_type")
 
             if payload.investment_action:
                 if payload.merchant or payload.review_status or payload.offset_category_id:
@@ -1058,7 +1063,7 @@ def update_transaction(
                     (new_category_id,),
                 )
                 crow = cur.fetchone()
-                new_kakeibo_type = (crow.get("kakeibo_type") if crow else None) or ("need" if crow and crow.get("is_primary", True) else "want")
+                new_kakeibo_type = crow.get("kakeibo_type") if crow else None
             else:
                 new_kakeibo_type = old_tx.get("kakeibo_type")
 

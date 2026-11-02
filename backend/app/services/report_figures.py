@@ -43,6 +43,22 @@ def reportable_income_sql(tx: str = "t", category: str = "c") -> str:
     )
 
 
+DUPLICATE_WINDOW_MINUTES = 3
+
+
+def possible_duplicate_sql(tx: str = "t") -> str:
+    """True for an expense or income row that another row of the same account, amount and type sits
+    within 3 minutes of. Movement legs and movement fees are paired on purpose, so they never count."""
+    return (
+        f"({tx}.type IN ('expense', 'income') AND {tx}.movement_id IS NULL AND {tx}.fee_for_movement_id IS NULL"
+        f" AND EXISTS (SELECT 1 FROM transactions dup WHERE dup.user_id = {tx}.user_id AND dup.id <> {tx}.id"
+        f" AND dup.account_id = {tx}.account_id AND dup.amount = {tx}.amount AND dup.type = {tx}.type"
+        f" AND dup.movement_id IS NULL AND dup.fee_for_movement_id IS NULL"
+        f" AND dup.date BETWEEN {tx}.date - INTERVAL '{DUPLICATE_WINDOW_MINUTES} minutes'"
+        f" AND {tx}.date + INTERVAL '{DUPLICATE_WINDOW_MINUTES} minutes'))"
+    )
+
+
 def cash_flow_totals(inflow: int, gross_outflow: int, reimbursement_offset: int) -> dict[str, int]:
     """Apply a scoped reimbursement offset to reportable inflow and outflow."""
     outflow = max(0, gross_outflow - reimbursement_offset)
@@ -82,7 +98,7 @@ def category_breakdown(cur, user_id: str, start: datetime, end: datetime, offset
         rows.append({
             "id": str(row["id"]), "name": row["name"], "icon": row["icon"], "color": row["color"],
             "monthly_budget": row["monthly_budget"], "is_primary": bool(row.get("is_primary", True)),
-            "kakeibo_type": row.get("kakeibo_type") or "need", "is_archived": bool(row["is_archived"]),
+            "kakeibo_type": row.get("kakeibo_type"), "is_archived": bool(row["is_archived"]),
             "is_uncategorized": False, "gross_spent": gross, "spent": net, "reimbursed": gross - net,
         })
     cur.execute(
@@ -94,7 +110,7 @@ def category_breakdown(cur, user_id: str, start: datetime, end: datetime, offset
     if uncategorized > 0:
         rows.append({
             "id": None, "name": UNCATEGORIZED_NAME, "icon": "tag", "color": UNCATEGORIZED_COLOR,
-            "monthly_budget": None, "is_primary": True, "kakeibo_type": "need", "is_archived": False,
+            "monthly_budget": None, "is_primary": True, "kakeibo_type": None, "is_archived": False,
             "is_uncategorized": True, "gross_spent": uncategorized, "spent": uncategorized, "reimbursed": 0,
         })
         rows.sort(key=lambda item: (-item["spent"], item["name"]))

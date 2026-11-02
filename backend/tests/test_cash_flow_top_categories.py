@@ -223,8 +223,8 @@ def test_at_most_three_are_listed_and_ties_go_by_name(client, owner):
     assert report["top_categories"] == [
         {"category_id": snacks, "name": "Camilan", "kakeibo_type": "want", "outflow": 50_000},
         {"category_id": hobby, "name": "Hobi", "kakeibo_type": "culture", "outflow": 50_000},
-        # A category without a classification reports as "need", as the category breakdown does.
-        {"category_id": owner["misc"], "name": "Lain-lain", "kakeibo_type": "need", "outflow": 50_000},
+        # A category without a classification has no pillar; it is never reported as "need".
+        {"category_id": owner["misc"], "name": "Lain-lain", "kakeibo_type": None, "outflow": 50_000},
     ]
 
 

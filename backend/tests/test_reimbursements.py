@@ -206,13 +206,14 @@ def test_excess_reimbursement_floors_at_zero_and_is_reported(client, owner):
     assert client.get("/api/pulse").json()["cycle_spent"] == 0
 
 
-def test_category_without_pillar_reduces_need(client, owner):
+def test_category_without_pillar_reduces_unclassified(client, owner):
     record(client, owner, "salary", 5_000_000, tx_type="income")
     record(client, owner, "groceries", 200_000)
     record(client, owner, "misc", 50_000)
     record(client, owner, "reimbursement", 20_000, tx_type="income", offset="misc")
     kakeibo = client.get("/api/dashboard/overview").json()["kakeibo"]
-    assert kakeibo["need_spent"] == 230_000
+    assert kakeibo["need_spent"] == 200_000
+    assert kakeibo["unclassified_spent"] == 30_000
 
 
 def test_mixed_pillar_reimbursement_reconciles_to_report(client, owner):
