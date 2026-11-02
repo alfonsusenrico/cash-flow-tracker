@@ -116,9 +116,9 @@ export function HeroWalletCard({
           onClick={() => (onOpenMovement ? onOpenMovement() : openMovement())}
           disabled={!canTransfer}
           title={canTransfer ? undefined : "Perlu dua rekening kas aktif untuk transfer"}
-          className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-extrabold bg-amber-500/10 enabled:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-xs transition-colors pressable disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-extrabold bg-sky-500/10 enabled:hover:bg-sky-500/20 text-sky-500 border border-sky-500/30 shadow-xs transition-colors pressable disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <div aria-hidden="true" className="h-5 w-5 rounded-lg bg-amber-500 text-white flex items-center justify-center text-[10px] shadow-2xs">
+          <div aria-hidden="true" className="h-5 w-5 rounded-lg bg-transfer text-transfer-contrast flex items-center justify-center text-[10px] shadow-2xs">
             <Icon name="repeat" className="h-3 w-3 stroke-[3]" />
           </div>
           <span>Pindah Saldo</span>

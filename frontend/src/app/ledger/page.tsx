@@ -1413,7 +1413,7 @@ function LedgerPageContent() {
                               className="h-2 w-2 rounded-full"
                               style={{
                                 backgroundColor: isMovement
-                                  ? "#0ea5e9"
+                                  ? "var(--color-transfer)"
                                   : tx.category_color || "#3b82f6",
                               }}
                             />

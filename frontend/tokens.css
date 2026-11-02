@@ -33,6 +33,8 @@
   --color-expense-soft: #FFE8EC;
   --color-warning: #F59E0B;
   --color-warning-soft: #FEF3C7;
+  /* Sky blue means an internal transfer ("Pindah Saldo") everywhere; amber stays for warnings. */
+  --color-transfer: #0EA5E9;
   --color-focus: #FF334B;
 
   /* Kakeibo Pillar Tokens */
@@ -94,6 +96,11 @@
   /* Amber text: amber-600 (#D97706) measures 3.19:1 on white, so amber text uses this darker ink of the
    * same 32 degree hue: 4.5:1 or better on every surface, the warning soft fill and a 10% amber tint. */
   --warning-text: #8F4F04;
+  /* Sky transfer text: sky-500 (#0EA5E9) measures 2.77:1 on white, so transfer text uses sky-800, a darker
+   * ink of the same hue: 4.5:1 or better on every surface and on 10 to 20% sky tints over the card and the
+   * raised surface. Text and icons on the solid transfer fill use --transfer-contrast in both themes. */
+  --transfer-text: #075985;
+  --transfer-contrast: #0A0D14;
 
   /* Typography */
   --font-display: var(--font-jakarta), "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -153,6 +160,7 @@
   --income-text: var(--color-income);
   --income-hover-contrast: #0A0D14;
   --warning-text: var(--color-warning);
+  --transfer-text: var(--color-transfer);
 
   /* Semantic Movements */
   --color-income: #10B981;
@@ -163,6 +171,7 @@
   --color-expense-soft: rgba(255, 71, 87, 0.18);
   --color-warning: #FBBF24;
   --color-warning-soft: rgba(251, 191, 36, 0.16);
+  --color-transfer: #38BDF8;
   --color-focus: #FF4757;
 
   /* Kakeibo Pillar Tokens */
