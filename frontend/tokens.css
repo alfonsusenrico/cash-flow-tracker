@@ -112,6 +112,11 @@
 
   --sidebar-width: 220px;
   --topbar-height: 56px;
+
+  /* Phone navigation dock: dark in both themes, so its inks do not follow the page's --muted and --text. */
+  --dock-surface: rgba(23, 26, 33, 0.94);
+  --dock-text: #F8FAFC;
+  --dock-muted: #8B9AAF;
 }
 
 .dark {

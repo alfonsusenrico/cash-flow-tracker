@@ -95,6 +95,17 @@ def classification_gaps(cur, user_id: str, start: datetime | None = None, end: d
     }
 
 
+def category_followers(cur, user_id: str, category_id: str) -> list[str]:
+    """The category's expenses without their own pillar, whose effective pillar is the category's."""
+    cur.execute(
+        """SELECT id FROM transactions
+           WHERE user_id = %s AND category_id = %s AND type = 'expense' AND kakeibo_type IS NULL
+             AND movement_id IS NULL""",
+        (user_id, category_id),
+    )
+    return [str(row["id"]) for row in cur.fetchall()]
+
+
 def set_category_pillar(cur, user_id: str, category_id: str, pillar: str) -> dict[str, Any]:
     """Give a category its pillar; its expenses without their own pillar follow it.
 
@@ -114,13 +125,7 @@ def set_category_pillar(cur, user_id: str, category_id: str, pillar: str) -> dic
         raise ClassificationError(422, "pillar_not_allowed", "Pilar Kakeibo hanya untuk kategori pengeluaran.")
     if not category["reportable"]:
         raise ClassificationError(422, "category_not_reportable", "Kategori ini tidak dihitung sebagai pengeluaran.")
-    cur.execute(
-        """SELECT id FROM transactions
-           WHERE user_id = %s AND category_id = %s AND type = 'expense' AND kakeibo_type IS NULL
-             AND movement_id IS NULL""",
-        (user_id, category_id),
-    )
-    following = [str(row["id"]) for row in cur.fetchall()]
+    following = category_followers(cur, user_id, category_id)
     before = snapshot_rows(cur, user_id, following) if category["kakeibo_type"] != pillar else {}
     cur.execute(
         "UPDATE categories SET kakeibo_type = %s, updated_at = NOW() WHERE user_id = %s AND id = %s",

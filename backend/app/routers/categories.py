@@ -6,7 +6,10 @@ from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
 from app.services.auth import get_current_user
+from app.services.classification_gaps import category_followers, lock_owner
 from app.services.kakeibo import PILLAR_PATTERN
+from app.services.merchant_memory import record_owner_corrections, snapshot_rows
+from app.services.report_figures import reportable_category_sql
 
 router = APIRouter(tags=["Categories"])
 
@@ -91,9 +94,8 @@ def create_category(payload: CategoryCreate, current_user: dict = Depends(get_cu
     name = payload.name.strip()
     if payload.kind == "income" and (payload.monthly_budget is not None or payload.kakeibo_type is not None):
         raise HTTPException(status_code=422, detail="Income categories cannot have an expense budget or Kakeibo pillar")
-    kakeibo_type = (
-        payload.kakeibo_type or ("need" if payload.is_primary else "want")
-    ) if payload.kind == "expense" else None
+    # A category created without a pillar stays unclassified; is_primary never derives one.
+    kakeibo_type = payload.kakeibo_type if payload.kind == "expense" else None
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -180,11 +182,16 @@ def update_category(
         raise HTTPException(status_code=400, detail="No fields to update")
 
     updates.append("updated_at = NOW()")
+    pillar_may_change = payload.kakeibo_type is not None or payload.is_primary is not None or payload.kind is not None
 
     with db_conn() as conn:
         with conn.cursor() as cur:
+            if pillar_may_change:
+                # Same lock order as "Lengkapi klasifikasi": owner lock first, then the category row.
+                lock_owner(cur, user_id)
             cur.execute(
-                "SELECT kind, offsets_spending FROM categories WHERE user_id = %s AND id = %s FOR UPDATE",
+                f"""SELECT kind, offsets_spending, {reportable_category_sql("c")} AS reportable
+                    FROM categories c WHERE user_id = %s AND id = %s FOR UPDATE""",
                 (user_id, cid),
             )
             current_category = cur.fetchone()
@@ -215,6 +222,11 @@ def update_category(
                 )
                 if cur.fetchone()["has_incompatible_usage"]:
                     raise HTTPException(status_code=409, detail="Category type cannot change while incompatible transactions or rules use it")
+            # A pillar change teaches habit learning exactly as "Lengkapi klasifikasi" does: one
+            # feedback row per following expense whose effective pillar changed, purpose questions kept.
+            before = {}
+            if pillar_may_change and final_kind == "expense" and current_category["reportable"]:
+                before = snapshot_rows(cur, user_id, category_followers(cur, user_id, cid))
             params.extend([user_id, cid])
             cur.execute(
                 f"""
@@ -228,6 +240,7 @@ def update_category(
             cat = cur.fetchone()
             if not cat:
                 raise HTTPException(status_code=404, detail="Category not found")
+            corrections = record_owner_corrections(cur, user_id, before, close_questions=False)
             conn.commit()
 
     return {
@@ -244,6 +257,7 @@ def update_category(
             "is_archived": cat["is_archived"],
             "created_at": cat["created_at"].isoformat() if cat["created_at"] else None,
         },
+        "corrections": corrections,
     }
 
 

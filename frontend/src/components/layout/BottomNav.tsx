@@ -22,7 +22,7 @@ export function BottomNav({ onQuickAdd }: BottomNavProps) {
       className="lg:hidden fixed bottom-2.5 left-3 right-3 z-50 max-w-sm mx-auto pointer-events-none"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      <nav className="glass-dock rounded-full p-1.5 flex items-center justify-between pointer-events-auto border border-[var(--border)]/60 bg-[var(--surface)]/95 backdrop-blur-xl shadow-2xl">
+      <nav className="glass-dock rounded-full p-1.5 flex items-center justify-between pointer-events-auto backdrop-blur-xl shadow-2xl">
         {/* 1. Beranda / Pulse */}
         <Link
           href="/"
@@ -30,7 +30,7 @@ export function BottomNav({ onQuickAdd }: BottomNavProps) {
             "flex flex-col sm:flex-row items-center justify-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all",
             isActive("/")
               ? "bg-[var(--accent-lime)] text-[#141814] font-bold shadow-xs"
-              : "text-[var(--muted)] hover:text-[var(--text)]"
+              : "text-[var(--dock-muted)] hover:text-[var(--dock-text)]"
           )}
         >
           <Icon name="dashboard" className="h-4 w-4 shrink-0" />
@@ -44,7 +44,7 @@ export function BottomNav({ onQuickAdd }: BottomNavProps) {
             "flex flex-col sm:flex-row items-center justify-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all",
             isActive("/ledger")
               ? "bg-[var(--accent-lime)] text-[#141814] font-bold shadow-xs"
-              : "text-[var(--muted)] hover:text-[var(--text)]"
+              : "text-[var(--dock-muted)] hover:text-[var(--dock-text)]"
           )}
         >
           <Icon name="ledger" className="h-4 w-4 shrink-0" />
@@ -69,7 +69,7 @@ export function BottomNav({ onQuickAdd }: BottomNavProps) {
             "flex flex-col sm:flex-row items-center justify-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all",
             isActive("/insights")
               ? "bg-[var(--accent-lime)] text-[#141814] font-bold shadow-xs"
-              : "text-[var(--muted)] hover:text-[var(--text)]"
+              : "text-[var(--dock-muted)] hover:text-[var(--dock-text)]"
           )}
         >
           <Icon name="analysis" className="h-4 w-4 shrink-0" />
@@ -83,7 +83,7 @@ export function BottomNav({ onQuickAdd }: BottomNavProps) {
             "flex flex-col sm:flex-row items-center justify-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all",
             isActive("/accounts")
               ? "bg-[var(--accent-lime)] text-[#141814] font-bold shadow-xs"
-              : "text-[var(--muted)] hover:text-[var(--text)]"
+              : "text-[var(--dock-muted)] hover:text-[var(--dock-text)]"
           )}
         >
           <Icon name="credit-card" className="h-4 w-4 shrink-0" />

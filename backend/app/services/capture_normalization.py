@@ -74,7 +74,7 @@ def validate_capture_normalization(result: CaptureNormalization, context: dict) 
     category = categories.get(category_id) if category_id else None
     kakeibo = None
     if category and category["kind"] == "expense":
-        kakeibo = result.kakeibo or category.get("default_kakeibo") or "need"
+        kakeibo = result.kakeibo or category.get("default_kakeibo")
     description = " ".join(result.description.split())
     if description.casefold() in PLACEHOLDER_DESCRIPTIONS:
         description = ""
