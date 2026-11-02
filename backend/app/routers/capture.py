@@ -21,6 +21,8 @@ class CaptureTextIn(BaseModel):
     # Bounded twice: here against oversized bodies, then 1-200 characters after normalisation.
     text: str = Field(max_length=400)
     device_time: datetime
+    # Question types this client can answer; absent means the original four (no `time`).
+    question_types: list[str] | None = Field(default=None, max_length=5)
 
 
 class CaptureAnswerIn(BaseModel):

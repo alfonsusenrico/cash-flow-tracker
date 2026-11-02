@@ -1,8 +1,14 @@
-"""Strict schema and validation for classifying a typed capture (design D2)."""
+"""Strict schema and validation for classifying a typed capture and reading its time (design D2).
+
+The model's time is a fallback for a phrase the parser flagged but could not place; it is accepted only
+when deterministic checks pass (understand-capture-time D5), and it can never touch the amount.
+"""
 
 from __future__ import annotations
 
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from typing import Literal
 from uuid import UUID
 
@@ -11,13 +17,23 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.services.kakeibo import Pillar
 
 
-CAPTURE_PROMPT_VERSION = "capture-normalization-1"
+CAPTURE_PROMPT_VERSION = "capture-normalization-2"
 CAPTURE_PROMPT_PATH = Path(__file__).with_name("prompts") / "capture_normalization.md"
 # Upper bound of the serialised capture input; history, then memory, are dropped to fit.
 CAPTURE_CONTEXT_BYTE_LIMIT = 30000
 PLACEHOLDER_DESCRIPTIONS = frozenset({
     "pembayaran", "belanja", "transaksi", "pengeluaran", "pemasukan", "transfer", "lainnya",
 })
+# Without an explicit date, a model time older than this is not believed.
+MODEL_TIME_MAX_AGE = timedelta(days=31)
+
+
+class CaptureTimeInterpretation(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    span: str | None = Field(max_length=80)
+    local_datetime: str | None = Field(max_length=40)
+    confidence: float = Field(ge=0, le=1)
 
 
 class CaptureNormalization(BaseModel):
@@ -32,6 +48,7 @@ class CaptureNormalization(BaseModel):
     category_confidence: float = Field(ge=0, le=1)
     account_id: UUID | None
     account_confidence: float = Field(ge=0, le=1)
+    time: CaptureTimeInterpretation
 
 
 class InvalidCaptureNormalization(ValueError):
@@ -69,3 +86,48 @@ def validate_capture_normalization(result: CaptureNormalization, context: dict) 
         "kakeibo": kakeibo, "category_confidence": result.category_confidence,
         "account_id": account_id, "account_confidence": result.account_confidence,
     }
+
+
+
+def validate_capture_time(
+    result: CaptureTimeInterpretation, *, text: str, time_facts: dict, device_time: datetime, tz: str,
+    threshold: float,
+) -> tuple[dict | None, str]:
+    """(checked time, outcome code) for the model's reading of a flagged time phrase.
+
+    Usable only when the parser left the time unresolved, the span is the owner's own words around a
+    flagged phrase, the moment is not after the device time, it falls on the parsed day or explicit date
+    when there is one and otherwise within 31 days. Below the capture threshold the checked time is only a
+    suggestion for the question (`suggestion_only`).
+    """
+    if time_facts.get("status") != "unresolved":
+        return None, "not_needed"
+    if not result.span or not result.local_datetime:
+        return None, "no_time"
+    collapsed = " ".join(text.split())
+    source = collapsed.casefold()
+    span = " ".join(result.span.split()).casefold()
+    hints = [" ".join(hint.split()).casefold() for hint in time_facts.get("hints") or [] if hint]
+    if not span or span not in source or not any(hint in span for hint in hints):
+        return None, "span_not_in_text"
+    try:
+        moment = datetime.fromisoformat(result.local_datetime)
+    except ValueError:
+        return None, "invalid_datetime"
+    if moment.tzinfo is None:
+        return None, "invalid_datetime"
+    if moment > device_time:
+        return None, "future"
+    local = moment.astimezone(ZoneInfo(tz))
+    named = time_facts.get("explicit_date") or time_facts.get("day")
+    # The day is the parser's when it read one; the model may only place the time within it.
+    if named and local.date() != date.fromisoformat(named):
+        return None, "day_mismatch"
+    if not time_facts.get("explicit_date") and device_time - moment > MODEL_TIME_MAX_AGE:
+        return None, "too_old"
+    start = source.index(span)
+    evidence = collapsed[start:start + len(span)] if len(source) == len(collapsed) else span
+    checked = {"date": local.isoformat(), "evidence": evidence, "confidence": result.confidence}
+    if result.confidence < threshold:
+        return {**checked, "suggestion_only": True}, "low_confidence"
+    return checked, "accepted"

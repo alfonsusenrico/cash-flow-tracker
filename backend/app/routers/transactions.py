@@ -1201,6 +1201,10 @@ def update_transaction(
                     merchant = %s,
                     offset_category_id = %s,
                     review_status = %s,
+                    -- A typed capture's time the owner corrects is the owner's from then on.
+                    time_basis = CASE WHEN time_basis IS NOT NULL AND date IS DISTINCT FROM %s
+                                      THEN 'owner' ELSE time_basis END,
+                    time_evidence = CASE WHEN date IS DISTINCT FROM %s THEN NULL ELSE time_evidence END,
                     updated_at = NOW(){owner_assignments}
                 WHERE user_id = %s AND id = %s
                 RETURNING id
@@ -1218,6 +1222,8 @@ def update_transaction(
                     new_merchant,
                     new_offset_id,
                     new_review_status,
+                    new_date,
+                    new_date,
                     user_id,
                     tid,
                 ),

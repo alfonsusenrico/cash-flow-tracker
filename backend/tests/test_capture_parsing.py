@@ -3,7 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.services.capture_parsing import CaptureDateError, parse_amount_answer, parse_capture
+from app.services.capture_parsing import parse_amount_answer, parse_capture
+from app.services.capture_time import CaptureDateError
 
 JAKARTA = timezone(timedelta(hours=7))
 SENT = datetime(2026, 10, 29, 9, 30, tzinfo=JAKARTA)
