@@ -20,6 +20,8 @@ SHA_PATTERN = re.compile(r"^[0-9a-f]{7,40}$")
 RELEASE_DIRECTORY_MODE = 0o750
 PRIVATE_FILE_MODE = 0o600
 DEFAULT_RETAINED_RELEASES = 3
+BACKUP_DIRECTORY_MODE = 0o700
+BACKUP_DIR_VARIABLE = "BACKUP_HOST_DIR"
 
 
 class ReleaseStorageError(ValueError):
@@ -182,6 +184,50 @@ def cleanup_releases(
     return deleted
 
 
+def _read_env_value(env_file: Path, name: str) -> str:
+    """Return the last value assigned to one variable, without reading or printing any other."""
+    value = ""
+    prefix = f"{name}="
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith(prefix):
+            value = stripped[len(prefix):].strip()
+    return value
+
+
+def _is_within(path: Path, parent: Path) -> bool:
+    return path == parent or parent in path.parents
+
+
+def resolve_backup_dir(environment_root: Path, env_file: Path) -> Path:
+    """Return the host directory for database dumps, creating it privately when missing.
+
+    It defaults to <environment_root>/backups and must stay outside the release tree, which
+    cleanup deletes, and outside Docker's own storage, which a lost volume takes with it.
+    """
+    configured = _read_env_value(env_file, BACKUP_DIR_VARIABLE)
+    # ':' would split the Compose short volume syntax; control characters never form a path.
+    if ":" in configured or not configured.isprintable():
+        raise ReleaseStorageError(f"{BACKUP_DIR_VARIABLE} must be one absolute path without ':'")
+    candidate = Path(configured) if configured else environment_root / "backups"
+    if not candidate.is_absolute():
+        raise ReleaseStorageError(f"{BACKUP_DIR_VARIABLE} must be an absolute path")
+
+    backup_dir = candidate.resolve(strict=False)
+    root = environment_root.resolve(strict=False)
+    forbidden_parents = (root / "releases", Path("/var/lib/docker").resolve(strict=False))
+    if backup_dir == Path("/") or backup_dir == root:
+        raise ReleaseStorageError(f"{BACKUP_DIR_VARIABLE} must be a dedicated directory: {backup_dir}")
+    for parent in forbidden_parents:
+        if _is_within(backup_dir, parent):
+            raise ReleaseStorageError(f"{BACKUP_DIR_VARIABLE} must not be inside {parent}: {backup_dir}")
+
+    _require_directory(backup_dir, create=True, mode=BACKUP_DIRECTORY_MODE)
+    if not os.access(backup_dir, os.W_OK | os.X_OK):
+        raise ReleaseStorageError(f"Backup directory is not writable by the deploy user: {backup_dir}")
+    return backup_dir
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -203,6 +249,10 @@ def main():
     p_clean.add_argument("--compose-project", required=True)
     p_clean.add_argument("--retain", type=int, default=DEFAULT_RETAINED_RELEASES)
 
+    p_backup = commands.add_parser("backup-dir")
+    p_backup.add_argument("--environment-root", required=True, type=Path)
+    p_backup.add_argument("--env-file", required=True, type=Path)
+
     args = parser.parse_args()
 
     if args.command == "prepare":
@@ -212,6 +262,12 @@ def main():
         secure_release_file(args.release_dir, args.filename)
     elif args.command == "promote":
         promote_current(args.environment_root, args.release_sha)
+    elif args.command == "backup-dir":
+        try:
+            print(str(resolve_backup_dir(args.environment_root, args.env_file)))
+        except ReleaseStorageError as error:
+            print(f"❌ {error}", file=sys.stderr)
+            sys.exit(1)
     elif args.command == "cleanup":
         deleted = cleanup_releases(
             args.environment_root,

@@ -10,26 +10,29 @@ Delivery follows the immutable release model established in professional school-
 
 ```mermaid
 flowchart TD
-    A["Push / Merge to main"] --> B["GitHub Actions Preflight<br/>(pytest, typecheck, build, compose config)"]
+    A["Push / Merge to main<br/>(mobile-only changes skip)"] --> B["Checks workflow as preflight<br/>(pytest on PostgreSQL 16 after Flyway V1→latest,<br/>typecheck, lint, build, compose config, backup round trip)"]
     B --> C["Connect to Tailscale<br/>(tailscale/github-action)"]
     C --> D["Package git archive & materialize runtime.env"]
     D --> E["SSH Transfer to msi (/tmp/...)"]
     E --> F["release_storage.py prepare<br/>/opt/cash-flow-tracker/production/releases/&lt;SHA&gt;/"]
     F --> G["Extract source & docker compose build"]
-    G --> H["Run Flyway DB Migrations (all pending versions)"]
+    G --> G2["Pre-migration pg_dump into BACKUP_HOST_DIR<br/>(failure aborts the deploy)"]
+    G2 --> H["Flyway V14 preflight, then Flyway migrations (all pending versions)"]
     H --> I["docker compose up -d --wait"]
     I --> J["Verify local healthcheck (http://127.0.0.1:8090/healthz)"]
     J --> K["release_storage.py promote<br/>current -> releases/&lt;SHA&gt;"]
-    K --> L["release_storage.py cleanup<br/>(Retain last 3 releases + prune docker images)"]
+    K --> L["release_storage.py cleanup<br/>(Retain last 3 releases + prune this project's dangling images)"]
     M["Cloudflare Tunnel (server-tunnel)"] -.->|Proxies HTTPS to :8090| I
 ```
 
 ### Core Tenets
 1. **Immutable Releases:** No `git pull` on the production server. Code is extracted strictly from pinned Git commit archives into `/opt/cash-flow-tracker/production/releases/<SHA>/`.
 2. **Safe Atomic Promotion:** Active production traffic points to `/opt/cash-flow-tracker/production/current`. Symlink promotion occurs **only after** image build, database migration, and container healthchecks succeed. If any step fails, the previous release stays online.
-3. **Automated Pruning:** Older releases are cleaned up automatically (retaining active + 3 prior releases), and dangling Docker images are pruned.
+3. **Automated Pruning:** Older releases are cleaned up automatically (retaining active + 3 prior releases). Only dangling images this project built are pruned: `docker image prune --filter label=cash-flow-tracker.managed=true` and `--filter label=com.docker.compose.project=cashflow-production`. The host is shared, so an unfiltered prune is never run.
 4. **Isolated Secrets:** Secrets are materialized directly into `<release_dir>/runtime.env` (`mode 0600`) and never committed into Git.
 5. **Automated Ingress Routing:** Cloudflare Tunnel proxies traffic to `127.0.0.1:8090` without exposing ports publicly.
+6. **Database Backups:** The `backup` service dumps the database nightly and the deploy dumps it before every migration, into a host directory outside the Docker volumes. See [database-backups.md](database-backups.md).
+7. **Checks Before Deploy:** `.github/workflows/checks.yml` runs on branch pushes and pull requests, and `deploy.yml` calls it as its preflight. The backend suite runs against a PostgreSQL 16 service migrated by Flyway exactly as production is (`flyway/flyway:10`, baseline on migrate, version 1), with `REQUIRE_TEST_DATABASE=1` so database tests fail instead of being skipped. A push to main that changes only `mobile/**` does not deploy.
 
 ---
 
@@ -61,6 +64,8 @@ Register these secrets in GitHub under `Settings -> Secrets and variables -> Act
 | `INVITE_CODE` | Registration invite code | E.g. `CASHFLOWTRACKER` |
 
 *(Defaults for `DEPLOY_HOST=100.85.113.31`, `DEPLOY_USER=enr1c0`, `DEPLOY_PORT=22`, and `DEPLOY_ROOT=/opt/cash-flow-tracker` are configured automatically).*
+
+Optional backup settings, all with safe defaults (see [database-backups.md](database-backups.md#3-configuration)): `BACKUP_HOST_DIR` (default `<DEPLOY_ROOT>/production/backups`), `BACKUP_TIME` (`02:30`), `BACKUP_RETENTION_DAYS` (`14`), `BACKUP_AGE_RECIPIENT` (empty, no encryption).
 
 ---
 
@@ -99,7 +104,10 @@ python3 current/source/scripts/release_storage.py promote \
   --environment-root /opt/cash-flow-tracker/production \
   --release-sha <PREVIOUS_COMMIT_SHA>
 
-# Restart containers with the previous release
+# Restart containers with the previous release, including the backup service
 cd /opt/cash-flow-tracker/production/current/source
+export COMPOSE_PROFILES=backup
+export BACKUP_HOST_DIR=/opt/cash-flow-tracker/production/backups
+export BACKUP_UID="$(id -u)" BACKUP_GID="$(id -g)"
 docker compose --project-name cashflow-production --env-file ../runtime.env up -d --no-build
 ```

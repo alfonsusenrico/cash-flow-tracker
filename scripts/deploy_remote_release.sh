@@ -105,6 +105,17 @@ cp "$release_dir/runtime.env" "$source_dir/.env"
 
 runtime_env="$release_dir/runtime.env"
 
+# Dumps live in a host directory outside the release tree and the Docker volumes. The nightly
+# backup service runs as the deploy user that owns it, so that user can read and manage the dumps.
+backup_host_dir=$(python3 "$bootstrap_dir/release_storage.py" backup-dir \
+  --environment-root "$environment_root" \
+  --env-file "$runtime_env")
+export BACKUP_HOST_DIR="$backup_host_dir"
+BACKUP_UID=$(id -u)
+BACKUP_GID=$(id -g)
+export BACKUP_UID BACKUP_GID
+export COMPOSE_PROFILES=backup
+
 # B. Validate Compose configuration
 echo "🔍 Validating docker compose configuration..."
 docker compose --project-name "$compose_project" --env-file "$runtime_env" config --quiet
@@ -113,14 +124,24 @@ docker compose --project-name "$compose_project" --env-file "$runtime_env" confi
 echo "🔨 Building Docker images for ${compose_project}..."
 docker compose --project-name "$compose_project" --env-file "$runtime_env" build
 
-# D. Run database migrations (fails safely before replacing running containers)
+# D. Back up the database, then run migrations (both fail safely before replacing running containers)
+# The backup precedes the V14 preflight too, because that preflight may repair Flyway history.
+# Commands that may read stdin get /dev/null: stdin is this script, streamed over SSH.
+echo "💾 Backing up the database into ${backup_host_dir} before migrations..."
+release_short_sha=$(printf '%s' "$release_sha" | cut -c1-12)
+if ! docker compose --project-name "$compose_project" --env-file "$runtime_env" run --rm backup \
+  backup-now "pre-migrate-${release_short_sha}" </dev/null; then
+  echo "❌ Pre-migration backup failed; aborting before any migration." >&2
+  exit 1
+fi
+
 echo "🔍 Validating Flyway history and checking for the expected V14 checksum correction..."
 python3 "$source_dir/scripts/flyway_v14_preflight.py" \
   --project-name "$compose_project" \
-  --env-file "$runtime_env"
+  --env-file "$runtime_env" </dev/null
 
 echo "🗄️ Running Flyway database migrations..."
-docker compose --project-name "$compose_project" --env-file "$runtime_env" run --rm migrate
+docker compose --project-name "$compose_project" --env-file "$runtime_env" run --rm migrate </dev/null
 
 # E. Start / replace running services
 echo "🚀 Starting Compose services..."
@@ -138,13 +159,19 @@ python3 "$bootstrap_dir/release_storage.py" promote \
   --environment-root "$environment_root" \
   --release-sha "$release_sha"
 
-# H. Cleanup older releases and dangling images
+# H. Cleanup older releases and this project's dangling images
 echo "🧹 Pruning older releases and stale images..."
 python3 "$bootstrap_dir/release_storage.py" cleanup \
   --environment-root "$environment_root" \
   --compose-project "$compose_project" \
   --retain 3
-docker image prune --force >/dev/null 2>&1 || true
+# The host is shared: prune only dangling images this project built. The first label is set in
+# docker-compose.yml; the second is added by Compose and also covers images built before it.
+for image_label in "cash-flow-tracker.managed=true" "com.docker.compose.project=${compose_project}"; do
+  if ! docker image prune --force --filter "label=${image_label}" >/dev/null; then
+    echo "⚠️ Image prune for label ${image_label} failed; images were left in place." >&2
+  fi
+done
 
 echo "✅ Deployment of commit ${release_sha} completed successfully!"
 REMOTE

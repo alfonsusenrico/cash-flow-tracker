@@ -242,10 +242,11 @@ Interactive Swagger API docs are available at **`/api/docs`**.
 
 ## 💻 Development & Verification Commands
 
-- **Backend Tests:**
+- **Backend Tests:** without `TEST_DATABASE_URL` pointing at a reachable PostgreSQL, the 566 database tests are skipped. CI migrates a disposable PostgreSQL 16 with Flyway first and sets `SKIP_TEST_MIGRATIONS=1` and `REQUIRE_TEST_DATABASE=1` (`.github/workflows/checks.yml`).
   ```bash
   cd backend
-  python -m pytest tests/
+  pip install -r requirements-dev.txt
+  TEST_DATABASE_URL=postgresql://ledger:ledgerpass@localhost:5432/ledger_test python -m pytest tests/
   ```
 - **Frontend Typecheck & Build:**
   ```bash
@@ -258,9 +259,9 @@ Interactive Swagger API docs are available at **`/api/docs`**.
   cd ../financial-tracker-mobile-listener
   ./gradlew testDebugUnitTest
   ```
-- **Database Backup:**
+- **Database Backups and Restore:** production dumps nightly and before every migration; see [docs/database-backups.md](docs/database-backups.md). A local stack opts in with `docker compose --profile backup up -d` (dumps go to `./storage/backups`). Prove backup and restore on disposable containers:
   ```bash
-  docker compose exec db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backup.sql
+  scripts/verify/backup_restore_roundtrip.sh
   ```
 
 ---
