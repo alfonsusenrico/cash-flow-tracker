@@ -31,10 +31,14 @@ Expected Result: no deploy migrates without a fresh verified dump, and cleanup n
 
 - [x] 3.1 Add `.github/workflows/checks.yml` with three jobs: backend on a postgres:16 service after Flyway V1→latest; frontend; operations (Compose config and the round trip). `deploy.yml` calls it as preflight and ignores `mobile/**`. Evidence: `actionlint` 1.7.7 (Docker image) reports nothing on `checks.yml`. Its only `deploy.yml` findings are two SC2086 notices that also appear on the unchanged main file.
 - [x] 3.2 Add `REQUIRE_TEST_DATABASE` to `conftest.py`. Evidence: with the variable set and the database unreachable, every test errors; without it, 673 passed and 566 skipped, as before.
-- [x] 3.3 Install the pinned `requirements-dev.txt` (pytest 9.0.3, adding `pytest-asyncio==1.4.1.post1`) and fix the calendar-dependent `plan` helper. Evidence: unchanged main on a fresh migrated database gave 23 failed (22 from pytest 9.2.0 monkeypatch undo on Starlette `State`, 1 from the schedule day on 2026-11-02). With this change, the full suite gave 1239 passed, 0 failed, 0 skipped.
+- [x] 3.3 Install the pinned `requirements-dev.txt` (pytest 9.0.3, httpx 0.28.1, plus `pytest-asyncio==1.4.1.post1`, with the reason in a comment). Fix the calendar-dependent `plan` helper (`plan_schedule_day(due)`). Evidence:
+  - unchanged main on a fresh migrated database gave 23 failed: 22 from pytest 9.2.0's monkeypatch undo on Starlette `State`, and 1 from the schedule day on 2026-11-02;
+  - with this change, the full suite gave 1249 passed, 0 failed, 0 skipped;
+  - with a frozen clock on 13 dates, main failed the plan test on the 1st and 2nd of each month, and the branch passed 23 of 23 everywhere;
+  - `test_fixture_plan_is_not_due_again_after_its_due_date_is_met` covers ten dates without a database.
 - [x] 3.4 Push the branch and record the Checks run and its duration. Evidence: `gh run list` / `gh run view` results in verification.md.
 
-Expected Result: every branch push, pull request and production preflight runs all 1239 backend tests on a migrated PostgreSQL 16, and mobile-only pushes do not deploy.
+Expected Result: every branch push, pull request and production preflight runs all 1249 backend tests on a migrated PostgreSQL 16, and mobile-only pushes do not deploy.
 
 ## 4. Close-out
 
