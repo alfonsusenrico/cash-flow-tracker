@@ -60,7 +60,7 @@ Branch `feat/monthly-report` was cut from origin/main 5004b11. All checks ran lo
 - **Setup**:
   - a local API on 127.0.0.1:55672 with background jobs and AI off;
   - `next dev` on 127.0.0.1:55673;
-  - the disposable `ledger_browser` database migrated V1→V40;
+  - the disposable `ledger_browser` database migrated V1→V40 (the migration was then V40; it was renumbered to V41 when main was merged on 2026-11-02);
   - `seed_report.py`, which seeds a synthetic owner (`laporan_contoh`) with transactions from 15 September, a full October, unclassified rows, a needs-review row and a duplicate pair.
 - Scripts and outputs are in the session scratch folder `scratchpad/monthly-report/` (`browser_check.mjs`, `evidence/browser-check.json`, screenshots `laporan-{390,1280}-{light,dark}.png`, `laporan-320-light.png`, `laporan-390-light-classify-dialog.png`). They are not tracked in Git.
 - `/laporan` (default: Oktober 2026) at 390 and 1280 px in light and dark, plus 320 px light:

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Debug builds may also use plain HTTP, so a local backend on the LAN or the emulator host
+    (http://10.0.2.2:8000) can be tested. This file replaces the release configuration in debug only.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

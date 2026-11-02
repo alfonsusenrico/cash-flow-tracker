@@ -1,0 +1,121 @@
+name: Checks
+
+# Branch pushes and pull requests run these checks; Deploy Production calls the same workflow
+# as its preflight, so main is deployed only after exactly these checks pass.
+on:
+  push:
+    branches-ignore:
+      - main
+    paths-ignore:
+      - "mobile/**"
+  pull_request:
+    paths-ignore:
+      - "mobile/**"
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend tests on PostgreSQL 16
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # Disposable credentials for this job's throwaway database only.
+          POSTGRES_DB: ledger_test
+          POSTGRES_USER: ledger
+          POSTGRES_PASSWORD: ledgerpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ledger -d ledger_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://ledger:ledgerpass@localhost:5432/ledger_test
+      # Migrations are applied by Flyway below, as in production, not by the test fixture.
+      SKIP_TEST_MIGRATIONS: "1"
+      REQUIRE_TEST_DATABASE: "1"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Install Backend Dependencies
+        # Pinned test tools: pytest 9.2's monkeypatch undo deletes Starlette app.state attributes.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements-dev.txt
+
+      - name: Migrate V1 to Latest with Flyway
+        # Same image, flags and locations as the migrate service in docker-compose.yml.
+        run: |
+          flyway() {
+            docker run --rm --network host \
+              --volume "$PWD/db/migrations:/flyway/migrations:ro" \
+              --env FLYWAY_URL=jdbc:postgresql://localhost:5432/ledger_test \
+              --env FLYWAY_USER=ledger \
+              --env FLYWAY_PASSWORD=ledgerpass \
+              --env FLYWAY_BASELINE_ON_MIGRATE=true \
+              --env FLYWAY_BASELINE_VERSION=1 \
+              --env FLYWAY_LOCATIONS=filesystem:/flyway/migrations \
+              flyway/flyway:10 -connectRetries=60 "$@"
+          }
+          flyway migrate
+          flyway info | grep -E '^Schema version:'
+
+      - name: Run the Full Backend Suite
+        working-directory: backend
+        run: python -m pytest tests/ -ra
+
+  frontend:
+    name: Frontend type check, lint and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Frontend Dependencies & Run Quality Checks
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run type-check
+          npm run lint
+          npm run build
+
+  operations:
+    name: Compose config and backup round trip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose Configuration
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.yml --profile backup config --quiet
+
+      - name: Back Up and Restore Synthetic Data
+        env:
+          VERIFY_PREFIX: cft-ci
+        run: scripts/verify/backup_restore_roundtrip.sh

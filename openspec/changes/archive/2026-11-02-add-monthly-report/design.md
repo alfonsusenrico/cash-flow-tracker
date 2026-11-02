@@ -153,7 +153,7 @@ Rejected alternatives:
 - Reusing `PATCH /api/categories/{id}` silently: it would make every Settings pillar change write feedback, which is a behaviour change outside this scope (Follow-ups).
 - A new feedback `kind`: the habit learner reads `correction` rows.
 
-### D8. Reflection note storage (V40)
+### D8. Reflection note storage (V41)
 
 ```sql
 CREATE TABLE IF NOT EXISTS monthly_reflections (

@@ -27,7 +27,11 @@ services:
       retries: 20
 
   api:
-    build: ./backend
+    build:
+      context: ./backend
+      labels: &project_image_labels
+        # Deploy cleanup prunes only images carrying this label (scripts/deploy_remote_release.sh).
+        cash-flow-tracker.managed: "true"
     container_name: ledger_api
     restart: unless-stopped
     environment:
@@ -98,7 +102,9 @@ services:
         condition: service_completed_successfully
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      labels: *project_image_labels
     container_name: ledger_frontend
     restart: unless-stopped
     environment:
@@ -141,6 +147,41 @@ services:
     depends_on:
       - api
       - frontend
+
+  backup:
+    # Production enables this profile in the deploy script; local stacks opt in with --profile backup.
+    profiles: ["backup"]
+    build:
+      context: ./db/backup
+      labels: *project_image_labels
+    container_name: ledger_backup
+    restart: unless-stopped
+    # The deploy runs dumps as the host user that owns BACKUP_HOST_DIR, so that user can manage them.
+    user: "${BACKUP_UID:-0}:${BACKUP_GID:-0}"
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-ledger}
+      PGUSER: ${POSTGRES_USER:-ledger}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-ledgerpass}
+      TZ: ${TZ:-Asia/Jakarta}
+      BACKUP_DIR: /backups
+      BACKUP_TIME: ${BACKUP_TIME:-02:30}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
+    volumes:
+      # A host directory, outside every Docker volume, so dumps survive losing db_data.
+      - ${BACKUP_HOST_DIR:-./storage/backups}:/backups
+    healthcheck:
+      test: ["CMD", "backup-healthcheck"]
+      # Short enough that the deploy's `up --wait` sees the first check well within its timeout.
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   db_data:

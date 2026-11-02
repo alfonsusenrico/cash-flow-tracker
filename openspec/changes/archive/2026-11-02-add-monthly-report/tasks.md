@@ -13,7 +13,7 @@ Expected Result: missing pillars are reported as "Belum diklasifikasi" everywher
 
 ## 2. Monthly report backend (D1, D2, D4, D5, D8, D9, D10)
 
-- [x] 2.1 Migration `V40__monthly_reflections.sql`. Evidence: Flyway V1→V40 on a fresh database.
+- [x] 2.1 Migration `V41__monthly_reflections.sql`. Evidence: Flyway V1→V40 on a fresh database, run while the migration was numbered V40; it became V41 when main was merged on 2026-11-02 and was re-verified V1→V41 in `complete-kakeibo-defaults`.
 - [x] 2.2 `services/monthly_report.py` with periods, sections, comparison, median, data quality and budget. Evidence: section tests on a synthetic two-month owner.
 - [x] 2.3 `routers/reports.py` with report, periods, latest and reflection routes. Evidence:
   - the report-equals-ledger reconciliation test;
@@ -36,7 +36,7 @@ Expected Result: a user reads the report on a phone, fixes classification and se
 
 ## 4. Verification and delivery
 
-- [x] 4.1 Backend on a fresh PostgreSQL 16 database migrated V1→V40, plus a CI-style run without a database. Evidence: counts in verification.md.
+- [x] 4.1 Backend on a fresh PostgreSQL 16 database migrated V1→V40 (before the renumbering to V41), plus a CI-style run without a database. Evidence: counts in verification.md.
 - [x] 4.2 Frontend `npm ci`, test, lint, type-check and build. Evidence: counts in verification.md.
 - [x] 4.3 Android compatibility, read-only. Evidence: design.md D3.
 - [x] 4.4 `git diff --check`, `openspec validate --all --strict` and a final diff review. Evidence: verification.md.

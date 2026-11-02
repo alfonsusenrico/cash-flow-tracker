@@ -31,7 +31,7 @@ Recorded 2026-11-02.
   - `PUT` and `DELETE /api/reports/monthly/reflection`: the reflection note.
 
   All of them use session or Bearer auth and are owner-scoped. The report is built from `report_figures`, `observed_insights`, `essential_cost`, `cash_flow_history` and `recurring_charges`. It adds no calculation rule that could disagree with the ledger.
-- New `monthly_reflections` table through Flyway migration `V40__monthly_reflections.sql`, scoped by owner, period basis and period start.
+- New `monthly_reflections` table through Flyway migration `V41__monthly_reflections.sql`, scoped by owner, period basis and period start.
 - **BREAKING (meaning, not shape)**: the effective Kakeibo pillar of an expense with no transaction or category pillar becomes `null` ("Belum diklasifikasi") instead of `need`. Kakeibo breakdowns gain `unclassified_spent` and `unclassified_pct`. Comparison pillar lists gain an `unclassified` entry. Ledger `kakeibo_type` filters accept `unclassified`. Category lists return a stored pillar or `null` instead of deriving one from `is_primary`. A transaction recorded in a category without a pillar no longer gets `need` or `want` copied from `is_primary`. Existing pillar values and field names are unchanged.
 - The essential monthly cost keeps counting unclassified spending, labelled as such, so Ketahanan Dana does not grow because a pillar is missing (design.md D6).
 - New classification quick-fix routes:
@@ -90,7 +90,7 @@ No new project capability is added.
   - `services/kakeibo.py`, `report_figures.py`, `observed_insights.py`, `essential_cost.py`, `reimbursements.py`, `history_suggestions.py` and `text_capture.py` (pillar SQL only);
   - routers `dashboard.py`, `transactions.py`, `categories.py` and `review.py`;
   - new `services/monthly_report.py`, `services/classification_gaps.py`, `routers/reports.py`, `routers/classification.py`, and `main.py` registration.
-- Database: `db/migrations/V40__monthly_reflections.sql`.
+- Database: `db/migrations/V41__monthly_reflections.sql`.
 - Web:
   - new `app/laporan/` and `components/report/`;
   - `lib/kakeibo.ts`, `lib/ledgerFilters.ts`, `tokens.css` (a neutral unclassified token), `KakeiboBenchmark`, `MobileHomeView`, `ObservedInsights`, `insights/page.tsx`, `ledger/page.tsx`, `Sidebar`, `BottomNav`.

@@ -100,7 +100,7 @@ Every amount in the report that is a sum of ledger rows SHALL link to the ledger
 - **THEN** the ledger SHALL open with `from` and `to` of October, `type=expense` and `kakeibo=unclassified` and its summary outflow SHALL be Rp 300.000
 
 ### Requirement: Reflection note per period
-The owner SHALL be able to save one reflection note of 1 to 1000 characters per basis and period ("Apa yang mau diperbaiki bulan depan?") with `PUT /api/reports/monthly/reflection` and remove it with `DELETE`. Notes SHALL be stored in `monthly_reflections` (Flyway V40), scoped to their owner, and returned only to that owner. The report SHALL return the period's note and the previous period's note, which the interface SHALL show again as last period's intention.
+The owner SHALL be able to save one reflection note of 1 to 1000 characters per basis and period ("Apa yang mau diperbaiki bulan depan?") with `PUT /api/reports/monthly/reflection` and remove it with `DELETE`. Notes SHALL be stored in `monthly_reflections` (Flyway V41), scoped to their owner, and returned only to that owner. The report SHALL return the period's note and the previous period's note, which the interface SHALL show again as last period's intention.
 
 #### Scenario: Shown again next month
 - **GIVEN** the owner saved "Kurangi jajan kopi" on the October report

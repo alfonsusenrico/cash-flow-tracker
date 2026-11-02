@@ -74,13 +74,16 @@ def answered(client, capture, **fields):
     return response.json()["capture"]
 
 
+NO_TIME = {"span": None, "local_datetime": None, "confidence": 0}
+
+
 def model_result(owner, *, category="jajan", confidence=0.9, type_="expense", merchant=None,
-                 description="Es teh manis", account=None, account_confidence=0.0, kakeibo="want"):
+                 description="Es teh manis", account=None, account_confidence=0.0, kakeibo="want", time=None):
     return CaptureNormalization.model_validate_json(json.dumps({
         "merchant": merchant, "description": description, "type": type_, "type_confidence": 0.95,
         "category_id": owner[category] if category else None, "kakeibo": kakeibo,
         "category_confidence": confidence, "account_id": owner[account] if account else None,
-        "account_confidence": account_confidence,
+        "account_confidence": account_confidence, "time": time or NO_TIME,
     }))
 
 
@@ -219,7 +222,7 @@ def test_confident_model_records_new_merchant_as_ai(client, owner, monkeypatch):
     assert len(json.dumps(context, ensure_ascii=False).encode()) <= 30000
     stored = query("SELECT model, prompt_version, model_calls, classifier FROM text_captures WHERE id = %s",
                    (capture["id"],))[0]
-    assert dict(stored) == {"model": "gpt-5.6-luna", "prompt_version": "capture-normalization-1",
+    assert dict(stored) == {"model": "gpt-5.6-luna", "prompt_version": "capture-normalization-2",
                             "model_calls": 1, "classifier": "ok"}
     learned = memory(owner, "merchant:es teh manis")
     assert (learned["source"], str(learned["account_id"])) == ("ai", owner["cash"])
@@ -628,7 +631,7 @@ def test_normalization_validation():
     def result(**values):
         base = {"merchant": None, "description": "Es teh", "type": "expense", "type_confidence": 0.9,
                 "category_id": None, "kakeibo": None, "category_confidence": 0.9, "account_id": None,
-                "account_confidence": 0}
+                "account_confidence": 0, "time": NO_TIME}
         return CaptureNormalization.model_construct(**{**base, **values})
 
     checked = validate_capture_normalization(result(category_id="c-expense"), context)
@@ -657,7 +660,7 @@ def test_capture_normalizer_uses_its_own_strict_schema_and_prompt():
     sent = {}
     output = {"merchant": None, "description": "Es teh manis", "type": "expense", "type_confidence": 0.9,
               "category_id": "00000000-0000-4000-8000-000000000101", "kakeibo": "want", "category_confidence": 0.9,
-              "account_id": None, "account_confidence": 0}
+              "account_id": None, "account_confidence": 0, "time": NO_TIME}
 
     def handler(request):
         sent.update(json.loads(request.content))

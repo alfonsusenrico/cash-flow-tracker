@@ -16,10 +16,8 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.db.pool import db_conn
-from app.services.capture_parsing import (
-    DAY_DATE_PATTERN, MONEY_PATTERN, RELATIVE_DATE_PATTERN, SLASH_DATE_PATTERN, fold, is_money_expression,
-    parse_kind,
-)
+from app.services.capture_parsing import MONEY_PATTERN, fold, is_money_expression, parse_kind
+from app.services.capture_time import time_word_spans
 from app.services.merchant_memory import merchant_match_key
 from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES
 from app.services.text_capture import DEVICE_CLOCK_SKEW, TEXT_MAX_LENGTH
@@ -38,7 +36,6 @@ FREQUENT_COUNT = 3
 REASON_TIME = "biasanya jam segini"
 REASON_FREQUENT = "sering"
 REASON_RECENT = "terakhir"
-DATE_PATTERNS = (RELATIVE_DATE_PATTERN, DAY_DATE_PATTERN, SLASH_DATE_PATTERN)
 # A prefill text must parse back to the suggested kind, so a bare label gets the verb the word table knows.
 KIND_VERBS = {"expense": "bayar", "income": "terima"}
 WEEKEND_DAYS = frozenset({6, 7})
@@ -174,14 +171,14 @@ def amount_shorthand(amount: int) -> str:
 
 
 def without_money_and_dates(text: str) -> str:
-    spans = [match.span() for pattern in DATE_PATTERNS for match in pattern.finditer(text)]
+    spans = time_word_spans(text)
     spans += [match.span() for match in MONEY_PATTERN.finditer(text) if is_money_expression(match)]
     kept = "".join(char for index, char in enumerate(text) if not any(start <= index < end for start, end in spans))
     return " ".join(kept.split())
 
 
 def has_date_words(text: str) -> bool:
-    return any(pattern.search(fold(text)) for pattern in DATE_PATTERNS)
+    return bool(time_word_spans(fold(text)))
 
 
 def built_text(label: str, kind: str, amount: int) -> str:

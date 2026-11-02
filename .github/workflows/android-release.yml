@@ -1,0 +1,195 @@
+name: Android release
+
+# A tag android-vX.Y.Z on main publishes the signed companion APK as this repository's latest
+# release, so releases/latest/download/cashflow-companion.apk always serves the newest app.
+on:
+  push:
+    tags:
+      - "android-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+env:
+  APP_ID: com.alfonsusenrico.financialtracker.listener
+  SERVER_URL: https://finance.alfonsusenrico.com
+  APK_NAME: cashflow-companion.apk
+
+jobs:
+  checks:
+    uses: ./.github/workflows/android-ci.yml
+
+  version:
+    name: Release version
+    needs: checks
+    runs-on: ubuntu-24.04
+    outputs:
+      name: ${{ steps.version.outputs.name }}
+      code: ${{ steps.version.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Tag is a new version on main
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#android-v}"
+          if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)$ ]]; then
+            echo "Tag $TAG must be android-vMAJOR.MINOR.PATCH with MINOR and PATCH from 0 to 99." >&2
+            exit 1
+          fi
+          code=$(( BASH_REMATCH[1] * 10000 + BASH_REMATCH[2] * 100 + BASH_REMATCH[3] ))
+
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Tag $TAG points at $GITHUB_SHA, which is not on main." >&2
+            exit 1
+          fi
+
+          # The version code only rises: refuse a tag at or below any published companion release.
+          published_tags=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json tagName --jq '.[].tagName')
+          highest=0
+          for published in $published_tags; do
+            if [[ "$published" =~ ^android-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)$ ]]; then
+              published_code=$(( BASH_REMATCH[1] * 10000 + BASH_REMATCH[2] * 100 + BASH_REMATCH[3] ))
+              if (( published_code > highest )); then highest=$published_code; fi
+            fi
+          done
+          if (( code <= highest )); then
+            echo "Version code $code of $TAG is not above the highest published code $highest." >&2
+            exit 1
+          fi
+
+          echo "name=$version" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "Companion $version, version code $code" >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Signed APK
+    needs: version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # The signing key lives in this environment, which only android-v* tags may use.
+    environment: android-release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # No Gradle cache here: a restored compile output once shipped a stale BuildConfig version.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Signed release APK
+        working-directory: mobile
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_NAME: ${{ needs.version.outputs.name }}
+        run: |
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "$(printenv "$name")" ]; then
+              echo "The signing secret $name is missing from the environment android-release." >&2
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then exit 1; fi
+
+          export CFT_ANDROID_KEYSTORE="$RUNNER_TEMP/release.jks"
+          trap 'rm -f "$CFT_ANDROID_KEYSTORE"' EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$CFT_ANDROID_KEYSTORE"
+          ./gradlew --no-daemon --no-build-cache clean assembleRelease -PcompanionReleaseVersion="$VERSION_NAME"
+
+      - name: Verify signature, identity and server
+        env:
+          VERSION_NAME: ${{ needs.version.outputs.name }}
+          VERSION_CODE: ${{ needs.version.outputs.code }}
+        run: |
+          build_tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          mkdir -p android-release
+          cp mobile/app/build/outputs/apk/release/app-release.apk "android-release/$APK_NAME"
+          apk="android-release/$APK_NAME"
+
+          "$build_tools/apksigner" verify --verbose "$apk"
+          "$build_tools/apksigner" verify --print-certs "$apk" | grep -i 'SHA-256 digest' >> "$GITHUB_STEP_SUMMARY"
+
+          badging_all=$("$build_tools/aapt2" dump badging "$apk")
+          badging="${badging_all%%$'\n'*}"
+          echo "$badging"
+          expected="package: name='$APP_ID' versionCode='$VERSION_CODE' versionName='$VERSION_NAME'"
+          if [[ "$badging" != "$expected"* ]]; then
+            echo "Expected: $expected" >&2
+            exit 1
+          fi
+
+          # The server and version are compiled-in constants; check the shipped dex, not the sources.
+          unzip -p "$apk" 'classes*.dex' > "$RUNNER_TEMP/classes.dex"
+          for constant in "$SERVER_URL" "$VERSION_NAME"; do
+            if ! grep -a -q -F "$constant" "$RUNNER_TEMP/classes.dex"; then
+              echo "The APK does not contain $constant." >&2
+              exit 1
+            fi
+          done
+
+          (cd android-release && sha256sum "$APK_NAME" > "$APK_NAME.sha256")
+          cat "android-release/$APK_NAME.sha256" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: android-release/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: GitHub release
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-release
+          path: android-release
+
+      - name: Publish as latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION_NAME: ${{ needs.version.outputs.name }}
+          VERSION_CODE: ${{ needs.version.outputs.code }}
+        run: |
+          cd android-release
+          sha256sum --check "$APK_NAME.sha256"
+          digest=$(cut -d ' ' -f 1 "$APK_NAME.sha256")
+          {
+            echo "Cash Flow Companion $VERSION_NAME (version code $VERSION_CODE) for Android 8.0 or newer."
+            echo
+            echo "Download: https://github.com/$GITHUB_REPOSITORY/releases/latest/download/$APK_NAME"
+            echo
+            echo "SHA-256: \`$digest\`"
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --latest \
+            --title "Cash Flow Companion $VERSION_NAME" --notes-file "$RUNNER_TEMP/notes.md" \
+            "$APK_NAME" "$APK_NAME.sha256"
+
+          latest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          if [ "$latest" != "$TAG" ]; then
+            echo "The latest release is $latest, not $TAG." >&2
+            exit 1
+          fi

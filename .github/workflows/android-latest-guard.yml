@@ -1,0 +1,49 @@
+name: Keep companion release latest
+
+# releases/latest/download/cashflow-companion.apk must keep serving the app. When any other
+# release becomes latest, this restores the newest android-v* release. Releases created by the
+# Android release workflow use GITHUB_TOKEN and do not trigger this workflow.
+on:
+  release:
+    types: [published, released, edited]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-latest-guard
+  cancel-in-progress: false
+
+jobs:
+  restore-latest:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Restore the newest companion release as latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
+          if [[ "$latest" == android-v* ]]; then
+            echo "Latest is $latest."
+            exit 0
+          fi
+
+          published_tags=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --exclude-drafts --exclude-pre-releases --json tagName --jq '.[].tagName')
+          newest=""
+          highest=0
+          for tag in $published_tags; do
+            if [[ "$tag" =~ ^android-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)$ ]]; then
+              code=$(( BASH_REMATCH[1] * 10000 + BASH_REMATCH[2] * 100 + BASH_REMATCH[3] ))
+              if (( code > highest )); then
+                highest=$code
+                newest=$tag
+              fi
+            fi
+          done
+          if [ -z "$newest" ]; then
+            echo "No companion release exists yet; nothing to restore."
+            exit 0
+          fi
+
+          echo "Latest was '${latest:-none}'; restoring $newest." | tee -a "$GITHUB_STEP_SUMMARY"
+          gh release edit "$newest" --repo "$GITHUB_REPOSITORY" --latest

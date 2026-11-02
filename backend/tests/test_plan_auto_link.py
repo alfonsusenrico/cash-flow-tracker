@@ -7,7 +7,9 @@ from dataclasses import replace
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from test_expectations import debt, debt_state, plan, plan_owner  # noqa: F401 - fixture
+import pytest
+
+from test_expectations import debt, debt_state, plan, plan_owner, plan_schedule_day  # noqa: F401 - fixture
 
 JAKARTA = ZoneInfo("Asia/Jakarta")
 
@@ -47,6 +49,18 @@ def link_events(rule_id):
 
 def pending_ids(client):
     return {rule["id"] for rule in client.get("/api/recurring/pending").json()["rules"]}
+
+
+@pytest.mark.parametrize("today", [
+    date(2026, 1, 1), date(2026, 1, 31), date(2026, 3, 1), date(2026, 3, 2), date(2026, 4, 30),
+    date(2026, 9, 30), date(2026, 10, 1), date(2026, 10, 2), date(2026, 10, 31), date(2026, 11, 2),
+])
+def test_fixture_plan_is_not_due_again_after_its_due_date_is_met(today):
+    from app.services.plan_occurrences import calculate_next_due_date
+
+    due = today - timedelta(days=2)
+    following = calculate_next_due_date("monthly_day", plan_schedule_day(due), from_date=due, advance=True)
+    assert following > today
 
 
 def test_one_certain_payment_is_linked_once_and_applies_the_debt_once(client, plan_owner):

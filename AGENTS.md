@@ -48,8 +48,19 @@ npm run build
 
 For a full backend run, supply a disposable, migrated PostgreSQL via TEST_DATABASE_URL. The existing fixtures skip database cases when PostgreSQL is absent; report those skips. SKIP_TEST_MIGRATIONS=1 is only appropriate after independently applying the versioned migrations.
 
+Companion checks run from `mobile/` with a JDK 17 in `JAVA_HOME` and the SDK in `ANDROID_HOME`, one Gradle task per run; read the unit-test counts from the XML.
+
+```sh
+cd mobile
+./gradlew testDebugUnitTest
+python3 scripts/ci/junit_summary.py app/build/test-results/testDebugUnitTest
+./gradlew lintDebug
+./gradlew assembleDebug
+```
+
 ```sh
 openspec validate --all --strict
+(cd mobile && openspec validate --all --strict)
 python3 scripts/flyway_v14_preflight.py --project-name cash-flow-tracker
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 ```
@@ -61,10 +72,10 @@ The local Compose override selects development/HTTP cookies. For a direct loopba
 - Backend boundaries: [routes](backend/app/routers/), [services](backend/app/services/), [settings](backend/app/core/config.py), [authentication](backend/app/services/auth.py), [database](backend/app/db/).
 - Schema: Flyway [versioned migrations](db/migrations/) are the only schema owner. The Compose `migrate` service and `scripts/deploy_remote_release.sh` run them before the API starts; the API runs no startup DDL. Add a new `V<n>__*.sql` (repeatable where practical) and never edit an applied one. The unreferenced legacy backend/migrations files are not executed.
 - Web: Next.js App Router in frontend/src/app, shared UI in frontend/src/components; [tokens](frontend/tokens.css) imported by globals.css.
-- Companion: the Android app lives only in the sibling repository `financial-tracker-mobile-listener`; release the backend before installing a companion that depends on it. Batch ingestion, results and question answers live in backend/app/routers/ingest.py; do not infer the singular legacy endpoint from old notes. Typed one-sentence capture (text, answer, undo, get) lives in [capture](backend/app/routers/capture.py). The Telegram bot is retired. The companion pairs by QR: web Settings creates a single-use code (`POST /api/devices/pairing-codes`, browser session only) and the phone exchanges it once for its own key (`POST /api/devices/pair`); `GET /api/devices` and `DELETE /api/devices/{id}` list and revoke keys. See [devices](backend/app/routers/devices.py) and [device pairing](backend/app/services/device_pairing.py).
+- Companion: the Android app lives in [mobile/](mobile/README.md) (Kotlin, Compose, Room) with its own OpenSpec root, [mobile/openspec](mobile/openspec/); run its OpenSpec commands from `mobile/`. Its specs own phone behaviour and the root specs own the server contract; the root `mobile-notification-completion` and `mobile-sender-replies` are older server-side copies of same-named phone specs, kept until a reconciliation change. The old repository `financial-tracker-mobile-listener` is superseded. Release the backend before releasing a companion that depends on it. Batch ingestion, results and question answers live in backend/app/routers/ingest.py; do not infer the singular legacy endpoint from old notes. Typed one-sentence capture (text, answer, undo, get) lives in [capture](backend/app/routers/capture.py). The Telegram bot is retired. The companion pairs by QR: web Settings creates a single-use code (`POST /api/devices/pairing-codes`, browser session only) and the phone exchanges it once for its own key (`POST /api/devices/pair`); `GET /api/devices` and `DELETE /api/devices/{id}` list and revoke keys. See [devices](backend/app/routers/devices.py) and [device pairing](backend/app/services/device_pairing.py).
 - LLM boundary: [prompt](backend/app/services/prompts/notification_interpretation.md), [evidence](backend/app/services/notification_evidence.py), [processing](backend/app/services/notification_processing.py), [application](backend/app/services/notification_application.py), [merchant memory](backend/app/services/merchant_memory.py), [purpose questions](backend/app/services/purpose_questions.py), [history suggestions](backend/app/services/history_suggestions.py), [text capture](backend/app/services/text_capture.py) with its [parser](backend/app/services/capture_parsing.py).
 - Automation and review: [provenance](backend/app/services/provenance.py), [movement pairing](backend/app/services/movement_pairing.py), [reimbursements](backend/app/services/reimbursements.py), [report figures](backend/app/services/report_figures.py) and [windows](backend/app/services/report_windows.py); the web `/laporan` page (Laporan Bulanan) uses [monthly report](backend/app/services/monthly_report.py) and [classification gaps](backend/app/services/classification_gaps.py); the web `/review` page (Tinjau) uses [review](backend/app/routers/review.py) and [history suggestions](backend/app/routers/history_suggestions.py) routes.
-- Approved release path: [.github/workflows/deploy.yml](.github/workflows/deploy.yml) and [scripts/deploy_remote_release.sh](scripts/deploy_remote_release.sh). A bug report authorizes local diagnosis, not a production-server connection; the owner must explicitly authorize that connection.
+- Approved release path: [.github/workflows/deploy.yml](.github/workflows/deploy.yml) and [scripts/deploy_remote_release.sh](scripts/deploy_remote_release.sh). The companion is released only by an owner-pushed tag `android-vX.Y.Z` on `main`, through [android-release.yml](.github/workflows/android-release.yml) and the `android-release` environment; it publishes the signed `cashflow-companion.apk` as the latest release. `versionCode` is `X * 10000 + Y * 100 + Z` and only rises. No other release may be marked latest ([guard](.github/workflows/android-latest-guard.yml)). Agents never tag, release or handle the signing key. A bug report authorizes local diagnosis, not a production-server connection; the owner must explicitly authorize that connection.
 
 ## Project rules
 
