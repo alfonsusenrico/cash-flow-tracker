@@ -8,6 +8,8 @@ import { queryKeys } from "@/lib/queryKeys";
 import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { cn, formatNumberWithDots } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
+import { TopBarControls } from "@/components/workspace/context";
+import { PeriodStepper } from "@/components/ui/PeriodStepper";
 import { Icon } from "@/components/ui/Icon";
 import { Modal } from "@/components/ui/Modal";
 import { FormSection } from "@/components/ui/FormField";
@@ -62,7 +64,7 @@ const CATEGORY_COLOR_NAMES: Record<string, string> = {
 
 export default function AnalyticsPage() {
   const qc = useQueryClient();
-  const { timeframe, setTimeframe, cycleOffset, bal } = useAppCtx();
+  const { timeframe, setTimeframe, cycleOffset, setCycleOffset, bal } = useAppCtx();
   const reportPeriod = reportPeriodFilters(timeframe, cycleOffset);
   // Drill-down: the ledger rows behind a category figure, for the same period.
   const categoryHref = (cat: { id: string | null; is_uncategorized?: boolean }) =>
@@ -225,6 +227,16 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
+      {(timeframe === "cycle" || timeframe === "month") && (
+        <TopBarControls>
+          <PeriodStepper
+            unit={timeframe === "month" ? "Bulan" : "Siklus"}
+            label={timeframeLabel ?? "Memuat…"}
+            offset={cycleOffset}
+            onChange={setCycleOffset}
+          />
+        </TopBarControls>
+      )}
       {/* 1. Header & Segmented Tab Switch */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[var(--border)]">
         <div>

@@ -10,7 +10,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
-from app.services.salary_cycles import load_user_cycle
+from app.services.salary_cycles import SalaryCycle, load_user_cycle
 
 TIMEFRAMES: tuple[str, ...] = ("cycle", "30d", "90d", "month")
 TIMEFRAME_PATTERN = "^(" + "|".join(TIMEFRAMES) + ")$"
@@ -56,11 +56,13 @@ def get_timeframe_window(
     cycle_offset: int = 0,
     *,
     user_id: str | None = None,
+    cycle: SalaryCycle | None = None,
 ) -> Window:
     """Returns (start_utc, end_utc, start_date, end_date, label).
 
     `cycle_offset` steps whole payday cycles for `cycle` and whole calendar months for `month`; the
-    rolling windows ignore it.
+    rolling windows ignore it. A caller that already resolved the owner's cycle passes it as `cycle`,
+    so its figures and its window come from the same receipts.
     """
     tz = ZoneInfo(settings.tz)
     target_date = ref_date or datetime.now(tz).date()
@@ -77,7 +79,8 @@ def get_timeframe_window(
         start_date, end_date, label = month_window(target_date, cycle_offset)
     elif user_id is not None:  # Observed salary cycle; no future payday is assumed.
         now = datetime.now(timezone.utc)
-        cycle = load_user_cycle(user_id, offset=cycle_offset, as_of=now)
+        if cycle is None:
+            cycle = load_user_cycle(user_id, offset=cycle_offset, as_of=now)
         if cycle.start is not None:
             start_utc = cycle.start.astimezone(timezone.utc)
             end_utc = min(now, cycle.end_exclusive - timedelta(microseconds=1)) if cycle.end_exclusive else now

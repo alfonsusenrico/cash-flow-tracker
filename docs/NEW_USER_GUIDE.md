@@ -145,41 +145,39 @@ Snapshots let you record net worth over time.
 
 ## Menu Guide
 
-## 1. Summary
+### Navigation
 
-Route: `/dashboard`
+Every page opens inside one workspace window. On a computer the sidebar groups the pages: Harian (Beranda, Tinjau, Transaksi), Uang (Rekening & Kantong, Target & Tagihan) and Laporan (Analisis, Laporan). Tinjau shows how many rows wait for your answer, and Laporan shows a badge while a new monthly report is fresh. The foot of the sidebar shows whether your phone is ready, plus Bantuan and Pengaturan. Between 761 and 1180 px wide the sidebar is an icon rail; above that you can collapse it yourself.
 
-Summary is the main overview screen. It combines data from accounts, transactions, allocation plans, goals, and assets into a financial health view.
+The top bar holds the page title, search (⌘K or Ctrl+K; Enter opens Transaksi with your text), the theme (Terang, Gelap or Ikuti sistem), notifications, "+ Catat" and your account menu (Sembunyikan saldo, Pengaturan, Keluar). Transaksi and Analisis show their period stepper in the top bar too.
+
+On a phone a tab bar at the bottom offers Beranda, Tinjau, Catat, Transaksi and Lainnya; Lainnya lists every other page, the notifications, Bantuan and Keluar.
+
+Keyboard: N opens Catat, ? opens the shortcut help, Esc closes the open menu, explanation or dialog. The single-key shortcuts (N and ?) can be switched off in the help.
+
+## 1. Beranda
+
+Route: `/` (the old `/dashboard` link still opens it)
+
+Beranda describes the current salary cycle, or the current calendar month while no salary cycle is confirmed. It has no period selector; earlier periods are on Transaksi, Analisis and Laporan.
 
 ### What You See
 
-- Health Score: overall financial health indicator.
-- Safe to Spend: estimated money available after planned commitments.
-- Net Worth: cash plus invested assets.
-- Metrics: savings rate, investment rate, emergency fund, cash runway, monthly drift.
-- Accounts Overview: current balances and cash movement by account.
-- Goals Progress: top active goals.
-- Quick Actions: add transaction, transfer, record net worth.
+- Three sentences with three numbers: how much went out since payday, how much is safe to spend today, and how much is still waiting for your answer. Every underlined number opens "Kok segini?", which lists the lines that make it up and links to the matching transactions.
+- Four figures: Aman dipakai hari ini, Keluar, Masuk and Kekayaan bersih. Keluar and Masuk compare with the same number of days of the previous period, as an amount.
+- Uang siklus ini: what you received, split into what is used, what is scheduled (unpaid plans and goal set-asides) and what is safe to use until payday.
+- Kerjakan dulu: open questions, transfers waiting for their other side, groups that need an answer and plans due within two days.
+- Aktivitas terbaru (on phones: Hari ini), Kakeibo, Ketahanan Dana and one comparison with the previous period.
 
-### Data Used
+### How the numbers are counted
 
-- Accounts and balances
-- Transactions in the current pay cycle
-- Active allocation plan items
-- Goals
-- Asset holdings and net-worth history
-
-### How It Connects to Other Menus
-
-- Transactions affect income, expenses, safe-to-spend, account balances, and analysis.
-- Accounts determine liquid assets and account overview.
-- Allocation affects planned spending and committed allocations.
-- Goals appear in goal progress.
-- Assets and Net Worth affect the net-worth card.
+- Keluar is the Kakeibo total: needs, wants, culture, unexpected, money moved into savings or invested, and spending without a pillar yet. Moves between your own ordinary accounts are not counted.
+- Rows waiting in Tinjau stay recorded and counted. Answering moves the amount to the right pillar.
+- Aman dipakai hari ini divides what is left by the days until the next salary date. It appears only when your last three confirmed salaries came at regular dates (26 to 35 days apart, within three days of the same day of the month). Otherwise Beranda shows the remaining amount and says why there is no daily figure. It never divides by a guessed date.
 
 ### When to Use It
 
-Use Summary after you have entered accounts and transactions. It is best for answering: "Am I financially okay right now?"
+Open Beranda once a day: check what is safe to spend, then clear "Kerjakan dulu".
 
 ## 2. Transactions
 
@@ -736,14 +734,7 @@ Category creation and editing exist in the backend, but the current UI presents 
 
 ## Quick Actions
 
-Quick actions appear in the sidebar and Summary page.
-
-- Add Transaction opens the transaction form.
-- Transfer opens the transfer form.
-- Record Net Worth records a net-worth snapshot.
-- New Bucket opens the bucket creation form.
-
-Use these for common daily actions after initial setup.
+"+ Catat" in the top bar, the Catat button of the phone tab bar and the N key open quick capture for an expense, income or a move between your accounts. "Kerjakan dulu" on Beranda opens the item that needs you.
 
 ## Common Workflows
 

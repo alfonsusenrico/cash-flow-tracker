@@ -1,15 +1,30 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
-import { Sidebar, MobileDrawer } from "@/components/layout/Sidebar";
-import { TopBar } from "@/components/layout/TopBar";
-import { BottomNav } from "@/components/layout/BottomNav";
 import { QuickCaptureModal } from "@/components/ui/QuickCaptureModal";
 import { api, ApiError } from "@/lib/api";
-import { cn, setCurrencyConfig, fmtMoney as globalFmtMoney, convertAmount as globalConvertAmount } from "@/lib/utils";
+import { setCurrencyConfig, fmtMoney as globalFmtMoney, convertAmount as globalConvertAmount } from "@/lib/utils";
 import { queryKeys } from "@/lib/queryKeys";
+import { freshReport, type ReportReadiness } from "@/lib/reportReady";
+import {
+  applyTheme,
+  readThemeChoice,
+  storeThemeChoice,
+  systemPrefersDark,
+  watchSystemTheme,
+  type ResolvedTheme,
+  type ThemeChoice,
+} from "@/lib/theme";
+import type { RecurringRule } from "@/types/recurring";
+import { WorkspaceContext, type PageHeader, type WorkspaceNotification, type WorkspaceValue } from "@/components/workspace/context";
+import { SideNav } from "@/components/workspace/SideNav";
+import { TopBar } from "@/components/workspace/TopBar";
+import { PhoneTabBar } from "@/components/workspace/PhoneNav";
+import { ShortcutProvider, useShortcut, useShortcuts } from "@/components/workspace/shortcuts";
+import { ExplainProvider } from "@/components/workspace/explain";
+import { DrawerSlotContext, ToastProvider } from "@/components/workspace/overlays";
 
 type QuickCaptureMode = "expense" | "income" | "movement";
 
@@ -66,21 +81,60 @@ export const useAppCtx = () => useContext(AppContext);
 
 interface AppLayoutProps {
   children: React.ReactNode;
-  title?: string;
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
+  return (
+    <ShortcutProvider>
+      <AppLayoutInner>{children}</AppLayoutInner>
+    </ShortcutProvider>
+  );
+}
+
+// Plans that are due today, overdue, or due within this many days appear in the notifications.
+const PLAN_NOTICE_DAYS = 2;
+
+function localIsoDate(date: Date): string {
+  return date.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+}
+
+function planNotifications(rules: RecurringRule[], now = new Date()): WorkspaceNotification[] {
+  const today = localIsoDate(now);
+  const horizon = localIsoDate(new Date(now.getTime() + PLAN_NOTICE_DAYS * 86_400_000));
+  const tomorrow = localIsoDate(new Date(now.getTime() + 86_400_000));
+  return rules
+    .filter((rule) => rule.is_active && rule.type !== "income" && rule.next_due_date <= horizon)
+    .sort((a, b) => a.next_due_date.localeCompare(b.next_due_date))
+    .map((rule) => {
+      const due = rule.next_due_date;
+      const when = due < today ? "lewat jatuh tempo" : due === today ? "hari ini" : due === tomorrow ? "besok" : "lusa";
+      const day = new Date(`${due}T00:00:00+07:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
+      return {
+        id: `plan-${rule.id}-${due}`,
+        title: `${rule.name} ${globalFmtMoney(rule.amount)} ${when}`,
+        detail: `Rencana · jatuh tempo ${day}`,
+        href: "/goals",
+      };
+    });
+}
+
+function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { openHelp } = useShortcuts();
   const [hideBalances, setHideBalances] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [themeChoice, setThemeChoiceState] = useState<ThemeChoice>("system");
+  const [theme, setThemeState] = useState<ResolvedTheme>("light");
   const [timeframe, setTimeframe] = useState<ReportTimeframe>("cycle");
   const [cycleOffset, setCycleOffset] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [quickAddType, setQuickAddType] = useState<"expense" | "income">("expense");
   const [quickAddDefaultType, setQuickAddDefaultType] = useState<QuickCaptureMode>("expense");
   const [movementDefaults, setMovementDefaults] = useState({ sourceAccountId: "", targetAccountId: "" });
+  const [header, setHeader] = useState<PageHeader | null>(null);
+  const [controlsSlot, setControlsSlot] = useState<HTMLElement | null>(null);
+  const [drawerSlot, setDrawerSlot] = useState<HTMLElement | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const handleOpenQuickAdd = (type?: "expense" | "income") => {
     const defaultType = type ?? quickAddType;
@@ -99,51 +153,60 @@ export default function AppLayout({ children }: AppLayoutProps) {
     setQuickAddOpen(true);
   };
 
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
-    const t = savedTheme ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    setTheme(t);
-    document.documentElement.classList.toggle("dark", t === "dark");
-
-    // Clean up any stale previewing attributes
-    document.documentElement.removeAttribute("data-palette");
-    document.documentElement.removeAttribute("data-preset");
-    localStorage.removeItem("theme_palette");
-    localStorage.removeItem("theme_preset");
-
-    setHideBalances(localStorage.getItem("hideBalances") === "1");
-    setSidebarCollapsed(localStorage.getItem("sidebarCollapsed") === "1");
+  const openExpenseCapture = useCallback(() => {
+    setMovementDefaults({ sourceAccountId: "", targetAccountId: "" });
+    setQuickAddDefaultType("expense");
+    setQuickAddOpen(true);
   }, []);
 
-  const handleToggleSidebar = () => {
-    const next = !sidebarCollapsed;
-    setSidebarCollapsed(next);
-    localStorage.setItem("sidebarCollapsed", next ? "1" : "0");
+  // The pre-paint script already applied the theme; this only syncs React state with it.
+  useEffect(() => {
+    const choice = readThemeChoice();
+    setThemeChoiceState(choice);
+    setThemeState(applyTheme(choice));
+    try {
+      setHideBalances(localStorage.getItem("hideBalances") === "1");
+      setSidebarCollapsed(localStorage.getItem("sidebarCollapsed") === "1");
+    } catch {
+      // Storage blocked: defaults apply for this visit.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (themeChoice !== "system") return;
+    return watchSystemTheme((prefersDark) => setThemeState(applyTheme("system", prefersDark)));
+  }, [themeChoice]);
+
+  const setThemeChoice = useCallback((choice: ThemeChoice) => {
+    storeThemeChoice(choice);
+    setThemeChoiceState(choice);
+    setThemeState(applyTheme(choice, systemPrefersDark()));
+  }, []);
+
+  // Legacy pages may still set "light" or "dark" directly through the context.
+  const setTheme = useCallback((value: "light" | "dark") => setThemeChoice(value), [setThemeChoice]);
+
+  const persistFlag = (key: string, value: boolean) => {
+    try {
+      localStorage.setItem(key, value ? "1" : "0");
+    } catch {
+      // Not remembered, still applied.
+    }
   };
 
-  // Global hotkey 'N' to trigger quick entry
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === "n" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT" ||
-          target.isContentEditable
-        ) {
-          return;
-        }
-        e.preventDefault();
-        setMovementDefaults({ sourceAccountId: "", targetAccountId: "" });
-        setQuickAddDefaultType("expense");
-        setQuickAddOpen(true);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+  const updateHideBalances = useCallback((value: boolean) => {
+    setHideBalances(value);
+    persistFlag("hideBalances", value);
   }, []);
+
+  const toggleCollapsed = useCallback(() => {
+    setSidebarCollapsed((current) => {
+      persistFlag("sidebarCollapsed", !current);
+      return !current;
+    });
+  }, []);
+
+  useShortcut("n", openExpenseCapture);
 
   const { data: userData, error: userError, isLoading: userLoading } = useQuery<{ ok: boolean; user: any }>({
     queryKey: queryKeys.auth.me,
@@ -156,10 +219,24 @@ export default function AppLayout({ children }: AppLayoutProps) {
     staleTime: 60 * 60 * 1000,
   });
 
+  const signedIn = Boolean(userData?.user);
   const { data: reviewSummary } = useQuery<{ ok: boolean; attention: number }>({
     queryKey: queryKeys.review.summary,
     queryFn: () => api.get("/review/summary"),
-    enabled: Boolean(userData?.user),
+    enabled: signedIn,
+  });
+
+  const { data: reportReadiness } = useQuery<ReportReadiness>({
+    queryKey: queryKeys.reports.latest,
+    queryFn: () => api.get("/reports/monthly/latest"),
+    staleTime: 60 * 60 * 1000,
+    enabled: signedIn,
+  });
+
+  const { data: recurringData } = useQuery<{ rules: RecurringRule[] }>({
+    queryKey: queryKeys.recurring.all,
+    queryFn: () => api.get("/recurring"),
+    enabled: signedIn,
   });
 
   const user = userData?.user;
@@ -195,15 +272,54 @@ export default function AppLayout({ children }: AppLayoutProps) {
     window.location.replace(`/auth/login?next=${encodeURIComponent(next)}`);
   }, [pathname, userError]);
 
+  const logout = useCallback(async () => {
+    try {
+      await api.post("/auth/logout");
+    } finally {
+      window.location.replace("/auth/login");
+    }
+  }, []);
+
+  const report = freshReport(reportReadiness);
+  const notifications = useMemo<WorkspaceNotification[]>(() => {
+    const items: WorkspaceNotification[] = [];
+    if (report) {
+      const ended = new Date(`${report.endDate}T00:00:00+07:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
+      items.push({ id: `report-${report.endDate}`, title: `Laporan ${report.label} siap dibaca`, detail: `Periodenya selesai ${ended}`, href: report.url });
+    }
+    return [...items, ...planNotifications(recurringData?.rules ?? [])];
+  }, [report?.endDate, report?.label, report?.url, recurringData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const workspace: WorkspaceValue = {
+    username: user?.username ?? null,
+    reviewAttention: reviewSummary?.attention ?? null,
+    reportBadge: Boolean(report),
+    notifications,
+    themeChoice,
+    resolvedTheme: theme,
+    setThemeChoice,
+    hideBalances,
+    toggleHideBalances: () => updateHideBalances(!hideBalances),
+    collapsed: sidebarCollapsed,
+    toggleCollapsed,
+    openCapture: openExpenseCapture,
+    openHelp,
+    logout,
+    header,
+    setHeader,
+    controlsSlot,
+    setControlsSlot,
+  };
+
   if (userLoading || userError) {
-    return <div className="min-h-screen bg-[var(--bg)]" />;
+    return <div className="min-h-screen bg-[var(--canvas)]" />;
   }
 
   return (
     <AppContext.Provider
       value={{
         hideBalances,
-        setHideBalances,
+        setHideBalances: updateHideBalances,
         theme,
         setTheme,
         timeframe,
@@ -221,54 +337,35 @@ export default function AppLayout({ children }: AppLayoutProps) {
         reviewAttention: reviewSummary?.attention ?? null,
       }}
     >
-      <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)]">
-        {/* Desktop Persistent Left Sidebar */}
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={handleToggleSidebar}
-          onQuickAdd={() => handleOpenQuickAdd()}
-        />
-
-        {/* Mobile Slide-Over Navigation Drawer */}
-        <MobileDrawer
-          open={mobileMenuOpen}
-          onClose={() => setMobileMenuOpen(false)}
-          onQuickAdd={() => {
-            setMobileMenuOpen(false);
-            handleOpenQuickAdd();
-          }}
-        />
-
-        {/* Main Fluid Workbench */}
-        <div
-          className={cn(
-            "flex-1 flex flex-col min-w-0 transition-[margin] duration-200 ease-in-out",
-            sidebarCollapsed ? "lg:ml-[72px]" : "lg:ml-[260px]"
-          )}
-        >
-          <TopBar
-            onToggleMobileMenu={() => setMobileMenuOpen(true)}
-            onQuickAdd={() => handleOpenQuickAdd()}
-          />
-
-          {/* Fluid Full-Width Workspace Canvas */}
-          <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-3.5 sm:py-6 pb-24 lg:pb-12 min-w-0">
-            {children}
-          </main>
-        </div>
-
-        {/* Mobile Bottom Bar */}
-        <BottomNav onQuickAdd={() => handleOpenQuickAdd()} />
-
-        {/* Global Modals */}
-        <QuickCaptureModal
-          open={quickAddOpen}
-          onClose={() => setQuickAddOpen(false)}
-          defaultType={quickAddDefaultType}
-          defaultSourceAccountId={movementDefaults.sourceAccountId}
-          defaultTargetAccountId={movementDefaults.targetAccountId}
-        />
-      </div>
+      <WorkspaceContext.Provider value={workspace}>
+        <DrawerSlotContext.Provider value={{ slot: drawerSlot, setDrawerOpen }}>
+          <ToastProvider>
+            <ExplainProvider>
+              <a className="ws-skip" href="#main">
+                Langsung ke konten
+              </a>
+              <div className="ws-stage">
+                <div className="ws-window" data-collapsed={sidebarCollapsed} data-drawer={drawerOpen}>
+                  <SideNav />
+                  <main id="main" tabIndex={-1} className="ws-main">
+                    <TopBar />
+                    {children}
+                  </main>
+                  <div className="ws-drawer-slot" ref={setDrawerSlot} />
+                </div>
+              </div>
+              <PhoneTabBar />
+              <QuickCaptureModal
+                open={quickAddOpen}
+                onClose={() => setQuickAddOpen(false)}
+                defaultType={quickAddDefaultType}
+                defaultSourceAccountId={movementDefaults.sourceAccountId}
+                defaultTargetAccountId={movementDefaults.targetAccountId}
+              />
+            </ExplainProvider>
+          </ToastProvider>
+        </DrawerSlotContext.Provider>
+      </WorkspaceContext.Provider>
     </AppContext.Provider>
   );
 }

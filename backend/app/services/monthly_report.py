@@ -45,14 +45,8 @@ MEDIAN_PERIODS = 3
 SPENDING_PILLARS = ("need", "want", "culture", "unexpected", "saving", UNCLASSIFIED)
 FLOW_KEYS = ("inflow", "gross_outflow", "reimbursement_offset", "outflow", "net")
 
-# Rows waiting in Tinjau: the badge's "attention" (needs review or an open purpose question) and the
-# automatic rows nobody looked at yet. `GET /api/review/summary` and the review queue use this query too.
-# A leg of a linked movement is finished and never counts, unless it still carries an open question.
-_REVIEW_COUNT_SQL = """
-    SELECT
-        COUNT(*) FILTER (WHERE t.review_status = 'needs_review' OR question.id IS NOT NULL) AS attention,
-        COUNT(*) FILTER (WHERE t.review_status = 'auto' AND question.id IS NULL) AS unreviewed
-    FROM transactions t
+# The Tinjau badge's rules, shared by every figure that counts or lists the rows behind it.
+OPEN_QUESTION_JOIN_SQL = """
     LEFT JOIN LATERAL (
         SELECT e.id FROM notification_events e
         WHERE e.user_id = t.user_id AND e.processing_state = 'recorded'
@@ -60,9 +54,23 @@ _REVIEW_COUNT_SQL = """
           AND (e.active_question ->> 'transaction_id')::uuid = t.id
         LIMIT 1
     ) question ON TRUE
-    WHERE t.user_id = %s AND t.type IN ('expense', 'income')
+"""
+ATTENTION_SQL = "(t.review_status = 'needs_review' OR question.id IS NOT NULL)"
+REVIEWABLE_ROW_SQL = (
+    "t.type IN ('expense', 'income') AND (t.movement_id IS NULL OR question.id IS NOT NULL)"
+)
+
+# Rows waiting in Tinjau: the badge's "attention" (needs review or an open purpose question) and the
+# automatic rows nobody looked at yet. `GET /api/review/summary` and the review queue use this query too.
+# A leg of a linked movement is finished and never counts, unless it still carries an open question.
+_REVIEW_COUNT_SQL = f"""
+    SELECT
+        COUNT(*) FILTER (WHERE {ATTENTION_SQL}) AS attention,
+        COUNT(*) FILTER (WHERE t.review_status = 'auto' AND question.id IS NULL) AS unreviewed
+    FROM transactions t
+    {OPEN_QUESTION_JOIN_SQL}
+    WHERE t.user_id = %s AND {REVIEWABLE_ROW_SQL}
       AND (t.review_status IN ('auto', 'needs_review') OR question.id IS NOT NULL)
-      AND (t.movement_id IS NULL OR question.id IS NOT NULL)
 """
 
 

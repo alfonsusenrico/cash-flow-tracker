@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.db.pool import db_conn
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.services.auth import get_current_user
+from app.services.cycle_summary import build_cycle_summary
 from app.services.essential_cost import DEFAULT_TARGET_MONTHS, EssentialCost, coverage, estimate_essential_cost
 from app.services.kakeibo import UNCLASSIFIED, pillar_bucket_sql
 from app.services.reimbursements import SpendingOffsets, load_spending_offsets, not_reimbursement_sql
@@ -1220,6 +1221,23 @@ def get_dashboard_net_worth(current_user: dict = Depends(get_current_user)):
         "obligations": obligations,
         "runway": runway_info,
     }
+
+
+@router.get("/cycle-summary")
+def get_cycle_summary(current_user: dict = Depends(get_current_user)):
+    """Beranda's figures for the current salary cycle (else calendar month), each with lines that add up.
+
+    One read-only snapshot; any failing part fails the request rather than returning partial figures.
+    """
+    now = datetime.now(timezone.utc)
+    accounts = get_accounts_with_balances(current_user["id"], include_archived=False)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+        summary = build_cycle_summary(
+            conn, current_user, accounts=accounts, kakeibo_breakdown=get_kakeibo_breakdown, now=now,
+        )
+    return {"ok": True, **summary}
 
 
 @router.get("/period-comparison")

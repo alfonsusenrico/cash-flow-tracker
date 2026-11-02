@@ -6,15 +6,11 @@ import { describe, expect, it } from "vitest";
 
 const appDir = path.resolve(__dirname);
 const srcDir = path.resolve(appDir, "..");
-const bottomNav = readFileSync(path.join(srcDir, "components/layout/BottomNav.tsx"), "utf8");
 const insightsPage = readFileSync(path.join(appDir, "insights/page.tsx"), "utf8");
 const ledgerPage = readFileSync(path.join(appDir, "ledger/page.tsx"), "utf8");
 const goalsPage = readFileSync(path.join(appDir, "goals/page.tsx"), "utf8");
-const heroWalletCard = readFileSync(path.join(srcDir, "components/dashboard/HeroWalletCard.tsx"), "utf8");
-const categoryDonutChart = readFileSync(path.join(srcDir, "components/dashboard/CategoryDonutChart.tsx"), "utf8");
-const berandaPage = readFileSync(path.join(appDir, "page.tsx"), "utf8");
+const berandaActivity = readFileSync(path.join(srcDir, "components/beranda/activity.tsx"), "utf8");
 const mobileLedgerFeed = readFileSync(path.join(srcDir, "components/ledger/MobileLedgerFeed.tsx"), "utf8");
-const mobileHomeView = readFileSync(path.join(srcDir, "components/dashboard/MobileHomeView.tsx"), "utf8");
 const accountsPage = readFileSync(path.join(appDir, "accounts/page.tsx"), "utf8");
 const tokens = readFileSync(path.resolve(appDir, "../../tokens.css"), "utf8");
 const globals = readFileSync(path.join(appDir, "globals.css"), "utf8");
@@ -86,28 +82,44 @@ function contrast(first: Rgb, second: Rgb): number {
 }
 
 // Text tokens paired with every background they are painted on.
+const SURFACES = ["--surface", "--window", "--surface-2"];
 const textPairs: [string, string[]][] = [
-  ["--primary-contrast", ["--primary", "--primary-hover"]],
+  ["--text", [...SURFACES, "--surface-3", "--canvas"]],
+  ["--text-2", [...SURFACES, "--surface-3"]],
+  // Also the inactive labels of the phone tab bar, which sits on --surface.
+  ["--muted", [...SURFACES, "--surface-3"]],
+  ["--ink-fg", ["--ink", "--ink-hover"]],
+  ["--tile-fg", ["--tile"]],
+  ["--lime-ink", ["--lime", "--lime-hover"]],
+  ["--lime-text", [...SURFACES, "--lime-soft"]],
+  ["--in-fg", [...SURFACES, "--in-bg"]],
+  ["--out-fg", [...SURFACES, "--out-bg"]],
+  ["--tr-fg", [...SURFACES, "--tr-bg"]],
+  ["--inv-fg", [...SURFACES, "--inv-bg"]],
+  ["--warn-fg", [...SURFACES, "--warn-bg"]],
+  ["--ok-fg", [...SURFACES, "--ok-bg"]],
   ["--danger-contrast", ["--danger-solid", "--danger-solid-hover"]],
+  // Legacy names still painted by pages that are not redesigned yet.
+  ["--primary-contrast", ["--primary", "--primary-hover"]],
   ["--accent-text", ["--surface", "--bg", "--surface-raised"]],
   ["--expense-text", ["--surface", "--bg", "--surface-raised", "--color-expense-soft"]],
   ["--primary-text", ["--surface", "--bg", "--surface-raised", "--sidebar-hover"]],
   ["--danger-text", ["--surface", "--bg", "--surface-raised"]],
   ["--income-text", ["--surface", "--bg", "--surface-raised", "--color-income-soft"]],
-  // Text on the emerald buttons; their hover keeps the same fill or a lighter tint of it.
   ["--income-contrast", ["--color-income"]],
-  // Text on the strong emerald buttons of Target & Tagihan (bg-emerald-600, hover bg-emerald-700).
   ["--income-hover-contrast", ["--color-income-hover"]],
   ["--warning-text", ["--surface", "--bg", "--surface-raised", "--color-warning-soft"]],
   ["--transfer-text", ["--surface", "--bg", "--surface-raised"]],
-  // Text and icons on the solid transfer fill (bg-transfer), such as the HeroWalletCard tile.
   ["--transfer-contrast", ["--color-transfer"]],
   ["--investment-text", ["--surface", "--bg", "--surface-raised", "--color-investment-soft"]],
-  // Text on the solid lavender fill (bg-investment), such as the selected instrument buttons on Rekening.
   ["--investment-contrast", ["--color-investment"]],
-  // The phone dock is dark in both themes; its translucent fill is measured over the page surface.
-  ["--dock-muted", ["--dock-surface"]],
-  ["--dock-text", ["--dock-surface"]],
+];
+
+// Icons and marks need 3:1 (WCAG 1.4.11). The focus ring sits 2px outside its control, on the window or a surface.
+const markPairs: [string, string[]][] = [
+  ["--focus", SURFACES],
+  ["--ok-dot", ["--surface", "--window"]],
+  ["--lime-text", ["--lime-soft"]],
 ];
 
 const PILLARS = ["need", "want", "culture", "unexpected", "saving"] as const;
@@ -186,8 +198,8 @@ describe("design tokens", () => {
     expect(textColor.transfer.contrast).toBe("var(--transfer-contrast)");
     expect(backgroundColor.sky["500"]).toBe("#0ea5e9");
     expect(backgroundColor.transfer.DEFAULT).toBe("var(--color-transfer)");
-    expect(resolve(themes[":root"], "--color-transfer")).toBe("#0EA5E9");
-    expect(resolve(themes[".dark"], "--color-transfer")).toBe("#38BDF8");
+    expect(resolve(themes[":root"], "--color-transfer")).toBe("#3787C8");
+    expect(resolve(themes[".dark"], "--color-transfer")).toBe("#58A6E6");
   });
 
   it("paints every Pindah Saldo and movement element sky, never amber or blue", () => {
@@ -196,10 +208,8 @@ describe("design tokens", () => {
         .map((match) => match[1])
         .filter((classes) => /(^|\s)(text|bg|border)-/.test(classes));
     for (const [name, source] of [
-      ["Beranda", berandaPage],
       ["Transaksi", ledgerPage],
       ["MobileLedgerFeed", mobileLedgerFeed],
-      ["MobileHomeView", mobileHomeView],
     ] as const) {
       const movementClasses = classLists(source);
       expect(movementClasses.length, `${name} movement branches`).toBeGreaterThan(0);
@@ -208,17 +218,12 @@ describe("design tokens", () => {
         expect(classes, `${name}: ${classes}`).not.toMatch(/(amber|blue)-/);
       }
     }
-
-    const berandaButton = berandaPage.match(/onClick=\{\(\) => handleOpenTransfer\(\)\}[^>]*className="([^"]*)"[^>]*>\s*Pindah Saldo/);
-    expect(berandaButton?.[1]).toMatch(/(^|\s)text-sky-500(\s|$)/);
-    expect(berandaButton?.[1]).not.toMatch(/amber-/);
-
-    const capsule = heroWalletCard.match(/className="([^"]*)"\s*>\s*<div aria-hidden="true" className="([^"]*)">\s*<Icon name="repeat"/);
-    expect(capsule?.[1]).toMatch(/(^|\s)text-sky-500(\s|$)/);
-    expect(capsule?.[1]).not.toMatch(/amber-/);
-    expect(capsule?.[2]).toContain("bg-transfer text-transfer-contrast");
     expect(ledgerPage).toMatch(/isMovement\s*\?\s*"var\(--color-transfer\)"/);
-    expect(mobileHomeView).toMatch(/<Icon name="repeat" className="[^"]*text-sky-500/);
+    // Beranda activity: a movement's avatar and amount use the transfer pair, a top-up the investment pair.
+    expect(berandaActivity).toMatch(/movement: \{ icon: "repeat", tone: "ws-tone-tr" \}/);
+    expect(berandaActivity).toMatch(/topup: \{ icon: "trending-up", tone: "ws-tone-inv" \}/);
+    expect(berandaActivity).toMatch(/kind === "movement"\)[\s\S]{0,80}ws-amt-tr/);
+    expect(berandaActivity).toMatch(/kind === "topup"\) return <span className="ws-amt-inv">/);
   });
 
   it("paints violet text utilities with the investment text ink and keeps the violet fills", () => {
@@ -231,28 +236,11 @@ describe("design tokens", () => {
     expect(backgroundColor.violet["500"]).toBe("#8b5cf6");
     expect(backgroundColor.investment.DEFAULT).toBe("var(--color-investment)");
     expect(backgroundColor.investment.soft).toBe("var(--color-investment-soft)");
-    expect(resolve(themes[":root"], "--color-investment")).toBe("#8B5CF6");
-    expect(resolve(themes[".dark"], "--color-investment")).toBe("#A78BFA");
+    expect(resolve(themes[":root"], "--color-investment")).toBe("#7553C7");
+    expect(resolve(themes[".dark"], "--color-investment")).toBe("#A68CEE");
   });
 
   it("paints every investment element lavender, never amber, sky, blue, purple or indigo", () => {
-    // The Beranda wallet pill, the phone-width home balance and wallet card, and the Beranda "Invest" badge.
-    const pill = heroWalletCard.match(/<div className="([^"]*)">\s*<span className="([^"]*)" \/>\s*<span>Investasi:<\/span>\s*<span className="([^"]*)"/);
-    expect(pill?.[1]).toContain("text-investment");
-    expect(pill?.[2]).toContain("bg-investment");
-    expect(pill?.[3]).toContain("text-investment");
-    expect(pill?.slice(1).join(" ")).not.toMatch(/(amber|sky|blue|purple|indigo)-/);
-    expect(mobileHomeView).toMatch(/Investasi: <strong className="text-investment tabular">/);
-    expect(mobileHomeView).toMatch(/const cardBg = isInvest\s*\?\s*"[^"]*border-violet-500\/30"/);
-    expect(berandaPage).toMatch(/className="[^"]*bg-violet-500\/10 text-investment[^"]*">\s*Invest\s*</);
-
-    // Fallback colours of investment accounts without a colour of their own.
-    for (const [name, source] of [["Beranda", berandaPage], ["MobileHomeView", mobileHomeView]] as const) {
-      const fallbacks = [...source.matchAll(/acc\.color \|\| \(isInvest \? "([^"]+)"/g)].map((match) => match[1]);
-      expect(fallbacks.length, `${name} fallbacks`).toBeGreaterThan(0);
-      for (const colour of fallbacks) expect(colour, name).toBe("var(--color-investment)");
-    }
-
     // Investment top-up rows on Transaksi: every class or colour branch keyed on the top-up is lavender.
     for (const [name, source] of [["Transaksi", ledgerPage], ["MobileLedgerFeed", mobileLedgerFeed]] as const) {
       const branches = [...source.matchAll(/investment_topup_id\s*\?\s*"([^"]*)"/g)]
@@ -262,19 +250,6 @@ describe("design tokens", () => {
       for (const classes of branches) {
         expect(classes, `${name}: ${classes}`).toMatch(/investment/);
         expect(classes, `${name}: ${classes}`).not.toMatch(/(amber|sky|blue|purple|indigo)-|--color-transfer/);
-      }
-    }
-
-    // Investment top-up rows in the Beranda and phone-width "Aktivitas Terkini": the icon tile and the amount.
-    for (const [name, source] of [["Beranda", berandaPage], ["MobileHomeView", mobileHomeView]] as const) {
-      expect(source, name).toMatch(/const isTopup = Boolean\(tx\.investment_topup_id\);/);
-      const branches = [...source.matchAll(/isTopup\s*\?\s*"([^"]*)"/g)]
-        .map((match) => match[1])
-        .filter((value) => /(^|\s)(text|bg|border)-/.test(value));
-      expect(branches.length, `${name} home top-up branches`).toBe(2);
-      for (const classes of branches) {
-        expect(classes, `${name}: ${classes}`).toMatch(/text-investment/);
-        expect(classes, `${name}: ${classes}`).not.toMatch(/(amber|sky|blue|purple|indigo)-/);
       }
     }
 
@@ -319,25 +294,9 @@ describe("design tokens", () => {
     }
     expect(outside).toEqual([]);
 
-    const metricMatrixGrid = readFileSync(path.join(srcDir, "components/dashboard/MetricMatrixGrid.tsx"), "utf8");
-    const kakeiboCard = metricMatrixGrid.slice(metricMatrixGrid.indexOf("Kakeibo Ratio Card"), metricMatrixGrid.indexOf("Pilar Kakeibo"));
-    expect(kakeiboCard).toContain("bg-[var(--surface-raised)] text-[var(--text-secondary)]");
-    expect(kakeiboCard).not.toMatch(/sky-|blue-|violet-/);
     expect(goalsPage).toMatch(/<p className="[^"]*bg-\[var\(--surface-raised\)\][^"]*text-\[var\(--text-secondary\)\]">\s*Ini hanya memperbarui angka progres target/);
     const banner = readFileSync(path.join(srcDir, "components/recurring/PendingScheduledBanner.tsx"), "utf8");
     expect(banner).toMatch(/<span className="[^"]*bg-\[var\(--surface-raised\)\][^"]*text-\[var\(--text\)\]">\s*Ditautkan otomatis/);
-  });
-
-  it("keeps the signature lime, coral and emerald fills unchanged", () => {
-    expect(resolve(themes[":root"], "--accent-lime")).toBe("#66CC55");
-    expect(resolve(themes[":root"], "--color-expense")).toBe("#FF334B");
-    expect(resolve(themes[":root"], "--primary")).toBe("#FF334B");
-    expect(resolve(themes[":root"], "--color-income")).toBe("#059669");
-    expect(resolve(themes[".dark"], "--color-income")).toBe("#10B981");
-    expect(resolve(themes[":root"], "--color-income-hover")).toBe("#047857");
-    expect(resolve(themes[".dark"], "--color-income-hover")).toBe("#34D399");
-    expect(resolve(themes[":root"], "--color-warning")).toBe("#F59E0B");
-    expect(resolve(themes[".dark"], "--color-warning")).toBe("#FBBF24");
   });
 
   it("puts the strong-emerald ink on every bg-emerald-600 button of Target & Tagihan", () => {
@@ -348,19 +307,6 @@ describe("design tokens", () => {
       expect(classes).toContain("text-income-hover-contrast");
       expect(classes).not.toMatch(/(^|\s)(dark:)?text-(white|\[#)/);
     }
-  });
-
-  it("marks the HeroWalletCard icon tiles decorative and keeps the emerald tile above 3:1", () => {
-    const tiles = [...heroWalletCard.matchAll(/<div([^>]*)className="h-5 w-5 rounded-lg ([^"]*)"/g)];
-    expect(tiles).toHaveLength(3);
-    for (const [, attributes] of tiles) expect(attributes).toContain('aria-hidden="true"');
-    const emerald = tiles.find(([, , classes]) => classes.includes("bg-emerald-500"));
-    expect(emerald?.[2]).toContain("text-income-contrast");
-  });
-
-  it("labels every donut sector, which recharts paints as an SVG role=img", () => {
-    expect(categoryDonutChart).toMatch(/<Cell[^>]*aria-label=\{sectorLabel\(entry\)\}/);
-    expect(categoryDonutChart).toContain('role="figure"');
   });
 
   it("puts no white text on the emerald buttons of Analisis and Transaksi", () => {
@@ -377,15 +323,6 @@ describe("design tokens", () => {
     }
   });
 
-  it("paints the phone dock and its inactive labels with the dock tokens", () => {
-    const dockRule = globals.slice(globals.indexOf(".glass-dock {"), globals.indexOf("}", globals.indexOf(".glass-dock {")));
-    expect(dockRule).toContain("background: var(--dock-surface);");
-    expect(bottomNav).toContain("glass-dock");
-    expect(bottomNav).not.toMatch(/bg-\[var\(--surface\)\]/);
-    expect(bottomNav).not.toMatch(/text-\[var\(--(muted|text)\)\]/);
-    expect(bottomNav.match(/text-\[var\(--dock-muted\)\] hover:text-\[var\(--dock-text\)\]/g)).toHaveLength(4);
-  });
-
   it("paints Kakeibo pillars only through their tokens in kakeibo.ts", () => {
     const kakeibo = readFileSync(path.join(srcDir, "lib/kakeibo.ts"), "utf8");
     for (const pillar of PILLARS) {
@@ -399,11 +336,35 @@ describe("design tokens", () => {
     expect(elsewhere.map((file) => path.relative(srcDir, file))).toEqual([]);
   });
 
-  it("starts new investment accounts with the lavender investment fill", async () => {
+  it("starts new investment accounts with a lavender tag colour", async () => {
     const { INVESTMENT_ACCOUNT_TAG_COLOR, defaultAccountTagColor } = await import("@/lib/accountColours");
-    expect(INVESTMENT_ACCOUNT_TAG_COLOR).toBe(resolve(themes[":root"], "--color-investment"));
+    const tag = hueOf(hex(INVESTMENT_ACCOUNT_TAG_COLOR)).hue;
+    expect(hueDistance(tag, hueOf(painted(themes[":root"], "--inv-solid")).hue)).toBeLessThan(25);
     expect(defaultAccountTagColor("investment")).toBe(INVESTMENT_ACCOUNT_TAG_COLOR);
     for (const type of ["bank", "wallet", "cash"]) expect(defaultAccountTagColor(type)).not.toBe(INVESTMENT_ACCOUNT_TAG_COLOR);
+  });
+
+  it("gives every card the card shadow token and floating layers the float token", () => {
+    const rule = (selector: string) => {
+      const start = globals.indexOf(`${selector} {`);
+      expect(start, selector).toBeGreaterThanOrEqual(0);
+      return globals.slice(start, globals.indexOf("}", start));
+    };
+    expect(rule(".ws-card")).toContain("box-shadow: var(--shadow-card)");
+    expect(rule(".cockpit-card")).toContain("box-shadow: var(--shadow-card)");
+    expect(rule(".card-squircle")).toContain("box-shadow: var(--shadow-card)");
+    for (const floating of [".ws-menu", ".ws-explain", ".ws-toast", "dialog.ws-dialog"]) {
+      expect(rule(floating), floating).toContain("box-shadow: var(--shadow-float)");
+    }
+  });
+
+  it("keeps every legacy property the old pages use inside the marked compatibility block", () => {
+    const root = tokens.slice(tokens.indexOf(":root {"), tokens.indexOf("\n}", tokens.indexOf(":root {")));
+    const block = root.slice(root.indexOf("Compatibility aliases"), root.indexOf("End of compatibility aliases"));
+    for (const legacy of ["--bg", "--surface-raised", "--border", "--text-secondary", "--primary", "--color-income", "--color-expense",
+      "--color-transfer", "--color-investment", "--color-kakeibo-need", "--accent-lime", "--sidebar"]) {
+      expect(block, legacy).toMatch(new RegExp(`${legacy}:\\s*var\\(--`));
+    }
   });
 
   it("generates shadow-xs from the --shadow-xs token", () => {
@@ -457,20 +418,17 @@ describe("design tokens", () => {
       // The pillar colour is a chart mark (dots, bar segments) and may be text. Text needs 4.5:1 on every surface
       // and the pillar's soft fill; marks need 3:1 on the bar tracks (--surface-raised and --border over the card).
       const colour = painted(theme, `--color-kakeibo-${pillar}`);
-      for (const background of ["--surface", "--bg", "--surface-raised", `--color-kakeibo-${pillar}-soft`]) {
+      for (const background of ["--surface", "--window", "--surface-2", `--color-kakeibo-${pillar}-soft`]) {
         expect(contrast(colour, painted(theme, background)), `${pillar} text on ${background} in ${selector}`).toBeGreaterThanOrEqual(4.5);
       }
-      for (const track of ["--surface-raised", "--border"]) {
+      for (const track of ["--surface-3", "--line", "--surface-2"]) {
         expect(contrast(colour, painted(theme, track)), `${pillar} mark on ${track} in ${selector}`).toBeGreaterThanOrEqual(3);
       }
     });
 
     it("gives every pillar its own hue, apart from the transfer, investment, income and expense colours", () => {
       const pillarHue = (pillar: string) => hueOf(painted(theme, `--color-kakeibo-${pillar}`));
-      const reserved = [
-        "--color-transfer", "--transfer-text", "--color-investment", "--investment-text",
-        "--color-income", "--income-text", "--color-expense", "--expense-text",
-      ];
+      const reserved = ["--tr-solid", "--tr-fg", "--inv-solid", "--inv-fg", "--in-solid", "--in-fg", "--out-solid", "--out-fg"];
       for (const pillar of PILLARS) {
         const { hue, saturation } = pillarHue(pillar);
         expect(saturation, `${pillar} is a colour, not a grey, in ${selector}`).toBeGreaterThan(0.35);
@@ -486,6 +444,24 @@ describe("design tokens", () => {
       }
       // "Belum diklasifikasi" is missing information, so it stays a neutral grey rather than a sixth hue.
       expect(pillarHue("unclassified").saturation, `unclassified in ${selector}`).toBeLessThan(0.25);
+    });
+
+    it.each(markPairs)("keeps the mark %s at 3:1 on its backgrounds", (mark, backgrounds) => {
+      for (const background of backgrounds) {
+        expect(contrast(painted(theme, mark), painted(theme, background)), `${mark} on ${background} in ${selector}`).toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it("uses blue only for transfers: no info blue and no other blue token", () => {
+      const blue = Object.entries(theme)
+        .filter(([, value]) => /^#[0-9A-Fa-f]{6}$/.test(value))
+        .filter(([, value]) => {
+          const { hue, saturation } = hueOf(hex(value));
+          return saturation > 0.3 && hue >= 190 && hue <= 245;
+        })
+        .map(([name]) => name);
+      expect(blue.filter((name) => !name.startsWith("--tr-"))).toEqual([]);
+      expect(Object.keys(theme).filter((name) => name.startsWith("--info"))).toEqual([]);
     });
 
     it.each(textPairs)("keeps %s at WCAG AA on its backgrounds", (text, backgrounds) => {

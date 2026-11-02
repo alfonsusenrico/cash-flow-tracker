@@ -30,6 +30,7 @@ export function useAnimatedCounter(
     // Respect reduced motion accessibility
     const prefersReducedMotion =
       typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     if (prefersReducedMotion || durationMs <= 0) {

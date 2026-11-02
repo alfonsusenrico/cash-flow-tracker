@@ -17,8 +17,17 @@ describe("web fonts", () => {
   });
 
   it("ships the OFL licence beside each bundled font", () => {
-    expect(read("fonts/PlusJakartaSans-OFL.txt")).toContain("SIL Open Font License");
+    expect(read("fonts/Geist-OFL.txt")).toContain("SIL Open Font License");
     expect(read("fonts/GeistMono-OFL.txt")).toContain("SIL Open Font License");
+  });
+
+  it("uses Geist for text and Geist Mono for code, and no longer ships Plus Jakarta Sans", () => {
+    const layout = read("layout.tsx");
+    expect(layout).toContain('src: "./fonts/Geist-latin-variable.woff2"');
+    expect(layout).toContain('src: "./fonts/GeistMono-latin-variable.woff2"');
+    expect(layout).not.toMatch(/Jakarta/i);
+    expect(existsSync(path.join(appDir, "fonts/PlusJakartaSans-latin-variable.woff2"))).toBe(false);
+    expect(readFileSync(path.resolve(appDir, "../../tokens.css"), "utf8")).toContain('--font-body: var(--font-geist), "Geist"');
   });
 
   it("keeps stylesheets free of third-party font imports", () => {
