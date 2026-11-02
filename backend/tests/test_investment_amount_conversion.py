@@ -297,3 +297,27 @@ def test_deleting_converted_topup_restores_corrected_bank_debit(auth_client, con
     assert again.status_code == 200, again.text
     assert again.json()["topup"]["id"] != topup["id"]
     assert balances(auth_client)[converted_fund]["balance"] == start[converted_fund]["balance"] + 100_000
+
+
+def test_ledger_lists_the_recurring_rule_of_a_row(auth_client, converted_fund):
+    """The ledger offers a conversion only when the server would accept it, so it needs the rule link."""
+    from app.db.pool import db_conn
+
+    source = account(auth_client, balance=500_000)
+    plain = expense(auth_client, source)
+    scheduled = expense(auth_client, source, notes="Tagihan bulanan")
+    with db_conn() as conn:
+        user_id = row(scheduled)["user_id"]
+        rule = conn.execute(
+            """INSERT INTO recurring_rules (user_id, name, type, amount, source_account_id, next_due_date)
+               VALUES (%s, 'Fixture bill', 'expense', 112590, %s, CURRENT_DATE) RETURNING id""",
+            (user_id, source),
+        ).fetchone()["id"]
+        conn.execute("UPDATE transactions SET recurring_rule_id = %s WHERE id = %s", (rule, scheduled))
+        conn.commit()
+
+    listed = {item["id"]: item for item in auth_client.get(f"/api/transactions?account_id={source}").json()["transactions"]}
+
+    assert listed[scheduled]["recurring_rule_id"] == str(rule)
+    assert listed[plain]["recurring_rule_id"] is None
+    assert convert_expense(auth_client, scheduled, converted_fund).status_code == 409

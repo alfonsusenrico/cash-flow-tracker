@@ -1722,6 +1722,19 @@ function LedgerPageContent() {
                     </button>
                   ))}
             </div>
+            {/* Next to the type, so a phone shows it without scrolling (clarify-review-and-learn-topups D3). */}
+            {canConvertExpenseToTopup(editingTx, accounts) && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-500/25 bg-investment-soft p-3 text-investment">
+                <p className="text-xs">Debit ini untuk membeli reksadana?</p>
+                <button
+                  type="button"
+                  onClick={() => { setTopupExpense(editingTx); setEditingTx(null); }}
+                  className="min-h-11 rounded-xl bg-[#1E201E] px-3.5 text-sm font-semibold text-white"
+                >
+                  Jadikan Top up Investasi
+                </button>
+              </div>
+            )}
                 <div>
                   <label htmlFor="ledger-edit-amount" className="text-xs font-medium text-[var(--muted)] block mb-1">{editType === "expense" && editDebtRows.some((row) => row.obligation_id) ? "Total bayar (IDR)" : "Nominal Uang (IDR)"}</label>
                   <input
@@ -1919,18 +1932,6 @@ function LedgerPageContent() {
                   <input id="edit-transaction-receipt" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setEditReceipt(event.target.files?.[0] ?? null)} className="block min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)]" />
                   {editingTx.receipt_path && <p className="mt-1 text-[10px] text-[var(--muted)]">Bukti saat ini akan diganti hanya setelah unggahan baru berhasil.</p>}
                 </div>
-            {canConvertExpenseToTopup(editingTx, accounts) && (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-500/25 bg-investment-soft p-3 text-investment">
-                <p className="text-xs">Debit ini untuk membeli reksadana?</p>
-                <button
-                  type="button"
-                  onClick={() => { setTopupExpense(editingTx); setEditingTx(null); }}
-                  className="min-h-11 rounded-xl bg-[#1E201E] px-3.5 text-sm font-semibold text-white"
-                >
-                  Jadikan Top up Investasi
-                </button>
-              </div>
-            )}
             <div className="pt-4 flex items-center justify-between border-t border-[var(--border)]">
               <ConfirmActionButton
                 label={editingTx.is_consolidated_transfer ? "Hapus pemindahan saldo" : "Hapus transaksi"}

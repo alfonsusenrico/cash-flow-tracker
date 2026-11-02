@@ -15,8 +15,16 @@ or ambiguous transfers, with every correction teaching merchant memory.
 - **WHEN** the summary is requested
 - **THEN** `attention` SHALL be 4 and `unreviewed` 2.
 
+### Requirement: Finished Movements Are Not Counted
+Rows that are a leg of a linked movement SHALL NOT be counted in the summary, the queue counts or the monthly report's waiting counts unless they carry an open purpose question. Their stored review status SHALL NOT be changed.
+
+#### Scenario: Completed movement is not counted
+- **GIVEN** an automatic merchant row and both legs of a linked movement recorded with review status `auto`, and a linked leg with review status `needs_review`
+- **WHEN** the summary and the monthly report are requested
+- **THEN** `attention` SHALL be 0 and `unreviewed` 1 in both, and the stored review statuses of the legs SHALL be unchanged.
+
 ### Requirement: Review Queue
-`GET /api/review/queue` SHALL return the owner's open purpose questions, groups of `auto` and `needs_review` expense/income rows, unlinked "Internal Movement" rows that the pairing flagged `awaiting_counterpart`, and ambiguous movement legs with their candidate counterparts. Every row SHALL appear in at most one section.
+`GET /api/review/queue` SHALL return the owner's open purpose questions, groups of `auto` and `needs_review` expense/income rows that are not a leg of a linked movement, unlinked "Internal Movement" rows that the pairing flagged `awaiting_counterpart`, and ambiguous movement legs with their candidate counterparts. Every row SHALL appear in at most one section. `counts` SHALL include `attention` and `unreviewed` equal to the summary's values.
 
 #### Scenario: Sections
 - **GIVEN** a merchant-less payment with an open question, two automatic payments at "Kedai Awan" and two GoPay sends competing for one BCA credit
@@ -39,6 +47,11 @@ or ambiguous transfers, with every correction teaching merchant memory.
 - **WHEN** the queue is requested
 - **THEN** the row SHALL NOT be listed under `awaiting`
 - **AND** it SHALL be listed in a group, where accepting marks it reviewed.
+
+#### Scenario: Linked legs are not listed
+- **GIVEN** both legs of a linked movement with review status `auto`
+- **WHEN** the queue is requested
+- **THEN** neither leg SHALL appear in any section and `counts.unreviewed` SHALL not include them.
 
 ### Requirement: Bulk Review Actions
 `POST /api/review/bulk` SHALL apply one action (`accept`, `recategorise`, `rename`, `keep_separate`) to 1–200 distinct transaction ids of the owner in one database transaction. Any id that is not the owner's SHALL reject the whole request with 404 `transactions_not_found` and change nothing.
@@ -73,7 +86,7 @@ or ambiguous transfers, with every correction teaching merchant memory.
 - **THEN** the response SHALL be 422.
 
 ### Requirement: Tinjau Page
-The `/review` page SHALL show, in Indonesian: open "Apa ini?" questions with suggestion chips and a text answer sent to the existing answer endpoint; groups with "Terima semua", "Ubah kategori semua" (category and Kakeibo pillar) and "Ganti nama" (merchant and notes) actions; each row's link to the ledger edit dialog; awaiting transfers; and ambiguous legs.
+The `/review` page SHALL show, in Indonesian: open "Apa ini?" questions with suggestion chips and a text answer sent to the existing answer endpoint; group actions "Terima semua", "Ubah kategori semua" (category and Kakeibo pillar) and "Ganti nama" (merchant and notes); each row's link to the ledger edit dialog; awaiting transfers; and ambiguous legs.
 
 #### Scenario: Keyboard group accept
 - **WHEN** the owner tabs to "Terima semua" of a group and presses Enter
@@ -93,8 +106,17 @@ The `/review` page SHALL show, in Indonesian: open "Apa ini?" questions with sug
 - **WHEN** the owner chooses "BCA Harian" for a GoPay send and submits
 - **THEN** the page SHALL call the completion endpoint with `target_account_id` of BCA Harian.
 
+### Requirement: Tinjau Sections by Need
+Tinjau SHALL list groups with at least one `needs_review` row under "Perlu jawaban" and groups of only `auto` rows under "Dicatat otomatis", collapsed by default and labelled optional. The header SHALL show the `attention` count as the number that needs the owner and the `unreviewed` count separately as optional.
+
+#### Scenario: Optional automatic rows
+- **GIVEN** one group with a `needs_review` row and one group of only `auto` rows
+- **WHEN** the page loads
+- **THEN** the first group SHALL be under "Perlu jawaban", the second SHALL be inside the collapsed "Dicatat otomatis" section marked optional
+- **AND** the header SHALL show the summary's `attention` and `unreviewed` numbers as two separate counts.
+
 ### Requirement: Review Group Keys
-Review groups SHALL be keyed by type and merchant, else the phase 3 text signature, else notes, else category; linked movement legs SHALL form one non-editable group.
+Review groups SHALL be keyed by type and merchant, else the phase 3 text signature, else notes, else category. Linked movement legs SHALL NOT form a group.
 
 #### Scenario: Merchant-less rows with one signature
 - **GIVEN** two automatic merchant-less expenses with the same text signature
@@ -157,6 +179,27 @@ The `/review` page SHALL let the owner complete an awaiting transfer with an acc
 - **THEN** the card SHALL list that income under "Sudah ada di rekening ini"
 - **AND** choosing it and pressing "Hubungkan" SHALL send a merge of the two rows
 - **AND** no completion with `create_new` SHALL be sent unless the owner presses "Tetap buat baru".
+
+### Requirement: Top-up From an Awaiting Debit
+For an awaiting outgoing leg from a liquid account the card SHALL offer "Ini top up investasi", listing the owner's amount-tracked mutual-fund products as "Induk · Produk" and converting the leg through `POST /api/investment-topups/from-transaction`. Unit-tracked mutual funds SHALL be named with a link to the accounts page. A `topup_suggestion` SHALL lead the card.
+
+#### Scenario: Settle a debit as a top-up
+- **GIVEN** an awaiting Rp 112.590 debit from "RDN Contoh" and an amount-tracked product "Reksa Dana A" under "Bibit Contoh"
+- **WHEN** the owner chooses "Ini top up investasi", picks "Bibit Contoh · Reksa Dana A" and submits
+- **THEN** the page SHALL post the conversion with the debit's id and the product's id
+- **AND** after success the debit SHALL leave the awaiting section.
+
+#### Scenario: Unit-tracked fund is explained
+- **GIVEN** the owner's only mutual fund records units
+- **WHEN** the owner opens "Ini top up investasi"
+- **THEN** the card SHALL name that fund, say it must switch to amount tracking first and link to the accounts page, and SHALL send no conversion.
+
+#### Scenario: Suggestion actions
+- **GIVEN** a `topup_suggestion` for "Reksa Dana A"
+- **WHEN** the owner presses "Ya, top up"
+- **THEN** the conversion SHALL carry `suggested_target_account_id` equal to the product
+- **AND** "Pilih produk lain" SHALL send the chosen product with the suggested one as `suggested_target_account_id`
+- **AND** "Bukan top up" SHALL post the rejection and then show the ordinary account picker.
 
 ### Requirement: Ambiguous Leg Resolution on Tinjau
 The `/review` page SHALL let the owner link an ambiguous leg to a candidate through `POST /api/movements/merge` or keep it separate.

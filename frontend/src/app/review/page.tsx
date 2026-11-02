@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
@@ -8,14 +8,22 @@ import {
   chunkIds,
   completionCandidates,
   reviewErrorMessage,
+  splitGroups,
   type AmbiguousItem,
   type CompletionCandidate,
   type ReviewItem,
   type ReviewQueue,
+  type TopupProductChoice,
 } from "@/lib/review";
+import {
+  canSwitchToAmountTracking,
+  listAmountInvestmentProducts,
+  type InvestmentAccount,
+} from "@/lib/investmentTopups";
+import { isLiquidAccountChoice } from "@/lib/accountOptions";
 import { PurposeQuestionCard } from "@/components/review/PurposeQuestionCard";
 import { ReviewGroupCard, type CategoryOption, type GroupActionRequest } from "@/components/review/ReviewGroupCard";
-import { AmbiguousMovementCard, AwaitingMovementCard } from "@/components/review/MovementReviewCards";
+import { AmbiguousMovementCard, AwaitingMovementCard, type TopupOptions } from "@/components/review/MovementReviewCards";
 import { HistorySuggestionsSection } from "@/components/review/HistorySuggestionsSection";
 import type { AccountOptionItem } from "@/components/ui/AccountSelectOptions";
 
@@ -44,6 +52,21 @@ function Section({ id, title, count, description, children }: {
       {children}
     </section>
   );
+}
+
+/** "Induk · Produk" choices for top-ups and the unit-tracked funds that must switch first. */
+function topupChoices(accounts: InvestmentAccount[]): { products: TopupProductChoice[]; unitFunds: TopupProductChoice[] } {
+  const flattened = [...new Map(
+    accounts.flatMap((account) => [account, ...(account.children ?? [])]).map((account) => [account.id, account]),
+  ).values()];
+  const label = (account: InvestmentAccount): TopupProductChoice => {
+    const parent = flattened.find((candidate) => candidate.id === account.parent_id);
+    return { id: account.id, name: account.name, label: parent ? `${parent.name} · ${account.name}` : account.name };
+  };
+  return {
+    products: listAmountInvestmentProducts(accounts).map(label),
+    unitFunds: flattened.filter(canSwitchToAmountTracking).map(label),
+  };
 }
 
 export default function ReviewPage() {
@@ -152,6 +175,25 @@ export default function ReviewPage() {
       return "Transaksi dibiarkan terpisah dan tidak akan dipasangkan otomatis.";
     });
 
+  const convertTopup = (item: ReviewItem, productId: string, suggestedId?: string) =>
+    run(async () => {
+      await api.post("/investment-topups/from-transaction", {
+        transaction_id: item.id,
+        target_account_id: productId,
+        ...(suggestedId ? { suggested_target_account_id: suggestedId } : {}),
+      });
+      return "Debit dicatat sebagai top up investasi.";
+    });
+
+  const rejectTopup = (item: ReviewItem, suggestedId?: string) =>
+    run(async () => {
+      await api.post("/review/topup-suggestions/reject", {
+        transaction_id: item.id,
+        ...(suggestedId ? { suggested_target_account_id: suggestedId } : {}),
+      });
+      return "Oke, bukan top up. Pilih rekening tujuannya untuk melengkapi pindah saldo.";
+    });
+
   const answered = async (message: string) => {
     setError("");
     setStatus(message);
@@ -159,9 +201,18 @@ export default function ReviewPage() {
   };
 
   const categories = categoriesData?.categories ?? [];
-  const accounts = accountsData?.accounts ?? [];
+  const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData]);
   const counts = data?.counts;
   const total = counts ? counts.questions + counts.needs_review + counts.auto + counts.awaiting + counts.ambiguous : 0;
+  const { needsAnswer, automatic } = splitGroups(data?.groups ?? []);
+  const automaticCount = automatic.reduce((sum, group) => sum + group.count, 0);
+  const choices = useMemo(() => topupChoices(accounts as unknown as InvestmentAccount[]), [accounts]);
+  const topupFor = (item: ReviewItem): TopupOptions | undefined => {
+    const flattened = accounts.flatMap((account) => [account, ...(account.children ?? [])]);
+    const source = flattened.find((account) => (account.id ?? account.account_id) === item.account_id);
+    if (item.type !== "expense" || !source || !isLiquidAccountChoice(source)) return undefined;
+    return { ...choices, onConvert: convertTopup, onReject: rejectTopup };
+  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -170,7 +221,9 @@ export default function ReviewPage() {
         <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-[var(--text)]">Tinjau Transaksi</h1>
         {counts && total > 0 && (
           <p className="mt-1 text-xs text-[var(--text-secondary)] tabular">
-            {counts.questions} pertanyaan · {counts.needs_review} perlu ditinjau · {counts.auto} otomatis · {counts.awaiting + counts.ambiguous} pindah saldo belum lengkap
+            <span className="font-semibold text-[var(--text)]">{counts.attention} perlu jawaban</span>
+            {" · "}
+            {counts.unreviewed} dicatat otomatis (opsional)
           </p>
         )}
       </div>
@@ -216,15 +269,15 @@ export default function ReviewPage() {
             </Section>
           )}
 
-          {data.groups.length > 0 && (
+          {needsAnswer.length > 0 && (
             <Section
               id="review-groups"
-              title="Per toko"
-              count={data.counts.needs_review + data.counts.auto}
-              description={`${data.counts.needs_review} perlu ditinjau dan ${data.counts.auto} otomatis dalam ${data.groups.length} kelompok. Terima, ubah kategori, atau ganti nama sekaligus.`}
+              title="Perlu jawaban"
+              count={data.counts.needs_review}
+              description={`${data.counts.needs_review} transaksi dalam ${needsAnswer.length} kelompok perlu kamu cek. Terima, ubah kategori, atau ganti nama sekaligus.`}
             >
               <div className="space-y-3">
-                {data.groups.map((group) => (
+                {needsAnswer.map((group) => (
                   <ReviewGroupCard key={group.key} group={group} categories={categories} pending={pending} onAction={groupAction} />
                 ))}
               </div>
@@ -243,6 +296,7 @@ export default function ReviewPage() {
                     candidates={completionChoices[item.id]}
                     onComplete={completeMovement}
                     onLinkExisting={linkExistingLeg}
+                    topup={topupFor(item)}
                   />
                 ))}
               </div>
@@ -257,6 +311,29 @@ export default function ReviewPage() {
                 ))}
               </div>
             </Section>
+          )}
+
+          {automatic.length > 0 && (
+            <details aria-labelledby="review-automatic" className="group rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 focus-visible:outline-2 focus-visible:outline-[var(--primary)]">
+                <span>
+                  <span id="review-automatic" className="block text-base font-bold tracking-tight text-[var(--text)]">
+                    Dicatat otomatis <span className="tabular text-[var(--muted)]">({automaticCount})</span>
+                  </span>
+                  <span className="block text-xs text-[var(--muted)]">Opsional. Sudah tercatat rapi, cek kalau sempat aja.</span>
+                </span>
+                <span aria-hidden="true" className="shrink-0 text-xs font-semibold text-[var(--text-secondary)] group-open:hidden">Lihat</span>
+                <span aria-hidden="true" className="hidden shrink-0 text-xs font-semibold text-[var(--text-secondary)] group-open:inline">Tutup</span>
+              </summary>
+              <div className="space-y-3 border-t border-[var(--border)] p-3">
+                <p className="text-xs text-[var(--muted)]">
+                  {automaticCount} transaksi dalam {automatic.length} kelompok dicatat dari aturan atau AI. Nggak wajib dicek. Terima atau ubah kalau ada yang keliru.
+                </p>
+                {automatic.map((group) => (
+                  <ReviewGroupCard key={group.key} group={group} categories={categories} pending={pending} onAction={groupAction} />
+                ))}
+              </div>
+            </details>
           )}
         </>
       )}

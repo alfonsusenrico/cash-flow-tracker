@@ -530,6 +530,12 @@ def record_observed_leg(
                          "category_id": category_id, "kakeibo": kakeibo if facts.direction == "expense" else None,
                          "offset_category_id": None},
             )
+        if facts.direction == "expense" and "awaiting_counterpart" in reasons and not pairing.ambiguous:
+            from app.services.topup_learning import auto_record
+
+            # A debit the owner converted into the same product again and again becomes that top-up
+            # (clarify-review-and-learn-topups D8); otherwise it keeps waiting with a suggestion.
+            auto_record(cur, user_id, tx_id)
     if memory_id:
         count_memory_hit(cur, user_id, memory_id)
     if provenance.classified_by == "ai" and provenance.review_status == "auto" and not counterpart:

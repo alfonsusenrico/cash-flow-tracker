@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
-import type { ReviewItem, ReviewQueue } from "@/lib/review";
+import type { AwaitingItem, ReviewItem, ReviewQueue } from "@/lib/review";
 import ReviewPage from "./page";
 
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() } }));
@@ -38,7 +38,7 @@ function queue(): ReviewQueue {
   return {
     ok: true,
     truncated: false,
-    counts: { questions: 1, needs_review: 1, auto: 2, groups: 2, awaiting: 1, ambiguous: 1 },
+    counts: { attention: 4, unreviewed: 2, questions: 1, needs_review: 1, auto: 2, groups: 2, awaiting: 1, ambiguous: 1 },
     questions: [{
       event_id: "event-1",
       post_time: "2026-10-21T11:00:00Z",
@@ -62,21 +62,24 @@ function queue(): ReviewQueue {
         key: "expense|merchant:kedai awan", kind: "merchant", type: "expense", label: "Kedai Awan",
         count: 2, total: 250_000, needs_review_count: 0, auto_count: 2,
         first_date: "2026-10-18T05:00:00Z", last_date: "2026-10-20T05:00:00Z", reasons: [],
-        category: { id: "category-food", name: "Makanan & Minuman" }, editable: true,
+        category: { id: "category-food", name: "Makanan & Minuman" },
         transactions: [item("tx-a"), item("tx-b", { date: "2026-10-18T05:00:00Z" })],
       },
       {
         key: "income|notes:transfer masuk", kind: "notes", type: "income", label: "Transfer masuk",
         count: 1, total: 57_000, needs_review_count: 1, auto_count: 0,
         first_date: "2026-10-19T05:00:00Z", last_date: "2026-10-19T05:00:00Z", reasons: ["low_confidence"],
-        category: null, editable: true,
+        category: null,
         transactions: [item("tx-c", { type: "income", amount: 57_000, notes: "Transfer masuk", merchant: null, review_status: "needs_review", reasons: ["low_confidence"] })],
       },
     ],
-    awaiting: [item("tx-await", {
-      amount: 500_000, account_id: "account-gopay", account_name: "GoPay", notes: "Pindah saldo",
-      category_name: "Internal Movement", review_status: "needs_review", reasons: ["awaiting_counterpart"],
-    })],
+    awaiting: [{
+      ...item("tx-await", {
+        amount: 500_000, account_id: "account-gopay", account_name: "GoPay", notes: "Pindah saldo",
+        category_name: "Internal Movement", review_status: "needs_review", reasons: ["awaiting_counterpart"],
+      }),
+      topup_suggestion: null,
+    }],
     ambiguous: [{
       ...item("tx-ambiguous", { type: "income", amount: 500_000, notes: "Transfer masuk", review_status: "needs_review", reasons: ["ambiguous_movement"] }),
       candidates: [
@@ -108,6 +111,12 @@ describe("review page", () => {
       if (path === "/accounts") return { accounts: [
         { id: "account-bca", name: "BCA Harian", type: "bank", parent_id: null },
         { id: "account-gopay", name: "GoPay", type: "ewallet", parent_id: null },
+        { id: "account-rdn", name: "RDN Contoh", type: "bank", parent_id: null },
+        { id: "account-bibit", name: "Bibit Contoh", type: "investment", instrument_type: "mutual_fund", parent_id: null, is_parent: true, children: [
+          { id: "fund-a", name: "Reksa Dana A", type: "investment", instrument_type: "mutual_fund", units: null, parent_id: "account-bibit" },
+          { id: "fund-b", name: "Reksa Dana B", type: "investment", instrument_type: "mutual_fund", units: null, parent_id: "account-bibit" },
+          { id: "fund-unit", name: "Reksa Dana Unit", type: "investment", instrument_type: "mutual_fund", units: 12.5, parent_id: "account-bibit" },
+        ] },
       ] };
       if (path === "/review/suggestions") return { ok: true, truncated: false, pending: 0, groups: [] };
       if (path === "/review/suggestions/runs/latest") return { ok: true, run: null };
@@ -119,7 +128,13 @@ describe("review page", () => {
   it("shows every section with Indonesian reasons and no axe violations", async () => {
     const { container } = renderPage();
     expect(await screen.findByRole("heading", { name: /Apa ini\? \(1\)/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Per toko \(3\)/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Perlu jawaban \(1\)/ })).toBeInTheDocument();
+    expect(screen.getByText("4 perlu jawaban")).toBeInTheDocument();
+    expect(screen.getByText(/2 dicatat otomatis \(opsional\)/)).toBeInTheDocument();
+    const automatic = screen.getByText(/^Dicatat otomatis/).closest("details") as HTMLDetailsElement;
+    expect(automatic.open).toBe(false);
+    expect(within(automatic).getByText(/Opsional\./)).toBeInTheDocument();
+    expect(within(automatic).getByRole("heading", { name: "Kedai Awan" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Pindah saldo menunggu pasangan \(1\)/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Pasangan pindah saldo belum pasti \(1\)/ })).toBeInTheDocument();
     expect(screen.getByText("Keyakinan AI rendah")).toBeInTheDocument();
@@ -305,9 +320,112 @@ describe("review page", () => {
   });
 
   it("shows a calm empty state when nothing is left", async () => {
-    currentQueue = { ...queue(), counts: { questions: 0, needs_review: 0, auto: 0, groups: 0, awaiting: 0, ambiguous: 0 }, questions: [], groups: [], awaiting: [], ambiguous: [] };
+    currentQueue = { ...queue(), counts: { attention: 0, unreviewed: 0, questions: 0, needs_review: 0, auto: 0, groups: 0, awaiting: 0, ambiguous: 0 }, questions: [], groups: [], awaiting: [], ambiguous: [] };
     const { container } = renderPage();
     expect(await screen.findByText("Semua transaksi sudah ditinjau.")).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  describe("top-up of an awaiting debit", () => {
+    const rdnDebit = (suggestion: AwaitingItem["topup_suggestion"] = null): AwaitingItem => ({
+      ...item("tx-rdn", {
+        amount: 112_590, account_id: "account-rdn", account_name: "RDN Contoh", notes: "Pindah saldo keluar",
+        category_name: "Internal Movement", review_status: "needs_review", reasons: ["awaiting_counterpart"], merchant: null,
+      }),
+      topup_suggestion: suggestion,
+    });
+    const productA = { id: "fund-a", name: "Reksa Dana A", label: "Bibit Contoh · Reksa Dana A" };
+    const productB = { id: "fund-b", name: "Reksa Dana B", label: "Bibit Contoh · Reksa Dana B" };
+    const rdnCard = async () =>
+      (await screen.findByRole("heading", { name: "Keluar dari RDN Contoh, ke rekening mana?" })).closest("article") as HTMLElement;
+
+    it("settles a debit as a top-up and explains unit-tracked funds", async () => {
+      const user = userEvent.setup();
+      currentQueue = { ...queue(), awaiting: [rdnDebit()] };
+      renderPage();
+      const card = await rdnCard();
+      const open = within(card).getByRole("button", { name: "Ini top up investasi" });
+      expect(open).toHaveAttribute("aria-expanded", "false");
+      await user.click(open);
+      const product = within(card).getByRole("combobox", { name: "Produk tujuan" });
+      expect(within(product).getAllByRole("option").map((option) => option.textContent)).toEqual([
+        "Pilih produk…", "Bibit Contoh · Reksa Dana A", "Bibit Contoh · Reksa Dana B",
+      ]);
+      expect(within(card).getByText(/Bibit Contoh · Reksa Dana Unit masih dicatat per unit/)).toBeInTheDocument();
+      expect(within(card).getByRole("link", { name: "Rekening" })).toHaveAttribute("href", "/accounts");
+      await user.click(within(card).getByRole("button", { name: "Jadikan top up" }));
+      expect(within(card).getByRole("alert")).toHaveTextContent("Pilih produk reksadana tujuan.");
+      expect(api.post).not.toHaveBeenCalled();
+      await user.selectOptions(product, "fund-a");
+      await user.click(within(card).getByRole("button", { name: "Jadikan top up" }));
+      await waitFor(() => expect(api.post).toHaveBeenCalledWith("/investment-topups/from-transaction", {
+        transaction_id: "tx-rdn", target_account_id: "fund-a",
+      }));
+      expect(await screen.findByText("Debit dicatat sebagai top up investasi.")).toBeInTheDocument();
+      expect((await axe(card)).violations).toHaveLength(0);
+    });
+
+    it("does not offer a top-up for an incoming leg", async () => {
+      currentQueue = { ...queue(), awaiting: [{ ...rdnDebit(), type: "income" }] };
+      renderPage();
+      const card = (await screen.findByRole("heading", { name: "Masuk ke RDN Contoh, dari rekening mana?" })).closest("article") as HTMLElement;
+      expect(within(card).queryByRole("button", { name: "Ini top up investasi" })).not.toBeInTheDocument();
+    });
+
+    it("accepts, corrects or rejects a learned suggestion", async () => {
+      const user = userEvent.setup();
+      currentQueue = { ...queue(), awaiting: [rdnDebit({
+        target_account_id: "fund-a", target_label: productA.label, choices: [productA],
+        prompt: "Sepertinya top up ke Reksa Dana A, kayak bulan lalu?",
+        explanation: "Dari 1 dari 1 jawaban sebelumnya untuk debit Rp112.590 dari RDN Contoh.",
+        basis: { agreeing: 1, support: 1, agreement: 1 },
+      })] };
+      const { container } = renderPage();
+      const card = await rdnCard();
+      expect(within(card).getByText("Sepertinya top up ke Reksa Dana A, kayak bulan lalu?")).toBeInTheDocument();
+      expect(within(card).queryByRole("button", { name: "Ini top up investasi" })).not.toBeInTheDocument();
+      expect((await axe(container)).violations).toHaveLength(0);
+
+      await user.click(within(card).getByRole("button", { name: "Ya, top up" }));
+      await waitFor(() => expect(api.post).toHaveBeenCalledWith("/investment-topups/from-transaction", {
+        transaction_id: "tx-rdn", target_account_id: "fund-a", suggested_target_account_id: "fund-a",
+      }));
+
+      await user.click(within(card).getByRole("button", { name: "Pilih produk lain" }));
+      const product = within(card).getByRole("combobox", { name: "Produk tujuan" });
+      expect(within(product).queryByRole("option", { name: productA.label })).not.toBeInTheDocument();
+      await user.selectOptions(product, "fund-b");
+      await user.click(within(card).getByRole("button", { name: "Jadikan top up" }));
+      await waitFor(() => expect(api.post).toHaveBeenLastCalledWith("/investment-topups/from-transaction", {
+        transaction_id: "tx-rdn", target_account_id: "fund-b", suggested_target_account_id: "fund-a",
+      }));
+
+      await user.click(within(card).getByRole("button", { name: "Bukan top up" }));
+      await waitFor(() => expect(api.post).toHaveBeenLastCalledWith("/review/topup-suggestions/reject", {
+        transaction_id: "tx-rdn", suggested_target_account_id: "fund-a",
+      }));
+      expect(within(card).getByRole("combobox", { name: "Rekening tujuan" })).toBeInTheDocument();
+    });
+
+    it("asks without a default when the product cannot be assigned", async () => {
+      const user = userEvent.setup();
+      currentQueue = { ...queue(), awaiting: [rdnDebit({
+        target_account_id: null, target_label: null, choices: [productA, productB],
+        prompt: "Debit Rp112.590 dari RDN Contoh biasanya jadi top up ke Reksa Dana A atau Reksa Dana B. Yang mana?",
+        explanation: "Belum bisa dipastikan produknya, jadi kamu yang pilih.", basis: null,
+      })] };
+      renderPage();
+      const card = await rdnCard();
+      const radios = within(card).getAllByRole("radio");
+      expect(radios).toHaveLength(2);
+      expect(radios.every((radio) => !(radio as HTMLInputElement).checked)).toBe(true);
+      await user.click(within(card).getByRole("button", { name: "Jadikan top up" }));
+      expect(within(card).getByRole("alert")).toHaveTextContent("Pilih produknya.");
+      await user.click(within(card).getByRole("radio", { name: productB.label }));
+      await user.click(within(card).getByRole("button", { name: "Jadikan top up" }));
+      await waitFor(() => expect(api.post).toHaveBeenCalledWith("/investment-topups/from-transaction", {
+        transaction_id: "tx-rdn", target_account_id: "fund-b",
+      }));
+    });
   });
 });
