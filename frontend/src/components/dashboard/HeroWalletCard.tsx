@@ -78,10 +78,10 @@ export function HeroWalletCard({
             <span className="font-bold text-[var(--text)] tabular">{formattedLiquid}</span>
           </div>
           {investmentBalance > 0 && (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-600 dark:text-amber-400">
-              <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-500/10 border border-violet-500/25 text-investment">
+              <span className="h-2 w-2 rounded-full bg-investment shrink-0" />
               <span>Investasi:</span>
-              <span className="font-bold text-amber-700 dark:text-amber-300 tabular">{formattedInvest}</span>
+              <span className="font-bold text-investment tabular">{formattedInvest}</span>
             </div>
           )}
         </div>

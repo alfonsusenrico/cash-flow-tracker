@@ -407,7 +407,7 @@ export default function OverviewPage() {
                           className="h-6 w-6 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-2xs"
                           style={{
                             backgroundColor:
-                              acc.color || (isInvest ? "#3b82f6" : "#10b981"),
+                              acc.color || (isInvest ? "var(--color-investment)" : "#10b981"),
                           }}
                         >
                           <Icon
@@ -427,7 +427,7 @@ export default function OverviewPage() {
                           {acc.name}
                         </span>
                         {isInvest && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-500 font-bold">
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-500/10 text-investment font-bold">
                             Invest
                           </span>
                         )}
@@ -443,7 +443,7 @@ export default function OverviewPage() {
                         style={{
                           width: `${Math.min(acc.percentage, 100)}%`,
                           backgroundColor:
-                            acc.color || (isInvest ? "#3b82f6" : "#10b981"),
+                            acc.color || (isInvest ? "var(--color-investment)" : "#10b981"),
                         }}
                         className="h-full rounded-full transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
                       />

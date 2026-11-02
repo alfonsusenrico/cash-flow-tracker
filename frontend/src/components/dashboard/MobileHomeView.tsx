@@ -97,7 +97,7 @@ export function MobileHomeView({
             <div className="flex items-center justify-center gap-2 mt-1.5 text-xs text-[var(--muted)] font-medium">
               <span>Kas: <strong className="text-[var(--text)] tabular">{bal(liquidBalance)}</strong></span>
               <span>•</span>
-              <span>Investasi: <strong className="text-sky-500 tabular">{bal(investmentBalance)}</strong></span>
+              <span>Investasi: <strong className="text-investment tabular">{bal(investmentBalance)}</strong></span>
             </div>
           )}
         </div>
@@ -194,7 +194,7 @@ export function MobileHomeView({
 
             // Visual card styles (Apple Wallet inspired gradient skins)
             const cardBg = isInvest
-              ? "bg-gradient-to-br from-[#1E1B4B] to-[#312E81] text-white border-indigo-500/30"
+              ? "bg-gradient-to-br from-[#2E1065] to-[#4C1D95] text-white border-violet-500/30"
               : isBank
               ? "bg-gradient-to-br from-[#0F172A] to-[#1E293B] text-white border-slate-700/40"
               : isCash
@@ -226,7 +226,7 @@ export function MobileHomeView({
 
                   <span
                     className="h-2 w-2 rounded-full ring-2 ring-white/20"
-                    style={{ backgroundColor: acc.color || (isInvest ? "#38bdf8" : "#34d399") }}
+                    style={{ backgroundColor: acc.color || (isInvest ? "var(--color-investment)" : "#34d399") }}
                   />
                 </div>
 

@@ -351,7 +351,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-sm text-[var(--text)]">{rule.name}</span>
-                        {rule.type === "investment_topup" && <span className="rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-900 dark:bg-purple-950 dark:text-purple-100">Top up Investasi</span>}
+                        {rule.type === "investment_topup" && <span className="rounded bg-violet-500/10 px-1.5 py-0.5 text-xs text-investment">Top up Investasi</span>}
                         {rule.is_payroll_allocation && (
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/15 text-blue-600 dark:text-blue-400">
                             Dulu alokasi gaji
