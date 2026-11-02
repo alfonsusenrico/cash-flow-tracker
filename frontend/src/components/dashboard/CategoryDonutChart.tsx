@@ -71,7 +71,7 @@ export function CategoryDonutChart({
     color: c.color || PALETTE[i % PALETTE.length],
     icon: c.icon,
     percentage: c.percentage_of_total,
-    kakeibo_type: c.kakeibo_type || (c.is_primary ? "need" : "want"),
+    kakeibo_type: c.kakeibo_type ?? null,
   }));
 
   const activeCategory = activeIndex !== null ? chartData[activeIndex] : null;

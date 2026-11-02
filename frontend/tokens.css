@@ -46,6 +46,9 @@
   --color-kakeibo-culture-soft: #E0F2FE;
   --color-kakeibo-unexpected: #B45309;
   --color-kakeibo-unexpected-soft: #FEF3C7;
+  /* Neutral on purpose: "Belum diklasifikasi" is missing information, not a sixth kind of spending. */
+  --color-kakeibo-unclassified: #475569;
+  --color-kakeibo-unclassified-soft: #F1F5F9;
 
   /* Light Architectural Slate Desktop Sidebar */
   --sidebar: #F0F3F6;
@@ -155,6 +158,8 @@
   --color-kakeibo-culture-soft: rgba(56, 189, 248, 0.16);
   --color-kakeibo-unexpected: #FBBF24;
   --color-kakeibo-unexpected-soft: rgba(251, 191, 36, 0.16);
+  --color-kakeibo-unclassified: #94A3B8;
+  --color-kakeibo-unclassified-soft: rgba(148, 163, 184, 0.16);
 
   /* Pitch Obsidian Desktop Sidebar */
   --sidebar: #020305;

@@ -14,7 +14,7 @@ const CATEGORY = "11111111-2222-4333-8444-555555555555";
 describe("ledger URL filters", () => {
   it("round-trips through the URL and leaves out defaults", () => {
     const filters = parseLedgerFilters(new URLSearchParams(`period=month&offset=-2&category=${CATEGORY}&kakeibo=culture&type=expense&review=auto`));
-    expect(filters).toEqual({ period: "month", offset: -2, category: CATEGORY, kakeibo: "culture", type: "expense", account: "all", review: "auto", from: null, to: null, q: "" });
+    expect(filters).toEqual({ period: "month", offset: -2, category: CATEGORY, kakeibo: "culture", type: "expense", account: "all", review: "auto", from: null, to: null, q: "", dup: false });
     expect(parseLedgerFilters(new URLSearchParams(ledgerFilterQuery(filters)))).toEqual(filters);
     expect(ledgerFilterQuery(DEFAULT_LEDGER_FILTERS)).toBe("");
     expect(ledgerHref({})).toBe("/ledger");
@@ -25,6 +25,15 @@ describe("ledger URL filters", () => {
     expect(parseLedgerFilters(new URLSearchParams("period=week&offset=x&category=drop table&kakeibo=luxury&type=transfer&review=maybe&account=1"))).toEqual(DEFAULT_LEDGER_FILTERS);
     expect(parseLedgerFilters(new URLSearchParams("offset=-3")).offset).toBe(0);
     expect(parseLedgerFilters(new URLSearchParams("period=cycle&offset=-99")).offset).toBe(-36);
+  });
+
+  it("carries the unclassified bucket and possible duplicates", () => {
+    const filters = parseLedgerFilters(new URLSearchParams("kakeibo=unclassified&type=expense&dup=1"));
+    expect([filters.kakeibo, filters.dup]).toEqual(["unclassified", true]);
+    expect(Object.fromEntries(ledgerApiParams(filters))).toEqual({ kakeibo_type: "unclassified", type: "expense", possible_duplicates: "true" });
+    expect(ledgerFilterQuery(filters)).toBe("kakeibo=unclassified&type=expense&dup=1");
+    expect(hasRowFilters(parseLedgerFilters(new URLSearchParams("dup=1")))).toBe(true);
+    expect(parseLedgerFilters(new URLSearchParams("dup=yes")).dup).toBe(false);
   });
 
   it("maps filters to the transactions API", () => {

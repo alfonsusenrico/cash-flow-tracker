@@ -51,3 +51,15 @@ it("does not present missing data as zero", () => {
   render(<KakeiboBenchmark />);
   expect(screen.getByText("Data belum tersedia.")).toBeInTheDocument();
 });
+
+it("lists unclassified spending as a sixth, linked bucket outside the groups", async () => {
+  const { container } = render(
+    <KakeiboBenchmark kakeibo={{ ...values, unclassified_spent: 80_000, unclassified_pct: 8 }} pillarHref={(pillar) => `/ledger?kakeibo=${pillar}`} />,
+  );
+  const rows = within(screen.getAllByRole("list")[0]).getAllByRole("listitem");
+  expect(rows).toHaveLength(6);
+  expect(within(rows[5]).getByText("Belum diklasifikasi")).toBeInTheDocument();
+  expect(within(rows[5]).getByRole("link", { name: "Belum diklasifikasi Rp 80.000, lihat transaksinya" })).toHaveAttribute("href", "/ledger?kakeibo=unclassified");
+  expect(screen.getByText(/belum diklasifikasi tidak masuk kelompok mana pun/)).toBeInTheDocument();
+  expect((await axe(container)).violations).toHaveLength(0);
+});

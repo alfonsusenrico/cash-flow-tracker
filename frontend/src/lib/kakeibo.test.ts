@@ -62,3 +62,15 @@ describe("kakeiboGroups", () => {
     expect(kakeiboGroups(undefined).map((group) => [group.spent, group.pct])).toEqual([[0, 0], [0, 0], [0, 0]]);
   });
 });
+
+describe("unclassified bucket", () => {
+  it("adds Belum diklasifikasi after the five pillars, never as a pillar", async () => {
+    const { KAKEIBO_BUCKETS, isKakeiboBucket, isKakeiboPillar, kakeiboBucketInfo, pillarOrUnclassified, pillarSpent } = await import("./kakeibo");
+    expect(KAKEIBO_BUCKETS.map((bucket) => bucket.value)).toEqual(["need", "want", "culture", "unexpected", "saving", "unclassified"]);
+    expect(kakeiboBucketInfo("unclassified")?.label).toBe("Belum diklasifikasi");
+    expect([isKakeiboBucket("unclassified"), isKakeiboPillar("unclassified")]).toEqual([true, false]);
+    expect([pillarOrUnclassified(null), pillarOrUnclassified("want"), pillarOrUnclassified("luxury")]).toEqual(["", "want", ""]);
+    expect(pillarSpent({ ...breakdown, unclassified_spent: 30_000 }, "unclassified")).toBe(30_000);
+    expect(pillarSpent(breakdown, "unclassified")).toBe(0);
+  });
+});

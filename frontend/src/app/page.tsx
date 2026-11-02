@@ -14,13 +14,14 @@ import { listLiquidAccountChoices } from "@/lib/accountOptions";
 
 import { HeroWalletCard } from "@/components/dashboard/HeroWalletCard";
 import { MetricMatrixGrid } from "@/components/dashboard/MetricMatrixGrid";
-import { type KakeiboPillar, kakeiboLabel } from "@/lib/kakeibo";
+import { type KakeiboBucket, kakeiboLabel } from "@/lib/kakeibo";
 import { KakeiboBenchmark } from "@/components/dashboard/KakeiboBenchmark";
 import { ObservedCashFlowCard } from "@/components/dashboard/ObservedCashFlowCard";
 import { ledgerHref, reportPeriodFilters } from "@/lib/ledgerFilters";
 import { NarrativeInsightCard } from "@/components/dashboard/NarrativeInsightCard";
 import { CategoryDonutChart } from "@/components/dashboard/CategoryDonutChart";
 import { MobileHomeView } from "@/components/dashboard/MobileHomeView";
+import { ReportReadyNotice } from "@/components/report/ReportReadyNotice";
 import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 
@@ -100,7 +101,7 @@ export default function OverviewPage() {
   const comparison = dashboard?.comparison;
   const kakeibo = dashboard?.kakeibo;
   const reportPeriod = reportPeriodFilters(timeframe, cycleOffset);
-  const pillarHref = (pillar: KakeiboPillar) =>
+  const pillarHref = (pillar: KakeiboBucket) =>
     reportPeriod ? ledgerHref({ ...reportPeriod, type: "expense", kakeibo: pillar }) : null;
 
   const currentHour = new Date().getHours();
@@ -121,6 +122,9 @@ export default function OverviewPage() {
       {/* 0. Pending Scheduled Due Banner */}
       <div className="mb-4 sm:mb-6">
         <PendingScheduledBanner onOpenRulesManager={() => setRecurringModalOpen(true)} />
+      </div>
+      <div className="mb-4 sm:mb-6 empty:hidden">
+        <ReportReadyNotice />
       </div>
 
       {/* Mobile-Native Experience (Handheld Viewports < 1024px) */}

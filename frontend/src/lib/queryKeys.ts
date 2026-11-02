@@ -40,6 +40,13 @@ export const queryKeys = {
     suggestions: ["review", "suggestions"] as const,
     suggestionRun: ["review", "suggestions", "run"] as const,
   },
+  reports: {
+    all: ["reports"] as const,
+    monthly: (basis: string, startDate: string | null) => ["reports", "monthly", basis, startDate ?? "latest"] as const,
+    periods: (basis: string) => ["reports", "periods", basis] as const,
+    latest: ["reports", "latest"] as const,
+  },
+  classificationGaps: (from: string | null, to: string | null) => ["classification", "gaps", from ?? "", to ?? ""] as const,
   notificationAliases: ["notification-aliases"] as const,
   senderAliases: ["sender-aliases"] as const,
   devices: ["devices"] as const,

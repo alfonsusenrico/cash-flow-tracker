@@ -45,7 +45,7 @@ import { HabitMark, ReviewStatusMark, feeLinkText, type FeeLinkFields } from "@/
 import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
 import { ExpenseTopupConversionModal } from "@/components/ui/ExpenseTopupConversionModal";
 import { canConvertExpenseToTopup } from "@/lib/investmentTopups";
-import { KAKEIBO_PILLARS, type KakeiboPillar, kakeiboPillarInfo, pillarOrNeed } from "@/lib/kakeibo";
+import { KAKEIBO_BUCKETS, KAKEIBO_PILLARS, type KakeiboPillar, kakeiboBucketInfo, kakeiboPillarInfo, pillarOrUnclassified } from "@/lib/kakeibo";
 import {
   MERCHANT_MAX_LENGTH,
   categoryOffsetsSpending,
@@ -227,7 +227,8 @@ function LedgerPageContent() {
   // Edit form state
   const [editAmount, setEditAmount] = useState("");
   const [editType, setEditType] = useState<"expense" | "income">("expense");
-  const [editKakeiboType, setEditKakeiboType] = useState<KakeiboPillar>("need");
+  // "" is an unclassified row or category; saving keeps it unclassified instead of storing "need".
+  const [editKakeiboType, setEditKakeiboType] = useState<KakeiboPillar | "">("");
   const [editHasKakeiboOverride, setEditHasKakeiboOverride] = useState(false);
   const [editReceipt, setEditReceipt] = useState<File | null>(null);
   const [receiptRetryTransactionId, setReceiptRetryTransactionId] = useState<string | null>(null);
@@ -362,7 +363,7 @@ function LedgerPageContent() {
     setEditingTx(tx);
     setEditAmount(formatNumberWithDots(tx.amount));
     setEditType(tx.type);
-    setEditKakeiboType(pillarOrNeed(tx.kakeibo_type));
+    setEditKakeiboType(pillarOrUnclassified(tx.kakeibo_type));
     const originalCategory = categories.find((category) => category.id === tx.category_id);
     setEditHasKakeiboOverride(Boolean(
       tx.kakeibo_type && originalCategory?.kakeibo_type && tx.kakeibo_type !== originalCategory.kakeibo_type,
@@ -438,7 +439,7 @@ function LedgerPageContent() {
         goal_id: editGoalId || null,
         obligation_id: editType === "income" ? (editObligationId || null) : editDebtRows.length === 1 ? editDebtRows[0].obligation_id : null,
         ...(editType === "expense" && editDebtRows.length > 1 ? { obligation_allocations: editDebtRows.map((row) => ({ obligation_id: row.obligation_id, amount: Number(row.amount.replace(/\./g, "")) })) } : {}),
-        kakeibo_type: editType === "expense" ? editKakeiboType : null,
+        kakeibo_type: editType === "expense" && editKakeiboType ? editKakeiboType : null,
         merchant: editMerchant.trim() || null,
         ...(editOffsetsSpending ? { offset_category_id: editOffsetCategoryId || null } : {}),
         date: isoDate,
@@ -656,7 +657,8 @@ function LedgerPageContent() {
       : filters.category !== "all"
         ? `Kategori: ${categories.find((category) => category.id === filters.category)?.name ?? "…"}`
         : null,
-    filters.kakeibo !== "all" ? `Pilar: ${kakeiboPillarInfo(filters.kakeibo)?.label ?? filters.kakeibo}` : null,
+    filters.kakeibo !== "all" ? `Pilar: ${kakeiboBucketInfo(filters.kakeibo)?.label ?? filters.kakeibo}` : null,
+    filters.dup ? "Kemungkinan dobel" : null,
     filters.account !== "all" ? `Rekening: ${accounts.find((account) => account.id === filters.account)?.name ?? "…"}` : null,
     filters.review !== "all" ? REVIEW_FILTER_OPTIONS.find((option) => option.value === filters.review)?.label ?? null : null,
     rangeScoped ? `Rentang: ${rangeLabel(filters.from, filters.to)}` : null,
@@ -1166,7 +1168,7 @@ function LedgerPageContent() {
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)] focus:outline-none focus:border-income"
             >
               <option value="all">Semua Pilar</option>
-              {KAKEIBO_PILLARS.map((pillar) => (
+              {KAKEIBO_BUCKETS.map((pillar) => (
                 <option key={pillar.value} value={pillar.value}>{pillar.label}</option>
               ))}
             </select>
@@ -1755,7 +1757,7 @@ function LedgerPageContent() {
                       if (editType === "expense" && !editHasKakeiboOverride) {
                         const category = categories.find((item) => item.id === nextCategoryId);
                         const pillar = category?.kakeibo_type;
-                        setEditKakeiboType(pillarOrNeed(pillar));
+                        setEditKakeiboType(pillarOrUnclassified(pillar));
                       }
                     }}
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
@@ -1798,11 +1800,12 @@ function LedgerPageContent() {
                       <InfoHelp label="Pilar Kakeibo">Mengikuti pilar kategori, kecuali Anda memilih pilar lain untuk transaksi ini.</InfoHelp>
                     </div>
                     <select id="ledger-edit-kakeibo" name="kakeibo_type" value={editKakeiboType} onChange={(event) => { setEditKakeiboType(event.target.value as typeof editKakeiboType); setEditHasKakeiboOverride(true); }} className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]">
+                      {editKakeiboType === "" && <option value="">Belum diklasifikasi</option>}
                       {KAKEIBO_PILLARS.map((pillar) => (
                         <option key={pillar.value} value={pillar.value}>{pillar.label}</option>
                       ))}
                     </select>
-                    <p className="mt-1 text-[11px] text-[var(--muted)]">{kakeiboPillarInfo(editKakeiboType)?.help}</p>
+                    <p className="mt-1 text-[11px] text-[var(--muted)]">{editKakeiboType ? kakeiboPillarInfo(editKakeiboType)?.help : "Pilih pilar agar transaksi ini masuk ke ringkasan Kakeibo."}</p>
                   </div>
                 )}
 
@@ -2082,7 +2085,7 @@ function LedgerPageContent() {
                 className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-xs text-[var(--text)]"
               >
                 <option value="all">Semua Pilar</option>
-                {KAKEIBO_PILLARS.map((pillar) => (
+                {KAKEIBO_BUCKETS.map((pillar) => (
                   <option key={pillar.value} value={pillar.value}>{pillar.label}</option>
                 ))}
               </select>

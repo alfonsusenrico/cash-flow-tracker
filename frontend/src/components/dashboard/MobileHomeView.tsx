@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
-import { KAKEIBO_PILLARS, kakeiboLabel, pillarSpent } from "@/lib/kakeibo";
+import { KAKEIBO_PILLARS, UNCLASSIFIED_BUCKET, kakeiboLabel, pillarSpent } from "@/lib/kakeibo";
 
 interface MobileHomeViewProps {
   dashboard: any;
@@ -263,7 +263,7 @@ export function MobileHomeView({
           <h2 className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">Klasifikasi Kakeibo</h2>
           {kakeibo ? (
             <ul className="space-y-1 text-xs">
-              {KAKEIBO_PILLARS.map((pillar) => (
+              {(pillarSpent(kakeibo, "unclassified") > 0 ? [...KAKEIBO_PILLARS, UNCLASSIFIED_BUCKET] : KAKEIBO_PILLARS).map((pillar) => (
                 <li key={pillar.value} className="flex items-center justify-between gap-3">
                   <span>{pillar.label}</span>
                   <span className="tabular-nums font-semibold">{bal(pillarSpent(kakeibo, pillar.value))}</span>

@@ -20,6 +20,7 @@ export const MAIN_NAV: NavItem[] = [
   { href: "/", label: "Beranda", icon: "dashboard" },
   { href: "/ledger", label: "Transaksi", icon: "ledger" },
   { href: "/insights", label: "Analisis", icon: "analysis" },
+  { href: "/laporan", label: "Laporan", icon: "calendar" },
   { href: "/review", label: "Tinjau", icon: "check" },
   { href: "/accounts", label: "Rekening & Saldo", icon: "credit-card" },
   { href: "/goals", label: "Target & Tagihan", icon: "goals" },

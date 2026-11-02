@@ -12,6 +12,8 @@ export interface EssentialCostPeriod {
   gross_need: number;
   reimbursement_offset: number;
   amount: number;
+  /** The part of `amount` with no pillar yet; counted so a missing pillar never lowers the cost. */
+  unclassified_amount?: number;
 }
 
 export interface EssentialCost {
@@ -62,7 +64,7 @@ export function essentialBasisText(cost: EssentialCost | undefined): string {
   }
   const debt = cost.debt_minimum > 0 ? " + cicilan minimum" : "";
   if (cost.method === "need_budget") return `Dari anggaran kategori Kebutuhan (belum ada periode lengkap)${debt}`;
-  return `Median ${cost.period_count} periode, kebutuhan (need) saja${debt}`;
+  return `Median ${cost.period_count} periode, kebutuhan (need) dan yang belum diklasifikasi${debt}`;
 }
 
 interface Props {
@@ -121,24 +123,41 @@ export function EmergencyCoverageBasis({ runway, bal }: Props) {
             Lihat {periods.length} periode yang dipakai
           </summary>
           <p className="mb-2 text-[var(--text-secondary)]">
-            Pengeluaran berpilar Kebutuhan, dikurangi ganti uang. Pindah saldo, investasi, kategori di luar anggaran dan
-            pembayaran cicilan tidak dihitung; cicilan masuk lewat nilai minimumnya.
+            Pengeluaran berpilar Kebutuhan dan yang belum diklasifikasi, dikurangi ganti uang. Pindah saldo, investasi,
+            kategori di luar anggaran dan pembayaran cicilan tidak dihitung; cicilan masuk lewat nilai minimumnya.
           </p>
           <ul className="space-y-1">
-            {periods.map((period) => (
-              <li key={period.start} className="flex min-w-0 items-center justify-between gap-2">
-                <span className="min-w-0 truncate">
-                  {period.label} <span className="text-[var(--muted)]">({period.days} hari)</span>
-                </span>
-                <Link
-                  href={ledgerHref({ from: period.start, to: period.end, kakeibo: "need", type: "expense" })}
-                  aria-label={`${bal(period.amount)}, lihat transaksi kebutuhan ${period.label}`}
-                  className="inline-flex min-h-11 shrink-0 items-center font-bold tabular-nums text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
-                >
-                  {bal(period.amount)}
-                </Link>
-              </li>
-            ))}
+            {periods.map((period) => {
+              const unclassified = period.unclassified_amount ?? 0;
+              return (
+                <li key={period.start} className="min-w-0">
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="min-w-0 truncate">
+                      {period.label} <span className="text-[var(--muted)]">({period.days} hari)</span>
+                    </span>
+                    <Link
+                      href={ledgerHref({ from: period.start, to: period.end, kakeibo: "need", type: "expense" })}
+                      aria-label={`${bal(period.amount - unclassified)}, lihat transaksi kebutuhan ${period.label}`}
+                      className="inline-flex min-h-11 shrink-0 items-center font-bold tabular-nums text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                    >
+                      {bal(period.amount - unclassified)}
+                    </Link>
+                  </div>
+                  {unclassified > 0 && (
+                    <div className="flex min-w-0 items-center justify-between gap-2 pl-3 text-[var(--text-secondary)]">
+                      <span className="min-w-0 truncate">+ belum diklasifikasi</span>
+                      <Link
+                        href={ledgerHref({ from: period.start, to: period.end, kakeibo: "unclassified", type: "expense" })}
+                        aria-label={`${bal(unclassified)}, lihat transaksi belum diklasifikasi ${period.label}`}
+                        className="inline-flex min-h-11 shrink-0 items-center tabular-nums underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                      >
+                        {bal(unclassified)}
+                      </Link>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </details>
       )}

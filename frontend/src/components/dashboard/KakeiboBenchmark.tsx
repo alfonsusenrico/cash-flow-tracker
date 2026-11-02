@@ -5,7 +5,8 @@ import { useAppCtx } from "@/components/layout/AppLayout";
 import {
   KAKEIBO_PILLARS,
   type KakeiboBreakdown,
-  type KakeiboPillar,
+  type KakeiboBucket,
+  UNCLASSIFIED_BUCKET,
   kakeiboGroups,
   pillarPct,
   pillarSpent,
@@ -13,17 +14,20 @@ import {
 
 interface KakeiboBenchmarkProps {
   kakeibo?: KakeiboBreakdown;
-  pillarHref?: (pillar: KakeiboPillar) => string | null;
+  pillarHref?: (pillar: KakeiboBucket) => string | null;
 }
 
 function formatPct(value: number) {
   return `${value.toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`;
 }
 
-/** Five classifications shown individually; the 50/30/20 grouping is an optional, explained reference. */
+/** Five classifications shown individually, plus unclassified spending when there is any; the 50/30/20
+ * grouping is an optional, explained reference. */
 export function KakeiboBenchmark({ kakeibo, pillarHref }: KakeiboBenchmarkProps) {
   const { bal } = useAppCtx();
-  const allocated = kakeibo?.total_allocated ?? KAKEIBO_PILLARS.reduce((sum, pillar) => sum + pillarSpent(kakeibo, pillar.value), 0);
+  const unclassified = pillarSpent(kakeibo, "unclassified");
+  const buckets = unclassified > 0 ? [...KAKEIBO_PILLARS, UNCLASSIFIED_BUCKET] : KAKEIBO_PILLARS;
+  const allocated = kakeibo?.total_allocated ?? buckets.reduce((sum, pillar) => sum + pillarSpent(kakeibo, pillar.value), 0);
   const empty = !kakeibo || allocated <= 0;
 
   return (
@@ -41,8 +45,8 @@ export function KakeiboBenchmark({ kakeibo, pillarHref }: KakeiboBenchmarkProps)
       ) : empty ? (
         <p className="text-xs text-[var(--muted)]">Belum ada pengeluaran atau tabungan tercatat pada periode ini.</p>
       ) : (
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {KAKEIBO_PILLARS.map((pillar) => {
+        <ul className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${buckets.length > 5 ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
+          {buckets.map((pillar) => {
             const amount = bal(pillarSpent(kakeibo, pillar.value));
             const share = formatPct(pillarPct(kakeibo, pillar.value));
             // Saving also contains transfers, so a ledger filter on the pillar would show only part of it.
@@ -91,6 +95,7 @@ export function KakeiboBenchmark({ kakeibo, pillarHref }: KakeiboBenchmarkProps)
           <p>
             Hanya pembanding, bukan penilaian kesehatan keuangan. Kebutuhan dan Tak Terduga dikelompokkan sebagai pokok,
             Keinginan dan Budaya sebagai gaya hidup, Tabungan tetap sendiri.
+            {unclassified > 0 && " Pengeluaran yang belum diklasifikasi tidak masuk kelompok mana pun."}
           </p>
           {kakeibo && !empty && (
             <ul className="space-y-1 tabular-nums">

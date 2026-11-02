@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
-import { KAKEIBO_PILLARS, type KakeiboPillar } from "@/lib/kakeibo";
+import { KAKEIBO_BUCKETS, type KakeiboBucket } from "@/lib/kakeibo";
 import { ledgerHref, UNCATEGORIZED } from "@/lib/ledgerFilters";
 import type { ExpensePlanDraft } from "@/types/recurring";
 
@@ -48,7 +48,7 @@ export interface PeriodComparisonData {
   previous: PeriodWindow | null;
   previous_label: string | null;
   previous_has_data: boolean;
-  pillars: { pillar: KakeiboPillar; current: number; previous: number | null; change: number | null }[];
+  pillars: { pillar: KakeiboBucket; current: number; previous: number | null; change: number | null }[];
   categories: Changes;
   merchants: Changes;
 }
@@ -104,7 +104,7 @@ function signed(bal: Money, amount: number): string {
   return `${amount > 0 ? "+" : "−"}${bal(Math.abs(amount))}`;
 }
 
-const PILLAR_LABEL = Object.fromEntries(KAKEIBO_PILLARS.map((item) => [item.value, item.label])) as Record<KakeiboPillar, string>;
+const PILLAR_LABEL = Object.fromEntries(KAKEIBO_BUCKETS.map((item) => [item.value, item.label])) as Record<KakeiboBucket, string>;
 
 function ChangeList({ title, items, href, bal, empty }: {
   title: string;
@@ -199,7 +199,8 @@ export function PeriodComparison({ basis, offset, bal }: { basis: InsightBasis; 
           <div className="space-y-1.5">
             <h3 className="font-bold text-[var(--text)]">Per pilar Kakeibo</h3>
             <ul className="divide-y divide-[var(--border)]">
-              {data.pillars.map((item) => (
+              {/* "Belum diklasifikasi" is listed only when it holds spending in either window. */}
+              {data.pillars.filter((item) => item.pillar !== "unclassified" || item.current > 0 || (item.previous ?? 0) > 0).map((item) => (
                 <li key={item.pillar} className="flex min-w-0 items-baseline justify-between gap-2 py-1.5">
                   <Link
                     href={ledgerHref({ ...scope, type: "expense", kakeibo: item.pillar })}
