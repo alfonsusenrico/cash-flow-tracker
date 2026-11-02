@@ -5,20 +5,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, createMovement } from "@/lib/api";
 import AppLayout, { useAppCtx } from "./AppLayout";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/", useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/lib/api", () => ({
   api: { get: vi.fn(), post: vi.fn() },
   ApiError: class extends Error {},
   createMovement: vi.fn(),
   uploadTransactionReceipt: vi.fn(),
+  getDevices: vi.fn().mockResolvedValue({ ok: true, devices: [] }),
 }));
-vi.mock("./Sidebar", () => ({ Sidebar: () => null, MobileDrawer: () => null }));
-vi.mock("./TopBar", () => ({ TopBar: () => null }));
-vi.mock("./BottomNav", () => ({ BottomNav: () => null }));
 
 function MovementTrigger() {
   const { openMovement } = useAppCtx();
   return <button type="button" onClick={() => openMovement()}>Global movement</button>;
+}
+
+function renderLayout(children: React.ReactNode = <MovementTrigger />) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AppLayout>{children}</AppLayout>
+    </QueryClientProvider>,
+  );
 }
 
 describe("global movement entry point", () => {
@@ -28,9 +35,14 @@ describe("global movement entry point", () => {
       configurable: true,
       value: vi.fn().mockReturnValue({ matches: false }),
     });
+    const stored = new Map<string, string>();
     Object.defineProperty(globalThis, "localStorage", {
       configurable: true,
-      value: { getItem: vi.fn().mockReturnValue(null), setItem: vi.fn(), removeItem: vi.fn() },
+      value: {
+        getItem: vi.fn((key: string) => stored.get(key) ?? null),
+        setItem: vi.fn((key: string, value: string) => void stored.set(key, value)),
+        removeItem: vi.fn((key: string) => void stored.delete(key)),
+      },
     });
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/auth/me") return { ok: true, user: { id: "qa-user", currency: "IDR" } };
@@ -43,6 +55,9 @@ describe("global movement entry point", () => {
       if (path === "/categories") return { categories: [] };
       if (path === "/goals") return { goals: [] };
       if (path === "/obligations") return { obligations: [] };
+      if (path === "/review/summary") return { ok: true, attention: 4, unreviewed: 3 };
+      if (path === "/reports/monthly/latest") return { ready: false, period: null, url: null };
+      if (path === "/recurring") return { rules: [] };
       throw new Error(`Unexpected GET ${path}`);
     });
     vi.mocked(createMovement).mockResolvedValue({
@@ -54,15 +69,8 @@ describe("global movement entry point", () => {
   });
 
   it("opens Quick Capture in movement mode from shared navigation context", async () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    });
     const user = userEvent.setup();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <AppLayout><MovementTrigger /></AppLayout>
-      </QueryClientProvider>,
-    );
+    renderLayout();
 
     await user.click(await screen.findByRole("button", { name: "Global movement" }));
     expect(await screen.findByRole("dialog", { name: "Catat transaksi" })).toBeVisible();
@@ -79,5 +87,35 @@ describe("global movement entry point", () => {
       amount: 300,
     })));
     expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it("puts every page inside the workspace: skip link, sidebar, main and the phone tab bar", async () => {
+    renderLayout();
+    expect(await screen.findByRole("link", { name: "Langsung ke konten" })).toHaveAttribute("href", "#main");
+    expect(screen.getByRole("complementary", { name: "Navigasi samping" })).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveAttribute("id", "main");
+    expect(screen.getByRole("navigation", { name: "Navigasi utama" })).toBeInTheDocument();
+    // Sidebar and tab bar both name the badge in words (CSS shows one of them per width).
+    expect(await screen.findAllByRole("link", { name: "Tinjau, 4 perlu ditinjau" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /Buka menu/ })).not.toBeInTheDocument();
+  });
+
+  it("remembers the collapsed sidebar", async () => {
+    const user = userEvent.setup();
+    renderLayout();
+    await user.click(await screen.findByRole("button", { name: "Ciutkan menu samping" }));
+    expect(localStorage.setItem).toHaveBeenCalledWith("sidebarCollapsed", "1");
+    expect(document.querySelector(".ws-window")).toHaveAttribute("data-collapsed", "true");
+  });
+
+  it("opens capture with N and not while typing", async () => {
+    const user = userEvent.setup();
+    renderLayout(<input aria-label="Ketik" />);
+    await screen.findByRole("main");
+    await user.type(screen.getByRole("textbox", { name: "Ketik" }), "n");
+    expect(screen.queryByRole("dialog", { name: "Catat transaksi" })).not.toBeInTheDocument();
+    (document.activeElement as HTMLElement).blur();
+    await user.keyboard("n");
+    expect(await screen.findByRole("dialog", { name: "Catat transaksi" })).toBeVisible();
   });
 });

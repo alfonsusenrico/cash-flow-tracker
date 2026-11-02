@@ -9,6 +9,7 @@ export const queryKeys = {
   transactions: {
     all: ["transactions"] as const,
     ledger: (params?: string) => ["transactions", "ledger", params ?? ""] as const,
+    recent: (from: string) => ["transactions", "recent", from] as const,
   },
   dashboard: {
     all: ["dashboard"] as const,
@@ -17,6 +18,7 @@ export const queryKeys = {
     analytics: (timeframe?: string, offset?: number) =>
       ["dashboard", "analytics", timeframe ?? "cycle", offset ?? 0] as const,
     netWorth: ["dashboard", "net-worth"] as const,
+    cycleSummary: ["dashboard", "cycle-summary"] as const,
     periodComparison: (basis: string, offset: number) => ["dashboard", "period-comparison", basis, offset] as const,
     cashFlowHistory: (basis: string) => ["dashboard", "cash-flow-history", basis] as const,
     recurringCharges: ["dashboard", "recurring-charges"] as const,

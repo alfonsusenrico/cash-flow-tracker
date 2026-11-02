@@ -1,125 +1,109 @@
-/* Cash Flow Tracker — Modern Fintech Design System
- * Theme Baseline: Coral Terminal (Vivid)
- * Light: Crisp Technical Cool Gray Canvas + Hot Coral & Royal Violet Accents
- * Dark: Calm Pitch Obsidian Canvas + Vibrant Hot Coral & Lavender Violet Accents
- * Typography: Modern Bauhaus Geometric Sans (Outfit) + Tabular Digits (Geist Mono)
+/* Cash Flow Tracker — workspace design tokens.
+ *
+ * Source: the approved workspace preview (2026-11-02), tuned so every rule in tokens.test.ts holds:
+ * warm neutral canvas and window, white cards, one lime action accent, a dark ink fill for structural
+ * actions, and semantic pairs (soft fill + text ink of the same hue) for income, expense, transfer,
+ * investment, warning and "ok". Information that is none of these uses the neutral tokens; there is no
+ * separate info blue, so sky blue always means a transfer.
+ *
+ * Light is the default; the dark theme applies with the `.dark` class on <html>, which the pre-paint
+ * theme script in layout.tsx sets before the first paint (light, dark or "Ikuti sistem").
  */
 
 :root {
-  /* Surfaces & Ink (Light Mode: Clean Technical Cool Gray) */
-  --color-paper: #E8ECEF;
-  --color-paper-2: #D8DFE5;
-  --color-surface: #FFFFFF;
-  --color-surface-raised: #D8DFE5;
-  --color-ink: #0A0D14;
-  --color-ink-2: #343E4E;
-  --color-muted: #4E5D70;
-  --color-rule: rgba(10, 13, 20, 0.09);
-  --color-rule-strong: rgba(10, 13, 20, 0.18);
+  color-scheme: light;
 
-  /* Primary Brand Action: Hot Coral Vivid */
-  --primary: #FF334B;
-  --primary-hover: #F02A42;
-  --primary-soft: #FFE8EC;
-  /* Dark ink keeps primary text at WCAG AA (4.5:1) on the coral and its hover in both themes. */
-  --primary-contrast: #0A0D14;
+  /* Surfaces and ink */
+  --canvas: #E4E2DC;
+  --window: #F6F5F1;
+  --surface: #FFFFFF;
+  --surface-2: #F0EFEA;
+  --surface-3: #E9E8E2;
+  --line: #E7E5DF;
+  --line-strong: #D6D3CB;
+  --text: #1B1C1A;
+  --text-2: #3D3F3B;
+  --muted: #65665F;
+  /* Icon tiles beside card titles and KPIs; the tile repeats its label, so it is decorative. */
+  --tile: #3A3C39;
+  --tile-fg: #FFFFFF;
+  /* Structural primary action ("+ Catat"). */
+  --ink: #2B2C2A;
+  --ink-hover: #41433F;
+  --ink-fg: #FFFFFF;
 
-  /* Semantic Movements */
-  --color-income: #059669;
-  --color-income-hover: #047857;
-  --color-income-soft: #ECFDF5;
-  --color-expense: #FF334B;
-  --color-expense-hover: #E02038;
-  --color-expense-soft: #FFE8EC;
-  --color-warning: #F59E0B;
-  --color-warning-soft: #FEF3C7;
-  /* Sky blue means an internal transfer ("Pindah Saldo") everywhere; amber stays for warnings. */
-  --color-transfer: #0EA5E9;
-  /* Lavender means an investment (balances, products, top-ups) everywhere; sky stays for transfers. */
-  --color-investment: #8B5CF6;
-  --color-investment-soft: #F5F3FF;
-  --color-focus: #FF334B;
+  /* Lime: active navigation and positive actions. Text on lime uses --lime-ink; lime-coloured text
+   * on a surface uses the darker --lime-text. */
+  --lime: #7DD66C;
+  --lime-hover: #8BDD7B;
+  --lime-ink: #15300F;
+  --lime-soft: #E2F3DA;
+  --lime-text: #2B6E1F;
 
-  /* Kakeibo Pillar Tokens. Each pillar has its own hue, at least 25 degrees from the transfer sky, the
-   * investment lavender, the income emerald and the expense coral, so a pillar never reads as one of those
-   * meanings: need fjord blue (227), want plum (316), culture olive (70), unexpected terracotta (23) and
-   * saving forest green (134). Each colour is both the chart mark and a text ink: 4.5:1 or better on --surface,
-   * --bg, --surface-raised and its soft fill in both themes. Labels always name the pillar beside the mark. */
-  --color-kakeibo-need: #2448C4;
-  --color-kakeibo-need-soft: #EEF2FF;
-  --color-kakeibo-want: #A21C7E;
-  --color-kakeibo-want-soft: #FDF2F8;
-  --color-kakeibo-saving: #296B38;
-  --color-kakeibo-saving-soft: #EEF7F0;
-  --color-kakeibo-culture: #56640F;
-  --color-kakeibo-culture-soft: #F7F9E6;
-  --color-kakeibo-unexpected: #9E440D;
-  --color-kakeibo-unexpected-soft: #FFF1EA;
-  /* Neutral on purpose: "Belum diklasifikasi" is missing information, not a sixth kind of spending. */
-  --color-kakeibo-unclassified: #475569;
-  --color-kakeibo-unclassified-soft: #F1F5F9;
+  /* Semantic pairs: soft fill and text ink of the same hue, 4.5:1 or better on every surface and on
+   * their own fill. Hues: income 149, expense 10, transfer 208, investment 259, warning 34. */
+  --in-bg: #DFF2E7;
+  --in-fg: #1D7347;
+  --out-bg: #FCE6E1;
+  --out-fg: #AD351E;
+  --tr-bg: #E0EDFA;
+  --tr-fg: #1B5C99;
+  --inv-bg: #ECE6FA;
+  --inv-fg: #6340B6;
+  --warn-bg: #FBEED6;
+  --warn-fg: #8A4F00;
+  --ok-bg: #E0F1DA;
+  --ok-fg: #22642A;
+  --ok-dot: #3E9B47;
 
-  /* Light Architectural Slate Desktop Sidebar */
-  --sidebar: #F0F3F6;
-  --sidebar-hover: #E2E8F0;
-  --sidebar-active: #D4DEE9;
-  --sidebar-text: #526071;
-  --sidebar-text-active: #090D14;
-
-  /* System Mappings */
-  --bg: var(--color-paper);
-  --surface: var(--color-surface);
-  --surface-raised: var(--color-surface-raised);
-  --border: var(--color-rule);
-  --border-strong: var(--color-rule-strong);
-  --text: var(--color-ink);
-  --text-secondary: var(--color-ink-2);
-  --muted: var(--color-muted);
-
-  --danger: var(--color-expense);
-  --danger-hover: var(--color-expense-hover);
-  --danger-text: var(--expense-text);
-  /* Fill for destructive actions with white text; 4.5:1 or better in both themes. */
-  --danger-solid: #E02038;
-  --danger-solid-hover: #9F1239;
+  /* Solid semantic fills for bars, dots and the few solid buttons. */
+  --in-solid: #2E9B64;
+  --in-solid-hover: #1F7A4C;
+  --out-solid: #E0573C;
+  --out-solid-hover: #C94A31;
+  --tr-solid: #3787C8;
+  --inv-solid: #7553C7;
+  --warn-solid: #D9930F;
+  --danger-solid: #B5341C;
+  --danger-solid-hover: #952915;
   --danger-contrast: #FFFFFF;
 
-  /* Signature Spring Lime: active phone navigation pill and quick actions. */
-  --accent-lime: #66CC55;
+  /* Kakeibo pillars: five hues at least 25 degrees from the income, expense, transfer and investment
+   * hues and at least 40 degrees from each other — need teal 178, want magenta 330, culture olive 78,
+   * unexpected ochre 36 and saving green 122. Each is a text ink (4.5:1 on every surface and its soft
+   * fill) and a chart mark (3:1 on the tracks). "Belum diklasifikasi" stays a neutral grey with a
+   * dashed marker: it is missing information, not a sixth kind of spending. */
+  --k-need: #0C706D;
+  --k-need-soft: #E3F3F2;
+  --k-want: #B33071;
+  --k-want-soft: #FAE8F1;
+  --k-culture: #516E0E;
+  --k-culture-soft: #EFF4E2;
+  --k-unexpected: #865D1F;
+  --k-unexpected-soft: #F7EEE1;
+  --k-saving: #2F7231;
+  --k-saving-soft: #E5F2E5;
+  --k-none: #5F605A;
+  --k-none-soft: #F0EFEA;
 
-  /* Text and icon inks for the lime and coral families. The vivid fills measure 1.71:1 (lime) and
-   * 3.03:1 (coral) on the light paper, so text uses these darker inks of the same hue: 4.5:1 or better
-   * on --surface, --bg and --surface-raised in both themes. */
-  --accent-text: #2D6E22;
-  --expense-text: #B8142D;
-  --primary-text: #B8142D;
-  /* Emerald income text: the #059669 fill measures 3.17:1 on the light paper, so text uses this darker
-   * ink of the same hue. Text on an emerald fill uses --income-contrast, which passes in both themes. */
-  --income-text: #056548;
-  --income-contrast: #0A0D14;
-  /* Text on the strong emerald fill (bg-emerald-600/700 = --color-income-hover): white passes on #047857
-   * in light, and the dark ink passes on the lighter #34D399 the fill becomes in dark. */
-  --income-hover-contrast: #FFFFFF;
-  /* Amber text: amber-600 (#D97706) measures 3.19:1 on white, so amber text uses this darker ink of the
-   * same 32 degree hue: 4.5:1 or better on every surface, the warning soft fill and a 10% amber tint. */
-  --warning-text: #8F4F04;
-  /* Sky transfer text: sky-500 (#0EA5E9) measures 2.77:1 on white, so transfer text uses sky-800, a darker
-   * ink of the same hue: 4.5:1 or better on every surface and on 10 to 20% sky tints over the card and the
-   * raised surface. Text and icons on the solid transfer fill use --transfer-contrast in both themes. */
-  --transfer-text: #075985;
-  --transfer-contrast: #0A0D14;
-  /* Lavender investment text: violet-500 (#8B5CF6) measures 4.23:1 on white and 3.56:1 on the paper, so text
-   * uses violet-800, a darker ink of the same hue: 4.5:1 or better on every surface, the soft fill and 10 to
-   * 20% violet tints over the card and the raised surface. Text on the solid fill uses --investment-contrast. */
-  --investment-text: #5B21B6;
-  --investment-contrast: #0A0D14;
+  /* Focus ring: the text colour, so it reads on the window, surfaces and the lime pill alike. */
+  --focus: #1B1C1A;
+  --scrim: rgba(24, 22, 18, 0.36);
 
-  /* Typography */
-  --font-display: var(--font-jakarta), "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-body: var(--font-jakarta), "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: var(--font-geist-mono), "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+  /* Elevation. Cards carry --shadow-card; floating layers (drawers, sheets, popovers, dialogs, menus,
+   * the toast and the phone tab bar) carry --shadow-float. --shadow-xs is the 1px raise of plain chips
+   * and buttons and stays lighter than --shadow-sm. */
+  --shadow-window: 0 40px 90px -30px rgba(60, 52, 38, 0.22), 0 2px 6px rgba(60, 52, 38, 0.05);
+  --shadow-card: 0 1px 2px rgba(40, 36, 28, 0.04), 0 6px 18px -8px rgba(40, 36, 28, 0.1);
+  --shadow-float: 0 24px 60px -20px rgba(24, 22, 18, 0.35);
+  --shadow-xs: 0 1px 2px 0 rgba(40, 36, 28, 0.05);
+  --shadow-sm: 0 2px 8px -1px rgba(40, 36, 28, 0.08);
+  --shadow-md: 0 10px 28px -4px rgba(40, 36, 28, 0.12);
 
-  /* Radii */
+  /* Geometry */
+  --radius-window: 28px;
+  --radius-card: 20px;
+  --radius-btn: 12px;
   --radius-xs: 8px;
   --radius-sm: 10px;
   --radius-md: 14px;
@@ -127,104 +111,160 @@
   --radius-xl: 22px;
   --radius-2xl: 26px;
   --radius-3xl: 32px;
-  --radius-btn: 14px;
-  --radius-card: 24px;
   --radius-pill: 9999px;
+  --sidebar-width: 248px;
+  --rail-width: 76px;
 
-  /* Spacing */
-  --space-sm: 1rem;
+  /* Typography */
+  --font-body: var(--font-geist), "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-body);
+  --font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
-  /* Shadows. --shadow-xs is the 1px raise of plain cards and chips; the hairline border still separates them. */
-  --shadow-xs: 0 1px 2px 0 rgba(8, 10, 14, 0.04);
-  --shadow-sm: 0 2px 8px -1px rgba(8, 10, 14, 0.06);
-  --shadow-md: 0 10px 28px -4px rgba(8, 10, 14, 0.1);
+  /* ---- Compatibility aliases (removed in phase 5, when no page still uses the legacy names) ----
+   * Pages not yet redesigned paint with these names; each maps to a workspace token so those pages
+   * follow the new palette. The vivid fills keep their own hue family. */
+  --bg: var(--window);
+  --color-paper: var(--window);
+  --color-paper-2: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-2);
+  --surface-raised: var(--surface-2);
+  --color-ink: var(--text);
+  --color-ink-2: var(--text-2);
+  --color-muted: var(--muted);
+  --color-rule: var(--line);
+  --color-rule-strong: var(--line-strong);
+  --border: var(--line);
+  --border-strong: var(--line-strong);
+  --text-secondary: var(--text-2);
 
-  --sidebar-width: 220px;
-  --topbar-height: 56px;
+  --primary: var(--ink);
+  --primary-hover: var(--ink-hover);
+  --primary-soft: var(--surface-2);
+  --primary-contrast: var(--ink-fg);
+  --primary-text: var(--text);
+  --color-focus: var(--focus);
+  --accent-lime: var(--lime);
+  --accent-text: var(--lime-text);
 
-  /* Phone navigation dock: dark in both themes, so its inks do not follow the page's --muted and --text. */
-  --dock-surface: rgba(23, 26, 33, 0.94);
-  --dock-text: #F8FAFC;
-  --dock-muted: #8B9AAF;
+  --color-income: var(--in-solid);
+  --color-income-hover: var(--in-solid-hover);
+  --color-income-soft: var(--in-bg);
+  --income-text: var(--in-fg);
+  --income-contrast: #141513;
+  --income-hover-contrast: #FFFFFF;
+  --color-expense: var(--out-solid);
+  --color-expense-hover: var(--out-solid-hover);
+  --color-expense-soft: var(--out-bg);
+  --expense-text: var(--out-fg);
+  --danger: var(--out-solid);
+  --danger-hover: var(--out-solid-hover);
+  --danger-text: var(--out-fg);
+  --color-warning: var(--warn-solid);
+  --color-warning-soft: var(--warn-bg);
+  --warning-text: var(--warn-fg);
+  --color-transfer: var(--tr-solid);
+  --transfer-text: var(--tr-fg);
+  --transfer-contrast: #141513;
+  --color-investment: var(--inv-solid);
+  --color-investment-soft: var(--inv-bg);
+  --investment-text: var(--inv-fg);
+  --investment-contrast: #FFFFFF;
+
+  --color-kakeibo-need: var(--k-need);
+  --color-kakeibo-need-soft: var(--k-need-soft);
+  --color-kakeibo-want: var(--k-want);
+  --color-kakeibo-want-soft: var(--k-want-soft);
+  --color-kakeibo-culture: var(--k-culture);
+  --color-kakeibo-culture-soft: var(--k-culture-soft);
+  --color-kakeibo-unexpected: var(--k-unexpected);
+  --color-kakeibo-unexpected-soft: var(--k-unexpected-soft);
+  --color-kakeibo-saving: var(--k-saving);
+  --color-kakeibo-saving-soft: var(--k-saving-soft);
+  --color-kakeibo-unclassified: var(--k-none);
+  --color-kakeibo-unclassified-soft: var(--k-none-soft);
+
+  --sidebar: var(--window);
+  --sidebar-hover: var(--surface-2);
+  --sidebar-active: var(--surface-3);
+  --sidebar-text: var(--text-2);
+  --sidebar-text-active: var(--text);
+  /* ---- End of compatibility aliases ---- */
 }
 
 .dark {
-  /* Surfaces & Ink (Dark Mode: Calm Pitch Obsidian & Muted Slate) */
-  --color-paper: #050608;
-  --color-paper-2: #0B0E14;
-  --color-surface: #0E1118;
-  --color-surface-raised: #181E2A;
-  --color-ink: #F8FAFC;
-  --color-ink-2: #94A3B8;
-  --color-muted: #8B9AAF;
-  --color-rule: rgba(255, 255, 255, 0.08);
-  --color-rule-strong: rgba(255, 255, 255, 0.16);
+  color-scheme: dark;
 
-  /* Primary Brand Action: Luminous Hot Coral */
-  --primary: #FF4757;
-  --primary-hover: #FF6675;
-  --primary-soft: rgba(255, 71, 87, 0.18);
-  --primary-contrast: #0A0D14;
+  --canvas: #111210;
+  --window: #1A1B19;
+  --surface: #222320;
+  --surface-2: #2B2C29;
+  --surface-3: #333430;
+  --line: #30312D;
+  --line-strong: #43443F;
+  --text: #EEEEE8;
+  --text-2: #D0D0C8;
+  --muted: #A4A59C;
+  --tile: #45473F;
+  --tile-fg: #F3F3EC;
+  --ink: #ECECE5;
+  --ink-hover: #D8D8D0;
+  --ink-fg: #1A1B19;
 
-  --accent-text: var(--accent-lime);
-  --expense-text: var(--color-expense);
-  --primary-text: var(--primary);
-  --income-text: var(--color-income);
-  --income-hover-contrast: #0A0D14;
-  --warning-text: var(--color-warning);
-  --transfer-text: var(--color-transfer);
-  --investment-text: var(--color-investment);
+  --lime: #86D977;
+  --lime-hover: #97DF8A;
+  --lime-ink: #11290B;
+  --lime-soft: #22361D;
+  --lime-text: #9EDE8F;
 
-  /* Semantic Movements */
-  --color-income: #10B981;
-  --color-income-hover: #34D399;
-  --color-income-soft: rgba(16, 185, 129, 0.16);
-  --color-expense: #FF4757;
-  --color-expense-hover: #FF6675;
-  --color-expense-soft: rgba(255, 71, 87, 0.18);
-  --color-warning: #FBBF24;
-  --color-warning-soft: rgba(251, 191, 36, 0.16);
-  --color-transfer: #38BDF8;
-  --color-investment: #A78BFA;
-  --color-investment-soft: rgba(167, 139, 250, 0.16);
-  --color-focus: #FF4757;
+  --in-bg: #1D3529;
+  --in-fg: #8CD9B1;
+  --out-bg: #3F231D;
+  --out-fg: #F4BBAF;
+  --tr-bg: #1A2E43;
+  --tr-fg: #A3CDF2;
+  --inv-bg: #2D2645;
+  --inv-fg: #D1C0F6;
+  --warn-bg: #3B2E14;
+  --warn-fg: #EFC273;
+  --ok-bg: #1D321F;
+  --ok-fg: #A6DE9C;
+  --ok-dot: #4FB159;
 
-  /* Kakeibo Pillar Tokens: the same hues, lighter for the dark surfaces. */
-  --color-kakeibo-need: #8099F5;
-  --color-kakeibo-need-soft: rgba(128, 153, 245, 0.16);
-  --color-kakeibo-want: #E879C6;
-  --color-kakeibo-want-soft: rgba(232, 121, 198, 0.16);
-  --color-kakeibo-saving: #7AC68A;
-  --color-kakeibo-saving-soft: rgba(122, 198, 138, 0.16);
-  --color-kakeibo-culture: #B5C350;
-  --color-kakeibo-culture-soft: rgba(181, 195, 80, 0.16);
-  --color-kakeibo-unexpected: #F0915A;
-  --color-kakeibo-unexpected-soft: rgba(240, 145, 90, 0.16);
-  --color-kakeibo-unclassified: #94A3B8;
-  --color-kakeibo-unclassified-soft: rgba(148, 163, 184, 0.16);
+  --in-solid: #4CC48A;
+  --in-solid-hover: #6FD3A2;
+  --out-solid: #EC7A62;
+  --out-solid-hover: #F0927E;
+  --tr-solid: #58A6E6;
+  --inv-solid: #A68CEE;
+  --warn-solid: #E5AE3E;
+  --danger-solid: #9F2A17;
+  --danger-solid-hover: #852211;
 
-  /* Pitch Obsidian Desktop Sidebar */
-  --sidebar: #020305;
-  --sidebar-hover: #0A0D14;
-  --sidebar-active: #121824;
-  --sidebar-text: #8092A8;
-  --sidebar-text-active: #F8FAFC;
+  --k-need: #2FC7C2;
+  --k-need-soft: rgba(47, 199, 194, 0.14);
+  --k-want: #ED9BC4;
+  --k-want-soft: rgba(237, 155, 196, 0.14);
+  --k-culture: #96C230;
+  --k-culture-soft: rgba(150, 194, 48, 0.14);
+  --k-unexpected: #D9AC68;
+  --k-unexpected-soft: rgba(217, 172, 104, 0.14);
+  --k-saving: #6DC770;
+  --k-saving-soft: rgba(109, 199, 112, 0.14);
+  --k-none: #A4A59C;
+  --k-none-soft: #2B2C29;
 
-  --bg: var(--color-paper);
-  --surface: var(--color-surface);
-  --surface-raised: var(--color-surface-raised);
-  --border: var(--color-rule);
-  --border-strong: var(--color-rule-strong);
-  --text: var(--color-ink);
-  --text-secondary: var(--color-ink-2);
-  --muted: var(--color-muted);
+  --focus: #EEEEE8;
+  --scrim: rgba(0, 0, 0, 0.55);
 
-  --danger: var(--color-expense);
-  --danger-hover: var(--color-expense-hover);
-  --danger-solid: #9F1239;
-  --danger-solid-hover: #881337;
-
+  --shadow-window: 0 40px 90px -30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.02), 0 8px 20px -10px rgba(0, 0, 0, 0.5);
+  --shadow-float: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
   --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-sm: 0 4px 14px -2px rgba(0, 0, 0, 0.7);
-  --shadow-md: 0 14px 36px -4px rgba(0, 0, 0, 0.9);
+  --shadow-sm: 0 4px 14px -2px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 14px 36px -4px rgba(0, 0, 0, 0.8);
+
+  --income-contrast: #141513;
+  --income-hover-contrast: #141513;
+  --investment-contrast: #141513;
 }

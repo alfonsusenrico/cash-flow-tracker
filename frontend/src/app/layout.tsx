@@ -3,13 +3,15 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/layout/AppShell";
+import { PRODUCT_NAME } from "@/components/workspace/navigation";
+import { THEME_SCRIPT } from "@/lib/theme";
 
 // Self-hosted (OFL-1.1, Latin subset) so builds never depend on fetching Google Fonts.
-const jakarta = localFont({
-  src: "./fonts/PlusJakartaSans-latin-variable.woff2",
-  variable: "--font-jakarta",
+const geist = localFont({
+  src: "./fonts/Geist-latin-variable.woff2",
+  variable: "--font-geist",
   display: "swap",
-  weight: "200 800",
+  weight: "100 900",
 });
 
 const geistMono = localFont({
@@ -20,8 +22,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "CashFlow — Daily Money & Digital Vault",
-  description: "Friction-free daily money tracking, smart daily allowance, and liquid vault",
+  title: PRODUCT_NAME,
+  description: "Catatan uang harian: berapa yang keluar, berapa yang aman dipakai, dan apa yang perlu dijawab.",
   icons: {
     icon: "/icon.png",
     apple: "/icon.png",
@@ -34,8 +36,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${jakarta.variable} ${geistMono.variable}`} suppressHydrationWarning>
-      <body className={`${jakarta.className} antialiased`}>
+    <html lang="id" className={`${geist.variable} ${geistMono.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Applies the stored theme before the first paint (CSP allows inline scripts: 'unsafe-inline'). */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
+      <body className={`${geist.className} antialiased`}>
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

@@ -34,7 +34,32 @@ export type IconName =
   | "arrowRight"
   | "calendar"
   | "clock"
-  | "download";
+  | "download"
+  | "home"
+  | "inbox"
+  | "receipt"
+  | "target"
+  | "file-text"
+  | "help-circle"
+  | "sliders"
+  | "panel-left"
+  | "bell"
+  | "shield"
+  | "arrow-up-right"
+  | "arrow-down-left"
+  | "layers"
+  | "monitor"
+  | "keyboard"
+  | "menu"
+  | "x"
+  | "search"
+  | "eye"
+  | "eye-off"
+  | "repeat"
+  | "trending-up"
+  | "chevron-left"
+  | "chevron-right"
+  | "alert-triangle";
 
 interface IconProps extends SVGProps<SVGSVGElement> {
   name: IconName | string;
@@ -104,6 +129,20 @@ const paths: Record<string, ReactNode> = {
   repeat: <><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></>,
   calendar: <><rect width="18" height="18" x="3" y="4" rx="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /></>,
   clock: <><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>,
+  home: <><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V20h14V9.5" /><path d="M10 20v-5h4v5" /></>,
+  inbox: <><path d="M22 12h-6l-2 3h-4l-2-3H2" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></>,
+  target: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /></>,
+  "file-text": <><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z" /><path d="M14 3v5h5" /><path d="M9 13h6" /><path d="M9 17h4" /></>,
+  "help-circle": <><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.2" /><path d="M12 17h.01" /></>,
+  sliders: <><path d="M4 21v-7" /><path d="M4 10V3" /><path d="M12 21v-9" /><path d="M12 8V3" /><path d="M20 21v-5" /><path d="M20 12V3" /><path d="M2 14h4" /><path d="M10 8h4" /><path d="M18 16h4" /></>,
+  "panel-left": <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></>,
+  bell: <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></>,
+  shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
+  "arrow-up-right": <><path d="M7 17 17 7" /><path d="M8 7h9v9" /></>,
+  "arrow-down-left": <><path d="M17 7 7 17" /><path d="M16 17H7V8" /></>,
+  layers: <><path d="m12 2 9 5-9 5-9-5 9-5z" /><path d="m3 12 9 5 9-5" /><path d="m3 17 9 5 9-5" /></>,
+  monitor: <><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8" /><path d="M12 16v4" /></>,
+  keyboard: <><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h.01" /><path d="M10 10h.01" /><path d="M14 10h.01" /><path d="M18 10h.01" /><path d="M7 14h10" /></>,
 };
 
 export function Icon({ name, className, ...props }: IconProps) {

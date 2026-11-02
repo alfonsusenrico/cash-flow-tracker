@@ -15,6 +15,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { api, uploadTransactionReceipt } from "@/lib/api";
 import { cn, formatNumberWithDots, localDatetimeToISO, toDatetimeLocal } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
+import { TopBarControls } from "@/components/workspace/context";
 import { Icon } from "@/components/ui/Icon";
 import { Modal } from "@/components/ui/Modal";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
@@ -178,7 +179,7 @@ function LedgerPageContent() {
   const holdTriggeredRef = useRef(false);
   const suppressClickResetRef = useRef<number | null>(null);
   const qc = useQueryClient();
-  const { openQuickAdd, bal } = useAppCtx();
+  const { openQuickAdd, bal, setTimeframe, setCycleOffset } = useAppCtx();
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchKey = searchParams?.toString() ?? "";
@@ -199,7 +200,13 @@ function LedgerPageContent() {
   const [page, setPage] = useState(0);
   const [linkError, setLinkError] = useState("");
   const updateFilters = (patch: Partial<LedgerFilters>) => {
-    const query = ledgerFilterQuery({ ...filters, ...patch });
+    const next = { ...filters, ...patch };
+    // A stepped cycle or month becomes the shared period, so Analisis opened next shows the same one.
+    if (("period" in patch || "offset" in patch) && next.period !== "all") {
+      setTimeframe?.(next.period);
+      setCycleOffset?.(next.offset);
+    }
+    const query = ledgerFilterQuery(next);
     router.replace(query ? `/ledger?${query}` : "/ledger", { scroll: false });
     setPage(0);
   };
@@ -770,12 +777,14 @@ function LedgerPageContent() {
           ))}
         </div>
         {filters.period !== "all" && (
-          <PeriodStepper
-            unit={filters.period === "month" ? "Bulan" : "Siklus"}
-            label={periodLabel(summary?.period)}
-            offset={filters.offset}
-            onChange={(offset) => updateFilters({ offset })}
-          />
+          <TopBarControls>
+            <PeriodStepper
+              unit={filters.period === "month" ? "Bulan" : "Siklus"}
+              label={periodLabel(summary?.period)}
+              offset={filters.offset}
+              onChange={(offset) => updateFilters({ offset })}
+            />
+          </TopBarControls>
         )}
       </div>
 

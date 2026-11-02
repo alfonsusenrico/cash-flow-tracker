@@ -15,7 +15,6 @@ vi.mock("@/components/layout/AppLayout", () => ({
 }));
 vi.mock("@/components/dashboard/BurnCadenceChart", () => ({ BurnCadenceChart: () => null }));
 vi.mock("@/components/dashboard/SpendingHeatmap", () => ({ SpendingHeatmap: () => null }));
-vi.mock("@/components/dashboard/NarrativeInsightCard", () => ({ NarrativeInsightCard: () => null }));
 vi.mock("@/hooks/useAnimatedCounter", () => ({ useAnimatedCounter: (value: number) => value }));
 vi.mock("@/components/recurring/RecurringRulesModal", () => ({
   RecurringRulesModal: ({ open, expenseDraft }: { open: boolean; expenseDraft?: { name: string; amount: number } | null }) =>
@@ -345,7 +344,8 @@ describe("report drill-down", () => {
 
   it("links category figures, the Tanpa kategori bucket and archived spending to the same period", async () => {
     const { container } = renderAnalytics();
-    expect(await screen.findByText("September 2026")).toBeInTheDocument();
+    // The label shows in the page header and in the period stepper of the top-bar controls.
+    expect((await screen.findAllByText("September 2026")).length).toBeGreaterThanOrEqual(1);
     expect(api.get).toHaveBeenCalledWith("/dashboard/analytics?timeframe=month&cycle_offset=-1");
     const [hobby] = screen.getAllByRole("link", { name: "Rp 100.000, lihat transaksi Hobi" });
     expect(hobby).toHaveAttribute("href", "/ledger?period=month&offset=-1&category=category-1&type=expense");
