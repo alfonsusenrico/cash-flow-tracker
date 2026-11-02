@@ -148,11 +148,11 @@ describe("paired devices in Settings", () => {
 
     await user.click(await screen.findByRole("button", { name: "Hubungkan ponsel" }));
     const dialog = await screen.findByRole("dialog", { name: "Hubungkan ponsel" });
-    await within(dialog).findByRole("img");
+    await within(dialog).findByRole("img", { name: /Kode QR pemasangan ponsel/ });
     await tick(300_000);
 
     expect(within(dialog).getByRole("status")).toHaveTextContent("Kode kedaluwarsa. Buat kode baru untuk memasangkan ponsel.");
-    expect(within(dialog).queryByRole("img")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("img", { name: /Kode QR pemasangan ponsel/ })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("timer")).not.toBeInTheDocument();
     expect((await axe(dialog)).violations).toHaveLength(0);
 
@@ -185,7 +185,7 @@ describe("paired devices in Settings", () => {
 
     await user.click(await screen.findByRole("button", { name: "Hubungkan ponsel" }));
     const dialog = await screen.findByRole("dialog", { name: "Hubungkan ponsel" });
-    await within(dialog).findByRole("img");
+    await within(dialog).findByRole("img", { name: /Kode QR pemasangan ponsel/ });
     vi.mocked(getDevices).mockResolvedValue({
       ok: true,
       devices: [{ ...phone, id: "key-new", created_at: new Date(Date.now() + 1000).toISOString(), last_used_at: null }, manualKey],
@@ -193,7 +193,7 @@ describe("paired devices in Settings", () => {
     await tick(3_500);
 
     await waitFor(() => expect(within(dialog).getByRole("status")).toHaveTextContent("TECNO CN7c terhubung."));
-    expect(within(dialog).queryByRole("img")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("img", { name: /Kode QR pemasangan ponsel/ })).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Selesai" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -207,7 +207,7 @@ describe("paired devices in Settings", () => {
     const dialog = await screen.findByRole("dialog", { name: "Hubungkan ponsel" });
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Pemasangan ponsel belum dikonfigurasi di server.");
-    expect(within(dialog).queryByRole("img")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("img", { name: /Kode QR pemasangan ponsel/ })).not.toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Buat kode baru" })).toBeEnabled();
   });
 });

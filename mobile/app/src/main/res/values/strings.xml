@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Financial Tracker Capture</string>
+    <string name="service_description">Captures financial transactions from banking and e-wallet notifications to streamline personal bookkeeping.</string>
+    <string name="tab_inbox">Feed</string>
+    <string name="tab_settings">Settings</string>
+    <string name="status_permission_granted">Notification Access Active</string>
+    <string name="status_permission_denied">Notification Access Required</string>
+</resources>

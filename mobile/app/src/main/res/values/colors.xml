@@ -1,0 +1,9 @@
+<resources>
+    <color name="black">#0F1012</color>
+    <color name="white">#FAFAF9</color>
+    <color name="emerald">#10B981</color>
+    <color name="rose">#F43F5E</color>
+    <color name="cobalt">#3B82F6</color>
+    <color name="surface_dark">#18191B</color>
+    <color name="surface_border">#27272A</color>
+</resources>

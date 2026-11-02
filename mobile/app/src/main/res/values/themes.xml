@@ -1,0 +1,6 @@
+<resources>
+    <!-- The window shows before Compose draws; its background matches the light E page colour. -->
+    <style name="Theme.FinancialTrackerMobileListener" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#EFEDE8</item>
+    </style>
+</resources>

@@ -7,6 +7,7 @@ import { createPairingCode, getDevices, type PairedDevice } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { CompanionDownloadDisclosure } from "@/components/ui/CompanionDownload";
 
 const QR_SIZE = 240;
 const DEVICE_POLL_MS = 3000;
@@ -171,6 +172,8 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
         <p className="text-[11px] text-[var(--muted)]">
           Kode hanya bisa dipakai sekali dan berlaku 5 menit. Membuat kode baru membatalkan kode sebelumnya.
         </p>
+
+        {!paired && <CompanionDownloadDisclosure />}
 
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] pt-3">
           {paired ? (
