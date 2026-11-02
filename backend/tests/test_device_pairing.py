@@ -528,7 +528,7 @@ def test_device_list_names_manual_keys(owner):
     assert set(listed) == {"API key manual", "TECNO CN7c"}
     assert listed["API key manual"]["created_via"] == "manual"
     assert listed["API key manual"]["key_prefix"] == manual["key_prefix"]
-    assert set(listed["TECNO CN7c"]) == {"id", "name", "created_via", "key_prefix", "created_at", "last_used_at"}
+    assert set(listed["TECNO CN7c"]) == {"id", "name", "created_via", "key_prefix", "created_at", "last_used_at", "health"}
 
 
 # --- Manual key fallback ---------------------------------------------------------------------

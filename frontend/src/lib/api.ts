@@ -230,6 +230,23 @@ export interface PairingCode {
   qr_payload: string;
 }
 
+export type SelfTestStatus = "passed" | "failed" | "not_run";
+export type SelfTestFailedStep = "post" | "capture" | "server";
+
+/** The latest health report a phone sent; `ready` is computed by the server. */
+export interface DeviceHealth {
+  reported_at: string;
+  ready: boolean;
+  app_version: string;
+  listener_connected: boolean;
+  notification_access: boolean;
+  post_notifications: boolean;
+  battery_unrestricted: boolean;
+  self_test: { status: SelfTestStatus; failed_step: SelfTestFailedStep | null; at: string | null };
+  last_capture_at: string | null;
+  queue_pending: number;
+}
+
 export interface PairedDevice {
   id: string;
   name: string;
@@ -237,6 +254,8 @@ export interface PairedDevice {
   key_prefix: string;
   created_at: string;
   last_used_at: string | null;
+  /** Null until the phone sends its first health report. */
+  health: DeviceHealth | null;
 }
 
 export async function createPairingCode(): Promise<PairingCode> {

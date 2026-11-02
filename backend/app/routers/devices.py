@@ -1,4 +1,5 @@
-"""Paired phones: QR pairing codes, the code exchange, and the device list (device-pairing capability)."""
+"""Paired phones: QR pairing codes, the code exchange, the device list (device-pairing capability)
+and the phones' health reports (device-health capability)."""
 
 from __future__ import annotations
 
@@ -7,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
-from app.services import device_pairing
+from app.services import device_health, device_pairing
 from app.services.auth import get_client_ip, get_current_user, get_session_user
 from app.services.state import rate_limiter
 
@@ -47,6 +48,21 @@ def pair_device(payload: PairRequest, request: Request):
             headers={"Retry-After": str(device_pairing.PAIR_RATE_WINDOW)},
         )
     return {"ok": True, **device_pairing.exchange_code(payload.code, payload.device_id, payload.device_name)}
+
+
+@router.post("/health")
+def report_health(payload: device_health.HealthReport, device: dict = Depends(device_health.get_bearer_device)):
+    if rate_limiter.exceeded(
+        f"device-health:key:{device['key_id']}",
+        device_health.HEALTH_RATE_LIMIT,
+        device_health.HEALTH_RATE_WINDOW,
+    ):
+        raise HTTPException(
+            status_code=429,
+            detail={"code": "device_health_rate_limited"},
+            headers={"Retry-After": str(device_health.HEALTH_RATE_WINDOW)},
+        )
+    return {"ok": True, "health": device_health.record_report(device["key_id"], payload)}
 
 
 @router.get("")

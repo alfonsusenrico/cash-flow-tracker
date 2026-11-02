@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDevices, revokeDevice, type PairedDevice } from "@/lib/api";
+import { deviceProblems, isStale } from "@/lib/deviceHealth";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -20,9 +21,48 @@ function formatDate(value: string, withTime: boolean) {
   });
 }
 
+function DeviceReadiness({ device, checkedAt }: { device: PairedDevice; checkedAt: number }) {
+  const health = device.health;
+  if (!health) {
+    return <p className="text-xs text-[var(--muted)]">Belum pernah kirim status. Buka aplikasinya di HP, ya.</p>;
+  }
+  const problems = deviceProblems(health, checkedAt);
+  return (
+    <>
+      <p className="text-xs text-[var(--muted)] tabular-nums">
+        Lapor terakhir {formatDate(health.reported_at, true)} · Aplikasi v{health.app_version}
+      </p>
+      {problems.length > 0 && (
+        <ul aria-label={`Masalah di ${device.name}`} className="list-disc space-y-0.5 pl-4 text-xs text-[var(--danger-text)]">
+          {problems.map((problem) => (
+            <li key={problem}>{problem}</li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+function ReadinessBadge({ device, checkedAt }: { device: PairedDevice; checkedAt: number }) {
+  if (!device.health) return null;
+  const ready = device.health.ready && !isStale(device.health, checkedAt);
+  return (
+    <span
+      className={
+        ready
+          ? "rounded-full bg-[var(--color-income-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--income-text)]"
+          : "rounded-full bg-[var(--color-warning-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--text)]"
+      }
+    >
+      {ready ? "Siap" : "Perlu dicek"}
+    </span>
+  );
+}
+
 export function DevicePairingSection() {
   const queryClient = useQueryClient();
-  const { data, isError } = useQuery({ queryKey: queryKeys.devices, queryFn: getDevices });
+  // Staleness is judged against the moment the list was fetched, so a render never reads the clock.
+  const { data, isError, dataUpdatedAt } = useQuery({ queryKey: queryKeys.devices, queryFn: getDevices });
   const [pairing, setPairing] = useState(false);
   const [confirming, setConfirming] = useState<PairedDevice | null>(null);
   const [error, setError] = useState("");
@@ -79,13 +119,17 @@ export function DevicePairingSection() {
       ) : (
         <SettingsList label="Ponsel yang dipasangkan">
           {devices.map((device) => (
-            <li key={device.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2.5">
-              <div className="min-w-0 flex-1 break-words">
-                <p className="font-semibold text-[var(--text)]">{device.name}</p>
+            <li key={device.id} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-3 py-2.5">
+              <div className="min-w-0 flex-1 space-y-1 break-words">
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-[var(--text)]">
+                  <span>{device.name}</span>
+                  <ReadinessBadge device={device} checkedAt={dataUpdatedAt} />
+                </p>
                 <p className="text-xs text-[var(--muted)] tabular-nums">
                   Dipasangkan {formatDate(device.created_at, false)} · Terakhir aktif{" "}
                   {device.last_used_at ? formatDate(device.last_used_at, true) : "belum pernah"}
                 </p>
+                <DeviceReadiness device={device} checkedAt={dataUpdatedAt} />
               </div>
               <button
                 type="button"
