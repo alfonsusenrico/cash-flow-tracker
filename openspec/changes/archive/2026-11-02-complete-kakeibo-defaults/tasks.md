@@ -37,6 +37,6 @@ Expected Result: all five defaults behave as approved. The new tests fail on the
 - [x] 3.2 Frontend `npm ci`, test, lint, type-check and build. Evidence: counts in verification.md.
 - [x] 3.3 Headless Brave on `/laporan` and the bottom navigation at 390 px, light and dark. Evidence: verification.md.
 - [x] 3.4 `git diff --check` and `openspec validate --all --strict`. Evidence: exit 0.
-- [ ] 3.5 Push `feat/monthly-report` (normal push) and report the Checks workflow result and the compare link.
+- [x] 3.5 Push `feat/monthly-report` (normal push) and report the Checks workflow result and the compare link. Evidence: dfff3a4 pushed; Checks run 41391455053 succeeded (backend 1414 passed on Flyway schema version 41, frontend, operations).
 
 Expected Result: local checks pass, the branch is pushed, and CI reports its result.

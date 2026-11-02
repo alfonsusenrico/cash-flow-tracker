@@ -45,6 +45,10 @@ Setup: `next dev` on 127.0.0.1:55703 and the API on 127.0.0.1:55702. The owner w
 - `git diff --check`: exit 0.
 - `openspec validate --all --strict`: 69 passed, 0 failed, exit 0. `mobile/openspec` is not affected; the branch changes nothing under `mobile/`.
 
+## CI
+
+- Checks run 41391455053 on dfff3a4: all three jobs succeeded. The backend job migrated to schema version 41 and reported 1414 passed. The frontend job passed type check, lint (the same pre-existing warning) and build. The compose and backup round-trip job passed.
+
 ## Not verified
 
 - Android runtime with a null pillar. That was checked by source review only (design.md D3), and no phone was used.
