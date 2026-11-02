@@ -21,12 +21,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.alfonsusenrico.financialtracker.listener.data.db.AppDatabase
 import com.alfonsusenrico.financialtracker.listener.data.prefs.AppPreferences
 import com.alfonsusenrico.financialtracker.listener.ui.capture.CaptureViewModel
 import com.alfonsusenrico.financialtracker.listener.ui.components.DELETE_ACTION_LABEL
@@ -37,7 +33,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import com.alfonsusenrico.financialtracker.listener.ui.shell.CompanionViewModel
 import com.alfonsusenrico.financialtracker.listener.ui.theme.CompanionTheme
 import com.alfonsusenrico.financialtracker.listener.ui.theme.ThemeMode
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -56,12 +51,12 @@ class CompanionShellUiTest {
     @get:Rule val compose = createComposeRule()
 
     private val app = ApplicationProvider.getApplicationContext<Application>()
-    private lateinit var db: AppDatabase
+    private lateinit var database: ShellDatabase
+    private val db get() = database.db
     private lateinit var pairing: String
-    private val viewModels = mutableListOf<ViewModel>()
 
     @Before fun open() {
-        db = Room.inMemoryDatabaseBuilder(app, AppDatabase::class.java).build()
+        database = ShellDatabase(app, compose)
         pairing = AppPreferences(app).pairingContext
         runBlocking {
             listOf(UiFixtures.purpose(), UiFixtures.sender(), UiFixtures.recorded(20, "Kopi Contoh", 32_000), UiFixtures.review())
@@ -70,16 +65,14 @@ class CompanionShellUiTest {
     }
 
     @After fun close() {
-        // The view models outlive the composition here; stop their database work before closing it.
-        viewModels.forEach { it.viewModelScope.cancel() }
-        db.close()
         AppPreferences(app).themeMode = null
+        database.close()
     }
 
-    private fun viewModel() = CompanionViewModel(app, db).also { viewModels += it }
+    private fun viewModel() = database.track(CompanionViewModel(app, db))
 
     private fun shell(viewModel: CompanionViewModel = viewModel()): CompanionViewModel {
-        val captures = CaptureViewModel(app, db).also { viewModels += it }
+        val captures = database.track(CaptureViewModel(app, db))
         compose.setContent {
             CompanionTheme(dark = false) {
                 CompanionApp(viewModel, captures, PhoneState(), now = { UiFixtures.at(UiFixtures.today, 10, 0) }, listener = MutableStateFlow(true))
