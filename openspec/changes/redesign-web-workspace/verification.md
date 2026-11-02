@@ -133,6 +133,8 @@ See 2.6: no serious or critical axe violation that the baseline did not have.
 
 Visual comparison: the 1440 light and dark screenshots follow the preview's composition (window, grouped sidebar with badges, top bar, summary sentences, KPI strip, Uang siklus ini, Kerjakan dulu, Aktivitas terbaru, Kakeibo, Ketahanan Dana, insight) and its tokens. Documented deviations: product name "CashFlow" with a neutral mark (OD1); no net-worth delta (OD4); signed-amount chips and no "vs kemarin" chip on Aman (OD5); the third sentence "{n} hal nunggu jawabanmu (Rp X)" (OD7); tuned pillar hues and no info blue (D2); the safe figure only from a regular salary date (D10); waiting rows counted (D9).
 
+Review fix after the matrix (3ea44b8): at 1440 the Terjadwal segment of "Uang siklus ini" was narrower than its amount and clipped it ("Rp 995.00"). A segment of 8.5rem or less now shows colour only (container query on each segment); the legend below repeats every amount. Checked in headless Brave with the shipped rules at bar widths 690, 760 and 1000 px and with "Rp 999.999.999" at 136 px: no clipped text. After the fix, frontend type-check, lint (0 errors, 1 pre-existing warning), `npm test` (62 files, 563 passed) and build passed.
+
 ## 7. Not verified
 
 - Owner acceptance (task 7.1).
