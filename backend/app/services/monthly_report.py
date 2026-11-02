@@ -46,7 +46,8 @@ SPENDING_PILLARS = ("need", "want", "culture", "unexpected", "saving", UNCLASSIF
 FLOW_KEYS = ("inflow", "gross_outflow", "reimbursement_offset", "outflow", "net")
 
 # Rows waiting in Tinjau: the badge's "attention" (needs review or an open purpose question) and the
-# automatic rows nobody looked at yet, as `GET /api/review/summary` counts them.
+# automatic rows nobody looked at yet. `GET /api/review/summary` and the review queue use this query too.
+# A leg of a linked movement is finished and never counts, unless it still carries an open question.
 _REVIEW_COUNT_SQL = """
     SELECT
         COUNT(*) FILTER (WHERE t.review_status = 'needs_review' OR question.id IS NOT NULL) AS attention,
@@ -61,6 +62,7 @@ _REVIEW_COUNT_SQL = """
     ) question ON TRUE
     WHERE t.user_id = %s AND t.type IN ('expense', 'income')
       AND (t.review_status IN ('auto', 'needs_review') OR question.id IS NOT NULL)
+      AND (t.movement_id IS NULL OR question.id IS NOT NULL)
 """
 
 

@@ -32,6 +32,8 @@ class TopupFromTransaction(BaseModel):
 
     transaction_id: UUID
     target_account_id: UUID
+    # The product a top-up suggestion offered; its outcome teaches the learner (optional, additive).
+    suggested_target_account_id: UUID | None = None
 
 
 class TopupUpdate(BaseModel):
@@ -62,6 +64,7 @@ def convert_recorded_expense(payload: TopupFromTransaction, current_user: dict =
             result = convert_transaction_to_topup(
                 cur, user_id=current_user["id"], transaction_id=str(payload.transaction_id),
                 target_id=str(payload.target_account_id),
+                suggested_target_id=str(payload.suggested_target_account_id) if payload.suggested_target_account_id else None,
             )
         conn.commit()
     return result

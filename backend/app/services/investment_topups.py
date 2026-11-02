@@ -21,8 +21,11 @@ from app.services.ledger_mutations import (
 from app.services.merchant_memory import record_owner_corrections, snapshot_rows
 from app.services.movement_linkage import ensure_internal_movement_categories
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, system_provenance
+from app.services.topup_learning import record_answer
 
 TOPUP_NOTE = "Top up Investasi"
+# A debit recorded as a top-up from the owner's repeated conversions (clarify-review-and-learn-topups D8).
+LEARNED_ASSIGNMENTS = "classified_by = 'habit', classification_confidence = NULL"
 
 
 def validate_topup_accounts(source: dict[str, Any], target: dict[str, Any]) -> None:
@@ -264,11 +267,16 @@ def lock_convertible_expense(cur, user_id: str, transaction_id: str) -> dict[str
     return expense
 
 
-def convert_transaction_to_topup(cur, *, user_id: str, transaction_id: str, target_id: str) -> dict[str, Any]:
+def convert_transaction_to_topup(
+    cur, *, user_id: str, transaction_id: str, target_id: str,
+    suggested_target_id: str | None = None, learned_basis: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Turn a recorded standalone expense into the outbound leg of an amount top-up.
 
     The bank debit already happened, so the funding balance is not checked or changed; the expense keeps
     its notification link and idempotency key so a notification retry cannot record the debit again.
+    `suggested_target_id` is the product a suggestion offered the owner; `learned_basis` marks a
+    conversion the top-up learner made itself (clarify-review-and-learn-topups D6, D8).
     """
     cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"investment-topup-from:{user_id}:{transaction_id}",))
     expense = lock_convertible_expense(cur, user_id, transaction_id)
@@ -294,6 +302,10 @@ def convert_transaction_to_topup(cur, *, user_id: str, transaction_id: str, targ
     locked = lock_owned_accounts(cur, user_id, [source_id, target_id])
     source, target = locked[source_id], locked[target_id]
     validate_topup_accounts(source, target)
+    if suggested_target_id is not None and suggested_target_id != target_id:
+        cur.execute("SELECT 1 FROM accounts WHERE user_id = %s AND id = %s", (user_id, suggested_target_id))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Suggested product not found")
     target = initialize_amount_tracking(cur, user_id, target)
 
     cur.execute(
@@ -312,6 +324,12 @@ def convert_transaction_to_topup(cur, *, user_id: str, transaction_id: str, targ
         "kakeibo_type": expense["kakeibo_type"],
         "notes": expense["notes"],
     }
+    if learned_basis is not None:
+        # Undoing a learned conversion returns the debit to Tinjau as it was (design D8).
+        converted_from.update(learned=True, review_status=expense["review_status"],
+                              classified_by=expense["classified_by"],
+                              classification_confidence=float(expense["classification_confidence"])
+                              if expense["classification_confidence"] is not None else None)
     cur.execute(
         """INSERT INTO investment_topups (
                id, user_id, source_account_id, target_account_id, amount, date, notes,
@@ -322,10 +340,11 @@ def convert_transaction_to_topup(cur, *, user_id: str, transaction_id: str, targ
     )
     expense_category, income_category = ensure_internal_movement_categories(cur, user_id)
     leg_notes = notes or TOPUP_NOTE
-    before_classification = snapshot_rows(cur, user_id, [transaction_id])
+    before_classification = snapshot_rows(cur, user_id, [transaction_id]) if learned_basis is None else {}
+    classifier = OWNER_EDIT_ASSIGNMENTS if learned_basis is None else LEARNED_ASSIGNMENTS
     cur.execute(
         f"""UPDATE transactions SET movement_id = %s, movement_role = 'outbound', category_id = %s,
-               kakeibo_type = %s, notes = %s, review_status = 'reviewed', {OWNER_EDIT_ASSIGNMENTS},
+               kakeibo_type = %s, notes = %s, review_status = 'reviewed', {classifier},
                updated_at = NOW()
            WHERE user_id = %s AND id = %s""",
         (topup_id, expense_category, movement_kakeibo(source, target), leg_notes, user_id, transaction_id),
@@ -339,7 +358,17 @@ def convert_transaction_to_topup(cur, *, user_id: str, transaction_id: str, targ
         (user_id, target_id, income_category, amount, leg_notes, expense["date"],
          f"investment-topup:{topup_id}:in", topup_id, *system_provenance("investment").columns()),
     )
-    record_owner_corrections(cur, user_id, before_classification)
+    if learned_basis is None:
+        record_owner_corrections(cur, user_id, before_classification)
+        if suggested_target_id is not None:
+            outcome = "accepted" if suggested_target_id == target_id else "corrected"
+            record_answer(cur, user_id, expense, outcome=outcome, suggested_id=suggested_target_id, chosen_id=target_id)
+    else:
+        cur.execute(
+            """UPDATE notification_events SET interpretation = interpretation || jsonb_build_object('habit', %s::jsonb)
+               WHERE user_id = %s AND transaction_id = %s""",
+            (Jsonb(learned_basis), user_id, transaction_id),
+        )
     apply_contribution_delta(cur, user_id, target, amount)
     return topup_response(cur, get_topup(cur, user_id, topup_id))
 
@@ -353,9 +382,23 @@ def restore_converted_expense(cur, user_id: str, row: dict[str, Any]) -> None:
     cur.execute(
         """UPDATE transactions SET movement_id = NULL, movement_role = NULL, category_id = %s,
                kakeibo_type = %s, notes = %s, updated_at = NOW()
-           WHERE user_id = %s AND movement_id = %s AND movement_role = 'outbound'""",
+           WHERE user_id = %s AND movement_id = %s AND movement_role = 'outbound'
+           RETURNING id, account_id, amount, classified_by""",
         (origin.get("category_id"), origin.get("kakeibo_type"), origin.get("notes"), user_id, row["id"]),
     )
+    debit = cur.fetchone()
+    if not origin.get("learned") or not debit:
+        return
+    # Undoing a learned top-up corrects the learner: the debit waits in Tinjau again, and the deletion is
+    # the owner's rejection of that product for it unless the owner had already taken the row over.
+    if debit["classified_by"] == "habit":
+        cur.execute(
+            """UPDATE transactions SET review_status = %s, classified_by = %s, classification_confidence = %s
+               WHERE user_id = %s AND id = %s""",
+            (origin.get("review_status") or "needs_review", origin.get("classified_by"),
+             origin.get("classification_confidence"), user_id, debit["id"]),
+        )
+    record_answer(cur, user_id, debit, outcome="rejected", suggested_id=str(row["target_account_id"]), chosen_id=None)
 
 
 def mutate_topup(

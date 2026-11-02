@@ -20,9 +20,11 @@ from app.services.merchant_memory import (
     record_owner_corrections,
     snapshot_rows,
 )
+from app.services.monthly_report import review_counts
 from app.services.movement_pairing import CANDIDATE_LIMIT, load_candidates
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, normalize_merchant
 from app.services.purpose_questions import list_open_questions
+from app.services.topup_learning import reject_suggestion, topup_suggestion
 
 router = APIRouter(prefix="/review", tags=["Review"])
 
@@ -30,10 +32,9 @@ QUEUE_ROW_LIMIT = 1000
 QUESTION_LIMIT = 200
 BULK_LIMIT = 200
 AMBIGUOUS_CANDIDATE_LIMIT = 5
-MOVEMENT_GROUP_KEY = "movement"
 
 QUEUE_SQL = """
-    SELECT t.id, t.type, t.amount, t.date, t.account_id, a.name AS account_name,
+    SELECT t.id, t.type, t.amount, t.date, t.account_id, a.name AS account_name, a.type AS account_type,
            t.category_id, c.name AS category_name,
            CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo_type,
            t.merchant, t.notes, t.review_status, t.source, t.classified_by,
@@ -58,6 +59,8 @@ QUEUE_SQL = """
         LIMIT 1
     ) question ON TRUE
     WHERE t.user_id = %s AND t.review_status IN ('auto', 'needs_review') AND t.type IN ('expense', 'income')
+      -- A linked movement is finished; its legs never wait for the owner (clarify-review-and-learn-topups D1).
+      AND t.movement_id IS NULL
     ORDER BY t.date DESC, t.id
     LIMIT %s
 """
@@ -107,8 +110,6 @@ def group_identity(row: dict) -> tuple[str, str, str]:
     then by notes, then by category. The key includes the type, so every group can be recategorised
     into one category kind.
     """
-    if row["movement_id"]:
-        return "movement", MOVEMENT_GROUP_KEY, "Pindah saldo antar rekening"
     merchant_key = merchant_match_key(row["merchant"])
     if merchant_key:
         return "merchant", f"{row['type']}|{merchant_key}", row["merchant"]
@@ -129,17 +130,15 @@ def build_groups(rows: list[dict]) -> list[dict[str, Any]]:
         group = groups.get(key)
         if group is None:
             group = groups[key] = {
-                "key": key, "kind": kind, "type": MOVEMENT_GROUP_KEY if kind == "movement" else row["type"],
+                "key": key, "kind": kind, "type": row["type"],
                 "label": label, "count": 0, "total": 0, "needs_review_count": 0, "auto_count": 0,
                 "first_date": None, "last_date": None, "reasons": [], "category_ids": set(),
-                "editable": kind != "movement", "transactions": [],
+                "transactions": [],
             }
         item = queue_item(row)
         group["transactions"].append(item)
         group["count"] += 1
-        # A movement moves money once; count its outgoing legs only.
-        if kind != "movement" or row["type"] == "expense":
-            group["total"] += item["amount"]
+        group["total"] += item["amount"]
         group["needs_review_count" if row["review_status"] == "needs_review" else "auto_count"] += 1
         if item["date"]:
             group["first_date"] = min(filter(None, [group["first_date"], item["date"]]))
@@ -185,27 +184,10 @@ def ambiguous_candidates(cur, user_id: str, row: dict, account_names: dict[str, 
 
 @router.get("/summary")
 def review_summary(current_user: dict = Depends(get_current_user)):
-    user_id = current_user["id"]
     with db_conn() as conn:
-        row = conn.execute(
-            """
-            SELECT
-                COUNT(*) FILTER (WHERE t.review_status = 'needs_review' OR question.id IS NOT NULL) AS attention,
-                COUNT(*) FILTER (WHERE t.review_status = 'auto' AND question.id IS NULL) AS unreviewed
-            FROM transactions t
-            LEFT JOIN LATERAL (
-                SELECT e.id FROM notification_events e
-                WHERE e.user_id = t.user_id AND e.processing_state = 'recorded'
-                  AND e.active_question ->> 'type' = 'purpose'
-                  AND (e.active_question ->> 'transaction_id')::uuid = t.id
-                LIMIT 1
-            ) question ON TRUE
-            WHERE t.user_id = %s AND t.type IN ('expense', 'income')
-              AND (t.review_status IN ('auto', 'needs_review') OR question.id IS NOT NULL)
-            """,
-            (user_id,),
-        ).fetchone()
-    return {"ok": True, "attention": int(row["attention"]), "unreviewed": int(row["unreviewed"])}
+        with conn.cursor() as cur:
+            counts = review_counts(cur, current_user["id"])
+    return {"ok": True, **counts}
 
 
 @router.get("/queue")
@@ -222,12 +204,11 @@ def review_queue(current_user: dict = Depends(get_current_user)):
             account_names = {str(account["id"]): account["name"] for account in cur.fetchall()}
 
             grouped, awaiting, ambiguous = [], [], []
+            patterns: dict = {}
             for row in rows:
-                if row["has_open_question"] and not row["movement_id"]:
+                if row["has_open_question"]:
                     continue
-                unlinked = row["movement_id"] is None
-                is_ambiguous = (unlinked and row["review_status"] == "needs_review"
-                                and "ambiguous_movement" in review_reasons(row))
+                is_ambiguous = row["review_status"] == "needs_review" and "ambiguous_movement" in review_reasons(row)
                 candidates = ambiguous_candidates(cur, user_id, row, account_names) if is_ambiguous else []
                 # An ambiguous leg needs the owner's choice among its candidates; once none is left, an own
                 # transfer only waits for its counterpart account.
@@ -235,15 +216,20 @@ def review_queue(current_user: dict = Depends(get_current_user)):
                     ambiguous.append({**queue_item(row), "candidates": candidates})
                 # Only legs the pairing flagged wait for a counterpart; older one-sided rows the owner left
                 # as they are stay ordinary rows to accept.
-                elif unlinked and row["movement_category"] and "awaiting_counterpart" in review_reasons(row):
-                    awaiting.append(queue_item(row))
+                elif row["movement_category"] and "awaiting_counterpart" in review_reasons(row):
+                    suggestion = topup_suggestion(cur, user_id, row, row["account_type"], patterns)
+                    awaiting.append({**queue_item(row), "topup_suggestion": suggestion})
                 else:
                     grouped.append(row)
+            totals = review_counts(cur, user_id)
     groups = build_groups(grouped)
     return {
         "ok": True,
         "truncated": truncated,
         "counts": {
+            # The badge's numbers, so the page header and the navigation always agree.
+            "attention": totals["attention"],
+            "unreviewed": totals["unreviewed"],
             "questions": len(questions),
             "needs_review": sum(group["needs_review_count"] for group in groups),
             "auto": sum(group["auto_count"] for group in groups),
@@ -431,3 +417,21 @@ def bulk_review(payload: BulkReview, current_user: dict = Depends(get_current_us
                 keep_separate(cur, user_id, rows)
         conn.commit()
     return {"ok": True, "action": payload.action, "transaction_count": len(ids), "corrections": corrections}
+
+
+class TopupSuggestionRejection(BaseModel):
+    transaction_id: UUID
+    suggested_target_account_id: UUID | None = None
+
+
+@router.post("/topup-suggestions/reject")
+def reject_topup_suggestion(payload: TopupSuggestionRejection, current_user: dict = Depends(get_current_user)):
+    """The owner's "Bukan top up" for an awaiting debit: remembered, and weighed as a correction."""
+    user_id = current_user["id"]
+    suggested = str(payload.suggested_target_account_id) if payload.suggested_target_account_id else None
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{user_id}",))
+            recorded = reject_suggestion(cur, user_id, str(payload.transaction_id), suggested)
+        conn.commit()
+    return {"ok": True, "recorded": recorded}

@@ -100,10 +100,10 @@ export function ReviewGroupCard({ group, categories, pending, onAction }: Review
         </div>
         <div className="shrink-0 text-right">
           <span className="block text-sm font-bold tabular text-[var(--text)]">
-            {group.type === "income" ? "+" : group.type === "expense" ? "-" : ""}{bal(group.total)}
+            {group.type === "income" ? "+" : "-"}{bal(group.total)}
           </span>
           <span className="block text-[11px] text-[var(--muted)]">
-            {group.type === "movement" ? "dipindahkan" : group.type === "income" ? "masuk" : "keluar"}
+            {group.type === "income" ? "masuk" : "keluar"}
           </span>
         </div>
       </div>
@@ -135,30 +135,26 @@ export function ReviewGroupCard({ group, categories, pending, onAction }: Review
         >
           Terima semua ({group.count})
         </button>
-        {group.editable && (
-          <>
-            <button
-              type="button"
-              disabled={pending}
-              aria-expanded={panel === "category"}
-              aria-controls={`${baseId}-category`}
-              onClick={() => togglePanel("category")}
-              className={SECONDARY}
-            >
-              Ubah kategori semua
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              aria-expanded={panel === "rename"}
-              aria-controls={`${baseId}-rename`}
-              onClick={() => togglePanel("rename")}
-              className={SECONDARY}
-            >
-              Ganti nama
-            </button>
-          </>
-        )}
+        <button
+          type="button"
+          disabled={pending}
+          aria-expanded={panel === "category"}
+          aria-controls={`${baseId}-category`}
+          onClick={() => togglePanel("category")}
+          className={SECONDARY}
+        >
+          Ubah kategori semua
+        </button>
+        <button
+          type="button"
+          disabled={pending}
+          aria-expanded={panel === "rename"}
+          aria-controls={`${baseId}-rename`}
+          onClick={() => togglePanel("rename")}
+          className={SECONDARY}
+        >
+          Ganti nama
+        </button>
       </div>
 
       {panel === "category" && (

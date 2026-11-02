@@ -29,8 +29,8 @@ export interface ReviewItem {
 
 export interface ReviewGroup {
   key: string;
-  kind: "merchant" | "signature" | "notes" | "category" | "movement";
-  type: "expense" | "income" | "movement";
+  kind: "merchant" | "signature" | "notes" | "category";
+  type: "expense" | "income";
   label: string;
   count: number;
   total: number;
@@ -40,7 +40,6 @@ export interface ReviewGroup {
   last_date: string | null;
   reasons: string[];
   category: { id: string; name: string | null } | null;
-  editable: boolean;
   transactions: ReviewItem[];
 }
 
@@ -89,10 +88,35 @@ export interface AmbiguousItem extends ReviewItem {
   candidates: AmbiguousCandidate[];
 }
 
+export interface TopupProductChoice {
+  id: string;
+  name: string;
+  /** "Induk · Produk" */
+  label: string;
+}
+
+/** A learned top-up for an awaiting debit; without a target the owner chooses among `choices`. */
+export interface TopupSuggestion {
+  target_account_id: string | null;
+  target_label: string | null;
+  choices: TopupProductChoice[];
+  prompt: string;
+  explanation: string;
+  basis: { agreeing: number; support: number; agreement: number } | null;
+}
+
+export interface AwaitingItem extends ReviewItem {
+  topup_suggestion: TopupSuggestion | null;
+}
+
 export interface ReviewQueue {
   ok: boolean;
   truncated: boolean;
   counts: {
+    /** Rows that need the owner, as the navigation badge counts them. */
+    attention: number;
+    /** Automatic rows nobody looked at yet; checking them is optional. */
+    unreviewed: number;
     questions: number;
     needs_review: number;
     auto: number;
@@ -102,7 +126,7 @@ export interface ReviewQueue {
   };
   questions: PurposeQuestionEntry[];
   groups: ReviewGroup[];
-  awaiting: ReviewItem[];
+  awaiting: AwaitingItem[];
   ambiguous: AmbiguousItem[];
 }
 
@@ -132,7 +156,6 @@ const KIND_LABELS: Record<ReviewGroup["kind"], string> = {
   signature: "Tanpa nama toko",
   notes: "Catatan",
   category: "Kategori",
-  movement: "Pindah saldo",
 };
 
 export function groupKindLabel(kind: ReviewGroup["kind"]): string {
@@ -206,4 +229,12 @@ export function newReplyId(): string {
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/** Groups with a row that needs an answer, and groups of only automatic rows (optional to check). */
+export function splitGroups(groups: readonly ReviewGroup[]): { needsAnswer: ReviewGroup[]; automatic: ReviewGroup[] } {
+  return {
+    needsAnswer: groups.filter((group) => group.needs_review_count > 0),
+    automatic: groups.filter((group) => group.needs_review_count === 0),
+  };
 }

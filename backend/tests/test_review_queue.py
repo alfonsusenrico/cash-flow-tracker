@@ -73,7 +73,7 @@ def test_queue_lists_every_section_and_the_badge_counts(client, owner):
     assert kedai_group["kind"] == "merchant" and kedai_group["type"] == "expense"
     assert kedai_group["count"] == 2 and kedai_group["total"] == 250000
     assert {item["id"] for item in kedai_group["transactions"]} == {first, second}
-    assert kedai_group["first_date"] <= kedai_group["last_date"] and kedai_group["editable"] is True
+    assert kedai_group["first_date"] <= kedai_group["last_date"]
     assert (kedai_group["auto_count"], kedai_group["needs_review_count"], kedai_group["reasons"]) == (2, 0, [])
     # The question row is answered in its own section, never also in a group.
     grouped_ids = {item["id"] for group in data["groups"] for item in group["transactions"]}
@@ -90,19 +90,50 @@ def test_queue_lists_every_section_and_the_badge_counts(client, owner):
     summary = client.get("/api/review/summary").json()
     # The question row, two awaiting legs and the ambiguous credit need attention; Kedai rows are unreviewed.
     assert summary["attention"] == 4 and summary["unreviewed"] == 2
+    assert (data["counts"]["attention"], data["counts"]["unreviewed"]) == (4, 2)
     ambiguous_reasons = {reason for item in data["ambiguous"] for reason in item["reasons"]}
     assert "ambiguous_movement" in ambiguous_reasons
 
 
-def test_queue_groups_merchant_less_rows_by_signature_and_movements_apart(client, owner):
-    legs = manual_movement(client, owner)
+def test_linked_legs_never_reach_the_queue_or_counts(client, owner):
     from app.db.pool import db_conn
+    from app.services.monthly_report import review_counts
+
+    legs = manual_movement(client, owner)
+    first, _ = kedai(client, 10)
     with db_conn() as conn:
-        conn.execute("UPDATE transactions SET review_status = 'auto' WHERE id = ANY(%s::uuid[])", (legs,))
+        # One finished leg as the model records it, one still flagged: both belong to a linked movement.
+        conn.execute("UPDATE transactions SET review_status = 'auto' WHERE id = %s", (legs[0],))
+        conn.execute("UPDATE transactions SET review_status = 'needs_review' WHERE id = %s", (legs[1],))
         conn.commit()
     data = client.get("/api/review/queue").json()
-    movement = next(group for group in data["groups"] if group["kind"] == "movement")
-    assert movement["editable"] is False and movement["count"] == 2 and movement["total"] == 40000
+    listed = {item["id"] for group in data["groups"] for item in group["transactions"]}
+    listed |= {item["id"] for item in data["awaiting"] + data["ambiguous"]}
+    assert listed == {first}
+    assert all(group["kind"] != "movement" for group in data["groups"])
+    summary = client.get("/api/review/summary").json()
+    assert (summary["attention"], summary["unreviewed"]) == (0, 1)
+    assert (data["counts"]["attention"], data["counts"]["unreviewed"]) == (0, 1)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            assert review_counts(cur, owner["user_id"]) == {"attention": 0, "unreviewed": 1}
+        # Nothing was rewritten: the legs keep their stored review states.
+        stored = conn.execute("SELECT id, review_status FROM transactions WHERE id = ANY(%s::uuid[])", (legs,)).fetchall()
+    assert {str(item["id"]): item["review_status"] for item in stored} == {legs[0]: "auto", legs[1]: "needs_review"}
+
+
+def test_queue_counts_split_attention_from_optional_rows(client, owner):
+    first, _ = kedai(client, 10)
+    second, _ = kedai(client, 20)
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        conn.execute("UPDATE transactions SET review_status = 'needs_review' WHERE id = %s", (first,))
+        conn.commit()
+    data = client.get("/api/review/queue").json()
+    group = next(group for group in data["groups"] if group["label"] == "Kedai Awan")
+    assert (group["needs_review_count"], group["auto_count"]) == (1, 1)
+    summary = client.get("/api/review/summary").json()
+    assert (data["counts"]["attention"], data["counts"]["unreviewed"]) == (summary["attention"], summary["unreviewed"]) == (1, 1)
 
 
 def test_resolved_reasons_are_not_shown(client, owner):
