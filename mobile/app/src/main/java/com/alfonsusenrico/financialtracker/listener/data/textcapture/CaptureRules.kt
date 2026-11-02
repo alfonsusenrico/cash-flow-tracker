@@ -3,6 +3,7 @@ package com.alfonsusenrico.financialtracker.listener.data.textcapture
 import com.alfonsusenrico.financialtracker.listener.data.model.TextCaptureEntity
 import com.alfonsusenrico.financialtracker.listener.data.model.TextCaptureState
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureQuestion
+import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureQuestionTypes
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureView
 import com.alfonsusenrico.financialtracker.listener.data.sync.validUuid
 import java.text.Normalizer
@@ -78,7 +79,7 @@ fun CaptureView.isValidFor(clientCaptureId: String, serverId: String?): Boolean 
 }
 
 fun CaptureQuestion.isAnswerable(): Boolean =
-    validUuid(questionId) && type in setOf("amount", "kind", "account", "category") && !prompt.isNullOrBlank()
+    validUuid(questionId) && type in CaptureQuestionTypes.ANSWERED && !prompt.isNullOrBlank()
 
 /** What the owner may do with a capture from this phone. */
 object CaptureAbilities {

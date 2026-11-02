@@ -8,6 +8,21 @@ class PairingCode private constructor(val value: String) {
     override fun toString() = "PairingCode(redacted)"
 
     companion object {
+        private const val ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+        const val LENGTH = 10
+
+        /**
+         * The code typed from under the web's QR, folded as the tracker folds it: case, spaces and dashes do
+         * not matter, and O, I and L read as 0, 1 and 1. Null unless it is exactly ten code characters.
+         */
+        fun typed(raw: String): PairingCode? {
+            if (raw.length > 64) return null
+            val code = raw.trim().uppercase().filterNot { it == '-' || it == ' ' }
+                .map { when (it) { 'O' -> '0'; 'I', 'L' -> '1'; else -> it } }.joinToString("")
+            if (code.length != LENGTH || code.any { it !in ALPHABET }) return null
+            return PairingCode(code)
+        }
+
         fun parse(raw: String, server: String): PairingCode? {
             if (raw.length > 2048) return null
             return try {

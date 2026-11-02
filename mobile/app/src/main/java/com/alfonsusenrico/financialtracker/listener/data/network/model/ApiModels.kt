@@ -1,9 +1,6 @@
 package com.alfonsusenrico.financialtracker.listener.data.network.model
 
 import com.google.gson.annotations.SerializedName
-import java.time.DateTimeException
-import java.time.OffsetDateTime
-import java.time.ZoneId
 
 data class NotificationEventRequest(
     @SerializedName("device_id")
@@ -332,81 +329,17 @@ data class TransactionUpdateResponse(
 )
 
 /**
- * The tracker's own ledger cash flow for an observed period, never a sum of local notification rows.
- * `outflow` is `grossOutflow` less the reimbursements the server applied to it.
+ * `GET /api/reports/monthly/latest`: whether the latest closed period's report is ready. Only the label, the
+ * local start date and the web path are used; the phone shows no figure from it.
  */
-data class LedgerCashFlowSummary(
+data class LatestReportResponse(
     @SerializedName("ok") val ok: Boolean = false,
-    @SerializedName("period") val period: String? = null,
-    @SerializedName("timezone") val timezone: String? = null,
-    @SerializedName("start") val start: String? = null,
-    @SerializedName("end") val end: String? = null,
-    @SerializedName("generated_at") val generatedAt: String? = null,
-    @SerializedName("currency") val currency: String? = null,
-    @SerializedName("inflow") val inflow: Long? = null,
-    @SerializedName("outflow") val outflow: Long? = null,
-    @SerializedName("net") val net: Long? = null,
-    @SerializedName("gross_outflow") val grossOutflow: Long? = null,
-    @SerializedName("reimbursement_offset") val reimbursementOffset: Long? = null,
-    /** Null when the tracker does not send it (before the field existed); empty when nothing was spent. */
-    @SerializedName("top_categories") val topCategories: List<TopCategory?>? = null
-) {
-    /**
-     * The tracker's top categories for this summary's period, or null when they are absent or break the
-     * contract: at most three, each with a non-negative outflow, sorted by outflow descending. Every
-     * entry with an id needs a name; at most one entry, the spending without a category, has a null id,
-     * and it is shown under the tracker's name or "Tanpa kategori", without a pillar.
-     */
-    fun shownTopCategories(): List<TopCategory>? {
-        val entries = topCategories ?: return null
-        val categories = entries.filterNotNull()
-        if (categories.size != entries.size || categories.size > MAX_TOP_CATEGORIES) return null
-        if (categories.count { it.isUncategorised } > 1) return null
-        if (categories.any { (!it.isUncategorised && it.name.isNullOrBlank()) || it.outflow == null || it.outflow < 0 }) return null
-        if (categories.any { it.kakeiboType != null && it.kakeiboType !in KAKEIBO_TYPES }) return null
-        if (categories.zipWithNext().any { (a, b) -> a.outflow!! < b.outflow!! }) return null
-        return categories.map { if (it.isUncategorised) it.asUncategorised() else it }
-    }
+    @SerializedName("ready") val ready: Boolean? = null,
+    @SerializedName("period") val period: ReportPeriod? = null,
+    @SerializedName("url") val url: String? = null
+)
 
-    /** True only for a today summary whose figures and timestamps are present and consistent. */
-    fun isComplete(): Boolean {
-        if (!ok || period != "today" || currency != "IDR") return false
-        if (inflow == null || outflow == null || net == null || grossOutflow == null || reimbursementOffset == null) return false
-        if (inflow < 0 || outflow < 0 || reimbursementOffset < 0) return false
-        if (net != inflow - outflow || outflow != grossOutflow - reimbursementOffset) return false
-        if (timezone == null || start == null || end == null || generatedAt == null) return false
-        return try {
-            ZoneId.of(timezone)
-            OffsetDateTime.parse(generatedAt)
-            !OffsetDateTime.parse(end).isBefore(OffsetDateTime.parse(start))
-        } catch (_: DateTimeException) {
-            false
-        }
-    }
-
-    private companion object {
-        const val MAX_TOP_CATEGORIES = 3
-        val KAKEIBO_TYPES = setOf("need", "want", "culture", "unexpected", "saving")
-    }
-}
-
-/**
- * One of the tracker's top spending categories, with the same period and rules as the summary's `outflow`.
- * A null `categoryId` is the tracker's spending without a category.
- */
-data class TopCategory(
-    @SerializedName("category_id") val categoryId: String? = null,
-    @SerializedName("name") val name: String? = null,
-    @SerializedName("kakeibo_type") val kakeiboType: String? = null,
-    @SerializedName("outflow") val outflow: Long? = null
-) {
-    val isUncategorised: Boolean get() = categoryId == null
-
-    /** Spending without a category belongs to no pillar, whatever the tracker labels it internally. */
-    internal fun asUncategorised(): TopCategory =
-        copy(name = name?.takeIf { it.isNotBlank() } ?: UNCATEGORISED_NAME, kakeiboType = null)
-
-    private companion object {
-        const val UNCATEGORISED_NAME = "Tanpa kategori"
-    }
-}
+data class ReportPeriod(
+    @SerializedName("label") val label: String? = null,
+    @SerializedName("start_date") val startDate: String? = null
+)

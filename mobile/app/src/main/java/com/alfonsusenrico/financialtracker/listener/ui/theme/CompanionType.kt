@@ -54,14 +54,9 @@ object CompanionType {
         fontFeatureSettings = TABULAR_FIGURES
     )
 
-    // Title sizes from the final README: page titles 18–20, totals 34, counts 30–38, question titles 21,
-    // amounts 28–32, onboarding titles 25.
-    val homeTitle = display(20.sp)
+    // Title sizes from the final README: page titles 18, question titles 21, amounts 28–32, onboarding and
+    // status titles 25.
     val pageTitle = display(18.sp)
-    val todayTotal = display(34.sp)
-    val questionCount = display(38.sp)
-    val tileCount = display(30.sp)
-    val tileState = display(20.sp)
     val questionTitle = display(21.sp)
     val questionAmount = display(28.sp)
     val heroAmount = display(32.sp)

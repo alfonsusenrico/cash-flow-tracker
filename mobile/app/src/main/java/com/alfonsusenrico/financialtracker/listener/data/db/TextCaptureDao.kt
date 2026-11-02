@@ -66,4 +66,8 @@ interface TextCaptureDao {
     /** Removes a capture that never reached the tracker: never sent, or refused. */
     @Query("DELETE FROM text_captures WHERE id = :id AND server_id IS NULL AND ((state = 'queued' AND attempts = 0) OR state = 'failed')")
     suspend fun discard(id: Long): Int
+
+    /** Typed captures still on this phone, waiting to reach the tracker (the health report's queue). */
+    @Query("SELECT COUNT(*) FROM text_captures WHERE server_id IS NULL AND state IN ('queued', 'sending')")
+    suspend fun countWaiting(): Int
 }

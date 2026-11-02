@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alfonsusenrico.financialtracker.listener.data.capture.LabelChange
 import com.alfonsusenrico.financialtracker.listener.data.model.RawNotificationEntity
 import com.alfonsusenrico.financialtracker.listener.data.model.SenderReplyEntity
 import com.alfonsusenrico.financialtracker.listener.data.network.model.AccountItemResponse
@@ -80,7 +82,10 @@ class DetailActions(
     val onSendLocal: (Long) -> Unit,
     val onResend: (Long) -> Unit,
     val onInvalid: (String) -> Unit,
-    val onSubmit: (row: RawNotificationEntity, mode: FormMode, editableId: String?, draft: TransactionDraft, done: (Boolean) -> Unit) -> Unit
+    val onSubmit: (row: RawNotificationEntity, mode: FormMode, editableId: String?, draft: TransactionDraft, done: (Boolean) -> Unit) -> Unit,
+    val onCorrectLabel: (row: RawNotificationEntity, change: LabelChange, done: (Boolean) -> Unit) -> Unit = { _, _, _ -> },
+    /** "Lihat di Buku Kas": the full edit of a recorded notification lives on the web. */
+    val onOpenLedger: () -> Unit = {}
 )
 
 @Composable
@@ -89,7 +94,8 @@ fun DetailRoute(
     actions: ShellActions,
     rowId: Long,
     onBack: () -> Unit,
-    onOpenQuestion: (Long) -> Unit
+    onOpenQuestion: (Long) -> Unit,
+    onOpenLedger: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val row by remember(rowId) { viewModel.row(rowId) }.collectAsState(initial = null)
@@ -126,14 +132,17 @@ fun DetailRoute(
                 viewModel.resendIgnored(id) { ok -> say(if (ok) "Dikirim ulang; menunggu hasil server" else "Notifikasi ini tidak bisa dikirim ulang") }
             },
             onInvalid = say,
-            onSubmit = { target, mode, editableId, draft, done ->
+            onCorrectLabel = { target, change, done ->
+                viewModel.correctLabel(target.id, change) { ok, error ->
+                    say(if (ok) "Label diperbarui. Makasih, aku belajar dari koreksimu." else error ?: "Label belum berubah")
+                    done(ok)
+                }
+            },
+            onOpenLedger = onOpenLedger,
+            onSubmit = { target, mode, _, draft, done ->
                 when (mode) {
-                    FormMode.EDIT_RECORDED -> viewModel.updateSyncedTransaction(
-                        target.id, editableId.orEmpty(), draft.amount, draft.type, draft.accountId, draft.categoryId, draft.notes
-                    ) { ok, error ->
-                        say(if (ok) "Transaksi berhasil diperbarui di server" else "Gagal memperbarui: ${error ?: "periksa koneksi"}")
-                        done(ok)
-                    }
+                    // Recorded notification rows are corrected with "Perbaiki label"; full edits are on the web.
+                    FormMode.EDIT_RECORDED -> done(false)
                     FormMode.MANUAL_RECORD -> viewModel.resolveNotification(
                         target.id, draft.amount, draft.type, draft.accountId!!, draft.categoryId!!, draft.notes
                     ) { ok, error ->
@@ -164,6 +173,7 @@ fun DetailScreen(
 ) {
     val colors = CompanionTheme.colors
     var mode by rememberSaveable(row?.id) { mutableStateOf<FormMode?>(null) }
+    var fixingLabel by rememberSaveable(row?.id) { mutableStateOf(false) }
     var confirmDelete by rememberSaveable(row?.id) { mutableStateOf(false) }
     if (row == null) {
         Column(Modifier.fillMaxSize()) {
@@ -209,8 +219,17 @@ fun DetailScreen(
                         onSubmit = { draft -> actions.onSubmit(row, editing, abilities.editableTransactionId, draft) { ok -> if (ok) mode = null } }
                     )
                 }
+            } else if (fixingLabel && abilities.canEditRecorded) {
+                CompanionCard {
+                    CardTitle("Perbaiki label")
+                    LabelForm(
+                        type = item.recorded?.type.orEmpty(), currentCategory = item.recorded?.category, categories = categories, busy = busy,
+                        onCancel = { fixingLabel = false },
+                        onSubmit = { change -> actions.onCorrectLabel(row, change) { ok -> if (ok) fixingLabel = false } }
+                    )
+                }
             } else {
-                RecordedCard(item, abilities) { mode = FormMode.EDIT_RECORDED }
+                RecordedCard(item, abilities, onFixLabel = { fixingLabel = true }, onOpenLedger = actions.onOpenLedger)
             }
             CompanionCard {
                 CardTitle("Notifikasi asli")
@@ -329,7 +348,7 @@ private fun StatePanel(
 }
 
 @Composable
-private fun RecordedCard(item: RowPresentation, abilities: RowAbilities, onEdit: () -> Unit) {
+private fun RecordedCard(item: RowPresentation, abilities: RowAbilities, onFixLabel: () -> Unit, onOpenLedger: () -> Unit) {
     val colors = CompanionTheme.colors
     val recorded = item.recorded
     CompanionCard {
@@ -341,10 +360,11 @@ private fun RecordedCard(item: RowPresentation, abilities: RowAbilities, onEdit:
             item.habit?.let { Note(it.detailLine(), StatusTone.MUTED, Icons.Outlined.History) }
         }
         if (abilities.canEditRecorded) {
-            CompanionButton("Ubah transaksi", onEdit, Modifier.fillMaxWidth(), ButtonKind.GHOST, Icons.Outlined.Edit)
-        } else if (item.row.processingStatus == "recorded") {
-            Text("Transaksi ini hanya bisa diubah di Tracker Web.", style = CompanionType.meta, color = colors.text2)
-            CompanionButton("Edit di Tracker Web", {}, Modifier.fillMaxWidth(), ButtonKind.GHOST, enabled = false)
+            CompanionButton("Perbaiki label", onFixLabel, Modifier.fillMaxWidth(), ButtonKind.GHOST, Icons.Outlined.Edit)
+        }
+        if (item.row.processingStatus == "recorded") {
+            Text("Nominal, rekening, dan tanggal diubah di web.", style = CompanionType.meta, color = colors.text2)
+            CompanionButton("Lihat di Buku Kas (web)", onOpenLedger, Modifier.fillMaxWidth(), ButtonKind.GHOST, Icons.AutoMirrored.Outlined.OpenInNew)
         }
     }
 }

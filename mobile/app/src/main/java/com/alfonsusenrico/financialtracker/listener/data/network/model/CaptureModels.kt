@@ -2,12 +2,21 @@ package com.alfonsusenrico.financialtracker.listener.data.network.model
 
 import com.google.gson.annotations.SerializedName
 
-/** `POST /api/capture/text`; the backend bounds the text to 1–200 characters after normalisation. */
+/**
+ * `POST /api/capture/text`; the backend bounds the text to 1–200 characters after normalisation.
+ * [questionTypes] lists the questions this phone can answer; without `time` the tracker never asks it.
+ */
 data class CaptureTextRequest(
     @SerializedName("client_capture_id") val clientCaptureId: String,
     @SerializedName("text") val text: String,
-    @SerializedName("device_time") val deviceTime: String
+    @SerializedName("device_time") val deviceTime: String,
+    @SerializedName("question_types") val questionTypes: List<String>? = null
 )
+
+/** The follow-up question types this companion answers. */
+object CaptureQuestionTypes {
+    val ANSWERED = listOf("amount", "kind", "account", "category", "time")
+}
 
 /** `POST /api/capture/{id}/answer`: exactly the field the open question's type takes, plus its ids. */
 data class CaptureAnswerRequest(
@@ -40,7 +49,7 @@ data class CaptureView(
     @SerializedName("undone_at") val undoneAt: String? = null
 )
 
-/** One open question: `amount`, `kind`, `account` (with `role`) or `category`. */
+/** One open question: `amount`, `time`, `kind`, `account` (with `role`) or `category`. */
 data class CaptureQuestion(
     @SerializedName("question_id") val questionId: String? = null,
     @SerializedName("type") val type: String? = null,
@@ -52,10 +61,11 @@ data class CaptureQuestion(
     @SerializedName("allows_other") val allowsOther: Boolean? = null
 )
 
-/** A kind, account or category choice; category options carry their category id and pillar. */
+/** A kind, time, account or category choice; category options carry their category id and pillar, time options their moment. */
 data class CaptureOption(
     @SerializedName("id") val id: String? = null,
     @SerializedName("label") val label: String? = null,
+    @SerializedName("date") val date: String? = null,
     @SerializedName("type") val type: String? = null,
     @SerializedName("category_id") val categoryId: String? = null,
     @SerializedName("kakeibo") val kakeibo: String? = null
@@ -66,6 +76,8 @@ data class CaptureSummary(
     @SerializedName("type") val type: String? = null,
     @SerializedName("amount") val amount: Long? = null,
     @SerializedName("date") val date: String? = null,
+    /** "Hari ini 14.00": the moment as the tracker read it, null while the time is still asked. */
+    @SerializedName("time_label") val timeLabel: String? = null,
     @SerializedName("description") val description: String? = null
 )
 

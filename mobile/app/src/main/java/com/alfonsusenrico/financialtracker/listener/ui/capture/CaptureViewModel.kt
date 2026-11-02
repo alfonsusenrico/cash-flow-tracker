@@ -15,12 +15,9 @@ import com.alfonsusenrico.financialtracker.listener.ui.detail.TransactionDraft
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -81,10 +78,6 @@ class CaptureViewModel @JvmOverloads constructor(
     private val _notice = MutableStateFlow<CaptureNotice?>(null)
     val notice: StateFlow<CaptureNotice?> = _notice.asStateFlow()
 
-    /** Emitted when a capture changed the tracker's ledger, so the server summary can be refreshed. */
-    private val _ledgerChanged = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val ledgerChanged: SharedFlow<Unit> = _ledgerChanged.asSharedFlow()
-
     fun observe(id: Long): Flow<TextCaptureEntity?> = dao.observeById(id)
 
     /** Opens the sheet on a new capture, or on [captureId] to continue it (answer, undo, retry). */
@@ -139,8 +132,7 @@ class CaptureViewModel @JvmOverloads constructor(
             activeId.value = id
             _inFlight.update { it + id }
             try {
-                val sent = captures.send(id, ownerAsked = false)
-                if (sent?.state == TextCaptureState.RECORDED) _ledgerChanged.tryEmit(Unit)
+                captures.send(id, ownerAsked = false)
             } finally {
                 _inFlight.update { it - id }
             }
@@ -149,32 +141,24 @@ class CaptureViewModel @JvmOverloads constructor(
 
     /** "Kirim" or "Coba lagi": an owner action, so a failed attempt is resent once online. */
     fun send(id: Long) = act(id, inFlight = true) {
-        val sent = captures.retry(id)
-        if (sent?.state == TextCaptureState.RECORDED) _ledgerChanged.tryEmit(Unit)
+        captures.retry(id)
         null
     }
 
     fun answer(id: Long, answer: CaptureAnswer) = act(id) {
-        val result = captures.answer(id, answer)
-        if (result == CaptureActionResult.DONE && dao.getById(id)?.state == TextCaptureState.RECORDED) _ledgerChanged.tryEmit(Unit)
-        CaptureMessages.answer(result)
+        CaptureMessages.answer(captures.answer(id, answer))
     }
 
     fun resendAnswer(id: Long) = act(id) {
-        val result = captures.resendAnswer(id)
-        if (result == CaptureActionResult.DONE && dao.getById(id)?.state == TextCaptureState.RECORDED) _ledgerChanged.tryEmit(Unit)
-        CaptureMessages.answer(result)
+        CaptureMessages.answer(captures.resendAnswer(id))
     }
 
     fun undo(id: Long) = act(id) {
-        val result = captures.undo(id)
-        if (result == CaptureActionResult.DONE) _ledgerChanged.tryEmit(Unit)
-        CaptureMessages.undo(result)
+        CaptureMessages.undo(captures.undo(id))
     }
 
     fun edit(id: Long, draft: TransactionDraft, done: (Boolean) -> Unit) = act(id) {
         val result = captures.edit(id, TransactionUpdateRequest(draft.type, draft.amount, draft.accountId, draft.categoryId, draft.notes))
-        if (result == CaptureActionResult.DONE) _ledgerChanged.tryEmit(Unit)
         done(result == CaptureActionResult.DONE)
         CaptureMessages.edit(result)
     }
@@ -202,9 +186,7 @@ class CaptureViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             _busy.value = true
             try {
-                val result = captures.deleteFromTracker(id)
-                if (result == CaptureActionResult.DONE || result == CaptureActionResult.NOT_FOUND) _ledgerChanged.tryEmit(Unit)
-                onDone(CaptureMessages.delete(result))
+                onDone(CaptureMessages.delete(captures.deleteFromTracker(id)))
             } finally {
                 _busy.value = false
             }

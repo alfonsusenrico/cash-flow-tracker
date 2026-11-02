@@ -41,9 +41,6 @@ data class CompanionColors(
     val mutedFg: Color,
     val moneyIn: Color,
     val moneyOut: Color,
-    /** Top-category bars on a tile and its track; the largest uses [barHighlight]. */
-    val bar: Color,
-    val barHighlight: Color,
     val switchOn: Color,
     val switchOff: Color,
     val snackbarBg: Color,
@@ -83,8 +80,6 @@ val LightCompanionColors = CompanionColors(
     mutedFg = Color(0xFF4A4D54),
     moneyIn = Color(0xFF13703C),
     moneyOut = Color(0xFF0F1012),
-    bar = Color(0xFF0F1012),
-    barHighlight = Color(0xFFD9531C),
     switchOn = Color(0xFF0F1012),
     switchOff = Color(0xFF7C7F86),
     snackbarBg = Color(0xFF0F1012),
@@ -124,8 +119,6 @@ val DarkCompanionColors = CompanionColors(
     mutedFg = Color(0xFFB5B9C1),
     moneyIn = Color(0xFF7DE3B0),
     moneyOut = Color(0xFFF4F2EE),
-    bar = Color(0xFF8A8E96),
-    barHighlight = Color(0xFFFF7A45),
     switchOn = Color(0xFFFF7A45),
     // The prototype's #5F636B reaches 2.9:1 on the tile; the strong border colour meets the 3:1 non-text minimum.
     switchOff = Color(0xFF6F737B),

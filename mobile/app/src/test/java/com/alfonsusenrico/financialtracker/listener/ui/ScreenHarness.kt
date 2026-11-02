@@ -6,12 +6,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.unit.Density
 import com.alfonsusenrico.financialtracker.listener.data.model.RawNotificationEntity
-import com.alfonsusenrico.financialtracker.listener.ui.home.HomeState
-import com.alfonsusenrico.financialtracker.listener.ui.model.CapturePresentation
-import com.alfonsusenrico.financialtracker.listener.ui.model.HomeFigures
+import com.alfonsusenrico.financialtracker.listener.data.prefs.ServerContact
+import com.alfonsusenrico.financialtracker.listener.ui.hub.HubInputs
 import com.alfonsusenrico.financialtracker.listener.ui.model.OpenQuestions
-import com.alfonsusenrico.financialtracker.listener.ui.model.RowPresentation
-import com.alfonsusenrico.financialtracker.listener.ui.model.SyncHealth
 import com.alfonsusenrico.financialtracker.listener.ui.shell.CompanionLists
 import com.alfonsusenrico.financialtracker.listener.ui.theme.CompanionTheme
 
@@ -39,21 +36,18 @@ fun fixtureLists(): CompanionLists {
     )
 }
 
-fun homeState(
-    lists: CompanionLists = fixtureLists(), permission: Boolean = true, connected: Boolean = true,
-    captures: List<CapturePresentation>? = emptyList()
-): HomeState {
-    val loaded = lists.takeIf { it.loaded }
-    return HomeState(
-        today = UiFixtures.today,
-        figures = HomeFigures.of(loaded?.let { it.visible + it.local + it.ignored }, UiFixtures.today, captures),
-        questionCount = loaded?.questions?.size,
-        nextQuestion = lists.questions.firstOrNull()?.let(RowPresentation::of),
-        health = SyncHealth(listenerConnected = connected, lastSyncAt = UiFixtures.at(UiFixtures.today, 10, 42), failedCaptures = 2, dropped = 0),
-        needsCheck = HomeFigures.needsCheck(loaded?.visible, captures),
-        onPhone = HomeFigures.onPhone(loaded?.local, captures),
-        listenerPermissionGranted = permission
-    )
-}
+/** A calm, paired phone at 10.00 on the fixture day; tests change what they are about. */
+fun hubInputs(
+    capturedToday: Int? = 7,
+    waiting: Int? = 0,
+    now: Long = UiFixtures.at(UiFixtures.today, 10, 0)
+) = HubInputs(
+    paired = true, notificationAccess = true, listenerConnected = true,
+    listenerDisconnectedAt = 0, listenerConnectedAt = UiFixtures.at(UiFixtures.today, 7, 2),
+    serverContact = ServerContact.OK, online = true, autoSync = true, batteryUnrestricted = true, postNotifications = true,
+    capturedToday = capturedToday, lastCaptureApp = "GoPay", lastCaptureAt = UiFixtures.at(UiFixtures.today, 9, 41),
+    lastSyncAt = UiFixtures.at(UiFixtures.today, 9, 42), waiting = waiting, oldestWaitingAt = null,
+    selfTestPassedAt = 0, oem = null, now = now, zone = UiFixtures.zone
+)
 
 fun List<RawNotificationEntity>.byId(id: Long) = first { it.id == id }

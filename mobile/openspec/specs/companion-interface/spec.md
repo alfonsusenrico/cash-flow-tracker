@@ -1,60 +1,46 @@
 # companion-interface Specification
 
 ## Purpose
-The companion's screens: how the owner moves between home, activity, questions and settings, what the
-home figures count, how the theme is chosen, and the accessibility every screen keeps.
+The companion's screens: the status hub and the sheets over it (questions, capture log, details, settings,
+status and web links), what the hub counts and never shows, how problems are fixed, how the theme is chosen,
+and the accessibility every screen keeps.
 
 ## Requirements
 
-### Requirement: Bottom navigation
-The companion SHALL show a bottom bar with the tabs Beranda, Aktivitas, Tanya and Atur on its four top-level screens, mark the current tab as selected for TalkBack, and hide the bar on the detail page. The Tanya tab SHALL show the number of open questions when there is at least one.
-
-#### Scenario: Switching tabs
-- **WHEN** the owner taps Aktivitas, then Tanya, then Atur, then Beranda
-- **THEN** each tab opens its screen and TalkBack announces it as the selected tab
-
-#### Scenario: Open questions are counted
-- **WHEN** two questions wait for the owner
-- **THEN** the Tanya tab shows 2 and TalkBack reads "Tanya, 2 pertanyaan menunggu"
-
-#### Scenario: No open questions
-- **WHEN** no question waits for the owner
-- **THEN** the Tanya tab shows no count
-
 ### Requirement: Home figures come from this phone's rows
-Beranda's own figures SHALL be counts computed only from notifications and typed captures stored on this phone, never money amounts. The "Aktivitas ponsel hari ini" tile SHALL count today's captured notifications, those waiting for the tracker or not yet sent, and typed captures waiting, SHALL say that it comes from this phone, and SHALL open Aktivitas. Open questions, items to check and items kept on the phone keep their own count tiles. A count not yet read SHALL show "—", never 0.
+Beranda's own figures SHALL be counts computed only from notifications and typed captures stored on this phone, never money amounts. The status card SHALL count the notifications captured today, and its sync line SHALL count what waits to reach the tracker: notifications not yet sent, typed captures queued or being sent, and answers waiting to be sent. A count not yet read SHALL never show as 0.
 
 #### Scenario: Recorded rows are summed
 - **WHEN** today has a recorded expense of Rp187.500 and one of Rp32.000 and a recorded income of Rp250.000
-- **THEN** "Aktivitas ponsel hari ini" counts the three notifications, and neither Rp219.500, Rp250.000 nor any of the three amounts appears on Beranda
+- **THEN** the status card counts the three notifications, and neither Rp219.500, Rp250.000 nor any of the three amounts appears on Beranda
 
 #### Scenario: Unsettled rows are counted, not summed
-- **WHEN** today has a sender question, a source-pocket question and an unsent capture
-- **THEN** "Menunggu" shows 3 notifikasi and none of their amounts appears on Beranda
+- **WHEN** today has one unsent notification, one queued typed capture and one queued answer
+- **THEN** the sync line says "3 nunggu dikirim" and no amount appears
 
 #### Scenario: The phone is not the tracker
 - **WHEN** Beranda is shown
-- **THEN** the activity tile says "Dari notifikasi dan catatan di ponsel ini" and the page says that money comes only from the tracker and that the counts come from this phone
+- **THEN** it shows no money figure at all, and the web is where money is read
 
 #### Scenario: Nothing recorded in three days
 - **WHEN** no expense with a category was recorded on the phone in the last three days
-- **THEN** Beranda shows no category computed on the phone and no zero amounts
+- **THEN** Beranda shows no category and no zero amounts
 
 #### Scenario: Typed captures are counted with the notifications
-- **WHEN** today has a recorded notification expense of Rp32.000, a recorded typed expense of Rp10.000, a recorded typed move of Rp200.000 and one typed capture waiting in the queue
-- **THEN** "Menunggu" adds "· 1 catatan", and none of Rp32.000, Rp10.000, Rp42.000 or Rp200.000 appears on Beranda
+- **WHEN** a typed capture waits in the queue
+- **THEN** it is counted in the waiting items, and no amount of it appears on Beranda
 
 #### Scenario: Counts tile
-- **WHEN** today this phone captured 7 notifications, 3 of them wait or are unsent, and 1 typed capture waits
-- **THEN** "Aktivitas ponsel hari ini" shows 7 "notifikasi tertangkap", "Menunggu 3 notifikasi · 1 catatan", "Dari notifikasi dan catatan di ponsel ini", and tapping it opens Aktivitas with Semua
+- **WHEN** today this phone captured 7 notifications, the last from GoPay at 12.41
+- **THEN** the status card says "7 notifikasi ketangkep hari ini · terakhir GoPay, 12.41"
 
 #### Scenario: Counts not yet read
 - **WHEN** Beranda is shown before the phone's notification rows or typed captures have been read
-- **THEN** the activity tile, "Perlu cek" and "Di ponsel" show "—" for each unread count and TalkBack reads "belum dimuat", and "Pertanyaan" says "Belum dimuat"; no tile shows 0 or "Semua terjawab" before then
+- **THEN** the card says "Tangkapan hari ini belum kebaca" or "Antrean belum kebaca", and no count shows 0 and the questions do not say "none" before then
 
 #### Scenario: Nothing captured today
 - **WHEN** the phone's rows have been read and none was captured today
-- **THEN** the activity tile shows 0 notifikasi tertangkap and "Menunggu 0 notifikasi"
+- **THEN** the card says "Belum ada notifikasi yang ketangkep hari ini"
 
 ### Requirement: Unknown amounts are never shown as zero
 A row whose amount neither the tracker nor the phone knows SHALL show "Rp —", and TalkBack SHALL read "Nominal belum jelas".
@@ -64,22 +50,22 @@ A row whose amount neither the tracker nor the phone knows SHALL show "Rp —", 
 - **THEN** the feed and the detail page show "Rp —" and never Rp0
 
 ### Requirement: Home tiles open their list
-Each Beranda tile with an arrow SHALL be one control that opens its list: questions open Tanya at the first open question, sync opens Atur, the phone's activity opens Aktivitas, "Perlu cek" opens Aktivitas filtered to Perlu cek, and "Di ponsel" opens Aktivitas filtered to Di ponsel.
+Each of Beranda's tiles and links SHALL be one control of at least 48 dp that opens its sheet: Riwayat opens the capture log, Pengaturan the settings, Buka web the web links, "Rincian" the status details, "Lihat semua" the question sheet, and "Catat transaksi" the capture sheet.
 
 #### Scenario: Perlu cek tile
-- **WHEN** the owner taps the "Perlu cek" tile
-- **THEN** Aktivitas opens with the Perlu cek filter selected
+- **WHEN** the owner opens Riwayat and selects "Perlu cek"
+- **THEN** only rows and captures not yet settled are listed
 
 #### Scenario: Listener access is off
 - **WHEN** notification access is not granted
-- **THEN** Beranda says that new transactions are not captured and offers to open Android's notification access page
+- **THEN** Beranda says that it cannot hear notifications and its fix opens Android's notification access page
 
 #### Scenario: Activity tile
-- **WHEN** the owner taps "Aktivitas ponsel hari ini"
-- **THEN** Aktivitas opens with the Semua filter selected
+- **WHEN** the owner taps "Riwayat"
+- **THEN** the capture log opens with the Semua filter selected
 
 ### Requirement: Activity feed
-Aktivitas SHALL list rows grouped by day, newest first, each with its title, amount, status badge, account or app, and time, and each day with its recorded money out. It SHALL offer the filters Semua, Perlu dijawab, Perlu cek, Di ponsel and Diabaikan, with counts, followed by the per-app filters, and SHALL note how many cross-app duplicates are hidden.
+Riwayat (the capture log) SHALL list rows grouped by day, newest first, each with its title, its own amount, status badge (recorded with the habit tag, needs an answer, kept on the phone, ignored and the others), account or app, and time. A day heading SHALL name the day only, with no money total. It SHALL offer the filters Semua, Perlu dijawab, Perlu cek, Di ponsel and Diabaikan, with counts, followed by the per-app filters, and SHALL note how many cross-app duplicates are hidden.
 
 #### Scenario: Filter chosen
 - **WHEN** the owner selects "Perlu cek"
@@ -95,7 +81,7 @@ Aktivitas SHALL list rows grouped by day, newest first, each with its title, amo
 
 #### Scenario: Opening a row
 - **WHEN** the owner taps a row with an open question
-- **THEN** Tanya opens at that question; any other row opens its detail page
+- **THEN** the question sheet opens at that question; any other row opens its Rincian over Riwayat
 
 ### Requirement: Delete with undo from the feed
 Swiping a feed row to the left, or the TalkBack action "Hapus dari aplikasi", SHALL hide the row on the phone and offer "Urungkan", which SHALL restore it. Deleting SHALL never change the tracker.
@@ -112,7 +98,7 @@ Under Diabaikan, "Hapus semua" SHALL ask for confirmation before hiding every ig
 - **THEN** no row changes
 
 ### Requirement: Detail page
-Opening a row SHALL show a full page with back and delete, a hero (status, amount, title, date, time and source app), a state box with its action, "Yang dicatat tracker" with "Ubah transaksi" and an inline form, the original notification, and "Hapus dari aplikasi" behind a confirmation. A row with an open question SHALL link to Tanya instead of answering it on the page.
+Opening a row SHALL show Rincian with back and delete, a hero (status, amount, title, date, time and source app), a state box with its action, "Yang dicatat tracker" with "Perbaiki label" and "Lihat di Buku Kas (web)" for a recorded row, the original notification, and "Hapus dari aplikasi" behind a confirmation. A row with an open question SHALL link to the question sheet instead of answering it on the page.
 
 #### Scenario: Review row
 - **WHEN** the owner opens a row that needs review
@@ -124,21 +110,21 @@ Opening a row SHALL show a full page with back and delete, a hero (status, amoun
 
 #### Scenario: Question row
 - **WHEN** the owner opens a row with an open question
-- **THEN** the state box names the question and "Jawab sekarang" opens it in Tanya
+- **THEN** the state box names the question and "Jawab sekarang" opens it in the question sheet
 
 #### Scenario: Pocket move
 - **WHEN** the owner opens a recorded move between pockets
-- **THEN** no phone edit is offered and the page says it is changed on Tracker Web
+- **THEN** no label correction is offered and "Lihat di Buku Kas (web)" leads to the web
 
 #### Scenario: Delete from the detail page
 - **WHEN** the owner confirms "Hapus dari aplikasi"
 - **THEN** the page closes and the deletion can be undone
 
 ### Requirement: Questions are answered one at a time in Tanya
-Tanya SHALL show one open question per page, newest first: first the original notification as a quote (app, day, time and full text), then the question card with status, amount, question and controls, then a pager with "n dari m". A question answered on the page SHALL stay with its state and offer the next question.
+The question sheet SHALL show one open question per page, urgent questions first: a tag "Perlu sekarang" or "Nanti malam · <time>", then the original notification as a quote (app, day, time and full text), then the question card with status, amount, question and controls, then a pager with "n dari m". A question answered on the page SHALL stay with its state and offer the next question.
 
 #### Scenario: Original text first
-- **WHEN** Tanya shows a purpose question
+- **WHEN** the question sheet shows a purpose question
 - **THEN** the full notification text appears above the question
 
 #### Scenario: Paging
@@ -147,14 +133,14 @@ Tanya SHALL show one open question per page, newest first: first the original no
 
 #### Scenario: Question closed elsewhere
 - **WHEN** a notification opens a question that is no longer open
-- **THEN** Tanya says it is closed and offers "Lihat transaksi"
+- **THEN** the sheet says it is closed and offers "Lihat transaksi"
 
 #### Scenario: Nothing to answer
 - **WHEN** no question is open
-- **THEN** Tanya says "Semua terjawab"
+- **THEN** the sheet says "Semua terjawab"
 
 ### Requirement: Theme choice
-The companion SHALL follow the system's light or dark setting until the owner chooses Terang or Gelap under Atur → Tampilan. The choice SHALL be stored on the phone, survive restarts and app updates, and "Ikuti sistem" SHALL return to following the system. An unknown stored value SHALL be treated as "Ikuti sistem".
+The companion SHALL follow the system's light or dark setting until the owner chooses Terang or Gelap under Pengaturan → Tampilan. The choice SHALL be stored on the phone, survive restarts and app updates, and "Ikuti sistem" SHALL return to following the system. An unknown stored value SHALL be treated as "Ikuti sistem".
 
 #### Scenario: Owner picks dark
 - **WHEN** the owner selects "Gelap"
@@ -165,18 +151,22 @@ The companion SHALL follow the system's light or dark setting until the owner ch
 - **THEN** the theme follows the system
 
 ### Requirement: Settings keep every control
-Atur SHALL show listener health tiles and all listener figures, the auto-sync switch, "Sinkron sekarang", a switch for every monitored app, the connection fields, links to Android's notification access, battery optimisation and app info pages with the HiOS note, and the theme choice. A settings page Android does not offer SHALL be reported to the owner.
+Pengaturan SHALL be plain grouped lists: monitored apps, Kirim (auto-sync and "Sinkron sekarang"), Pengingat malam, the connection, Izin & baterai with "Tes HP-ku", Tampilan, and Tentang with the version. The listener figures SHALL be in "Rincian status". A settings page Android does not offer SHALL be reported to the owner.
 
 #### Scenario: Battery page missing
 - **WHEN** the phone has no battery optimisation page for the app
 - **THEN** the companion opens the general battery page, or says the page is unavailable
 
+#### Scenario: Connection and permissions
+- **WHEN** the owner opens Pengaturan
+- **THEN** the connection offers the device name, "Tes Koneksi", "Sambungin ulang" and "Pakai kunci API", and Izin & baterai links Android's notification access, battery optimisation and app info pages with this phone's battery-saver steps
+
 ### Requirement: Accessible screens
-Every control SHALL have a target of at least 48 dp and a TalkBack label, every icon-only control SHALL have a description, page and card titles SHALL be headings, status SHALL be given in text with an icon and never by colour alone, and money SHALL use tabular figures. Text SHALL reach 4.5:1 contrast and meaningful non-text 3:1 in both themes. Layouts SHALL stay usable at font scale 2.0, and transitions SHALL be removed when Android's animations are off.
+Every control SHALL have a target of at least 48 dp and a TalkBack label, every icon-only control SHALL have a description, page, sheet and card titles SHALL be headings, status SHALL be given in text with an icon and never by colour alone, and money SHALL use tabular figures. Text SHALL reach 4.5:1 contrast and meaningful non-text 3:1 in both themes. Layouts SHALL stay usable at font scale 2.0, and transitions SHALL be removed when Android's animations are off.
 
 #### Scenario: Large text
 - **WHEN** the font scale is 2.0
-- **THEN** Beranda's tiles stack in one column and every control on Beranda, Aktivitas, Rincian, Tanya and Atur stays reachable and at least 48 dp high
+- **THEN** the hub's tiles stack in one column and every control on the hub, Riwayat, Rincian, the question sheet and Pengaturan stays reachable and at least 48 dp high
 
 #### Scenario: Contrast
 - **WHEN** the colour tokens of either theme are checked
@@ -188,73 +178,18 @@ Every control SHALL have a target of at least 48 dp and a TalkBack label, every 
 
 #### Scenario: Bottom bar at large text
 - **WHEN** the font scale is 2.0 on a phone 320 or 360 dp wide
-- **THEN** every bottom-bar label (Beranda, Aktivitas, Catat, Tanya, Atur) is shown whole on one line at the scaled size, or reduced only as far as the word needs and never below its size at font scale 1.0, never cut or broken, with its full TalkBack name and a target of at least 48 dp
+- **THEN** there is no bottom bar; "Catat transaksi" stays at least 60 dp high and the Riwayat, Pengaturan and Buka web tiles are shown whole, stacked, with their full TalkBack names and targets of at least 48 dp
 
 #### Scenario: Amounts and day headers at large text
 - **WHEN** the font scale is 2.0 on a phone 320 or 360 dp wide
-- **THEN** no amount on Beranda or in Aktivitas' day headers breaks across lines: a label such as "Dikurangi penggantian" wraps or puts its amount below it, with TalkBack text unchanged, and a day header wraps only between words, keeps its date ("Kamis, 29 Okt") on one line and puts "Keluar …" below it
-
-### Requirement: Beranda money comes only from the tracker's summary
-The only money amounts on Beranda SHALL come from the tracker's cash-flow summary for today, read from `GET /api/dashboard/cash-flow-summary?period=today` with the phone's Bearer key: its totals in the "Arus kas tracker" tile and its top categories in "Kategori teratas", each with the summary's period and freshness. The phone SHALL never add its own rows or captures to these amounts, nor show on Beranda a money total computed from them.
-
-#### Scenario: No local money amount on Beranda
-- **WHEN** today has recorded notification and typed expenses, incomes and moves on the phone, and the tracker summary says Rp200.000 out
-- **THEN** Beranda shows "Uang keluar tracker Rp200.000" and no money amount other than the tracker's: no "Keluar tercatat hari ini", no local Masuk or Pindah amount, no three-day money bars and no local category amount
-
-#### Scenario: Summary just refreshed
-- **WHEN** the summary request succeeds
-- **THEN** the tile shows money out, Masuk and Neto, and "Keluar kotor" and "Dikurangi penggantian" when reimbursements apply, then "Periode" with the start, end and timezone, and "Diperbarui" with the time the tracker generated it
-
-#### Scenario: Summary restored from the phone
-- **WHEN** Beranda opens with a stored summary for the current pairing and the refresh has not finished
-- **THEN** the tile shows the stored amounts with "Tersimpan di ponsel, terakhir diperbarui" and its time, and the refresh button reads "Memperbarui arus kas…" and is disabled
-
-#### Scenario: Refresh failed or offline
-- **WHEN** a summary is shown and the next refresh fails with a server error or no connection
-- **THEN** the tile keeps the last amounts, says "Belum diperbarui. Terakhir berhasil" with its time, and gives the reason ("Arus kas belum dapat diperbarui." or "Tidak terhubung ke tracker.")
-
-#### Scenario: No summary available
-- **WHEN** the phone is not paired, the key is refused, or no summary was ever received
-- **THEN** the tile says why ("Hubungkan tracker untuk melihat arus kas.", "Hubungkan kembali tracker untuk melihat arus kas." or "Arus kas belum tersedia.") and shows no amount, never Rp0
-
-### Requirement: Top categories come from the tracker or are not shown
-Beranda SHALL show "Kategori teratas" only from the `top_categories` the tracker sends with its cash-flow summary: at most three categories, one of which may be the spending without a category, with their amount, Kakeibo pillar and a bar relative to the largest, and the summary's period and freshness, stored, restored and marked stale with the summary. When the field is absent or breaks its contract, Beranda SHALL show no categories tile, and the phone SHALL never compute category totals.
-
-#### Scenario: Tracker offers no categories for the period
-- **WHEN** Beranda is shown with a summary from a tracker that does not send `top_categories`
-- **THEN** Beranda shows no "Kategori teratas" tile and no category amount
-
-#### Scenario: Recorded categories on the phone
-- **WHEN** the phone holds recorded expenses with categories from the last three days
-- **THEN** no category name or amount from them appears on Beranda
-
-#### Scenario: Tracker sends its top categories
-- **WHEN** the summary's `top_categories` are Belanja Rumah Rp410.000 (need), Hiburan Contoh Rp150.000 (want) and Lain-lain Rp80.000 (no pillar)
-- **THEN** "Kategori teratas" lists them in that order with their amounts, "Kebutuhan" and "Keinginan", bars relative to Rp410.000, the summary's "Periode" and "Diperbarui" lines, and TalkBack reads the first as "Belanja Rumah, Rp410.000, Kebutuhan"
-
-#### Scenario: Spending without a category
-- **WHEN** the summary's `top_categories` are Belanja Rumah Rp410.000 (need), an entry with a null `category_id` named "Tanpa kategori" Rp150.000, and Lain-lain Rp80.000
-- **THEN** "Kategori teratas" lists "Tanpa kategori" second with Rp150.000, its bar and no pillar, TalkBack reads it as "Tanpa kategori, Rp150.000", and it is stored and restored with its null id
-- **AND** the same entry with a blank or missing name, or with a pillar, is shown and read the same way
-
-#### Scenario: No spending in the period
-- **WHEN** the summary's `top_categories` is an empty list
-- **THEN** the tile says "Belum ada pengeluaran pada periode ini" and shows no Rp0
-
-#### Scenario: Stored or not updated
-- **WHEN** the summary shown was restored from the phone, or the last refresh failed
-- **THEN** the tile shows the stored categories with the same "Tersimpan di ponsel, terakhir diperbarui" or "Belum diperbarui. Terakhir berhasil" line and reason as the "Arus kas tracker" tile
-
-#### Scenario: Categories that break the contract
-- **WHEN** `top_categories` holds more than three entries, entries not sorted by outflow descending, a negative or missing outflow, a blank name on an entry with a category id, an unknown pillar, or more than one entry with a null `category_id`
-- **THEN** Beranda shows no "Kategori teratas" tile and still shows the summary's totals
+- **THEN** a Riwayat day header wraps only between words, keeps its date ("Kamis, 29 Okt") on one line and holds no money total
 
 ### Requirement: Rows recorded from a habit say so
-When the tracker's result for a recorded expense or income carries a `habit` with a label and a basis, the phone SHALL keep it with the row's stored result, show a "Dari kebiasaan" tag beside the row's status in Aktivitas, include "Dari kebiasaan" in the row's TalkBack description, and show "Dicatat dari kebiasaan: <kategori> · <basis>" in Rincian under "Yang dicatat tracker". A result without a complete habit SHALL show neither.
+When the tracker's result for a recorded expense or income carries a `habit` with a label and a basis, the phone SHALL keep it with the row's stored result, show a "Dari kebiasaan" tag beside the row's status in Riwayat, include "Dari kebiasaan" in the row's TalkBack description, and show "Dicatat dari kebiasaan: <kategori> · <basis>" in Rincian under "Yang dicatat tracker". A result without a complete habit SHALL show neither.
 
 #### Scenario: Habit-recorded expense
 - **WHEN** the tracker records Warung Contoh Rp27.000 at 12.10 with the habit label "Dicatat dari kebiasaan: Makan & Minum" and basis "3 dari 3 jawaban sebelumnya"
-- **THEN** its Aktivitas row shows "Tercatat" and "Dari kebiasaan", TalkBack reads "Warung Contoh, Keluar Rp27.000, Tercatat, Dari kebiasaan, GoPay Contoh, 12.10", and Rincian shows "Dicatat dari kebiasaan: Makan & Minum · 3 dari 3 jawaban sebelumnya"
+- **THEN** its Riwayat row shows "Tercatat" and "Dari kebiasaan", TalkBack reads "Warung Contoh, Keluar Rp27.000, Tercatat, Dari kebiasaan, GoPay Contoh, 12.10", and Rincian shows "Dicatat dari kebiasaan: Makan & Minum · 3 dari 3 jawaban sebelumnya"
 
 #### Scenario: Tracker without habits
 - **WHEN** a tracker older than 1.8.0 sends a recorded result without `habit`
@@ -271,3 +206,120 @@ When the tracker's result for a recorded expense or income carries a `habit` wit
 #### Scenario: Habit tag at large text
 - **WHEN** the font scale is 2.0, in the light or the dark theme
 - **THEN** the "Dari kebiasaan" tag is shown whole beside the status with its icon and text, and the row's TalkBack description still includes it
+
+### Requirement: Beranda is one status hub
+Beranda SHALL be one screen (direction C, "Satu layar status"): the status card, one large "Catat transaksi" button, a "Laporan siap" card when one applies, the next open question, and the tiles Riwayat, Pengaturan and Buka web, with no bottom bar. The calm card SHALL say "Lagi jagain notifikasimu", today's capture count with the last capture, the sync line and "Rincian". Every other screen SHALL open as a sheet over the hub.
+
+#### Scenario: Calm phone
+- **WHEN** the listener is connected, access is granted, the tracker answered and 7 notifications were captured today, the last from GoPay at 12.41
+- **THEN** the card says "Lagi jagain notifikasimu", "7 notifikasi ketangkep hari ini · terakhir GoPay, 12.41" and "Kekirim semua, 12.42", and offers "Rincian"
+
+#### Scenario: Counts not yet read
+- **WHEN** the hub opens before the phone's rows or queue have been read
+- **THEN** the card says "Tangkapan hari ini belum kebaca" and "Antrean belum kebaca", never 0, and the question area says nothing until the questions are read
+
+#### Scenario: Next question in place
+- **WHEN** two questions wait, a sender question and a purpose question
+- **THEN** the hub says "Ada 2 pertanyaan" with "1 bisa nanti malam, 20.00", shows the sender question first with "Perlu sekarang", answerable in place with its original notification, with the next card peeking behind it, and "Lihat semua" opens the question sheet
+
+#### Scenario: No questions
+- **WHEN** no question waits
+- **THEN** the hub says "Nggak ada pertanyaan" and "Aku kabarin kalau ada yang baru."
+
+### Requirement: Problems take over the status card with one fix
+When something stops or delays capture, the status card SHALL show the one problem that matters most, with its symbol, title, explanation, the sync line and one full-width fix. The order SHALL be: not paired, key refused, notification access lost, listener disconnected or frozen, server unreachable, items waiting to send, a quiet afternoon. A running fix SHALL read "Bentar…", and Catat SHALL step back while a fix shows. Softer issues SHALL be notes with their own button.
+
+#### Scenario: Access lost after an update
+- **WHEN** notification access is revoked
+- **THEN** the card says "Aku nggak bisa denger notifikasi" and "Nyalain lagi" opens Android's notification access page
+
+#### Scenario: Frozen by HiOS
+- **WHEN** the listener disconnected at 09.40 on a TECNO phone
+- **THEN** the card says "HP-mu nidurin aku", "Penghemat baterai HiOS ngebekuin aplikasi ini dari jam 09.40. Notifikasi setelah itu bisa kelewat.", shows the Phone Master steps, and "Atur baterai" opens the battery exemption page
+
+#### Scenario: Key refused
+- **WHEN** the tracker refused this phone's key
+- **THEN** the card says "Sambungan ke akunmu putus" and "Sambungin ulang" opens pairing
+
+#### Scenario: Server unreachable
+- **WHEN** the last contact with the tracker failed and 3 items wait
+- **THEN** the card says "Tenang, 3 yang nunggu aman di HP. Aku kirim begitu nyambung." and "Coba lagi" sends now and reports health
+
+#### Scenario: Quiet afternoon
+- **WHEN** no notification was captured today, it is past 12.00 and no self-test passed today
+- **THEN** the card says "Hari ini masih sepi" and "Tes sekarang" runs the self-test; a passing test leaves "Tes oke, aku jalan normal. Mungkin emang belum ada transaksi hari ini." and the card returns to calm
+
+#### Scenario: Waiting offline
+- **WHEN** two items wait and the phone is offline
+- **THEN** the card says "Lagi offline" and "Kirim sekarang" sends them; online, items waiting more than 15 minutes say "Ada 2 yang belum kekirim"
+
+#### Scenario: Listener disconnected without a battery saver
+- **WHEN** the listener is disconnected and the app may run in the background
+- **THEN** the card says "Aku lagi putus dari notifikasi" and "Sambungin lagi" asks Android to reconnect the listener
+
+#### Scenario: Soft issues
+- **WHEN** the battery is not exempt, notifications are off and auto-sync is off, and nothing else is wrong
+- **THEN** the calm card shows three notes with "Izinin", "Nyalain" and "Kirim sekarang"
+
+### Requirement: No money total on the phone
+The hub SHALL show no money amount: no "Arus kas tracker", no "Kategori teratas", no inflow, outflow or net, and no amount computed from this phone's rows. The phone SHALL no longer request `GET /api/dashboard/cash-flow-summary` and SHALL delete a summary cached by an older version. Riwayat SHALL show each item's own amount and no day total. The only amounts on the hub SHALL be those of the question being asked.
+
+#### Scenario: Hub without money
+- **WHEN** the hub is calm and no question is open
+- **THEN** no text on it contains "Rp", "Arus kas tracker" or "Kategori teratas"
+
+#### Scenario: Upgrade from 2.3
+- **WHEN** 2.4.0 starts on a phone that cached a tracker summary
+- **THEN** the cached summary is removed from the phone
+
+### Requirement: Laporan siap from the tracker
+The phone SHALL read `GET /api/reports/monthly/latest` with its Bearer key when the app opens and at most every 6 hours in the background. A ready report with a label, a local start date and a `/laporan` path SHALL show "Laporan <label> udah siap" on the hub until opened, and one "Laporan siap" notification per period that opens the web report. Anything else SHALL show nothing.
+
+#### Scenario: Report ready
+- **WHEN** the tracker answers ready for "Oktober 2026" with `/laporan?basis=month&start=2026-10-01`
+- **THEN** the hub shows "Laporan Oktober 2026 udah siap", one notification says so, and both open that report in the browser
+
+#### Scenario: Older tracker
+- **WHEN** the tracker answers 404, or `ready: false`
+- **THEN** no card or notification appears and no error is shown
+
+#### Scenario: A path that is not the report
+- **WHEN** the answer's `url` is not a `/laporan` path of the tracker
+- **THEN** nothing is stored or opened
+
+### Requirement: Sheets over the hub
+Riwayat, Pengaturan, Buka di web, Rincian status and the question sheet SHALL open as sheets over the hub, each with a title heading and "Tutup"; Rincian SHALL open on top of Riwayat with a way back to it. Android's back SHALL step back one sheet, and the hub behind an open sheet SHALL be hidden from TalkBack. "Buka di web" SHALL list Laporan bulanan, Buku Kas, Tinjau and Pengaturan web and confirm before leaving for the browser.
+
+#### Scenario: Rincian from Riwayat
+- **WHEN** the owner opens Riwayat, then a recorded row, then "Kembali"
+- **THEN** Rincian opens over Riwayat and "Kembali" returns to Riwayat
+
+#### Scenario: Web page confirmed
+- **WHEN** the owner taps "Buku Kas" under "Buka di web"
+- **THEN** a dialog asks before the browser opens the tracker's `/ledger`
+
+### Requirement: Perbaiki label corrects a recorded notification
+Rincian of a recorded notification expense or income of the current pairing SHALL offer "Perbaiki label": category, Kakeibo pillar (expenses only, including "Belum diklasifikasi") and merchant, with nothing preselected. Only what the owner changed SHALL be sent with `PATCH /api/transactions/{id}`, so the tracker records it as owner feedback; amount, account, date and type SHALL NOT be sent. The row's result SHALL then be read again.
+
+#### Scenario: Pillar cleared
+- **WHEN** the owner chooses "Belum diklasifikasi" and saves
+- **THEN** the phone sends `{"kakeibo_type": null}` to that transaction and says "Label diperbarui. Makasih, aku belajar dari koreksimu."
+
+#### Scenario: Category changed
+- **WHEN** the owner picks another expense category and saves
+- **THEN** only `category_id` is sent, and the tracker derives the pillar from that category
+
+#### Scenario: Nothing chosen
+- **WHEN** the owner saves without choosing anything
+- **THEN** nothing is sent and the form says "Pilih kategori, pilar, atau isi merchant dulu."
+
+#### Scenario: Refused
+- **WHEN** the tracker answers 409
+- **THEN** the label is unchanged and the phone says to change it on the web
+
+### Requirement: Full edits of notification rows are on the web
+Rincian of a recorded notification SHALL NOT offer the full transaction form; it SHALL say that amount, account and date are changed on the web and offer "Lihat di Buku Kas (web)". Typed captures SHALL keep "Ubah". "Catat manual" for a row that needs review and "Periksa lalu kirim" for an unsent row SHALL stay.
+
+#### Scenario: Recorded notification
+- **WHEN** the owner opens a recorded notification expense
+- **THEN** "Perbaiki label" and "Lihat di Buku Kas (web)" are offered and "Ubah transaksi" is not

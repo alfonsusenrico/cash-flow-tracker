@@ -49,11 +49,11 @@ class ContrastTest {
         Pair("Field and ghost-button outline on page", { it.borderStrong }, { it.bg }, Kind.NON_TEXT),
         Pair("Switch on, track", { it.switchOn }, { it.surface }, Kind.NON_TEXT),
         Pair("Switch off, outline and thumb", { it.switchOff }, { it.surface }, Kind.NON_TEXT),
-        Pair("Top-category bar on tile", { it.bar }, { it.surface }, Kind.NON_TEXT),
-        Pair("Top-category bar on its track", { it.bar }, { it.surface2 }, Kind.NON_TEXT),
-        Pair("Largest top-category bar on tile", { it.barHighlight }, { it.surface }, Kind.NON_TEXT),
-        Pair("Largest top-category bar on its track", { it.barHighlight }, { it.surface2 }, Kind.NON_TEXT),
-        Pair("Active tab icon", { it.accentText }, { it.surface }, Kind.NON_TEXT),
+        Pair("Label choice outline on option", { it.borderStrong }, { it.surface2 }, Kind.NON_TEXT),
+        Pair("Hub problem symbol, stopped", { it.askFg }, { it.surface }, Kind.NON_TEXT),
+        Pair("Hub problem symbol, waiting", { it.warnFg }, { it.surface }, Kind.NON_TEXT),
+        Pair("Hub calm illustration outline", { it.text }, { it.surface2 }, Kind.NON_TEXT),
+        Pair("Hub link and arrow (Rincian, Lihat semua)", { it.accentText }, { it.surface }, Kind.NON_TEXT),
         Pair("Focus outline", { it.focus }, { it.surface }, Kind.NON_TEXT)
     )
 

@@ -4,13 +4,10 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.text.TextLayoutResult
 import com.alfonsusenrico.financialtracker.listener.ui.activity.ActivityScreen
-import com.alfonsusenrico.financialtracker.listener.ui.home.HomeScreen
 import com.alfonsusenrico.financialtracker.listener.ui.model.ActivityFilter
-import com.alfonsusenrico.financialtracker.listener.ui.shell.LedgerSummaryState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -21,7 +18,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * At font scale 2.0 no amount breaks across lines, and Aktivitas' day header wraps only between words.
+ * At font scale 2.0 the Riwayat day header wraps only between words and holds no money total.
  * Every text is checked through its real text layout, including texts under a tile's single TalkBack node.
  */
 // Native graphics measures the bundled Archivo font as a phone does; the legacy mode fakes text widths.
@@ -33,7 +30,7 @@ class LargeTextAmountsUiTest(private val dark: Boolean) {
         @JvmStatic @ParameterizedRobolectricTestRunner.Parameters(name = "dark={0}")
         fun themes() = listOf(arrayOf<Any>(false), arrayOf<Any>(true))
 
-        /** Day headers are upper case ("KELUAR RP59.000"). */
+        /** An amount as the phone writes it, in upper or lower case. */
         private val AMOUNT = Regex("""-?Rp[0-9.]+""", RegexOption.IGNORE_CASE)
     }
 
@@ -49,34 +46,11 @@ class LargeTextAmountsUiTest(private val dark: Boolean) {
         return found
     }
 
-    /** Every amount starts and ends on the same line and, when its text is one line, fits the width it was given. */
-    private fun assertNoAmountBreaks() {
-        val checked = mutableListOf<String>()
-        layouts().forEach { layout ->
-            val text = layout.layoutInput.text.text
-            AMOUNT.findAll(text).forEach { match ->
-                val first = layout.getLineForOffset(match.range.first)
-                val last = layout.getLineForOffset(match.range.last)
-                assertEquals("${match.value} in \"$text\" stays on one line", first, last)
-                if (layout.lineCount == 1) {
-                    assertTrue(
-                        "\"$text\" (${layout.multiParagraph.intrinsics.maxIntrinsicWidth} px) fits its ${layout.size.width} px",
-                        layout.multiParagraph.intrinsics.maxIntrinsicWidth <= layout.size.width + 0.5f
-                    )
-                }
-                checked += match.value
-            }
-        }
-        assertTrue("amounts were checked: $checked", checked.isNotEmpty())
-    }
-
-    private fun showHome() {
-        compose.show(dark, fontScale = 2f) {
-            HomeScreen(homeState().copy(ledger = LedgerSummaryState(summary = TopCategoriesUiTest.SUMMARY)), {}, {}, {}, {})
-        }
-        // The spoken figures are unchanged.
-        listOf("Uang keluar tracker Rp640.000", "Masuk Rp1.100.000", "Neto Rp460.000", "Keluar kotor Rp690.000", "Dikurangi penggantian Rp50.000")
-            .forEach { compose.onNodeWithContentDescription(it).assertExists() }
+    /** No day shows a total of money: each item keeps its own amount, and the day headers only name the day. */
+    private fun assertNoDayTotals() {
+        val headers = layouts().map { it.layoutInput.text.text }.filter { it.startsWith("HARI INI") || it.startsWith("KEMARIN") }
+        assertTrue("day headers are shown", headers.isNotEmpty())
+        headers.forEach { assertTrue("\"$it\" holds no amount", AMOUNT.find(it) == null && !it.contains("KELUAR")) }
     }
 
     private fun showActivity() {
@@ -103,28 +77,16 @@ class LargeTextAmountsUiTest(private val dark: Boolean) {
     }
 
     @Config(qualifiers = "w360dp-h740dp")
-    @Test fun berandaAmountsStayWholeOnA360dpPhone() {
-        showHome()
-        assertNoAmountBreaks()
-    }
-
-    @Config(qualifiers = "w320dp-h640dp")
-    @Test fun berandaAmountsStayWholeOnA320dpPhone() {
-        showHome()
-        assertNoAmountBreaks()
-    }
-
-    @Config(qualifiers = "w360dp-h740dp")
     @Test fun aktivitasDayHeaderWrapsCleanlyOnA360dpPhone() {
         showActivity()
         assertDayHeaderWrapsBetweenWords()
-        assertNoAmountBreaks()
+        assertNoDayTotals()
     }
 
     @Config(qualifiers = "w320dp-h640dp")
     @Test fun aktivitasDayHeaderWrapsCleanlyOnA320dpPhone() {
         showActivity()
         assertDayHeaderWrapsBetweenWords()
-        assertNoAmountBreaks()
+        assertNoDayTotals()
     }
 }

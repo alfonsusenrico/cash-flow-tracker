@@ -55,8 +55,15 @@ fun ConnectionSection(onSaved: () -> Unit) {
             Text(outcome.message, style = CompanionType.small, color = if (outcome.connected) colors.okFg else colors.danger,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         }
-        CompanionButton(if (AppPreferences(context).isConfigured) "Pasangkan ulang" else "Hubungkan ponsel", {
+        CompanionButton(if (AppPreferences(context).isConfigured) "Sambungin ulang" else "Sambungin ke akunmu", {
             context.startActivity(Intent(context, PairingActivity::class.java))
         }, Modifier.fillMaxWidth(), enabled = !testing)
+        CompanionButton("Pakai kunci API", {
+            context.startActivity(Intent(context, PairingActivity::class.java).putExtra(PairingActivity.EXTRA_MANUAL, true))
+        }, Modifier.fillMaxWidth(), ButtonKind.GHOST, enabled = !testing)
+        Text(
+            "Cadangan kalau QR nggak bisa. Kunci lama baru aku hapus setelah yang baru berhasil masuk ke akun yang sama.",
+            style = CompanionType.meta, color = colors.text2
+        )
     }
 }

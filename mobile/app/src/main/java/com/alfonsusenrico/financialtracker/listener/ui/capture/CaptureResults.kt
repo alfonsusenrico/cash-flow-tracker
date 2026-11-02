@@ -11,7 +11,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -196,11 +195,14 @@ private fun UndoButton(seconds: Int, fraction: Float, reducedMotion: Boolean, en
     }
 }
 
-/** Amount aside, what the tracker recorded: description, category, pillar and account, or the move. */
-fun recordedTags(item: CapturePresentation): List<FactTag> = if (item.isMovement) {
-    listOfNotNull(FactTag("Pindah saldo"), item.account?.let(::FactTag))
-} else {
-    listOfNotNull(item.title, item.category, kakeiboLabel(item.kakeibo), item.account).distinct().map(::FactTag)
+/** Amount aside, what the tracker recorded: when, then description, category, pillar and account, or the move. */
+fun recordedTags(item: CapturePresentation): List<FactTag> {
+    val time = item.view?.summary?.timeLabel?.takeIf { it.isNotBlank() }
+    return if (item.isMovement) {
+        listOfNotNull(FactTag("Pindah saldo"), time?.let(::FactTag), item.account?.let(::FactTag))
+    } else {
+        listOfNotNull(time, item.title, item.category, kakeiboLabel(item.kakeibo), item.account).distinct().map(::FactTag)
+    }
 }
 
 @Composable

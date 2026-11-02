@@ -6,15 +6,15 @@ Let the owner record a transaction on the phone by typing one short sentence, an
 ## Requirements
 
 ### Requirement: Catat opens the capture sheet
-The bottom bar SHALL show a centred, raised "Catat" button between Aktivitas and Tanya on the four top-level screens. Tapping it SHALL open the capture sheet over the current tab, with the input, "Proses dengan AI" and a close button. While the sheet is open the tab behind it SHALL be hidden from TalkBack, and back or the close button SHALL close it.
+The hub SHALL show one large "Catat transaksi" button below the status card. Tapping it SHALL open the capture sheet over the hub, with the input, "Proses dengan AI" and a close button. While the sheet is open the hub behind it SHALL be hidden from TalkBack, and back or the close button SHALL close it.
 
 #### Scenario: Opening and closing
-- **WHEN** the owner taps "Catat" on Beranda and then "Tutup catat cepat"
-- **THEN** the sheet "Catat cepat" opens with an empty input and then closes, leaving Beranda selected
+- **WHEN** the owner taps "Catat transaksi" on the hub and then "Tutup catat cepat"
+- **THEN** the sheet "Catat cepat" opens with an empty input and then closes, leaving the hub
 
 #### Scenario: Accessible button
 - **WHEN** TalkBack focuses the Catat button
-- **THEN** it reads "Catat transaksi", a button, with whether the sheet is open, and its target is at least 48 dp
+- **THEN** it reads "Catat transaksi", a button, and its target is at least 60 dp high
 
 ### Requirement: Suggestions come only from the owner's history
 When the sheet opens on a new capture it SHALL ask `GET /api/capture/suggestions` with the device time and offset, and list the suggestions under "Dari riwayatmu · yang biasa kamu catat sekitar jam ini". Tapping a suggestion SHALL put its text in the input and focus the input; it SHALL NOT send anything. Without suggestions the section SHALL be hidden; static examples SHALL never be shown.
@@ -96,7 +96,7 @@ A recorded capture SHALL show "Tercatat di tracker", the amount, the description
 - **THEN** the capture stays recorded and the sheet says it was not undone
 
 ### Requirement: Follow-up questions are answered one at a time
-A capture that needs detail SHALL show its text, what is already known, the missing part, the tracker's question, and controls for its type: a typed amount, or chips for kind, account or category with an "other" list from the tracker's accounts or categories when allowed. Each answer SHALL be stored with a reply id before it is sent; a resend SHALL reuse that reply id.
+A capture that needs detail SHALL show its text, what is already known (including the tracker's time label), the missing part, the tracker's question, and controls for its type: a typed amount, chips and the owner's own words for time, or chips for kind, account or category with an "other" list from the tracker's accounts or categories when allowed. Each answer SHALL be stored with a reply id before it is sent; a resend SHALL reuse that reply id.
 
 #### Scenario: Account question
 - **WHEN** the tracker asks "Dari rekening mana?" with Tunai and Dompet Contoh and allows another account
@@ -107,7 +107,7 @@ A capture that needs detail SHALL show its text, what is already known, the miss
 - **THEN** the same answer is sent with the same reply id
 
 #### Scenario: Answer outside the question
-- **WHEN** the answer is not one of the offered options, or is text for a chip question
+- **WHEN** the answer is not one of the offered options, or is text for a chip-only question
 - **THEN** it is refused on the phone and nothing is sent
 
 #### Scenario: Invalid or stale answer
@@ -145,7 +145,7 @@ Every send of a capture SHALL carry its stored client capture id. Only one send 
 - **THEN** the capture is queued again, resent with the same client capture id, and recorded once
 
 ### Requirement: Captures appear in Aktivitas
-Aktivitas SHALL list captures that are not undone or deleted among the notifications by time, with the title, amount ("Rp —" when unknown), status, "Diketik di ponsel", account and time. Semua SHALL list every such capture, Perlu cek those not yet recorded, and Di ponsel those the tracker has not accepted. A capture with a question SHALL open its sheet; any other SHALL open its Rincian.
+Riwayat (formerly Aktivitas) SHALL list captures that are not undone or deleted among the notifications by time, with the title, amount ("Rp —" when unknown), status, "Diketik di ponsel", account and time. Semua SHALL list every such capture, Perlu cek those not yet recorded, and Di ponsel those the tracker has not accepted. A capture with a question SHALL open its sheet; any other SHALL open its Rincian over Riwayat.
 
 #### Scenario: Recorded move
 - **WHEN** a typed "tarik tunai 200rb" is recorded as a move from Bank Contoh to Tunai
@@ -171,7 +171,7 @@ A capture's Rincian SHALL show its status, amount, title, time with "Diketik di 
 
 #### Scenario: Deleted
 - **WHEN** the owner confirms "Hapus dari tracker" and the tracker answers 200
-- **THEN** the capture is "Dihapus dari tracker", leaves Aktivitas, and the tracker's summary is fetched again
+- **THEN** the capture is "Dihapus dari tracker" and leaves Riwayat
 
 #### Scenario: Already gone
 - **WHEN** the tracker answers 404
@@ -193,8 +193,27 @@ A capture's Rincian SHALL show its status, amount, title, time with "Diketik di 
 - **THEN** the transaction is patched, the sheet shows Rp30.000, and "Batalkan" is no longer offered
 
 ### Requirement: Captured money never enters the tracker's summary
-Recorded captures SHALL count only in figures that come from this phone, such as Aktivitas' money out per day, and SHALL never appear in a money figure on Beranda. The tracker's own cash-flow summary SHALL be fetched again after a capture is recorded, undone, edited or deleted, and SHALL never be added to or from local captures.
+Recorded captures SHALL never appear in a money figure on the phone's hub, and the phone SHALL compute no total from them; each capture keeps only its own amount in Riwayat and Rincian. The phone SHALL request no tracker summary after a capture changes.
 
 #### Scenario: Recorded capture and the summary
 - **WHEN** a capture of Rp10.000 is recorded
-- **THEN** Beranda shows no local amount for it, and the tracker summary is requested again rather than increased on the phone
+- **THEN** the hub shows no amount for it and no summary is requested
+
+### Requirement: Catat answers time questions
+Every capture SHALL be sent with `question_types` `amount`, `kind`, `account`, `category` and `time`. A `time` question ("Jam berapa?" or "Hari apa?") SHALL offer the tracker's moments as chips, sent as `option_id`, and, when text is allowed, the owner's own words, sent as `text`. The tracker's `time_label` SHALL appear among what is known and among the recorded facts.
+
+#### Scenario: Ambiguous time
+- **WHEN** the tracker asks "Jam berapa?" with "Hari ini 14.00" and "Kemarin 14.00"
+- **THEN** both chips and a text field are shown, and tapping "Kemarin 14.00" sends `option_id` `t2`
+
+#### Scenario: Owner's own words
+- **WHEN** the owner writes "kemarin jam 2 siang" and saves
+- **THEN** it is sent as `text` with a reply id
+
+#### Scenario: Answer outside the time question
+- **WHEN** an answer names an option the question does not offer
+- **THEN** it is refused on the phone and nothing is sent
+
+#### Scenario: Recorded with its time
+- **WHEN** the capture is recorded with `time_label` "Kemarin 14.00"
+- **THEN** the recorded card shows "Kemarin 14.00"

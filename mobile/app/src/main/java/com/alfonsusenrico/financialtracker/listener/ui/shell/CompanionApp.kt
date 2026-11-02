@@ -1,15 +1,16 @@
 package com.alfonsusenrico.financialtracker.listener.ui.shell
 
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
+import android.content.ActivityNotFoundException
+import android.content.ComponentName
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import android.service.notification.NotificationListenerService
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -19,30 +20,55 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavHostController
-import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
+import androidx.compose.ui.unit.dp
+import com.alfonsusenrico.financialtracker.listener.PairingActivity
+import com.alfonsusenrico.financialtracker.listener.data.health.SelfTestState
+import com.alfonsusenrico.financialtracker.listener.data.prefs.AppPreferences
+import com.alfonsusenrico.financialtracker.listener.data.reminder.EveningReminder
+import com.alfonsusenrico.financialtracker.listener.data.reminder.QuestionUrgency
+import com.alfonsusenrico.financialtracker.listener.data.report.WebLinks
+import com.alfonsusenrico.financialtracker.listener.service.FinancialNotificationListenerService
 import com.alfonsusenrico.financialtracker.listener.ui.activity.ActivityRoute
 import com.alfonsusenrico.financialtracker.listener.ui.capture.CaptureDetailRoute
 import com.alfonsusenrico.financialtracker.listener.ui.capture.CaptureSheetHost
 import com.alfonsusenrico.financialtracker.listener.ui.capture.CaptureViewModel
+import com.alfonsusenrico.financialtracker.listener.ui.components.Formatting
 import com.alfonsusenrico.financialtracker.listener.ui.detail.DetailRoute
-import com.alfonsusenrico.financialtracker.listener.ui.home.HomeRoute
+import com.alfonsusenrico.financialtracker.listener.ui.hub.FixAction
+import com.alfonsusenrico.financialtracker.listener.ui.hub.HubActions
+import com.alfonsusenrico.financialtracker.listener.ui.hub.HubCounts
+import com.alfonsusenrico.financialtracker.listener.ui.hub.HubInputs
+import com.alfonsusenrico.financialtracker.listener.ui.hub.HubScreen
+import com.alfonsusenrico.financialtracker.listener.ui.hub.HubStatus
+import com.alfonsusenrico.financialtracker.listener.ui.hub.HubUiState
+import com.alfonsusenrico.financialtracker.listener.ui.hub.OemHints
+import com.alfonsusenrico.financialtracker.listener.ui.hub.ProblemKind
+import com.alfonsusenrico.financialtracker.listener.ui.hub.SheetFrame
+import com.alfonsusenrico.financialtracker.listener.ui.hub.SheetKind
+import com.alfonsusenrico.financialtracker.listener.ui.hub.StatusFacts
+import com.alfonsusenrico.financialtracker.listener.ui.hub.StatusSheet
+import com.alfonsusenrico.financialtracker.listener.ui.hub.WebSheet
+import com.alfonsusenrico.financialtracker.listener.ui.hub.rememberSheetStack
+import com.alfonsusenrico.financialtracker.listener.ui.hub.webLinks
 import com.alfonsusenrico.financialtracker.listener.ui.model.ActivityFilter
 import com.alfonsusenrico.financialtracker.listener.ui.model.CapturePresentation
+import com.alfonsusenrico.financialtracker.listener.ui.model.OpenQuestions
+import com.alfonsusenrico.financialtracker.listener.ui.model.SyncHealth
+import com.alfonsusenrico.financialtracker.listener.ui.questions.HubQuestion
 import com.alfonsusenrico.financialtracker.listener.ui.questions.QuestionsRoute
 import com.alfonsusenrico.financialtracker.listener.ui.settings.SettingsRoute
+import com.alfonsusenrico.financialtracker.listener.ui.settings.open
+import com.alfonsusenrico.financialtracker.listener.ui.settings.selfTestMessage
 import com.alfonsusenrico.financialtracker.listener.ui.theme.CompanionTheme
-import com.alfonsusenrico.financialtracker.listener.ui.theme.rememberReducedMotion
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /** Shell-level actions every screen shares: messages, and delete with undo. */
@@ -51,25 +77,43 @@ class ShellActions(
     val deleteWithUndo: (Long) -> Unit
 )
 
+/** What Android says about this phone, read again whenever the app comes back to the front. */
+data class PhoneState(
+    val paired: Boolean = true,
+    val notificationAccess: Boolean = true,
+    val batteryUnrestricted: Boolean = true,
+    val postNotifications: Boolean = true,
+    val online: Boolean = true
+)
+
+/**
+ * The companion: the status hub (direction C) with every other screen as a sheet over it, and the Catat sheet.
+ * There is no bottom bar.
+ */
 @Composable
 fun CompanionApp(
     viewModel: CompanionViewModel,
     captureViewModel: CaptureViewModel,
-    listenerPermissionGranted: Boolean,
-    navController: NavHostController = rememberNavController()
+    phone: PhoneState,
+    now: () -> Long = System::currentTimeMillis,
+    listener: StateFlow<Boolean> = FinancialNotificationListenerService.isConnected
 ) {
+    val context = LocalContext.current
     val colors = CompanionTheme.colors
+    val prefs = remember { AppPreferences(context) }
     val lists by viewModel.lists.collectAsState()
-    val sheetOpen by captureViewModel.sheetOpen.collectAsState()
+    val captureRows by captureViewModel.visible.collectAsState()
+    val catatOpen by captureViewModel.sheetOpen.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val openRequest by viewModel.openRequest.collectAsState()
+    val report by viewModel.readyReport.collectAsState()
+    val selfTest by viewModel.selfTest.progress.collectAsState()
+    val connected by listener.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val reducedMotion = rememberReducedMotion()
-    val backStack by navController.currentBackStackEntryAsState()
-    val route = backStack?.destination?.route
-    val currentTab = Tab.entries.firstOrNull { route?.substringBefore('?') == it.route }
+    val sheets = rememberSheetStack()
+    var note by remember { mutableStateOf<String?>(null) }
 
     val actions = remember(viewModel) {
         ShellActions(
@@ -94,142 +138,183 @@ fun CompanionApp(
         )
     }
 
-    fun selectTab(tab: Tab) {
-        navController.navigate(tab.route) {
-            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-            launchSingleTop = true
-            restoreState = true
+    fun openWeb(path: String) {
+        val url = WebLinks.url(path) ?: return
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: ActivityNotFoundException) {
+            actions.message("Nggak ada browser di HP ini. Buka $url di laptop.")
         }
-    }
-
-    // Tanya is a tab: a question opened from elsewhere becomes that tab's page instead of a page on top
-    // of the tab it came from, so returning to that tab shows the tab itself.
-    fun openQuestions(rowId: Long?) {
-        navController.navigate(Routes.questions(rowId)) {
-            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-        }
-    }
-
-    fun openActivity(filter: ActivityFilter) {
-        viewModel.setFilter(filter)
-        selectTab(Tab.ACTIVITY)
     }
 
     fun openCapture(item: CapturePresentation) {
-        if (item.question != null) captureViewModel.open(item.id) else navController.navigate(Routes.capture(item.id))
+        if (item.question != null) captureViewModel.open(item.id) else sheets.openDetail(SheetKind.CAPTURE_DETAIL, item.id)
     }
 
-    // A capture that changed the ledger makes the tracker's own summary stale; it is fetched again, never summed here.
-    LaunchedEffect(captureViewModel) {
-        captureViewModel.ledgerChanged.collect { viewModel.refreshLedgerSummary() }
+    val reminderLabel = if (prefs.isEveningReminderEnabled) EveningReminder.label(prefs.eveningReminderMinute) else null
+    val questions = remember(lists.questions) { QuestionUrgency.ordered(lists.questions, OpenQuestions::kindOf) }
+    val today = Formatting.localDate(now())
+    val counts = remember(lists, captureRows, today) { HubCounts.of(lists, captureRows, today) }
+    val status = HubStatus.of(
+        HubInputs(
+            paired = phone.paired, notificationAccess = phone.notificationAccess, listenerConnected = connected,
+            listenerDisconnectedAt = prefs.listenerDisconnectedAt, listenerConnectedAt = prefs.listenerConnectedAt,
+            serverContact = prefs.serverContact, online = phone.online, autoSync = prefs.isAutoSyncEnabled,
+            batteryUnrestricted = phone.batteryUnrestricted, postNotifications = phone.postNotifications,
+            capturedToday = counts.capturedToday, lastCaptureApp = counts.lastCaptureApp, lastCaptureAt = counts.lastCaptureAt,
+            lastSyncAt = prefs.lastSyncTime, waiting = counts.waiting, oldestWaitingAt = counts.oldestWaitingAt,
+            selfTestPassedAt = if (prefs.selfTestStatus == SelfTestState.PASSED) prefs.selfTestAt else 0L,
+            oem = OemHints.of(Build.MANUFACTURER), now = now()
+        )
+    )
+
+    fun fix(action: FixAction) {
+        when (action) {
+            FixAction.PAIR -> context.startActivity(Intent(context, PairingActivity::class.java))
+            FixAction.OPEN_ACCESS -> open(context, actions, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            FixAction.OPEN_BATTERY -> open(
+                context, actions,
+                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}")),
+                fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+            )
+            FixAction.OPEN_NOTIFICATION_SETTINGS -> open(
+                context, actions,
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            )
+            FixAction.RECONNECT_LISTENER -> {
+                NotificationListenerService.requestRebind(ComponentName(context, FinancialNotificationListenerService::class.java))
+                actions.message("Aku coba nyambung lagi. Kalau masih putus, matiin lalu nyalain akses notifikasi.")
+            }
+            FixAction.RETRY_SERVER, FixAction.SEND_NOW -> {
+                viewModel.syncNow()
+                viewModel.reportHealthNow()
+                actions.message("Lagi ngirim yang nunggu")
+            }
+            FixAction.RUN_SELF_TEST -> viewModel.runSelfTest { outcome ->
+                if (outcome == null) return@runSelfTest
+                if (outcome.passed && status.problem?.kind == ProblemKind.QUIET_DAY) note = HubStatus.QUIET_DAY_PASSED
+                else actions.message(selfTestMessage(outcome))
+            }
+        }
     }
 
     LaunchedEffect(openRequest) {
         val request = openRequest ?: return@LaunchedEffect
-        if (request.toQuestions) openQuestions(request.rowId) else navController.navigate(Routes.detail(request.rowId))
+        if (request.toQuestions) sheets.open(SheetKind.QUESTIONS, request.rowId) else sheets.openDetail(SheetKind.DETAIL, request.rowId)
         viewModel.consumeOpenRequest()
     }
 
+    // The hub's top question needs its source-pocket options while no sheet has taken the focus.
+    val topId = questions.firstOrNull()?.id
+    LaunchedEffect(sheets.isOpen, topId) { if (!sheets.isOpen) viewModel.focusRow(topId) }
+
     Box(Modifier.fillMaxSize()) {
-        Scaffold(
-            // While the capture sheet is open the tab behind it is inert for TalkBack, as `inert` is in the prototype.
-            modifier = if (sheetOpen) Modifier.clearAndSetSemantics {} else Modifier,
-            containerColor = colors.bg,
-            snackbarHost = {
-                SnackbarHost(snackbar) { data ->
-                    Snackbar(
-                        data, containerColor = colors.snackbarBg, contentColor = colors.snackbarFg,
-                        actionColor = colors.snackbarAction, dismissActionContentColor = colors.snackbarFg
-                    )
-                }
-            },
-            bottomBar = {
-                if (currentTab != null) {
-                    CompanionBottomBar(currentTab, lists.questions.size, onSelect = ::selectTab) {
-                        CatatButton(open = sheetOpen, onClick = { captureViewModel.open() })
+        Box(Modifier.fillMaxSize().then(if (sheets.isOpen || catatOpen) Modifier.clearAndSetSemantics {} else Modifier)) {
+            HubScreen(
+                state = HubUiState(
+                    status = status, fixing = selfTest.running, note = note, report = report,
+                    questionCount = if (lists.loaded) questions.size else null,
+                    lightCount = questions.count { QuestionUrgency.isLight(OpenQuestions.kindOf(it)) },
+                    reminderLabel = reminderLabel
+                ),
+                actions = HubActions(
+                    onFix = ::fix,
+                    onStatusDetails = { sheets.open(SheetKind.STATUS) },
+                    onCatat = { captureViewModel.open() },
+                    onOpenReport = { stored -> viewModel.openReport(stored)?.let { openWeb(stored.url) } },
+                    onAllQuestions = { sheets.open(SheetKind.QUESTIONS) },
+                    onLog = { sheets.open(SheetKind.LOG) },
+                    onSettings = { sheets.open(SheetKind.SETTINGS) },
+                    onWeb = { sheets.open(SheetKind.WEB) }
+                ),
+                topQuestion = {
+                    questions.firstOrNull()?.let { row ->
+                        HubQuestion(viewModel, actions, row, reminderLabel, onOpenDetail = { sheets.openDetail(SheetKind.DETAIL, it) })
                     }
                 }
-            }
-        ) { padding ->
-            NavHost(
-                navController = navController,
-                startDestination = Routes.HOME,
-                modifier = Modifier.fillMaxSize().background(colors.bg).padding(padding),
-                enterTransition = { if (reducedMotion) EnterTransition.None else fadeIn(tween(150)) },
-                exitTransition = { if (reducedMotion) ExitTransition.None else fadeOut(tween(150)) },
-                popEnterTransition = { if (reducedMotion) EnterTransition.None else fadeIn(tween(150)) },
-                popExitTransition = { if (reducedMotion) ExitTransition.None else fadeOut(tween(150)) }
-            ) {
-                composable(Routes.HOME) {
-                    HomeRoute(
-                        viewModel = viewModel,
-                        listenerPermissionGranted = listenerPermissionGranted,
-                        onOpenQuestions = ::openQuestions,
-                        onOpenActivity = ::openActivity,
-                        onOpenSettings = { selectTab(Tab.SETTINGS) },
-                        captureViewModel = captureViewModel
-                    )
-                }
-                composable(Routes.ACTIVITY) {
-                    ActivityRoute(
-                        viewModel = viewModel,
-                        captureViewModel = captureViewModel,
-                        actions = actions,
-                        onOpenRow = { row, toQuestions -> if (toQuestions) openQuestions(row) else navController.navigate(Routes.detail(row)) },
-                        onOpenCapture = ::openCapture
-                    )
-                }
-                composable(
-                    "${Routes.QUESTIONS}?${Routes.ROW}={${Routes.ROW}}",
-                    arguments = listOf(navArgument(Routes.ROW) { type = NavType.LongType; defaultValue = -1L })
-                ) { entry ->
-                    QuestionsRoute(
-                        viewModel = viewModel,
-                        actions = actions,
-                        requestedRowId = entry.arguments?.getLong(Routes.ROW)?.takeIf { it >= 0 },
-                        onOpenDetail = { navController.navigate(Routes.detail(it)) },
-                        onHome = { selectTab(Tab.HOME) }
-                    )
-                }
-                composable(Routes.SETTINGS) {
-                    SettingsRoute(viewModel = viewModel, actions = actions)
-                }
-                composable(
-                    "${Routes.DETAIL}/{${Routes.ROW}}",
-                    arguments = listOf(navArgument(Routes.ROW) { type = NavType.LongType })
-                ) { entry ->
-                    DetailRoute(
-                        viewModel = viewModel,
-                        actions = actions,
-                        rowId = entry.arguments!!.getLong(Routes.ROW),
-                        onBack = { navController.popBackStack() },
-                        onOpenQuestion = ::openQuestions
-                    )
-                }
-                composable(
-                    "${Routes.CAPTURE}/{${Routes.ROW}}",
-                    arguments = listOf(navArgument(Routes.ROW) { type = NavType.LongType })
-                ) { entry ->
-                    CaptureDetailRoute(
-                        viewModel = captureViewModel,
-                        accounts = accounts,
-                        categories = categories,
-                        actions = actions,
-                        captureId = entry.arguments!!.getLong(Routes.ROW),
-                        onBack = { navController.popBackStack() }
-                    )
+            )
+        }
+
+        sheets.top?.let { entry ->
+            val previous = sheets.entries.getOrNull(sheets.entries.lastIndex - 1)
+            Box(Modifier.fillMaxSize().then(if (catatOpen) Modifier.clearAndSetSemantics {} else Modifier)) {
+                SheetFrame(entry, previous, onBack = sheets::back, onClose = sheets::close) {
+                    when (entry.kind) {
+                        SheetKind.QUESTIONS -> QuestionsRoute(
+                            viewModel = viewModel, actions = actions, requestedRowId = entry.id.takeIf { it >= 0 },
+                            reminderLabel = reminderLabel,
+                            onOpenDetail = { sheets.openDetail(SheetKind.DETAIL, it) }, onHome = sheets::close
+                        )
+                        SheetKind.LOG -> ActivityRoute(
+                            viewModel = viewModel, captureViewModel = captureViewModel, actions = actions,
+                            onOpenRow = { row, toQuestions ->
+                                if (toQuestions) sheets.open(SheetKind.QUESTIONS, row) else sheets.openDetail(SheetKind.DETAIL, row)
+                            },
+                            onOpenCapture = ::openCapture
+                        )
+                        SheetKind.DETAIL -> DetailRoute(
+                            viewModel = viewModel, actions = actions, rowId = entry.id,
+                            onBack = { if (previous != null) sheets.back() else sheets.close() },
+                            onOpenQuestion = { sheets.open(SheetKind.QUESTIONS, it) },
+                            onOpenLedger = { openWeb(WebLinks.LEDGER) }
+                        )
+                        SheetKind.CAPTURE_DETAIL -> CaptureDetailRoute(
+                            viewModel = captureViewModel, accounts = accounts, categories = categories, actions = actions,
+                            captureId = entry.id, onBack = { if (previous != null) sheets.back() else sheets.close() }
+                        )
+                        SheetKind.SETTINGS -> SettingsRoute(viewModel = viewModel, actions = actions)
+                        SheetKind.STATUS -> StatusSheet(
+                            facts = StatusFacts(
+                                health = SyncHealth.from(prefs, connected),
+                                notificationAccess = phone.notificationAccess,
+                                batteryUnrestricted = phone.batteryUnrestricted,
+                                postNotifications = phone.postNotifications,
+                                selfTestLine = selfTestLine(prefs)
+                            ),
+                            selfTest = selfTest,
+                            onOpenAccess = { fix(FixAction.OPEN_ACCESS) },
+                            onOpenBattery = { fix(FixAction.OPEN_BATTERY) },
+                            onOpenNotifications = { fix(FixAction.OPEN_NOTIFICATION_SETTINGS) },
+                            onSelfTest = { fix(FixAction.RUN_SELF_TEST) }
+                        )
+                        SheetKind.WEB -> WebSheet(webLinks(report?.url)) { openWeb(it.path) }
+                    }
                 }
             }
         }
 
-        if (sheetOpen) {
+        if (catatOpen) {
             CaptureSheetHost(
                 viewModel = captureViewModel,
                 accounts = accounts,
                 categories = categories,
-                onOpenQueue = { openActivity(ActivityFilter.LOCAL) },
-                onOpenDetail = { navController.navigate(Routes.capture(it)) }
+                onOpenQueue = {
+                    viewModel.setFilter(ActivityFilter.LOCAL)
+                    sheets.open(SheetKind.LOG)
+                },
+                onOpenDetail = { sheets.openDetail(SheetKind.CAPTURE_DETAIL, it) }
             )
         }
+
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp)) { data ->
+            Snackbar(
+                data, containerColor = colors.snackbarBg, contentColor = colors.snackbarFg,
+                actionColor = colors.snackbarAction, dismissActionContentColor = colors.snackbarFg
+            )
+        }
+    }
+}
+
+/** "Tes terakhir" in Rincian status: the self-test's result and when it ran. */
+private fun selfTestLine(prefs: AppPreferences): String {
+    val at = prefs.selfTestAt.takeIf { it > 0 }?.let { " · ${Formatting.dateTime(it)}" }.orEmpty()
+    return when (prefs.selfTestStatus) {
+        SelfTestState.PASSED -> "Lulus$at"
+        SelfTestState.FAILED -> "Gagal: " + when (prefs.selfTestFailedStep) {
+            "post" -> "nampilin notifikasi"
+            "capture" -> "nangkep notifikasi"
+            else -> "ngabarin web"
+        } + at
+        else -> "Belum pernah"
     }
 }

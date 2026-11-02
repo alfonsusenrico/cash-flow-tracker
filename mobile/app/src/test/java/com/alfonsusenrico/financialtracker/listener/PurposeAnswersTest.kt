@@ -1,6 +1,5 @@
 package com.alfonsusenrico.financialtracker.listener
 
-import android.app.Application
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -55,6 +54,8 @@ class PurposeAnswersTest {
     private val results get() = NotificationResults(
         context, db, postConfirmation = { _, _ -> true }, clearConfirmation = {},
         postPurpose = { _, _, activeOnly -> purposeAlerts.add(activeOnly); true },
+        // These tests cover the immediate prompt, used when the evening reminder is off.
+        batchLightQuestions = { false },
         scheduleFollowUp = { _, _ -> }
     ) { item, activeOnly -> recordAlerts.add(item to activeOnly); true }
 

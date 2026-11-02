@@ -70,6 +70,8 @@ class QuestionFollowUpWorkerTest {
         AppPreferences(context).apply {
             TestEndpoint.set(context, server.url("/").toString())
             apiKey = "fictional-follow-up-key"
+            // Follow-ups of a prompted question; light questions are prompted at once with the evening reminder off.
+            isEveningReminderEnabled = false
         }
         pairing = AppPreferences(context).pairingContext
         // The worker opens the app's database, so the test uses it too and starts from empty tables.
@@ -89,6 +91,7 @@ class QuestionFollowUpWorkerTest {
     @After fun close() {
         server.shutdown()
         AppPreferences(context).apiKey = ""
+        AppPreferences(context).isEveningReminderEnabled = true
     }
 
     private suspend fun row() = db.notificationDao().getById(rowId)!!

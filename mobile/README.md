@@ -2,7 +2,7 @@
 
 Native Android companion application for **Cash Flow Tracker** designed for **Phase 1: Notification Listener & Notification Dataset Capture**. It lives in the `mobile/` folder of the cash-flow-tracker repository; run every Gradle command below from `mobile/`.
 
-This app operates on your Android phone to automatically capture banking and e-wallet notifications from selected financial applications, persist them locally in Room DB, show what this phone recorded and what needs an answer (Beranda, Aktivitas, Tanya and Atur), and synchronize raw events to your private Cash Flow Tracker backend server.
+This app operates on your Android phone to automatically capture banking and e-wallet notifications from selected financial applications, persist them locally in Room DB, say on one status hub whether it is working and what needs an answer, and synchronize raw events to your private Cash Flow Tracker backend server. Money is read on the web; the phone shows no totals.
 
 ---
 
@@ -53,15 +53,17 @@ Android Status Bar
        ▼
 [NotificationResults] (recorded result with an "Apa ini?" purpose question)
        │
-       ├── One notification per question: two suggestions + "Tulis" (free text), tap opens it in Tanya
-       ├── Aktivitas filter "Perlu dijawab" and the question's options in Tanya
+       ├── Urgent questions notify at once; "Apa ini?" waits for the evening reminder (on by default, 20.00)
+       ├── Riwayat filter "Perlu dijawab" and the question's options in the question sheet
        └── Answer stored with a reply ID, then POST /api/ingest/notifications/{event_id}/answer-purpose
              (retried with backoff; 409 → closed, 404/422 → failed)
 ```
 
-Beranda's **Arus kas tracker** tile shows the tracker's own ledger figures for today from `GET /api/dashboard/cash-flow-summary?period=today`: outflow, inflow, net, and any reimbursement offset, with the period and the server's generation time. The last complete summary is kept in the app preferences for the current pairing only and is labelled as stored until a refresh succeeds. A failed refresh keeps it marked as not updated, a refused key removes it, and re-pairing clears it. It holds the only money amounts on Beranda. **Aktivitas ponsel hari ini** shows counts from this phone only: notifications captured today, those waiting or not yet sent, and typed captures waiting. A count not yet read from Room shows "—", never 0. **Kategori teratas** shows the summary's own `top_categories` (at most three, with their amount, Kakeibo pillar and a bar relative to the largest) with the same period and freshness, because it is cached and refreshed with the summary. The tracker's spending without a category comes as one entry with a null `category_id`; it is shown under the tracker's name, or "Tanpa kategori" when that is blank, with no pillar. A tracker that does not send the field gets no tile, a list that breaks the contract (including two entries without a category) gets none either, and an empty list says "Belum ada pengeluaran pada periode ini". The phone never computes category totals.
+**Beranda** is one status hub (direction C, 2.4.0). The status card says "Lagi jagain notifikasimu", how many notifications this phone captured today (a count, never money), the last capture and the sync line, with "Rincian" for the listener figures. When something breaks, the card shows one problem with a one-tap fix: notification access lost, the listener disconnected or frozen by a battery saver (with the HiOS/TECNO Phone Master steps), the tracker unreachable, the key refused, items waiting to send, or an afternoon with no capture (the fix runs the self-test). Below it are one large **Catat transaksi** button, "Laporan siap" when `GET /api/reports/monthly/latest` says the monthly report is ready, the next question answerable in place, and the tiles **Riwayat** (the capture log, per-item amounts and no totals), **Pengaturan** and **Buka web**. Every other screen opens as a sheet over the hub.
 
-**Catat** (the raised button in the bottom bar) records a transaction typed as one sentence through the tracker's text-capture API. The capture is stored in Room (`text_captures`, schema 8) before it is sent, and its `client_capture_id` makes every resend idempotent. The tracker records it, or asks one question at a time (amount, kind, account, category); each answer is stored with its `reply_id` before sending. A recorded capture can be undone for 10 seconds, edited with the existing form, and later removed with **Hapus dari tracker** (expense or income created by a capture only, after confirmation). Offline or on a server error the capture waits as "Disimpan di antrean"; with auto-sync on it is resent through WorkManager when the network returns, otherwise **Kirim** sends it. Suggestions under the input come only from `GET /api/capture/suggestions`. Captures appear in Aktivitas as "Diketik di ponsel", and waiting captures are counted on Beranda.
+Sender, source-pocket and account questions notify at once. Purpose questions ("Apa ini?" and habit guesses) wait for one evening reminder ("Ada 3 pertanyaan ringan hari ini", 20.00 by default, changeable or off in Pengaturan; off means they are prompted at once). A recorded notification's Rincian offers **Perbaiki label** (category, Kakeibo pillar including "Belum diklasifikasi", merchant), sent through `PATCH /api/transactions/{id}` so the tracker learns; full edits are on the web (Buku Kas). The phone reports its health with `POST /api/devices/health` after setup, on open, when the listener changes and every 15 minutes; an older tracker's 404 is ignored quietly.
+
+**Catat** (the large hub button) records a transaction typed as one sentence through the tracker's text-capture API, declaring that it answers `time` questions ("Jam berapa?") as well. The capture is stored in Room (`text_captures`, schema 8) before it is sent, and its `client_capture_id` makes every resend idempotent. The tracker records it, or asks one question at a time (amount, time, kind, account, category); each answer is stored with its `reply_id` before sending. A recorded capture can be undone for 10 seconds, edited with the existing form, and later removed with **Hapus dari tracker** (expense or income created by a capture only, after confirmation). Offline or on a server error the capture waits as "Disimpan di antrean"; with auto-sync on it is resent through WorkManager when the network returns, otherwise **Kirim** sends it. Suggestions under the input come only from `GET /api/capture/suggestions`. Captures appear in Riwayat as "Diketik di ponsel", and waiting captures are counted in the hub's sync line.
 
 ---
 
@@ -88,29 +90,18 @@ Beranda's **Arus kas tracker** tile shows the tracker's own ledger figures for t
 
 ## 4. Initial Setup in the App
 
-1. **Grant Notification Access:**
-   - On first launch, tap **"Buka Akses Notifikasi"** on the onboarding screen (or go to **Atur > Pengaturan Android > Akses notifikasi Android**).
-   - In Android Settings > Device & app notifications, toggle **Financial Tracker Capture** to **Allow**.
-2. **Battery and background access:**
-   - Continue to step 2, exempt the companion from battery optimization, and follow the HiOS note when applicable.
-   - Each permission step can be skipped and opened later from Atur.
-3. **Connect to the tracker:**
-   - In web Settings, choose **Hubungkan ponsel**, then **Pindai QR dari Pengaturan web** on the phone.
-   - Camera access is requested only when scanning. Confirm the automatically detected device name with **Hubungkan**.
-   - Codes expire after five minutes and work once. A same-device exchange replaces its old key immediately.
-   - The app stores the new key before testing authenticated access. If verification fails, use **Tes Koneksi** without scanning the used code again.
-   - **Masukkan API key manual** is the fallback. A manual key is checked before it replaces the saved key.
-   - The server is fixed by the build. There is no URL field. For local debug builds use `-PcompanionServerUrl=http://127.0.0.1:18000`; release builds always use the fixed HTTPS server.
-   - Settings offers **Tes Koneksi** and **Pasangkan ulang**. Old manual keys are removed only after the new key authenticates to the same account. If removal fails, use **Cabut** in web Settings.
-4. **Verify Incoming Feeds:**
-   - When a transaction occurs in myBCA, BCA mobile, Bank Jago, or GoPay, the notification appears in the **Aktivitas** tab.
-   - Tap a row to open **Rincian**: what the tracker recorded, the original notification, and the actions for its state (send, resend, retry, record manually, edit). Questions open in **Tanya**.
-   - A row the tracker recorded from your habits (tracker 1.8.0 and later) carries a **Dari kebiasaan** tag, and Rincian says "Dicatat dari kebiasaan: <kategori> · <n dari m jawaban sebelumnya>".
+Setup is a story of cards with five steps, "Langkah n dari 5":
+1. **Pair.** In web Settings, choose **Hubungkan ponsel**, then **Scan QR** on the phone (camera access is asked only when scanning), or **Ketik kode aja** with the code under the QR, or **Pakai kunci API**. Codes expire after five minutes and work once. The app stores the new key before testing it; if the test fails, **Tes Koneksi** retries without a new code. There is no URL field: local debug builds use `-PcompanionServerUrl=http://127.0.0.1:18000`, release builds the fixed HTTPS server.
+2. **Notification access.** Only the listed banking and e-wallet apps are read; everything else is dropped.
+3. **Battery and background**, with this phone's battery-saver steps (HiOS Phone Master, MIUI/HyperOS, ColorOS, One UI).
+4. **Notification permission**, for questions and confirmations.
+5. **Self-test.** The app posts a marked test notification, its own listener must catch it within 10 seconds, and it reports health so web Settings shows the phone as ready. The test notification is never stored, synced or sent. Each failure has a fix.
 
+Each permission step can be skipped and fixed later from the hub or **Pengaturan** (plain grouped lists: monitored apps, sending, evening reminder, connection with re-pair and the manual key, permissions and battery with **Tes HP-ku**, theme, about). A row the tracker recorded from your habits carries a **Dari kebiasaan** tag in Riwayat.
 
 ## 5. Pairing verification
 
-Run `./gradlew testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease` for the local checks. Unit-test applications inject a loopback transport, so fixture credentials never reach the fixed server. Room is at version 8; the 7→8 migration only adds `text_captures`. When an existing saved URL matches the fixed build server, the pairing context and fingerprints remain unchanged. A different-server credential is cleared and requires pairing again.
+Run `./gradlew testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease` for the local checks. Unit-test applications inject a loopback transport, so fixture credentials never reach the fixed server. Room is at version 8; the 7→8 migration only adds `text_captures`. 2.4.0 adds no migration. When an existing saved URL matches the fixed build server, the pairing context and fingerprints remain unchanged. A different-server credential is cleared and requires pairing again.
 
 Instrumented tests require the separate verification app id and refuse the normal app id. Set `ANDROID_SERIAL` to the intended test phone. All UI actions stay inside Compose tests. Do not use global coordinate input or launch other apps.
 
@@ -133,7 +124,7 @@ adb -s "$ANDROID_SERIAL" reverse tcp:18000 tcp:18000
   -Pandroid.testInstrumentationRunnerArguments.class=com.alfonsusenrico.financialtracker.listener.PairingBackendIntegrationTest,com.alfonsusenrico.financialtracker.listener.PairingActivityTest,com.alfonsusenrico.financialtracker.listener.PairingScreenshotsTest
 ```
 
-The backend test pairs, authenticates, re-pairs, checks the old key is refused, and revokes the new key. The bundled reader also decodes a synthetic image generated with the web app's `qrcode@1.5.4` settings (240 px, margin 2, error correction M). This proves decoding, not an optical camera scan. The Activity tests verify external-link confirmation and camera open/close. Screenshot tests capture only synthetic app content in both themes at font scale 1 and 2.
+The backend test pairs, authenticates, re-pairs, checks the old key is refused, and revokes the new key. The bundled reader also decodes a synthetic image generated with the web app's `qrcode@1.5.4` settings (240 px, margin 2, error correction M). This proves decoding, not an optical camera scan. The Activity tests verify external-link confirmation and camera open/close. Screenshot tests capture only synthetic app content in both themes at font scale 1 and 2. `DeviceScreenshotTest` walks the hub and its sheets and `HubStatesScreenshotTest` saves every hub state, with `-e deviceScreenshots light|dark`. `SelfTestDeviceTest` runs the setup self-test on the phone with `-e selfTest true`, once notification access and the notification permission are granted to the verification app; its health report is faked.
 
 Stop the harness, remove the task's test container and the reverse mapping, and uninstall only the verification packages when finished. These operations remove synthetic data. Never run these tests against an owner's normal app package.
 

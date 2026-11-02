@@ -15,6 +15,14 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import com.alfonsusenrico.financialtracker.listener.data.textcapture.TextCaptures
+import com.alfonsusenrico.financialtracker.listener.data.textcapture.CaptureAnswer
+import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureOption
+import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureQuestion
+import com.google.gson.Gson
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import org.junit.Assert.assertEquals
 import com.alfonsusenrico.financialtracker.listener.ui.capture.CaptureSheetActions
 import com.alfonsusenrico.financialtracker.listener.ui.capture.CaptureSheetContent
 import com.alfonsusenrico.financialtracker.listener.ui.capture.CaptureSheetState
@@ -41,9 +49,10 @@ class CaptureSheetUiTest(private val dark: Boolean, private val fontScale: Float
     }
 
     private val now = CaptureFixtures.NOW
+    private val answers = mutableListOf<CaptureAnswer>()
     private val noActions = CaptureSheetActions(
         onClose = {}, onPrefilled = {}, onSubmit = { _, _ -> }, onAnother = {}, onUndo = {}, onEdit = { _, _, _ -> },
-        onAnswer = { _, _ -> }, onResendAnswer = {}, onSend = {}, onRewrite = { _, _ -> }, onOpenQueue = {}, onOpenDetail = {},
+        onAnswer = { _, answer -> answers += answer }, onResendAnswer = {}, onSend = {}, onRewrite = { _, _ -> }, onOpenQueue = {}, onOpenDetail = {},
         onInvalid = {}
     )
 
@@ -173,5 +182,35 @@ class CaptureSheetUiTest(private val dark: Boolean, private val fontScale: Float
         sheet(CaptureFixtures.undone())
         compose.onNodeWithText("Dibatalkan").performScrollTo().assertIsDisplayed()
         reachable("Catat lagi")
+    }
+
+    private val timeQuestion = CaptureQuestion(
+        questionId = "00000000-0000-4000-8000-000000006010", type = "time", prompt = "Jam berapa?", reason = "ambiguous",
+        options = listOf(
+            CaptureOption("t1", "Hari ini 14.00", date = "2026-10-29T14:00:00+07:00"),
+            CaptureOption("t2", "Kemarin 14.00", date = "2026-10-28T14:00:00+07:00")
+        ),
+        allowsText = true
+    )
+
+    @Test fun timeQuestionOffersItsMomentsAndTheOwnersWords() {
+        sheet(CaptureFixtures.asking(question = timeQuestion))
+        compose.onNodeWithText("Jam berapa?").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Kapan?").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription("Jawab: Kemarin 14.00").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("tadi jam 2 siang")
+        compose.onNodeWithText("Simpan").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        assertEquals(
+            listOf(CaptureAnswer(timeQuestion.questionId!!, optionId = "t2"), CaptureAnswer(timeQuestion.questionId!!, text = "tadi jam 2 siang")),
+            answers
+        )
+    }
+
+    @Test fun recordedCaptureShowsWhenTheTrackerReadIt() {
+        val recorded = CaptureFixtures.recorded()
+        val view = TextCaptures.view(recorded)!!
+        val withTime = recorded.copy(summaryJson = Gson().toJson(view.copy(summary = view.summary!!.copy(timeLabel = "Hari ini 14.00"))))
+        sheet(withTime)
+        compose.onNodeWithText("Hari ini 14.00").performScrollTo().assertIsDisplayed()
     }
 }

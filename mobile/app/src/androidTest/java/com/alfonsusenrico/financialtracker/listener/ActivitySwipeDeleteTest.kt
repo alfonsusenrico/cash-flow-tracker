@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.test.platform.app.InstrumentationRegistry
@@ -16,6 +17,7 @@ import com.alfonsusenrico.financialtracker.listener.data.model.RawNotificationEn
 import com.alfonsusenrico.financialtracker.listener.ui.model.ActivityFilter
 import com.alfonsusenrico.financialtracker.listener.ui.capture.CaptureViewModel
 import com.alfonsusenrico.financialtracker.listener.ui.shell.CompanionApp
+import com.alfonsusenrico.financialtracker.listener.ui.shell.PhoneState
 import com.alfonsusenrico.financialtracker.listener.ui.shell.CompanionViewModel
 import com.alfonsusenrico.financialtracker.listener.ui.theme.CompanionTheme
 import kotlinx.coroutines.runBlocking
@@ -42,8 +44,8 @@ class ActivitySwipeDeleteTest {
     @After fun cleanup() = runBlocking { dao.dismiss(rowId); Unit }
 
     private fun openActivity(viewModel: CompanionViewModel) {
-        compose.setContent { CompanionTheme(dark = false) { CompanionApp(viewModel, CaptureViewModel(app), listenerPermissionGranted = true) } }
-        compose.onNodeWithContentDescription("Aktivitas").performClick()
+        compose.setContent { CompanionTheme(dark = false) { CompanionApp(viewModel, CaptureViewModel(app), PhoneState()) } }
+        compose.onNodeWithText("Riwayat").performScrollTo().performClick()
     }
 
     @Test fun swipeLeftDeletesRowAndUndoRestoresIt() {

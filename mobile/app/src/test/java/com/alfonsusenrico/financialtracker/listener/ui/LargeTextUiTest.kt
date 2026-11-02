@@ -1,6 +1,5 @@
 package com.alfonsusenrico.financialtracker.listener.ui
 
-import android.app.Application
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHeightIsAtLeast
@@ -19,9 +18,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.alfonsusenrico.financialtracker.listener.ui.activity.ActivityScreen
 import com.alfonsusenrico.financialtracker.listener.ui.detail.DetailActions
 import com.alfonsusenrico.financialtracker.listener.ui.detail.DetailScreen
-import com.alfonsusenrico.financialtracker.listener.ui.home.HomeScreen
+import com.alfonsusenrico.financialtracker.listener.ui.hub.HubActions
+import com.alfonsusenrico.financialtracker.listener.ui.hub.HubScreen
+import com.alfonsusenrico.financialtracker.listener.ui.hub.HubStatus
+import com.alfonsusenrico.financialtracker.listener.ui.hub.HubUiState
 import com.alfonsusenrico.financialtracker.listener.ui.model.ActivityFilter
-import com.alfonsusenrico.financialtracker.listener.ui.model.SyncHealth
 import com.alfonsusenrico.financialtracker.listener.ui.questions.QuestionAnswers
 import com.alfonsusenrico.financialtracker.listener.ui.questions.QuestionsScreen
 import com.alfonsusenrico.financialtracker.listener.ui.questions.SourcePocketOptionState
@@ -42,12 +43,24 @@ class LargeTextUiTest {
     @get:Rule val compose = createComposeRule()
     private val lists = fixtureLists()
 
-    @Test fun homeStacksItsTilesAndKeepsThemReachable() {
-        compose.show(dark = true, fontScale = 2f) { HomeScreen(homeState(), {}, {}, {}, {}) }
-        compose.onNodeWithContentDescription("Pertanyaan, 4 menunggu", substring = true).performScrollTo().assertHeightIsAtLeast(48.dp)
-        compose.onNodeWithContentDescription("Aktivitas ponsel hari ini", substring = true).performScrollTo().assertHeightIsAtLeast(48.dp)
-        compose.onNodeWithContentDescription("Di ponsel, 1. Belum dikirim").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithContentDescription("Pengaturan").assertHeightIsAtLeast(48.dp)
+    @Test fun hubStacksItsTilesAndKeepsThemReachable() {
+        compose.show(dark = true, fontScale = 2f) {
+            HubScreen(HubUiState(HubStatus.of(hubInputs()), questionCount = 0), HubActions({}, {}, {}, {}, {}, {}, {}, {}))
+        }
+        compose.onNodeWithContentDescription("Catat transaksi").performScrollTo().assertHeightIsAtLeast(60.dp)
+        compose.onNodeWithContentDescription("Buka rincian status").performScrollTo().assertHeightIsAtLeast(48.dp)
+        listOf("Riwayat", "Pengaturan", "Buka web").forEach { compose.onNodeWithText(it).performScrollTo().assertHeightIsAtLeast(48.dp) }
+    }
+
+    @Test fun hubProblemFixStaysReachable() {
+        compose.show(dark = false, fontScale = 2f) {
+            HubScreen(
+                HubUiState(HubStatus.of(hubInputs().copy(notificationAccess = false, batteryUnrestricted = false)), questionCount = 0),
+                HubActions({}, {}, {}, {}, {}, {}, {}, {})
+            )
+        }
+        compose.onNodeWithText("Nyalain lagi").performScrollTo().assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithText("Izinin").performScrollTo().assertHeightIsAtLeast(48.dp)
     }
 
     @Test fun purposeQuestionOptionsStayReachable() {
@@ -61,14 +74,14 @@ class LargeTextUiTest {
         compose.onNodeWithContentDescription("Pertanyaan berikutnya").performScrollTo().assertHeightIsAtLeast(48.dp)
     }
 
-    @Test fun detailEditFormStaysReachable() {
+    @Test fun detailLabelFormStaysReachable() {
         compose.show(dark = true, fontScale = 2f) {
             DetailScreen(UiFixtures.recorded(20, "Kopi Contoh", 32_000), emptyList(), UiFixtures.PAIRING, emptyList(), emptyList(), false,
                 UiFixtures.today, DetailActions({}, {}, {}, {}, {}, {}, {}, { _, _, _, _, _ -> }))
         }
-        compose.onNodeWithText("Ubah transaksi").performScrollTo().performClick()
-        compose.onNodeWithText("Masuk").performScrollTo().assertHeightIsAtLeast(48.dp)
-        compose.onNodeWithText("Perbarui").performScrollTo().assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithText("Perbaiki label").performScrollTo().performClick()
+        compose.onNodeWithText("Belum diklasifikasi").performScrollTo().assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithText("Simpan label").performScrollTo().assertHeightIsAtLeast(48.dp)
         compose.onNodeWithText("Notifikasi asli").performScrollTo().assertIsDisplayed()
     }
 
@@ -85,12 +98,14 @@ class LargeTextUiTest {
     @Test fun settingsStayReachable() {
         compose.show(dark = true, fontScale = 2f) {
             SettingsScreen(
-                SettingsState(SyncHealth(true, 0, 0, 0), true, listOf(AppToggle("com.gojek.gopay", "GoPay", true)), true, true, ThemeMode.SYSTEM),
+                SettingsState(true, listOf(AppToggle("com.gojek.gopay", "GoPay", true)), true, true, ThemeMode.SYSTEM),
                 SettingsActions({}, {}, { _, _ -> }, {}, {}, {}, {}),
                 connection = { Text("Koneksi") }
             )
         }
         compose.onNodeWithText("GoPay").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Jam pengingat").performScrollTo().assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithText("Tes HP-ku").performScrollTo().assertHeightIsAtLeast(48.dp)
         compose.onNodeWithText("Gelap").performScrollTo().assertHeightIsAtLeast(48.dp)
     }
 }
