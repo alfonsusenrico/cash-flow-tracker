@@ -205,7 +205,7 @@ export function MoneyBar({ segments, legend = true, label }: { segments: MoneySe
       <div className="ws-moneybar" aria-hidden="true">
         {visible.map((segment) => (
           <span key={segment.key} className={segment.className} style={{ flex: segment.amount }}>
-            {segment.display}
+            <span className="ws-moneybar-text">{segment.display}</span>
           </span>
         ))}
       </div>

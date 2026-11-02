@@ -423,7 +423,11 @@ a.ws-companion:hover { background: var(--surface-2); }
 
 /* Money bar: labelled segments; the bar itself is decorative. */
 .ws-moneybar { display: flex; gap: 8px; }
-.ws-moneybar > span { display: flex; align-items: center; min-width: 0; height: 42px; padding: 0 14px; overflow: hidden; border-radius: 12px; font-size: 15px; font-weight: 450; white-space: nowrap; }
+.ws-moneybar > span { display: flex; align-items: center; min-width: 0; height: 42px; padding: 0 14px; overflow: hidden; border-radius: 12px; font-size: 15px; font-weight: 450; white-space: nowrap; container-type: inline-size; }
+/* A segment too narrow for its amount shows colour only; the legend below repeats every amount. */
+@container (max-width: 8.5rem) {
+  .ws-moneybar-text { visibility: hidden; }
+}
 .ws-seg-used { background: var(--surface-3); color: var(--text); }
 .ws-seg-sched { background: var(--warn-bg); color: var(--warn-fg); }
 .ws-seg-safe { background: var(--lime-soft); color: var(--lime-text); }
