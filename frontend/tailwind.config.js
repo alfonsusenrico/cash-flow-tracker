@@ -17,6 +17,7 @@ module.exports = {
           DEFAULT: "var(--color-income)",
           hover: "var(--color-income-hover)",
           soft: "var(--color-income-soft)",
+          contrast: "var(--income-contrast)",
         },
         expense: {
           DEFAULT: "var(--color-expense)",
@@ -53,9 +54,18 @@ module.exports = {
           700: "var(--color-expense-hover)",
         },
       },
-      // Coral text uses the darker text inks so it reads at 4.5:1 on light surfaces;
+      // Coral and emerald text use the darker text inks so they read at 4.5:1 on light surfaces;
       // bg-, border-, ring- and shadow- utilities keep the vivid fills from `colors`.
       textColor: {
+        income: {
+          DEFAULT: "var(--income-text)",
+        },
+        emerald: {
+          400: "var(--income-text)",
+          500: "var(--income-text)",
+          600: "var(--income-text)",
+          700: "var(--income-text)",
+        },
         expense: {
           DEFAULT: "var(--expense-text)",
         },

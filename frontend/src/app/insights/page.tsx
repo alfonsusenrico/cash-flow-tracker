@@ -365,7 +365,7 @@ export default function AnalyticsPage() {
                 <button
                   type="button"
                   onClick={() => openCreateCategory()}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold shadow-xs transition-[background-color,transform] active:scale-95 cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-income-contrast text-xs font-bold shadow-xs transition-[background-color,transform] active:scale-95 cursor-pointer"
                 >
                   <Icon name="plus" className="h-3.5 w-3.5" />
                   <span>Tambah Kategori</span>
@@ -721,7 +721,7 @@ export default function AnalyticsPage() {
               <button
                 type="button"
                 onClick={() => openCreateCategory("income")}
-                className="inline-flex min-h-10 items-center justify-center gap-1.5 self-start rounded-xl bg-emerald-500 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-emerald-400 sm:self-auto"
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 self-start rounded-xl bg-emerald-500 px-3.5 py-1.5 text-xs font-bold text-income-contrast shadow-xs transition-colors hover:bg-emerald-400 sm:self-auto"
               >
                 <Icon name="plus" className="h-3.5 w-3.5" />
                 Tambah Kategori Pemasukan

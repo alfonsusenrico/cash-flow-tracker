@@ -2,13 +2,16 @@
 
 Synthetic data only; reuses the monthly-report and text-capture owner fixtures.
 """
+from datetime import timedelta
 from uuid import uuid4
 
 import pytest
 
 from test_kakeibo_completeness import feedback_rows, kakeibo, recent, stored
 from test_monthly_report import as_user, insert, owners  # noqa: F401 - fixture
-from test_text_capture import answered, captured, capture_rows, owner  # noqa: F401 - fixture
+from test_text_capture import (  # noqa: F401 - fixture
+    answered, captured, capture_rows, model_result, owner, provider_with, use_provider,
+)
 from test_notification_processing_database import enable_ai, notification_owner  # noqa: F401 - fixture
 
 STARTER_PILLARS = {
@@ -104,6 +107,43 @@ def test_category_created_with_a_pillar_keeps_it(client, owners):
     assert income.status_code == 422
 
 
+@pytest.mark.parametrize("is_primary", [True, False])
+def test_category_edit_with_is_primary_keeps_the_stored_pillar(client, owners, is_primary):
+    owner, _ = owners
+    row = insert(owner, "misc", 12_000, recent())
+    for key, pillar in (("misc", None), ("dinner", "want"), ("groceries", "need")):
+        edited = client.patch(f"/api/categories/{owner[key]}", json={"is_primary": is_primary})
+        assert edited.status_code == 200, edited.text
+        category = edited.json()["category"]
+        assert (category["is_primary"], category["kakeibo_type"], edited.json()["corrections"]) == (is_primary, pillar, 0)
+    listed = {item["id"]: item["kakeibo_type"] for item in client.get("/api/categories").json()["categories"]}
+    assert (listed[owner["misc"]], listed[owner["dinner"]], listed[owner["groceries"]]) == (None, "want", "need")
+    assert feedback_rows(owner, [row]) == []
+    assert kakeibo(client)["unclassified_spent"] == 12_000
+
+
+def test_movement_fee_in_a_fee_category_without_a_pillar_stays_unclassified(client, owners):
+    from app.db.pool import db_conn
+    from app.services.movement_pairing import FEE_CATEGORY_NAME, link_pair
+
+    owner, _ = owners
+    created = client.post("/api/categories", json={"name": FEE_CATEGORY_NAME, "kind": "expense"})
+    assert created.status_code == 200, created.text
+    assert created.json()["category"]["kakeibo_type"] is None
+    when = recent(10)
+    expense = insert(owner, None, 102_500, when)
+    income = insert(owner, None, 100_000, when + timedelta(minutes=1), tx_type="income", account="pocket")
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            linked = link_pair(cur, owner["user_id"], expense, income, fee=2_500, notes=None)
+        conn.commit()
+    assert stored(linked["fee_transaction_id"])["kakeibo_type"] is None
+    listed = {item["name"]: item["kakeibo_type"] for item in client.get("/api/categories").json()["categories"]}
+    assert listed[FEE_CATEGORY_NAME] is None
+    breakdown = kakeibo(client)
+    assert (breakdown["unclassified_spent"], breakdown["need_spent"]) == (2_500, 0)
+
+
 def pillarless_category(owner):
     from app.db.pool import db_conn
 
@@ -134,6 +174,15 @@ def test_typed_capture_keeps_a_pillar_the_owner_chose(client, owner):
     capture = captured(client, "fotokopi 5rb tunai")
     capture = answered(client, capture, category_id=misc, kakeibo="culture")
     assert capture_rows(owner)[0]["kakeibo_type"] == "culture"
+
+
+def test_typed_capture_keeps_a_confident_model_pillar_for_a_category_without_one(client, owner, monkeypatch):
+    misc = pillarless_category(owner)
+    use_provider(monkeypatch, provider_with(model_result({**owner, "misc": misc}, category="misc", kakeibo="want")))
+    capture = captured(client, "fotokopi 5rb tunai")
+    assert capture["status"] == "recorded"
+    row = capture_rows(owner)[0]
+    assert (str(row["category_id"]), row["kakeibo_type"], row["classified_by"]) == (misc, "want", "ai")
 
 
 def test_capture_normalization_leaves_a_pillarless_category_unclassified():

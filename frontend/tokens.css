@@ -84,6 +84,10 @@
   --accent-text: #2D6E22;
   --expense-text: #B8142D;
   --primary-text: #B8142D;
+  /* Emerald income text: the #059669 fill measures 3.17:1 on the light paper, so text uses this darker
+   * ink of the same hue. Text on an emerald fill uses --income-contrast, which passes in both themes. */
+  --income-text: #056548;
+  --income-contrast: #0A0D14;
 
   /* Typography */
   --font-display: var(--font-jakarta), "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -140,6 +144,7 @@
   --accent-text: var(--accent-lime);
   --expense-text: var(--color-expense);
   --primary-text: var(--primary);
+  --income-text: var(--color-income);
 
   /* Semantic Movements */
   --color-income: #10B981;

@@ -47,7 +47,7 @@ An outbound leg SHALL pair with an inbound leg whose amount is lower by a config
 - **THEN** the legs SHALL stay unlinked.
 
 ### Requirement: Fee Recorded as a Separate Expense
-When legs pair with a fee, the movement SHALL be created for the inbound amount, both legs SHALL be equal, and the fee SHALL be recorded as an expense on the source account, dated as the outbound leg, in the owner's "Biaya Admin & Transfer" category (pillar need, counted in budgets), with source `movement`, classifier `system`, and a link to the movement.
+When legs pair with a fee, the movement SHALL be created for the inbound amount, both legs SHALL be equal, and the fee SHALL be recorded as an expense on the source account, dated as the outbound leg, in the owner's "Biaya Admin & Transfer" category (counted in budgets), with source `movement`, classifier `system`, and a link to the movement. The fee SHALL take the category's pillar, or none when the category has none, never a fallback `need`.
 
 #### Scenario: Balances after a fee pair
 - **WHEN** a Rp 102.500 debit pairs with a Rp 100.000 credit
@@ -62,6 +62,11 @@ When legs pair with a fee, the movement SHALL be created for the inbound amount,
 #### Scenario: Fee row cannot be merged
 - **WHEN** the owner asks to merge a fee row with another transaction as a movement
 - **THEN** the request SHALL be rejected with 409 and nothing SHALL change.
+
+#### Scenario: Fee category without a pillar
+- **GIVEN** the owner's "Biaya Admin & Transfer" expense category has no pillar
+- **WHEN** a Rp 102.500 debit pairs with a Rp 100.000 credit
+- **THEN** the Rp 2.500 fee SHALL be stored with no pillar, the category SHALL keep no pillar, and the Kakeibo breakdown SHALL report Rp 2.500 as `unclassified_spent` and nothing as `need_spent`.
 
 ### Requirement: Fee Undone With Its Movement
 Splitting a movement SHALL delete its fee row and return the fee to the outbound leg; deleting a movement SHALL delete its fee row.
