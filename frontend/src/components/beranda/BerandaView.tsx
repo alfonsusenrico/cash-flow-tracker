@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { EmergencyRunway, essentialBasisText } from "@/components/dashboard/EmergencyCoverage";
@@ -14,6 +14,7 @@ import { Drawer } from "@/components/workspace/overlays";
 import { Card, CardHeader, DeltaChip, ErrorState, Kpi, KpiStrip, MoneyBar, Pill, Skeleton } from "@/components/workspace/primitives";
 import { CompanionStatus } from "@/components/workspace/SideNav";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
+import { useWidthAtMost } from "@/hooks/useWidthAtMost";
 import { api } from "@/lib/api";
 import { KAKEIBO_BUCKETS } from "@/lib/kakeibo";
 import { consolidateLedgerMovements } from "@/lib/ledgerMovements";
@@ -636,6 +637,10 @@ export default function BerandaView() {
   const [selectedTx, setSelectedTx] = useState<ActivityRow | null>(null);
   const [plansOpen, setPlansOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const deskRef = useRef<HTMLDivElement>(null);
+  // Same width as `@container main (max-width: 900px)`, where the grid becomes one column.
+  // Kerjakan dulu then moves up in the DOM, so reading and focus order follow the layout.
+  const singleColumn = useWidthAtMost(deskRef, 900);
 
   const summaryQuery = useQuery<CycleSummary>({
     queryKey: queryKeys.dashboard.cycleSummary,
@@ -716,7 +721,7 @@ export default function BerandaView() {
   return (
     <div>
       {/* Desktop and tablet */}
-      <div className="ws-only-desk">
+      <div className="ws-only-desk" ref={deskRef}>
         {summaryQuery.isLoading && <DesktopSkeleton />}
         {summaryFailed && (
           <div className="my-4">
@@ -734,11 +739,12 @@ export default function BerandaView() {
           <div className="ws-home-grid">
             <div className="ws-stack">
               {summary && <MoneyCard summary={summary} />}
+              {singleColumn && todo}
               <ActivityCard rows={recent} today={today} bal={bal} onSelect={setSelectedTx} error={activityQuery.isError} />
               {summary && <InsightBanner summary={summary} comparison={comparisonQuery.data} error={comparisonQuery.isError} />}
             </div>
             <div className="ws-stack">
-              {todo}
+              {!singleColumn && todo}
               {summary && <KakeiboCard summary={summary} />}
               {dana}
             </div>
