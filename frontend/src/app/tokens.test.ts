@@ -15,6 +15,7 @@ const categoryDonutChart = readFileSync(path.join(srcDir, "components/dashboard/
 const berandaPage = readFileSync(path.join(appDir, "page.tsx"), "utf8");
 const mobileLedgerFeed = readFileSync(path.join(srcDir, "components/ledger/MobileLedgerFeed.tsx"), "utf8");
 const mobileHomeView = readFileSync(path.join(srcDir, "components/dashboard/MobileHomeView.tsx"), "utf8");
+const accountsPage = readFileSync(path.join(appDir, "accounts/page.tsx"), "utf8");
 const tokens = readFileSync(path.resolve(appDir, "../../tokens.css"), "utf8");
 const globals = readFileSync(path.join(appDir, "globals.css"), "utf8");
 const layout = readFileSync(path.join(appDir, "layout.tsx"), "utf8");
@@ -22,12 +23,16 @@ const layout = readFileSync(path.join(appDir, "layout.tsx"), "utf8");
 const declaredIn = (source: string) => new Set([...source.matchAll(/(--[\w-]+)\s*:/g)].map((match) => match[1]));
 const usedIn = (source: string) => new Set([...source.matchAll(/var\(\s*(--[\w-]+)/g)].map((match) => match[1]));
 
-function componentSources(dir: string): string[] {
+function componentFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return componentSources(full);
-    return /\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? [readFileSync(full, "utf8")] : [];
+    if (entry.isDirectory()) return componentFiles(full);
+    return /\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? [full] : [];
   });
+}
+
+function componentSources(dir: string): string[] {
+  return componentFiles(dir).map((file) => readFileSync(file, "utf8"));
 }
 
 function block(selector: string): Record<string, string> {
@@ -97,6 +102,9 @@ const textPairs: [string, string[]][] = [
   ["--transfer-text", ["--surface", "--bg", "--surface-raised"]],
   // Text and icons on the solid transfer fill (bg-transfer), such as the HeroWalletCard tile.
   ["--transfer-contrast", ["--color-transfer"]],
+  ["--investment-text", ["--surface", "--bg", "--surface-raised", "--color-investment-soft"]],
+  // Text on the solid lavender fill (bg-investment), such as the selected instrument buttons on Rekening.
+  ["--investment-contrast", ["--color-investment"]],
   // The phone dock is dark in both themes; its translucent fill is measured over the page surface.
   ["--dock-muted", ["--dock-surface"]],
   ["--dock-text", ["--dock-surface"]],
@@ -194,6 +202,100 @@ describe("design tokens", () => {
     expect(mobileHomeView).toMatch(/<Icon name="repeat" className="[^"]*text-sky-500/);
   });
 
+  it("paints violet text utilities with the investment text ink and keeps the violet fills", () => {
+    const { textColor, backgroundColor } = tailwindTheme;
+    for (const shade of ["400", "500", "600", "700"]) {
+      expect(textColor.violet[shade], `text-violet-${shade}`).toBe("var(--investment-text)");
+    }
+    expect(textColor.investment.DEFAULT).toBe("var(--investment-text)");
+    expect(textColor.investment.contrast).toBe("var(--investment-contrast)");
+    expect(backgroundColor.violet["500"]).toBe("#8b5cf6");
+    expect(backgroundColor.investment.DEFAULT).toBe("var(--color-investment)");
+    expect(backgroundColor.investment.soft).toBe("var(--color-investment-soft)");
+    expect(resolve(themes[":root"], "--color-investment")).toBe("#8B5CF6");
+    expect(resolve(themes[".dark"], "--color-investment")).toBe("#A78BFA");
+  });
+
+  it("paints every investment element lavender, never amber, sky, blue, purple or indigo", () => {
+    // The Beranda wallet pill, the phone-width home balance and wallet card, and the Beranda "Invest" badge.
+    const pill = heroWalletCard.match(/<div className="([^"]*)">\s*<span className="([^"]*)" \/>\s*<span>Investasi:<\/span>\s*<span className="([^"]*)"/);
+    expect(pill?.[1]).toContain("text-investment");
+    expect(pill?.[2]).toContain("bg-investment");
+    expect(pill?.[3]).toContain("text-investment");
+    expect(pill?.slice(1).join(" ")).not.toMatch(/(amber|sky|blue|purple|indigo)-/);
+    expect(mobileHomeView).toMatch(/Investasi: <strong className="text-investment tabular">/);
+    expect(mobileHomeView).toMatch(/const cardBg = isInvest\s*\?\s*"[^"]*border-violet-500\/30"/);
+    expect(berandaPage).toMatch(/className="[^"]*bg-violet-500\/10 text-investment[^"]*">\s*Invest\s*</);
+
+    // Fallback colours of investment accounts without a colour of their own.
+    for (const [name, source] of [["Beranda", berandaPage], ["MobileHomeView", mobileHomeView]] as const) {
+      const fallbacks = [...source.matchAll(/acc\.color \|\| \(isInvest \? "([^"]+)"/g)].map((match) => match[1]);
+      expect(fallbacks.length, `${name} fallbacks`).toBeGreaterThan(0);
+      for (const colour of fallbacks) expect(colour, name).toBe("var(--color-investment)");
+    }
+
+    // Investment top-up rows on Transaksi: every class or colour branch keyed on the top-up is lavender.
+    for (const [name, source] of [["Transaksi", ledgerPage], ["MobileLedgerFeed", mobileLedgerFeed]] as const) {
+      const branches = [...source.matchAll(/investment_topup_id\s*\?\s*"([^"]*)"/g)]
+        .map((match) => match[1])
+        .filter((value) => /(^|\s)(text|bg|border)-|var\(/.test(value));
+      expect(branches.length, `${name} top-up branches`).toBeGreaterThanOrEqual(name === "Transaksi" ? 5 : 3);
+      for (const classes of branches) {
+        expect(classes, `${name}: ${classes}`).toMatch(/investment/);
+        expect(classes, `${name}: ${classes}`).not.toMatch(/(amber|sky|blue|purple|indigo)-|--color-transfer/);
+      }
+    }
+
+    // The Rekening allocation share and the price-sync message.
+    const shares = [...accountsPage.matchAll(/investPct > 0 && [^\n]*className="([^"]*)"|<span className="([^"]*)" \/>\s*Investasi:/g)]
+      .map((match) => match[1] ?? match[2]);
+    expect(shares).toHaveLength(2);
+    for (const classes of shares) expect(classes).toContain("bg-investment");
+    expect(accountsPage).not.toMatch(/bg-indigo-500(?!\/)/);
+    expect(accountsPage).toMatch(/\{syncMessage && \(\s*<span className="[^"]*text-investment[^"]*">/);
+
+    // Purple was a second lavender for top-ups; investment elements now share one family.
+    const purple = componentFiles(srcDir).filter((file) => /(^|[\s"'`:])(text|bg|border)-purple-\d/.test(readFileSync(file, "utf8")));
+    expect(purple.map((file) => path.relative(srcDir, file))).toEqual([]);
+  });
+
+  it("puts the investment contrast ink on every solid lavender fill", () => {
+    const solid = /(^|\s)bg-(investment|violet-[5-9]00)(\s|$)/;
+    const classStrings = componentSources(srcDir).flatMap((source) => [...source.matchAll(/"([^"]*)"/g)].map((match) => match[1]));
+    const filled = classStrings.filter((classes) => solid.test(classes) && /(^|\s)text-/.test(classes));
+    expect(filled.length).toBeGreaterThanOrEqual(4);
+    for (const classes of filled) {
+      expect(classes).toContain("text-investment-contrast");
+      expect(classes).not.toMatch(/(^|\s)text-white(\s|$)/);
+    }
+  });
+
+  it("uses sky only for transfers and neutral tokens for the Pilar Kakeibo card and information notes", () => {
+    // Every sky utility must sit in a transfer branch, a movement, a Pindah Saldo action or a transfer target,
+    // named on its own line or in the eight lines before it.
+    const transferMarker = /isMovement|is_consolidated_transfer|is_inferred_transfer|movement_id|target_account_name|Internal Movement|selectedTx\.type === "transfer"|handleOpenTransfer|onOpenTransfer|canTransfer/;
+    const outside: string[] = [];
+    for (const file of componentFiles(srcDir)) {
+      const source = readFileSync(file, "utf8");
+      for (const match of source.matchAll(/(?:text|bg|border|ring|from|via|to|fill|stroke)-sky-\d{2,3}/g)) {
+        const line = source.slice(0, match.index).split("\n").length;
+        const context = source.split("\n").slice(Math.max(0, line - 9), line).join("\n");
+        if (!transferMarker.test(context)) {
+          outside.push(`${path.relative(srcDir, file)}:${line} ${match[0]}`);
+        }
+      }
+    }
+    expect(outside).toEqual([]);
+
+    const metricMatrixGrid = readFileSync(path.join(srcDir, "components/dashboard/MetricMatrixGrid.tsx"), "utf8");
+    const kakeiboCard = metricMatrixGrid.slice(metricMatrixGrid.indexOf("Kakeibo Ratio Card"), metricMatrixGrid.indexOf("Pilar Kakeibo"));
+    expect(kakeiboCard).toContain("bg-[var(--surface-raised)] text-[var(--text-secondary)]");
+    expect(kakeiboCard).not.toMatch(/sky-|blue-|violet-/);
+    expect(goalsPage).toMatch(/<p className="[^"]*bg-\[var\(--surface-raised\)\][^"]*text-\[var\(--text-secondary\)\]">\s*Ini hanya memperbarui angka progres target/);
+    const banner = readFileSync(path.join(srcDir, "components/recurring/PendingScheduledBanner.tsx"), "utf8");
+    expect(banner).toMatch(/<span className="[^"]*bg-\[var\(--surface-raised\)\][^"]*text-\[var\(--text\)\]">\s*Ditautkan otomatis/);
+  });
+
   it("keeps the signature lime, coral and emerald fills unchanged", () => {
     expect(resolve(themes[":root"], "--accent-lime")).toBe("#66CC55");
     expect(resolve(themes[":root"], "--color-expense")).toBe("#FF334B");
@@ -281,6 +383,19 @@ describe("design tokens", () => {
           const base = painted(theme, surface);
           const tint = base.map((channel, index) => sky[index] * alpha + channel * (1 - alpha)) as Rgb;
           expect(contrast(painted(theme, "--transfer-text"), tint), `${alpha} sky over ${surface} in ${selector}`)
+            .toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    });
+
+    it("keeps --investment-text at WCAG AA on the violet tints of investment chips", () => {
+      // Investment chips, pills and notes paint Tailwind's violet-500 at 10 to 25% over the card or the raised surface.
+      const violet = hex("#8b5cf6");
+      for (const surface of ["--surface", "--surface-raised"]) {
+        for (const alpha of [0.1, 0.15, 0.2, 0.25]) {
+          const base = painted(theme, surface);
+          const tint = base.map((channel, index) => violet[index] * alpha + channel * (1 - alpha)) as Rgb;
+          expect(contrast(painted(theme, "--investment-text"), tint), `${alpha} violet over ${surface} in ${selector}`)
             .toBeGreaterThanOrEqual(4.5);
         }
       }

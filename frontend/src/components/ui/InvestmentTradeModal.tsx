@@ -242,7 +242,7 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
         {/* Instrument & Symbol badge */}
         <div className="flex items-center gap-2 px-1">
           <span className="text-[11px] text-[var(--muted)] uppercase font-medium">Instrumen:</span>
-          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-violet-500/15 text-violet-600 dark:text-violet-300">
+          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-violet-500/15 text-investment">
             {pocket.instrument_type ?? "investasi"}
           </span>
           {pocket.instrument_symbol && (

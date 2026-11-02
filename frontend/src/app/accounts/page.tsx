@@ -1021,7 +1021,7 @@ export default function AccountsPage() {
         {/* Desktop Action Buttons (>= lg) */}
         <div className="hidden lg:flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
           {syncMessage && (
-            <span className="text-[11px] font-medium px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-fade-in">
+            <span className="text-[11px] font-medium px-2.5 py-1 rounded-xl bg-violet-500/10 text-investment border border-violet-500/20 animate-fade-in">
               {syncMessage}
             </span>
           )}
@@ -1147,7 +1147,7 @@ export default function AccountsPage() {
               Tunai: <strong className="text-[var(--text)]">{cashPct}%</strong>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-indigo-500" />
+              <span className="h-2 w-2 rounded-full bg-investment" />
               Investasi: <strong className="text-[var(--text)]">{investPct}%</strong>
             </span>
           </div>
@@ -1176,7 +1176,7 @@ export default function AccountsPage() {
           {investPct > 0 && (
             <div
               style={{ width: `${investPct}%` }}
-              className="h-full bg-indigo-500 transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+              className="h-full bg-investment transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
             />
           )}
         </div>
@@ -1247,7 +1247,7 @@ export default function AccountsPage() {
               {bankPct > 0 && <div style={{ width: `${bankPct}%` }} className="h-full bg-blue-500" />}
               {walletPct > 0 && <div style={{ width: `${walletPct}%` }} className="h-full bg-emerald-500" />}
               {cashPct > 0 && <div style={{ width: `${cashPct}%` }} className="h-full bg-amber-500" />}
-              {investPct > 0 && <div style={{ width: `${investPct}%` }} className="h-full bg-indigo-500" />}
+              {investPct > 0 && <div style={{ width: `${investPct}%` }} className="h-full bg-investment" />}
             </div>
             <div className="flex items-center justify-between text-[9px] text-[var(--muted)] tabular font-medium">
               <span>Bank {bankPct}%</span>
@@ -1518,7 +1518,7 @@ export default function AccountsPage() {
                   </div>
 
                   {accIsMultiInstrument && (
-                    <div className="p-3 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-300 text-[11px] leading-relaxed">
+                    <div className="p-3 rounded-xl bg-violet-500/10 border border-violet-500/20 text-investment text-[11px] leading-relaxed">
                       💡 Rekening <strong>{accName || "Investasi"}</strong> akan dibuat sebagai akun induk platform. Setelah dibuat, Anda bisa menambahkan berbagai kantong instrumen (seperti RDPU, Saham BBCA, Bareksa Sukuk, dll) di dalamnya.
                     </div>
                   )}
@@ -1580,7 +1580,7 @@ export default function AccountsPage() {
                   className={cn(
                     "min-h-11 px-3 rounded-xl border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
                     !accIsMultiInstrument
-                      ? "bg-violet-600 text-white border-violet-500 shadow-xs"
+                      ? "bg-investment text-investment-contrast border-violet-500 shadow-xs"
                       : "bg-[var(--surface-raised)] text-[var(--muted)] border-[var(--border)] hover:text-[var(--text)]"
                   )}
                 >
@@ -1607,7 +1607,7 @@ export default function AccountsPage() {
                       className={cn(
                         "min-h-11 px-2 rounded-xl border text-xs font-semibold transition-colors",
                         accInstrumentType === opt.value
-                          ? "bg-violet-600 text-white border-violet-500 shadow-xs"
+                          ? "bg-investment text-investment-contrast border-violet-500 shadow-xs"
                           : "bg-[var(--surface-raised)] text-[var(--muted)] border-[var(--border)] hover:text-[var(--text)]"
                       )}
                     >
@@ -1839,7 +1839,7 @@ export default function AccountsPage() {
                   className={cn(
                     "min-h-11 px-3 rounded-xl border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
                     pocketIsInvestment
-                      ? "bg-violet-600 text-white border-violet-500 shadow-xs"
+                      ? "bg-investment text-investment-contrast border-violet-500 shadow-xs"
                       : "bg-[var(--surface-raised)] text-[var(--muted)] border-[var(--border)] hover:text-[var(--text)]"
                   )}
                 >
@@ -1868,7 +1868,7 @@ export default function AccountsPage() {
                         className={cn(
                           "min-h-11 px-2 rounded-xl border text-xs font-semibold transition-colors",
                           pocketInstrumentType === opt.value
-                            ? "bg-violet-600 text-white border-violet-500 shadow-xs"
+                            ? "bg-investment text-investment-contrast border-violet-500 shadow-xs"
                             : "bg-[var(--surface-raised)] text-[var(--muted)] border-[var(--border)] hover:text-[var(--text)]"
                         )}
                       >

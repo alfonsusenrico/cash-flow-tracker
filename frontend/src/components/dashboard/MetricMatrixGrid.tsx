@@ -173,10 +173,10 @@ export function MetricMatrixGrid({
       </div>
 
       {/* 4. Kakeibo Ratio Card */}
-      <div className="card-squircle p-4 sm:p-5 flex flex-col justify-between bg-sky-500/[0.04] border-sky-500/20 shadow-xs">
+      <div className="card-squircle p-4 sm:p-5 flex flex-col justify-between shadow-xs">
         <div className="flex items-center justify-between gap-1.5">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-xl bg-sky-500/15 text-sky-500 flex items-center justify-center shrink-0 shadow-xs">
+            <div className="h-8 w-8 rounded-xl bg-[var(--surface-raised)] text-[var(--text-secondary)] flex items-center justify-center shrink-0 shadow-xs">
               <Icon name="pie-chart" className="h-4 w-4 stroke-[2.5]" />
             </div>
             <span className="text-xs font-bold text-[var(--muted)] truncate">Pilar Kakeibo</span>

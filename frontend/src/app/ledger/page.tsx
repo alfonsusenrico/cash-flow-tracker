@@ -1365,7 +1365,7 @@ function LedgerPageContent() {
                       {/* Type Badge */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         {tx.is_consolidated_transfer || tx.is_inferred_transfer ? (
-                          <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border tracking-wide", tx.investment_topup_id ? "bg-purple-100 text-purple-900 border-purple-200 dark:bg-purple-950 dark:text-purple-100 dark:border-purple-800" : "bg-sky-500/10 text-sky-500 border-sky-500/20")}>
+                          <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border tracking-wide", tx.investment_topup_id ? "bg-violet-500/10 text-investment border-violet-500/20" : "bg-sky-500/10 text-sky-500 border-sky-500/20")}>
                             <span className="text-xs leading-none">↔️</span>
                             <span>{tx.investment_topup_id ? "Top up Investasi" : "Pindah Saldo"}</span>
                           </span>
@@ -1373,7 +1373,9 @@ function LedgerPageContent() {
                           <span
                             className={cn(
                               "px-2 py-0.5 rounded-md text-[10px] font-bold uppercase",
-                              isMovement
+                              tx.investment_topup_id
+                                ? "bg-violet-500/10 text-investment"
+                                : isMovement
                                 ? "bg-sky-500/10 text-sky-500"
                                 : isIncome
                                 ? "bg-income/10 text-income"
@@ -1412,7 +1414,9 @@ function LedgerPageContent() {
                             <span
                               className="h-2 w-2 rounded-full"
                               style={{
-                                backgroundColor: isMovement
+                                backgroundColor: tx.investment_topup_id
+                                  ? "var(--color-investment)"
+                                  : isMovement
                                   ? "var(--color-transfer)"
                                   : tx.category_color || "#3b82f6",
                               }}
@@ -1435,7 +1439,7 @@ function LedgerPageContent() {
                           <span className="text-[11px] font-medium text-[var(--text-secondary)]">{feeLinkText(tx, bal)}</span>
                         ) : (tx.is_consolidated_transfer || tx.is_inferred_transfer) && tx.target_account_name ? (
                           <span className="block">
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-500">
+                            <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold", tx.investment_topup_id ? "text-investment" : "text-sky-500")}>
                               <span className="text-xs">→</span>
                               <span>{tx.target_account_name}</span>
                             </span>
@@ -1444,7 +1448,7 @@ function LedgerPageContent() {
                             )}
                           </span>
                         ) : tx.target_account_name ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-500">
+                          <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium", tx.investment_topup_id ? "text-investment" : "text-sky-500")}>
                             <span className="text-xs">{isIncome ? "←" : "→"}</span>
                             <span>{tx.target_account_name}</span>
                           </span>
@@ -1474,6 +1478,8 @@ function LedgerPageContent() {
                           "py-3.5 px-4 text-right font-bold tabular whitespace-nowrap",
                           tx.is_consolidated_transfer || tx.is_inferred_transfer
                             ? "text-[var(--text)]"
+                            : tx.investment_topup_id
+                            ? "text-investment"
                             : isMovement
                             ? "text-sky-500"
                             : isIncome
@@ -1914,7 +1920,7 @@ function LedgerPageContent() {
                   {editingTx.receipt_path && <p className="mt-1 text-[10px] text-[var(--muted)]">Bukti saat ini akan diganti hanya setelah unggahan baru berhasil.</p>}
                 </div>
             {canConvertExpenseToTopup(editingTx, accounts) && (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-purple-900 dark:border-purple-800 dark:bg-purple-950 dark:text-purple-100">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-500/25 bg-investment-soft p-3 text-investment">
                 <p className="text-xs">Debit ini untuk membeli reksadana?</p>
                 <button
                   type="button"

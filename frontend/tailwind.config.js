@@ -33,6 +33,11 @@ module.exports = {
           DEFAULT: "var(--color-transfer)",
           contrast: "var(--transfer-contrast)",
         },
+        investment: {
+          DEFAULT: "var(--color-investment)",
+          soft: "var(--color-investment-soft)",
+          contrast: "var(--investment-contrast)",
+        },
         sidebar: "var(--sidebar)",
         "sidebar-hover": "var(--sidebar-hover)",
         "sidebar-active": "var(--sidebar-active)",
@@ -59,7 +64,7 @@ module.exports = {
           700: "var(--color-expense-hover)",
         },
       },
-      // Coral, emerald, amber and sky text use the darker text inks so they read at 4.5:1 on light surfaces;
+      // Coral, emerald, amber, sky and violet (lavender) text use the darker text inks so they read at 4.5:1 on light surfaces;
       // bg-, border-, ring- and shadow- utilities keep the vivid fills from `colors`.
       textColor: {
         income: {
@@ -85,6 +90,15 @@ module.exports = {
         },
         transfer: {
           DEFAULT: "var(--transfer-text)",
+        },
+        violet: {
+          400: "var(--investment-text)",
+          500: "var(--investment-text)",
+          600: "var(--investment-text)",
+          700: "var(--investment-text)",
+        },
+        investment: {
+          DEFAULT: "var(--investment-text)",
         },
         expense: {
           DEFAULT: "var(--expense-text)",

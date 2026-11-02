@@ -121,7 +121,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                       {link.obligation_name && link.obligation_name !== link.name ? ` · ${link.obligation_name}` : ""}
                     </p>
                     <p className="text-[var(--text-secondary)]">
-                      <span className="mr-1 inline-flex rounded-full border border-sky-500/30 bg-sky-500/10 px-1.5 font-semibold text-sky-800 dark:text-sky-200">
+                      <span className="mr-1 inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-raised)] px-1.5 font-semibold text-[var(--text)]">
                         Ditautkan otomatis
                       </span>
                       <span className="tabular-nums">Jatuh tempo {shortDay(`${link.scheduled_for}T00:00:00`)} · {autoLinkLabel(link)}</span>

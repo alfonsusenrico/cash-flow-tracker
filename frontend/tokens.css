@@ -35,6 +35,9 @@
   --color-warning-soft: #FEF3C7;
   /* Sky blue means an internal transfer ("Pindah Saldo") everywhere; amber stays for warnings. */
   --color-transfer: #0EA5E9;
+  /* Lavender means an investment (balances, products, top-ups) everywhere; sky stays for transfers. */
+  --color-investment: #8B5CF6;
+  --color-investment-soft: #F5F3FF;
   --color-focus: #FF334B;
 
   /* Kakeibo Pillar Tokens */
@@ -101,6 +104,11 @@
    * raised surface. Text and icons on the solid transfer fill use --transfer-contrast in both themes. */
   --transfer-text: #075985;
   --transfer-contrast: #0A0D14;
+  /* Lavender investment text: violet-500 (#8B5CF6) measures 4.23:1 on white and 3.56:1 on the paper, so text
+   * uses violet-800, a darker ink of the same hue: 4.5:1 or better on every surface, the soft fill and 10 to
+   * 20% violet tints over the card and the raised surface. Text on the solid fill uses --investment-contrast. */
+  --investment-text: #5B21B6;
+  --investment-contrast: #0A0D14;
 
   /* Typography */
   --font-display: var(--font-jakarta), "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -161,6 +169,7 @@
   --income-hover-contrast: #0A0D14;
   --warning-text: var(--color-warning);
   --transfer-text: var(--color-transfer);
+  --investment-text: var(--color-investment);
 
   /* Semantic Movements */
   --color-income: #10B981;
@@ -172,6 +181,8 @@
   --color-warning: #FBBF24;
   --color-warning-soft: rgba(251, 191, 36, 0.16);
   --color-transfer: #38BDF8;
+  --color-investment: #A78BFA;
+  --color-investment-soft: rgba(167, 139, 250, 0.16);
   --color-focus: #FF4757;
 
   /* Kakeibo Pillar Tokens */

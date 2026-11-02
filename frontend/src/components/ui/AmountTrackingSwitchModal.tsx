@@ -32,7 +32,7 @@ export function AmountTrackingSwitchModal({ product, onClose }: Props) {
   return (
     <Modal open onClose={() => { if (!busy) onClose(); }} title="Ubah ke pelacakan nominal">
       <div className="space-y-4">
-        <div className="rounded-xl border border-purple-200 bg-purple-50 p-3 text-purple-900 dark:border-purple-800 dark:bg-purple-950 dark:text-purple-100">
+        <div className="rounded-xl border border-violet-500/25 bg-investment-soft p-3 text-investment">
           <p className="text-xs">Produk reksadana</p>
           <p className="break-words font-semibold">{product.name}</p>
         </div>

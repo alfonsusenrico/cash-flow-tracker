@@ -257,7 +257,7 @@ export function MobileLedgerFeed({
                         className={cn(
                           "h-9 w-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs",
                           tx.investment_topup_id
-                            ? "bg-purple-100 text-purple-900 border border-purple-200 dark:bg-purple-950 dark:text-purple-100 dark:border-purple-800"
+                            ? "bg-violet-500/10 text-investment border border-violet-500/20"
                             : isMovement
                             ? "bg-sky-500/10 text-sky-500 border border-sky-500/20"
                             : isIncome
@@ -324,14 +324,16 @@ export function MobileLedgerFeed({
                     {/* Right: Nominal */}
                     <div className="text-right shrink-0">
                       {selectionLabel && (
-                        <span className={cn("block text-[10px] font-semibold", isSelected ? "text-sky-500" : "text-[var(--muted)]")}>
+                        <span className={cn("block text-[10px] font-semibold", isSelected ? "text-[var(--text)]" : "text-[var(--muted)]")}>
                           {selectionLabel}
                         </span>
                       )}
                       <div
                         className={cn(
                           "text-xs font-bold tabular tracking-tight",
-                          isMovement
+                          tx.investment_topup_id
+                            ? "text-investment"
+                            : isMovement
                             ? "text-sky-500"
                             : isIncome
                             ? "text-emerald-500"
@@ -347,7 +349,7 @@ export function MobileLedgerFeed({
                       </div>
 
                       {isMovement && (
-                        <span className="inline-block mt-0.5 text-[9px] font-bold uppercase tracking-wider text-sky-500 bg-sky-500/10 px-1.5 py-0.2 rounded">
+                        <span className={cn("inline-block mt-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded", tx.investment_topup_id ? "text-investment bg-violet-500/10" : "text-sky-500 bg-sky-500/10")}>
                           {movementStatus}
                         </span>
                       )}

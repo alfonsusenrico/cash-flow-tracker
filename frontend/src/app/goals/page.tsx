@@ -1270,7 +1270,7 @@ export default function GoalsAndDebtsPage() {
               </div>
             )}
 
-            <p className="rounded-xl border border-sky-500/25 bg-sky-500/10 p-3 leading-relaxed text-sky-700 dark:text-sky-300">
+            <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3 leading-relaxed text-[var(--text-secondary)]">
               Ini hanya memperbarui angka progres target. Tidak ada transaksi dan tidak ada saldo rekening yang berubah.
             </p>
 
