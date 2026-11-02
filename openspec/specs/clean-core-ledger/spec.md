@@ -22,7 +22,7 @@ The system SHALL support creating, updating via both `PUT` and `PATCH`, archivin
   The system SHALL support creating, updating via both `PUT` and `PATCH`, archiving, and querying liquid cash and investment accounts (`cash`, `bank`, `wallet`, `investment`):
   1. Each account's current balance SHALL equal its initial balance plus all debits (income/inbound transfers) minus all credits (expenses/outbound transfers), or its market valuation when instrument tracking is enabled.
   2. Investment valuation updates (via market data or manual updates) SHALL update market valuation parameters (`last_price`, `units`, `initial_balance`) directly and SHALL NOT insert income, expense, or transfer transactions into the ledger.
-  3. Account entities SHALL support a customizable tag color (`color`, hex string default `#3b82f6`) and display position index (`display_order`, integer default `0`).
+  3. Account entities SHALL support a customizable tag color (`color`, hex string) and display position index (`display_order`, integer default `0`). An account created without a color SHALL get the lavender investment color `#8B5CF6` when its type is `investment`, including an investment pocket and a stock position opened from a broker notification, and `#3b82f6` otherwise. The web form for a new account SHALL start on that type's default (`#8B5CF6` for `investment`, `#2563EB` otherwise) and follow the type until the owner picks a color. Defaults SHALL apply only when an account is created and SHALL NOT rewrite a stored color.
   4. `GET /api/accounts` SHALL order top-level accounts by `display_order ASC, created_at ASC, name ASC`.
   5. The system SHALL expose `POST /api/accounts/reorder` accepting `account_ids: list[UUID]` to persist updated account order.
   6. The Accounts page SHALL display top-level accounts as equal-height cards in their persisted order, with three cards per row on wide desktops, two on medium desktops, and one on narrow screens. Each card SHALL prominently identify the account by name and configured color with high-contrast text, show its balance, and keep its associated pockets in an expandable, bounded scroll region below the persistent summary and actions. Cards with and without pockets SHALL align to the same height. The hierarchy SHALL remain legible in light and dark modes.
@@ -59,6 +59,14 @@ The system SHALL support creating, updating via both `PUT` and `PATCH`, archivin
 #### Scenario: Viewing accounts in rich light mode
 - **WHEN** a user switches the application to light mode
 - **THEN** the canvas displays a refined soft slate background (`#F4F5F8`), account groups render with crisp white surfaces and visible borders, and the hierarchy avoids unstyled dark inversions
+
+#### Scenario: Default color of a new investment account
+- **WHEN** an authenticated user creates an investment account, or an investment pocket, without choosing a color
+- **THEN** the system persists the account with `#8B5CF6`, a new bank, wallet or cash account without a color still gets `#3b82f6`, and an account whose request names a color keeps that color
+
+#### Scenario: Stored colors are not rewritten
+- **WHEN** an investment account was saved with `#3b82f6` before this default existed and the owner later renames it
+- **THEN** the account keeps `#3b82f6`
 
 ### Requirement: Single-Call Transaction Recording
 The system SHALL expose `POST /api/transactions` to record cash inflow (`income`) or cash outflow (`expense`), and expose both `PUT /api/transactions/{id}` and `PATCH /api/transactions/{id}` to update transactions. The recording operation SHALL require `account_id`, `amount`, and `type`, and accept optional `category_id`, `notes`, `date`, and `receipt_path`.
