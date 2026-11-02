@@ -53,9 +53,10 @@ jobs:
           cache-dependency-path: backend/requirements*.txt
 
       - name: Install Backend Dependencies
+        # Pinned test tools: pytest 9.2's monkeypatch undo deletes Starlette app.state attributes.
         run: |
           python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt pytest httpx pytest-asyncio
+          pip install -r backend/requirements-dev.txt
 
       - name: Migrate V1 to Latest with Flyway
         # Same image, flags and locations as the migrate service in docker-compose.yml.
