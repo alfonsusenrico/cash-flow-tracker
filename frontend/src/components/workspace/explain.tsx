@@ -130,7 +130,7 @@ function ExplanationPanel({ state, onClose }: { state: OpenState; onClose: () =>
   const triggerRef = useRef<HTMLElement | null>(state.trigger);
   const titleId = useId();
   const [sheet] = useState(() => typeof window.matchMedia === "function" && window.matchMedia(PHONE_QUERY).matches);
-  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  const [position, setPosition] = useState<{ left: number; top: number; maxHeight?: number } | null>(null);
   const { data } = state;
 
   useEscapeLayer(true, onClose);
@@ -141,19 +141,24 @@ function ExplanationPanel({ state, onClose }: { state: OpenState; onClose: () =>
   useLayoutEffect(() => {
     headingRef.current?.focus();
     if (sheet || !panelRef.current) return;
+    const margin = 16;
     const rect = state.trigger.getBoundingClientRect();
     const width = panelRef.current.offsetWidth;
     const height = panelRef.current.offsetHeight;
     const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
     let left = rect.left + window.scrollX;
-    left = Math.min(left, window.scrollX + viewportWidth - width - 16);
-    left = Math.max(window.scrollX + 16, left);
-    let top = rect.bottom + window.scrollY + 8;
-    // Above the figure when it does not fit below; never over the figure itself.
-    if (rect.bottom + height + 16 > window.innerHeight && rect.top - height - 8 > 0) {
-      top = rect.top + window.scrollY - height - 8;
+    left = Math.min(left, window.scrollX + viewportWidth - width - margin);
+    left = Math.max(window.scrollX + margin, left);
+    // Below the figure when it fits, else above; a tall explanation scrolls inside the larger side.
+    // It never covers the figure itself.
+    const below = window.innerHeight - rect.bottom - 8 - margin;
+    const above = rect.top - 8 - margin;
+    if (height <= below || (height > above && below >= above)) {
+      setPosition({ left, top: rect.bottom + window.scrollY + 8, maxHeight: height <= below ? undefined : below });
+    } else {
+      const shown = Math.min(height, above);
+      setPosition({ left, top: rect.top + window.scrollY - shown - 8, maxHeight: height <= above ? undefined : above });
     }
-    setPosition({ left, top });
   }, [sheet, state.trigger]);
 
   const panel = (
@@ -166,7 +171,18 @@ function ExplanationPanel({ state, onClose }: { state: OpenState; onClose: () =>
         aria-labelledby={titleId}
         className="ws-explain"
         data-mode={sheet ? "sheet" : "popover"}
-        style={sheet ? undefined : { left: position?.left ?? 0, top: position?.top ?? 0, visibility: position ? "visible" : "hidden" }}
+        style={
+          sheet
+            ? undefined
+            : {
+                left: position?.left ?? 0,
+                top: position?.top ?? 0,
+                maxHeight: position?.maxHeight,
+                overflowY: position?.maxHeight ? "auto" : undefined,
+                // Measured before it is shown; opacity (not visibility) keeps the heading focusable meanwhile.
+                opacity: position ? 1 : 0,
+              }
+        }
       >
         <div className="ws-x-head">
           <span className="ws-x-kick">Kok segini?</span>

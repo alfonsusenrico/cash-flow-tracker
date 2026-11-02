@@ -562,7 +562,7 @@ dialog.ws-dialog::backdrop { background: var(--scrim); }
 .ws-who { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .ws-who-t { min-width: 0; }
 .ws-who-t > span { display: block; overflow: hidden; color: var(--muted); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
-.ws-rowbtn { display: block; max-width: 100%; overflow: hidden; color: var(--text); font-weight: 450; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.ws-rowbtn { display: block; min-height: 24px; max-width: 100%; overflow: hidden; color: var(--text); font-weight: 450; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .ws-rowbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
 .ws-ava { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: 50%; font-size: 13px; font-weight: 600; }
 .ws-ava svg { width: 16px; height: 16px; }
@@ -589,7 +589,7 @@ dialog.ws-dialog::backdrop { background: var(--scrim); }
 .ws-stackbar > i { display: block; height: 100%; }
 .ws-kk-legend { display: flex; flex-direction: column; margin: 14px 0 0; padding: 0; list-style: none; }
 .ws-kk-legend li { display: grid; grid-template-columns: minmax(0, 1fr) auto 44px; align-items: center; gap: 10px; padding: 7px 0; font-size: 14px; }
-.ws-kk-legend a { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.ws-kk-legend a { display: inline-flex; align-items: center; min-height: 24px; color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .ws-kk-legend .pct { color: var(--muted); font-size: 13px; text-align: right; }
 .ws-ministats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
 .ws-ministat { padding: 12px; border: 1px solid var(--line); border-radius: 14px; }
