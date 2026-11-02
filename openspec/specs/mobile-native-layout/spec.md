@@ -6,19 +6,23 @@ Define dedicated mobile home, quick-capture and ledger compositions for everyday
 ## Requirements
 
 ### Requirement: Dedicated Mobile Home Information Architecture
-The web application SHALL render a dedicated mobile-first layout when viewed on viewports below 1024px.
+At 760 px and below the web app SHALL render a dedicated single-column Beranda built for phones, not the desktop layout stacked.
 
 #### Scenario: Required behavior and constraints
-- **WHEN** the application renders the home screen below 1024 pixels
-- **THEN** it SHALL show a compact sticky header with greeting, period control, balance visibility toggle and settings
-- **AND** the balance tile SHALL present liquid funds and invested assets with explicit record and movement actions, without payroll bulk execution
-- **AND** Kakeibo SHALL make five classifications identifiable and explain any optional grouped benchmark
-- **AND** recent activity SHALL follow the primary summary in a compact timeline
-- **AND** secondary analytical charts SHALL remain in dedicated sub-views or Analisis
+- **WHEN** the application renders Beranda at 760 pixels or narrower
+- **THEN** it SHALL show a compact sticky header with the date, the period line, theme and the account menu, and the companion status under it
+- **AND** the first card SHALL be "Aman dipakai hari ini" (or its unavailable state) with the remaining amount and days, a labelled Dipakai / Terjadwal / Aman split and the waiting amount, each figure explainable as a bottom sheet
+- **AND** "Kerjakan dulu" SHALL follow, then the period's keluar and masuk, Kekayaan bersih, today's transactions and one insight
+- **AND** Kakeibo SHALL make all five classifications and "Belum diklasifikasi" identifiable where it is shown
+- **AND** secondary analytical charts SHALL remain on Analisis, and the phone tab bar SHALL never cover the last card
 
 #### Scenario: Viewing home dashboard on mobile phone
-- **WHEN** a user accesses the dashboard on a smartphone
-- **THEN** the interface displays the compact balance, relevant actions, classification summary and recent activity without desktop sidebars
+- **WHEN** a user opens Beranda at 390 px
+- **THEN** the interface shows the safe-to-spend card, "Kerjakan dulu", the period figures and today's activity in one column without the sidebar, without horizontal scrolling, and with every target at least 24 by 24 CSS pixels
+
+#### Scenario: Phone figures match desktop
+- **WHEN** the same owner opens Beranda at 390 px and at 1440 px at the same moment
+- **THEN** keluar, masuk, the waiting amount, the remaining amount and the safe-to-spend figure SHALL be identical in both layouts
 
 ### Requirement: Mobile Bottom-Sheet Quick Capture
 The application SHALL render the canonical transaction-capture form as a touch-first bottom sheet on mobile screens.

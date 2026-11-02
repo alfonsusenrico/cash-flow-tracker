@@ -2,22 +2,27 @@
 
 ## Purpose
 Provide a month-and-year navigation stepper for historical financial views without competing timeframe controls.
+
 ## Requirements
+
 ### Requirement: Month-and-Year Stepper Navigation
-The primary global navigation bar SHALL provide a month-and-year stepper that explicitly indicates the active calendar month and year (e.g., "September 2026" or "Sep 2026") with left and right chevrons to move backward or forward across discrete monthly statement periods.
+Every page whose figures depend on a selected period (Transaksi, Analisis and Laporan, and any page not yet redesigned that reads the shared period) SHALL show a period stepper in its own top-bar controls. It names the active salary cycle or calendar month in Indonesian, with chevrons to step and a reset to the current period. Beranda SHALL NOT show a stepper.
 
 #### Scenario: User views active month
-- **WHEN** the user opens any screen on the application
-- **THEN** the center stepper in the top bar displays the current month and year in Indonesian (e.g. "Sep 2026")
+- **WHEN** the user opens Transaksi on the calendar-month basis
+- **THEN** the stepper in the page's top-bar controls displays the current month and year in Indonesian (e.g. "Nov 2026")
 
 #### Scenario: Navigating to previous months
-- **WHEN** the user clicks the left chevron button
-- **THEN** the active month shifts backward (e.g. from "Sep 2026" to "Agu 2026"), the dashboard and ledger refresh to display data for that month, and a "Bulan Ini" reset button appears to return immediately to the current month
+- **WHEN** the user activates the left chevron on Transaksi
+- **THEN** the active period shifts backward (e.g. from "Nov 2026" to "Okt 2026"), the page refreshes to that period, a "Bulan Ini" reset appears, and Analisis opened next shows the same period
+
+#### Scenario: Beranda has no stepper
+- **WHEN** the user opens Beranda
+- **THEN** no period stepper is shown, and Beranda describes the current salary cycle or current month as defined by `beranda-cycle-summary`
 
 ### Requirement: Removal of Dual-Timeframe Rolling Pills
-The application SHALL NOT present dual rolling timeframe selector pills (`[ 30 Hari | 90 Hari ]`) in the global TopBar, unifying all views under monthly statement accounting.
+The application SHALL NOT present dual rolling timeframe selector pills (`[ 30 Hari | 90 Hari ]`) in the workspace top bar, unifying all views under monthly statement or salary-cycle accounting.
 
 #### Scenario: Clean TopBar presentation
-- **WHEN** viewing the TopBar on desktop or mobile
-- **THEN** the 30d/90d pill switcher is absent, leaving only the clean monthly stepper, privacy eye, theme switch, and quick capture button
-
+- **WHEN** viewing the workspace top bar on desktop or mobile
+- **THEN** the 30d/90d pill switcher is absent, leaving the page title and subtitle, any page-specific period stepper, search, theme, notifications, "+ Catat" and the account menu (with the balance-privacy choice)

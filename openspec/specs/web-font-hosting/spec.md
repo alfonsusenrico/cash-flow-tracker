@@ -16,12 +16,12 @@ The web app SHALL bundle every font file it uses and serve it from its own origi
 #### Scenario: Build without access to a font provider
 
 - **WHEN** the frontend is built on a host that cannot reach Google Fonts
-- **THEN** the build completes and the output contains the Plus Jakarta Sans and Geist Mono files
+- **THEN** the build completes and the output contains the Geist and Geist Mono files, and no Plus Jakarta Sans file
 
 #### Scenario: Page renders with bundled fonts
 
 - **WHEN** a browser loads any page of the web app
-- **THEN** body text renders in Plus Jakarta Sans and numeric code text in Geist Mono
+- **THEN** body text renders in Geist and code-like text in Geist Mono
 - **AND** every font request goes to the app's own origin, with none to a third-party host
 
 #### Scenario: Third-party font is blocked by policy

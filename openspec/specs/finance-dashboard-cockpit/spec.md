@@ -6,48 +6,31 @@ Present financial summaries, cash-flow trends, budget comparisons and account al
 ## Requirements
 
 ### Requirement: Executive KPI Summary Ribbon
-The dashboard SHALL display an executive summary ribbon containing.
+Beranda SHALL display a KPI strip of four explainable figures for the Beranda period (`beranda-cycle-summary`): "Aman dipakai hari ini", "Keluar", "Masuk" and "Kekayaan bersih". Each SHALL carry its label, an icon tile and at most one comparison chip.
 
 #### Scenario: Required behavior and constraints
 - **WHEN** the dashboard displays its financial summary
 - **THEN** the following required behavior and constraints hold:
 
-  The dashboard SHALL display an executive summary ribbon containing:
-  1. `Liquid Balance (Kas & Bank)`: total spendable balance across active cash, bank, e-wallet, and wallet accounts, excluding investment instruments and any amount below zero that is pending reconciliation from available-to-spend calculations.
-  2. `Total Inflow`: actual non-transfer income recorded within the active timeframe.
-  3. `Total Outflow`: actual non-transfer expenses recorded within the active timeframe.
-  4. `Surplus Arus Kas`: `Inflow - Outflow` for the active timeframe.
-  5. `Ketahanan Dana`: emergency fund coverage against the configured target multiplier.
-  6. Total balance and investment balance SHALL be returned and labeled separately from liquid balance.
+  Beranda SHALL display a KPI strip containing:
+  1. `Aman dipakai hari ini`: the safe-to-spend figure, or its unavailable state in words, with the days left to the expected salary date as its caption. It has no comparison chip, because yesterday's figure cannot be rebuilt exactly once plans have been linked since.
+  2. `Keluar`: the Beranda keluar (Kakeibo total); its chip compares with the same number of elapsed days of the previous period from the fair period comparison, as a signed amount, and is omitted below 3 compared days or without previous data.
+  3. `Masuk`: reportable income of the period, excluding movements, investments and reimbursements; its chip follows the same fair-comparison rule.
+  4. `Kekayaan bersih`: total assets less active debts; its explanation lists liquid funds, investments and each active debt, counting parent and child accounts once. It has no comparison chip until a historical valuation exists.
+  5. Liquid balance, investment balance and total balance SHALL keep being returned and labelled separately by the overview and net-worth APIs.
+  6. Ketahanan Dana SHALL be shown in its own Beranda card with the configured target multiplier.
 
 #### Scenario: Separating liquid and investment assets
-- **WHEN** a user has 10,000,000 IDR in bank accounts and 25,000,000 IDR in investment instruments
-- **THEN** the liquid KPI reports 10,000,000 IDR and does not report the 35,000,000 IDR total balance as liquid
+- **WHEN** a user has 10,000,000 IDR in bank accounts, 25,000,000 IDR in investment instruments and a 2,400,000 IDR active debt
+- **THEN** "Kekayaan bersih" shows 32,600,000 IDR, and its explanation lists 10,000,000 IDR liquid and 25,000,000 IDR investments separately and subtracts the debt
 
 #### Scenario: Displaying executive KPIs
-- **WHEN** the user views the Overview dashboard
-- **THEN** liquid balance excludes investments, inflow and outflow exclude internal movements, and Ketahanan Dana uses the configured multiplier
+- **WHEN** the user views Beranda
+- **THEN** keluar and masuk exclude internal movements between the owner's own non-goal, non-investment accounts, every chip is a signed rupiah amount with its comparison named, and no chip shows a percentage
 
-### Requirement: Cumulative Cash Flow Area Trendline
-The dashboard SHALL render an interactive Recharts Area/Line chart visualizing cumulative cash flow across the selected timeframe:
-1. An emerald green area curve for cumulative inflow.
-2. A coral/rose area curve for cumulative outflow.
-3. Hovering over any point SHALL display a detailed tooltip with the date, cumulative values, and net variance.
-
-#### Scenario: Inspecting cumulative trendline point
-- **WHEN** the user hovers over a date on the cumulative cash flow chart
-- **THEN** the tooltip displays the exact cumulative income, cumulative expense, and net spread on that date
-
-### Requirement: Category Spend Donut & Variance Matrix
-The dashboard SHALL render an interactive Donut chart displaying the proportion of spending by category, coupled with a ranked variance list showing actual spend versus monthly budget ceiling. The donut SHALL be a named figure with a text summary of every category it draws, and each slice SHALL carry its category, amount and share as its accessible name.
-
-#### Scenario: Selecting category slice
-- **WHEN** the user hovers over or taps a donut slice
-- **THEN** the center label highlights the category name, total amount, and percentage share
-
-#### Scenario: Donut for assistive technology
-- **WHEN** Beranda draws the donut for five categories at 1280 px, in the light or the dark theme
-- **THEN** the figure SHALL be named "Diagram donat" followed by the card title, its description SHALL list the total and each category with amount and share, every slice SHALL have an accessible name, and axe SHALL report no `svg-img-alt`
+#### Scenario: Comparison too short
+- **WHEN** the current period has run for 2 days
+- **THEN** the Keluar and Masuk chips are omitted and their explanations say that the comparison appears after 3 days
 
 ### Requirement: Inline Category Budget Editing
 The `/insights` Spending Analytics page SHALL allow users to set or update any category's monthly spending limit directly from the Category Variance table:
@@ -58,17 +41,6 @@ The `/insights` Spending Analytics page SHALL allow users to set or update any c
 #### Scenario: Setting a category budget limit
 - **WHEN** the user clicks "No limit" on the "Food & Dining" category and enters `3000000`
 - **THEN** the system sets the category's `monthly_budget` to 3,000,000 IDR and updates the progress bar and remaining variance immediately
-
-### Requirement: Bibit-Style Hero Portfolio Action Pills
-The Overview dashboard hero area SHALL feature high-visibility action pills inspired by the Bibit dashboard:
-1. `+ Record` (`N` quick capture trigger)
-2. `⇄ Transfer` (1-tap account transfer trigger)
-3. `🎯 New Goal` (savings target creation trigger)
-4. Key portfolio figures displaying both nominal values and percentage changes.
-
-#### Scenario: Triggering transfer from hero action pill
-- **WHEN** the user taps the `⇄ Transfer` hero action pill on the Overview screen
-- **THEN** the transfer modal opens with primary accounts preselected for immediate execution
 
 ### Requirement: Asset Allocation Breakdown Display Card
 The system SHALL provide a dedicated summary display card showing the separation between liquid and investment balances:
@@ -81,11 +53,15 @@ The system SHALL provide a dedicated summary display card showing the separation
 - **THEN** it renders distinct totals for Liquid Cash, Investment Portfolio, and Aggregate Balance
 
 ### Requirement: Observed dashboard planning information
-The dashboard SHALL display observed period cash flow, configured budget remaining and separately identified upcoming commitments without representing them as guaranteed funds available to spend.
+The dashboard SHALL display observed period cash flow, configured budget remaining and separately identified upcoming commitments without representing them as guaranteed funds. A daily safe-to-spend figure SHALL come only from the expected salary date rule of `beranda-cycle-summary`, never from a guessed cycle end.
 
 #### Scenario: Unknown next salary date
 - **WHEN** the next salary date is unknown
-- **THEN** no daily safe-to-spend figure SHALL be inferred from a guessed cycle end
+- **THEN** no daily safe-to-spend figure SHALL be inferred from a guessed cycle end, and Beranda SHALL show the remaining amount with the reason instead
+
+#### Scenario: Expected salary date from regular receipts
+- **WHEN** the owner's confirmed salary receipts give an expected next salary date after today
+- **THEN** Beranda SHALL show "Aman dipakai hari ini" and its explanation SHALL name the expected date as an estimate and the receipts it is based on
 
 #### Scenario: Upcoming commitments
 - **WHEN** active expense plans are due within the next 30 days or overdue
