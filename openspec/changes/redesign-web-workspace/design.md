@@ -277,6 +277,22 @@ All eight decisions were resolved on 2026-11-02 when the owner approved the plan
 | OD7 | Wording of the third number | The lede says "{n} hal nunggu jawabanmu ({amount})", and the explanation shows what is already inside "Keluar" |
 | OD8 | Tanya free-form answers with a model | Deterministic intents first in phase 6. A model-backed answer needs its own approved change |
 
+### Raised during phase 1 implementation (2026-11-02, still open)
+
+The conservative option is implemented for each; the owner can confirm or change it.
+
+| # | Decision | Implemented (conservative) |
+| --- | --- | --- |
+| OD9 | Transfer and investment top-up plans in "Terjadwal" | Counted, as D11 says "non-income plans". A transfer plan into a goal pocket and that goal's set-aside can both count, which only lowers "Aman" |
+| OD10 | Plan occurrences that fell due before the period start and were never resolved | Not counted in "Terjadwal": the window starts at the period start |
+| OD11 | Expected date for a last-day-of-month payer (30 Apr → 30 or 31 May) | Literal rule: the latest receipt's day in the next month (30 May), one day earlier at most |
+| OD12 | Receipts confirmed without a configured salary source | No estimate (`no_salary_source`); the cycle itself is unchanged |
+| OD13 | Kakeibo share on Beranda | The share column is computed in the browser from the server's amounts (display only); every amount still comes from the server |
+
+Known approximations recorded with the endpoint: a movement leg flagged `ambiguous_movement` whose candidates are already taken is labelled "ambiguous" in the waiting lines although the Tinjau queue would show it elsewhere; and a linked movement leg that still has an open question and counts as saving reports `in_keluar=false`.
+
+Phase 1 placement notes: `/laporan` keeps its own report picker ("Laporan lain") inside the page until its phase 4 restyle, so it has no top-bar stepper yet; the due-plan controls (link, skip, record, unlink) are the existing `PendingScheduledBanner`, opened in a drawer from "Kerjakan dulu", so the mutations and wording are unchanged.
+
 ## Open Questions
 
 - The exact tuned pillar hex values and the Geist subset file size are settled in task 1.2 and 1.3 with their measurements. Neither changes the specs.
