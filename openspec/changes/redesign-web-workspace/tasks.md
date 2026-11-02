@@ -74,7 +74,8 @@ Expected Result: phase 1 is proven locally at all five widths in both themes, wi
 
 ## 7. Acceptance
 
-- [ ] 7.1 Present verification.md, the screenshots and the open decisions (OD1–OD8) to the owner. Record the acceptance and its date in this change and in PROJECT_STATE.md. Evidence: the owner's words quoted with the date.
+- [x] 7.1 Present verification.md, the screenshots and the open decisions (OD1–OD8) to the owner. Record the acceptance and its date in this change and in PROJECT_STATE.md. Evidence: the owner's words quoted with the date. Owner, 2026-11-02: "accepted, defaults ok, move Kerjakan dulu up" (OD9–OD13 confirmed at their conservative options).
+- [x] 7.2 Move "Kerjakan dulu" directly after "Uang siklus ini" when the Beranda cards form one column, in the DOM so focus order follows. Evidence: Vitest test that fails on the previous layout and passes now; headless Brave at 1440, 1024 and 800 px in both themes shows the card order, axe 0 violations, overflow 0 and 0 console errors (verification.md §6.6).
 
 ## Workflow follow-up
 

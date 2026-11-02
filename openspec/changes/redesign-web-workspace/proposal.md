@@ -29,6 +29,8 @@ Recorded 2026-11-02:
    - **OD7** the third number reads "{n} hal nunggu jawabanmu (Rp X)", and its explanation shows what is already inside "Keluar".
    - **OD8** Tanya ships deterministic intents first (phase 6). A model-backed answer needs its own approved change.
 
+5. **Acceptance, 2026-11-02:** the owner accepted phase 1 with "accepted, defaults ok, move Kerjakan dulu up". OD9–OD13 keep their conservative options (design.md). When the Beranda cards form one column, "Kerjakan dulu" now comes directly after "Uang siklus ini" (`beranda-cycle-summary`, scenario "One-column Beranda").
+
 Where the preview conflicts with an approved money or salary-cycle rule, this change keeps the conservative behaviour recorded in design.md. "Aman dipakai hari ini" never divides by a guessed salary date.
 
 ## Expected Outcome

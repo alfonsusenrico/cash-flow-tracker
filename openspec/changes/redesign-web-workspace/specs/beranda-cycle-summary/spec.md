@@ -110,12 +110,16 @@ Beranda SHALL show "Uang siklus ini": masuk for the period and a segmented bar o
 - **THEN** it SHALL read each segment's name and amount as text, and the decorative bar SHALL be hidden from it
 
 ### Requirement: Kerjakan Dulu
-Beranda SHALL list what needs the owner first: open questions, awaiting or ambiguous transfers, groups that need an answer, and plan occurrences that are due or due within two days. Each item SHALL name the merchant or plan, amount and time and offer one action. A due plan SHALL keep its link, skip and record actions.
+Beranda SHALL list what needs the owner first: open questions, awaiting or ambiguous transfers, groups that need an answer, and plan occurrences that are due or due within two days. Each item SHALL name the merchant or plan, amount and time and offer one action. A due plan SHALL keep its link, skip and record actions. When the Beranda cards form one column, "Kerjakan dulu" SHALL come directly after "Uang siklus ini", before recent activity, in both the visual and the reading and focus order.
 
 #### Scenario: Items and order
 - **GIVEN** one open question, two awaiting transfer legs, one group that needs an answer and a plan due tomorrow
 - **WHEN** the owner opens Beranda
 - **THEN** "Kerjakan dulu" SHALL show a count of 4 Tinjau items, list the question first and the plan last, open Tinjau at the matching item from each review action, and show "Buka Tinjau"
+
+#### Scenario: One-column Beranda
+- **WHEN** the Beranda main column is 900 px wide or narrower above the phone layout
+- **THEN** "Kerjakan dulu" SHALL follow "Uang siklus ini" directly and come before "Aktivitas terbaru", and keyboard focus SHALL reach it in that order
 
 #### Scenario: Recording a due plan
 - **WHEN** the owner chooses to record a due plan from "Kerjakan dulu"
