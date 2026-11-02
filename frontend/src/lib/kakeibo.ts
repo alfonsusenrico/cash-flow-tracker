@@ -46,13 +46,41 @@ export const KAKEIBO_PILLARS: readonly KakeiboPillarInfo[] = [
   },
 ];
 
+/** Report bucket for spending with no transaction or category pillar. Rows carry `null`, never this value. */
+export const UNCLASSIFIED = "unclassified";
+export type KakeiboBucket = KakeiboPillar | typeof UNCLASSIFIED;
+
+export const UNCLASSIFIED_BUCKET: Omit<KakeiboPillarInfo, "value"> & { value: typeof UNCLASSIFIED } = {
+  value: UNCLASSIFIED,
+  label: "Belum diklasifikasi",
+  help: "Belum punya pilar, dari transaksi maupun kategorinya. Tidak dihitung sebagai Kebutuhan.",
+  color: "var(--color-kakeibo-unclassified)",
+  softColor: "var(--color-kakeibo-unclassified-soft)",
+};
+
+/** The five pillars and the unclassified bucket, in report order. */
+export const KAKEIBO_BUCKETS: readonly (KakeiboPillarInfo | typeof UNCLASSIFIED_BUCKET)[] = [...KAKEIBO_PILLARS, UNCLASSIFIED_BUCKET];
+
+export function isKakeiboBucket(value: unknown): value is KakeiboBucket {
+  return value === UNCLASSIFIED || isKakeiboPillar(value);
+}
+
+export function kakeiboBucketInfo(value: unknown) {
+  return KAKEIBO_BUCKETS.find((bucket) => bucket.value === value);
+}
+
 export function isKakeiboPillar(value: unknown): value is KakeiboPillar {
   return KAKEIBO_PILLARS.some((pillar) => pillar.value === value);
 }
 
-/** Pillar for a form: a known value, otherwise "need", matching the backend's effective-pillar default. */
+/** Pillar preselected for a new capture: a known value, otherwise "need", shown to the user before saving. */
 export function pillarOrNeed(value: unknown): KakeiboPillar {
   return isKakeiboPillar(value) ? value : "need";
+}
+
+/** Pillar of an existing row or category for an edit form; "" keeps it unclassified when saved. */
+export function pillarOrUnclassified(value: unknown): KakeiboPillar | "" {
+  return isKakeiboPillar(value) ? value : "";
 }
 
 export function kakeiboPillarInfo(value: unknown): KakeiboPillarInfo | undefined {
@@ -77,6 +105,9 @@ export interface KakeiboBreakdown {
   saving_expenses?: number;
   net_saving_transfers?: number;
   saving_pct: number;
+  /** Spending without any pillar; newer servers only. Outside the 50/30/20 groups. */
+  unclassified_spent?: number;
+  unclassified_pct?: number;
   essentials_pct?: number;
   lifestyle_pct?: number;
   total_allocated?: number;
@@ -84,11 +115,11 @@ export interface KakeiboBreakdown {
   want_status?: string;
 }
 
-export function pillarPct(kakeibo: KakeiboBreakdown | undefined, pillar: KakeiboPillar): number {
+export function pillarPct(kakeibo: KakeiboBreakdown | undefined, pillar: KakeiboBucket): number {
   return kakeibo?.[`${pillar}_pct`] ?? 0;
 }
 
-export function pillarSpent(kakeibo: KakeiboBreakdown | undefined, pillar: KakeiboPillar): number {
+export function pillarSpent(kakeibo: KakeiboBreakdown | undefined, pillar: KakeiboBucket): number {
   return kakeibo?.[`${pillar}_spent`] ?? 0;
 }
 

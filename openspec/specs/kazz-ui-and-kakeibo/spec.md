@@ -6,11 +6,11 @@ Describe Kakeibo insight presentation, rapid touch amount entry and mobile navig
 ## Requirements
 
 ### Requirement: Kakeibo Lifestyle Tracking
-The system SHALL support need, want, culture, unexpected and saving as individually visible classifications, and SHALL explain any optional grouped benchmark without labeling users healthy or unhealthy.
+The system SHALL support need, want, culture, unexpected and saving as individually visible classifications, SHALL show spending without a classification separately as "Belum diklasifikasi", and SHALL explain any optional grouped benchmark without labeling users healthy or unhealthy.
 
 #### Scenario: Categorize and evaluate Kakeibo spending ratios
 - **WHEN** the user views Kakeibo spending
-- **THEN** all five classifications SHALL be identifiable individually, with figures traceable to their reporting inputs
+- **THEN** all five classifications and, when it holds spending, "Belum diklasifikasi" SHALL be identifiable individually, with figures traceable to their reporting inputs
 
 ### Requirement: Narrative Financial Insights
 The system SHALL compute period-over-period comparison deltas and generate natural language summaries identifying top spend drivers. The overview response SHALL keep these fields for compatibility, but the web Beranda SHALL NOT present them as its insight headline; Beranda follows the fair period comparison in `observed-insights`.
@@ -36,10 +36,15 @@ The system SHALL provide a tactile 4x4 keypad with built-in arithmetic operators
 - **AND** displaying `= Rp 40.000` as the evaluated total before submission.
 
 ### Requirement: Floating Capsule Navigation
-The system SHALL render a floating rounded capsule navigation dock on mobile screens (< 1024px) with an active pill indicator.
+The system SHALL render a floating rounded capsule navigation dock on mobile screens (< 1024px) with an active pill indicator. The dock SHALL paint its fill and label inks from dedicated dock tokens, so that every label, active or inactive, keeps a text contrast of at least 4.5:1 against the dock in both the light and the dark theme.
 
 #### Scenario: Mobile viewport navigation docking
 - **GIVEN** the application is rendered on a viewport width below 1024px
 - **WHEN** a user navigates between routes (`/`, `/ledger`, `/insights`, `/accounts`)
 - **THEN** the active tab SHALL be wrapped in a highlighted pill container
 - **AND** the dock SHALL float above the bottom edge with backdrop-filter blur.
+
+#### Scenario: Inactive labels are readable in both themes
+- **GIVEN** a 390 px viewport in the light or the dark theme
+- **WHEN** the dock is shown on any page
+- **THEN** each inactive label SHALL measure at least 4.5:1 against the dock fill composited over the page surface

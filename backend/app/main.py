@@ -12,6 +12,7 @@ from app.routers.accounts import router as accounts_router
 from app.routers.auth import router as auth_router
 from app.routers.capture import router as capture_router
 from app.routers.categories import router as categories_router
+from app.routers.classification import router as classification_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.devices import router as devices_router
 from app.routers.goals import router as goals_router
@@ -21,6 +22,7 @@ from app.routers.investment_topups import router as investment_topups_router
 from app.routers.obligations import router as obligations_router
 from app.routers.pulse import router as pulse_router
 from app.routers.recurring import router as recurring_router
+from app.routers.reports import router as reports_router
 from app.routers.history_suggestions import router as history_suggestions_router
 from app.routers.review import router as review_router
 from app.routers.salary import router as salary_router
@@ -271,6 +273,8 @@ for prefix in ("", "/api", "/v1"):
     app.include_router(history_suggestions_router, prefix=prefix)
     app.include_router(capture_router, prefix=prefix)
     app.include_router(devices_router, prefix=prefix)
+    app.include_router(reports_router, prefix=prefix)
+    app.include_router(classification_router, prefix=prefix)
 
 
 @app.exception_handler(HTTPException)

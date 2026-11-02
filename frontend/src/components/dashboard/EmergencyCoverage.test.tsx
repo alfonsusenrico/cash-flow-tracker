@@ -36,7 +36,7 @@ describe("Ketahanan Dana basis", () => {
     const user = userEvent.setup();
     const { container } = render(<EmergencyCoverageBasis runway={known} bal={bal} />);
     expect(screen.getByText("2x biaya pokok · 61 hari")).toBeInTheDocument();
-    expect(screen.getByText("Median 2 periode, kebutuhan (need) saja + cicilan minimum")).toBeInTheDocument();
+    expect(screen.getByText("Median 2 periode, kebutuhan (need) dan yang belum diklasifikasi + cicilan minimum")).toBeInTheDocument();
     expect(screen.getByText("Riwayat terbatas (2 periode)")).toBeInTheDocument();
     expect(screen.getByText("Dari target dana darurat: Cadangan Contoh")).toBeInTheDocument();
     await user.click(screen.getByText("Lihat 2 periode yang dipakai"));
@@ -72,5 +72,24 @@ describe("Ketahanan Dana basis", () => {
     expect(essentialBasisText({ ...known.essential_cost!, method: "need_budget", basis: "budget", debt_minimum: 0 }))
       .toBe("Dari anggaran kategori Kebutuhan (belum ada periode lengkap)");
     expect(coverageText({ ...known, status: "zero", runway_days: 0, coverage_months: 0, runway_months: 0 })).toBe("0 hari");
+  });
+});
+
+describe("Ketahanan Dana unclassified share", () => {
+  it("links the need part and the unclassified part of a period separately", async () => {
+    const user = userEvent.setup();
+    const withShare: EmergencyRunway = {
+      ...known,
+      essential_cost: {
+        ...known.essential_cost!,
+        periods_used: [{ ...period("September 2026", "2026-09-01T00:00:00+07:00", "2026-09-30T23:59:59.999999+07:00", 2_300_000), unclassified_amount: 300_000 }],
+      },
+    };
+    const { container } = render(<EmergencyCoverageBasis runway={withShare} bal={bal} />);
+    await user.click(screen.getByText(/Lihat 1 periode yang dipakai/));
+    expect(screen.getByRole("link", { name: "Rp 2.000.000, lihat transaksi kebutuhan September 2026" })).toBeInTheDocument();
+    const share = screen.getByRole("link", { name: "Rp 300.000, lihat transaksi belum diklasifikasi September 2026" });
+    expect(new URL(share.getAttribute("href") ?? "", "https://example.test").searchParams.get("kakeibo")).toBe("unclassified");
+    expect((await axe(container)).violations).toHaveLength(0);
   });
 });

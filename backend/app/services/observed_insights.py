@@ -17,7 +17,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
-from app.services.kakeibo import PILLARS
+from app.services.kakeibo import REPORT_BUCKETS, pillar_bucket_sql
 from app.services.observed_periods import ObservedPeriod, load_period_history
 from app.services.reimbursements import load_spending_offsets
 from app.services.report_figures import (
@@ -55,7 +55,7 @@ def search_text(name: str) -> str:
     return " ".join(_DIGITS.sub(" ", name).split()).strip(" -#*/:") or name
 
 
-def _window_figures(cur, user_id: str, start: datetime, end: datetime) -> dict[str, Any]:
+def window_figures(cur, user_id: str, start: datetime, end: datetime) -> dict[str, Any]:
     cur.execute(
         f"""
         SELECT
@@ -77,7 +77,7 @@ def _window_figures(cur, user_id: str, start: datetime, end: datetime) -> dict[s
 def _pillar_spending(cur, user_id: str, start: datetime, end: datetime, offsets) -> dict[str, int]:
     cur.execute(
         f"""
-        SELECT COALESCE(t.kakeibo_type, c.kakeibo_type, 'need') AS pillar, SUM(t.amount) AS spent
+        SELECT {pillar_bucket_sql()} AS pillar, SUM(t.amount) AS spent
         FROM transactions t
         LEFT JOIN categories c ON c.id = t.category_id
         WHERE t.user_id = %s AND {reportable_expense_sql()} AND t.date >= %s AND t.date <= %s
@@ -86,10 +86,10 @@ def _pillar_spending(cur, user_id: str, start: datetime, end: datetime, offsets)
         (user_id, start, end),
     )
     gross = {row["pillar"]: int(row["spent"]) for row in cur.fetchall()}
-    return {pillar: max(0, gross.get(pillar, 0) - offsets.for_pillar(pillar)) for pillar in PILLARS}
+    return {pillar: max(0, gross.get(pillar, 0) - offsets.for_pillar(pillar)) for pillar in REPORT_BUCKETS}
 
 
-def _merchant_spending(cur, user_id: str, start: datetime, end: datetime) -> dict[str, dict[str, Any]]:
+def merchant_spending(cur, user_id: str, start: datetime, end: datetime) -> dict[str, dict[str, Any]]:
     """Gross reportable spending per merchant; reimbursements apply to categories, not merchants."""
     cur.execute(
         f"""
@@ -164,12 +164,12 @@ def period_comparison(
         prev_window = (previous[0], previous[0] + compared)
     zone = ZoneInfo(settings.tz)
     days = (cur_window[1].astimezone(zone).date() - cur_window[0].astimezone(zone).date()).days + 1
-    now_figures = _window_figures(cur, user_id, *cur_window)
+    now_figures = window_figures(cur, user_id, *cur_window)
     now_pillars = _pillar_spending(cur, user_id, *cur_window, now_figures["offsets"])
     now_categories = _category_amounts(cur, user_id, *cur_window, now_figures["offsets"])
-    now_merchants = _merchant_spending(cur, user_id, *cur_window)
+    now_merchants = merchant_spending(cur, user_id, *cur_window)
     # A shortened comparison leaves the latest days out; "so far" figures must still cover them.
-    to_date = now_figures if cur_window == (start, end) else _window_figures(cur, user_id, start, end)
+    to_date = now_figures if cur_window == (start, end) else window_figures(cur, user_id, start, end)
     result: dict[str, Any] = {
         "label": label,
         "compared_days": days,
@@ -181,13 +181,13 @@ def period_comparison(
         "previous": None,
         "previous_label": previous[2] if previous else None,
         "previous_has_data": False,
-        "pillars": [{"pillar": pillar, "current": now_pillars[pillar], "previous": None, "change": None} for pillar in PILLARS],
+        "pillars": [{"pillar": pillar, "current": now_pillars[pillar], "previous": None, "change": None} for pillar in REPORT_BUCKETS],
         "categories": _top_changes(now_categories, {}),
         "merchants": _top_changes(now_merchants, {}),
     }
     if prev_window is None:
         return result
-    before = _window_figures(cur, user_id, *prev_window)
+    before = window_figures(cur, user_id, *prev_window)
     before_pillars = _pillar_spending(cur, user_id, *prev_window, before["offsets"])
     result["previous"] = {**_window_dates(*prev_window), "inflow": before["inflow"], "outflow": before["outflow"],
                           "net": before["net"], "reimbursement_offset": before["reimbursement_offset"]}
@@ -197,15 +197,15 @@ def period_comparison(
     result["pillars"] = [
         {"pillar": pillar, "current": now_pillars[pillar], "previous": before_pillars[pillar],
          "change": now_pillars[pillar] - before_pillars[pillar]}
-        for pillar in PILLARS
+        for pillar in REPORT_BUCKETS
     ]
     result["categories"] = _top_changes(now_categories, _category_amounts(cur, user_id, *prev_window, before["offsets"]))
-    result["merchants"] = _top_changes(now_merchants, _merchant_spending(cur, user_id, *prev_window))
+    result["merchants"] = _top_changes(now_merchants, merchant_spending(cur, user_id, *prev_window))
     return result
 
 
 def _period_flow(cur, user_id: str, period: ObservedPeriod) -> dict[str, Any]:
-    figures = _window_figures(cur, user_id, period.start, period.last_instant)
+    figures = window_figures(cur, user_id, period.start, period.last_instant)
     return {
         **period.describe(),
         "in_progress": not period.complete,

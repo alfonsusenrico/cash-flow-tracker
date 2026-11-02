@@ -2,15 +2,17 @@ import uuid
 
 from app.db.pool import db_conn
 
+# Starter pillars apply only when a new user's categories are seeded; existing users keep their own.
+# Investasi and the movement and income categories carry none: they never count as spending.
 DEFAULT_CATEGORIES = [
-    {"name": "Makanan & Minuman", "icon": "utensils", "color": "#f97316", "kind": "expense"},
+    {"name": "Makanan & Minuman", "icon": "utensils", "color": "#f97316", "kind": "expense", "kakeibo_type": "need"},
     {"name": "Jajan & Nongkrong", "icon": "coffee", "color": "#d97706", "kind": "expense", "kakeibo_type": "want"},
-    {"name": "Belanja Harian", "icon": "shopping-cart", "color": "#10b981", "kind": "expense"},
-    {"name": "Transportasi", "icon": "car", "color": "#3b82f6", "kind": "expense"},
-    {"name": "Tagihan & Utilitas", "icon": "zap", "color": "#eab308", "kind": "expense"},
-    {"name": "Belanja", "icon": "shopping-bag", "color": "#ec4899", "kind": "expense"},
-    {"name": "Hiburan", "icon": "film", "color": "#8b5cf6", "kind": "expense"},
-    {"name": "Kesehatan", "icon": "heart", "color": "#ef4444", "kind": "expense"},
+    {"name": "Belanja Harian", "icon": "shopping-cart", "color": "#10b981", "kind": "expense", "kakeibo_type": "need"},
+    {"name": "Transportasi", "icon": "car", "color": "#3b82f6", "kind": "expense", "kakeibo_type": "need"},
+    {"name": "Tagihan & Utilitas", "icon": "zap", "color": "#eab308", "kind": "expense", "kakeibo_type": "need"},
+    {"name": "Belanja", "icon": "shopping-bag", "color": "#ec4899", "kind": "expense", "kakeibo_type": "want"},
+    {"name": "Hiburan", "icon": "film", "color": "#8b5cf6", "kind": "expense", "kakeibo_type": "want"},
+    {"name": "Kesehatan", "icon": "heart", "color": "#ef4444", "kind": "expense", "kakeibo_type": "need"},
     {"name": "Investasi", "icon": "trending-up", "color": "#0ea5e9", "kind": "expense"},
     # Movement legs never count as spending, income or a Kakeibo pillar.
     {"name": "Internal Movement", "icon": "repeat", "color": "#64748b", "kind": "expense", "excluded_from_budget": True},

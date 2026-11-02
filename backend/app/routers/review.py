@@ -35,7 +35,7 @@ MOVEMENT_GROUP_KEY = "movement"
 QUEUE_SQL = """
     SELECT t.id, t.type, t.amount, t.date, t.account_id, a.name AS account_name,
            t.category_id, c.name AS category_name,
-           CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type, 'need') END AS kakeibo_type,
+           CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo_type,
            t.merchant, t.notes, t.review_status, t.source, t.classified_by,
            t.movement_id, t.movement_role, t.fee_for_movement_id,
            COALESCE(c.name = 'Internal Movement', FALSE) AS movement_category,

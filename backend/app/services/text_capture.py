@@ -279,7 +279,7 @@ def transaction_view(cur, user_id: str, capture: dict) -> tuple[dict | None, dic
         """SELECT t.id, t.type, t.amount, t.date, t.account_id, a.name AS account_name, p.name AS parent_name,
                   t.merchant, t.notes, t.category_id, c.name AS category_name,
                   CASE WHEN t.movement_id IS NOT NULL THEN t.kakeibo_type
-                       WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type, 'need') END AS kakeibo,
+                       WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo,
                   t.offset_category_id, t.source, t.review_status, t.classified_by, t.movement_id, t.movement_role,
                   t.time_basis, t.time_evidence
            FROM transactions t

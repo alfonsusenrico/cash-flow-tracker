@@ -432,8 +432,10 @@ def supersede_stale(cur, user_id: str) -> int:
             OR t.merchant IS DISTINCT FROM s.before_merchant
             OR NULLIF(btrim(COALESCE(t.notes, '')), '') IS DISTINCT FROM NULLIF(btrim(COALESCE(s.before_notes, '')), '')
             OR t.category_id IS DISTINCT FROM s.before_category_id
+            -- Snapshots taken before unclassified spending stopped reading as `need` stored 'need' for
+            -- it; both sides fold to 'need' so that change alone supersedes no suggestion.
             OR (CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type, 'need') END)
-               IS DISTINCT FROM s.before_kakeibo_type
+               IS DISTINCT FROM (CASE WHEN s.before_type = 'expense' THEN COALESCE(s.before_kakeibo_type, 'need') END)
             OR t.offset_category_id IS DISTINCT FROM s.before_offset_category_id
             OR NOT EXISTS (
                 SELECT 1 FROM categories pc
@@ -476,7 +478,7 @@ def batch_context(cur, user_id: str, rows: list[dict]) -> dict:
     merchants = sorted({folded(row["merchant"]) for row in rows if row["merchant"]})
     cur.execute(
         """SELECT t.type, t.merchant, LEFT(t.notes, 160) AS notes, t.category_id, t.amount,
-                  CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type, 'need') END AS kakeibo
+                  CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo
            FROM transactions t LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
            WHERE t.user_id = %s AND t.type = ANY(%s) AND t.classified_by = 'owner' AND t.movement_id IS NULL
              AND t.category_id IS NOT NULL

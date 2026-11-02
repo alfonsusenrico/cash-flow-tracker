@@ -344,6 +344,35 @@ describe("Ledger edit receipt recovery", () => {
   });
 });
 
+describe("Ledger edit of an unclassified row", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentTransactions = [{ ...transaction, category_id: "category-3", category_name: "Lain-lain", kakeibo_type: null as unknown as string }];
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [{ id: "account-1", name: "BCA", type: "bank", balance: 100_000 }] };
+      if (path === "/categories") return { categories: [{ id: "category-3", name: "Lain-lain", kind: "expense", kakeibo_type: null }] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      if (path.startsWith("/transactions?")) return { ok: true, total: currentTransactions.length, transactions: currentTransactions };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    vi.mocked(api.patch).mockResolvedValue({ ok: true });
+  });
+
+  it("keeps the row unclassified when only its notes change", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={queryClient}><LedgerPage /></QueryClientProvider>);
+    await user.click(await screen.findByRole("row", { name: /Buka atau ubah: Makan siang/ }));
+    expect(screen.getByRole("combobox", { name: "Pilar Kakeibo" })).toHaveValue("");
+    const notes = screen.getByRole("textbox", { name: /Catatan/ });
+    await user.clear(notes);
+    await user.type(notes, "Makan malam");
+    await user.click(screen.getByRole("button", { name: "Simpan Perubahan" }));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/transactions/transaction-1", expect.objectContaining({ kakeibo_type: null })));
+  });
+});
+
 describe("Ledger movement selection", () => {
   beforeEach(() => {
     vi.clearAllMocks();

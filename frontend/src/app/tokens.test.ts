@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 const appDir = path.resolve(__dirname);
 const srcDir = path.resolve(appDir, "..");
+const bottomNav = readFileSync(path.join(srcDir, "components/layout/BottomNav.tsx"), "utf8");
 const tokens = readFileSync(path.resolve(appDir, "../../tokens.css"), "utf8");
 const globals = readFileSync(path.join(appDir, "globals.css"), "utf8");
 const layout = readFileSync(path.join(appDir, "layout.tsx"), "utf8");
@@ -79,6 +80,9 @@ const textPairs: [string, string[]][] = [
   ["--expense-text", ["--surface", "--bg", "--surface-raised", "--color-expense-soft"]],
   ["--primary-text", ["--surface", "--bg", "--surface-raised", "--sidebar-hover"]],
   ["--danger-text", ["--surface", "--bg", "--surface-raised"]],
+  // The phone dock is dark in both themes; its translucent fill is measured over the page surface.
+  ["--dock-muted", ["--dock-surface"]],
+  ["--dock-text", ["--dock-surface"]],
 ];
 
 const tailwindTheme = resolveConfig(createRequire(import.meta.url)("../../tailwind.config.js")).theme as unknown as Record<
@@ -112,6 +116,15 @@ describe("design tokens", () => {
     expect(resolve(themes[":root"], "--accent-lime")).toBe("#66CC55");
     expect(resolve(themes[":root"], "--color-expense")).toBe("#FF334B");
     expect(resolve(themes[":root"], "--primary")).toBe("#FF334B");
+  });
+
+  it("paints the phone dock and its inactive labels with the dock tokens", () => {
+    const dockRule = globals.slice(globals.indexOf(".glass-dock {"), globals.indexOf("}", globals.indexOf(".glass-dock {")));
+    expect(dockRule).toContain("background: var(--dock-surface);");
+    expect(bottomNav).toContain("glass-dock");
+    expect(bottomNav).not.toMatch(/bg-\[var\(--surface\)\]/);
+    expect(bottomNav).not.toMatch(/text-\[var\(--(muted|text)\)\]/);
+    expect(bottomNav.match(/text-\[var\(--dock-muted\)\] hover:text-\[var\(--dock-text\)\]/g)).toHaveLength(4);
   });
 
   it("generates shadow-xs from the --shadow-xs token", () => {

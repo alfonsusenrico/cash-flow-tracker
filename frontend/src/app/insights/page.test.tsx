@@ -80,6 +80,36 @@ describe("category management form", () => {
     })));
   });
 
+  it("keeps a category without a pillar unclassified when it is edited", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path.startsWith("/dashboard/analytics?")) return { category_variance: [{ ...expenseCategory, kakeibo_type: null }] };
+      if (path === "/categories?include_archived=true") return { categories: [{ ...expenseCategory, kakeibo_type: null }] };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    renderAnalytics();
+    await user.click((await screen.findAllByRole("button", { name: "Edit kategori Hobi" }))[0]);
+    expect(screen.getByRole("combobox", { name: "Pilar Kakeibo bawaan" })).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: "Simpan Perubahan" }));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/categories/category-1", expect.objectContaining({ kakeibo_type: null })));
+  });
+
+  it("shows spending only, without budget columns, while no category has a budget", async () => {
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path.startsWith("/dashboard/analytics?")) {
+        return { category_variance: [{ ...expenseCategory, budget: null, monthly_budget: null, status: "unlimited", percentage_used: null, variance: null }] };
+      }
+      if (path === "/categories?include_archived=true") return { categories: [{ ...expenseCategory, monthly_budget: null }] };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    renderAnalytics();
+    expect(await screen.findByRole("heading", { name: "Pengeluaran per Kategori" })).toBeInTheDocument();
+    expect(screen.queryByText("Tanpa Batas")).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Batas Anggaran" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Atur batas/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Laporan Bulanan" })).toHaveAttribute("href", "/laporan?atur=anggaran");
+  });
+
   it("hides expense-only inputs for an income category", async () => {
     const user = userEvent.setup();
     renderAnalytics();

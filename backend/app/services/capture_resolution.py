@@ -110,9 +110,10 @@ def reportable_categories(cur, user_id: str, kind: str | None = None) -> dict[st
 
 
 def default_pillar(kind: str, category: dict | None) -> str | None:
+    """The category's own pillar; a category without one leaves the expense unclassified, never `need`."""
     if kind != "expense":
         return None
-    return (category or {}).get("kakeibo_type") or "need"
+    return (category or {}).get("kakeibo_type")
 
 
 # --- Facts, memory and model context --------------------------------------------------------------

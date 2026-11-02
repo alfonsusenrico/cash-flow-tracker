@@ -74,12 +74,12 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
                COALESCE((
                    SELECT jsonb_object_agg(expense_pillars.pillar, expense_pillars.spent)
                    FROM (
-                       SELECT COALESCE(e.kakeibo_type, oc.kakeibo_type, 'need') AS pillar,
+                       SELECT COALESCE(e.kakeibo_type, oc.kakeibo_type, 'unclassified') AS pillar,
                               SUM(e.amount) AS spent
                        FROM transactions e
                        WHERE e.user_id = r.user_id AND e.type = 'expense' AND e.category_id = oc.id
                          AND e.date >= %s AND e.date <= %s
-                       GROUP BY COALESCE(e.kakeibo_type, oc.kakeibo_type, 'need')
+                       GROUP BY COALESCE(e.kakeibo_type, oc.kakeibo_type, 'unclassified')
                    ) expense_pillars
                ), '{}'::jsonb) AS pillar_spending
         FROM (

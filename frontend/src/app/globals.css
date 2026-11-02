@@ -232,7 +232,7 @@ html, body { overflow-x: clip; }
 }
 
 .glass-dock {
-  background: rgba(23, 26, 33, 0.94);
+  background: var(--dock-surface);
   border: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);

@@ -154,10 +154,11 @@ def test_essentials_group_over_target_is_elevated(owner):
 
 
 def test_unallocated_inflow_and_empty_cycle(owner):
-    insert_tx(owner, "plain", 500_000, when=datetime(2026, 3, 10, tzinfo=timezone.utc))  # no pillar anywhere: need
+    insert_tx(owner, "plain", 500_000, when=datetime(2026, 3, 10, tzinfo=timezone.utc))  # no pillar anywhere
     partial = breakdown(owner, 3, 2_000_000)
-    assert partial["need_pct"] == 25.0
-    assert sum(partial[f"{p}_pct"] for p in PILLARS) == 25.0
+    assert partial["need_pct"] == 0.0
+    assert partial["unclassified_pct"] == 25.0
+    assert sum(partial[f"{p}_pct"] for p in PILLARS) + partial["unclassified_pct"] == 25.0
 
     empty = breakdown(owner, 4, 0)
     assert all(empty[f"{p}_pct"] == 0.0 for p in PILLARS)

@@ -18,7 +18,7 @@ import { CashFlowHistory, PeriodComparison, RecurringCharges } from "@/component
 import { QuestionRate } from "@/components/insights/QuestionRate";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import type { ExpensePlanDraft } from "@/types/recurring";
-import { KAKEIBO_PILLARS, type KakeiboPillar, kakeiboPillarInfo, pillarOrNeed } from "@/lib/kakeibo";
+import { KAKEIBO_PILLARS, type KakeiboBucket, type KakeiboPillar, kakeiboPillarInfo, pillarOrUnclassified } from "@/lib/kakeibo";
 import { ledgerHref, reportPeriodFilters, UNCATEGORIZED } from "@/lib/ledgerFilters";
 
 const CATEGORY_ICONS = [
@@ -69,7 +69,7 @@ export default function AnalyticsPage() {
     reportPeriod
       ? ledgerHref({ ...reportPeriod, type: "expense", category: cat.is_uncategorized ? UNCATEGORIZED : cat.id ?? "all" })
       : null;
-  const pillarHref = (pillar: KakeiboPillar) =>
+  const pillarHref = (pillar: KakeiboBucket) =>
     reportPeriod ? ledgerHref({ ...reportPeriod, type: "expense", kakeibo: pillar }) : null;
   // Observed insights use salary cycles or calendar months; rolling windows have no previous period.
   const insightBasis = timeframe === "month" ? "month" : "cycle";
@@ -87,7 +87,8 @@ export default function AnalyticsPage() {
   const [catColor, setCatColor] = useState("#3b82f6");
   const [catBudget, setCatBudget] = useState("");
   const [catKind, setCatKind] = useState<"expense" | "income">("expense");
-  const [catKakeiboType, setCatKakeiboType] = useState<KakeiboPillar>("need");
+  // "" is a category without a pillar; saving leaves it without one instead of storing "need".
+  const [catKakeiboType, setCatKakeiboType] = useState<KakeiboPillar | "">("need");
   const [catError, setCatError] = useState("");
 
   const openCreateCategory = (kind: "expense" | "income" = "expense") => {
@@ -110,7 +111,7 @@ export default function AnalyticsPage() {
     const monthlyBudget = cat.monthly_budget ?? cat.budget;
     setCatBudget(monthlyBudget ? formatNumberWithDots(monthlyBudget) : "");
     setCatKind(cat.kind === "income" ? "income" : "expense");
-    setCatKakeiboType(pillarOrNeed(cat.kakeibo_type));
+    setCatKakeiboType(pillarOrUnclassified(cat.kakeibo_type));
     setCatError("");
     setCatModalOpen(true);
   };
@@ -127,7 +128,7 @@ export default function AnalyticsPage() {
         color: catColor,
         kind: catKind,
         monthly_budget: catKind === "expense" ? budgetVal : null,
-        kakeibo_type: catKind === "expense" ? catKakeiboType : null,
+        kakeibo_type: catKind === "expense" && catKakeiboType ? catKakeiboType : null,
       };
 
       if (editingCategory) {
@@ -219,6 +220,8 @@ export default function AnalyticsPage() {
   const totalSpentInCategories = categories.reduce((acc: number, c: any) => acc + c.spent, 0);
   const totalBudgeted = categories.reduce((acc: number, c: any) => acc + (c.budget || 0), 0);
   const overBudgetCount = categories.filter((c: any) => c.status === "over_budget").length;
+  // Budgets are optional: without any, the table shows spending only (custom-category-management).
+  const anyBudget = categories.some((c: any) => (c.budget ?? 0) > 0);
 
   return (
     <div className="space-y-6">
@@ -235,8 +238,11 @@ export default function AnalyticsPage() {
             </span>
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)] mt-1">
-            Analisis Pengeluaran & Anggaran
+            {anyBudget ? "Analisis Pengeluaran & Anggaran" : "Analisis Pengeluaran"}
           </h1>
+          <Link href="/laporan" className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]">
+            Baca Laporan Bulanan
+          </Link>
         </div>
 
         {(timeframe === "cycle" || timeframe === "month") && (
@@ -272,7 +278,7 @@ export default function AnalyticsPage() {
                 : "text-[var(--muted)] hover:text-[var(--text)]"
             )}
           >
-            Ringkasan & Anggaran
+            {anyBudget ? "Ringkasan & Anggaran" : "Ringkasan"}
           </button>
           <button
             type="button"
@@ -326,7 +332,7 @@ export default function AnalyticsPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-bold tracking-tight text-[var(--text)]">
-                    Batas Anggaran Kategori
+                    {anyBudget ? "Batas Anggaran Kategori" : "Pengeluaran per Kategori"}
                   </h2>
                   {overBudgetCount > 0 && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
@@ -335,7 +341,14 @@ export default function AnalyticsPage() {
                   )}
                 </div>
                 <p className="text-xs text-[var(--muted)] mt-0.5">
-                  Pengeluaran periode ini dibanding batas anggaran pengeluaran
+                  {anyBudget ? (
+                    "Pengeluaran periode ini dibanding batas anggaran pengeluaran"
+                  ) : (
+                    <>
+                      Pengeluaran periode ini per kategori. Anggaran bisa diatur kapan saja dari{" "}
+                      <Link href="/laporan?atur=anggaran" className="font-semibold underline underline-offset-2">Laporan Bulanan</Link>.
+                    </>
+                  )}
                 </p>
               </div>
 
@@ -373,9 +386,13 @@ export default function AnalyticsPage() {
                       <tr className="border-b border-[var(--border)] text-[var(--muted)] uppercase text-[10px] font-semibold">
                         <th className="pb-3 font-semibold">Kategori</th>
                         <th className="pb-3 font-semibold text-right">Terpakai</th>
-                        <th className="pb-3 font-semibold text-right">Batas Anggaran</th>
-                        <th className="pb-3 font-semibold text-right">Sisa Anggaran</th>
-                        <th className="pb-3 font-semibold text-right">Status</th>
+                        {anyBudget && (
+                          <>
+                            <th className="pb-3 font-semibold text-right">Batas Anggaran</th>
+                            <th className="pb-3 font-semibold text-right">Sisa Anggaran</th>
+                            <th className="pb-3 font-semibold text-right">Status</th>
+                          </>
+                        )}
                         <th className="pb-3 font-semibold text-right w-16">Aksi</th>
                       </tr>
                     </thead>
@@ -445,6 +462,8 @@ export default function AnalyticsPage() {
                               ) : bal(cat.spent)}
                             </td>
 
+                            {anyBudget && (
+                            <>
                             <td className="py-3.5 text-right text-[var(--muted)] tabular">
                               {managed ? (
                               <button
@@ -503,6 +522,9 @@ export default function AnalyticsPage() {
                                   : "Tanpa Batas"}
                               </span>
                             </td>
+
+                            </>
+                            )}
 
                             <td className="py-3.5 text-right">
                               {managed && (
@@ -605,7 +627,8 @@ export default function AnalyticsPage() {
                           </div>
                         )}
 
-                        {/* Row 3: Status Badge & Remaining / Limit Info */}
+                        {/* Row 3: Status Badge & Remaining / Limit Info, only once budgets are used */}
+                        {anyBudget && (
                         <div className="flex items-center justify-between gap-2 text-[11px] tabular">
                           <span
                             className={cn(
@@ -649,6 +672,8 @@ export default function AnalyticsPage() {
                           </div>
                         </div>
 
+                        )}
+
                         {/* Row 4: Subtle Touch Actions */}
                         {managed && (
                         <div className="border-t border-[var(--border)]/50 pt-2 flex items-center justify-between gap-2">
@@ -658,7 +683,7 @@ export default function AnalyticsPage() {
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-[11px] font-semibold text-[var(--text)] border border-[var(--border)] transition-colors cursor-pointer"
                           >
                             <Icon name="edit" className="h-3 w-3 text-[var(--muted)]" />
-                            <span>{hasBudget ? "Ubah Batas" : "Atur Batas"}</span>
+                            <span>{hasBudget ? "Ubah Batas" : anyBudget ? "Atur Batas" : "Ubah"}</span>
                           </button>
 
                           <ConfirmActionButton
@@ -873,15 +898,16 @@ export default function AnalyticsPage() {
                 <div>
                   <label htmlFor="category-kakeibo" className="text-xs font-medium text-[var(--muted)] block mb-1">Pilar Kakeibo bawaan</label>
                   <select id="category-kakeibo" name="kakeibo_type" value={catKakeiboType} onChange={(event) => setCatKakeiboType(event.target.value as typeof catKakeiboType)} className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]">
+                    {catKakeiboType === "" && <option value="">Belum diklasifikasi</option>}
                     {KAKEIBO_PILLARS.map((pillar) => (
                       <option key={pillar.value} value={pillar.value}>{pillar.label}</option>
                     ))}
                   </select>
-                  <p className="mt-1 text-[11px] text-[var(--muted)]">{kakeiboPillarInfo(catKakeiboType)?.help}</p>
+                  <p className="mt-1 text-[11px] text-[var(--muted)]">{catKakeiboType ? kakeiboPillarInfo(catKakeiboType)?.help : "Transaksi kategori ini tampil sebagai Belum diklasifikasi sampai Anda memilih pilar."}</p>
                 </div>
               </div>
             )}
-            {catKind === "expense" && <p className="text-xs text-[var(--muted)]">Biaya hidup pokok dan Ketahanan Dana memakai pengeluaran berpilar Kebutuhan.</p>}
+            {catKind === "expense" && <p className="text-xs text-[var(--muted)]">Biaya hidup pokok dan Ketahanan Dana memakai pengeluaran berpilar Kebutuhan dan yang belum diklasifikasi.</p>}
             </FormSection>
 
             <FormSection title="Tampilan kategori">

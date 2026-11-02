@@ -1,4 +1,4 @@
-import { isKakeiboPillar, type KakeiboPillar } from "@/lib/kakeibo";
+import { isKakeiboBucket, type KakeiboBucket } from "@/lib/kakeibo";
 
 export type LedgerPeriod = "all" | "cycle" | "month";
 export type LedgerTypeFilter = "all" | "expense" | "income";
@@ -11,7 +11,8 @@ export interface LedgerFilters {
   period: LedgerPeriod;
   offset: number;
   category: string;
-  kakeibo: KakeiboPillar | "all";
+  /** A pillar, or "unclassified" for expenses with no pillar at all. */
+  kakeibo: KakeiboBucket | "all";
   type: LedgerTypeFilter;
   account: string;
   review: LedgerReviewFilter;
@@ -20,6 +21,8 @@ export interface LedgerFilters {
   to: string | null;
   /** Search text from a report link, such as a merchant name. */
   q: string;
+  /** Possible duplicates only: same account, amount and type within 3 minutes (URL `dup=1`). */
+  dup: boolean;
 }
 
 export const DEFAULT_LEDGER_FILTERS: LedgerFilters = {
@@ -33,6 +36,7 @@ export const DEFAULT_LEDGER_FILTERS: LedgerFilters = {
   from: null,
   to: null,
   q: "",
+  dup: false,
 };
 
 // Matches the backend's period_offset bounds.
@@ -64,13 +68,14 @@ export function parseLedgerFilters(params: URLSearchParams | null): LedgerFilter
     period,
     offset,
     category: category === UNCATEGORIZED || (category && UUID_PATTERN.test(category)) ? category : "all",
-    kakeibo: isKakeiboPillar(kakeibo) ? kakeibo : "all",
+    kakeibo: isKakeiboBucket(kakeibo) ? kakeibo : "all",
     type: oneOf(params.get("type"), ["expense", "income"] as const, "all"),
     account: account && UUID_PATTERN.test(account) ? account : "all",
     review: oneOf(params.get("review"), ["needs_review", "auto", "reviewed"] as const, "all"),
     from: ranged ? instantOrNull(params.get("from")) : null,
     to: ranged ? instantOrNull(params.get("to")) : null,
     q: (params.get("q") ?? "").trim().slice(0, MAX_SEARCH_LENGTH),
+    dup: params.get("dup") === "1",
   };
 }
 
@@ -90,6 +95,7 @@ export function ledgerFilterQuery(filters: Partial<LedgerFilters>): string {
   if (merged.period === "all" && merged.from) params.set("from", merged.from);
   if (merged.period === "all" && merged.to) params.set("to", merged.to);
   if (merged.q) params.set("q", merged.q);
+  if (merged.dup) params.set("dup", "1");
   return params.toString();
 }
 
@@ -113,6 +119,7 @@ export function ledgerApiParams(filters: LedgerFilters): URLSearchParams {
   if (filters.review !== "all") params.set("review_status", filters.review);
   if (filters.period === "all" && filters.from) params.set("from_date", filters.from);
   if (filters.period === "all" && filters.to) params.set("to_date", filters.to);
+  if (filters.dup) params.set("possible_duplicates", "true");
   return params;
 }
 
@@ -122,7 +129,7 @@ export function hasDateRange(filters: LedgerFilters): boolean {
 
 export function hasRowFilters(filters: LedgerFilters): boolean {
   return filters.category !== "all" || filters.kakeibo !== "all" || filters.type !== "all"
-    || filters.account !== "all" || filters.review !== "all" || hasDateRange(filters);
+    || filters.account !== "all" || filters.review !== "all" || hasDateRange(filters) || filters.dup;
 }
 
 /** A report period of the dashboard (`timeframe` + `cycle_offset`) as ledger filters; null for rolling windows. */

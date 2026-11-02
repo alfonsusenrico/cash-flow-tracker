@@ -17,7 +17,11 @@ const TITLES: Record<string, { title: string; subtitle: string }> = {
   "/accounts": { title: "Rekening & Saldo", subtitle: "Daftar Rekening, Dompet Digital & Tunai" },
   "/goals": { title: "Target & Tagihan", subtitle: "Target Tabungan & Rencana Pembayaran" },
   "/review": { title: "Tinjau", subtitle: "Konfirmasi Transaksi Otomatis & Pertanyaan" },
+  "/laporan": { title: "Laporan", subtitle: "Laporan Bulanan Kakeibo" },
 };
+
+// The monthly report picks its own period, so the shared month stepper would contradict it.
+const ROUTES_WITH_OWN_PERIOD = new Set(["/laporan"]);
 
 export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
   const headerRef = useRef<HTMLElement>(null);
@@ -103,6 +107,7 @@ export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
       </div>
 
       {/* Center: Month & Year Statement Stepper */}
+      {!ROUTES_WITH_OWN_PERIOD.has(pathname) && (
       <div className="order-3 flex min-h-10 basis-full items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/60 px-2 text-xs sm:order-2 sm:min-h-0 sm:basis-auto sm:py-1">
         <button
           type="button"
@@ -146,6 +151,7 @@ export function TopBar({ onToggleMobileMenu, onQuickAdd }: TopBarProps) {
           </button>
         )}
       </div>
+      )}
 
       {/* Right: Actions */}
       <div className="order-2 ml-auto flex shrink-0 items-center gap-1 sm:order-3 sm:gap-3">
