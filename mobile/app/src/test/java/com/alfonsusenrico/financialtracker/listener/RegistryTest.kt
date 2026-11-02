@@ -37,7 +37,9 @@ class RegistryTest {
         assertEquals("myBCA", FinancialSourceRegistry.getAppLabel("id.co.bca.mybca.omni.android"))
         assertEquals("BCA mobile", FinancialSourceRegistry.getAppLabel("com.bca"))
         assertEquals("Bank Jago", FinancialSourceRegistry.getAppLabel("com.jago.digitalbanking"))
-        assertEquals("GoPay", FinancialSourceRegistry.getAppLabel("com.gojek.app"))
+        assertEquals("Gojek", FinancialSourceRegistry.getAppLabel("com.gojek.app"))
+        assertEquals("GoPay", FinancialSourceRegistry.getAppLabel("com.gojek.gopay"))
+        assertEquals("GoPay", FinancialSourceRegistry.getAppLabel("com.gopay.wallet"))
         assertEquals("ShopeePay", FinancialSourceRegistry.getAppLabel("com.shopeepay.id"))
         assertEquals("Shopee", FinancialSourceRegistry.getAppLabel("com.shopee.id"))
         assertEquals("Stockbit", FinancialSourceRegistry.getAppLabel("com.stockbit.android"))
@@ -59,6 +61,57 @@ class RegistryTest {
             assertEquals(FinancialSourceRegistry.getAppLabel(it.packageName), it.appLabel)
             assertTrue(it.description.isNotBlank())
         }
+    }
+
+    @Test
+    fun gojekAppIsLabelledGojekAndStaysInTheGoPayInstitution() {
+        val gojek = FinancialSourceRegistry.SELECTABLE_APPS.single { it.packageName == "com.gojek.app" }
+        assertEquals("Gojek", gojek.appLabel)
+        assertEquals("GoPay di aplikasi Gojek", gojek.description)
+        assertEquals("gopay", gojek.institution)
+        assertEquals(
+            setOf("com.gojek.gopay", "com.gopay.wallet"),
+            FinancialSourceRegistry.siblingPackages("com.gojek.app").toSet()
+        )
+    }
+
+    @Test
+    fun onlyInstalledAppsAreSelectableInRegistryOrder() {
+        val installed = setOf("com.gojek.app", "com.bca.mybca.omni.android", "com.whatsapp")
+        assertEquals(
+            listOf("com.bca.mybca.omni.android", "com.gojek.app"),
+            FinancialSourceRegistry.installedSelectableApps { it in installed }.map { it.packageName }
+        )
+    }
+
+    @Test
+    fun noInstalledAppMeansNothingSelectable() {
+        assertTrue(FinancialSourceRegistry.installedSelectableApps { false }.isEmpty())
+    }
+
+    @Test
+    fun everyInstalledAppIsSelectableOnce() {
+        assertEquals(
+            FinancialSourceRegistry.SELECTABLE_APPS,
+            FinancialSourceRegistry.installedSelectableApps { true }
+        )
+    }
+
+    @Test
+    fun eitherJagoSpellingInstalledShowsOneBankJagoEntry() {
+        listOf("com.jago.digitalBanking", "com.jago.digitalbanking").forEach { spelling ->
+            val shown = FinancialSourceRegistry.installedSelectableApps { it == spelling }
+            assertEquals(listOf("Bank Jago"), shown.map { it.appLabel })
+        }
+    }
+
+    @Test
+    fun captureMatchingDoesNotDependOnWhatIsInstalled() {
+        assertTrue(FinancialSourceRegistry.installedSelectableApps { false }.isEmpty())
+        FinancialSourceRegistry.REGISTERED_PACKAGES.forEach {
+            assertTrue(it, FinancialSourceRegistry.isTargetFinancialApp(it))
+        }
+        assertEquals(11, FinancialSourceRegistry.REGISTERED_PACKAGES.size)
     }
 
     @Test

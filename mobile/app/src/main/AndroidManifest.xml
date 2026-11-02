@@ -11,6 +11,22 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
+    <!-- Package visibility for Pengaturan and setup, which list only the registered finance apps that are
+         installed. Must name every package in FinancialSourceRegistry; InstalledPackagesTest checks it. -->
+    <queries>
+        <package android:name="com.bca.mybca.omni.android" />
+        <package android:name="id.co.bca.mybca.omni.android" />
+        <package android:name="com.bca" />
+        <package android:name="com.jago.digitalBanking" />
+        <package android:name="com.jago.digitalbanking" />
+        <package android:name="com.gojek.gopay" />
+        <package android:name="com.gojek.app" />
+        <package android:name="com.gopay.wallet" />
+        <package android:name="com.shopeepay.id" />
+        <package android:name="com.shopee.id" />
+        <package android:name="com.stockbit.android" />
+    </queries>
+
     <application
         android:name=".FinancialTrackerApp"
         android:allowBackup="true"

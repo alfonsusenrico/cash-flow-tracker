@@ -28,6 +28,7 @@ import com.alfonsusenrico.financialtracker.listener.ui.questions.QuestionAnswers
 import com.alfonsusenrico.financialtracker.listener.ui.questions.QuestionsScreen
 import com.alfonsusenrico.financialtracker.listener.ui.questions.SourcePocketOptionState
 import com.alfonsusenrico.financialtracker.listener.ui.settings.AppToggle
+import com.alfonsusenrico.financialtracker.listener.ui.settings.NO_FINANCE_APPS
 import com.alfonsusenrico.financialtracker.listener.ui.settings.SettingsActions
 import com.alfonsusenrico.financialtracker.listener.ui.settings.SettingsScreen
 import com.alfonsusenrico.financialtracker.listener.ui.settings.SettingsState
@@ -370,6 +371,19 @@ class CompanionScreensUiTest(private val dark: Boolean) {
     }
 
     // ---- Atur ----
+
+    @Test fun settingsSayWhenNoFinanceAppIsInstalled() {
+        compose.show(dark) {
+            SettingsScreen(
+                SettingsState(autoSync = true, apps = emptyList(), listenerPermissionGranted = true, batteryExempt = true, themeMode = ThemeMode.SYSTEM),
+                SettingsActions({}, {}, { _, _ -> }, {}, {}, {}, {}),
+                connection = {}
+            )
+        }
+        compose.onNodeWithText(NO_FINANCE_APPS).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Cuma dari aplikasi ini", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Dipantau").assertDoesNotExist()
+    }
 
     @Test fun settingsAreGroupedListsWithTheEveningReminder() {
         val log = mutableListOf<String>()
