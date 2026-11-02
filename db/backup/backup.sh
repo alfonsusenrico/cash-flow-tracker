@@ -5,8 +5,9 @@
 #   reason  lower-case label in the file name, for example nightly or pre-migrate-1a2b3c4.
 #
 # Connection settings come from the libpq variables PGHOST, PGPORT, PGUSER, PGPASSWORD and
-# PGDATABASE. The log holds only the outcome, file name, size and duration: never connection
-# settings, tool output or data.
+# PGDATABASE. The log holds only the outcome, file name, size, duration and the free space of
+# BACKUP_DIR: never connection settings, tool output or data. A run that ends with less free space
+# than DEPLOY_MIN_FREE_GB (default 5 GiB, the deploy's own threshold) logs a disk-space warning.
 set -euo pipefail
 umask 077
 
@@ -14,6 +15,7 @@ backup_dir=${BACKUP_DIR:-/backups}
 retention_days=${BACKUP_RETENTION_DAYS:-14}
 lock_wait_seconds=${BACKUP_LOCK_WAIT_SECONDS:-900}
 age_recipient=${BACKUP_AGE_RECIPIENT:-}
+min_free_gb=${DEPLOY_MIN_FREE_GB:-5}
 reason=${1:-nightly}
 database=${PGDATABASE:-}
 
@@ -21,8 +23,31 @@ started_at=$(date +%s)
 temporary_dump=""
 temporary_encrypted=""
 
+# Free space of the filesystem holding BACKUP_DIR in MiB, or "unknown" when df cannot read it.
+free_space_mib() {
+    local available_kib
+    available_kib=$(df -Pk -- "$backup_dir" 2>/dev/null | awk 'NR == 2 { print $4 }') || available_kib=""
+    if [[ "$available_kib" =~ ^[0-9]+$ ]]; then
+        printf '%s' "$((available_kib / 1024))"
+    else
+        printf 'unknown'
+    fi
+}
+
 log() {
-    printf '%s backup %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
+    printf '%s backup %s free_mib=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" "$(free_space_mib)"
+}
+
+warn_if_low_on_space() {
+    local free_mib
+    # An invalid threshold has already failed the run as config-min-free; it cannot be compared.
+    if [[ ! "$min_free_gb" =~ ^[1-9][0-9]{0,3}$ ]]; then
+        return 0
+    fi
+    free_mib=$(free_space_mib)
+    if [[ "$free_mib" =~ ^[0-9]+$ ]] && ((free_mib < min_free_gb * 1024)); then
+        log "status=warning reason=${reason} step=disk-space min_free_gb=${min_free_gb}"
+    fi
 }
 
 remove_temporary_files() {
@@ -39,6 +64,7 @@ fail() {
     local exit_code=$2
     remove_temporary_files
     log "status=failed reason=${reason} step=${step} exit=${exit_code} duration_s=$(($(date +%s) - started_at))"
+    warn_if_low_on_space
     exit 1
 }
 
@@ -55,6 +81,9 @@ if [[ ! "$retention_days" =~ ^[1-9][0-9]{0,3}$ ]]; then
 fi
 if [[ ! "$lock_wait_seconds" =~ ^[0-9]{1,5}$ ]]; then
     fail config-lock-wait 2
+fi
+if [[ ! "$min_free_gb" =~ ^[1-9][0-9]{0,3}$ ]]; then
+    fail config-min-free 2
 fi
 # An age recipient is a public key, so the host holds nothing that can decrypt the dumps.
 if [[ -n "$age_recipient" && ! "$age_recipient" =~ ^age1[02-9ac-hj-np-z]{58}$ ]]; then
@@ -110,3 +139,4 @@ pruned=$(find "$backup_dir" -maxdepth 1 -type f \
 find "$backup_dir" -maxdepth 1 -type f -name '.tmp-cashflow-*' -mmin +1440 -delete || fail prune-temporary $?
 
 log "status=ok reason=${reason} file=${final_name} size_bytes=${size_bytes} duration_s=$(($(date +%s) - started_at)) pruned=${pruned}"
+warn_if_low_on_space

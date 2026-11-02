@@ -53,6 +53,8 @@ ENV_DEFAULTS = {
     "PAIRING_SERVER_URL": "https://finance.alfonsusenrico.com",
     "BACKUP_TIME": "02:30",
     "BACKUP_RETENTION_DAYS": "14",
+    # GiB that Docker's data directory and the backup directory must each have free before a deploy.
+    "DEPLOY_MIN_FREE_GB": "5",
 }
 
 CRITICAL_VARIABLES = (

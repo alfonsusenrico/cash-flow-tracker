@@ -19,6 +19,11 @@ If the pre-migration backup fails, the deploy stops with
 `❌ Pre-migration backup failed; aborting before any migration.` Nothing is migrated, and the
 running release stays online.
 
+Before it builds anything, the deploy also checks that Docker's data directory and
+`BACKUP_HOST_DIR` each have at least `DEPLOY_MIN_FREE_GB` GiB free (default 5). Below that it
+stops before the build, the backup and the migrations
+([production-deployment.md, section 6](production-deployment.md#6-free-disk-space-guard)).
+
 Each run:
 
 1. takes the `backup` lock, so a nightly run and a deploy never write at the same time;
@@ -29,11 +34,15 @@ Each run:
 6. deletes dumps older than `BACKUP_RETENTION_DAYS` (default 14). Retention runs only after a
    verified dump, so the newest good dump is never deleted, even after weeks of failures.
 
-The log line holds only the outcome, file name, size, duration and number of pruned files:
+The log line holds only the outcome, file name, size, duration, number of pruned files and the
+free space left on the filesystem that holds the dumps (`free_mib`, in MiB, or `unknown` when it
+cannot be read). When a run ends with less free space than `DEPLOY_MIN_FREE_GB`, it adds a
+`status=warning … step=disk-space` line. The dump itself still runs: a warning never skips a backup.
 
 ```text
-2026-11-02T19:30:00Z backup status=ok reason=nightly file=cashflow-ledger-20261102T193000Z-nightly.dump size_bytes=127000 duration_s=1 pruned=1
-2026-11-02T19:30:00Z backup status=failed reason=nightly step=dump exit=1 duration_s=0
+2026-11-02T19:30:00Z backup status=ok reason=nightly file=cashflow-ledger-20261102T193000Z-nightly.dump size_bytes=127000 duration_s=1 pruned=1 free_mib=48210
+2026-11-02T19:30:00Z backup status=failed reason=pre-migrate-0123456789ab step=dump exit=1 duration_s=0 free_mib=285
+2026-11-02T19:30:00Z backup status=warning reason=pre-migrate-0123456789ab step=disk-space min_free_gb=5 free_mib=285
 ```
 
 Tool output is never logged, because it can quote connection details or data. To investigate
@@ -65,6 +74,7 @@ same name, or kept from the previous release's `runtime.env`.
 | `BACKUP_TIME` | `02:30` | Local time (`TZ`) of the nightly dump, `HH:MM` |
 | `BACKUP_RETENTION_DAYS` | `14` | Days a dump is kept |
 | `BACKUP_AGE_RECIPIENT` | empty (no encryption) | age public key (`age1…`) that dumps are encrypted to |
+| `DEPLOY_MIN_FREE_GB` | `5` | Whole GiB (1 to 9999) that a deploy needs free and below which a backup warns |
 
 An invalid value fails the run with `step=config-…`. In a deploy, that stops the release before
 any migration.

@@ -169,6 +169,8 @@ services:
       BACKUP_TIME: ${BACKUP_TIME:-02:30}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
       BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
+      # The deploy's free-space threshold; a backup that leaves less free space logs a warning.
+      DEPLOY_MIN_FREE_GB: ${DEPLOY_MIN_FREE_GB:-5}
     volumes:
       # A host directory, outside every Docker volume, so dumps survive losing db_data.
       - ${BACKUP_HOST_DIR:-./storage/backups}:/backups

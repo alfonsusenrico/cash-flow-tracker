@@ -94,6 +94,7 @@ jobs:
           BACKUP_TIME: ${{ secrets.BACKUP_TIME || '02:30' }}
           BACKUP_RETENTION_DAYS: ${{ secrets.BACKUP_RETENTION_DAYS || '14' }}
           BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+          DEPLOY_MIN_FREE_GB: ${{ secrets.DEPLOY_MIN_FREE_GB || '5' }}
 
       - name: Package Commit Archive
         run: |

@@ -14,7 +14,8 @@ flowchart TD
     B --> C["Connect to Tailscale<br/>(tailscale/github-action)"]
     C --> D["Package git archive & materialize runtime.env"]
     D --> E["SSH Transfer to msi (/tmp/...)"]
-    E --> F["release_storage.py prepare<br/>/opt/cash-flow-tracker/production/releases/&lt;SHA&gt;/"]
+    E --> E2["Free disk space check<br/>(Docker data and BACKUP_HOST_DIR each need DEPLOY_MIN_FREE_GB, default 5 GiB)"]
+    E2 --> F["release_storage.py prepare<br/>/opt/cash-flow-tracker/production/releases/&lt;SHA&gt;/"]
     F --> G["Extract source & docker compose build"]
     G --> G2["Pre-migration pg_dump into BACKUP_HOST_DIR<br/>(failure aborts the deploy)"]
     G2 --> H["Flyway V14 preflight, then Flyway migrations (all pending versions)"]
@@ -32,7 +33,8 @@ flowchart TD
 4. **Isolated Secrets:** Secrets are materialized directly into `<release_dir>/runtime.env` (`mode 0600`) and never committed into Git.
 5. **Automated Ingress Routing:** Cloudflare Tunnel proxies traffic to `127.0.0.1:8090` without exposing ports publicly.
 6. **Database Backups:** The `backup` service dumps the database nightly and the deploy dumps it before every migration, into a host directory outside the Docker volumes. See [database-backups.md](database-backups.md).
-7. **Checks Before Deploy:** `.github/workflows/checks.yml` runs on branch pushes and pull requests, and `deploy.yml` calls it as its preflight. The backend suite runs against a PostgreSQL 16 service migrated by Flyway exactly as production is (`flyway/flyway:10`, baseline on migrate, version 1), with `REQUIRE_TEST_DATABASE=1` so database tests fail instead of being skipped. A push to main that changes only `mobile/**` does not deploy.
+7. **Free Disk Space First:** Before it writes the release tree, builds images or takes the pre-migration backup, the deploy checks the free space of Docker's data directory (`docker info` `DockerRootDir`) and of `BACKUP_HOST_DIR`. If either has less than `DEPLOY_MIN_FREE_GB` GiB free (default 5), the deploy stops and the running release stays online (section 6).
+8. **Checks Before Deploy:** `.github/workflows/checks.yml` runs on branch pushes and pull requests, and `deploy.yml` calls it as its preflight. The backend suite runs against a PostgreSQL 16 service migrated by Flyway exactly as production is (`flyway/flyway:10`, baseline on migrate, version 1), with `REQUIRE_TEST_DATABASE=1` so database tests fail instead of being skipped. A push to main that changes only `mobile/**` does not deploy.
 
 ---
 
@@ -66,6 +68,8 @@ Register these secrets in GitHub under `Settings -> Secrets and variables -> Act
 *(Defaults for `DEPLOY_HOST=100.85.113.31`, `DEPLOY_USER=enr1c0`, `DEPLOY_PORT=22`, and `DEPLOY_ROOT=/opt/cash-flow-tracker` are configured automatically).*
 
 Optional backup settings, all with safe defaults (see [database-backups.md](database-backups.md#3-configuration)): `BACKUP_HOST_DIR` (default `<DEPLOY_ROOT>/production/backups`), `BACKUP_TIME` (`02:30`), `BACKUP_RETENTION_DAYS` (`14`), `BACKUP_AGE_RECIPIENT` (empty, no encryption).
+
+Optional disk guard: `DEPLOY_MIN_FREE_GB` (default `5`), the whole GiB from 1 to 9999 that a deploy needs free (section 6).
 
 ---
 
@@ -111,3 +115,70 @@ export BACKUP_HOST_DIR=/opt/cash-flow-tracker/production/backups
 export BACKUP_UID="$(id -u)" BACKUP_GID="$(id -g)"
 docker compose --project-name cashflow-production --env-file ../runtime.env up -d --no-build
 ```
+
+---
+
+## 6. Free Disk Space Guard
+
+A deploy on 2026-11-02 stopped safely because the server disk was full: 285 MB were free and the
+pre-migration backup could not be written. The guard below stops such a deploy earlier, before
+anything is built or written.
+
+### What the deploy checks
+
+Right after the release files reach the server, and before `release_storage.py prepare`, the image
+build, the pre-migration backup and the migrations, the deploy reads:
+
+- the free space of Docker's data directory, from `docker info --format '{{.DockerRootDir}}'`;
+- the free space of `BACKUP_HOST_DIR` (default `<DEPLOY_ROOT>/production/backups`).
+
+Each must have at least `DEPLOY_MIN_FREE_GB` GiB available (default 5; a whole number from 1 to
+9999, set through the GitHub secret of the same name). The log shows one line per filesystem:
+
+```text
+💽 Docker data: 48210 MiB free at /var/lib/docker (minimum 5 GiB).
+💽 database backups: 48210 MiB free at /opt/cash-flow-tracker/production/backups (minimum 5 GiB).
+```
+
+Below the threshold, or when the free space or Docker's data directory cannot be read, the deploy
+exits with an error such as:
+
+```text
+❌ Not enough free disk space for Docker data at /var/lib/docker: 285 MiB free, below DEPLOY_MIN_FREE_GB=5 GiB. Aborting before any build, backup or migration; the running release is untouched.
+```
+
+Nothing is built, backed up or migrated, no release directory is created, and `current` still
+points at the running release. An invalid `DEPLOY_MIN_FREE_GB` (for example `0`, `2.5` or `5GB`)
+stops the deploy the same way.
+
+The nightly backup also records `free_mib` on every log line and warns below the same threshold
+([database-backups.md](database-backups.md#1-what-runs-and-when)), so a filling disk shows up in
+`docker logs ledger_backup` before the next deploy.
+
+### What to do when the disk is full
+
+Any command on the server needs the owner's explicit instruction for that action (`AGENTS.md`,
+Production Isolation Guardrail). With that instruction:
+
+1. Look before deleting anything:
+
+   ```sh
+   df -h / /var/lib/docker /opt/cash-flow-tracker/production/backups
+   docker system df
+   du -sh /opt/cash-flow-tracker/production/releases/* /opt/cash-flow-tracker/production/backups
+   ```
+
+2. Remove only what this project owns, in this order:
+   - this project's dangling images, with the same label filters the deploy uses:
+     `docker image prune --force --filter label=cash-flow-tracker.managed=true` and
+     `docker image prune --force --filter label=com.docker.compose.project=cashflow-production`;
+   - releases beyond the retained three:
+     `python3 /opt/cash-flow-tracker/production/current/source/scripts/release_storage.py cleanup --environment-root /opt/cash-flow-tracker/production --compose-project cashflow-production --retain 3`;
+   - old dumps past `BACKUP_RETENTION_DAYS` only. Never delete the newest verified dump.
+3. **Do not touch other projects' images, containers, volumes or build cache without the owner's
+   say.** The host is shared. Never run an unfiltered `docker system prune`, `docker image prune
+   --all` or `docker builder prune` on it, and never remove Docker volumes.
+4. If this project's own files cannot free enough space, stop and report the `df` and
+   `docker system df` output to the owner. Do not lower `DEPLOY_MIN_FREE_GB` to get a deploy
+   through.
+5. Re-run the deploy from GitHub Actions. Its log shows the free space it found.

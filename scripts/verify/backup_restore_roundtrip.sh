@@ -5,7 +5,9 @@
 #   3. restore each into a NEW database on a second fresh postgres:16 with restore-backup;
 #   4. compare exact row counts per table and the Flyway schema version;
 #   5. check the negative paths: an existing target is refused, a failed dump leaves no file,
-#      and retention removes only dumps older than BACKUP_RETENTION_DAYS.
+#      and retention removes only dumps older than BACKUP_RETENTION_DAYS;
+#   6. check that every backup log line records the free space, that a run below
+#      DEPLOY_MIN_FREE_GB logs a disk-space warning, and that an invalid threshold is refused.
 #
 # Usage: scripts/verify/backup_restore_roundtrip.sh
 #   VERIFY_PREFIX  container, network and image name prefix (default cft-verify)
@@ -143,8 +145,10 @@ in_backup_image "$source_db" "$work_dir/plain" --env BACKUP_RETENTION_DAYS=14 "$
 plain_dump=$(find "$work_dir/plain" -maxdepth 1 -name 'cashflow-ledger-*-roundtrip.dump' -exec basename {} \;)
 check "plain dump written once" test "$(printf '%s\n' "$plain_dump" | grep -c .)" -eq 1
 check "log reports success with size and duration" \
-    grep -Eq 'status=ok reason=roundtrip file=cashflow-ledger-[0-9TZ]+-roundtrip.dump size_bytes=[1-9][0-9]* duration_s=[0-9]+ pruned=1$' \
+    grep -Eq 'status=ok reason=roundtrip file=cashflow-ledger-[0-9TZ]+-roundtrip.dump size_bytes=[1-9][0-9]* duration_s=[0-9]+ pruned=1 free_mib=[0-9]+$' \
     "$work_dir/plain-backup.log"
+check "no disk-space warning above the default 5 GiB threshold" \
+    bash -c "! grep -q 'step=disk-space' '$work_dir/plain-backup.log'"
 check "retention removed the 15-day-old dump" test ! -e "$work_dir/plain/cashflow-ledger-20000101T000000Z-expired.dump"
 check "retention kept the 13-day-old dump" test -e "$work_dir/plain/cashflow-ledger-20000102T000000Z-recent.dump"
 check "no temporary file left" test -z "$(find "$work_dir/plain" -name '.tmp-*' -print -quit)"
@@ -224,6 +228,26 @@ check "failed dump is logged with its step" grep -Eq 'status=failed reason=faili
     "$work_dir/failing-backup.log"
 check "failed dump leaves no file" test "$(find "$work_dir/plain" -maxdepth 1 -name 'cashflow-*' | wc -l | tr -d ' ')" = "$dumps_before"
 check "failed dump leaves no temporary file" test -z "$(find "$work_dir/plain" -name '.tmp-*' -print -quit)"
+check "failed dump records the free space" grep -Eq 'step=dump exit=[1-9][0-9]* duration_s=[0-9]+ free_mib=[0-9]+$' \
+    "$work_dir/failing-backup.log"
+
+step "Free space: a warning below DEPLOY_MIN_FREE_GB, and an invalid threshold refused"
+# 9999 GiB is more than any runner has free, so the run must still dump and then warn.
+in_backup_image "$source_db" "$work_dir/plain" --env DEPLOY_MIN_FREE_GB=9999 "$image" backup-now low-space \
+    | tee "$work_dir/low-space-backup.log"
+check "low-space run still writes its dump" \
+    test -n "$(find "$work_dir/plain" -maxdepth 1 -name 'cashflow-ledger-*-low-space.dump' -print -quit)"
+check "low-space run logs a disk-space warning with its free space" \
+    grep -Eq 'status=warning reason=low-space step=disk-space min_free_gb=9999 free_mib=[0-9]+$' "$work_dir/low-space-backup.log"
+dumps_before=$(find "$work_dir/plain" -maxdepth 1 -name 'cashflow-*' | wc -l | tr -d ' ')
+if in_backup_image "$source_db" "$work_dir/plain" --env DEPLOY_MIN_FREE_GB=0 "$image" backup-now bad-threshold \
+    >"$work_dir/bad-threshold-backup.log"; then
+    echo "FAIL a backup with DEPLOY_MIN_FREE_GB=0 was not refused" >&2
+    exit 1
+fi
+check "invalid threshold is refused before the dump" grep -q 'status=failed reason=bad-threshold step=config-min-free' \
+    "$work_dir/bad-threshold-backup.log"
+check "refused run writes no dump" test "$(find "$work_dir/plain" -maxdepth 1 -name 'cashflow-*' | wc -l | tr -d ' ')" = "$dumps_before"
 check "logs carry no password" bash -c "! grep -rq -e '$db_password' -e wrong-password '$work_dir'/*.log"
 
 echo
