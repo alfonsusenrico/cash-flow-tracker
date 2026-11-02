@@ -182,7 +182,8 @@ def update_category(
         raise HTTPException(status_code=400, detail="No fields to update")
 
     updates.append("updated_at = NOW()")
-    pillar_may_change = payload.kakeibo_type is not None or payload.is_primary is not None or payload.kind is not None
+    # is_primary never derives a pillar: an update without kakeibo_type keeps the stored one.
+    pillar_may_change = payload.kakeibo_type is not None or payload.kind is not None
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -212,9 +213,6 @@ def update_category(
                     raise HTTPException(status_code=422, detail="Income categories cannot have an expense budget or Kakeibo pillar")
                 if payload.kind == "income":
                     updates.extend(["monthly_budget = NULL", "kakeibo_type = NULL"])
-            elif payload.is_primary is not None and payload.kakeibo_type is None:
-                updates.append("kakeibo_type = %s")
-                params.append("need" if payload.is_primary else "want")
             if payload.kind and payload.kind != current_category["kind"]:
                 cur.execute(
                     "SELECT EXISTS (SELECT 1 FROM transactions WHERE category_id = %s AND type != %s) OR EXISTS (SELECT 1 FROM recurring_rules WHERE category_id = %s AND type != %s) AS has_incompatible_usage",

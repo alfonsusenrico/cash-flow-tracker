@@ -7,6 +7,8 @@ import { describe, expect, it } from "vitest";
 const appDir = path.resolve(__dirname);
 const srcDir = path.resolve(appDir, "..");
 const bottomNav = readFileSync(path.join(srcDir, "components/layout/BottomNav.tsx"), "utf8");
+const insightsPage = readFileSync(path.join(appDir, "insights/page.tsx"), "utf8");
+const ledgerPage = readFileSync(path.join(appDir, "ledger/page.tsx"), "utf8");
 const tokens = readFileSync(path.resolve(appDir, "../../tokens.css"), "utf8");
 const globals = readFileSync(path.join(appDir, "globals.css"), "utf8");
 const layout = readFileSync(path.join(appDir, "layout.tsx"), "utf8");
@@ -80,6 +82,9 @@ const textPairs: [string, string[]][] = [
   ["--expense-text", ["--surface", "--bg", "--surface-raised", "--color-expense-soft"]],
   ["--primary-text", ["--surface", "--bg", "--surface-raised", "--sidebar-hover"]],
   ["--danger-text", ["--surface", "--bg", "--surface-raised"]],
+  ["--income-text", ["--surface", "--bg", "--surface-raised", "--color-income-soft"]],
+  // Text on the emerald buttons; their hover keeps the same fill or a lighter tint of it.
+  ["--income-contrast", ["--color-income"]],
   // The phone dock is dark in both themes; its translucent fill is measured over the page surface.
   ["--dock-muted", ["--dock-surface"]],
   ["--dock-text", ["--dock-surface"]],
@@ -112,10 +117,37 @@ describe("design tokens", () => {
     expect(backgroundColor.primary.DEFAULT).toBe("var(--primary)");
   });
 
-  it("keeps the signature lime and coral fills unchanged", () => {
+  it("paints emerald text utilities with the income text ink and keeps the emerald fills", () => {
+    const { textColor, backgroundColor } = tailwindTheme;
+    for (const shade of ["400", "500", "600", "700"]) {
+      expect(textColor.emerald[shade], `text-emerald-${shade}`).toBe("var(--income-text)");
+    }
+    expect(textColor.income.DEFAULT).toBe("var(--income-text)");
+    expect(textColor.income.contrast).toBe("var(--income-contrast)");
+    expect(backgroundColor.emerald["500"]).toBe("var(--color-income)");
+    expect(backgroundColor.income.DEFAULT).toBe("var(--color-income)");
+  });
+
+  it("keeps the signature lime, coral and emerald fills unchanged", () => {
     expect(resolve(themes[":root"], "--accent-lime")).toBe("#66CC55");
     expect(resolve(themes[":root"], "--color-expense")).toBe("#FF334B");
     expect(resolve(themes[":root"], "--primary")).toBe("#FF334B");
+    expect(resolve(themes[":root"], "--color-income")).toBe("#059669");
+    expect(resolve(themes[".dark"], "--color-income")).toBe("#10B981");
+  });
+
+  it("puts no white text on the emerald buttons of Analisis and Transaksi", () => {
+    const classStrings = (source: string) => [...source.matchAll(/"([^"]*)"/g)].map((match) => match[1]);
+    const onEmeraldFill = (classes: string) => /(^|\s)bg-(emerald-500|income)(\s|$)/.test(classes);
+    for (const [page, source] of [["insights", insightsPage], ["ledger", ledgerPage]] as const) {
+      const buttons = classStrings(source).filter(onEmeraldFill);
+      expect(buttons.length, `${page} emerald fills`).toBeGreaterThan(0);
+      for (const classes of buttons) {
+        if (!/(^|\s)text-/.test(classes)) continue;
+        expect(classes, `${page}: ${classes}`).toContain("text-income-contrast");
+        expect(classes, `${page}: ${classes}`).not.toMatch(/(^|\s)text-white/);
+      }
+    }
   });
 
   it("paints the phone dock and its inactive labels with the dock tokens", () => {

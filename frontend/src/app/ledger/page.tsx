@@ -729,11 +729,11 @@ function LedgerPageContent() {
           <button
             type="button"
             onClick={() => openQuickAdd()}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-income hover:bg-income-hover text-white text-xs font-bold shadow-xs transition-transform active:scale-95"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-income hover:bg-income/90 text-income-contrast text-xs font-bold shadow-xs transition-transform active:scale-95"
           >
             <Icon name="plus" className="h-4 w-4" />
             <span>Catat Transaksi</span>
-            <kbd className="hidden sm:inline-block rounded bg-black/20 px-1.5 py-0.5 text-[9px] font-mono text-white/90">
+            <kbd className="hidden sm:inline-block rounded bg-white/30 px-1.5 py-0.5 text-[9px] font-mono text-income-contrast">
               N
             </kbd>
           </button>
@@ -1206,7 +1206,7 @@ function LedgerPageContent() {
               className={cn(
                 "px-3 py-1 rounded-xl text-xs font-semibold transition-colors",
                 typeFilter === key
-                  ? "bg-income text-white shadow-2xs"
+                  ? "bg-income text-income-contrast shadow-2xs"
                   : "bg-[var(--surface-raised)] text-[var(--muted)] hover:text-[var(--text)]"
               )}
             >
@@ -2117,7 +2117,7 @@ function LedgerPageContent() {
             <button
               type="button"
               onClick={() => setFilterDrawerOpen(false)}
-              className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-center shadow-xs"
+              className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-income-contrast font-bold text-center shadow-xs"
             >
               Terapkan
             </button>

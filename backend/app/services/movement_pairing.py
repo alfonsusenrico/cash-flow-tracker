@@ -276,12 +276,13 @@ def link_pair(cur, user_id: str, expense_id: str, income_id: str, *, fee: int, n
     fee_transaction_id = None
     if fee:
         category = ensure_fee_category(cur, user_id)
+        # The fee takes the category's pillar; a category without one leaves it unclassified, never `need`.
         cur.execute(
             """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, kakeibo_type,
                    idempotency_key, fee_for_movement_id, source, review_status, classified_by, classification_confidence)
                VALUES (%s, %s, %s, 'expense', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
             (user_id, expense["account_id"], category["id"], fee, FEE_NOTES, expense["date"],
-             category["kakeibo_type"] or "need", f"movement-fee:{result['movement_id']}", result["movement_id"],
+             category["kakeibo_type"], f"movement-fee:{result['movement_id']}", result["movement_id"],
              "movement", "auto", "system", None),
         )
         fee_transaction_id = str(cur.fetchone()["id"])
