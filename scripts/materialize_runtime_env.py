@@ -51,6 +51,8 @@ ENV_DEFAULTS = {
     "HISTORY_SUGGESTION_BATCH_SIZE": "20",
     "CAPTURE_CONFIDENCE_THRESHOLD": "0.8",
     "PAIRING_SERVER_URL": "https://finance.alfonsusenrico.com",
+    "BACKUP_TIME": "02:30",
+    "BACKUP_RETENTION_DAYS": "14",
 }
 
 CRITICAL_VARIABLES = (
@@ -61,6 +63,10 @@ CRITICAL_VARIABLES = (
 
 OPTIONAL_VARIABLES = (
     "OPENAI_API_KEY",
+    # Unset means <DEPLOY_ROOT>/production/backups, chosen by release_storage.py backup-dir.
+    "BACKUP_HOST_DIR",
+    # An age public key; unset means dumps are stored unencrypted (mode 0600).
+    "BACKUP_AGE_RECIPIENT",
 )
 
 
