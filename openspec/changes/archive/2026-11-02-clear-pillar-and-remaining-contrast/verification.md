@@ -69,7 +69,11 @@ Other results:
 ## Repository
 
 - `git diff --check`: exit 0, including the new change files.
-- `openspec validate --all --strict`: exit 0. Counts are in the delivery report.
+- `openspec validate --all --strict`, exit 0 each time:
+  - before archiving: 69 passed, 0 failed;
+  - after `openspec archive`: 68 passed, 0 failed.
+
+  `mobile/openspec` gives 9 passed, 0 failed. The branch changes nothing under `mobile/`.
 
 ## Not verified
 
