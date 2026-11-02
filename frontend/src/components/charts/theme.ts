@@ -6,7 +6,6 @@ export const chartColors = {
   expense: "var(--color-expense)",
   expenseLight: "var(--color-expense-soft)",
   warning: "var(--color-warning)",
-  cyan: "var(--color-kakeibo-need)",
   grid: "var(--border)",
   text: "var(--muted)",
 };

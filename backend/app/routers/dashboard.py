@@ -750,10 +750,13 @@ def get_dashboard_overview(
                     t.category_id, c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
                     t.type,
                     t.amount, t.notes, t.date, t.receipt_path,
-                    COALESCE(c.is_excluded_from_budget, false) AS is_excluded_from_budget
+                    COALESCE(c.is_excluded_from_budget, false) AS is_excluded_from_budget,
+                    topup.id AS investment_topup_id
                 FROM transactions t
                 JOIN accounts sa ON sa.id = t.account_id
                 LEFT JOIN categories c ON c.id = t.category_id
+                -- Same top-up marker as the ledger, joined here so marking a row costs no extra query.
+                LEFT JOIN investment_topups topup ON topup.id = t.movement_id AND topup.user_id = t.user_id
                 WHERE t.user_id = %s
                 ORDER BY t.date DESC, t.created_at DESC
                 LIMIT 10
@@ -777,6 +780,7 @@ def get_dashboard_overview(
                     "date": r["date"].isoformat() if r["date"] else None,
                     "receipt_path": r["receipt_path"],
                     "is_excluded_from_budget": bool(r.get("is_excluded_from_budget", False)),
+                    "investment_topup_id": str(r["investment_topup_id"]) if r.get("investment_topup_id") else None,
                 }
                 for r in cur.fetchall()
             ]

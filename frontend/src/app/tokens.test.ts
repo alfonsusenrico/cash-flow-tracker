@@ -110,6 +110,25 @@ const textPairs: [string, string[]][] = [
   ["--dock-text", ["--dock-surface"]],
 ];
 
+const PILLARS = ["need", "want", "culture", "unexpected", "saving"] as const;
+
+/** HSL hue in degrees and saturation (0 for a grey, 1 for a pure hue) of an opaque colour. */
+function hueOf(colour: Rgb): { hue: number; saturation: number } {
+  const [r, g, b] = colour.map((channel) => channel / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const chroma = max - min;
+  if (chroma === 0) return { hue: 0, saturation: 0 };
+  const lightness = (max + min) / 2;
+  const sector = max === r ? ((g - b) / chroma + 6) % 6 : max === g ? (b - r) / chroma + 2 : (r - g) / chroma + 4;
+  return { hue: sector * 60, saturation: chroma / (1 - Math.abs(2 * lightness - 1)) };
+}
+
+const hueDistance = (first: number, second: number) => {
+  const difference = Math.abs(first - second) % 360;
+  return Math.min(difference, 360 - difference);
+};
+
 const tailwindTheme = resolveConfig(createRequire(import.meta.url)("../../tailwind.config.js")).theme as unknown as Record<
   string,
   Record<string, Record<string, string>>
@@ -246,6 +265,19 @@ describe("design tokens", () => {
       }
     }
 
+    // Investment top-up rows in the Beranda and phone-width "Aktivitas Terkini": the icon tile and the amount.
+    for (const [name, source] of [["Beranda", berandaPage], ["MobileHomeView", mobileHomeView]] as const) {
+      expect(source, name).toMatch(/const isTopup = Boolean\(tx\.investment_topup_id\);/);
+      const branches = [...source.matchAll(/isTopup\s*\?\s*"([^"]*)"/g)]
+        .map((match) => match[1])
+        .filter((value) => /(^|\s)(text|bg|border)-/.test(value));
+      expect(branches.length, `${name} home top-up branches`).toBe(2);
+      for (const classes of branches) {
+        expect(classes, `${name}: ${classes}`).toMatch(/text-investment/);
+        expect(classes, `${name}: ${classes}`).not.toMatch(/(amber|sky|blue|purple|indigo)-/);
+      }
+    }
+
     // The Rekening allocation share and the price-sync message.
     const shares = [...accountsPage.matchAll(/investPct > 0 && [^\n]*className="([^"]*)"|<span className="([^"]*)" \/>\s*Investasi:/g)]
       .map((match) => match[1] ?? match[2]);
@@ -354,6 +386,26 @@ describe("design tokens", () => {
     expect(bottomNav.match(/text-\[var\(--dock-muted\)\] hover:text-\[var\(--dock-text\)\]/g)).toHaveLength(4);
   });
 
+  it("paints Kakeibo pillars only through their tokens in kakeibo.ts", () => {
+    const kakeibo = readFileSync(path.join(srcDir, "lib/kakeibo.ts"), "utf8");
+    for (const pillar of PILLARS) {
+      expect(kakeibo).toMatch(new RegExp(`value: "${pillar}",[\\s\\S]*?color: "var\\(--color-kakeibo-${pillar}\\)"`));
+    }
+    expect(kakeibo).toContain('color: "var(--color-kakeibo-unclassified)"');
+    // Components take the pillar colour from KAKEIBO_PILLARS or KAKEIBO_BUCKETS, never by naming a token or a hex.
+    const elsewhere = componentFiles(srcDir)
+      .filter((file) => !file.endsWith(path.join("lib", "kakeibo.ts")))
+      .filter((file) => /--color-kakeibo-/.test(readFileSync(file, "utf8")));
+    expect(elsewhere.map((file) => path.relative(srcDir, file))).toEqual([]);
+  });
+
+  it("starts new investment accounts with the lavender investment fill", async () => {
+    const { INVESTMENT_ACCOUNT_TAG_COLOR, defaultAccountTagColor } = await import("@/lib/accountColours");
+    expect(INVESTMENT_ACCOUNT_TAG_COLOR).toBe(resolve(themes[":root"], "--color-investment"));
+    expect(defaultAccountTagColor("investment")).toBe(INVESTMENT_ACCOUNT_TAG_COLOR);
+    for (const type of ["bank", "wallet", "cash"]) expect(defaultAccountTagColor(type)).not.toBe(INVESTMENT_ACCOUNT_TAG_COLOR);
+  });
+
   it("generates shadow-xs from the --shadow-xs token", () => {
     const boxShadow = tailwindTheme.boxShadow as unknown as Record<string, string>;
     expect(boxShadow.xs).toBe("var(--shadow-xs)");
@@ -399,6 +451,41 @@ describe("design tokens", () => {
             .toBeGreaterThanOrEqual(4.5);
         }
       }
+    });
+
+    it.each([...PILLARS, "unclassified"])("keeps the %s pillar colour at WCAG AA as text and as a mark", (pillar) => {
+      // The pillar colour is a chart mark (dots, bar segments) and may be text. Text needs 4.5:1 on every surface
+      // and the pillar's soft fill; marks need 3:1 on the bar tracks (--surface-raised and --border over the card).
+      const colour = painted(theme, `--color-kakeibo-${pillar}`);
+      for (const background of ["--surface", "--bg", "--surface-raised", `--color-kakeibo-${pillar}-soft`]) {
+        expect(contrast(colour, painted(theme, background)), `${pillar} text on ${background} in ${selector}`).toBeGreaterThanOrEqual(4.5);
+      }
+      for (const track of ["--surface-raised", "--border"]) {
+        expect(contrast(colour, painted(theme, track)), `${pillar} mark on ${track} in ${selector}`).toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it("gives every pillar its own hue, apart from the transfer, investment, income and expense colours", () => {
+      const pillarHue = (pillar: string) => hueOf(painted(theme, `--color-kakeibo-${pillar}`));
+      const reserved = [
+        "--color-transfer", "--transfer-text", "--color-investment", "--investment-text",
+        "--color-income", "--income-text", "--color-expense", "--expense-text",
+      ];
+      for (const pillar of PILLARS) {
+        const { hue, saturation } = pillarHue(pillar);
+        expect(saturation, `${pillar} is a colour, not a grey, in ${selector}`).toBeGreaterThan(0.35);
+        for (const token of reserved) {
+          const distance = hueDistance(hue, hueOf(painted(theme, token)).hue);
+          expect(distance, `${pillar} vs ${token} in ${selector}`).toBeGreaterThanOrEqual(25);
+        }
+      }
+      for (const [index, first] of PILLARS.entries()) {
+        for (const second of PILLARS.slice(index + 1)) {
+          expect(hueDistance(pillarHue(first).hue, pillarHue(second).hue), `${first} vs ${second} in ${selector}`).toBeGreaterThanOrEqual(40);
+        }
+      }
+      // "Belum diklasifikasi" is missing information, so it stays a neutral grey rather than a sixth hue.
+      expect(pillarHue("unclassified").saturation, `unclassified in ${selector}`).toBeLessThan(0.25);
     });
 
     it.each(textPairs)("keeps %s at WCAG AA on its backgrounds", (text, backgrounds) => {

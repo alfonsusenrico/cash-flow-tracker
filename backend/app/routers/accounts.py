@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
+from app.services.account_colours import default_account_color
 from app.services.auth import get_current_user
 from app.services.ledger_mutations import get_locked_ledger_balance, lock_owned_accounts
 from app.services.investment_topups import convert_product_to_amount, initialize_amount_tracking
@@ -30,7 +31,8 @@ class AccountCreate(BaseModel):
     instrument_symbol: str | None = Field(default=None, max_length=30)
     units: float | None = Field(default=None, ge=0)
     avg_buy_price: float | None = Field(default=None, ge=0)
-    color: str | None = Field(default="#3b82f6", max_length=30)
+    # None picks the default for the account type: lavender for investments, blue otherwise.
+    color: str | None = Field(default=None, max_length=30)
     display_order: int | None = Field(default=0)
 
 
@@ -430,7 +432,7 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                     payload.avg_buy_price,
                     last_price,
                     last_price_at,
-                    payload.color or "#3b82f6",
+                    payload.color or default_account_color(payload.type),
                     payload.display_order or 0,
                 ),
             )

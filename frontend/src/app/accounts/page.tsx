@@ -26,6 +26,7 @@ import { InvestmentTradeModal } from "@/components/ui/InvestmentTradeModal";
 import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
 import { AmountTrackingSwitchModal } from "@/components/ui/AmountTrackingSwitchModal";
 import { canSwitchToAmountTracking, InvestmentScheduleDraft, listAmountInvestmentProducts } from "@/lib/investmentTopups";
+import { DEFAULT_ACCOUNT_TAG_COLOR, INVESTMENT_ACCOUNT_TAG_COLOR, defaultAccountTagColor } from "@/lib/accountColours";
 
 function getContrastTextColor(hexColor?: string): string {
   if (!hexColor || !hexColor.startsWith("#")) return "#FFFFFF";
@@ -43,8 +44,9 @@ function getContrastTextColor(hexColor?: string): string {
 }
 
 const ACCOUNT_TAG_COLORS = [
-  { name: "Biru", hex: "#2563EB" },
+  { name: "Biru", hex: DEFAULT_ACCOUNT_TAG_COLOR },
   { name: "Emerald", hex: "#059669" },
+  { name: "Lavender", hex: INVESTMENT_ACCOUNT_TAG_COLOR },
   { name: "Ungu", hex: "#7C3AED" },
   { name: "Amber", hex: "#D97706" },
   { name: "Rose", hex: "#E11D48" },
@@ -295,7 +297,9 @@ export default function AccountsPage() {
   const [accName, setAccName] = useState("");
   const [accType, setAccType] = useState<"cash" | "bank" | "wallet" | "investment">("bank");
   const [accInitBal, setAccInitBal] = useState("");
-  const [accColor, setAccColor] = useState<string>("#2563EB");
+  const [accColor, setAccColor] = useState<string>(DEFAULT_ACCOUNT_TAG_COLOR);
+  // Until the owner picks a colour, a new account's colour follows the default of its type.
+  const [accColorChosen, setAccColorChosen] = useState(false);
   const [accDefaultFundingId, setAccDefaultFundingId] = useState<string>("");
   const [accDefaultPocketId, setAccDefaultPocketId] = useState<string>("");
   const [accParentId, setAccParentId] = useState<string>("");
@@ -450,7 +454,8 @@ export default function AccountsPage() {
     setAccName("");
     setAccType("bank");
     setAccInitBal("");
-    setAccColor("#2563EB");
+    setAccColor(DEFAULT_ACCOUNT_TAG_COLOR);
+    setAccColorChosen(false);
     setAccDefaultFundingId("");
     setAccDefaultPocketId("");
     setAccIsMultiInstrument(true);
@@ -484,7 +489,7 @@ export default function AccountsPage() {
     setEditingAccount(acc);
     setAccName(acc.name);
     setAccType(acc.type);
-    setAccColor(acc.color || "#2563EB");
+    setAccColor(acc.color || DEFAULT_ACCOUNT_TAG_COLOR);
     setAccDefaultFundingId(acc.default_funding_account_id || "");
     setAccDefaultPocketId(acc.default_pocket_id || "");
     setAccParentId("");
@@ -1366,7 +1371,10 @@ export default function AccountsPage() {
                     <button
                       key={col.hex}
                       type="button"
-                      onClick={() => setAccColor(col.hex)}
+                      onClick={() => {
+                        setAccColor(col.hex);
+                        setAccColorChosen(true);
+                      }}
                       aria-label={`Warna ${col.name}`}
                       aria-pressed={isSelected}
                       className={cn(
@@ -1409,7 +1417,11 @@ export default function AccountsPage() {
                   id="account-type"
                   name="type"
                   value={accType}
-                  onChange={(e) => setAccType(e.target.value as any)}
+                  onChange={(e) => {
+                    const nextType = e.target.value as typeof accType;
+                    setAccType(nextType);
+                    if (!editingAccount && !accColorChosen) setAccColor(defaultAccountTagColor(nextType));
+                  }}
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
                 >
                   <option value="bank">Rekening Bank (BCA, Mandiri, BRI, dll)</option>

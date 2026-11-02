@@ -273,6 +273,8 @@ export default function OverviewPage() {
                     tx.type === "transfer" ||
                     tx.category_name === "Internal Movement" ||
                     !!tx.is_excluded_from_budget;
+                  // A top-up is also a movement; it is labelled and painted as an investment, not a transfer.
+                  const isTopup = Boolean(tx.investment_topup_id);
                   const isIncome = tx.type === "income" && !isMovement;
 
                   return (
@@ -285,7 +287,9 @@ export default function OverviewPage() {
                         <div
                           className={cn(
                             "h-8 w-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0",
-                            isMovement
+                            isTopup
+                              ? "bg-violet-500/10 text-investment"
+                              : isMovement
                               ? "bg-sky-500/10 text-sky-500"
                               : isIncome
                               ? "bg-emerald-500/10 text-emerald-500"
@@ -306,7 +310,9 @@ export default function OverviewPage() {
                         <div className="min-w-0">
                           <div className="text-xs font-semibold text-[var(--text)] group-hover:text-emerald-400 transition-colors truncate">
                             {tx.notes ||
-                              (isMovement
+                              (isTopup
+                                ? "Top up Investasi"
+                                : isMovement
                                 ? "Pindah Saldo"
                                 : tx.category_name || "Umum")}
                           </div>
@@ -318,6 +324,12 @@ export default function OverviewPage() {
                                 <span className="truncate">
                                   {tx.transfer_target_account_name}
                                 </span>
+                              </>
+                            )}
+                            {isTopup && tx.notes && tx.notes !== "Top up Investasi" && (
+                              <>
+                                <span>•</span>
+                                <span className="shrink-0">Top up Investasi</span>
                               </>
                             )}
                             {tx.kakeibo_type && (
@@ -343,7 +355,9 @@ export default function OverviewPage() {
                         <div
                           className={cn(
                             "text-xs font-bold tabular tracking-tight",
-                            isMovement
+                            isTopup
+                              ? "text-investment"
+                              : isMovement
                               ? "text-sky-500"
                               : isIncome
                               ? "text-emerald-500"
@@ -593,9 +607,11 @@ export default function OverviewPage() {
               <div>
                 <div className="font-semibold text-sm text-[var(--text)]">
                   {selectedTx.notes ||
-                    (selectedTx.type === "transfer" ||
-                    selectedTx.category_name === "Internal Movement" ||
-                    selectedTx.is_excluded_from_budget
+                    (selectedTx.investment_topup_id
+                      ? "Top up Investasi"
+                      : selectedTx.type === "transfer" ||
+                        selectedTx.category_name === "Internal Movement" ||
+                        selectedTx.is_excluded_from_budget
                       ? "Pindah Saldo"
                       : selectedTx.category_name || "Umum")}
                 </div>
@@ -606,9 +622,11 @@ export default function OverviewPage() {
               <div
                 className={cn(
                   "text-base font-bold tabular",
-                  selectedTx.type === "transfer" ||
-                  selectedTx.category_name === "Internal Movement" ||
-                  selectedTx.is_excluded_from_budget
+                  selectedTx.investment_topup_id
+                    ? "text-investment"
+                    : selectedTx.type === "transfer" ||
+                      selectedTx.category_name === "Internal Movement" ||
+                      selectedTx.is_excluded_from_budget
                     ? "text-sky-500"
                     : selectedTx.type === "income"
                     ? "text-emerald-500"
@@ -652,9 +670,11 @@ export default function OverviewPage() {
             <div className="flex justify-between items-center py-2 border-b border-[var(--border)]">
               <span className="text-[var(--muted)]">Jenis Transaksi</span>
               <span className="font-semibold uppercase text-[var(--text)]">
-                {selectedTx.type === "transfer" ||
-                selectedTx.category_name === "Internal Movement" ||
-                selectedTx.is_excluded_from_budget
+                {selectedTx.investment_topup_id
+                  ? "Top up Investasi"
+                  : selectedTx.type === "transfer" ||
+                    selectedTx.category_name === "Internal Movement" ||
+                    selectedTx.is_excluded_from_budget
                   ? selectedTx.type === "income"
                     ? "Pindah Saldo (Masuk)"
                     : "Pindah Saldo (Keluar)"
