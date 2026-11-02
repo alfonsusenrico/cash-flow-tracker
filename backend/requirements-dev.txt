@@ -1,4 +1,6 @@
 -r requirements.txt
+# Tested pins used by CI. pytest 9.2.0 breaks 22 database tests: its monkeypatch undo deletes
+# Starlette app.state attributes (pytest #10644). Upgrade only after that is resolved.
 pytest==9.0.3
 httpx==0.28.1
 pytest-asyncio==1.4.1.post1
