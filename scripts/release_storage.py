@@ -22,6 +22,10 @@ PRIVATE_FILE_MODE = 0o600
 DEFAULT_RETAINED_RELEASES = 3
 BACKUP_DIRECTORY_MODE = 0o700
 BACKUP_DIR_VARIABLE = "BACKUP_HOST_DIR"
+MIN_FREE_VARIABLE = "DEPLOY_MIN_FREE_GB"
+DEFAULT_MIN_FREE_GB = 5
+# Whole GiB from 1 to 9999: zero would disable the guard, and a fraction or unit suffix is ambiguous.
+MIN_FREE_PATTERN = re.compile(r"^[1-9][0-9]{0,3}$")
 
 
 class ReleaseStorageError(ValueError):
@@ -228,6 +232,16 @@ def resolve_backup_dir(environment_root: Path, env_file: Path) -> Path:
     return backup_dir
 
 
+def resolve_min_free_gb(env_file: Path) -> int:
+    """Return the free-space threshold in GiB that a deploy needs and below which backups warn."""
+    configured = _read_env_value(env_file, MIN_FREE_VARIABLE)
+    if not configured:
+        return DEFAULT_MIN_FREE_GB
+    if not MIN_FREE_PATTERN.fullmatch(configured):
+        raise ReleaseStorageError(f"{MIN_FREE_VARIABLE} must be a whole number of GiB from 1 to 9999")
+    return int(configured)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -253,6 +267,9 @@ def main():
     p_backup.add_argument("--environment-root", required=True, type=Path)
     p_backup.add_argument("--env-file", required=True, type=Path)
 
+    p_min_free = commands.add_parser("min-free-gb")
+    p_min_free.add_argument("--env-file", required=True, type=Path)
+
     args = parser.parse_args()
 
     if args.command == "prepare":
@@ -265,6 +282,12 @@ def main():
     elif args.command == "backup-dir":
         try:
             print(str(resolve_backup_dir(args.environment_root, args.env_file)))
+        except ReleaseStorageError as error:
+            print(f"❌ {error}", file=sys.stderr)
+            sys.exit(1)
+    elif args.command == "min-free-gb":
+        try:
+            print(resolve_min_free_gb(args.env_file))
         except ReleaseStorageError as error:
             print(f"❌ {error}", file=sys.stderr)
             sys.exit(1)

@@ -286,7 +286,7 @@ export default function OverviewPage() {
                           className={cn(
                             "h-8 w-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0",
                             isMovement
-                              ? "bg-blue-500/10 text-blue-500"
+                              ? "bg-sky-500/10 text-sky-500"
                               : isIncome
                               ? "bg-emerald-500/10 text-emerald-500"
                               : "bg-rose-500/10 text-rose-500"
@@ -344,7 +344,7 @@ export default function OverviewPage() {
                           className={cn(
                             "text-xs font-bold tabular tracking-tight",
                             isMovement
-                              ? "text-blue-500"
+                              ? "text-sky-500"
                               : isIncome
                               ? "text-emerald-500"
                               : "text-rose-500"
@@ -378,7 +378,7 @@ export default function OverviewPage() {
                   onClick={() => handleOpenTransfer()}
                   disabled={!canTransfer}
                   title={canTransfer ? undefined : "Perlu dua rekening kas aktif untuk transfer"}
-                  className="text-xs font-bold text-amber-600 dark:text-amber-400 enabled:hover:underline enabled:cursor-pointer pressable disabled:cursor-not-allowed disabled:opacity-50"
+                  className="text-xs font-bold text-sky-500 enabled:hover:underline enabled:cursor-pointer pressable disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Pindah Saldo
                 </button>
@@ -609,7 +609,7 @@ export default function OverviewPage() {
                   selectedTx.type === "transfer" ||
                   selectedTx.category_name === "Internal Movement" ||
                   selectedTx.is_excluded_from_budget
-                    ? "text-blue-500"
+                    ? "text-sky-500"
                     : selectedTx.type === "income"
                     ? "text-emerald-500"
                     : "text-rose-500"

@@ -50,7 +50,7 @@ The design system SHALL adhere to modern digital banking craftsmanship standards
   The design system SHALL adhere to modern digital banking craftsmanship standards (Bank Jago, Bibit, SeaBank):
   1. **Typography:** Plus Jakarta Sans for interface text and Geist Mono for numeric code text, both self-hosted from the app's own origin as defined by `web-font-hosting`, paired with tabular figures (`font-variant-numeric: tabular-nums`) for currency and timestamps.
   2. **Seamless Surface Elevation:** Card surfaces SHALL be separated from the page by the tonal contrast between `--surface` and `--bg` and a 1px hairline `--border` (ink at 9% opacity in the light theme, white at 8% in the dark theme), never by heavy wireframe outlines. A raised surface SHALL use the `--shadow-xs`, `--shadow-sm` or `--shadow-md` token of `frontend/tokens.css`, where `--shadow-xs` is the 1px raise of plain cards, chips and buttons and stays lighter than `--shadow-sm` in both themes; deeper shadows are reserved for floating layers such as dialogs, menus, the phone navigation bar and the selection bar.
-  3. **Accents:** Emerald green for Income/Cash In, coral/rose for Expense/Cash Out, sky blue for internal transfers ("Pindah Saldo") and lavender for investment top-ups. Spring Lime, emerald and coral keep their vivid colours for fills (navigation pills, chart peaks, buttons, chart marks); lime, emerald and coral used as text or as a meaningful icon on a theme surface SHALL use a text ink of the same hue (darker than the fill in the light theme), measuring at least 4.5:1 for text and 3:1 for icons against the surface it sits on in the light and the dark theme. Text on an emerald fill, the strong `bg-emerald-600` fill included, SHALL use an ink that measures at least 4.5:1 against that fill in both themes. Amber used as text SHALL use a warning text ink of the same hue, measuring at least 4.5:1 against the surface it sits on in both themes. An icon tile that repeats its button's label SHALL be hidden from assistive technology, and a tile icon that conveys meaning SHALL measure at least 3:1 against its tile.
+  3. **Accents:** Emerald green for Income/Cash In, coral/rose for Expense/Cash Out, sky blue for internal transfers ("Pindah Saldo") and lavender for investment top-ups. Every transfer element (a "Pindah Saldo" action, a movement row's icon, amount or badge, and a movement's detail amount) SHALL use sky blue, never amber or another blue; amber SHALL be reserved for warnings such as "Waspada". Spring Lime, emerald and coral keep their vivid colours for fills (navigation pills, chart peaks, buttons, chart marks); lime, emerald, coral and sky used as text or as a meaningful icon on a theme surface SHALL use a text ink of the same hue (darker than the fill in the light theme), measuring at least 4.5:1 for text and 3:1 for icons against the surface it sits on in the light and the dark theme. Text on an emerald fill, the strong `bg-emerald-600` fill included, SHALL use an ink that measures at least 4.5:1 against that fill in both themes. Amber used as text SHALL use a warning text ink of the same hue, measuring at least 4.5:1 against the surface it sits on in both themes. An icon tile that repeats its button's label SHALL be hidden from assistive technology, and a tile icon that conveys meaning SHALL measure at least 3:1 against its tile.
   4. **Prohibitions:** The UI SHALL NOT contain harsh box outlines, rainbow gradients, blurry purple glow drop-shadows, 0–100 health meters, or unformatted text blocks.
 
 #### Scenario: Dark mode contrast validation
@@ -70,7 +70,7 @@ The design system SHALL adhere to modern digital banking craftsmanship standards
 - **THEN** the text measures at least 4.5:1 against the surface or fill it sits on, income still reads as emerald, and the emerald fills are unchanged
 
 #### Scenario: Amber text contrast
-- **WHEN** Beranda shows the amber "Pindah Saldo" text button at 1280 px, or a page shows `text-amber-400` to `text-amber-700` text on `--surface`, `--bg`, `--surface-raised` or the warning soft fill, in the light or the dark theme
+- **WHEN** a page shows `text-amber-400` to `text-amber-700` text, such as a "Waspada" badge, on `--surface`, `--bg`, `--surface-raised` or the warning soft fill, in the light or the dark theme
 - **THEN** the text measures at least 4.5:1 against that background, it still reads as amber, and the amber fills are unchanged
 
 #### Scenario: Text on the strong emerald fill
@@ -79,7 +79,11 @@ The design system SHALL adhere to modern digital banking craftsmanship standards
 
 #### Scenario: Decorative icon tiles
 - **WHEN** the Beranda wallet card shows its "Pengeluaran", "Pemasukan" and "Pindah Saldo" buttons
-- **THEN** each button's icon tile SHALL be hidden from assistive technology, the button SHALL be named by its text, and the emerald tile's icon SHALL measure at least 3:1 against the tile in both themes
+- **THEN** each button's icon tile SHALL be hidden from assistive technology, the button SHALL be named by its text, and the emerald tile's icon and the sky "Pindah Saldo" tile's icon SHALL each measure at least 3:1 against the tile in both themes
+
+#### Scenario: Sky blue transfers
+- **WHEN** Beranda, Transaksi or the phone-width home view shows the "Pindah Saldo" text button or capsule, a movement row's icon, amount or "Pindah Saldo" badge, or a movement's detail amount, in the light or the dark theme at 390 or 1280 px
+- **THEN** the element SHALL be sky blue and not amber or another blue, its text SHALL measure at least 4.5:1 and its icon at least 3:1 against the surface or sky tint it sits on, and amber SHALL remain on warnings only
 
 ### Requirement: Quick Capture Linking to Goals and Obligations
 The global transaction quick-capture interface (`N`) SHALL allow optional direct linking to savings goals and debt obligations.

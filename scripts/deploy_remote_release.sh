@@ -86,6 +86,46 @@ cleanup_bootstrap() {
 }
 trap cleanup_bootstrap EXIT HUP INT TERM
 
+# 0. Check free disk space before anything is written. Image layers fill Docker's data directory and
+# the pre-migration dump fills the backup directory; a full disk must stop the deploy here, while the
+# running release is untouched, not halfway through a build or a backup.
+min_free_gb=$(python3 "$bootstrap_dir/release_storage.py" min-free-gb --env-file "$bootstrap_dir/runtime.env")
+
+# Dumps live in a host directory outside the release tree and the Docker volumes. The nightly
+# backup service runs as the deploy user that owns it, so that user can read and manage the dumps.
+backup_host_dir=$(python3 "$bootstrap_dir/release_storage.py" backup-dir \
+  --environment-root "$environment_root" \
+  --env-file "$bootstrap_dir/runtime.env")
+
+# Commands that may read stdin get /dev/null: stdin is this script, streamed over SSH.
+if ! docker_root_dir=$(docker info --format '{{.DockerRootDir}}' </dev/null) || [ -z "$docker_root_dir" ]; then
+  echo "❌ Could not read Docker's data directory; aborting before any build, backup or migration." >&2
+  exit 1
+fi
+
+require_free_space() {
+  space_label=$1
+  space_path=$2
+  # df -P prints one line per filesystem; its fourth field is the space available to this user, in KiB.
+  available_kib=$(df -Pk -- "$space_path" | awk 'NR == 2 { print $4 }')
+  case "$available_kib" in
+    "" | *[!0-9]*)
+      echo "❌ Could not read the free space for ${space_label} at ${space_path}; aborting before any build, backup or migration." >&2
+      exit 1
+      ;;
+  esac
+  available_mib=$((available_kib / 1024))
+  if [ "$available_kib" -lt $((min_free_gb * 1024 * 1024)) ]; then
+    echo "❌ Not enough free disk space for ${space_label} at ${space_path}: ${available_mib} MiB free, below DEPLOY_MIN_FREE_GB=${min_free_gb} GiB. Aborting before any build, backup or migration; the running release is untouched. See docs/production-deployment.md, section 6." >&2
+    exit 1
+  fi
+  echo "💽 ${space_label}: ${available_mib} MiB free at ${space_path} (minimum ${min_free_gb} GiB)."
+}
+
+echo "💽 Checking free disk space (DEPLOY_MIN_FREE_GB=${min_free_gb})..."
+require_free_space "Docker data" "$docker_root_dir"
+require_free_space "database backups" "$backup_host_dir"
+
 # A. Prepare immutable release directory
 release_dir=$(python3 "$bootstrap_dir/release_storage.py" prepare \
   --environment-root "$environment_root" \
@@ -105,11 +145,6 @@ cp "$release_dir/runtime.env" "$source_dir/.env"
 
 runtime_env="$release_dir/runtime.env"
 
-# Dumps live in a host directory outside the release tree and the Docker volumes. The nightly
-# backup service runs as the deploy user that owns it, so that user can read and manage the dumps.
-backup_host_dir=$(python3 "$bootstrap_dir/release_storage.py" backup-dir \
-  --environment-root "$environment_root" \
-  --env-file "$runtime_env")
 export BACKUP_HOST_DIR="$backup_host_dir"
 BACKUP_UID=$(id -u)
 BACKUP_GID=$(id -g)

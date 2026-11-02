@@ -12,6 +12,9 @@ const ledgerPage = readFileSync(path.join(appDir, "ledger/page.tsx"), "utf8");
 const goalsPage = readFileSync(path.join(appDir, "goals/page.tsx"), "utf8");
 const heroWalletCard = readFileSync(path.join(srcDir, "components/dashboard/HeroWalletCard.tsx"), "utf8");
 const categoryDonutChart = readFileSync(path.join(srcDir, "components/dashboard/CategoryDonutChart.tsx"), "utf8");
+const berandaPage = readFileSync(path.join(appDir, "page.tsx"), "utf8");
+const mobileLedgerFeed = readFileSync(path.join(srcDir, "components/ledger/MobileLedgerFeed.tsx"), "utf8");
+const mobileHomeView = readFileSync(path.join(srcDir, "components/dashboard/MobileHomeView.tsx"), "utf8");
 const tokens = readFileSync(path.resolve(appDir, "../../tokens.css"), "utf8");
 const globals = readFileSync(path.join(appDir, "globals.css"), "utf8");
 const layout = readFileSync(path.join(appDir, "layout.tsx"), "utf8");
@@ -91,6 +94,9 @@ const textPairs: [string, string[]][] = [
   // Text on the strong emerald buttons of Target & Tagihan (bg-emerald-600, hover bg-emerald-700).
   ["--income-hover-contrast", ["--color-income-hover"]],
   ["--warning-text", ["--surface", "--bg", "--surface-raised", "--color-warning-soft"]],
+  ["--transfer-text", ["--surface", "--bg", "--surface-raised"]],
+  // Text and icons on the solid transfer fill (bg-transfer), such as the HeroWalletCard tile.
+  ["--transfer-contrast", ["--color-transfer"]],
   // The phone dock is dark in both themes; its translucent fill is measured over the page surface.
   ["--dock-muted", ["--dock-surface"]],
   ["--dock-text", ["--dock-surface"]],
@@ -142,6 +148,50 @@ describe("design tokens", () => {
     expect(textColor.income["hover-contrast"]).toBe("var(--income-hover-contrast)");
     expect(backgroundColor.amber["500"]).toBe("#f59e0b");
     expect(backgroundColor.emerald["600"]).toBe("var(--color-income-hover)");
+  });
+
+  it("paints sky text utilities with the transfer text ink and keeps the sky fills", () => {
+    const { textColor, backgroundColor } = tailwindTheme;
+    for (const shade of ["400", "500", "600", "700"]) {
+      expect(textColor.sky[shade], `text-sky-${shade}`).toBe("var(--transfer-text)");
+    }
+    expect(textColor.transfer.DEFAULT).toBe("var(--transfer-text)");
+    expect(textColor.transfer.contrast).toBe("var(--transfer-contrast)");
+    expect(backgroundColor.sky["500"]).toBe("#0ea5e9");
+    expect(backgroundColor.transfer.DEFAULT).toBe("var(--color-transfer)");
+    expect(resolve(themes[":root"], "--color-transfer")).toBe("#0EA5E9");
+    expect(resolve(themes[".dark"], "--color-transfer")).toBe("#38BDF8");
+  });
+
+  it("paints every Pindah Saldo and movement element sky, never amber or blue", () => {
+    const classLists = (source: string) =>
+      [...source.matchAll(/(?:isMovement|is_excluded_from_budget)\s*\?\s*"([^"]*)"/g)]
+        .map((match) => match[1])
+        .filter((classes) => /(^|\s)(text|bg|border)-/.test(classes));
+    for (const [name, source] of [
+      ["Beranda", berandaPage],
+      ["Transaksi", ledgerPage],
+      ["MobileLedgerFeed", mobileLedgerFeed],
+      ["MobileHomeView", mobileHomeView],
+    ] as const) {
+      const movementClasses = classLists(source);
+      expect(movementClasses.length, `${name} movement branches`).toBeGreaterThan(0);
+      for (const classes of movementClasses) {
+        expect(classes, `${name}: ${classes}`).toMatch(/(^|\s)text-sky-500(\s|$)/);
+        expect(classes, `${name}: ${classes}`).not.toMatch(/(amber|blue)-/);
+      }
+    }
+
+    const berandaButton = berandaPage.match(/onClick=\{\(\) => handleOpenTransfer\(\)\}[^>]*className="([^"]*)"[^>]*>\s*Pindah Saldo/);
+    expect(berandaButton?.[1]).toMatch(/(^|\s)text-sky-500(\s|$)/);
+    expect(berandaButton?.[1]).not.toMatch(/amber-/);
+
+    const capsule = heroWalletCard.match(/className="([^"]*)"\s*>\s*<div aria-hidden="true" className="([^"]*)">\s*<Icon name="repeat"/);
+    expect(capsule?.[1]).toMatch(/(^|\s)text-sky-500(\s|$)/);
+    expect(capsule?.[1]).not.toMatch(/amber-/);
+    expect(capsule?.[2]).toContain("bg-transfer text-transfer-contrast");
+    expect(ledgerPage).toMatch(/isMovement\s*\?\s*"var\(--color-transfer\)"/);
+    expect(mobileHomeView).toMatch(/<Icon name="repeat" className="[^"]*text-sky-500/);
   });
 
   it("keeps the signature lime, coral and emerald fills unchanged", () => {
@@ -221,6 +271,19 @@ describe("design tokens", () => {
       expect(xs.blur).toBeLessThanOrEqual(2);
       expect(xs.blur).toBeLessThan(sm.blur);
       expect(xs.alpha).toBeLessThan(sm.alpha);
+    });
+
+    it("keeps --transfer-text at WCAG AA on the sky tints of transfer chips", () => {
+      // Transfer chips and capsules paint Tailwind's sky-500 at 10 to 20% over the card or the raised surface.
+      const sky = hex("#0ea5e9");
+      for (const surface of ["--surface", "--surface-raised"]) {
+        for (const alpha of [0.1, 0.15, 0.2]) {
+          const base = painted(theme, surface);
+          const tint = base.map((channel, index) => sky[index] * alpha + channel * (1 - alpha)) as Rgb;
+          expect(contrast(painted(theme, "--transfer-text"), tint), `${alpha} sky over ${surface} in ${selector}`)
+            .toBeGreaterThanOrEqual(4.5);
+        }
+      }
     });
 
     it.each(textPairs)("keeps %s at WCAG AA on its backgrounds", (text, backgrounds) => {
