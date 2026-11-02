@@ -80,7 +80,7 @@ jobs:
         run: python -m pytest tests/ -ra
 
   frontend:
-    name: Frontend type check, lint and build
+    name: Frontend type check, lint, tests and build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -94,12 +94,13 @@ jobs:
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install Frontend Dependencies & Run Quality Checks
+      - name: Install Frontend Dependencies & Run Quality Checks and Tests
         working-directory: frontend
         run: |
           npm ci
           npm run type-check
           npm run lint
+          npm test
           npm run build
 
   operations:
