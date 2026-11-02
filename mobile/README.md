@@ -12,12 +12,17 @@ The app strictly inspects notifications originating **only** from the following 
 
 | Application | Package Identifier | Supported Events |
 |---|---|---|
-| **myBCA** | `id.co.bca.mybca.omni.android` | QRIS, transfer masuk/keluar, debit |
+| **myBCA** | `com.bca.mybca.omni.android` / `id.co.bca.mybca.omni.android` | QRIS, transfer masuk/keluar, debit |
 | **BCA mobile** | `com.bca` | m-Transfer, m-BCA, debet/kredit |
-| **Bank Jago** | `com.jago.digitalbanking` | Kantong masuk/keluar, transfer, QRIS |
-| **GoPay** | `com.gojek.app` / `com.gopay.wallet` | QRIS bayar, transfer, top up, saldo |
+| **Bank Jago** | `com.jago.digitalBanking` / `com.jago.digitalbanking` | Kantong masuk/keluar, transfer, QRIS |
+| **GoPay** | `com.gojek.gopay` / `com.gopay.wallet` | QRIS bayar, transfer, top up, saldo |
+| **Gojek** | `com.gojek.app` | GoPay inside the Gojek app |
+| **ShopeePay** / **Shopee** | `com.shopeepay.id` / `com.shopee.id` | Transfer masuk, top up |
+| **Stockbit** | `com.stockbit.android` | Order match, RDN |
 
 > **Privacy Firewall:** Notifications from any application outside this allowlist (e.g. WhatsApp, SMS, personal messengers) are immediately dropped in memory before any title, body text, or metadata is inspected.
+
+Pengaturan and setup list only the registered apps installed on this phone. The manifest declares the registered packages in `<queries>` for Android 11+ package visibility (no `QUERY_ALL_PACKAGES`). Capture never depends on that list: an app installed later is captured by its saved toggle or default.
 
 ---
 
@@ -101,7 +106,7 @@ Each permission step can be skipped and fixed later from the hub or **Pengaturan
 
 ## 5. Pairing verification
 
-Run `./gradlew testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease` for the local checks. Unit-test applications inject a loopback transport, so fixture credentials never reach the fixed server. Room is at version 8; the 7→8 migration only adds `text_captures`. 2.4.0 adds no migration. When an existing saved URL matches the fixed build server, the pairing context and fingerprints remain unchanged. A different-server credential is cleared and requires pairing again.
+Run `./gradlew testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease` for the local checks. Unit-test applications inject a loopback transport, so fixture credentials never reach the fixed server. Room is at version 8; the 7→8 migration only adds `text_captures`. 2.4.0 and 2.4.1 add no migration. When an existing saved URL matches the fixed build server, the pairing context and fingerprints remain unchanged. A different-server credential is cleared and requires pairing again.
 
 Instrumented tests require the separate verification app id and refuse the normal app id. Set `ANDROID_SERIAL` to the intended test phone. All UI actions stay inside Compose tests. Do not use global coordinate input or launch other apps.
 
