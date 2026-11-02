@@ -99,3 +99,7 @@ The system SHALL explain filter-sensitive gross and reimbursement treatment when
 #### Scenario: Older clients
 - **WHEN** a client that does not know `top_categories` reads the summary
 - **THEN** every other field SHALL keep its name, type and value, and each `top_categories` entry SHALL keep its four fields, of which only `category_id` and `kakeibo_type` can be `null`
+
+#### Scenario: Category without a pillar
+- **WHEN** a listed category has no Kakeibo pillar
+- **THEN** its entry SHALL carry `kakeibo_type: null`, and no entry SHALL carry a pillar that the five-pillar vocabulary does not contain

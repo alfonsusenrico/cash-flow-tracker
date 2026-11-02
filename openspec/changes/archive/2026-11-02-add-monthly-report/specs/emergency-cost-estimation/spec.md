@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Essential spending scope
-Per-period essential spending SHALL include only expenses whose effective Kakeibo pillar is `need` and, until they are classified, unclassified expenses (no transaction or category pillar), reduced by their proportional share of applied reimbursement offsets. It SHALL exclude internal movement legs, categories excluded from budget and the "Internal Movement" and "Investasi" categories, expenses on investment accounts, and expenses linked to a debt. Expenses whose effective pillar is `want`, `culture`, `unexpected` or `saving` SHALL be excluded. Each period SHALL report its unclassified share separately as `unclassified_amount`.
+Per-period essential spending SHALL include only `need` and unclassified expenses, reduced by their proportional share of applied reimbursement offsets. It SHALL exclude internal movement legs, categories excluded from budget and the "Internal Movement" and "Investasi" categories, expenses on investment accounts, and expenses linked to a debt. Other pillars SHALL be excluded. Each period SHALL report its unclassified share as `unclassified_amount`.
 
 #### Scenario: Reimbursement in a mixed category
 - **GIVEN** a period with Rp 1.000.000 of `need` groceries, Rp 100.000 of `need` and Rp 300.000 of `want` spending in one category, and a Rp 200.000 reimbursement offsetting that category

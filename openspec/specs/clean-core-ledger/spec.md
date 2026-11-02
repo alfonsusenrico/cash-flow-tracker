@@ -231,11 +231,15 @@ The system SHALL support flagging one or more goals as an emergency fund via `is
 - **THEN** the goal is recorded with `is_emergency = true`, and its accumulated balance is designated as the user's emergency fund balance
 
 ### Requirement: Primary Expense Category Flagging
-The system SHALL keep the `is_primary` flag on expense categories for compatibility and SHALL use it only to derive a default Kakeibo pillar for a category without one (`need` when primary, `want` otherwise). Living expenses and runway SHALL be based on the effective Kakeibo pillar `need` as defined by `emergency-cost-estimation`, not on `is_primary`.
+The system SHALL keep the `is_primary` flag on expense categories for compatibility and SHALL use it only to derive the stored pillar of a category created or updated without one (`need` when primary, `want` otherwise), never when a category or transaction is read or recorded. Living expenses and runway SHALL be based on the effective Kakeibo pillar `need` as defined by `emergency-cost-estimation`, not on `is_primary`.
 
 #### Scenario: Categorizing primary expenses
 - **WHEN** an expense transaction is recorded in a category where `is_primary = true` and whose Kakeibo pillar is `want`
 - **THEN** the transaction amount is not included in the essential cost, because its effective pillar is `want`
+
+#### Scenario: Category without a stored pillar
+- **WHEN** an expense is recorded in a primary category whose stored pillar is empty
+- **THEN** the transaction SHALL be stored without a pillar, the category list SHALL return `kakeibo_type: null`, and reports SHALL count the expense as "Belum diklasifikasi"
 
 ### Requirement: Real-World Ketahanan Dana Calculation
 The system SHALL calculate "Ketahanan Dana" (Emergency Fund Coverage) as the ratio between the emergency fund balance and the essential monthly cost defined by `emergency-cost-estimation`, and SHALL report the balance basis and the cost basis.

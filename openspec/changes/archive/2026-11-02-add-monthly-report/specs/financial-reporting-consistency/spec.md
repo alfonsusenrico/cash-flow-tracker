@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Top spending categories in the cash-flow summary
-`GET /api/dashboard/cash-flow-summary`, for `period` `today` or `month` and with session or Bearer authentication, SHALL return `top_categories`: at most 3 entries with the most net spending, each an owner category or uncategorised spending, as `category_id`, `name`, `kakeibo_type` (the category's stored pillar, `null` for uncategorised spending or a category without a pillar, never `unclassified`) and integer rupiah `outflow`, sorted by outflow descending, then name. It SHALL use the window and spending rules of the response's `outflow`, omit an entry at 0 or less, and be `[]`, never `null`, without spending.
+`GET /api/dashboard/cash-flow-summary`, for `period` `today` or `month` and with session or Bearer authentication, SHALL return `top_categories`: at most 3 entries with the most net spending, each an owner category or uncategorised spending, as `category_id`, `name`, `kakeibo_type` and integer rupiah `outflow`, sorted by outflow descending, then name. It SHALL use the window and spending rules of the response's `outflow`, omit an entry at 0 or less, and be `[]`, never `null`, without spending.
 
 #### Scenario: Reimbursement netted per category
 - **GIVEN** today's expenses of Rp 300.000 in "Makan Bareng" and Rp 200.000 in "Belanja Dapur", and a reimbursement of Rp 200.000 that offsets "Makan Bareng"

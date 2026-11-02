@@ -54,7 +54,7 @@ The Category creation and edit interface SHALL NOT require or force users to ass
 ---
 
 ### Requirement: Pure Transaction-Level Kakeibo Aggregation
-The system SHALL resolve every expense's effective Kakeibo pillar from the transaction's own pillar, otherwise its category's pillar, otherwise `need`. Ledger listing, pillar filtering, transaction detail and report aggregation SHALL use this shared rule. Category pillars SHALL remain optional.
+The system SHALL resolve every expense's effective Kakeibo pillar from the transaction's own pillar, otherwise its category's pillar, otherwise no pillar ("Belum diklasifikasi", see `kakeibo-classification-completeness`). It SHALL NOT default a missing pillar to `need`. Ledger listing, pillar filtering, transaction detail and report aggregation SHALL use this shared rule. Category pillars SHALL remain optional.
 
 #### Scenario: Aggregating mixed transactions under the same category
 - **WHEN** a category contains a need expense of Rp 30.000 and a want expense of Rp 70.000
@@ -66,7 +66,7 @@ The system SHALL resolve every expense's effective Kakeibo pillar from the trans
 
 #### Scenario: No pillar anywhere defaults to need
 - **WHEN** an expense has no transaction or category pillar
-- **THEN** it SHALL be counted as `need`
+- **THEN** it SHALL no longer default to `need`: its effective pillar SHALL be `null` and reports SHALL count it as "Belum diklasifikasi" (`unclassified`)
 
 ### Requirement: Kakeibo Pillar Vocabulary
 The backend SHALL accept exactly the pillars `need`, `want`, `culture`, `unexpected` and `saving` wherever a transaction or category pillar is written: manual transactions, category defaults, notification resolution and AI interpretation. It SHALL reject any other value with a validation error.

@@ -243,8 +243,11 @@ Every route that takes a `basis` rejects any value other than `month` or `cycle`
 2. **Category pillar edits elsewhere.** `PATCH /api/categories/{id}` (Settings and the Analisis form) still writes no feedback when a pillar changes. Should it use the D7 path too?
 3. **Typed-capture default.** `capture_resolution.py` and `capture_normalization.py` still store `need` when the category has no pillar. These files are owned by the concurrent Catat change.
 4. **Category creation default.** `POST /api/categories` without `kakeibo_type` still stores `need`/`want` from `is_primary`. Should a new category start unclassified?
+5. **Starter categories without a pillar.** `seed_user_defaults` (`backend/app/db/init_db.py`) gives every new user seven expense categories without a pillar: Makanan & Minuman, Belanja Harian, Transportasi, Tagihan & Utilitas, Belanja, Hiburan and Kesehatan. Only Jajan & Nongkrong has one. This is the main source of unclassified spending, the owner's included. A new user's spending now shows as "Belum diklasifikasi" until they set the pillars once in "Lengkapi klasifikasi". Seeding default pillars, or asking for them at onboarding, would change approved new-user defaults, so it was left out.
 
 ## Follow-ups
 
 - The phone reminder that reads `GET /api/reports/monthly/latest`.
-- Items 2 to 4 of the open decisions.
+- Items 2 to 5 of the open decisions.
+- The shared phone dock (`BottomNav`) paints inactive labels in `--muted` on its always-dark `.glass-dock`. In the light theme that is about 2.4:1, and axe reports `color-contrast` for them on `/laporan`. This change did not touch that markup (verification.md).
+- `PATCH /api/categories/{id}` and the Settings category form write no feedback for a category pillar change (open decision 2).
