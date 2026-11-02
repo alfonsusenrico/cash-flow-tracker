@@ -7,6 +7,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from app.core.config import settings
+from app.services.account_colours import INVESTMENT_ACCOUNT_COLOR
 from app.services.ledger_mutations import (
     LIQUID_ACCOUNT_TYPES, create_bilateral_movement, get_locked_ledger_balance, lock_owned_accounts,
     movement_kakeibo,
@@ -660,9 +661,9 @@ def apply_broker_trade(cur, event: dict, facts: NotificationFacts, context: dict
             raise EvidenceError("broker_position_missing")
         cur.execute(
             """INSERT INTO accounts (user_id, parent_id, name, type, initial_balance, instrument_type,
-               instrument_symbol, units, avg_buy_price, last_price, last_price_at)
-               VALUES (%s, %s, %s, 'investment', 0, 'stock', %s, 0, 0, %s, NOW()) RETURNING *""",
-            (user_id, broker["id"], parsed.symbol, parsed.instrument_symbol, price),
+               instrument_symbol, units, avg_buy_price, last_price, last_price_at, color)
+               VALUES (%s, %s, %s, 'investment', 0, 'stock', %s, 0, 0, %s, NOW(), %s) RETURNING *""",
+            (user_id, broker["id"], parsed.symbol, parsed.instrument_symbol, price, INVESTMENT_ACCOUNT_COLOR),
         )
         position = cur.fetchone()
     else:

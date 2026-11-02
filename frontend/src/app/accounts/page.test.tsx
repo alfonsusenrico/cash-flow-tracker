@@ -225,7 +225,41 @@ describe("account and pocket forms", () => {
       type: "investment",
       initial_balance: 0,
       instrument_type: null,
+      color: "#8B5CF6",
     })));
+  });
+
+  it("starts a new investment account lavender and a new bank account blue", async () => {
+    const user = userEvent.setup();
+    renderAccounts();
+    await user.click(await screen.findByRole("button", { name: /rekening baru/i }));
+    const dialog = screen.getByRole("dialog", { name: "Tambah Rekening Baru" });
+    const type = within(dialog).getByRole("combobox", { name: "Jenis rekening" });
+
+    expect(within(dialog).getByRole("button", { name: "Warna Biru" })).toHaveAttribute("aria-pressed", "true");
+    await user.selectOptions(type, "investment");
+    expect(within(dialog).getByRole("button", { name: "Warna Lavender" })).toHaveAttribute("aria-pressed", "true");
+    await user.selectOptions(type, "wallet");
+    expect(within(dialog).getByRole("button", { name: "Warna Biru" })).toHaveAttribute("aria-pressed", "true");
+
+    await user.type(within(dialog).getByRole("textbox", { name: "Nama Rekening" }), "Dompet contoh");
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Rekening" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/accounts", expect.objectContaining({ type: "wallet", color: "#2563EB" })));
+  });
+
+  it("keeps the colour the owner picked when the account type changes", async () => {
+    const user = userEvent.setup();
+    renderAccounts();
+    await user.click(await screen.findByRole("button", { name: /rekening baru/i }));
+    const dialog = screen.getByRole("dialog", { name: "Tambah Rekening Baru" });
+
+    await user.click(within(dialog).getByRole("button", { name: "Warna Teal" }));
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Jenis rekening" }), "investment");
+    expect(within(dialog).getByRole("button", { name: "Warna Teal" })).toHaveAttribute("aria-pressed", "true");
+
+    await user.type(within(dialog).getByRole("textbox", { name: "Nama Rekening" }), "Broker contoh");
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Rekening" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/accounts", expect.objectContaining({ type: "investment", color: "#0D9488" })));
   });
 
   it("converts a position pocket to a liquid pocket when the user selects cash", async () => {

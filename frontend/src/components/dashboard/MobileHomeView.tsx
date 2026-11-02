@@ -311,6 +311,8 @@ export function MobileHomeView({
                 tx.type === "transfer" ||
                 tx.category_name === "Internal Movement" ||
                 !!tx.is_excluded_from_budget;
+              // A top-up is also a movement; it is labelled and painted as an investment, not a transfer.
+              const isTopup = Boolean(tx.investment_topup_id);
               const isIncome = tx.type === "income" && !isMovement;
 
               const txDate = new Date(tx.date);
@@ -329,7 +331,9 @@ export function MobileHomeView({
                     <div
                       className={cn(
                         "h-10 w-10 rounded-2xl flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs",
-                        isMovement
+                        isTopup
+                          ? "bg-violet-500/15 text-investment border border-violet-500/20"
+                          : isMovement
                           ? "bg-sky-500/15 text-sky-500 border border-sky-500/20"
                           : isIncome
                           ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/20"
@@ -350,7 +354,7 @@ export function MobileHomeView({
 
                     <div className="min-w-0">
                       <div className="text-xs font-bold text-[var(--text)] group-hover:text-emerald-500 transition-colors truncate">
-                        {tx.notes || (isMovement ? "Pindah Saldo" : tx.category_name || "Pengeluaran")}
+                        {tx.notes || (isTopup ? "Top up Investasi" : isMovement ? "Pindah Saldo" : tx.category_name || "Pengeluaran")}
                       </div>
 
                       <div className="text-[11px] text-[var(--muted)] flex items-center gap-1.5 mt-0.5 truncate">
@@ -359,6 +363,12 @@ export function MobileHomeView({
                           <>
                             <span>&rarr;</span>
                             <span className="truncate">{tx.transfer_target_account_name}</span>
+                          </>
+                        )}
+                        {isTopup && tx.notes && tx.notes !== "Top up Investasi" && (
+                          <>
+                            <span>•</span>
+                            <span className="shrink-0">Top up Investasi</span>
                           </>
                         )}
                         <span>•</span>
@@ -372,7 +382,9 @@ export function MobileHomeView({
                     <div
                       className={cn(
                         "text-xs font-extrabold tabular tracking-tight",
-                        isMovement
+                        isTopup
+                          ? "text-investment"
+                          : isMovement
                           ? "text-sky-500"
                           : isIncome
                           ? "text-emerald-500"

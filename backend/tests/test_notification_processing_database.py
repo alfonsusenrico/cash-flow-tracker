@@ -390,8 +390,10 @@ def test_broker_buy_sell_is_deterministic_and_replay_safe(client, notification_o
     sold = ingest(client, notification("Penjualan 1 lot FIKS match di harga Rp3.400", "com.stockbit.android"))["results"][0]
     assert sold["status"] == "recorded" and sold["amount"] == 340000
     with db_conn() as conn:
-        position = conn.execute("SELECT units, avg_buy_price FROM accounts WHERE user_id = %s AND instrument_symbol = 'FIKS.JK'", (notification_owner["user_id"],)).fetchone()
+        position = conn.execute("SELECT units, avg_buy_price, color FROM accounts WHERE user_id = %s AND instrument_symbol = 'FIKS.JK'", (notification_owner["user_id"],)).fetchone()
         assert position["units"] == 300 and position["avg_buy_price"] == 3340
+        # A position the notification opens is a new investment account, so it gets the lavender default.
+        assert position["color"] == "#8B5CF6"
     assert count_transactions(notification_owner) == 4
 
 
