@@ -15,6 +15,7 @@ from fastapi import HTTPException
 from app.core.config import settings
 from app.db.pool import db_conn
 from app.services.auth import generate_api_key, hash_token
+from app.services.device_health import health_view
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +158,7 @@ def _device_view(row: dict[str, Any]) -> dict[str, Any]:
         "key_prefix": row["key_prefix"],
         "created_at": row["created_at"].isoformat(),
         "last_used_at": row["last_used_at"].isoformat() if row["last_used_at"] else None,
+        "health": health_view(row) if row["reported_at"] else None,
     }
 
 
@@ -165,10 +167,11 @@ def list_devices(user_id: str) -> list[dict[str, Any]]:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, device_name, created_via, key_prefix, created_at, last_used_at
-                FROM api_keys
-                WHERE user_id = %s AND revoked_at IS NULL
-                ORDER BY created_at DESC, id
+                SELECT k.id, k.device_name, k.created_via, k.key_prefix, k.created_at, k.last_used_at, h.*
+                FROM api_keys k
+                LEFT JOIN device_health h ON h.api_key_id = k.id
+                WHERE k.user_id = %s AND k.revoked_at IS NULL
+                ORDER BY k.created_at DESC, k.id
                 """,
                 (user_id,),
             )
@@ -187,6 +190,9 @@ def revoke_device(user_id: str, key_id: str) -> None:
                 (key_id, user_id),
             )
             revoked = cur.fetchone()
+            if revoked is not None:
+                # The key row stays for audit; the phone's last status goes with its access.
+                cur.execute("DELETE FROM device_health WHERE api_key_id = %s", (key_id,))
         conn.commit()
     if revoked is None:
         raise HTTPException(status_code=404, detail={"code": "device_not_found"})
