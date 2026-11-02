@@ -66,7 +66,7 @@ The whole branch diff against `origin/main` was scanned for:
 
 - the owner's names (with the handle removed);
 - both serials;
-- `/Users/`, `/private/tmp` and `100.x.x.x` addresses;
+- local home and temporary path prefixes, and `100.x.x.x` addresses;
 - emails and `+62`/`08` phone numbers;
 - 10–16 digit runs outside `app/schemas`;
 - non-synthetic `cfk_` keys;
