@@ -24,6 +24,7 @@ import com.alfonsusenrico.financialtracker.listener.ui.pairing.PairingContent
 import com.alfonsusenrico.financialtracker.listener.ui.pairing.PairingScreen
 import com.alfonsusenrico.financialtracker.listener.ui.pairing.PairingUiState
 import com.alfonsusenrico.financialtracker.listener.ui.pairing.SetupPermissions
+import com.alfonsusenrico.financialtracker.listener.ui.settings.NO_FINANCE_APPS
 import com.alfonsusenrico.financialtracker.listener.ui.hub.OemHints
 import com.alfonsusenrico.financialtracker.listener.data.health.SelfTestOutcome
 import com.alfonsusenrico.financialtracker.listener.data.health.SelfTestProgress
@@ -147,6 +148,20 @@ class PairingUiTest(private val dark: Boolean, private val scale: Float) {
         bar("Buka Akses Notifikasi").performClick()
         bar("Lewati dulu").performClick()
         assertEquals(listOf("notification", "BATTERY"), events)
+    }
+
+    @Test fun listenerStepNamesOnlyTheInstalledFinanceApps() {
+        show(PairingScreen.LISTENER, permissions = SetupPermissions(financeApps = listOf("myBCA", "Gojek")))
+        compose.onNodeWithText("myBCA").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Gojek").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Stockbit").assertDoesNotExist()
+        compose.onNodeWithText(NO_FINANCE_APPS).assertDoesNotExist()
+    }
+
+    @Test fun listenerStepSaysWhenNoFinanceAppIsInstalled() {
+        show(PairingScreen.LISTENER)
+        compose.onNodeWithText(NO_FINANCE_APPS).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("GoPay").assertDoesNotExist()
     }
 
     @Test fun batteryStepShowsThisPhonesSaverAndCanSkip() {

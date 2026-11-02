@@ -32,6 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.alfonsusenrico.financialtracker.listener.BuildConfig
 import com.alfonsusenrico.financialtracker.listener.data.health.SelfTestOutcome
 import com.alfonsusenrico.financialtracker.listener.data.health.SelfTestProgress
@@ -41,7 +43,7 @@ import com.alfonsusenrico.financialtracker.listener.data.reminder.EveningReminde
 import com.alfonsusenrico.financialtracker.listener.ui.hub.OemHint
 import com.alfonsusenrico.financialtracker.listener.ui.hub.OemHints
 import com.alfonsusenrico.financialtracker.listener.data.sync.AutoSync
-import com.alfonsusenrico.financialtracker.listener.registry.FinancialSourceRegistry
+import com.alfonsusenrico.financialtracker.listener.registry.InstalledPackages
 import com.alfonsusenrico.financialtracker.listener.service.FinancialNotificationListenerService
 import com.alfonsusenrico.financialtracker.listener.ui.components.CardTitle
 import com.alfonsusenrico.financialtracker.listener.ui.components.CompanionButton
@@ -87,7 +89,10 @@ fun SettingsRoute(viewModel: CompanionViewModel, actions: ShellActions) {
     val themeMode by viewModel.themeMode.collectAsState()
     val selfTest by viewModel.selfTest.progress.collectAsState()
     var autoSync by remember { mutableStateOf(prefs.isAutoSyncEnabled) }
-    var apps by remember { mutableStateOf(appToggles(prefs)) }
+    val installed = remember { InstalledPackages(context) }
+    var apps by remember { mutableStateOf(appToggles(prefs, installed)) }
+    // Read again on every return, so an app installed while Pengaturan is open appears.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { apps = appToggles(prefs, installed) }
     var reminderOn by remember { mutableStateOf(prefs.isEveningReminderEnabled) }
     var reminderMinute by remember { mutableIntStateOf(prefs.eveningReminderMinute) }
     val state = SettingsState(
@@ -114,7 +119,7 @@ fun SettingsRoute(viewModel: CompanionViewModel, actions: ShellActions) {
             },
             onToggleApp = { packageName, enabled ->
                 prefs.setPackageEnabled(packageName, enabled)
-                apps = appToggles(prefs)
+                apps = appToggles(prefs, installed)
             },
             onOpenListenerAccess = { open(context, actions, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
             onOpenBattery = {
@@ -148,9 +153,12 @@ fun SettingsRoute(viewModel: CompanionViewModel, actions: ShellActions) {
     )
 }
 
-private fun appToggles(prefs: AppPreferences) = FinancialSourceRegistry.SELECTABLE_APPS.map {
+private fun appToggles(prefs: AppPreferences, installed: InstalledPackages) = installed.financeApps().map {
     AppToggle(it.packageName, it.appLabel, prefs.isPackageEnabled(it.packageName))
 }
+
+/** Said in Pengaturan and setup when none of the registered finance apps is on this phone. */
+const val NO_FINANCE_APPS = "Belum ada aplikasi bank atau e-wallet yang aku kenal di HP ini. Begitu kamu pasang, nanti muncul di sini."
 
 /** Opens an Android settings page; some vendors drop a page, so a missing one is said, never ignored. */
 fun open(context: Context, actions: ShellActions, intent: Intent, fallback: Intent? = null) {
@@ -183,7 +191,11 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions, connection: @
     ) {
         CompanionCard(spacing = 6.dp) {
             CardTitle("Aplikasi yang dipantau", Icons.Outlined.NotificationsNone)
-            SettingsNote("Cuma dari aplikasi ini. Chat, SMS, dan kode OTP langsung dibuang. Notifikasi yang sama dari dua aplikasi satu bank dalam 2 menit dikirim sekali.")
+            if (state.apps.isEmpty()) {
+                SettingsNote(NO_FINANCE_APPS)
+            } else {
+                SettingsNote("Cuma dari aplikasi ini. Chat, SMS, dan kode OTP langsung dibuang. Notifikasi yang sama dari dua aplikasi satu bank dalam 2 menit dikirim sekali.")
+            }
             state.apps.forEach { app ->
                 SwitchRow(
                     app.label, if (app.enabled) "Dipantau" else "Tidak dipantau", app.enabled,

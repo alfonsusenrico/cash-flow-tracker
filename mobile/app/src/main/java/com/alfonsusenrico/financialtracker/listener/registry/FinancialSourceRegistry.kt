@@ -27,7 +27,7 @@ object FinancialSourceRegistry {
         TargetApp("com.jago.digitalBanking", "Bank Jago", "Kantong & transaksi Bank Jago", "jago", 0xFFFF7A00),
         TargetApp("com.jago.digitalbanking", "Bank Jago", "Kantong & transaksi Bank Jago", "jago", 0xFFFF7A00),
         TargetApp("com.gojek.gopay", "GoPay", "Aplikasi GoPay: transfer, QRIS & Tabungan by Jago", "gopay", 0xFF00AA13),
-        TargetApp("com.gojek.app", "GoPay", "GoPay di aplikasi Gojek", "gopay", 0xFF00AA13),
+        TargetApp("com.gojek.app", "Gojek", "GoPay di aplikasi Gojek", "gopay", 0xFF00AA13),
         TargetApp("com.gopay.wallet", "GoPay", "GoPay, varian paket com.gopay.wallet", "gopay", 0xFF00AA13),
         TargetApp("com.shopeepay.id", "ShopeePay", "Dompet digital ShopeePay standalone", "shopeepay", 0xFFEE4D2D),
         TargetApp("com.shopee.id", "Shopee", "ShopeePay di aplikasi utama Shopee", "shopeepay", 0xFFEE4D2D),
@@ -39,6 +39,19 @@ object FinancialSourceRegistry {
 
     /** Every registered package once (case variants share one toggle), in registry order. */
     val SELECTABLE_APPS: List<TargetApp> = APPS_LIST.distinctBy { it.packageName.lowercase() }
+
+    /** Every registered spelling; the manifest's package-visibility queries must name each one. */
+    val REGISTERED_PACKAGES: List<String> = APPS_LIST.map { it.packageName }
+
+    /**
+     * The selectable apps installed on this phone, in registry order. An entry with case variants counts as
+     * installed when any spelling is. Only what is shown depends on this; capture matching never does, so an
+     * app installed later is captured by its saved toggle or default.
+     */
+    fun installedSelectableApps(isInstalled: (String) -> Boolean): List<TargetApp> =
+        SELECTABLE_APPS.filter { selectable ->
+            APPS_LIST.any { it.packageName.equals(selectable.packageName, ignoreCase = true) && isInstalled(it.packageName) }
+        }
 
     fun isTargetFinancialApp(packageName: String): Boolean {
         return APPS_MAP.containsKey(packageName.lowercase())

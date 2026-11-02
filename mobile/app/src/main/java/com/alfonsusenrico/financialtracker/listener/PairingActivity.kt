@@ -23,6 +23,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.alfonsusenrico.financialtracker.listener.data.health.HealthSnapshots
 import com.alfonsusenrico.financialtracker.listener.data.prefs.AppPreferences
 import com.alfonsusenrico.financialtracker.listener.data.report.WebLinks
+import com.alfonsusenrico.financialtracker.listener.registry.InstalledPackages
 import com.alfonsusenrico.financialtracker.listener.service.FinancialNotificationListenerService
 import com.alfonsusenrico.financialtracker.listener.ui.hub.OemHints
 import com.alfonsusenrico.financialtracker.listener.ui.pairing.CameraScanner
@@ -117,7 +118,8 @@ class PairingActivity : ComponentActivity() {
             listener = FinancialNotificationListenerService.isPermissionGranted(this),
             battery = HealthSnapshots.batteryUnrestricted(this),
             notifications = NotificationManagerCompat.from(this).areNotificationsEnabled(),
-            oem = OemHints.of(Build.MANUFACTURER)
+            oem = OemHints.of(Build.MANUFACTURER),
+            financeApps = InstalledPackages(this).financeApps().map { it.appLabel }.distinct()
         )
     }
 

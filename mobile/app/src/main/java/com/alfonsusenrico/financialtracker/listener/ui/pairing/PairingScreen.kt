@@ -62,7 +62,6 @@ import androidx.compose.ui.unit.dp
 import com.alfonsusenrico.financialtracker.listener.data.health.SelfTestProgress
 import com.alfonsusenrico.financialtracker.listener.data.health.SelfTestStep
 import com.alfonsusenrico.financialtracker.listener.data.pairing.PairingOutcome
-import com.alfonsusenrico.financialtracker.listener.registry.FinancialSourceRegistry
 import com.alfonsusenrico.financialtracker.listener.ui.components.ButtonKind
 import com.alfonsusenrico.financialtracker.listener.ui.components.CompanionButton
 import com.alfonsusenrico.financialtracker.listener.ui.components.Note
@@ -70,6 +69,7 @@ import com.alfonsusenrico.financialtracker.listener.ui.components.SquareIconButt
 import com.alfonsusenrico.financialtracker.listener.ui.components.toneColors
 import com.alfonsusenrico.financialtracker.listener.ui.hub.OemHint
 import com.alfonsusenrico.financialtracker.listener.ui.model.StatusTone
+import com.alfonsusenrico.financialtracker.listener.ui.settings.NO_FINANCE_APPS
 import com.alfonsusenrico.financialtracker.listener.ui.settings.SelfTestChecklist
 import com.alfonsusenrico.financialtracker.listener.ui.theme.CompanionTheme
 import com.alfonsusenrico.financialtracker.listener.ui.theme.CompanionType
@@ -97,7 +97,9 @@ data class SetupPermissions(
     val listener: Boolean = false,
     val battery: Boolean = false,
     val notifications: Boolean = false,
-    val oem: OemHint? = null
+    val oem: OemHint? = null,
+    /** Labels of the registered finance apps installed on this phone, once each. */
+    val financeApps: List<String> = emptyList()
 )
 
 /**
@@ -307,7 +309,7 @@ private fun storyCard(state: PairingUiState, actions: PairingActions, permission
             primary = if (permissions.listener) "Lanjut" to { actions.show(PairingScreen.BATTERY) } else "Buka Akses Notifikasi" to actions.notificationAccess,
             secondary = if (permissions.listener) null else "Lewati dulu" to { actions.show(PairingScreen.BATTERY) }
         ) {
-            AppBadges()
+            AppBadges(permissions.financeApps)
             if (permissions.listener) Note("Akses notifikasi udah nyala.", StatusTone.OK, Icons.Rounded.Check)
             else Hint("Nanti kebuka pengaturan Android. Cari Cash Flow Tracker, nyalain, terus balik ke sini.")
         }
@@ -398,10 +400,14 @@ private fun Steps(vararg lines: String) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AppBadges() {
+private fun AppBadges(labels: List<String>) {
     val colors = CompanionTheme.colors
+    if (labels.isEmpty()) {
+        Hint(NO_FINANCE_APPS)
+        return
+    }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FinancialSourceRegistry.SELECTABLE_APPS.map { it.appLabel }.distinct().forEach { label ->
+        labels.forEach { label ->
             Text(
                 label, style = CompanionType.meta.copy(fontWeight = FontWeight(650)), color = colors.text,
                 modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(colors.surface2).padding(horizontal = 10.dp, vertical = 4.dp)
