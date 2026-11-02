@@ -201,18 +201,20 @@ Open **`http://localhost:8090`** in your browser.
 
 ## 📲 Pairing the Mobile Companion App
 
-1. Build or download the debug APK from `financial-tracker-mobile-listener`:
-   ```bash
-   cd ../financial-tracker-mobile-listener
-   ./gradlew assembleDebug
-   adb install -r app/build/outputs/apk/debug/app-debug.apk
-   ```
-2. Open **Mobile Listener** on your Android device.
-3. Open **Pengaturan (Settings)**:
-   - **Server URL:** `https://finance.your-domain.com` (or your LAN IP)
-   - **API Key:** Paste your user `cfk_...` Bearer token.
+The app lives in [`mobile/`](mobile/README.md). It needs Android 8.0 or newer.
+
+1. In web **Settings → Perangkat & akses**, open **Unduh aplikasi pendamping** and scan its QR code with the phone, or download the signed APK directly from <https://github.com/alfonsusenrico/cash-flow-tracker/releases/latest/download/cashflow-companion.apk>.
+2. Compare the file's SHA-256 with the `.sha256` on the [latest release](https://github.com/alfonsusenrico/cash-flow-tracker/releases/latest), then install it.
+3. In the same Settings section choose **Hubungkan ponsel** and scan the pairing QR code from the app.
 4. Grant **Notification Access** when prompted by Android.
-5. You're all set! Any notification from BCA, Jago, GoPay, ShopeePay, or Stockbit will sync automatically.
+
+The released app talks only to the hosted server. A self-hosted server needs its own debug build:
+
+```bash
+cd mobile
+./gradlew assembleDebug -PcompanionServerUrl=https://finance.your-domain.com
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
 
 ---
 
@@ -253,10 +255,12 @@ Interactive Swagger API docs are available at **`/api/docs`**.
   npm run type-check
   npm run build
   ```
-- **Mobile Companion Unit Tests:**
+- **Mobile Companion Checks** (JDK 17 in `JAVA_HOME`):
   ```bash
-  cd ../financial-tracker-mobile-listener
+  cd mobile
   ./gradlew testDebugUnitTest
+  ./gradlew lintDebug
+  ./gradlew assembleDebug
   ```
 - **Database Backup:**
   ```bash

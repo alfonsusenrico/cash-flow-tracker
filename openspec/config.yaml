@@ -4,7 +4,7 @@ context: |
   Project: Cash Flow Tracker, personal self-hosted daily cash-flow and payday awareness.
   Capabilities: database, deployed, money, personal-data, background-jobs, api-consumers, multi-user, llm.
   Stack: Python/FastAPI, PostgreSQL 16, Redis, Next.js App Router/TypeScript/Tailwind;
-    Android companion maintained in a separate repository. No organization profile applies.
+    Android companion in mobile/ with its own OpenSpec root (mobile/openspec). No organization profile applies.
   Sources of truth: existing ledger and notification contracts, approved behavior specs,
     frontend/tokens.css and shared components for implemented visual choices, owner decisions.
   Boundaries: personal finance tracking, not ERP, FX trading or full accounting. Currency
