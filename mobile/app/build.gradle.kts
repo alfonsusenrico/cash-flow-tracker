@@ -11,10 +11,6 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
-// The source version; debug builds and untagged release builds keep it unchanged.
-val sourceVersionName = "2.4.0"
-val sourceVersionCode = 27
-
 // A tagged release (android-vX.Y.Z) passes X.Y.Z. The code comes from the numbers, so every newer
 // version installs over the previous one; MINOR and PATCH stay below 100 to keep that ordering.
 fun releaseVersionCode(version: String): Int {
@@ -23,6 +19,11 @@ fun releaseVersionCode(version: String): Int {
     val (major, minor, patch) = match.destructured.toList().map(String::toInt)
     return major * 10000 + minor * 100 + patch
 }
+
+// The source version; debug builds and untagged release builds keep it unchanged. Its code follows the
+// release scheme, so a debug build sits in the same order as the published releases.
+val sourceVersionName = "2.4.1"
+val sourceVersionCode = releaseVersionCode(sourceVersionName)
 
 val releaseVersionName: String? = providers.gradleProperty("companionReleaseVersion").orNull?.trim()
 val publishedVersionCode: Int? = releaseVersionName?.let { version ->
