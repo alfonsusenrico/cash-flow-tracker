@@ -183,6 +183,8 @@ dependencies {
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("androidx.compose.ui:ui-test-junit4")
     testImplementation("androidx.work:work-testing:2.9.1")
+    // Already on the unit-test runtime through Robolectric; the shell UI tests register Room as an idling resource.
+    testImplementation("androidx.test.espresso:espresso-idling-resource:3.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
