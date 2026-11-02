@@ -8,12 +8,14 @@ import json
 from collections import Counter
 from datetime import datetime, timezone
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 
 from app.core.config import settings
 from app.services.capture_normalization import CAPTURE_CONTEXT_BYTE_LIMIT
-from app.services.capture_parsing import CaptureDateError, parse_capture
+from app.services.capture_parsing import parse_capture
+from app.services.capture_time import CaptureDateError, moment_label
 from app.services.ledger_mutations import LIQUID_ACCOUNT_TYPES
 from app.services.merchant_memory import load_memory, merchant_match_key, owner_identity, owner_memory_hit
 from app.services.notification_context import sanitize_text
@@ -22,6 +24,10 @@ from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES
 
 ACCOUNT_OPTION_LIMIT = 6
 CATEGORY_OPTION_LIMIT = 5
+TIME_OPTION_LIMIT = 7
+# Question types every phone answers; a client lists `time` in `question_types` to be asked the time.
+LEGACY_QUESTION_TYPES = ("amount", "kind", "account", "category")
+QUESTION_TYPES = (*LEGACY_QUESTION_TYPES, "time")
 HISTORY_WINDOW = 5
 HISTORY_AGREEMENT = 3
 MODEL_ACCOUNT_THRESHOLD = 0.85
@@ -120,7 +126,7 @@ def capture_facts(cur, user_id: str, request: dict) -> tuple[dict, list[dict], l
                               tz=settings.tz)
     except CaptureDateError:
         raise HTTPException(status_code=422, detail={"code": "invalid_capture_date"}) from None
-    return facts.as_dict(), accounts, aliases
+    return {**facts.as_dict(), "sent_at": request["device_time"].isoformat()}, accounts, aliases
 
 
 def capture_key(facts: dict) -> str | None:
@@ -193,10 +199,16 @@ def model_context(cur, user_id: str, request: dict, facts: dict, memory: dict, a
     categories = reportable_categories(cur, user_id).values()
     mentioned = [account_label(leaves[item], accounts) for mention in facts["mentions"]
                  for item in mention["candidates"] if item in leaves]
+    sent_at = request["device_time"].astimezone(ZoneInfo(settings.tz))
+    time_facts = facts.get("time") or {}
+    unresolved = time_facts.get("status") == "unresolved"
     context = {
         "text": sanitize_text(request["text"], identity),
         "facts": {"kind": facts["kind"], "kind_guess": facts["kind_guess"], "amount": facts["amount"],
-                  "local_date": facts["date"][:10],
+                  "local_date": facts["date"][:10], "sent_at": sent_at.isoformat(timespec="minutes"),
+                  "sent_weekday": sent_at.strftime("%A"),
+                  "time_phrase": " ".join(time_facts.get("hints") or []) if unresolved else None,
+                  "time_day": (time_facts.get("explicit_date") or time_facts.get("day")) if unresolved else None,
                   "accounts": [sanitize_text(label, identity)[:150] for label in mentioned]},
         "categories": [{"id": str(row["id"]), "name": sanitize_text(row["name"], identity)[:100], "kind": row["kind"],
                         "default_kakeibo": row["kakeibo_type"]} for row in categories],
@@ -228,9 +240,14 @@ def model_unavailable(provider) -> str | None:
     return configuration_error(current) or current.capture_configuration_error
 
 
-def needs_model(facts: dict, memory: dict) -> bool:
+def needs_classification(facts: dict, memory: dict) -> bool:
     kind = facts["kind"] or facts["kind_guess"]
     return kind in {"expense", "income"} and bool(facts["phrase"]) and memory["hit"] is None
+
+
+def needs_model(facts: dict, memory: dict) -> bool:
+    """The model is asked to classify, or to read a time phrase the parser flagged but could not place."""
+    return needs_classification(facts, memory) or (facts.get("time") or {}).get("status") == "unresolved"
 
 
 # --- Resolution and questions ----------------------------------------------------------------------
@@ -238,6 +255,58 @@ def needs_model(facts: dict, memory: dict) -> bool:
 
 def resolved_amount(draft: dict) -> int | None:
     return draft["owner"].get("amount") or draft["facts"]["amount"]
+
+
+def client_question_types(draft: dict) -> frozenset[str]:
+    return frozenset((draft.get("client") or {}).get("question_types") or LEGACY_QUESTION_TYPES)
+
+
+def resolved_time(draft: dict) -> dict | None:
+    """The capture's local moment with its basis and evidence (D3–D6); None while the owner must be asked."""
+    answered = draft["owner"].get("time")
+    if answered:
+        return answered
+    facts = draft["facts"]
+    time_facts = facts.get("time")
+    if not time_facts:
+        # Captures stored before times were understood keep the date they were parsed with.
+        return {"date": facts["date"], "basis": None, "evidence": None}
+    if time_facts["status"] in {"none", "resolved"}:
+        return {"date": facts["date"], "basis": time_facts["basis"], "evidence": time_facts["evidence"]}
+    model_time = draft.get("model_time")
+    if model_time and not model_time.get("suggestion_only"):
+        return {"date": model_time["date"], "basis": "model", "evidence": model_time["evidence"]}
+    if "time" not in client_question_types(draft):
+        # A phone that cannot answer a time question keeps the parsed day at the device's time of day.
+        if time_facts.get("day"):
+            return {"date": facts["date"], "basis": "parsed", "evidence": time_facts["evidence"]}
+        return {"date": facts["date"], "basis": "device_time", "evidence": None}
+    return None
+
+
+def time_question(draft: dict) -> dict:
+    """"Jam berapa?" (or "Hari apa?") with the plausible moments as chips and a free-text answer."""
+    facts = draft["facts"]
+    time_facts = facts["time"]
+    sent_at = datetime.fromisoformat(facts["sent_at"])
+    moments = [datetime.fromisoformat(item) for item in time_facts["options"]]
+    model_time = draft.get("model_time")
+    if model_time and model_time.get("suggestion_only"):
+        moments.insert(0, datetime.fromisoformat(model_time["date"]))
+    if time_facts["status"] == "unresolved" or time_facts["reason"] in {"conflict", "future"}:
+        moments.append(datetime.fromisoformat(facts["date"]))
+    options, seen = [], set()
+    for moment in moments:
+        if moment in seen or moment > sent_at:
+            continue
+        seen.add(moment)
+        options.append({"id": f"t{len(options) + 1}", "label": moment_label(moment, sent_at, settings.tz),
+                        "date": moment.astimezone(ZoneInfo(settings.tz)).isoformat()})
+        if len(options) == TIME_OPTION_LIMIT:
+            break
+    prompt = "Hari apa?" if time_facts.get("day_question") else "Jam berapa?"
+    return question("time", prompt, reason=time_facts["reason"] or time_facts["status"], options=options,
+                    allows_text=True)
 
 
 def resolved_kind(draft: dict) -> str | None:
@@ -416,12 +485,15 @@ def question(kind: str, prompt: str, *, role: str | None = None, reason: str | N
 
 
 def evaluate(cur, user_id: str, draft: dict) -> tuple[dict | None, dict | None]:
-    """(question, plan): the first missing field asked in the order amount, kind, account, category (D4)."""
+    """(question, plan): the first missing field asked in the order amount, time, kind, account, category."""
     facts = draft["facts"]
     amount = resolved_amount(draft)
     if amount is None:
         reason = facts["amount_issue"] or "missing"
         return question("amount", AMOUNT_PROMPTS[reason], reason=reason, allows_text=True), None
+    moment = resolved_time(draft)
+    if moment is None:
+        return time_question(draft), None
     kind = resolved_kind(draft)
     if kind is None:
         return question("kind", "Ini pengeluaran, pemasukan, atau pindah saldo?", options=list(KIND_OPTIONS)), None
@@ -439,4 +511,5 @@ def evaluate(cur, user_id: str, draft: dict) -> tuple[dict | None, dict | None]:
         if classification is None:
             return question("category", "Kategorinya apa?", options=category_options(cur, user_id, draft, kind),
                             allows_other=True), None
-    return None, {"kind": kind, "amount": amount, "accounts": resolved, "classification": classification}
+    return None, {"kind": kind, "amount": amount, "accounts": resolved, "classification": classification,
+                  "time": moment}

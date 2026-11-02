@@ -1,6 +1,7 @@
-"""Deterministic facts of one typed capture: amount, kind, date and account mentions (design D1).
+"""Deterministic facts of one typed capture: amount, kind, time and account mentions (design D1).
 
-The model never sets an amount or a date; everything here is plain parsing of the owner's text.
+The model never sets an amount; everything here is plain parsing of the owner's text. The time is read by
+`capture_time`, and only a phrase it cannot place is left to the validated model fallback.
 """
 
 from __future__ import annotations
@@ -8,24 +9,20 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from datetime import datetime, time, timedelta
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from zoneinfo import ZoneInfo
+
+from app.services.capture_time import TimeReading, parse_time
 
 
 AMOUNT_MAX = 1_000_000_000_000
 BARE_AMOUNT_MIN_DIGITS = 3
 UNIT_MULTIPLIERS = {"rb": 1000, "ribu": 1000, "k": 1000, "jt": 1_000_000, "juta": 1_000_000}
-EVENING = time(20, 0)
-MORNING = time(8, 0)
 
 MONEY_PATTERN = re.compile(
     r"(?<![\w.,/])(?P<rp>rp\.?\s*)?(?P<number>\d[\d.,]*\d|\d)\s*(?P<unit>ribu|rb|juta|jt|k)?(?![\w/])",
     re.IGNORECASE,
 )
-SLASH_DATE_PATTERN = re.compile(r"(?<![\w/])(?P<day>\d{1,2})/(?P<month>\d{1,2})(?:/(?P<year>\d{2}|\d{4}))?(?![\w/])")
-DAY_DATE_PATTERN = re.compile(r"\b(?:tgl|tanggal)\.?\s*(?P<day>\d{1,2})\b", re.IGNORECASE)
-RELATIVE_DATE_PATTERN = re.compile(r"\b(?P<phrase>kemarin|tadi malam|tadi pagi)\b", re.IGNORECASE)
 WORD_PATTERN = re.compile(r"[^\W_]+(?:['&][^\W_]+)*")
 
 # Unit-less forms: "10.000", "10.000,00" and plain digits with at least three digits.
@@ -62,10 +59,6 @@ KEY_FILLERS = frozenset({
 CASH_ACCOUNT_TYPE = "cash"
 
 
-class CaptureDateError(ValueError):
-    """An explicit date that is impossible, in the future or given more than once."""
-
-
 @dataclass(frozen=True)
 class AccountMention:
     role: str | None
@@ -84,6 +77,7 @@ class CaptureFacts:
     phrase: str
     description: str
     mentions: tuple[AccountMention, ...] = field(default_factory=tuple)
+    time: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         return {
@@ -92,6 +86,7 @@ class CaptureFacts:
             "phrase": self.phrase, "description": self.description,
             "mentions": [{"role": item.role, "candidates": list(item.candidates), "word": item.word}
                          for item in self.mentions],
+            "time": self.time,
         }
 
 
@@ -157,56 +152,24 @@ def parse_amount(text: str, ignored: list[tuple[int, int]] | None = None) -> tup
     return value, None if value else "invalid", spans
 
 
-def latest_day(day: int, today: datetime) -> datetime:
-    """The most recent date with this day of the month that is not after today."""
-    year, month = today.year, today.month
-    for _ in range(12):
-        try:
-            candidate = today.replace(year=year, month=month, day=day)
-        except ValueError:
-            candidate = None
-        if candidate is not None and candidate.date() <= today.date():
-            return candidate
-        month -= 1
-        if month == 0:
-            year, month = year - 1, 12
-    raise CaptureDateError("invalid_day")
+def span_text(source: str, spans) -> str | None:
+    """The owner's own words of the spans, in text order, joined by single spaces."""
+    words = [" ".join(source[start:end].split()) for start, end in spans]
+    return " ".join(word for word in words if word) or None
 
 
-def parse_date(text: str, device_time: datetime, tz: str) -> tuple[datetime, list[tuple[int, int]]]:
-    """Transaction time in local time and the spans of the date words (D1)."""
-    local = device_time.astimezone(ZoneInfo(tz))
-    found = []
-    for pattern in (RELATIVE_DATE_PATTERN, DAY_DATE_PATTERN, SLASH_DATE_PATTERN):
-        found.extend(pattern.finditer(text))
-    if not found:
-        return local, []
-    if len(found) > 1:
-        raise CaptureDateError("several_dates")
-    match = found[0]
-    span = [(match.start(), match.end())]
-    groups = match.groupdict()
-    if groups.get("phrase"):
-        phrase = groups["phrase"].lower()
-        if phrase == "kemarin":
-            return local - timedelta(days=1), span
-        if phrase == "tadi malam":
-            return datetime.combine(local.date() - timedelta(days=1), EVENING, local.tzinfo), span
-        return min(local, datetime.combine(local.date(), MORNING, local.tzinfo)), span
-    day = int(groups["day"])
-    if groups.get("month") is None:
-        if not 1 <= day <= 31:
-            raise CaptureDateError("invalid_day")
-        return latest_day(day, local), span
-    year = groups.get("year")
-    year_value = local.year if year is None else int(year) + (2000 if len(year) == 2 else 0)
-    try:
-        explicit = local.replace(year=year_value, month=int(groups["month"]), day=day)
-    except ValueError:
-        raise CaptureDateError("invalid_date") from None
-    if explicit.date() > local.date():
-        raise CaptureDateError("future_date")
-    return explicit, span
+def time_facts(reading: TimeReading, source: str) -> dict:
+    """The stored form of a time reading: status, basis, evidence and what an open time question needs."""
+    basis = {"none": "device_time", "resolved": "parsed"}.get(reading.status)
+    return {
+        "status": reading.status, "basis": basis,
+        "evidence": span_text(source, reading.spans) if reading.status != "none" else None,
+        "reason": reading.reason, "options": [moment.isoformat() for moment in reading.options],
+        "hints": [span_text(source, [span]) for span in reading.hints],
+        "day": reading.day.isoformat() if reading.day else None,
+        "explicit_date": reading.explicit_date.isoformat() if reading.explicit_date else None,
+        "day_question": reading.day_question,
+    }
 
 
 def parse_kind(folded: str) -> tuple[str | None, str, str | None]:
@@ -324,11 +287,13 @@ def parse_capture(
     if len(folded_text) != len(source):
         # Positions must line up between both forms; the rare characters that fold longer lose their case.
         source = folded_text
-    date, date_spans = parse_date(folded_text, device_time, tz)
+    reading = parse_time(folded_text, device_time, tz)
+    date_spans = list(reading.spans)
     amount, amount_issue, money_spans = parse_amount(folded_text, date_spans)
     kind, kind_guess, form = parse_kind(" ".join(folded_text.split()))
     words = [(match.group(0), match.start(), match.end()) for match in WORD_PATTERN.finditer(source)]
-    covered = date_spans + money_spans
+    # Time words, read or only flagged, say when it happened; they never describe it or key memory.
+    covered = date_spans + list(reading.hints) + money_spans
     used = {index for index, (_, start, end) in enumerate(words)
             if any(start < span_end and span_start < end for span_start, span_end in covered)}
     folded = [word.casefold() for word, _, _ in words]
@@ -347,8 +312,8 @@ def parse_capture(
                       if folded[index] not in KEY_FILLERS and folded[index] not in MOVEMENT_WORDS)
     return CaptureFacts(
         amount=amount, amount_issue=amount_issue, kind=kind, kind_guess=kind_guess, movement_form=form,
-        date=date, phrase=phrase[:200], description=(description[:1].upper() + description[1:])[:160],
-        mentions=roles,
+        date=reading.moment, phrase=phrase[:200], description=(description[:1].upper() + description[1:])[:160],
+        mentions=roles, time=time_facts(reading, source),
     )
 
 

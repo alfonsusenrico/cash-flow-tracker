@@ -15,16 +15,18 @@ from uuid import uuid4
 from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 
+from app.core.config import settings
 from app.db.pool import db_conn
 from app.services.capture_normalization import (
-    CAPTURE_PROMPT_VERSION, InvalidCaptureNormalization, validate_capture_normalization,
+    CAPTURE_PROMPT_VERSION, InvalidCaptureNormalization, validate_capture_normalization, validate_capture_time,
 )
 from app.services.capture_parsing import WORD_PATTERN, fold, parse_amount_answer
 from app.services.capture_resolution import (
-    KIND_ROLES, KINDS, capture_facts, capture_key, default_pillar, evaluate, liquid_leaves, memory_state,
-    model_context, model_unavailable, needs_model, owner_accounts, reportable_categories, resolved_amount,
-    resolved_kind,
+    KIND_ROLES, KINDS, LEGACY_QUESTION_TYPES, QUESTION_TYPES, capture_facts, capture_key, default_pillar, evaluate,
+    liquid_leaves, memory_state, model_context, model_unavailable, needs_classification, needs_model, owner_accounts,
+    processing_settings, reportable_categories, resolved_amount, resolved_kind, resolved_time,
 )
+from app.services.capture_time import moment_label, parse_time_answer
 from app.services.kakeibo import PILLARS
 from app.services.plan_occurrences import request_plan_linking
 from app.services.ledger_mutations import (
@@ -75,10 +77,15 @@ def validate_text_request(raw: dict) -> dict:
     device_time = raw["device_time"]
     if device_time.tzinfo is None or device_time > now() + DEVICE_CLOCK_SKEW:
         raise HTTPException(status_code=422, detail={"code": "invalid_device_time"})
+    declared = raw.get("question_types")
+    if declared is not None and not set(declared) <= set(QUESTION_TYPES):
+        raise HTTPException(status_code=422, detail={"code": "invalid_question_types"})
     return {
         "client_capture_id": str(raw["client_capture_id"]),
         "text": clean_text(raw["text"], TEXT_MAX_LENGTH, "invalid_capture_text"),
         "device_time": device_time,
+        # A client that does not say otherwise is an older phone that answers only the original four types.
+        "question_types": sorted(set(declared)) if declared is not None else list(LEGACY_QUESTION_TYPES),
     }
 
 
@@ -106,7 +113,8 @@ def classified_by(draft: dict, classification: dict | None) -> str:
 def record_plan(cur, user_id: str, capture_id: str, draft: dict, plan: dict) -> dict:
     """Write the ledger rows of a complete capture (D5); returns the row ids and the movement id."""
     facts = draft["facts"]
-    tx_date = datetime.fromisoformat(facts["date"])
+    moment = plan["time"]
+    tx_date = datetime.fromisoformat(moment["date"])
     key = f"capture:{capture_id}"
     by = classified_by(draft, plan["classification"])
     if plan["kind"] == "movement":
@@ -122,8 +130,12 @@ def record_plan(cur, user_id: str, capture_id: str, draft: dict, plan: dict) -> 
             source_account=locked[source_id], target_account=locked[target_id], idempotency_key=key,
             allow_negative=True, provenance=capture_provenance(by),
         )
-        return {"transaction_ids": [result["expense_transaction_id"], result["income_transaction_id"]],
-                "movement_id": result["movement_id"]}
+        legs = [result["expense_transaction_id"], result["income_transaction_id"]]
+        cur.execute(
+            "UPDATE transactions SET time_basis = %s, time_evidence = %s WHERE user_id = %s AND id = ANY(%s::uuid[])",
+            (moment["basis"], moment["evidence"], user_id, legs),
+        )
+        return {"transaction_ids": legs, "movement_id": result["movement_id"]}
     role = KIND_ROLES[plan["kind"]][0]
     account_id = plan["accounts"][role]
     lock_owned_accounts(cur, user_id, [account_id])
@@ -140,11 +152,12 @@ def record_plan(cur, user_id: str, capture_id: str, draft: dict, plan: dict) -> 
     cur.execute(
         """INSERT INTO transactions (
                user_id, account_id, category_id, type, amount, notes, date, kakeibo_type, idempotency_key,
-               merchant, offset_category_id, source, review_status, classified_by, classification_confidence)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               merchant, offset_category_id, source, review_status, classified_by, classification_confidence,
+               time_basis, time_evidence)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
            RETURNING id""",
         (user_id, account_id, classification["category_id"], plan["kind"], plan["amount"], notes, tx_date, kakeibo,
-         key, merchant, offset, *provenance.columns()),
+         key, merchant, offset, *provenance.columns(), moment["basis"], moment["evidence"]),
     )
     return {"transaction_ids": [str(cur.fetchone()["id"])], "movement_id": None}
 
@@ -223,7 +236,7 @@ def advance(cur, user_id: str, capture: dict) -> dict:
         return {"status": "needs_detail", "question": next_question}
     recorded = record_plan(cur, user_id, capture["id"], draft, plan)
     draft["learned"] = learn(cur, user_id, capture, draft, plan, recorded)
-    draft["recorded"] = {"kind": plan["kind"], "accounts": plan["accounts"],
+    draft["recorded"] = {"kind": plan["kind"], "accounts": plan["accounts"], "time": plan["time"],
                          "classified_by": classified_by(draft, plan["classification"])}
     recorded_at = now()
     return {
@@ -267,7 +280,8 @@ def transaction_view(cur, user_id: str, capture: dict) -> tuple[dict | None, dic
                   t.merchant, t.notes, t.category_id, c.name AS category_name,
                   CASE WHEN t.movement_id IS NOT NULL THEN t.kakeibo_type
                        WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type, 'need') END AS kakeibo,
-                  t.offset_category_id, t.source, t.review_status, t.classified_by, t.movement_id, t.movement_role
+                  t.offset_category_id, t.source, t.review_status, t.classified_by, t.movement_id, t.movement_role,
+                  t.time_basis, t.time_evidence
            FROM transactions t
            JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id
            LEFT JOIN accounts p ON p.id = a.parent_id AND p.user_id = a.user_id
@@ -286,6 +300,7 @@ def transaction_view(cur, user_id: str, capture: dict) -> tuple[dict | None, dic
             "category_name": row["category_name"], "kakeibo": row["kakeibo"],
             "offset_category_id": str(row["offset_category_id"]) if row["offset_category_id"] else None,
             "source": row["source"], "review_status": row["review_status"], "classified_by": row["classified_by"],
+            "time_basis": row["time_basis"], "time_evidence": row["time_evidence"],
         }
 
     # The capture's transaction is the expense or income row, or the outbound leg of a movement.
@@ -301,6 +316,16 @@ def transaction_view(cur, user_id: str, capture: dict) -> tuple[dict | None, dic
     return view(first), movement
 
 
+def time_summary(draft: dict, device_time: datetime) -> dict:
+    """The capture's moment as the summary shows it, so the owner notices a wrong reading at once."""
+    moment = (draft.get("recorded") or {}).get("time") or resolved_time(draft)
+    if moment is None:
+        return {"date": None, "time_basis": None, "time_evidence": None, "time_label": None}
+    label = moment_label(datetime.fromisoformat(moment["date"]), device_time, settings.tz)
+    return {"date": moment["date"], "time_basis": moment["basis"], "time_evidence": moment["evidence"],
+            "time_label": label}
+
+
 def capture_view(cur, user_id: str, capture: dict) -> dict:
     draft = capture["draft"]
     facts = draft["facts"]
@@ -313,7 +338,7 @@ def capture_view(cur, user_id: str, capture: dict) -> dict:
         "id": str(capture["id"]), "client_capture_id": str(capture["client_capture_id"]),
         "status": capture["status"], "text": capture["text"], "question": capture["question"],
         "summary": {"type": draft.get("recorded", {}).get("kind") or resolved_kind(draft),
-                    "amount": resolved_amount(draft), "date": facts["date"],
+                    "amount": resolved_amount(draft), **time_summary(draft, capture["device_time"]),
                     "description": facts["description"] or None},
         "transaction": transaction, "movement": movement,
         "created_at": stamp(capture["created_at"]), "recorded_at": stamp(capture["recorded_at"]),
@@ -345,11 +370,11 @@ def prepare_capture(user_id: str, request: dict) -> dict:
             needed = needs_model(facts, memory)
             context = model_context(cur, user_id, request, facts, memory, accounts, aliases) if needed else None
         conn.commit()
-    return {"context": context, "needs_model": needed}
+    return {"context": context, "needs_model": needed, "time_facts": facts["time"]}
 
 
 def store_capture(user_id: str, request: dict, model: dict | None, classifier: str | None,
-                  model_name: str | None) -> dict:
+                  model_name: str | None, model_time: dict | None = None) -> dict:
     with db_conn() as conn:
         with conn.cursor() as cur:
             existing = lock_client_capture(cur, user_id, request["client_capture_id"])
@@ -359,12 +384,15 @@ def store_capture(user_id: str, request: dict, model: dict | None, classifier: s
                 return view
             facts, _, _ = capture_facts(cur, user_id, request)
             memory = memory_state(cur, user_id, facts)
+            if not needs_classification(facts, memory):
+                model = None
             if memory["hit"]:
-                model, classifier = None, "memory"
+                classifier = "memory"
             capture = {
                 "id": str(uuid4()), "client_capture_id": request["client_capture_id"], "text": request["text"],
                 "answers": [], "classifier": classifier,
-                "draft": {"facts": facts, "memory": memory, "model": model, "owner": {}},
+                "draft": {"facts": facts, "memory": memory, "model": model, "model_time": model_time, "owner": {},
+                          "client": {"question_types": request["question_types"]}},
             }
             columns = advance(cur, user_id, capture)
             cur.execute(
@@ -397,7 +425,7 @@ async def submit_capture(user_id: str, raw: dict, provider) -> dict:
     prepared = await database_operation(prepare_capture, user_id, request)
     if "existing" in prepared:
         return prepared["existing"]
-    model, classifier, model_name = None, None, None
+    model, classifier, model_name, model_time = None, None, None, None
     if prepared["needs_model"]:
         classifier = model_unavailable(provider)
         if classifier is None and prepared["context"] is None:
@@ -408,11 +436,18 @@ async def submit_capture(user_id: str, raw: dict, provider) -> dict:
                 result = await provider.normalize_capture(prepared["context"])
                 model = validate_capture_normalization(result, prepared["context"])
                 classifier = "ok"
+                model_time, time_outcome = validate_capture_time(
+                    result.time, text=request["text"], time_facts=prepared["time_facts"],
+                    device_time=request["device_time"], tz=settings.tz,
+                    threshold=processing_settings().capture_confidence_threshold,
+                )
+                if prepared["time_facts"]["status"] == "unresolved":
+                    logger.info("Text capture model time outcome=%s", time_outcome)
             except ProviderError as exc:
                 classifier = exc.code
             except InvalidCaptureNormalization:
                 classifier = "invalid_normalization"
-    return await database_operation(store_capture, user_id, request, model, classifier, model_name)
+    return await database_operation(store_capture, user_id, request, model, classifier, model_name, model_time)
 
 
 def get_capture(user_id: str, capture_id: str) -> dict:
@@ -445,6 +480,8 @@ def answer_value(cur, user_id: str, capture: dict, current: dict, answer: dict) 
         if given != {"option_id"} or answer["option_id"] not in KINDS:
             raise invalid_answer()
         return {"kind": answer["option_id"]}
+    if kind == "time":
+        return time_answer(capture, answer, given, option)
     if kind == "account":
         if given == {"option_id"} and option:
             return {"account_id": option["id"]}
@@ -467,10 +504,27 @@ def answer_value(cur, user_id: str, capture: dict, current: dict, answer: dict) 
             "kakeibo": answer["kakeibo"] or default_pillar(draft_kind, category)}
 
 
+def time_answer(capture: dict, answer: dict, given: set, option: dict | None) -> dict:
+    """A chip's moment, or a typed answer read by the same parser together with the open phrase."""
+    device_time = capture["device_time"]
+    if given == {"option_id"} and option:
+        return {"date": option["date"]}
+    if given != {"text"}:
+        raise invalid_answer()
+    text = clean_text(answer["text"], ANSWER_TEXT_MAX_LENGTH, "invalid_capture_answer")
+    evidence = capture["draft"]["facts"]["time"]["evidence"]
+    moment = parse_time_answer(fold(text), evidence and fold(evidence), device_time, settings.tz)
+    if moment is None or moment > device_time:
+        raise invalid_answer()
+    return {"date": moment.isoformat()}
+
+
 def apply_answer_value(draft: dict, current: dict, value: dict) -> None:
     owner = draft["owner"]
     if current["type"] == "amount":
         owner["amount"] = value["amount"]
+    elif current["type"] == "time":
+        owner["time"] = {"date": value["date"], "basis": "owner", "evidence": None}
     elif current["type"] == "kind":
         owner["kind"] = value["kind"]
         owner.pop("accounts", None)

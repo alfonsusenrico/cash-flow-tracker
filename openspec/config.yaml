@@ -15,6 +15,8 @@ context: |
     missing Jago outbound source pockets need event-specific confirmation before recording.
   LLM boundary: deterministic code owns amounts, timestamps, ownership and ledger effects;
     the model interprets bounded redacted evidence and cannot invent entities or financial facts.
+    The one exception is a typed capture's time phrase the parser flags but cannot place: the
+    model may propose it, and code accepts it only after the understand-capture-time checks.
   Language: Indonesian UI and generated ledger descriptions; preserve proper names and
     untranslated Indonesian/English notification evidence. IDR uses Indonesian separators.
   Privacy: tracked research/evidence uses synthetic data only; local journals may retain
