@@ -88,6 +88,12 @@
    * ink of the same hue. Text on an emerald fill uses --income-contrast, which passes in both themes. */
   --income-text: #056548;
   --income-contrast: #0A0D14;
+  /* Text on the strong emerald fill (bg-emerald-600/700 = --color-income-hover): white passes on #047857
+   * in light, and the dark ink passes on the lighter #34D399 the fill becomes in dark. */
+  --income-hover-contrast: #FFFFFF;
+  /* Amber text: amber-600 (#D97706) measures 3.19:1 on white, so amber text uses this darker ink of the
+   * same 32 degree hue: 4.5:1 or better on every surface, the warning soft fill and a 10% amber tint. */
+  --warning-text: #8F4F04;
 
   /* Typography */
   --font-display: var(--font-jakarta), "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -145,6 +151,8 @@
   --expense-text: var(--color-expense);
   --primary-text: var(--primary);
   --income-text: var(--color-income);
+  --income-hover-contrast: #0A0D14;
+  --warning-text: var(--color-warning);
 
   /* Semantic Movements */
   --color-income: #10B981;

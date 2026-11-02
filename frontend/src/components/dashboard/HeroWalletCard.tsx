@@ -94,7 +94,7 @@ export function HeroWalletCard({
           onClick={() => onOpenCapture("expense")}
           className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-extrabold bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 shadow-xs hover:shadow-rose-500/10 transition-all pressable"
         >
-          <div className="h-5 w-5 rounded-lg bg-rose-500 text-white flex items-center justify-center text-[10px] shadow-2xs">
+          <div aria-hidden="true" className="h-5 w-5 rounded-lg bg-rose-500 text-white flex items-center justify-center text-[10px] shadow-2xs">
             <Icon name="arrow-up-right" className="h-3 w-3 stroke-[3]" />
           </div>
           <span>Pengeluaran</span>
@@ -105,7 +105,7 @@ export function HeroWalletCard({
           onClick={() => onOpenCapture("income")}
           className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-extrabold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 shadow-xs hover:shadow-emerald-500/10 transition-all pressable"
         >
-          <div className="h-5 w-5 rounded-lg bg-emerald-500 text-white flex items-center justify-center text-[10px] shadow-2xs">
+          <div aria-hidden="true" className="h-5 w-5 rounded-lg bg-emerald-500 text-income-contrast flex items-center justify-center text-[10px] shadow-2xs">
             <Icon name="arrow-down-left" className="h-3 w-3 stroke-[3]" />
           </div>
           <span>Pemasukan</span>
@@ -118,7 +118,7 @@ export function HeroWalletCard({
           title={canTransfer ? undefined : "Perlu dua rekening kas aktif untuk transfer"}
           className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-extrabold bg-amber-500/10 enabled:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-xs transition-colors pressable disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <div className="h-5 w-5 rounded-lg bg-amber-500 text-white flex items-center justify-center text-[10px] shadow-2xs">
+          <div aria-hidden="true" className="h-5 w-5 rounded-lg bg-amber-500 text-white flex items-center justify-center text-[10px] shadow-2xs">
             <Icon name="repeat" className="h-3 w-3 stroke-[3]" />
           </div>
           <span>Pindah Saldo</span>

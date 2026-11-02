@@ -122,6 +122,82 @@ def test_category_edit_with_is_primary_keeps_the_stored_pillar(client, owners, i
     assert kakeibo(client)["unclassified_spent"] == 12_000
 
 
+# --- Clearing a pillar --------------------------------------------------------------------------
+
+
+def category_pillars(client):
+    return {item["id"]: item["kakeibo_type"] for item in client.get("/api/categories").json()["categories"]}
+
+
+def test_category_edit_with_an_explicit_null_pillar_clears_it_and_writes_feedback(client, owners):
+    owner, _ = owners
+    follower = insert(owner, "groceries", 30_000, recent(), merchant="Pasar Contoh")
+    own_pillar = insert(owner, "groceries", 10_000, recent(), pillar="want")
+
+    cleared = client.patch(f"/api/categories/{owner['groceries']}", json={"kakeibo_type": None})
+    assert cleared.status_code == 200, cleared.text
+    assert (cleared.json()["category"]["kakeibo_type"], cleared.json()["corrections"]) == (None, 1)
+    assert category_pillars(client)[owner["groceries"]] is None
+    rows = feedback_rows(owner, [follower, own_pillar])
+    assert [(str(row["transaction_id"]), row["kind"], row["before_kakeibo_type"], row["after_kakeibo_type"]) for row in rows] == [
+        (follower, "correction", "need", None)
+    ]
+    # The rows follow the category; a row with its own pillar keeps it.
+    assert stored(follower)["kakeibo_type"] is None and stored(follower)["owner_edited_at"] is None
+    assert stored(own_pillar)["kakeibo_type"] == "want"
+    breakdown = kakeibo(client)
+    assert (breakdown["unclassified_spent"], breakdown["need_spent"]) == (30_000, 0)
+
+    again = client.patch(f"/api/categories/{owner['groceries']}", json={"kakeibo_type": None})
+    assert (again.status_code, again.json()["corrections"]) == (200, 0)
+    assert len(feedback_rows(owner, [follower])) == 1
+
+
+def test_category_form_choosing_unclassified_clears_the_pillar(client, owners):
+    owner, _ = owners
+    row = insert(owner, "dinner", 45_000, recent())
+    form = {"name": "Makan Bareng", "icon": "tag", "color": "#3b82f6", "kind": "expense", "monthly_budget": None, "kakeibo_type": None}
+    saved = client.patch(f"/api/categories/{owner['dinner']}", json=form)
+    assert saved.status_code == 200, saved.text
+    assert (saved.json()["category"]["kakeibo_type"], saved.json()["corrections"]) == (None, 1)
+    assert [(row["before_kakeibo_type"], row["after_kakeibo_type"]) for row in feedback_rows(owner, [row])] == [("want", None)]
+
+
+def test_category_edit_without_the_pillar_field_keeps_the_stored_pillar(client, owners):
+    owner, _ = owners
+    row = insert(owner, "repair", 80_000, recent())
+    for body in ({"name": "Servis Motor"}, {"monthly_budget": 300_000}, {"icon": "wrench", "color": "#ff8800"}, {"kind": "expense"}):
+        edited = client.patch(f"/api/categories/{owner['repair']}", json=body)
+        assert edited.status_code == 200, edited.text
+        assert (edited.json()["category"]["kakeibo_type"], edited.json()["corrections"]) == ("unexpected", 0)
+    assert category_pillars(client)[owner["repair"]] == "unexpected"
+    assert feedback_rows(owner, [row]) == []
+
+
+def test_clearing_another_owners_pillar_is_not_found_and_changes_nothing(client, owners):
+    owner, stranger = owners
+    theirs = insert(stranger, "groceries", 9_000, recent())
+    response = client.patch(f"/api/categories/{stranger['groceries']}", json={"kakeibo_type": None})
+    assert response.status_code == 404
+    assert feedback_rows(stranger, [theirs]) == []
+    assert category_pillars(client)[owner["groceries"]] == "need"
+    as_user(stranger)
+    assert category_pillars(client)[stranger["groceries"]] == "need"
+
+
+def test_income_category_form_with_null_pillar_and_budget_saves(client, owners):
+    owner, _ = owners
+    form = {"name": "Gaji Pokok", "icon": "tag", "color": "#3b82f6", "kind": "income", "monthly_budget": None, "kakeibo_type": None}
+    saved = client.patch(f"/api/categories/{owner['salary']}", json=form)
+    assert saved.status_code == 200, saved.text
+    category = saved.json()["category"]
+    assert (category["name"], category["kakeibo_type"], category["monthly_budget"], saved.json()["corrections"]) == (
+        "Gaji Pokok", None, None, 0
+    )
+    pillar = client.patch(f"/api/categories/{owner['salary']}", json={"kakeibo_type": "need"})
+    assert pillar.status_code == 422
+
+
 def test_movement_fee_in_a_fee_category_without_a_pillar_stays_unclassified(client, owners):
     from app.db.pool import db_conn
     from app.services.movement_pairing import FEE_CATEGORY_NAME, link_pair

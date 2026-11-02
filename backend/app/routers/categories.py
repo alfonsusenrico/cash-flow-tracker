@@ -150,40 +150,34 @@ def update_category(
 ):
     user_id = current_user["id"]
     cid = str(category_id)
-    updates = []
-    params = []
+    sent = payload.model_fields_set
+    # Column -> value; one entry per column, so the income reset below cannot assign a column twice.
+    assignments: dict[str, Any] = {}
 
     if payload.name is not None:
-        updates.append("name = %s")
-        params.append(payload.name.strip())
+        assignments["name"] = payload.name.strip()
     if payload.icon is not None:
-        updates.append("icon = %s")
-        params.append(payload.icon)
+        assignments["icon"] = payload.icon
     if payload.color is not None:
-        updates.append("color = %s")
-        params.append(payload.color)
+        assignments["color"] = payload.color
     if payload.kind is not None:
-        updates.append("kind = %s")
-        params.append(payload.kind)
-    if "monthly_budget" in payload.model_fields_set:
-        updates.append("monthly_budget = %s")
-        params.append(payload.monthly_budget)
+        assignments["kind"] = payload.kind
+    if "monthly_budget" in sent:
+        assignments["monthly_budget"] = payload.monthly_budget
     if payload.is_primary is not None:
-        updates.append("is_primary = %s")
-        params.append(payload.is_primary)
-    if payload.kakeibo_type is not None:
-        updates.append("kakeibo_type = %s")
-        params.append(payload.kakeibo_type)
+        assignments["is_primary"] = payload.is_primary
+    # An explicit null clears the pillar; leaving the field out keeps the stored one.
+    pillar_sent = "kakeibo_type" in sent
+    if pillar_sent:
+        assignments["kakeibo_type"] = payload.kakeibo_type
     if payload.is_archived is not None:
-        updates.append("is_archived = %s")
-        params.append(payload.is_archived)
+        assignments["is_archived"] = payload.is_archived
 
-    if not updates:
+    if not assignments:
         raise HTTPException(status_code=400, detail="No fields to update")
 
-    updates.append("updated_at = NOW()")
     # is_primary never derives a pillar: an update without kakeibo_type keeps the stored one.
-    pillar_may_change = payload.kakeibo_type is not None or payload.kind is not None
+    pillar_may_change = pillar_sent or payload.kind is not None
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -212,7 +206,8 @@ def update_category(
                 if payload.monthly_budget is not None or payload.kakeibo_type is not None:
                     raise HTTPException(status_code=422, detail="Income categories cannot have an expense budget or Kakeibo pillar")
                 if payload.kind == "income":
-                    updates.extend(["monthly_budget = NULL", "kakeibo_type = NULL"])
+                    assignments["monthly_budget"] = None
+                    assignments["kakeibo_type"] = None
             if payload.kind and payload.kind != current_category["kind"]:
                 cur.execute(
                     "SELECT EXISTS (SELECT 1 FROM transactions WHERE category_id = %s AND type != %s) OR EXISTS (SELECT 1 FROM recurring_rules WHERE category_id = %s AND type != %s) AS has_incompatible_usage",
@@ -225,15 +220,15 @@ def update_category(
             before = {}
             if pillar_may_change and final_kind == "expense" and current_category["reportable"]:
                 before = snapshot_rows(cur, user_id, category_followers(cur, user_id, cid))
-            params.extend([user_id, cid])
+            set_clause = ", ".join([f"{column} = %s" for column in assignments] + ["updated_at = NOW()"])
             cur.execute(
                 f"""
                 UPDATE categories
-                SET {', '.join(updates)}
+                SET {set_clause}
                 WHERE user_id = %s AND id = %s
                 RETURNING id, name, icon, color, kind, monthly_budget, is_primary, kakeibo_type, is_archived, created_at
                 """,
-                params,
+                [*assignments.values(), user_id, cid],
             )
             cat = cur.fetchone()
             if not cat:

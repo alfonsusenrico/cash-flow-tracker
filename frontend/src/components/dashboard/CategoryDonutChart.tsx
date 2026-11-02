@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { chartTooltipStyle } from "@/components/charts/theme";
 import { cn } from "@/lib/utils";
@@ -44,6 +44,7 @@ export function CategoryDonutChart({
 }: CategoryDonutChartProps) {
   const { bal } = useAppCtx();
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const summaryId = useId();
 
   // Filter only categories with spend > 0 for the donut
   const activeCategories = categories.filter((c) => c.spent > 0);
@@ -75,6 +76,7 @@ export function CategoryDonutChart({
   }));
 
   const activeCategory = activeIndex !== null ? chartData[activeIndex] : null;
+  const sectorLabel = (entry: (typeof chartData)[number]) => `${entry.name}: ${bal(entry.value)} (${entry.percentage}%)`;
 
   return (
     <div className="card-squircle p-5 sm:p-6 space-y-4 shadow-xs">
@@ -88,8 +90,17 @@ export function CategoryDonutChart({
         </span>
       </div>
 
-      {/* Donut Chart with Dynamic Center Display */}
-      <div className="relative h-56 sm:h-60 w-full flex items-center justify-center">
+      {/* Donut Chart with Dynamic Center Display. Recharts paints each sector as an SVG role="img",
+          so every sector carries its own label, and the figure names the chart and summarises it. */}
+      <div
+        role="figure"
+        aria-label={`Diagram donat ${title}`}
+        aria-describedby={summaryId}
+        className="relative h-56 sm:h-60 w-full flex items-center justify-center"
+      >
+        <p id={summaryId} className="sr-only">
+          {`Total ${bal(totalSpent)} dalam ${chartData.length} kategori: ${chartData.map(sectorLabel).join(", ")}.`}
+        </p>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -107,6 +118,7 @@ export function CategoryDonutChart({
               {chartData.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
+                  aria-label={sectorLabel(entry)}
                   fill={entry.color}
                   stroke="var(--surface)"
                   strokeWidth={2}

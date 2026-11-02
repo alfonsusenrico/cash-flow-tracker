@@ -9,6 +9,9 @@ const srcDir = path.resolve(appDir, "..");
 const bottomNav = readFileSync(path.join(srcDir, "components/layout/BottomNav.tsx"), "utf8");
 const insightsPage = readFileSync(path.join(appDir, "insights/page.tsx"), "utf8");
 const ledgerPage = readFileSync(path.join(appDir, "ledger/page.tsx"), "utf8");
+const goalsPage = readFileSync(path.join(appDir, "goals/page.tsx"), "utf8");
+const heroWalletCard = readFileSync(path.join(srcDir, "components/dashboard/HeroWalletCard.tsx"), "utf8");
+const categoryDonutChart = readFileSync(path.join(srcDir, "components/dashboard/CategoryDonutChart.tsx"), "utf8");
 const tokens = readFileSync(path.resolve(appDir, "../../tokens.css"), "utf8");
 const globals = readFileSync(path.join(appDir, "globals.css"), "utf8");
 const layout = readFileSync(path.join(appDir, "layout.tsx"), "utf8");
@@ -85,6 +88,9 @@ const textPairs: [string, string[]][] = [
   ["--income-text", ["--surface", "--bg", "--surface-raised", "--color-income-soft"]],
   // Text on the emerald buttons; their hover keeps the same fill or a lighter tint of it.
   ["--income-contrast", ["--color-income"]],
+  // Text on the strong emerald buttons of Target & Tagihan (bg-emerald-600, hover bg-emerald-700).
+  ["--income-hover-contrast", ["--color-income-hover"]],
+  ["--warning-text", ["--surface", "--bg", "--surface-raised", "--color-warning-soft"]],
   // The phone dock is dark in both themes; its translucent fill is measured over the page surface.
   ["--dock-muted", ["--dock-surface"]],
   ["--dock-text", ["--dock-surface"]],
@@ -128,12 +134,49 @@ describe("design tokens", () => {
     expect(backgroundColor.income.DEFAULT).toBe("var(--color-income)");
   });
 
+  it("paints amber text utilities with the warning text ink and keeps the amber fills", () => {
+    const { textColor, backgroundColor } = tailwindTheme;
+    for (const shade of ["400", "500", "600", "700"]) {
+      expect(textColor.amber[shade], `text-amber-${shade}`).toBe("var(--warning-text)");
+    }
+    expect(textColor.income["hover-contrast"]).toBe("var(--income-hover-contrast)");
+    expect(backgroundColor.amber["500"]).toBe("#f59e0b");
+    expect(backgroundColor.emerald["600"]).toBe("var(--color-income-hover)");
+  });
+
   it("keeps the signature lime, coral and emerald fills unchanged", () => {
     expect(resolve(themes[":root"], "--accent-lime")).toBe("#66CC55");
     expect(resolve(themes[":root"], "--color-expense")).toBe("#FF334B");
     expect(resolve(themes[":root"], "--primary")).toBe("#FF334B");
     expect(resolve(themes[":root"], "--color-income")).toBe("#059669");
     expect(resolve(themes[".dark"], "--color-income")).toBe("#10B981");
+    expect(resolve(themes[":root"], "--color-income-hover")).toBe("#047857");
+    expect(resolve(themes[".dark"], "--color-income-hover")).toBe("#34D399");
+    expect(resolve(themes[":root"], "--color-warning")).toBe("#F59E0B");
+    expect(resolve(themes[".dark"], "--color-warning")).toBe("#FBBF24");
+  });
+
+  it("puts the strong-emerald ink on every bg-emerald-600 button of Target & Tagihan", () => {
+    const classStrings = [...goalsPage.matchAll(/"([^"]*)"/g)].map((match) => match[1]);
+    const buttons = classStrings.filter((classes) => /(^|\s)bg-emerald-600(\s|$)/.test(classes) && /(^|\s)text-/.test(classes));
+    expect(buttons.length).toBeGreaterThanOrEqual(3);
+    for (const classes of buttons) {
+      expect(classes).toContain("text-income-hover-contrast");
+      expect(classes).not.toMatch(/(^|\s)(dark:)?text-(white|\[#)/);
+    }
+  });
+
+  it("marks the HeroWalletCard icon tiles decorative and keeps the emerald tile above 3:1", () => {
+    const tiles = [...heroWalletCard.matchAll(/<div([^>]*)className="h-5 w-5 rounded-lg ([^"]*)"/g)];
+    expect(tiles).toHaveLength(3);
+    for (const [, attributes] of tiles) expect(attributes).toContain('aria-hidden="true"');
+    const emerald = tiles.find(([, , classes]) => classes.includes("bg-emerald-500"));
+    expect(emerald?.[2]).toContain("text-income-contrast");
+  });
+
+  it("labels every donut sector, which recharts paints as an SVG role=img", () => {
+    expect(categoryDonutChart).toMatch(/<Cell[^>]*aria-label=\{sectorLabel\(entry\)\}/);
+    expect(categoryDonutChart).toContain('role="figure"');
   });
 
   it("puts no white text on the emerald buttons of Analisis and Transaksi", () => {
