@@ -94,6 +94,20 @@ describe("category management form", () => {
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/categories/category-1", expect.objectContaining({ kakeibo_type: null })));
   });
 
+  it("clears a pillar by sending an explicit null when Belum diklasifikasi is chosen", async () => {
+    const user = userEvent.setup();
+    renderAnalytics();
+    await user.click((await screen.findAllByRole("button", { name: "Edit kategori Hobi" }))[0]);
+    const pillar = screen.getByRole("combobox", { name: "Pilar Kakeibo bawaan" });
+    expect(pillar).toHaveValue("want");
+    await user.selectOptions(pillar, "Belum diklasifikasi");
+    await user.click(screen.getByRole("button", { name: "Simpan Perubahan" }));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1));
+    const [path, body] = vi.mocked(api.patch).mock.calls[0];
+    expect(path).toBe("/categories/category-1");
+    expect(body).toHaveProperty("kakeibo_type", null);
+  });
+
   it("shows spending only, without budget columns, while no category has a budget", async () => {
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path.startsWith("/dashboard/analytics?")) {

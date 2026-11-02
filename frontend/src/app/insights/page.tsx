@@ -898,7 +898,7 @@ export default function AnalyticsPage() {
                 <div>
                   <label htmlFor="category-kakeibo" className="text-xs font-medium text-[var(--muted)] block mb-1">Pilar Kakeibo bawaan</label>
                   <select id="category-kakeibo" name="kakeibo_type" value={catKakeiboType} onChange={(event) => setCatKakeiboType(event.target.value as typeof catKakeiboType)} className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]">
-                    {catKakeiboType === "" && <option value="">Belum diklasifikasi</option>}
+                    <option value="">Belum diklasifikasi</option>
                     {KAKEIBO_PILLARS.map((pillar) => (
                       <option key={pillar.value} value={pillar.value}>{pillar.label}</option>
                     ))}

@@ -446,7 +446,7 @@ export default function GoalsAndDebtsPage() {
           <button
             type="button"
             onClick={handleOpenNewGoal}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-btn bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-2xs transition-[background-color,transform] active:scale-95"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-btn bg-emerald-600 hover:bg-emerald-700 text-income-hover-contrast text-xs font-semibold shadow-2xs transition-[background-color,transform] active:scale-95"
           >
             <span className="font-bold text-sm leading-none">+</span>
             <span>Target Baru</span>
@@ -487,7 +487,7 @@ export default function GoalsAndDebtsPage() {
             <button
               type="button"
               onClick={handleOpenNewGoal}
-              className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
+              className="px-4 py-2 rounded-xl bg-emerald-600 text-income-hover-contrast font-semibold hover:bg-emerald-700"
             >
               Buat Target Pertama Anda
             </button>
@@ -1306,7 +1306,7 @@ export default function GoalsAndDebtsPage() {
               <button
                 type="submit"
                 disabled={depositGoalMutation.isPending}
-                className="flex-1 rounded-xl bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 dark:text-[#062A1E] disabled:opacity-50"
+                className="flex-1 rounded-xl bg-emerald-600 py-2 text-xs font-semibold text-income-hover-contrast hover:bg-emerald-700 disabled:opacity-50"
               >
                 {depositGoalMutation.isPending ? "Menyimpan…" : "Simpan Progres"}
               </button>
