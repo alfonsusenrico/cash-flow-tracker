@@ -1,0 +1,5 @@
+<resources>
+    <style name="Theme.FinancialTrackerMobileListener" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#0B0C0E</item>
+    </style>
+</resources>

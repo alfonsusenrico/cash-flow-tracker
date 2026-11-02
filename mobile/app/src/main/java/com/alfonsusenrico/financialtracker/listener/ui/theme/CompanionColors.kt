@@ -1,0 +1,137 @@
+package com.alfonsusenrico.financialtracker.listener.ui.theme
+
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
+
+/**
+ * The approved E palette (prototype `option-final.html`, 2026-10-29). Each tone pair (`okBg`/`okFg`, …)
+ * is a text-on-fill pair; `ContrastTest` checks every text pair against WCAG 2.2 AA in both themes.
+ */
+@Immutable
+data class CompanionColors(
+    val isDark: Boolean,
+    val bg: Color,
+    val surface: Color,
+    val surface2: Color,
+    val text: Color,
+    val text2: Color,
+    val border: Color,
+    val borderStrong: Color,
+    val accent: Color,
+    val onAccent: Color,
+    val accentText: Color,
+    val accentLine: Color,
+    val primary: Color,
+    val onPrimary: Color,
+    val focus: Color,
+    val danger: Color,
+    val onDanger: Color,
+    val okBg: Color,
+    val okFg: Color,
+    val warnBg: Color,
+    val warnFg: Color,
+    val askBg: Color,
+    val askFg: Color,
+    val moveBg: Color,
+    val moveFg: Color,
+    val phoneBg: Color,
+    val phoneFg: Color,
+    val mutedBg: Color,
+    val mutedFg: Color,
+    val moneyIn: Color,
+    val moneyOut: Color,
+    /** Top-category bars on a tile and its track; the largest uses [barHighlight]. */
+    val bar: Color,
+    val barHighlight: Color,
+    val switchOn: Color,
+    val switchOff: Color,
+    val snackbarBg: Color,
+    val snackbarFg: Color,
+    val snackbarAction: Color
+)
+
+val LightCompanionColors = CompanionColors(
+    isDark = false,
+    bg = Color(0xFFEFEDE8),
+    surface = Color(0xFFFFFFFF),
+    surface2 = Color(0xFFE7E4DD),
+    text = Color(0xFF0F1012),
+    text2 = Color(0xFF55585F),
+    border = Color(0xFFD9D5CC),
+    borderStrong = Color(0xFF7C7F86),
+    accent = Color(0xFFFF7A45),
+    onAccent = Color(0xFF170A04),
+    accentText = Color(0xFFA8380B),
+    accentLine = Color(0xFFD9531C),
+    primary = Color(0xFF0F1012),
+    onPrimary = Color(0xFFF4F2EE),
+    focus = Color(0xFFC2410C),
+    danger = Color(0xFFB42318),
+    onDanger = Color(0xFFFFFFFF),
+    okBg = Color(0xFFD7F2E3),
+    okFg = Color(0xFF13552F),
+    warnBg = Color(0xFFFCE9C2),
+    warnFg = Color(0xFF5F3D00),
+    askBg = Color(0xFFFFE1D3),
+    askFg = Color(0xFF8A2E08),
+    moveBg = Color(0xFFDAE8F7),
+    moveFg = Color(0xFF18467A),
+    phoneBg = Color(0xFFE9E1F7),
+    phoneFg = Color(0xFF4C3585),
+    mutedBg = Color(0xFFE7E4DD),
+    mutedFg = Color(0xFF4A4D54),
+    moneyIn = Color(0xFF13703C),
+    moneyOut = Color(0xFF0F1012),
+    bar = Color(0xFF0F1012),
+    barHighlight = Color(0xFFD9531C),
+    switchOn = Color(0xFF0F1012),
+    switchOff = Color(0xFF7C7F86),
+    snackbarBg = Color(0xFF0F1012),
+    snackbarFg = Color(0xFFF4F2EE),
+    snackbarAction = Color(0xFFFF9A70)
+)
+
+val DarkCompanionColors = CompanionColors(
+    isDark = true,
+    bg = Color(0xFF0B0C0E),
+    surface = Color(0xFF17191D),
+    surface2 = Color(0xFF22252B),
+    text = Color(0xFFF4F2EE),
+    text2 = Color(0xFFA9ADB5),
+    border = Color(0xFF2A2D33),
+    borderStrong = Color(0xFF6F737B),
+    accent = Color(0xFFFF7A45),
+    onAccent = Color(0xFF170A04),
+    accentText = Color(0xFFFF9A70),
+    accentLine = Color(0xFFFF7A45),
+    primary = Color(0xFFF4F2EE),
+    onPrimary = Color(0xFF0B0C0E),
+    focus = Color(0xFFFF9A70),
+    danger = Color(0xFFFF8F80),
+    onDanger = Color(0xFF2B0703),
+    okBg = Color(0xFF12301F),
+    okFg = Color(0xFF8FE3B5),
+    warnBg = Color(0xFF362908),
+    warnFg = Color(0xFFF6CF73),
+    askBg = Color(0xFF3D1B0C),
+    askFg = Color(0xFFFFB494),
+    moveBg = Color(0xFF132B47),
+    moveFg = Color(0xFFA6CCF5),
+    phoneBg = Color(0xFF2A2142),
+    phoneFg = Color(0xFFD0C0F7),
+    mutedBg = Color(0xFF22252B),
+    mutedFg = Color(0xFFB5B9C1),
+    moneyIn = Color(0xFF7DE3B0),
+    moneyOut = Color(0xFFF4F2EE),
+    bar = Color(0xFF8A8E96),
+    barHighlight = Color(0xFFFF7A45),
+    switchOn = Color(0xFFFF7A45),
+    // The prototype's #5F636B reaches 2.9:1 on the tile; the strong border colour meets the 3:1 non-text minimum.
+    switchOff = Color(0xFF6F737B),
+    snackbarBg = Color(0xFFF4F2EE),
+    snackbarFg = Color(0xFF0B0C0E),
+    snackbarAction = Color(0xFFA8380B)
+)
+
+val LocalCompanionColors = staticCompositionLocalOf { LightCompanionColors }
