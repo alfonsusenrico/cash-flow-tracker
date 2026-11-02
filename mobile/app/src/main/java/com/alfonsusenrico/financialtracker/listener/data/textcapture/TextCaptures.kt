@@ -10,6 +10,7 @@ import com.alfonsusenrico.financialtracker.listener.data.network.IngestionApiSer
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureAnswerRequest
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureEnvelope
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureQuestion
+import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureQuestionTypes
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureSuggestion
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureTextRequest
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureView
@@ -108,7 +109,7 @@ class TextCaptures(
         val capture = dao.getById(id) ?: return null
         val pairing = prefs.pairingContext
         val response = try {
-            ApiClient(context).createService(pairing).captureText(CaptureTextRequest(capture.clientCaptureId, capture.text, capture.deviceTime))
+            ApiClient(context).createService(pairing).captureText(CaptureTextRequest(capture.clientCaptureId, capture.text, capture.deviceTime, CaptureQuestionTypes.ANSWERED))
         } catch (cancelled: CancellationException) {
             dao.release(id, NETWORK)
             throw cancelled
@@ -367,7 +368,7 @@ class TextCaptures(
         }
     }
 
-    /** The owner's answer must fit the question: an amount is text, the others an offered or owner-picked id. */
+    /** The owner's answer must fit the question: an amount is text, a time a chip or text, the others an offered or owner-picked id. */
     private fun fits(question: CaptureQuestion, answer: CaptureAnswer): Boolean {
         val optionIds = question.options.orEmpty().mapNotNull { it.id }.toSet()
         val byOption = answer.optionId != null && answer.optionId in optionIds &&
@@ -376,6 +377,10 @@ class TextCaptures(
             "amount" -> answer.optionId == null && answer.accountId == null && answer.categoryId == null &&
                 answer.text != null && CaptureText.normalize(answer.text, CaptureText.ANSWER_MAX_LENGTH) == answer.text
             "kind" -> byOption
+            // A chip's moment, or the owner's own words ("tadi jam 2") read by the tracker.
+            "time" -> byOption || answer.optionId == null && answer.accountId == null && answer.categoryId == null &&
+                answer.text != null && question.allowsText == true &&
+                CaptureText.normalize(answer.text, CaptureText.ANSWER_MAX_LENGTH) == answer.text
             "account" -> byOption || question.allowsOther == true && answer.optionId == null && answer.text == null &&
                 answer.categoryId == null && validUuid(answer.accountId)
             "category" -> byOption || question.allowsOther == true && answer.optionId == null && answer.text == null &&

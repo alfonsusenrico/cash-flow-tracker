@@ -1,6 +1,5 @@
 package com.alfonsusenrico.financialtracker.listener
 
-import android.app.Application
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -59,6 +58,8 @@ class QuestionRefreshTest {
         postConfirmation = { _, item -> confirmations.add(item.confirmation?.questionId); true },
         clearConfirmation = { clearedConfirmations.add(it) },
         postPurpose = { _, _, activeOnly -> purposeAlerts.add(activeOnly); true },
+        // These tests cover the immediate prompt, used when the evening reminder is off.
+        batchLightQuestions = { false },
         scheduleFollowUp = { event, delay -> followUps.add(event to delay) },
         now = { clock }
     ) { item, activeOnly -> recordAlerts.add(item to activeOnly); true }

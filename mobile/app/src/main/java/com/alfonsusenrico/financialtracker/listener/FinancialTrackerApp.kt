@@ -3,6 +3,9 @@ package com.alfonsusenrico.financialtracker.listener
 import android.app.Application
 import android.util.Log
 import com.alfonsusenrico.financialtracker.listener.data.db.AppDatabase
+import com.alfonsusenrico.financialtracker.listener.data.health.HealthReports
+import com.alfonsusenrico.financialtracker.listener.data.prefs.AppPreferences
+import com.alfonsusenrico.financialtracker.listener.data.reminder.EveningReminder
 import com.alfonsusenrico.financialtracker.listener.data.sync.AutoSync
 import com.alfonsusenrico.financialtracker.listener.data.sync.SenderReplies
 import com.alfonsusenrico.financialtracker.listener.data.textcapture.TextCaptures
@@ -29,5 +32,7 @@ class FinancialTrackerApp : Application() {
         }
 
         AutoSync.restore(this)
+        EveningReminder(this).reschedule()
+        if (AppPreferences(this).isConfigured) HealthReports.schedulePeriodic(this)
     }
 }

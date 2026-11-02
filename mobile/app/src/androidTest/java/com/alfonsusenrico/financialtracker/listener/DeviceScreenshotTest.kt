@@ -27,7 +27,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Walks every screen of the verification app over the synthetic rows of [SyntheticDeviceSeedTest] and saves
+ * Walks the hub and every sheet of the verification app over the synthetic rows of [SyntheticDeviceSeedTest] and saves
  * a screenshot of each, without the status bar, plus the labels TalkBack reads from the app's accessibility
  * tree (`labels.txt`). Runs only with `-e deviceScreenshots light|dark` in the `.verification` app. Every
  * input goes to the app's own composition through the test framework.
@@ -53,84 +53,83 @@ class DeviceScreenshotTest {
         folder = File(context.getExternalFilesDir(null), "screens/$theme-font${"%.1f".format(scale)}").apply { mkdirs() }
         AppPreferences(context).themeMode = theme
         ActivityScenario.launch(MainActivity::class.java).use {
-            if (exists(hasText("Lewati & buka aplikasi"))) {
-                shot("01-onboarding")
-                compose.onNodeWithText("Lewati & buka aplikasi").performScrollTo().performClick()
-            }
-            waitFor(hasContentDescription("Aktivitas"))
-            shot("02-home")
-            scrollTo(hasText("berasal dari notifikasi dan catatan di ponsel ini", substring = true))
-            shot("03-home-bottom")
+            waitFor(hasContentDescription("Catat transaksi"))
+            shot("01-hub")
+            scrollTo(hasText("Buka web"))
+            shot("02-hub-bottom")
 
-            tab("Aktivitas")
-            shot("04-activity")
+            sheet("Riwayat", "Riwayat tangkapan")
+            shot("03-log")
             scrollTo(hasContentDescription("Apotek Sehat", substring = true))
-            shot("05-activity-bottom")
+            shot("04-log-bottom")
             row("Refund Toko Contoh").let { node ->
                 val delete = node.fetchSemanticsNode().config[SemanticsActions.CustomActions].single { it.label == DELETE_ACTION_LABEL }
                 compose.runOnIdle { delete.action() }
             }
             waitFor(hasText("Urungkan"))
-            shot("06-activity-delete-undo")
+            shot("05-log-delete-undo")
             compose.onNodeWithText("Urungkan").performClick()
             waitFor(hasContentDescription("Refund Toko Contoh", substring = true))
 
             filter("Diabaikan, 1")
-            shot("07-activity-ignored")
+            shot("06-log-ignored")
             compose.onNodeWithText("Hapus semua").performClick()
             waitFor(hasText("Hapus semua yang diabaikan?"))
-            shot("08-activity-clear-ignored-dialog")
+            shot("07-log-clear-ignored-dialog")
             compose.onNodeWithText("Batal").performClick()
-            row("Info pasar").performClick()
-            shot("09-detail-ignored")
-            back()
 
             filter("Di ponsel, 1")
-            shot("10-activity-on-phone")
             row("Promo GoFood").performClick()
-            shot("11-detail-on-phone")
+            shot("08-detail-on-phone")
             back()
 
             filter("Perlu cek, 5")
             row("Pesanan Shopee").performClick()
-            shot("12-detail-review")
-            compose.onNodeWithText("Catat manual").performClick()
-            shot("13-detail-manual-record")
-            compose.onNodeWithText("Batal").performScrollTo().performClick()
+            shot("09-detail-review")
             back()
 
             filter("Semua")
             row("Kopi Senja").performClick()
-            shot("14-detail-recorded")
-            compose.onNodeWithText("Ubah transaksi").performScrollTo().performClick()
-            shot("15-detail-edit")
+            shot("10-detail-recorded")
+            compose.onNodeWithText("Perbaiki label").performScrollTo().performClick()
+            shot("11-detail-fix-label")
             compose.onNodeWithText("Batal").performScrollTo().performClick()
             back()
-            row("Pindah ke Dana Darurat").performClick()
-            shot("16-detail-movement")
-            back()
+            close()
 
-            tab("Tanya")
+            compose.onNodeWithContentDescription("Lihat semua pertanyaan", substring = true).performScrollTo().performClick()
             waitFor(hasText("1 dari 4 menunggu"))
-            shot("17-tanya-purpose")
-            compose.onNodeWithText("Tulis sendiri").performScrollTo().performClick()
-            shot("18-tanya-purpose-write")
-            compose.onNodeWithText("Batal").performScrollTo().performClick()
-            listOf("19-tanya-sender", "20-tanya-pocket", "21-tanya-mapping").forEach { name ->
+            shot("12-questions")
+            listOf("13-question-2", "14-question-3", "15-question-4").forEach { name ->
                 compose.onNodeWithContentDescription("Pertanyaan berikutnya").performScrollTo().performClick()
                 compose.waitForIdle()
                 shot(name)
             }
+            close()
 
-            tab("Atur")
-            shot("22-atur")
-            scrollTo(hasText("Aplikasi yang dipantau"))
-            shot("23-atur-apps")
-            scrollTo(hasText("Koneksi"))
-            shot("24-atur-connection")
-            scrollTo(hasText("Tampilan"))
-            scrollTo(hasText("Gelap"))
-            shot("25-atur-android-and-theme")
+            sheet("Pengaturan", "Pengaturan")
+            shot("16-settings")
+            scrollTo(hasText("Pengingat malam"))
+            shot("17-settings-reminder")
+            scrollTo(hasText("Izin & baterai"))
+            shot("18-settings-permissions")
+            scrollTo(hasText("Tentang"))
+            shot("19-settings-theme-about")
+            close()
+
+            compose.onNodeWithContentDescription("Buka rincian status").performScrollTo().performClick()
+            waitFor(hasText("Rincian status"))
+            shot("20-status")
+            close()
+
+            sheet("Buka web", "Buka di web")
+            shot("21-web")
+            close()
+
+            compose.onNodeWithContentDescription("Catat transaksi").performScrollTo().performClick()
+            waitFor(hasText("Proses dengan AI"))
+            shot("22-catat")
+            compose.onNodeWithContentDescription("Tutup catat cepat").performClick()
         }
         File(folder, "labels.txt").writeText(labels.toString())
     }
@@ -139,10 +138,15 @@ class DeviceScreenshotTest {
 
     private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(10_000) { exists(matcher) }
 
-    private fun tab(label: String) {
-        compose.onNode(hasContentDescription(label, substring = true) and SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected))
-            .performClick()
-        compose.waitForIdle()
+    /** Opens a hub tile's sheet and waits for its title. */
+    private fun sheet(tile: String, title: String) {
+        compose.onNodeWithText(tile).performScrollTo().performClick()
+        waitFor(hasText(title))
+    }
+
+    private fun close() {
+        compose.onNodeWithText("Tutup").performClick()
+        waitFor(hasContentDescription("Catat transaksi"))
     }
 
     private fun filter(label: String) {

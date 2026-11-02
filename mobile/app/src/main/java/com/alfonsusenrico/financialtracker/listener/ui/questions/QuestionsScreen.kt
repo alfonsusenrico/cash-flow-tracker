@@ -51,7 +51,13 @@ import com.alfonsusenrico.financialtracker.listener.ui.components.CompanionCard
 import com.alfonsusenrico.financialtracker.listener.ui.components.Formatting
 import com.alfonsusenrico.financialtracker.listener.ui.components.MoneyText
 import com.alfonsusenrico.financialtracker.listener.ui.components.OriginalNotification
-import com.alfonsusenrico.financialtracker.listener.ui.components.PageHeader
+import com.alfonsusenrico.financialtracker.listener.ui.components.toneColors
+import com.alfonsusenrico.financialtracker.listener.data.reminder.QuestionUrgency
+import androidx.compose.material.icons.outlined.Bedtime
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.text.font.FontWeight
 import com.alfonsusenrico.financialtracker.listener.ui.components.SquareIconButton
 import com.alfonsusenrico.financialtracker.listener.ui.components.StateBox
 import com.alfonsusenrico.financialtracker.listener.ui.components.StatusBadge
@@ -76,11 +82,41 @@ class QuestionAnswers(
     val mapping: (row: Long, accountId: String) -> Unit
 )
 
+/** The answer callbacks the question sheet and the hub's top question share; results go to [say]. */
+fun questionAnswers(viewModel: CompanionViewModel, say: (String) -> Unit) = QuestionAnswers(
+    purpose = { id, question, suggestion, text ->
+        viewModel.answerPurpose(id, question, suggestion, text) { ok, error ->
+            say(if (ok) "Jawaban tersimpan; mengirim ke server" else error ?: "Jawaban belum tersimpan")
+        }
+    },
+    sender = { id, question, name ->
+        viewModel.confirmSender(id, question, name) { ok, error ->
+            say(if (ok) "Balasan tersimpan; menunggu server" else error ?: "Balasan belum tersimpan")
+        }
+    },
+    sourcePocket = { id, question, account ->
+        viewModel.confirmSourcePocket(id, question, account) { ok, error ->
+            say(if (ok) "Pilihan tersimpan; menunggu pencatatan" else error ?: "Pilihan belum tersimpan")
+        }
+    },
+    refreshPockets = viewModel::loadSourcePocketOptions,
+    mapping = { id, account ->
+        viewModel.confirmMapping(id, account) { ok, error ->
+            say(if (ok) "Rekening dikonfirmasi; notifikasi diproses ulang" else "Gagal konfirmasi: ${error ?: "periksa koneksi"}")
+        }
+    }
+)
+
+/** Where a question sits: urgent ones are asked now, light ones can wait for the evening reminder. */
+fun urgencyLabel(row: RawNotificationEntity, reminderLabel: String?): String =
+    if (reminderLabel != null && QuestionUrgency.isLight(OpenQuestions.kindOf(row))) "Nanti malam · $reminderLabel" else "Perlu sekarang"
+
 @Composable
 fun QuestionsRoute(
     viewModel: CompanionViewModel,
     actions: ShellActions,
     requestedRowId: Long?,
+    reminderLabel: String?,
     onOpenDetail: (Long) -> Unit,
     onHome: () -> Unit
 ) {
@@ -90,11 +126,11 @@ fun QuestionsRoute(
     val busy by viewModel.isUpdating.collectAsState()
     val pocketOptions by viewModel.sourcePocketOptions.collectAsState()
     val attempts by viewModel.answerAttempts.collectAsState()
+    val ordered = remember(lists.questions) { QuestionUrgency.ordered(lists.questions, OpenQuestions::kindOf) }
     var currentId by rememberSaveable(requestedRowId) { mutableStateOf(requestedRowId) }
-    val shownId = currentId ?: lists.questions.firstOrNull()?.id
+    val shownId = currentId ?: ordered.firstOrNull()?.id
     val row by remember(shownId) { shownId?.let(viewModel::row) ?: flowOf(null) }.collectAsState(initial = null)
     val pairing = remember { AppPreferences(context).pairingContext }
-    val say = actions.message
 
     LaunchedEffect(shownId) {
         // Pin the shown question, so answering it does not jump to the next one before the owner sees the result.
@@ -105,7 +141,7 @@ fun QuestionsRoute(
 
     QuestionsScreen(
         row = row?.takeIf { it.id == shownId },
-        questions = lists.questions,
+        questions = ordered,
         replies = lists.replies,
         currentPairing = pairing,
         accounts = accounts,
@@ -115,30 +151,9 @@ fun QuestionsRoute(
         onShow = { currentId = it },
         onOpenDetail = onOpenDetail,
         onHome = onHome,
-        answers = QuestionAnswers(
-            purpose = { id, question, suggestion, text ->
-                viewModel.answerPurpose(id, question, suggestion, text) { ok, error ->
-                    say(if (ok) "Jawaban tersimpan; mengirim ke server" else error ?: "Jawaban belum tersimpan")
-                }
-            },
-            sender = { id, question, name ->
-                viewModel.confirmSender(id, question, name) { ok, error ->
-                    say(if (ok) "Balasan tersimpan; menunggu server" else error ?: "Balasan belum tersimpan")
-                }
-            },
-            sourcePocket = { id, question, account ->
-                viewModel.confirmSourcePocket(id, question, account) { ok, error ->
-                    say(if (ok) "Pilihan tersimpan; menunggu pencatatan" else error ?: "Pilihan belum tersimpan")
-                }
-            },
-            refreshPockets = viewModel::loadSourcePocketOptions,
-            mapping = { id, account ->
-                viewModel.confirmMapping(id, account) { ok, error ->
-                    say(if (ok) "Rekening dikonfirmasi; notifikasi diproses ulang" else "Gagal konfirmasi: ${error ?: "periksa koneksi"}")
-                }
-            }
-        ),
-        attempts = attempts
+        answers = remember(viewModel) { questionAnswers(viewModel, actions.message) },
+        attempts = attempts,
+        reminderLabel = reminderLabel
     )
 }
 
@@ -160,7 +175,8 @@ fun QuestionsScreen(
     onOpenDetail: (Long) -> Unit,
     onHome: () -> Unit,
     answers: QuestionAnswers,
-    attempts: List<AnswerAttemptEntity> = emptyList()
+    attempts: List<AnswerAttemptEntity> = emptyList(),
+    reminderLabel: String? = null
 ) {
     val index = row?.let { r -> questions.indexOfFirst { it.id == r.id } } ?: -1
     val subtitle = when {
@@ -169,7 +185,7 @@ fun QuestionsScreen(
         else -> "Tidak ada yang menunggu"
     }
     Column(Modifier.fillMaxSize()) {
-        PageHeader("Tanya", subtitle)
+        Text(subtitle, style = CompanionType.small, color = CompanionTheme.colors.text2, modifier = Modifier.padding(horizontal = 18.dp))
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -178,17 +194,56 @@ fun QuestionsScreen(
                 CompanionCard {
                     CardTitle("Semua terjawab", Icons.Rounded.Check)
                     Text(
-                        "Pertanyaan baru dari tracker muncul di sini dan sebagai notifikasi.",
+                        "Aku kabarin kalau ada yang baru.",
                         style = CompanionType.small, color = CompanionTheme.colors.text2
                     )
                     CompanionButton("Kembali ke beranda", onHome, Modifier.fillMaxWidth(), ButtonKind.GHOST)
                 }
                 return@Column
             }
+            if (index >= 0) UrgencyTag(urgencyLabel(row, reminderLabel))
             OriginalNotification(row, today)
             QuestionCard(row, index >= 0, questions, replies, attempts, currentPairing, accounts, pocketOptions, busy, onShow, onOpenDetail, onHome, answers)
             if (index >= 0) Pager(index, questions, onShow)
         }
+    }
+}
+
+/** "Perlu sekarang" or "Nanti malam · 20.00", with an icon so the meaning never rests on colour. */
+@Composable
+fun UrgencyTag(label: String) {
+    val (bg, fg) = toneColors(if (label == "Perlu sekarang") StatusTone.ASK else StatusTone.MUTED)
+    Row(
+        Modifier.clip(RoundedCornerShape(999.dp)).background(bg).padding(start = 8.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Icon(if (label == "Perlu sekarang") Icons.Outlined.Bolt else Icons.Outlined.Bedtime, null, tint = fg, modifier = Modifier.size(14.dp))
+        Text(label, style = CompanionType.meta.copy(fontWeight = FontWeight(650)), color = fg)
+    }
+}
+
+/**
+ * The hub's top question: its tag, the original notification and the same controls as the question sheet,
+ * so it is answered in place. The shell focuses its row while no sheet is open, for source-pocket options.
+ */
+@Composable
+fun HubQuestion(viewModel: CompanionViewModel, actions: ShellActions, row: RawNotificationEntity, reminderLabel: String?, onOpenDetail: (Long) -> Unit) {
+    val context = LocalContext.current
+    val lists by viewModel.lists.collectAsState()
+    val accounts by viewModel.accounts.collectAsState()
+    val busy by viewModel.isUpdating.collectAsState()
+    val pocketOptions by viewModel.sourcePocketOptions.collectAsState()
+    val attempts by viewModel.answerAttempts.collectAsState()
+    val pairing = remember { AppPreferences(context).pairingContext }
+    val answers = remember(viewModel) { questionAnswers(viewModel, actions.message) }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        UrgencyTag(urgencyLabel(row, reminderLabel))
+        OriginalNotification(row, LocalDate.now())
+        QuestionCard(
+            row, open = true, questions = lists.questions, replies = lists.replies, attempts = attempts, currentPairing = pairing,
+            accounts = accounts, pocketOptions = pocketOptions, busy = busy, onShow = {}, onOpenDetail = onOpenDetail,
+            onHome = {}, answers = answers
+        )
     }
 }
 

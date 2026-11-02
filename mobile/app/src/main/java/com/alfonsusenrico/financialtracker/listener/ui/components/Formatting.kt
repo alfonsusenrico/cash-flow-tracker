@@ -17,9 +17,6 @@ object Formatting {
 
     fun rupiah(amount: Long): String = PurposeQuestions.rupiah(amount)
 
-    /** A net figure: "-Rp50.000" rather than "Rp-50.000". */
-    fun signedRupiah(amount: Long): String = if (amount < 0) "-" + rupiah(-amount) else rupiah(amount)
-
     fun localDate(millis: Long, zone: ZoneId = ZoneId.systemDefault()): LocalDate =
         Instant.ofEpochMilli(millis).atZone(zone).toLocalDate()
 

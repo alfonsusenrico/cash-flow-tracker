@@ -4,6 +4,7 @@ import android.content.Context
 import com.alfonsusenrico.financialtracker.listener.data.network.ApiClient
 import com.alfonsusenrico.financialtracker.listener.data.network.PairRequest
 import com.alfonsusenrico.financialtracker.listener.data.prefs.AppPreferences
+import com.alfonsusenrico.financialtracker.listener.data.prefs.ServerContact
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -57,6 +58,8 @@ class PairingRepository(context: Context) {
             }
             rememberPreviousKey()
             prefs.apiKey = key
+            prefs.recordServerContact(ServerContact.OK)
+            prefs.clearHealthRevoked()
             val revoked = revokePreviousKey(check.body()!!.user!!.id!!)
             PairingOutcome(true, if (revoked) "Terhubung. Kunci diterima oleh tracker."
                 else "Terhubung. Kunci lama belum dicabut; buka Pengaturan web → Perangkat terhubung → Cabut.", true)
@@ -77,8 +80,11 @@ class PairingRepository(context: Context) {
             val response = client.pairingService(prefs.apiKey).identity()
             val owner = response.body()?.user?.id
             if (!response.isSuccessful || response.body()?.ok != true || owner.isNullOrBlank()) {
+                if (response.code() in setOf(401, 403)) prefs.recordServerContact(ServerContact.REFUSED)
                 return@withContext failure(response.code()).copy(keySaved = true)
             }
+            prefs.recordServerContact(ServerContact.OK)
+            prefs.clearHealthRevoked()
             val revoked = revokePreviousKey(owner)
             PairingOutcome(true, if (revoked) "Terhubung. Kunci diterima oleh tracker."
                 else "Terhubung. Kunci lama belum dicabut; buka Pengaturan web → Perangkat terhubung → Cabut.", true)

@@ -9,7 +9,6 @@ import com.alfonsusenrico.financialtracker.listener.ui.capture.SheetPhase
 import com.alfonsusenrico.financialtracker.listener.ui.capture.sheetPhase
 import com.alfonsusenrico.financialtracker.listener.ui.model.ActivityFilter
 import com.alfonsusenrico.financialtracker.listener.ui.model.CapturePresentation
-import com.alfonsusenrico.financialtracker.listener.ui.model.HomeFigures
 import com.alfonsusenrico.financialtracker.listener.ui.model.MoneyDirection
 import com.alfonsusenrico.financialtracker.listener.ui.model.StatusTone
 import org.junit.Assert.assertEquals
@@ -120,20 +119,6 @@ class CaptureModelTest {
         assertEquals("kopi contoh 32rb", queued.title)
         assertEquals("Di antrean", queued.status.label)
         assertEquals("Perlu jawaban", CapturePresentation.of(CaptureFixtures.asking()).status.label)
-    }
-
-    @Test fun homeFiguresCountWaitingCapturesButNeverTheirMoney() {
-        val today = CaptureFixtures.today
-        val notifications = listOf(UiFixtures.recorded(20, "Kopi Contoh", 32_000))
-        val captures = listOf(
-            CaptureFixtures.recorded(), CaptureFixtures.movement(), CaptureFixtures.asking(), CaptureFixtures.queued(),
-            CaptureFixtures.recorded(id = 9, amount = 20_000, date = today.minusDays(1), hour = 13)
-        ).map(CapturePresentation::of)
-        val figures = HomeFigures.of(notifications, today, captures)
-        // Asking and queued wait; recorded captures and the move are settled and appear on Beranda nowhere.
-        assertEquals(HomeFigures(capturedToday = 1, waitingToday = 0, waitingCapturesToday = 2), figures)
-        // Captures never change the notification counts.
-        assertEquals(HomeFigures(1, 0, 0), HomeFigures.of(notifications, today, emptyList()))
     }
 
     @Test fun filtersListCapturesWhereTheyBelong() {

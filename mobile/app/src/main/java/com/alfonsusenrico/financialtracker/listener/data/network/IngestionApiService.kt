@@ -9,7 +9,7 @@ import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureSu
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureTextRequest
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CategoriesEnvelope
 import com.alfonsusenrico.financialtracker.listener.data.network.model.HealthResponse
-import com.alfonsusenrico.financialtracker.listener.data.network.model.LedgerCashFlowSummary
+import com.alfonsusenrico.financialtracker.listener.data.network.model.LatestReportResponse
 import com.alfonsusenrico.financialtracker.listener.data.network.model.MappingConfirmRequest
 import com.alfonsusenrico.financialtracker.listener.data.network.model.NotificationResolveRequest
 import com.alfonsusenrico.financialtracker.listener.data.network.model.NotificationResultResponse
@@ -19,6 +19,8 @@ import com.alfonsusenrico.financialtracker.listener.data.network.model.Transacti
 import com.alfonsusenrico.financialtracker.listener.data.network.model.TransactionUpdateResponse
 import com.alfonsusenrico.financialtracker.listener.data.network.model.SenderConfirmRequest
 import com.alfonsusenrico.financialtracker.listener.data.network.model.SourcePocketConfirmRequest
+import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -30,8 +32,12 @@ import retrofit2.http.Query
 
 interface IngestionApiService {
 
-    @GET("api/dashboard/cash-flow-summary?period=today")
-    suspend fun getLedgerCashFlowSummary(): Response<LedgerCashFlowSummary>
+    /** The device health contract of 2026-11-02; the body is built with explicit nulls ([HealthSnapshot.toJson]). */
+    @POST("api/devices/health")
+    suspend fun reportHealth(@Body body: RequestBody): Response<ResponseBody>
+
+    @GET("api/reports/monthly/latest")
+    suspend fun latestMonthlyReport(): Response<LatestReportResponse>
 
     @GET("api/ingest/notifications/{eventId}/source-pockets")
     suspend fun getSourcePockets(@Path("eventId") eventId: String): Response<SourcePocketOptionsResponse>
@@ -91,6 +97,10 @@ interface IngestionApiService {
         @Path("id") id: String,
         @Body request: TransactionUpdateRequest
     ): Response<TransactionUpdateResponse>
+
+    /** Perbaiki label: only the fields the owner changed, with an explicit null to clear the pillar. */
+    @PATCH("api/transactions/{id}")
+    suspend fun correctLabel(@Path("id") id: String, @Body body: RequestBody): Response<TransactionUpdateResponse>
 
     @DELETE("api/transactions/{id}")
     suspend fun deleteTransaction(@Path("id") id: String): Response<TransactionUpdateResponse>

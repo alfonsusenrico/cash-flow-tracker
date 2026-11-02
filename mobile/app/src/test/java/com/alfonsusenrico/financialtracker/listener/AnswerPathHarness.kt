@@ -34,6 +34,8 @@ class AnswerPathHarness(val context: Context, endpoint: String = "http://127.0.0
         shadowOf(context as Application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         TestEndpoint.set(context, endpoint)
         AppPreferences(context).apiKey = "fictional-answer-path-key"
+        // The answer paths of a prompted question: light questions are prompted at once when the evening reminder is off.
+        AppPreferences(context).isEveningReminderEnabled = false
         pairing = AppPreferences(context).pairingContext
         // Receivers open the app's database, so the test uses it too and starts from empty tables.
         db = AppDatabase.getDatabase(context)
@@ -42,6 +44,7 @@ class AnswerPathHarness(val context: Context, endpoint: String = "http://127.0.0
 
     fun close() {
         AppPreferences(context).apiKey = ""
+        AppPreferences(context).isEveningReminderEnabled = true
     }
 
     suspend fun insertRow(hash: String, postTime: Long = 1_000): Long = db.notificationDao().insertOrIgnore(

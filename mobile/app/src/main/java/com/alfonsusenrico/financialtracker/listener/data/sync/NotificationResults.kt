@@ -8,6 +8,7 @@ import com.alfonsusenrico.financialtracker.listener.data.model.AlertReceiptEntit
 import com.alfonsusenrico.financialtracker.listener.data.model.RawNotificationEntity
 import com.alfonsusenrico.financialtracker.listener.data.network.model.IngestResultItem
 import com.alfonsusenrico.financialtracker.listener.data.prefs.AppPreferences
+import com.alfonsusenrico.financialtracker.listener.data.reminder.QuestionUrgency
 import com.alfonsusenrico.financialtracker.listener.service.MappingConfirmationNotifier
 import com.alfonsusenrico.financialtracker.listener.service.PurposeQuestionNotifier
 import com.alfonsusenrico.financialtracker.listener.service.TransactionNotifier
@@ -71,6 +72,8 @@ class NotificationResults(
         SyncScheduler.enqueueQuestionFollowUp(context, eventId, delay)
     },
     private val now: () -> Long = System::currentTimeMillis,
+    /** Whether light questions wait for the evening reminder instead of their own prompt. */
+    private val batchLightQuestions: () -> Boolean = { QuestionUrgency.batched(AppPreferences(context)) },
     private val postAlert: (IngestResultItem, Boolean) -> Boolean = { item, activeOnly ->
         TransactionNotifier.notifyRecorded(context, item, activeOnly)
     }
@@ -202,13 +205,15 @@ class NotificationResults(
     }
 
     /**
-     * A record with an open purpose question alerts as the question. Once an answer exists, the
-     * notification shows that answer's state, so a refresh of the same question leaves it alone.
+     * A record with an open purpose question alerts as the question, unless light questions wait for the
+     * evening reminder: then it alerts as the recorded transaction and the question waits in the app. Once an
+     * answer exists, the notification shows that answer's state, so a refresh of the same question leaves it alone.
      */
     private suspend fun alert(row: RawNotificationEntity, item: IngestResultItem, activeOnly: Boolean, pairingContext: String): Boolean {
         val question = PurposeQuestions.valid(item) ?: return postAlert(item, activeOnly)
         val reply = db.senderReplyDao().forQuestion(pairingContext, item.eventId!!, question.questionId!!)
         return when {
+            reply == null && batchLightQuestions() -> postAlert(item, activeOnly)
             reply == null -> postPurpose(row, item, activeOnly)
             activeOnly -> true
             reply.state == "failed" -> postPurpose(row, item, false)

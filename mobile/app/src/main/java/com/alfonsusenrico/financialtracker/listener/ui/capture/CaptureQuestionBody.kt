@@ -35,7 +35,7 @@ import com.alfonsusenrico.financialtracker.listener.ui.theme.CompanionTheme
 import com.alfonsusenrico.financialtracker.listener.ui.theme.CompanionType
 
 private val KIND_LABELS = mapOf("expense" to "Pengeluaran", "income" to "Pemasukan", "movement" to "Pindah saldo")
-private val MISSING = mapOf("amount" to "Nominal?", "kind" to "Jenis?", "account" to "Rekening?", "category" to "Kategori?")
+private val MISSING = mapOf("amount" to "Nominal?", "time" to "Kapan?", "kind" to "Jenis?", "account" to "Rekening?", "category" to "Kategori?")
 
 /** Account types the backend accepts for a capture (`LIQUID_ACCOUNT_TYPES`). */
 private val LIQUID_TYPES = setOf("cash", "bank", "ewallet", "wallet")
@@ -72,6 +72,7 @@ private fun QuestionControls(item: CapturePresentation, question: CaptureQuestio
     fun send(answer: CaptureAnswer) = actions.onAnswer(item.id, answer)
     when (question.type) {
         "amount" -> AmountAnswer(questionId, enabled, ::send)
+        "time" -> TimeAnswer(question, questionId, enabled, ::send)
         "kind", "account", "category" -> {
             var other by rememberSaveable(questionId) { mutableStateOf(false) }
             ChipFlow {
@@ -130,8 +131,34 @@ private fun OtherChoices(
     }
 }
 
+/** "Jam berapa?" (or "Hari apa?"): the tracker's plausible moments as chips, and the owner's own words. */
 @Composable
-private fun AmountAnswer(questionId: String, enabled: Boolean, send: (CaptureAnswer) -> Unit) {
+private fun TimeAnswer(question: CaptureQuestion, questionId: String, enabled: Boolean, send: (CaptureAnswer) -> Unit) {
+    ChipFlow {
+        question.options.orEmpty().forEach { option ->
+            val id = option.id ?: return@forEach
+            val label = option.label ?: return@forEach
+            AnswerChip(label, { send(CaptureAnswer(questionId, optionId = id)) }, enabled, description = "Jawab: $label")
+        }
+    }
+    if (question.allowsText == true) {
+        TypedAnswer(questionId, enabled, "Atau tulis sendiri", "mis. tadi jam 2 siang", "Tulis kapan, maksimal ${CaptureText.ANSWER_MAX_LENGTH} karakter.", send)
+    }
+}
+
+@Composable
+private fun AmountAnswer(questionId: String, enabled: Boolean, send: (CaptureAnswer) -> Unit) =
+    TypedAnswer(questionId, enabled, "Nominal", "mis. 25000 atau 25rb", "Tulis nominalnya, maksimal ${CaptureText.ANSWER_MAX_LENGTH} karakter.", send)
+
+@Composable
+private fun TypedAnswer(
+    questionId: String,
+    enabled: Boolean,
+    label: String,
+    placeholder: String,
+    rule: String,
+    send: (CaptureAnswer) -> Unit
+) {
     val colors = CompanionTheme.colors
     var text by rememberSaveable(questionId) { mutableStateOf("") }
     var invalid by rememberSaveable(questionId) { mutableStateOf(false) }
@@ -142,12 +169,12 @@ private fun AmountAnswer(questionId: String, enabled: Boolean, send: (CaptureAns
                 text = it
                 invalid = false
             },
-            label = { Text("Nominal") },
-            placeholder = { Text("mis. 25000 atau 25rb") },
+            label = { Text(label) },
+            placeholder = { Text(placeholder) },
             singleLine = true,
             isError = invalid,
             enabled = enabled,
-            supportingText = if (invalid) ({ Text("Tulis nominalnya, maksimal ${CaptureText.ANSWER_MAX_LENGTH} karakter.") }) else null,
+            supportingText = if (invalid) ({ Text(rule) }) else null,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             shape = RoundedCornerShape(14.dp),
             colors = OutlinedTextFieldDefaults.colors(
@@ -169,6 +196,7 @@ private fun knownTags(item: CapturePresentation): List<FactTag> {
     val summary = item.view?.summary
     return listOfNotNull(
         summary?.amount?.let(Formatting::rupiah),
+        summary?.timeLabel?.takeIf { it.isNotBlank() },
         summary?.description?.takeIf { it.isNotBlank() },
         KIND_LABELS[summary?.type]
     ).map(::FactTag)

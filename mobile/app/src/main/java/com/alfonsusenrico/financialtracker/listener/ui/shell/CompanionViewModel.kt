@@ -3,7 +3,18 @@ package com.alfonsusenrico.financialtracker.listener.ui.shell
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.alfonsusenrico.financialtracker.listener.data.capture.LabelChange
 import com.alfonsusenrico.financialtracker.listener.data.capture.OwnerLabels
+import com.alfonsusenrico.financialtracker.listener.data.health.HealthReports
+import com.alfonsusenrico.financialtracker.listener.data.health.SelfTestOutcome
+import com.alfonsusenrico.financialtracker.listener.data.health.SelfTestSession
+import com.alfonsusenrico.financialtracker.listener.data.health.selfTestRunner
+import com.alfonsusenrico.financialtracker.listener.data.prefs.StoredReport
+import com.alfonsusenrico.financialtracker.listener.data.report.ReportReadiness
+import com.alfonsusenrico.financialtracker.listener.data.report.WebLinks
+import com.alfonsusenrico.financialtracker.listener.ui.model.RowPresentation
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import com.alfonsusenrico.financialtracker.listener.data.db.AppDatabase
 import com.alfonsusenrico.financialtracker.listener.data.model.RawNotificationEntity
 import com.alfonsusenrico.financialtracker.listener.data.model.AnswerAttemptEntity
@@ -11,10 +22,8 @@ import com.alfonsusenrico.financialtracker.listener.data.model.SenderReplyEntity
 import com.alfonsusenrico.financialtracker.listener.data.network.ApiClient
 import com.alfonsusenrico.financialtracker.listener.data.network.model.AccountItemResponse
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CategoryItemResponse
-import com.alfonsusenrico.financialtracker.listener.data.network.model.LedgerCashFlowSummary
 import com.alfonsusenrico.financialtracker.listener.data.network.model.NotificationResolveRequest
 import com.alfonsusenrico.financialtracker.listener.data.network.model.NotificationResultResponse
-import com.alfonsusenrico.financialtracker.listener.data.network.model.TransactionUpdateRequest
 import com.alfonsusenrico.financialtracker.listener.data.network.serverMessage
 import com.alfonsusenrico.financialtracker.listener.data.prefs.AppPreferences
 import com.alfonsusenrico.financialtracker.listener.data.sync.MappingConfirmation
@@ -35,7 +44,6 @@ import com.alfonsusenrico.financialtracker.listener.ui.model.OpenQuestions
 import com.alfonsusenrico.financialtracker.listener.ui.questions.SourcePocketOptionState
 import com.alfonsusenrico.financialtracker.listener.ui.theme.ThemeMode
 import com.google.gson.Gson
-import com.google.gson.JsonParseException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -62,20 +70,10 @@ data class CompanionLists(
     val loaded: Boolean = false
 )
 
-/**
- * The tracker's cash-flow tile. [summary] is always complete; [cached] means it was restored from storage
- * and not yet refreshed in this session, [stale] that the latest refresh failed.
- */
-data class LedgerSummaryState(
-    val summary: LedgerCashFlowSummary? = null,
-    val loading: Boolean = false,
-    val cached: Boolean = false,
-    val stale: Boolean = false,
-    val error: String? = null
-)
-
 /** A row a notification asked to open: its question in Tanya, or its detail page. */
 data class OpenRequest(val rowId: Long, val toQuestions: Boolean)
+
+private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 
 class CompanionViewModel @JvmOverloads constructor(
     application: Application,
@@ -102,58 +100,26 @@ class CompanionViewModel @JvmOverloads constructor(
     val hiddenDuplicates: StateFlow<Int> =
         dao.getHiddenDuplicateCountFlow().stateIn(viewModelScope, SharingStarted.Lazily, 0)
 
-    private var ledgerPairing: String = prefs.pairingContext
-    private val _ledgerSummary = MutableStateFlow(storedLedgerSummary(ledgerPairing))
-    val ledgerSummary: StateFlow<LedgerSummaryState> = _ledgerSummary.asStateFlow()
-    private var ledgerSummaryJob: Job? = null
+    private val _readyReport = MutableStateFlow(prefs.readyReport(prefs.pairingContext))
+    /** The tracker's ready monthly report for the hub's "Laporan siap" card; null when none is known. */
+    val readyReport: StateFlow<StoredReport?> = _readyReport.asStateFlow()
 
-    fun currentLedgerSummary(state: LedgerSummaryState): LedgerSummaryState =
-        if (ledgerPairing == prefs.pairingContext) state else LedgerSummaryState()
-
-    private fun storedLedgerSummary(pairing: String): LedgerSummaryState {
-        val summary = try {
-            prefs.ledgerSummaryJson(pairing)?.let { Gson().fromJson(it, LedgerCashFlowSummary::class.java) }
-        } catch (_: JsonParseException) {
-            null
-        }
-        return if (summary?.isComplete() == true) LedgerSummaryState(summary = summary, cached = true) else LedgerSummaryState()
+    fun refreshReport() {
+        viewModelScope.launch { _readyReport.value = ReportReadiness(getApplication()).refresh() }
     }
 
-    fun refreshLedgerSummary() {
-        ledgerSummaryJob?.cancel()
-        val pairing = prefs.pairingContext
-        if (ledgerPairing != pairing) {
-            ledgerPairing = pairing
-            _ledgerSummary.value = storedLedgerSummary(pairing)
-        }
-        if (!prefs.isConfigured) {
-            _ledgerSummary.value = LedgerSummaryState(error = "Hubungkan tracker untuk melihat arus kas.")
-            return
-        }
-        _ledgerSummary.value = _ledgerSummary.value.copy(loading = true, error = null)
-        ledgerSummaryJob = viewModelScope.launch {
-            try {
-                val response = apiClient.createService(pairing).getLedgerCashFlowSummary()
-                if (prefs.pairingContext != pairing) return@launch
-                val summary = response.body()
-                if (response.isSuccessful && summary != null && summary.isComplete()) {
-                    if (!prefs.saveLedgerSummary(pairing, Gson().toJson(summary))) return@launch
-                    _ledgerSummary.value = LedgerSummaryState(summary = summary)
-                } else if (response.code() == 401 || response.code() == 403) {
-                    // A refused key no longer entitles this phone to the account's figures.
-                    prefs.clearLedgerSummary(pairing)
-                    _ledgerSummary.value = LedgerSummaryState(error = "Hubungkan kembali tracker untuk melihat arus kas.")
-                } else {
-                    _ledgerSummary.value = _ledgerSummary.value.copy(loading = false, stale = true, error = "Arus kas belum dapat diperbarui.")
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                if (prefs.pairingContext == pairing) {
-                    _ledgerSummary.value = _ledgerSummary.value.copy(loading = false, stale = true, error = "Tidak terhubung ke tracker.")
-                }
-            }
-        }
+    /** The report's full web address, marking it opened so the card steps back; null for a path that is not the tracker's. */
+    fun openReport(report: StoredReport): String? {
+        prefs.markReportOpened(report.start)
+        _readyReport.value = prefs.readyReport(prefs.pairingContext)
+        return WebLinks.url(report.url)
+    }
+
+    /** The self-test the hub's quiet-day fix and "Tes HP-ku" run. */
+    val selfTest = SelfTestSession { selfTestRunner(getApplication()) }
+
+    fun runSelfTest(onDone: (SelfTestOutcome?) -> Unit = {}) {
+        viewModelScope.launch { onDone(selfTest.run()) }
     }
 
     private val _accounts = MutableStateFlow<List<AccountItemResponse>>(emptyList())
@@ -225,6 +191,14 @@ class CompanionViewModel @JvmOverloads constructor(
             _openRequest.value = OpenRequest(rowId, OpenQuestions.kindOf(row) != null)
         }
     }
+
+    /** The evening reminder's tap: the question sheet at its first question. */
+    fun requestQuestions() {
+        _openRequest.value = OpenRequest(-1, toQuestions = true)
+    }
+
+    /** A health report now, after the owner fixed something from the hub. */
+    fun reportHealthNow() = HealthReports.request(getApplication())
 
     fun consumeOpenRequest() {
         _openRequest.value = null
@@ -395,45 +369,45 @@ class CompanionViewModel @JvmOverloads constructor(
         }
     }
 
-    fun updateSyncedTransaction(
-        notifId: Long,
-        serverId: String,
-        amount: Long,
-        type: String,
-        accountId: String?,
-        categoryId: String?,
-        notes: String?,
-        onComplete: (Boolean, String?) -> Unit
-    ) {
+    /**
+     * "Perbaiki label" on a recorded notification: category, pillar and merchant only, through the owner-edit
+     * path, so the tracker stores the correction as owner feedback. The row's result is then read again.
+     */
+    fun correctLabel(notifId: Long, change: LabelChange, onComplete: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
             _isUpdating.value = true
             try {
                 val stored = dao.getById(notifId)
-                if (stored?.processingStatus != "recorded" || stored.processingError != null ||
-                    stored.editableTransactionId != serverId || !validUuid(serverId) ||
-                    stored.pairingContext != prefs.pairingContext ||
-                    type !in setOf("expense", "income")
+                val item = stored?.let { RowPresentation.of(it) }
+                val transactionId = stored?.editableTransactionId
+                if (stored == null || item == null || stored.processingStatus != "recorded" || stored.processingError != null ||
+                    !validUuid(transactionId) || stored.pairingContext != prefs.pairingContext
                 ) {
-                    onComplete(false, "Transaksi ini tidak dapat diedit di aplikasi")
+                    onComplete(false, "Label transaksi ini hanya bisa diubah di web.")
                     return@launch
                 }
-                val service = apiClient.createService()
-                val req = TransactionUpdateRequest(
-                    type = type,
-                    amount = amount,
-                    accountId = accountId,
-                    categoryId = categoryId,
-                    notes = notes
-                )
-                val res = service.updateTransaction(serverId, req)
-                if (res.isSuccessful && res.body()?.ok == true) {
-                    ownerLabels.labelEdited(notifId, amount, type, notes)
+                change.problem(item.recorded?.type)?.let {
+                    onComplete(false, it)
+                    return@launch
+                }
+                val response = apiClient.createService(prefs.pairingContext)
+                    .correctLabel(transactionId!!, change.toJson().toRequestBody(JSON_MEDIA))
+                if (response.isSuccessful && response.body()?.ok != false) {
+                    stored.backendEventId?.let { SyncScheduler.enqueueCompletion(getApplication(), it, 0, refresh = true) }
                     onComplete(true, null)
                 } else {
-                    onComplete(false, "HTTP ${res.code()}")
+                    onComplete(false, when (response.code()) {
+                        401, 403 -> "Kunci ditolak tracker. Sambungin ulang di Pengaturan."
+                        404 -> "Transaksinya udah nggak ada di tracker."
+                        409 -> "Transaksi ini terhubung dengan transaksi lain. Ubah lewat web."
+                        422 -> "Tracker menolak label ini. Coba pilih lagi."
+                        else -> "Tracker belum bisa dihubungi. Coba lagi nanti."
+                    })
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (_: Exception) {
-                onComplete(false, "Koneksi tidak tersedia")
+                onComplete(false, "Koneksi nggak tersedia. Labelnya belum berubah.")
             } finally {
                 _isUpdating.value = false
             }

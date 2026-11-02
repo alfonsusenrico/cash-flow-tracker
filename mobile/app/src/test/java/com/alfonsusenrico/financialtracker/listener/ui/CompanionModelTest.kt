@@ -3,8 +3,9 @@ package com.alfonsusenrico.financialtracker.listener.ui
 import com.alfonsusenrico.financialtracker.listener.data.model.SenderReplyEntity
 import com.alfonsusenrico.financialtracker.listener.ui.UiFixtures.today
 import com.alfonsusenrico.financialtracker.listener.ui.model.ActivityFilter
-import com.alfonsusenrico.financialtracker.listener.ui.model.CapturePresentation
-import com.alfonsusenrico.financialtracker.listener.ui.model.HomeFigures
+import com.alfonsusenrico.financialtracker.listener.ui.components.Formatting
+import com.alfonsusenrico.financialtracker.listener.ui.hub.HubCounts
+import com.alfonsusenrico.financialtracker.listener.ui.shell.CompanionLists
 import com.alfonsusenrico.financialtracker.listener.ui.model.MoneyDirection
 import com.alfonsusenrico.financialtracker.listener.ui.model.OpenQuestions
 import com.alfonsusenrico.financialtracker.listener.ui.model.QuestionKind
@@ -19,53 +20,52 @@ import org.junit.Test
 
 /** The figures, question rules and labels the redesigned screens are built from. */
 class CompanionModelTest {
-    @Test fun homeFiguresCountTodaysRowsOfThisPhoneWithoutMoney() {
-        val rows = listOf(
+    @Test fun hubCountsTodaysRowsOfThisPhoneWithoutMoney() {
+        val unsent = UiFixtures.unsent()
+        val visible = listOf(
             UiFixtures.purpose(),
-            UiFixtures.recorded(20, "Kopi Contoh", 32_000),
+            UiFixtures.recorded(20, "Kopi Contoh", 32_000, hour = 10),
             UiFixtures.recorded(21, "Gaji Contoh", 250_000, type = "income", category = "Pemasukan"),
             UiFixtures.movement(),
             UiFixtures.recorded(22, "Ojek Contoh", 24_000, date = today.minusDays(1), category = "Transportasi"),
             UiFixtures.recorded(23, "Apotek Contoh", 58_000, date = today.minusDays(2), category = "Kesehatan"),
-            UiFixtures.sender(), UiFixtures.pocket(), UiFixtures.unsent(), UiFixtures.review(),
-            UiFixtures.phone(), UiFixtures.ignored()
+            UiFixtures.sender(), UiFixtures.pocket(), unsent, UiFixtures.review()
         )
         // The same row listed twice (visible and ignored lists can overlap) is one notification.
-        val figures = HomeFigures.of(rows + UiFixtures.ignored(), today, emptyList())
+        val lists = CompanionLists(visible = visible, local = listOf(UiFixtures.phone()),
+            ignored = listOf(UiFixtures.ignored(), UiFixtures.ignored()), loaded = true)
+        val counts = HubCounts.of(lists, emptyList(), today, UiFixtures.zone)
 
         // Today: purpose, two recorded, movement, sender, pocket, unsent, kept and ignored.
-        assertEquals(9, figures.capturedToday)
-        // Sender, pocket and unsent wait today; the review row is yesterday's; kept and ignored rows never wait.
-        assertEquals(3, figures.waitingToday)
-        assertEquals(0, figures.waitingCapturesToday)
+        assertEquals(9, counts.capturedToday)
+        // Only the unsent row still waits to reach the tracker; nothing here is an amount.
+        assertEquals(1, counts.waiting)
+        assertEquals(unsent.capturedAt, counts.oldestWaitingAt)
+        val latest = (visible + UiFixtures.phone() + UiFixtures.ignored()).filter { Formatting.localDate(it.postTime, UiFixtures.zone) == today }
+            .maxBy { it.postTime }
+        assertEquals(latest.appLabel, counts.lastCaptureApp)
     }
 
-    @Test fun anEmptyPhoneCountsZeroButUnreadRowsAreUnknown() {
-        val empty = HomeFigures.of(emptyList(), today, emptyList())
-        assertEquals(HomeFigures(0, 0, 0), empty)
+    @Test fun hubCountsAreUnknownUntilRowsAndCapturesAreRead() {
+        assertEquals(HubCounts(null, null, 0, null, null), HubCounts.of(CompanionLists(), emptyList(), today, UiFixtures.zone))
+        val empty = HubCounts.of(CompanionLists(loaded = true), emptyList(), today, UiFixtures.zone)
+        assertEquals(0, empty.capturedToday)
+        assertEquals(0, empty.waiting)
 
-        val unread = HomeFigures.of(null, today, null)
-        assertNull("Unknown is never 0", unread.capturedToday)
-        assertNull(unread.waitingToday)
-        assertNull(unread.waitingCapturesToday)
-
-        val capturesUnread = HomeFigures.of(listOf(UiFixtures.unsent()), today, null)
+        val capturesUnread = HubCounts.of(CompanionLists(visible = listOf(UiFixtures.unsent()), loaded = true), null, today, UiFixtures.zone)
         assertEquals(1, capturesUnread.capturedToday)
-        assertEquals(1, capturesUnread.waitingToday)
-        assertNull(capturesUnread.waitingCapturesToday)
+        assertNull("Unknown is never 0", capturesUnread.waiting)
     }
 
-    @Test fun tileCountsAreUnknownUntilRowsAndCapturesAreRead() {
-        val visible = listOf(UiFixtures.unsent(), UiFixtures.review(), UiFixtures.recorded(20, "Kopi Contoh", 32_000))
-        val captures = listOf(CaptureFixtures.queued(), CaptureFixtures.recorded()).map(CapturePresentation::of)
-
-        assertEquals(3, HomeFigures.needsCheck(visible, captures))
-        assertEquals(2, HomeFigures.onPhone(listOf(UiFixtures.phone()), captures))
-        assertEquals(0, HomeFigures.needsCheck(emptyList(), emptyList()))
-        assertNull(HomeFigures.needsCheck(null, captures))
-        assertNull(HomeFigures.needsCheck(visible, null))
-        assertNull(HomeFigures.onPhone(null, emptyList()))
-        assertNull(HomeFigures.onPhone(emptyList(), null))
+    @Test fun hubWaitingCountsQueuedCapturesAndRepliesButNotSettledOnes() {
+        val captures = listOf(CaptureFixtures.queued(), CaptureFixtures.sending(), CaptureFixtures.recorded(), CaptureFixtures.asking(), CaptureFixtures.failed())
+        val replies = listOf(
+            SenderReplyEntity("r1", 1, "p", "00000000-0000-4000-8000-000000000001", "q1", "name", "Contoh", state = "queued"),
+            SenderReplyEntity("r2", 1, "p", "00000000-0000-4000-8000-000000000001", "q2", "name", "Contoh", state = "failed")
+        )
+        val counts = HubCounts.of(CompanionLists(loaded = true, replies = replies), captures, today, UiFixtures.zone)
+        // Queued and sending captures and the queued reply wait; recorded, asking and refused ones do not.
+        assertEquals(3, counts.waiting)
     }
 
     @Test fun everyQuestionTypeIsOpenUntilTheOwnerAnswers() {

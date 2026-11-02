@@ -22,6 +22,7 @@ import com.alfonsusenrico.financialtracker.listener.ui.capture.CAPTURE_INPUT_TAG
 import com.alfonsusenrico.financialtracker.listener.ui.capture.CaptureViewModel
 import com.alfonsusenrico.financialtracker.listener.ui.capture.SUGGESTIONS_HEADING
 import com.alfonsusenrico.financialtracker.listener.ui.shell.CompanionApp
+import com.alfonsusenrico.financialtracker.listener.ui.shell.PhoneState
 import com.alfonsusenrico.financialtracker.listener.ui.shell.CompanionViewModel
 import com.alfonsusenrico.financialtracker.listener.ui.theme.CompanionTheme
 import kotlinx.coroutines.runBlocking
@@ -58,7 +59,7 @@ class CaptureBackendDeviceTest {
 
     private fun shell() {
         val captures = CaptureViewModel(app)
-        compose.setContent { CompanionTheme(dark = false) { CompanionApp(CompanionViewModel(app), captures, listenerPermissionGranted = true) } }
+        compose.setContent { CompanionTheme(dark = false) { CompanionApp(CompanionViewModel(app), captures, PhoneState()) } }
         compose.onNodeWithContentDescription("Catat transaksi").performClick()
     }
 

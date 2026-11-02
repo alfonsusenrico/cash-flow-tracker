@@ -9,6 +9,7 @@ import com.alfonsusenrico.financialtracker.listener.data.network.model.BatchInge
 import com.alfonsusenrico.financialtracker.listener.data.network.model.BatchIngestResponse
 import com.alfonsusenrico.financialtracker.listener.data.network.model.NotificationEventRequest
 import com.alfonsusenrico.financialtracker.listener.data.prefs.AppPreferences
+import com.alfonsusenrico.financialtracker.listener.data.prefs.ServerContact
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.CancellationException
@@ -64,6 +65,7 @@ class NotificationSubmission(private val context: Context) {
 
         val outcomes = chunks.map { applyReply(it, pairingContext) }
         val accepted = chunks.any { it.reply is BatchReply.Accepted }
+        serverContact(chunks.map { it.reply })?.let { prefs.recordServerContact(it) }
         if (accepted) {
             prefs.lastSyncTime = System.currentTimeMillis()
             results.deliverPendingAlerts()
@@ -81,6 +83,14 @@ class NotificationSubmission(private val context: Context) {
         }
         Log.i(TAG, "Submission finished: requests=${chunks.size} rows=${pending.size} outcome=${outcome.name.lowercase()}")
         outcome
+    }
+
+    /** What the hub's status card says about the tracker after this run; null when nothing tells. */
+    private fun serverContact(replies: List<BatchReply>): String? = when {
+        replies.any { it is BatchReply.Accepted } -> ServerContact.OK
+        replies.any { it is BatchReply.Rejected && it.httpStatus in setOf(401, 403) } -> ServerContact.REFUSED
+        replies.any { it is BatchReply.Unreachable || it is BatchReply.Rejected && it.httpStatus >= 500 } -> ServerContact.UNREACHABLE
+        else -> null
     }
 
     private suspend fun applyReply(chunk: BatchChunk<RawNotificationEntity>, pairingContext: String): Outcome =

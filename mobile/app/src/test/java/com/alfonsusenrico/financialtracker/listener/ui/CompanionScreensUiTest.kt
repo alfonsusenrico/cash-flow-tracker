@@ -1,9 +1,7 @@
 package com.alfonsusenrico.financialtracker.listener.ui
 
-import android.app.Application
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
@@ -25,8 +23,6 @@ import com.alfonsusenrico.financialtracker.listener.ui.components.DELETE_ACTION_
 import com.alfonsusenrico.financialtracker.listener.ui.activity.ActivityScreen
 import com.alfonsusenrico.financialtracker.listener.ui.detail.DetailActions
 import com.alfonsusenrico.financialtracker.listener.ui.detail.DetailScreen
-import com.alfonsusenrico.financialtracker.listener.ui.detail.FormMode
-import com.alfonsusenrico.financialtracker.listener.ui.home.HomeScreen
 import com.alfonsusenrico.financialtracker.listener.ui.model.ActivityFilter
 import com.alfonsusenrico.financialtracker.listener.ui.questions.QuestionAnswers
 import com.alfonsusenrico.financialtracker.listener.ui.questions.QuestionsScreen
@@ -35,13 +31,10 @@ import com.alfonsusenrico.financialtracker.listener.ui.settings.AppToggle
 import com.alfonsusenrico.financialtracker.listener.ui.settings.SettingsActions
 import com.alfonsusenrico.financialtracker.listener.ui.settings.SettingsScreen
 import com.alfonsusenrico.financialtracker.listener.ui.settings.SettingsState
-import com.alfonsusenrico.financialtracker.listener.ui.model.SyncHealth
 import com.alfonsusenrico.financialtracker.listener.data.model.AnswerAttemptEntity
 import com.alfonsusenrico.financialtracker.listener.data.model.RawNotificationEntity
 import com.alfonsusenrico.financialtracker.listener.data.sync.AnswerAttempts
 import com.alfonsusenrico.financialtracker.listener.data.network.model.AccountChoice
-import com.alfonsusenrico.financialtracker.listener.data.network.model.LedgerCashFlowSummary
-import com.alfonsusenrico.financialtracker.listener.ui.shell.LedgerSummaryState
 import com.alfonsusenrico.financialtracker.listener.ui.theme.ThemeMode
 import androidx.compose.material3.Text
 import org.junit.Assert.assertEquals
@@ -66,107 +59,6 @@ class CompanionScreensUiTest(private val dark: Boolean) {
     private val lists = fixtureLists()
     private val heading = SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading)
 
-    // ---- Beranda ----
-
-    @Test fun homeShowsEveryTileFromThisPhoneAndOpensItsList() {
-        val opened = mutableListOf<Any>()
-        compose.show(dark) {
-            HomeScreen(homeState(), onOpenQuestions = { opened += "questions" }, onOpenActivity = { opened += it },
-                onOpenSettings = { opened += "settings" }, onEnableListener = { opened += "listener" })
-        }
-        compose.onNode(hasText("Kas") and heading).assertExists()
-        compose.onNodeWithContentDescription(
-            "Aktivitas ponsel hari ini, 8 notifikasi tertangkap. Menunggu 3 notifikasi. Dari notifikasi dan catatan di ponsel ini"
-        ).performScrollTo().performClick()
-        compose.onNodeWithContentDescription("Pertanyaan, 4 menunggu. Berikutnya: Apa ini? Rp187.500").performScrollTo().performClick()
-        compose.onNodeWithContentDescription("Sinkron, Aktif, Terakhir 10.42, 2 gagal disimpan").performScrollTo().performClick()
-        compose.onNodeWithContentDescription("Perlu cek, 5. Belum tuntas di tracker").performScrollTo().performClick()
-        compose.onNodeWithContentDescription("Di ponsel, 1. Belum dikirim").performScrollTo().performClick()
-        compose.onNodeWithText("berasal dari notifikasi dan catatan di ponsel ini", substring = true).performScrollTo().assertIsDisplayed()
-        assertEquals(listOf(ActivityFilter.ALL, "questions", "settings", ActivityFilter.PENDING, ActivityFilter.LOCAL), opened)
-        compose.onNodeWithText("Aktifkan akses notifikasi").assertDoesNotExist()
-    }
-
-    @Test fun homeDistinguishesStaleServerSummaryFromPhoneActivity() {
-        val summary = LedgerCashFlowSummary(
-            ok = true, period = "today", timezone = "Asia/Jakarta", currency = "IDR",
-            start = "2026-10-29T17:00:00+00:00", end = "2026-10-30T03:00:00+00:00",
-            generatedAt = "2026-10-30T03:00:00+00:00", inflow = 500_000, outflow = 200_000, net = 300_000,
-            grossOutflow = 200_000, reimbursementOffset = 0
-        )
-        var refreshed = false
-        compose.show(dark) {
-            HomeScreen(homeState().copy(ledger = LedgerSummaryState(summary = summary, stale = true, error = "Tidak terhubung ke tracker.")),
-                onOpenQuestions = {}, onOpenActivity = {}, onOpenSettings = {}, onEnableListener = {}, onRefreshLedger = { refreshed = true })
-        }
-        compose.onNodeWithText("Perbarui arus kas").performScrollTo().performClick()
-        assertTrue(refreshed)
-        compose.onNodeWithContentDescription("Uang keluar tracker Rp200.000").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Belum diperbarui. Terakhir berhasil 30 Okt 2026, 10.00").assertExists()
-        compose.onNodeWithText("Periode 30 Okt 2026, 00.00 – 30 Okt 2026, 10.00 (Asia/Jakarta)").assertExists()
-        compose.onNodeWithText("Tidak terhubung ke tracker.").assertExists()
-        compose.onNodeWithContentDescription("Dari notifikasi dan catatan di ponsel ini", substring = true).assertExists()
-    }
-
-    @Test fun homeLabelsARestoredSummaryAndItsReimbursementTreatment() {
-        val summary = LedgerCashFlowSummary(
-            ok = true, period = "today", timezone = "Asia/Jakarta", currency = "IDR",
-            start = "2026-10-28T17:00:00+00:00", end = "2026-10-29T09:30:00+00:00",
-            generatedAt = "2026-10-29T09:30:00+00:00", inflow = 100_000, outflow = 150_000, net = -50_000,
-            grossOutflow = 250_000, reimbursementOffset = 100_000
-        )
-        compose.show(dark) {
-            HomeScreen(homeState().copy(ledger = LedgerSummaryState(summary = summary, cached = true, loading = true)),
-                onOpenQuestions = {}, onOpenActivity = {}, onOpenSettings = {}, onEnableListener = {})
-        }
-        compose.onNodeWithContentDescription("Uang keluar tracker Rp150.000").assertExists()
-        compose.onNodeWithContentDescription("Neto -Rp50.000").assertExists()
-        compose.onNodeWithContentDescription("Keluar kotor Rp250.000").assertExists()
-        compose.onNodeWithContentDescription("Dikurangi penggantian Rp100.000").assertExists()
-        compose.onNodeWithText("Periode 29 Okt 2026, 00.00 – 29 Okt 2026, 16.30 (Asia/Jakarta)").assertExists()
-        compose.onNodeWithText("Tersimpan di ponsel, terakhir diperbarui 29 Okt 2026, 16.30").assertExists()
-        compose.onNodeWithText("Memperbarui arus kas…").assertIsNotEnabled()
-    }
-
-    @Test fun homeWithoutAServerSummarySaysWhy() {
-        compose.show(dark) {
-            HomeScreen(homeState().copy(ledger = LedgerSummaryState(error = "Hubungkan kembali tracker untuk melihat arus kas.")),
-                onOpenQuestions = {}, onOpenActivity = {}, onOpenSettings = {}, onEnableListener = {})
-        }
-        compose.onNodeWithText("Hubungkan kembali tracker untuk melihat arus kas.").assertExists()
-        compose.onNodeWithContentDescription("Uang keluar tracker", substring = true).assertDoesNotExist()
-        compose.onNodeWithContentDescription("Aktivitas ponsel hari ini, 8 notifikasi tertangkap", substring = true).assertExists()
-        compose.onNodeWithText("Rp", substring = true).assertDoesNotExist()
-    }
-
-    @Test fun homeShowsTheServerTotalAndNoLocalNotificationTotal() {
-        val summary = LedgerCashFlowSummary(
-            ok = true, period = "today", timezone = "Asia/Jakarta", currency = "IDR",
-            start = "2026-10-29T17:00:00+00:00", end = "2026-10-30T03:00:00+00:00",
-            generatedAt = "2026-10-30T03:00:00+00:00", inflow = 500_000, outflow = 219_500, net = 280_500,
-            grossOutflow = 219_500, reimbursementOffset = 0
-        )
-        compose.show(dark) {
-            HomeScreen(homeState().copy(ledger = LedgerSummaryState(summary = summary)),
-                onOpenQuestions = {}, onOpenActivity = {}, onOpenSettings = {}, onEnableListener = {})
-        }
-        compose.onNodeWithContentDescription("Uang keluar tracker Rp219.500").assertExists()
-        compose.onNodeWithContentDescription("Keluar tercatat hari ini", substring = true).assertDoesNotExist()
-        compose.onNodeWithContentDescription("Uang keluar tracker Rp439.000").assertDoesNotExist()
-    }
-
-    @Test fun homeWithoutQuestionsOrListenerSaysSo() {
-        var enable = 0
-        val empty = fixtureLists().copy(questions = emptyList())
-        compose.show(dark) {
-            HomeScreen(homeState(empty, permission = false, connected = false), {}, {}, {}, onEnableListener = { enable++ })
-        }
-        compose.onNodeWithText("Semua terjawab").assertExists()
-        compose.onNodeWithContentDescription("Sinkron, Terputus", substring = true).assertExists()
-        compose.onNodeWithText("Aktifkan akses notifikasi").performClick()
-        assertEquals(1, enable)
-    }
-
     // ---- Aktivitas ----
 
     @Test fun activityListsEveryRowWithFiltersAndTheDuplicatesNote() {
@@ -175,7 +67,9 @@ class CompanionScreensUiTest(private val dark: Boolean) {
             ActivityScreen(lists, ActivityFilter.ALL, totalCount = lists.visible.size, hiddenDuplicates = 2, today = UiFixtures.today,
                 onFilter = { chosen += it }, onOpenRow = { _, _ -> }, onDelete = {}, onClearIgnored = {})
         }
-        compose.onNodeWithText("9 notifikasi · 2 kembar disembunyikan").assertExists()
+        compose.onNodeWithText("9 notifikasi · 2 kembar disembunyikan · nominal per item, tanpa total").assertExists()
+        // Each item keeps its own amount; no day shows a total of money out.
+        compose.onNodeWithText("Keluar Rp", substring = true).assertDoesNotExist()
         compose.onNode(hasContentDescription("Semua") and SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected)).assertIsSelected()
         compose.onNodeWithContentDescription("Perlu dijawab, 4").assertHeightIsAtLeast(48.dp).performClick()
         compose.onNodeWithContentDescription("Perlu cek, 5").performClick()
@@ -246,7 +140,12 @@ class CompanionScreensUiTest(private val dark: Boolean) {
                     onOpenQuestion = { calls.log += "question:$it" }, onRetry = { calls.log += "retry:$it" },
                     onSendLocal = { calls.log += "send:$it" }, onResend = { calls.log += "resend:$it" },
                     onInvalid = { calls.log += "invalid:$it" },
-                    onSubmit = { r, mode, editable, draft, done -> calls.log += "submit:${r.id}:$mode:$editable:${draft.amount}"; done(true) }
+                    onSubmit = { r, mode, editable, draft, done -> calls.log += "submit:${r.id}:$mode:$editable:${draft.amount}"; done(true) },
+                    onCorrectLabel = { r, change, done ->
+                        calls.log += "label:${r.id}:" + listOfNotNull(change.categoryId, change.pillar?.let { it::class.simpleName }, change.merchant).joinToString(":")
+                        done(true)
+                    },
+                    onOpenLedger = { calls.log += "ledger" }
                 )
             )
         }
@@ -284,22 +183,34 @@ class CompanionScreensUiTest(private val dark: Boolean) {
         assertEquals(listOf("send:8", "resend:9", "question:4"), calls.log)
     }
 
-    @Test fun recordedDetailEditsThroughTheInlineForm() {
+    @Test fun recordedDetailCorrectsTheLabelAndLinksTheFullEditToTheWeb() {
         val recorded = UiFixtures.recorded(20, "Kopi Contoh", 32_000)
         val calls = detail(recorded)
         compose.onNodeWithText("Yang dicatat tracker").assertExists()
         compose.onNodeWithText("Makan & Minum").assertExists()
-        compose.onNodeWithText("Ubah transaksi").performScrollTo().performClick()
-        compose.onNodeWithText("Ubah data di tracker").assertExists()
-        compose.onNodeWithText("Perbarui").performScrollTo().performClick()
-        assertEquals(listOf("submit:20:${FormMode.EDIT_RECORDED}:${UiFixtures.uuid(530)}:32000"), calls.log)
-        compose.onNodeWithText("Ubah transaksi").assertExists()
+        compose.onNodeWithText("Ubah transaksi").assertDoesNotExist()
+        compose.onNodeWithText("Lihat di Buku Kas (web)").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        compose.onNodeWithText("Perbaiki label").performScrollTo().performClick()
+        compose.onNode(hasText("Perbaiki label") and heading).assertExists()
+        compose.onNodeWithText("Sekarang: Makan & Minum").assertExists()
+        compose.onNodeWithText("Belum diklasifikasi").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        compose.onNodeWithText("Simpan label").performScrollTo().performClick()
+        assertEquals(listOf("ledger", "label:20:Unclassified"), calls.log)
+    }
+
+    @Test fun labelCorrectionWithNothingChosenIsNotSent() {
+        val calls = detail(UiFixtures.recorded(20, "Kopi Contoh", 32_000))
+        compose.onNodeWithText("Perbaiki label").performScrollTo().performClick()
+        compose.onNodeWithText("Simpan label").performScrollTo().performClick()
+        compose.onNodeWithText("Pilih kategori, pilar, atau isi merchant dulu.").assertExists()
+        assertEquals(emptyList<String>(), calls.log)
     }
 
     @Test fun movementCannotBeEditedOnThePhone() {
         detail(UiFixtures.movement())
         compose.onNodeWithText("Pindah saldo (tidak dihitung pengeluaran)").assertExists()
-        compose.onNodeWithText("Edit di Tracker Web").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText("Perbaiki label").assertDoesNotExist()
+        compose.onNodeWithText("Lihat di Buku Kas (web)").performScrollTo().assertIsEnabled()
     }
 
     @Test fun deleteFromDetailNeedsConfirmation() {
@@ -460,33 +371,45 @@ class CompanionScreensUiTest(private val dark: Boolean) {
 
     // ---- Atur ----
 
-    @Test fun settingsShowHealthAppsAndThemeChoice() {
+    @Test fun settingsAreGroupedListsWithTheEveningReminder() {
         val log = mutableListOf<String>()
         compose.show(dark) {
             SettingsScreen(
                 SettingsState(
-                    health = SyncHealth(true, UiFixtures.at(UiFixtures.today, 10, 42), failedCaptures = 0, dropped = 3),
                     autoSync = true,
                     apps = listOf(AppToggle("com.gojek.gopay", "GoPay", true), AppToggle("com.bca", "BCA mobile", false)),
-                    listenerPermissionGranted = true, batteryExempt = false, themeMode = ThemeMode.SYSTEM
+                    listenerPermissionGranted = true, batteryExempt = false, themeMode = ThemeMode.SYSTEM,
+                    reminderEnabled = true, reminderMinute = 20 * 60, version = "2.4.0"
                 ),
                 SettingsActions(
                     onAutoSync = { log += "auto:$it" }, onSyncNow = { log += "sync" },
                     onToggleApp = { p, on -> log += "app:$p:$on" }, onOpenListenerAccess = { log += "listener" },
-                    onOpenBattery = { log += "battery" }, onOpenAppInfo = { log += "info" }, onThemeMode = { log += "theme:$it" }
+                    onOpenBattery = { log += "battery" }, onOpenAppInfo = { log += "info" }, onThemeMode = { log += "theme:$it" },
+                    onReminder = { log += "reminder:$it" }, onReminderTime = { log += "time" }, onSelfTest = { log += "test" }
                 ),
                 connection = { Text("Koneksi") }
             )
         }
-        compose.onNode(hasText("Sinkron & atur") and heading).assertExists()
-        compose.onNodeWithText("Pendengar notifikasi".uppercase()).assertExists()
+        listOf("Aplikasi yang dipantau", "Kirim", "Pengingat malam", "Izin & baterai", "Tampilan", "Tentang").forEach {
+            compose.onNode(hasText(it) and heading).performScrollTo().assertExists()
+        }
+        // The money figures and health tiles of 2.3 are gone from settings.
+        compose.onNodeWithText("Pendengar notifikasi".uppercase()).assertDoesNotExist()
         compose.onNodeWithText("Kirim otomatis").performScrollTo().performClick()
         compose.onNodeWithText("Sinkron sekarang").performScrollTo().performClick()
         compose.onNodeWithText("BCA mobile").performScrollTo().performClick()
+        compose.onNodeWithText("Satu pengingat jam 20.00").performScrollTo().assertExists()
+        compose.onNodeWithText("Pertanyaan ringan nunggu malam").performScrollTo().performClick()
+        compose.onNodeWithText("Jam pengingat").performScrollTo().performClick()
         compose.onNodeWithText("Optimasi baterai").performScrollTo().performClick()
         compose.onNodeWithText("Phone Master", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Tes HP-ku").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
         compose.onNodeWithText("Ikuti sistem").performScrollTo().assertIsSelected()
         compose.onNodeWithText("Gelap").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
-        assertEquals(listOf("auto:false", "sync", "app:com.bca:true", "battery", "theme:${ThemeMode.DARK}"), log)
+        compose.onNodeWithText("versi 2.4.0", substring = true).performScrollTo().assertExists()
+        assertEquals(
+            listOf("auto:false", "sync", "app:com.bca:true", "reminder:false", "time", "battery", "test", "theme:${ThemeMode.DARK}"),
+            log
+        )
     }
 }

@@ -59,7 +59,6 @@ import com.alfonsusenrico.financialtracker.listener.ui.components.CompanionCard
 import com.alfonsusenrico.financialtracker.listener.ui.components.DELETE_ACTION_LABEL
 import com.alfonsusenrico.financialtracker.listener.ui.components.Formatting
 import com.alfonsusenrico.financialtracker.listener.ui.components.MoneyText
-import com.alfonsusenrico.financialtracker.listener.ui.components.PageHeader
 import com.alfonsusenrico.financialtracker.listener.ui.components.SectionLabel
 import com.alfonsusenrico.financialtracker.listener.ui.components.StatusBadge
 import com.alfonsusenrico.financialtracker.listener.ui.components.SwipeToDeleteItem
@@ -70,7 +69,6 @@ import com.alfonsusenrico.financialtracker.listener.ui.model.ActivityFilter
 import com.alfonsusenrico.financialtracker.listener.ui.model.CAPTURE_SOURCE_LABEL
 import com.alfonsusenrico.financialtracker.listener.ui.model.CapturePresentation
 import com.alfonsusenrico.financialtracker.listener.ui.model.HABIT_TAG
-import com.alfonsusenrico.financialtracker.listener.ui.model.MoneyDirection
 import com.alfonsusenrico.financialtracker.listener.ui.model.RowPresentation
 import com.alfonsusenrico.financialtracker.listener.ui.model.StatusTone
 import com.alfonsusenrico.financialtracker.listener.ui.shell.CompanionLists
@@ -154,17 +152,13 @@ fun ActivityScreen(
         (rows.map(FeedEntry::Notification) + filteredCaptures.map(FeedEntry::Capture)).sortedByDescending { it.moment }
     }
     val openQuestionIds = remember(lists) { lists.questions.map { it.id }.toSet() }
-    // Day totals count every recorded row and capture of the day, whatever the filter shows.
-    val dayOut = remember(lists, captures) {
-        val notified = lists.visible.map(RowPresentation::of).filter { it.recorded != null && it.direction == MoneyDirection.OUT }
-            .map { it.localDate to it.recorded!!.amount!! }
-        val typed = captures.mapNotNull { it.recordedFact }.filter { it.direction == MoneyDirection.OUT }.map { it.date to it.amount }
-        (notified + typed).groupBy({ it.first }, { it.second }).mapValues { (_, amounts) -> amounts.sum() }
-    }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
-        PageHeader("Aktivitas", "$totalCount notifikasi · $hiddenDuplicates kembar disembunyikan")
+        Text(
+            "$totalCount notifikasi · $hiddenDuplicates kembar disembunyikan · nominal per item, tanpa total",
+            style = CompanionType.small, color = colors.text2, modifier = Modifier.padding(horizontal = 18.dp)
+        )
         FilterBar(lists, captures, filter, onFilter)
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -212,7 +206,7 @@ fun ActivityScreen(
                 }
             }
             entries.groupBy { it.localDate }.forEach { (date, dayEntries) ->
-                item(key = "day-$date") { DayHeader(date, today, dayOut[date] ?: 0L) }
+                item(key = "day-$date") { DayHeader(date, today) }
                 items(dayEntries, key = { it.key }) { entry ->
                     when (entry) {
                         is FeedEntry.Notification -> {
@@ -302,22 +296,16 @@ private fun FilterBar(lists: CompanionLists, captures: List<CapturePresentation>
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/** A day's heading: the date only. The phone shows each item's own amount and never a day's total. */
 @Composable
-private fun DayHeader(date: LocalDate, today: LocalDate, out: Long) {
-    val colors = CompanionTheme.colors
+private fun DayHeader(date: LocalDate, today: LocalDate) {
     // No-break spaces keep "Kamis, 29 Okt" together; at large text the line breaks after "Hari ini ·" instead.
     val dayMonth = Formatting.dayMonth(date).replace(' ', '\u00A0')
     val label = if (date.isBefore(today.minusDays(1))) dayMonth else "${Formatting.relativeDay(date, today)} · $dayMonth"
-    // At large text the money out moves below the date instead of squeezing it into a narrow column.
-    FlowRow(
-        Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 12.dp, bottom = 2.dp).semantics(mergeDescendants = true) { heading() },
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        SectionLabel(label, modifier = Modifier.padding(end = 12.dp))
-        SectionLabel("Keluar ${Formatting.rupiah(out)}", color = colors.text2, softWrap = false)
-    }
+    SectionLabel(
+        label,
+        modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 12.dp, bottom = 2.dp).semantics { heading() }
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)

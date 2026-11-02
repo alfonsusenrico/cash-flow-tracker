@@ -3,6 +3,9 @@ package com.alfonsusenrico.financialtracker.listener.service
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
+import com.alfonsusenrico.financialtracker.listener.MainActivity
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.BitmapFactory
@@ -14,7 +17,9 @@ import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.alfonsusenrico.financialtracker.listener.data.prefs.AppPreferences
 import com.alfonsusenrico.financialtracker.listener.data.sync.AutoSync
-import com.alfonsusenrico.financialtracker.listener.registry.FinancialSourceRegistry
+import com.alfonsusenrico.financialtracker.listener.data.health.HealthReports
+import com.alfonsusenrico.financialtracker.listener.data.health.SelfTestCatches
+import com.alfonsusenrico.financialtracker.listener.data.health.SelfTestMarker
 import androidx.core.app.NotificationCompat
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +63,7 @@ class FinancialNotificationListenerService : NotificationListenerService() {
         super.onListenerConnected()
         _isConnected.value = true
         prefs.recordListenerConnected()
+        HealthReports.request(applicationContext)
         Log.i(TAG, "Notification Listener connected. Scanning active notifications and starting foreground...")
 
         startListenerForeground()
@@ -80,6 +86,7 @@ class FinancialNotificationListenerService : NotificationListenerService() {
         super.onListenerDisconnected()
         _isConnected.value = false
         prefs.recordListenerDisconnected()
+        HealthReports.request(applicationContext)
         stopForeground(STOP_FOREGROUND_REMOVE)
         Log.w(TAG, "Notification Listener disconnected; requesting rebind")
         requestRebind(ComponentName(this, FinancialNotificationListenerService::class.java))
@@ -92,18 +99,20 @@ class FinancialNotificationListenerService : NotificationListenerService() {
     }
 
     private fun handleStatusBarNotification(sbn: StatusBarNotification) {
+        // Privacy gate: only enabled financial apps reach capture; this app's self-test is answered and dropped.
+        val route = NotificationGate.route(
+            sbn.packageName, applicationContext.packageName, sbn.tag,
+            sbn.notification?.extras?.getString(SelfTestMarker.EXTRA_TOKEN), prefs::isPackageEnabled
+        )
+        when (route) {
+            is NotificationGate.Route.SelfTest -> {
+                SelfTestCatches.caught(route.token)
+                return
+            }
+            NotificationGate.Route.Drop -> return
+            NotificationGate.Route.Capture -> Unit
+        }
         val packageName = sbn.packageName ?: return
-
-        // Privacy Gate: Strictly discard non-financial notifications
-        if (!FinancialSourceRegistry.isTargetFinancialApp(packageName)) {
-            return
-        }
-
-        // User Setting Gate: Only process apps enabled in Settings
-        if (!prefs.isPackageEnabled(packageName)) {
-            Log.d(TAG, "Ignoring notification: $packageName is disabled in User Settings")
-            return
-        }
 
         try {
             val notification = sbn.notification ?: return
@@ -164,24 +173,37 @@ class FinancialNotificationListenerService : NotificationListenerService() {
         if (manager.getNotificationChannel(CHANNEL_ID) == null) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Listener Active",
+                "Pendengar aktif",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Keeps the financial notification listener running in the background"
+                description = "Menjaga pencatat notifikasi tetap jalan di latar"
                 setShowBadge(false)
             }
             manager.createNotificationChannel(channel)
+        } else {
+            // The channel's name and description follow the app's language; its importance stays the owner's.
+            manager.getNotificationChannel(CHANNEL_ID)?.let {
+                it.name = "Pendengar aktif"
+                it.description = "Menjaga pencatat notifikasi tetap jalan di latar"
+                manager.createNotificationChannel(it)
+            }
         }
     }
 
     private fun startListenerForeground() {
         try {
             val appIconBitmap = BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
+            val open = PendingIntent.getActivity(
+                this, FOREGROUND_NOTIFICATION_ID,
+                Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
             val notification = Notification.Builder(this, CHANNEL_ID)
-                .setContentTitle("Financial Tracker")
-                .setContentText("Monitoring transactions...")
+                .setContentTitle("Lagi jagain notifikasimu")
+                .setContentText("Notifikasi bank dan e-wallet dicatat otomatis.")
                 .setSmallIcon(R.drawable.ic_notification)
                 .setLargeIcon(appIconBitmap)
+                .setContentIntent(open)
                 .setOngoing(true)
                 .build()
 

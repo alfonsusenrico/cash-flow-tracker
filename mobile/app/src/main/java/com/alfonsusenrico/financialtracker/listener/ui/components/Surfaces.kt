@@ -13,10 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -27,7 +25,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -72,55 +69,6 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier, color: Color = Com
     Text(text.uppercase(), style = CompanionType.label, color = color, modifier = modifier, softWrap = softWrap)
 }
 
-/**
- * A bento tile (`.f-tile`) headed by [label]. A tile with [onClick] is one button that announces its
- * [description] and shows the arrow of a drill-in beside the label; a tile without one is static.
- */
-@Composable
-fun BentoTile(
-    label: String,
-    modifier: Modifier = Modifier,
-    container: Color = CompanionTheme.colors.surface,
-    contentColor: Color = CompanionTheme.colors.text2,
-    borderColor: Color = CompanionTheme.colors.border,
-    goBackground: Color = CompanionTheme.colors.surface2,
-    goTint: Color = CompanionTheme.colors.text,
-    minHeight: Dp = 116.dp,
-    onClick: (() -> Unit)? = null,
-    description: String? = null,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val shape = RoundedCornerShape(22.dp)
-    Column(
-        modifier = modifier
-            .heightIn(min = minHeight)
-            .clip(shape)
-            .background(container)
-            .border(1.dp, borderColor, shape)
-            .then(
-                when {
-                    onClick == null -> Modifier.semantics(mergeDescendants = true) {}
-                    // One focusable node that speaks the summary; the click action stays on it.
-                    description != null -> Modifier.clickable(role = Role.Button, onClickLabel = "Buka", onClick = onClick)
-                        .clearAndSetSemantics { contentDescription = description }
-                    else -> Modifier.clickable(role = Role.Button, onClickLabel = "Buka", onClick = onClick)
-                }
-            )
-            .padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 30.dp), verticalAlignment = Alignment.CenterVertically) {
-            SectionLabel(label, Modifier.weight(1f), color = contentColor)
-            if (onClick != null) {
-                Box(Modifier.size(30.dp).clip(CircleShape).background(goBackground), contentAlignment = Alignment.Center) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, tint = goTint, modifier = Modifier.size(16.dp))
-                }
-            }
-        }
-        Column(Modifier.fillMaxWidth().padding(end = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
-    }
-}
-
 /** Status-coloured box with an icon, a title and a reason (`.f-state`). */
 @Composable
 fun StateBox(tone: StatusTone, icon: ImageVector, title: String, body: String?, modifier: Modifier = Modifier) {
@@ -161,22 +109,6 @@ fun toneColors(tone: StatusTone): Pair<Color, Color> {
         StatusTone.MOVE -> c.moveBg to c.moveFg
         StatusTone.PHONE -> c.phoneBg to c.phoneFg
         StatusTone.MUTED -> c.mutedBg to c.mutedFg
-    }
-}
-
-/** Top-level page title with a small subtitle (`.f-head`). */
-@Composable
-fun PageHeader(title: String, subtitle: String?, modifier: Modifier = Modifier, actions: @Composable RowScope.() -> Unit = {}) {
-    Row(
-        modifier = modifier.fillMaxWidth().heightIn(min = 64.dp).padding(start = 18.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = CompanionType.homeTitle, color = CompanionTheme.colors.text, modifier = Modifier.semantics { heading() })
-            if (subtitle != null) Text(subtitle, style = CompanionType.small, color = CompanionTheme.colors.text2)
-        }
-        actions()
     }
 }
 

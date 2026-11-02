@@ -1,23 +1,26 @@
 package com.alfonsusenrico.financialtracker.listener
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Color
-import android.os.Build
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
+import com.alfonsusenrico.financialtracker.listener.data.health.HealthReports
+import com.alfonsusenrico.financialtracker.listener.data.health.HealthSnapshots
 import com.alfonsusenrico.financialtracker.listener.data.prefs.AppPreferences
+import com.alfonsusenrico.financialtracker.listener.data.reminder.EveningReminderNotifier
 import com.alfonsusenrico.financialtracker.listener.data.sync.QuestionRefresh
 import com.alfonsusenrico.financialtracker.listener.data.sync.ReviewResultRefresh
 import com.alfonsusenrico.financialtracker.listener.data.sync.SenderReplies
@@ -27,6 +30,7 @@ import com.alfonsusenrico.financialtracker.listener.service.MappingConfirmationN
 import com.alfonsusenrico.financialtracker.listener.ui.capture.CaptureViewModel
 import com.alfonsusenrico.financialtracker.listener.ui.shell.CompanionApp
 import com.alfonsusenrico.financialtracker.listener.ui.shell.CompanionViewModel
+import com.alfonsusenrico.financialtracker.listener.ui.shell.PhoneState
 import com.alfonsusenrico.financialtracker.listener.ui.theme.CompanionTheme
 import com.alfonsusenrico.financialtracker.listener.ui.theme.isDark
 import kotlinx.coroutines.launch
@@ -35,26 +39,21 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: CompanionViewModel by viewModels()
     private val captureViewModel: CaptureViewModel by viewModels()
-    private val isPermissionGrantedState = mutableStateOf(false)
-
-    private val requestNotificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { _ -> }
+    private val phone = mutableStateOf(PhoneState())
+    private val connectivity by lazy { getSystemService(ConnectivityManager::class.java) }
+    private val networkWatch = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) = runOnUiThread { readPhone() }
+        override fun onLost(network: Network) = runOnUiThread { readPhone() }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-
         val prefs = AppPreferences(this)
         if (savedInstanceState == null && !prefs.isConfigured && !prefs.setupCompleted) {
-            startActivity(Intent(this, PairingActivity::class.java).putExtra("setup", true))
+            startActivity(Intent(this, PairingActivity::class.java).putExtra(PairingActivity.EXTRA_SETUP, true))
         }
-        openRequestedRow(intent)
+        openRequested(intent)
 
         setContent {
             val themeMode by viewModel.themeMode.collectAsState()
@@ -65,19 +64,39 @@ class MainActivity : ComponentActivity() {
                 onDispose {}
             }
             CompanionTheme(dark = dark) {
-                CompanionApp(viewModel = viewModel, captureViewModel = captureViewModel, listenerPermissionGranted = isPermissionGrantedState.value)
+                CompanionApp(viewModel = viewModel, captureViewModel = captureViewModel, phone = phone.value)
             }
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        openRequestedRow(intent)
+        openRequested(intent)
     }
 
-    private fun openRequestedRow(intent: Intent?) {
+    /** A notification's tap: a row's question or Rincian, or the question sheet from the evening reminder. */
+    private fun openRequested(intent: Intent?) {
         val rowId = intent?.getLongExtra(MappingConfirmationNotifier.EXTRA_ROW_ID, -1L) ?: -1L
         if (rowId >= 0) viewModel.requestOpen(rowId)
+        else if (intent?.getBooleanExtra(EveningReminderNotifier.EXTRA_OPEN_QUESTIONS, false) == true) viewModel.requestQuestions()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        try {
+            connectivity.registerDefaultNetworkCallback(networkWatch)
+        } catch (_: RuntimeException) {
+            // Without the callback the online state is still read on every resume.
+        }
+    }
+
+    override fun onStop() {
+        try {
+            connectivity.unregisterNetworkCallback(networkWatch)
+        } catch (_: IllegalArgumentException) {
+            // Never registered.
+        }
+        super.onStop()
     }
 
     override fun onResume() {
@@ -89,12 +108,24 @@ class MainActivity : ComponentActivity() {
             ReviewResultRefresh.refresh(this@MainActivity)
         }
         viewModel.loadMetadata()
-        val granted = FinancialNotificationListenerService.isPermissionGranted(this)
-        isPermissionGrantedState.value = granted
-        if (granted && !FinancialNotificationListenerService.isConnected.value) {
+        viewModel.refreshReport()
+        HealthReports.request(this)
+        readPhone()
+        if (phone.value.notificationAccess && !FinancialNotificationListenerService.isConnected.value) {
             android.service.notification.NotificationListenerService.requestRebind(
                 android.content.ComponentName(this, FinancialNotificationListenerService::class.java)
             )
         }
+    }
+
+    private fun readPhone() {
+        val network = connectivity.activeNetwork?.let(connectivity::getNetworkCapabilities)
+        phone.value = PhoneState(
+            paired = AppPreferences(this).isConfigured,
+            notificationAccess = FinancialNotificationListenerService.isPermissionGranted(this),
+            batteryUnrestricted = HealthSnapshots.batteryUnrestricted(this),
+            postNotifications = NotificationManagerCompat.from(this).areNotificationsEnabled(),
+            online = network?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        )
     }
 }

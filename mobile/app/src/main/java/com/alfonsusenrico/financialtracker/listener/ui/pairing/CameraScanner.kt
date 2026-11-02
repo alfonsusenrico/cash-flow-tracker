@@ -67,7 +67,7 @@ fun CameraScanner(onCode: (String) -> Unit, onClose: () -> Unit, onManual: () ->
                         try {
                             future.get()
                         } catch (_: Exception) {
-                            onError("Senter tidak tersedia. Gunakan API key manual atau pindai lagi.")
+                            onError("Senter nggak tersedia. Ketik kodenya aja atau pindai lagi.")
                         }
                     }
                 }, ContextCompat.getMainExecutor(context))
@@ -102,7 +102,7 @@ fun CameraScanner(onCode: (String) -> Unit, onClose: () -> Unit, onManual: () ->
             }
             Text("Arahkan ke kode QR", style = CompanionType.cardTitle, color = colors.text)
             Text("Buka Tracker Web → Pengaturan → Hubungkan ponsel. Kode berlaku 5 menit dan hanya sekali pakai.", style = CompanionType.body, color = colors.text2)
-            CompanionButton("Masukkan API key manual", onManual, Modifier.fillMaxWidth(), ButtonKind.GHOST)
+            CompanionButton("Ketik kode aja", onManual, Modifier.fillMaxWidth(), ButtonKind.GHOST)
         }
     }
 }

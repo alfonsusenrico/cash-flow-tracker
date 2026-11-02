@@ -5,11 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -19,117 +16,40 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
-import androidx.compose.material.icons.outlined.ExpandLess
-import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.alfonsusenrico.financialtracker.listener.ui.components.BentoTile
-import com.alfonsusenrico.financialtracker.listener.ui.components.CompanionCard
-import com.alfonsusenrico.financialtracker.listener.ui.components.Formatting
+import androidx.compose.material.icons.outlined.Autorenew
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import com.alfonsusenrico.financialtracker.listener.data.health.SelfTestProgress
+import com.alfonsusenrico.financialtracker.listener.data.health.SelfTestStep
+import com.alfonsusenrico.financialtracker.listener.data.health.StepState
+import com.alfonsusenrico.financialtracker.listener.ui.components.ButtonKind
+import com.alfonsusenrico.financialtracker.listener.ui.components.CompanionButton
+import com.alfonsusenrico.financialtracker.listener.ui.hub.OemHint
 import com.alfonsusenrico.financialtracker.listener.ui.components.Note
 import com.alfonsusenrico.financialtracker.listener.ui.model.StatusTone
-import com.alfonsusenrico.financialtracker.listener.ui.model.SyncHealth
 import com.alfonsusenrico.financialtracker.listener.ui.theme.CompanionTheme
 import com.alfonsusenrico.financialtracker.listener.ui.theme.CompanionType
-import com.alfonsusenrico.financialtracker.listener.ui.theme.TABULAR_FIGURES
 import com.alfonsusenrico.financialtracker.listener.ui.theme.ThemeMode
-
-/** The four health tiles (`.f-hgrid`); a tile's icon and word carry its state, not its colour. */
-@Composable
-fun HealthTiles(health: SyncHealth) {
-    val single = LocalDensity.current.fontScale >= 1.5f
-    val tiles = listOf(
-        Triple("Pendengar notifikasi", if (health.listenerConnected) "Aktif" else "Terputus", health.listenerConnected),
-        Triple("Sinkron terakhir", if (health.lastSyncAt > 0) Formatting.dateTime(health.lastSyncAt) else "Belum pernah", null),
-        Triple("Gagal disimpan", "${health.failedCaptures}", health.failedCaptures == 0),
-        Triple("Dibuang di ponsel", "${health.dropped}", null)
-    )
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        (if (single) tiles.chunked(1) else tiles.chunked(2)).forEach { pair ->
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                pair.forEach { (label, value, ok) -> HealthTile(label, value, ok, Modifier.weight(1f).fillMaxHeight()) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun HealthTile(label: String, value: String, ok: Boolean?, modifier: Modifier) {
-    val colors = CompanionTheme.colors
-    BentoTile(label, modifier, minHeight = 96.dp) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (ok != null) {
-                Icon(if (ok) Icons.Rounded.Check else Icons.Outlined.WarningAmber, null, tint = colors.text, modifier = Modifier.size(18.dp))
-            }
-            Text(value, style = CompanionType.tileState, color = colors.text)
-        }
-    }
-}
-
-/** Every listener figure the companion keeps, behind one expandable row. */
-@Composable
-fun ListenerDetails(health: SyncHealth) {
-    val colors = CompanionTheme.colors
-    var open by rememberSaveable { mutableStateOf(false) }
-    fun at(millis: Long) = if (millis > 0) Formatting.dateTime(millis) else "-"
-    CompanionCard(spacing = 4.dp) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
-                .clickable(role = Role.Button, onClickLabel = if (open) "Tutup" else "Buka") { open = !open }
-                .semantics { heading() },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Rincian pendengar", style = CompanionType.cardTitle, color = colors.text, modifier = Modifier.weight(1f))
-            Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = colors.text)
-        }
-        if (open) {
-            listOf(
-                "Sekarang" to if (health.listenerConnected) "Terhubung" else "Terputus",
-                "Terhubung sejak" to at(health.connectedAt),
-                "Terputus terakhir" to at(health.disconnectedAt),
-                "Jumlah terputus" to health.disconnectCount.toString(),
-                "Tangkapan terakhir" to at(health.lastCaptureAt),
-                "Gagal disimpan" to "${health.failedCaptures} (terakhir ${at(health.lastCaptureFailureAt)})",
-                "Dibuang di ponsel" to health.dropped.toString(),
-                "Kirim langsung terakhir" to "${at(health.lastDirectSyncAt)} (${health.lastDirectSyncOutcome ?: "-"})"
-            ).forEachIndexed { index, (label, value) ->
-                if (index > 0) HorizontalDivider(color = colors.border)
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 8.dp).semantics(mergeDescendants = true) {},
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(label, style = CompanionType.small, color = colors.text2)
-                    Text(
-                        value, style = CompanionType.small.copy(fontWeight = FontWeight(600), fontFeatureSettings = TABULAR_FIGURES),
-                        color = colors.text, modifier = Modifier.weight(1f), textAlign = TextAlign.End
-                    )
-                }
-            }
-        }
-    }
-}
 
 /** A whole-row switch, so the label and its state are announced together. */
 @Composable
@@ -163,11 +83,11 @@ fun SettingsNote(text: String) {
 
 /** A row that opens an Android settings page, with its current state. */
 @Composable
-fun LinkRow(label: String, state: String, onClick: () -> Unit) {
+fun LinkRow(label: String, state: String, onClick: () -> Unit, actionLabel: String = "Buka pengaturan Android") {
     val colors = CompanionTheme.colors
     Row(
         Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(12.dp))
-            .clickable(role = Role.Button, onClickLabel = "Buka pengaturan Android", onClick = onClick)
+            .clickable(role = Role.Button, onClickLabel = actionLabel, onClick = onClick)
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -224,4 +144,68 @@ private fun ThemeOption(mode: ThemeMode, selected: Boolean, onChoose: (ThemeMode
             color = if (selected) colors.onPrimary else colors.text
         )
     }
+}
+
+/** This phone's battery saver and how to keep the listener running, from [OemHints]. */
+@Composable
+fun OemNote(hint: OemHint) {
+    Note("HP-mu ${hint.brand} (${hint.system}). ${hint.steps}", StatusTone.WARN, Icons.Outlined.WarningAmber)
+}
+
+/** "Tes HP-ku": the setup self-test again, with its three steps while it runs. */
+@Composable
+fun SelfTestRow(progress: SelfTestProgress, onRun: () -> Unit) {
+    val colors = CompanionTheme.colors
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (progress.running || progress.outcome != null) SelfTestChecklist(progress)
+        CompanionButton(
+            if (progress.running) "Lagi ngetes…" else "Tes HP-ku", onRun, Modifier.fillMaxWidth(), ButtonKind.GHOST,
+            busy = progress.running, enabled = !progress.running
+        )
+        Text(
+            "Aku kirim notifikasi tes ke diriku sendiri. Ini bukan transaksi, jadi nggak bakal kecatat.",
+            style = CompanionType.meta.copy(fontSize = 13.sp), color = colors.text2
+        )
+    }
+}
+
+/** The self-test's three lines, each with an icon and a word for its state. */
+@Composable
+fun SelfTestChecklist(progress: SelfTestProgress) {
+    val colors = CompanionTheme.colors
+    Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        SelfTestStep.entries.forEach { step ->
+            val state = progress.steps[step] ?: StepState.WAITING
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 32.dp).semantics(mergeDescendants = true) {},
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    when (state) {
+                        StepState.DONE -> Icons.Rounded.Check
+                        StepState.FAILED -> Icons.Outlined.ErrorOutline
+                        StepState.RUNNING -> Icons.Outlined.Autorenew
+                        StepState.SKIPPED -> Icons.Outlined.Remove
+                        StepState.WAITING -> Icons.Outlined.Schedule
+                    }, null, tint = if (state == StepState.FAILED) colors.danger else colors.text, modifier = Modifier.size(18.dp)
+                )
+                Text(stepLabel(step), style = CompanionType.small, color = colors.text, modifier = Modifier.weight(1f))
+                Text(stateLabel(state), style = CompanionType.small.copy(fontWeight = FontWeight(650)), color = colors.text2)
+            }
+        }
+    }
+}
+
+fun stepLabel(step: SelfTestStep) = when (step) {
+    SelfTestStep.POST -> "Nampilin notifikasi tes"
+    SelfTestStep.CAPTURE -> "Nangkep pakai pendengarku"
+    SelfTestStep.SERVER -> "Ngabarin web kalau HP-mu siap"
+}
+
+fun stateLabel(state: StepState) = when (state) {
+    StepState.WAITING -> "Nunggu"
+    StepState.RUNNING -> "Lagi jalan"
+    StepState.DONE -> "Beres"
+    StepState.FAILED -> "Gagal"
+    StepState.SKIPPED -> "Dilewati"
 }

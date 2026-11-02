@@ -12,8 +12,8 @@ ksp {
 }
 
 // The source version; debug builds and untagged release builds keep it unchanged.
-val sourceVersionName = "2.3.4"
-val sourceVersionCode = 26
+val sourceVersionName = "2.4.0"
+val sourceVersionCode = 27
 
 // A tagged release (android-vX.Y.Z) passes X.Y.Z. The code comes from the numbers, so every newer
 // version installs over the previous one; MINOR and PATCH stay below 100 to keep that ordering.
