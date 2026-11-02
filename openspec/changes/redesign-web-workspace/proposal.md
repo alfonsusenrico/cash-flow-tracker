@@ -19,7 +19,17 @@ Recorded 2026-11-02:
    - Automatic top-up recording stays on; the backend already does this (phase 5 shows it, nothing changes).
 3. **Earlier approvals that still bind:** Phase 0 (2026-11-02): the product is public and multi-user, the design must not be specific to the owner, optional features stay hidden until needed, and amounts are never guessed.
 
-Where the preview conflicts with an approved money or salary-cycle rule, this change keeps the conservative behaviour and lists the question under design.md "Open decisions for owner". The main one is how "Aman dipakai hari ini" divides by days when the next salary date is not known.
+4. **Plan approval, 2026-11-02:** the owner approved this change (proposal, design, specs and tasks) with "approved with defaults, start phase 1". Every open decision is resolved to its recommended default:
+   - **OD1** keep the "CashFlow" name with a neutral mark.
+   - **OD2** no owner-entered salary date in phase 1. Without a regular salary date Beranda shows "Sisa" without a daily figure.
+   - **OD3** goal set-asides count in "Terjadwal" only for goals with a target date, one explained line per goal.
+   - **OD4** omit the net-worth delta until a historical valuation exists.
+   - **OD5** KPI chips are signed amounts over the same elapsed days, never percentages, and "Aman" has no chip.
+   - **OD6** delete in Transaksi asks for confirmation first (phase 3).
+   - **OD7** the third number reads "{n} hal nunggu jawabanmu (Rp X)", and its explanation shows what is already inside "Keluar".
+   - **OD8** Tanya ships deterministic intents first (phase 6). A model-backed answer needs its own approved change.
+
+Where the preview conflicts with an approved money or salary-cycle rule, this change keeps the conservative behaviour recorded in design.md. "Aman dipakai hari ini" never divides by a guessed salary date.
 
 ## Expected Outcome
 

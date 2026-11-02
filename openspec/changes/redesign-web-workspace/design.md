@@ -246,11 +246,11 @@ A later, separate change, `add-tanya-llm-answers`, would add free-form answers. 
 
 ## Risks / Trade-offs
 
-- [The safe-to-spend figure is unavailable for many users (fewer than three regular receipts)] → Beranda still shows the remaining amount and says what is missing. OD2 offers an owner-entered expected date as a follow-up.
+- [The safe-to-spend figure is unavailable for many users (fewer than three regular receipts)] → Beranda still shows the remaining amount and says what is missing. An owner-entered expected date stays a possible follow-up (OD2).
 - [Legacy pages look half-migrated inside the new shell between phases] → Compatibility aliases give them the new palette and type. A smoke pass of every legacy route is part of each phase's gate. Phases are kept short.
 - [Token aliases hide a legacy value that fails contrast on the new surfaces] → `tokens.test.ts` measures every alias pair on the new window and surfaces, and the browser axe run covers legacy routes at two widths.
 - [Two "outflow" numbers (Keluar with savings, the insight's belanja without)] → Distinct names, and the Keluar explanation lists saving as its own line.
-- [Scheduled goal set-asides look invented] → Only goals with a target date count. Each line shows the arithmetic, and OD3 lets the owner drop goals from "Terjadwal".
+- [Scheduled goal set-asides look invented] → Only goals with a target date count (OD3), and each line shows the arithmetic.
 - [Single-key shortcuts conflict with assistive technology] → Region scoping, field detection and the off switch (D8).
 - [The cycle summary duplicates logic that lives in `routers/dashboard.py`] → The service calls the same helpers (`get_kakeibo_breakdown`, `load_spending_offsets`, reportable SQL) instead of copying the SQL, and a test asserts equality with the overview's Kakeibo total.
 - [Phase 1 is the largest phase] → Tasks are grouped so tokens and shell can be reviewed before Beranda. If review shows it is too big, groups 1–3 can ship as their own PR without changing the plan.
@@ -264,16 +264,18 @@ A later, separate change, `add-tanya-llm-answers`, would add free-form answers. 
 
 ## Open decisions for owner
 
-| # | Decision | Recommended default (used by this plan) |
+All eight decisions were resolved on 2026-11-02 when the owner approved the plan with "approved with defaults, start phase 1" (proposal.md, "Approval"). Each takes its recommended default, and this plan already uses it.
+
+| # | Decision | Resolution (2026-11-02, default) |
 | --- | --- | --- |
-| OD1 | Product name and mark: adopt "Arus" from the preview? | Keep "CashFlow" with a neutral mark until you confirm; swapping is one constant and one SVG |
-| OD2 | When the next salary date cannot be estimated from regular receipts, may you enter an expected date yourself? | Not in phase 1: show "Sisa" without a daily figure. Add an owner-entered expected date in Pengaturan > Gaji as a small follow-up if you want it |
-| OD3 | Should goal set-asides count in "Terjadwal"? | Yes, but only goals with a target date, as the unfunded part of the even monthly pace, each line explained |
-| OD4 | "Kekayaan bersih … sejak awal siklus" delta | Omit until historical valuation exists. Investments are valued at current prices, so a start-of-cycle figure would be invented |
-| OD5 | KPI chips as percentages (preview) or amounts | Signed amounts over the same elapsed days, no percentages (keeps the approved fair-comparison rule); no "vs kemarin" chip on Aman |
-| OD6 | Delete in Transaksi: undo (needs soft delete and a migration) or confirm first | Confirm first in phase 3; soft delete with "Urungkan" as its own change if wanted |
-| OD7 | Wording of the third number: "belum dihitung" is true only for one-sided transfer legs | Lede says "{n} hal nunggu jawabanmu ({amount})", and the explanation shows what is already inside Keluar |
-| OD8 | Tanya free-form answers with a model | Phase 6 ships deterministic intents only. A separate LLM change follows only with your approval of provider, budget and privacy terms |
+| OD1 | Product name and mark: adopt "Arus" from the preview? | Keep "CashFlow" with a neutral mark. Swapping later is one constant and one SVG |
+| OD2 | When the next salary date cannot be estimated from regular receipts, may you enter an expected date yourself? | Not in phase 1: Beranda shows "Sisa" without a daily figure. An owner-entered date in Pengaturan > Gaji stays a possible follow-up |
+| OD3 | Should goal set-asides count in "Terjadwal"? | Yes, only goals with a target date, as the unfunded part of the even monthly pace, one explained line per goal |
+| OD4 | "Kekayaan bersih … sejak awal siklus" delta | Omitted until historical valuation exists |
+| OD5 | KPI chips as percentages (preview) or amounts | Signed amounts over the same elapsed days, no percentages, no chip on "Aman" |
+| OD6 | Delete in Transaksi: undo (needs soft delete and a migration) or confirm first | Confirm first in phase 3 |
+| OD7 | Wording of the third number | The lede says "{n} hal nunggu jawabanmu ({amount})", and the explanation shows what is already inside "Keluar" |
+| OD8 | Tanya free-form answers with a model | Deterministic intents first in phase 6. A model-backed answer needs its own approved change |
 
 ## Open Questions
 
