@@ -328,11 +328,12 @@ def list_transactions(
                 conditions.append("(t.notes ILIKE %s OR t.merchant ILIKE %s OR c.name ILIKE %s OR g.name ILIKE %s OR o.name ILIKE %s OR EXISTS (SELECT 1 FROM transaction_obligation_allocations a JOIN obligations debt ON debt.id = a.obligation_id WHERE a.transaction_id = t.id AND debt.name ILIKE %s))")
                 params.extend([search_pattern] * 6)
 
-            # Filtered views retain individual legs: either side may match independently. The Pindah saldo
-            # and Investasi tabs keep one row per movement, so their tab counts match their lists.
+            # Filtered views retain individual legs: either side may match independently. A period or date
+            # window and the Pindah saldo and Investasi tabs keep one row per movement (its outbound leg, or
+            # the only leg), so Transaksi's tab and day counts match the rows it lists.
             if logical_movements and not any((
                 account_id, category_id, goal_id, obligation_id, type not in (None, "movement", "investment"),
-                kakeibo_type, source, review_status, from_date, to_date, q, uncategorized, possible_duplicates, waiting,
+                kakeibo_type, source, review_status, q, uncategorized, possible_duplicates, waiting,
             )):
                 conditions.append(
                     """(

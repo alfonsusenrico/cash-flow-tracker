@@ -315,3 +315,19 @@ def test_detail_of_another_owners_row_is_not_found(client, ledger):
         assert client.get(f"/api/transactions/{ledger['rows']['a']}").status_code == 404
     finally:
         app.dependency_overrides[get_current_user] = identity
+
+
+def test_logical_movements_in_a_period_and_the_movement_tab(client, owner):
+    legs = manual_movement(client, owner, amount=40_000)
+    insert(owner, 5_000, datetime.now(JAKARTA) - timedelta(minutes=5))
+    window = "from_date=2000-01-01T00:00:00%2B07:00&logical_movements=true&include=type_counts,daily_totals&limit=50"
+    page = listing(client, window)
+    movement_rows = [row for row in page["transactions"] if row["movement_id"]]
+    assert len(movement_rows) == 1 and movement_rows[0]["id"] in legs and movement_rows[0]["movement_role"] == "outbound"
+    assert page["type_counts"]["movement"] == 1 and page["total"] == 2
+    assert sum(day["count"] for day in page["daily_totals"]) == 2
+    tab = listing(client, "type=movement&logical_movements=true&include=type_counts&limit=50")
+    assert tab["total"] == tab["type_counts"]["movement"] == 1
+    # Any row filter keeps both legs, because either side may match.
+    assert listing(client, f"account_id={owner['bca']}&logical_movements=true&limit=50")["total"] >= 1
+    assert listing(client, "type=movement&limit=50")["total"] == 2
