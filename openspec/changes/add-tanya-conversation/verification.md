@@ -37,8 +37,8 @@ Revisions: baseline `137eb6b`; revision under test and document-only commits are
 
 | Area | Tests | Result |
 | --- | --- | --- |
-| `lib/capture.ts` move (CatatDialog tests before and after) | | |
-| Navigation | | |
+| `lib/capture.ts` move (CatatDialog tests before and after) | `CatatDialog.test.tsx` unchanged; new `lib/capture.test.ts` | CatatDialog 6 passed before and 6 after; helpers 6 passed |
+| Navigation | `workspace.test.tsx`: group order Harian, AI, Uang, Laporan with `/tanya`; Tanya active on `/tanya`; rail has 11 named items; Lainnya lists Tanya first; tab bar unchanged | 108 passed (6 files) |
 | Intent table (phrases per intent, near misses, benchmark) | | |
 | Resolver | | |
 | Thread store (no persistence, user reset, cap) | | |

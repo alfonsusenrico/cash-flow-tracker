@@ -28,8 +28,8 @@ Expected Result: the plan matches the merged phase 3 code, and every later gate 
 
 ## 2. Shared pieces
 
-- [ ] 2.1 Move the capture types and calls from `CatatDialog.tsx` to `lib/capture.ts` (design D6): `parseCapture`, `submitCapture`, `answerCapture`, `undoCapture`, `deviceTime`, `newId`, `timeText` and `undoStillOpen`. `CatatDialog` imports them. Add unit tests for the moved helpers. Evidence: `CatatDialog`'s existing tests pass unchanged (count before and after), and the new helper tests pass.
-- [ ] 2.2 Add the nav entry (design D1):
+- [x] 2.1 Move the capture types and calls from `CatatDialog.tsx` to `lib/capture.ts` (design D6): `parseCapture`, `submitCapture`, `answerCapture`, `undoCapture`, `deviceTime`, `newId`, `timeText` and `undoStillOpen`. `CatatDialog` imports them. Add unit tests for the moved helpers. Evidence: `CatatDialog`'s existing tests pass unchanged (count before and after), and the new helper tests pass.
+- [x] 2.2 Add the nav entry (design D1):
   - the AI group with "Tanya" `/tanya` in `NAV_GROUPS`, between Harian and Uang;
   - `message-circle` in `Icon.tsx`;
   - the `PAGE_META` entry.
