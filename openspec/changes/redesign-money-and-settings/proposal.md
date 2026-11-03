@@ -37,6 +37,8 @@ Binding earlier approvals:
 
 **Carried-over scope, 2026-11-03.** Two small items found while accepting earlier phases are added as tasks 5.2a and 6.10: Beranda's lede greets with the display name as Tanya does (phase 6 acceptance), and the observed-insight and report cards that phase 4 left on their own markup are restyled with the alias removal. Neither changes a money figure.
 
+**Acceptance, 2026-11-03.** After the summary of verification.md and the screenshots, the owner asked to "fix the bug first" (OD70, fixed in task 7.7, CI "Checks" green on `b61259c`) and then said "accepted, defaults ok". The built-CSS gate miss of 586 bytes gzip (design "Implementation notes") is accepted with the phase. The change is archived on this branch before the merge.
+
 ## Expected Outcome
 
 - **Rekening & Kantong** matches the preview:

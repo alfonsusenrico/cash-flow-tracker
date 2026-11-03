@@ -250,7 +250,7 @@ Expected Result: phase 5 is proven locally. Every write is unchanged against `ma
 
 ## 8. Acceptance
 
-- [ ] 8.1 Present to the owner:
+- [x] 8.1 Present to the owner:
   - verification.md;
   - the key screenshots;
   - the unchanged-writes comparison;
