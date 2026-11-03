@@ -84,7 +84,7 @@ Undoing an accept, recategorise, rename, keep separate, purpose answer or histor
 #### Scenario: Purpose answer undone
 - **GIVEN** a merchant-less payment answered with a suggestion
 - **WHEN** the owner undoes the answer
-- **THEN** the row SHALL have its earlier values, the event's purpose question SHALL be open again with the same `question_id`, and the row SHALL be listed under "Apa ini?" again
+- **THEN** the row SHALL have its earlier values, the event's purpose question SHALL be open again with the same `question_id`, and the row SHALL be listed under "Belum dikenali" again
 
 #### Scenario: Keep separate undone
 - **GIVEN** an ambiguous leg kept separate

@@ -49,7 +49,7 @@ After a habit guess (habit-learning), suggestions SHALL rank the owner's other f
 - **THEN** the suggestions SHALL contain only the current classification and, for incoming transfers, the repayment suggestion.
 
 ### Requirement: Answer a Purpose Question
-`POST /api/ingest/notifications/{event_id}/answer-purpose` SHALL take `question_id`, `reply_id` and one of `suggestion_id` or `text`. A suggestion's values, or the validated output of a text normaliser, SHALL be applied with `classified_by = owner` and `review_status = reviewed`, closing the question and writing feedback and memory. If normalising fails, the text SHALL become the notes and the row SHALL stay `needs_review`. It SHALL be owner-scoped and idempotent on `reply_id`, and an applied answer SHALL return an undo token.
+`POST /api/ingest/notifications/{event_id}/answer-purpose` SHALL take `question_id`, `reply_id` and one of `suggestion_id` or `text`. A suggestion's values, or the validated output of a text normaliser, SHALL be applied with `classified_by = owner` and `review_status = reviewed`, closing the question and writing feedback and memory. If normalising fails, the text SHALL become the notes and the row SHALL stay `needs_review`. It SHALL be owner-scoped and idempotent on `reply_id`.
 
 #### Scenario: Answer with a suggestion
 - **WHEN** the owner answers with the suggestion "makan kafe senja" in "Makanan & Minuman"
@@ -117,3 +117,16 @@ A notification result SHALL include `review_status` and an open purpose `questio
 - **GIVEN** two open questions and one answered question
 - **WHEN** the owner lists purpose questions
 - **THEN** exactly the two open questions SHALL be returned, and none of another owner's.
+
+### Requirement: Purpose Answer Undo
+An applied purpose answer SHALL return an undo token under the review-undo contract. Undoing it SHALL restore the row and reopen the question as they were before the answer, and the undone answer SHALL NOT count as a learned example.
+
+#### Scenario: Undone answer reopens the question
+- **GIVEN** the owner answered the "Apa ini?" question of a Rp 45.000 QRIS payment with "makan kafe senja" in "Makanan & Minuman"
+- **WHEN** the owner sends the answer's `undo_token` to `POST /api/review/undo` within 10 minutes
+- **THEN** the row's notes, category, pillar, `review_status` and classifier SHALL be as before the answer, the event's purpose question SHALL be open again with its `question_id`, and an answer with a new `reply_id` SHALL be accepted
+
+#### Scenario: Undone answer is not evidence
+- **GIVEN** an answer that the owner undid
+- **WHEN** suggestions are ranked for the next purpose question of the same merchant
+- **THEN** the order SHALL be the same as before the answer was given

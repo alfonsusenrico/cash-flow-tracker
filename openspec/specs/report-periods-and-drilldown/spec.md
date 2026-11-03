@@ -87,7 +87,7 @@ Insights SHALL offer a salary-cycle / calendar-month switch and the ledger a per
 - **THEN** the figures SHALL use the calendar month for that step and the label SHALL say the salary cycle is unavailable
 
 ### Requirement: Ledger Filters in the URL
-The ledger SHALL read its period, date range (`from`, `to` as ISO instants), search text (`q`), category, pillar, type, account and review-status filters from the URL, SHALL write changes back to the URL, and SHALL show active filters as visible chips with a way to clear them. A date range SHALL be ignored when a period is also given.
+The ledger SHALL read its period, date range (`from`, `to` as ISO instants), search text (`q`), category, pillar, type, account, review-status, source and waiting filters from the URL, SHALL write every change back to the URL without a server round trip, and SHALL show active filters as visible chips with a way to clear them. A date range SHALL be ignored when a period is also given. A URL without `period` SHALL mean all time.
 
 #### Scenario: Clearing a filter chip
 - **GIVEN** the ledger opened with `category=<id>&type=expense`
@@ -101,6 +101,23 @@ The ledger SHALL read its period, date range (`from`, `to` as ISO instants), sea
 #### Scenario: Search from a link
 - **WHEN** the ledger opens with `q=<merchant>`
 - **THEN** its search field SHALL contain that text and the list SHALL be requested with it
+
+#### Scenario: Clearing back to the plain ledger
+- **GIVEN** the ledger was opened directly at `/ledger?type=income`
+- **WHEN** the owner selects the "Semua" tab
+- **THEN** the URL SHALL become `/ledger` and the list SHALL be requested without a type filter
+
+#### Scenario: Back and reload keep the filters
+- **WHEN** the owner selects the "Keluar" tab and the "Belum dicek" chip, reloads, and then opens a row and goes back
+- **THEN** the URL SHALL hold `type=expense&review=auto` after the reload, and back SHALL return to the list with the same filters
+
+#### Scenario: Navigation opens this cycle
+- **WHEN** the owner opens Transaksi from the sidebar or the phone tab bar
+- **THEN** the URL SHALL be `/ledger?period=cycle` and the list SHALL show the current payday cycle, while `/ledger` and existing links without `period` SHALL keep showing all time
+
+#### Scenario: Unknown filter values
+- **WHEN** the ledger opens with `type=foo&source=bar&waiting=2`
+- **THEN** each unknown value SHALL fall back to its default and the page SHALL open without an error
 
 ### Requirement: Uncategorised Ledger Filter
 The ledger list API SHALL accept `uncategorized=true` and SHALL reject it together with `category_id` with 422 `uncategorized_with_category`.
