@@ -186,7 +186,7 @@ export function TodoCard({
               <span className="ws-todo-sub">Tidak ada yang perlu dijawab.</span>
             </div>
             <Pill tone="ok" icon="check">
-              Beres
+              Selesai
             </Pill>
           </li>
         </ul>

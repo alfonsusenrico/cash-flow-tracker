@@ -29,8 +29,8 @@ export const STEP_LABELS: Record<ChecklistStepKey, string> = {
 };
 
 export const STEP_STATE_TEXT: Record<ChecklistStepState, string> = {
-  ok: "Beres",
-  fail: "Belum jalan",
+  ok: "Selesai",
+  fail: "Belum berjalan",
   wait: "Sedang diatur di HP",
   todo: "Belum",
 };

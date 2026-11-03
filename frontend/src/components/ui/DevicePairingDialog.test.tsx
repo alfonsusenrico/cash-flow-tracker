@@ -182,7 +182,7 @@ describe("live pairing checklist", () => {
     expect(within(dialog).getByText("Ada yang belum siap: Tes tangkap notifikasi")).toBeInTheDocument();
     const selfTest = within(dialog).getByText("Tes tangkap notifikasi").closest("li") as HTMLElement;
     expect(selfTest).toHaveAttribute("data-state", "fail");
-    expect(within(selfTest).getByText("Belum jalan")).toBeInTheDocument();
+    expect(within(selfTest).getByText("Belum berjalan")).toBeInTheDocument();
     expect(within(selfTest).getByText(text)).toBeInTheDocument();
     expect(within(dialog).getByText("Tenang, aplikasi di HP-mu bakal nunjukin cara benerinnya.")).toBeInTheDocument();
     expect(within(dialog).getByRole("status")).toHaveTextContent(`Tes tangkap notifikasi gagal. ${text}`);
