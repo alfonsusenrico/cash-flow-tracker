@@ -234,7 +234,7 @@ The drawer's "Jenis" control offers Keluar, Masuk, Pindah saldo and Top up Inves
 - **Live preview:**
   - Typing calls `POST /api/capture/parse` 300 ms after the last keystroke and aborts the earlier request.
   - The preview shows chips for each fact: amount, time, account, and category with pillar.
-  - When a fact is missing it shows a plain note: "Jam: ditanyakan setelah dicatat" when the time is ambiguous, "Rekening: ditanyakan setelah dicatat", "Kategori: dikenali setelah dicatat".
+  - When a fact is missing it shows a plain note: "Jam: ditanyakan setelah dicatat" when the time is ambiguous, "Rekening: ditentukan saat dicatat" (the capture may resolve it from history without asking), "Kategori: dikenali saat dicatat".
   - An empty field shows the hint line instead.
 - **Contract:**
 
@@ -290,6 +290,14 @@ The drawer's "Jenis" control offers Keluar, Masuk, Pindah saldo and Top up Inves
   - `/insights` writes no URL today.
   - If task 1.2 shows that a sidebar `<Link>` to the current path also fails from a query URL, the nav link calls the helper when the target path equals the current one. That is recorded in this design before the change is made.
 - **Next.js patch:** where the npm registry is reachable, task 1.2 also tests the reproduction against the newest Next.js 16.2 patch. A version bump is proposed to the owner only if it fixes the defect and every check passes. It is a dependency change and needs their go-ahead. The helper stays either way, because filter writes need no server.
+
+- **Re-established with a seeded backend and a real session (task 1.2, 2026-11-03, build of `28826f1`, Next.js 16.2.6):** the defect is wider than the first navigation. While the document's initial URL carries a query, **every** navigation to the same path fails, whatever the target query is and however often it is tried:
+  - the "Semua" chip from `/ledger?type=income`, the stepper from `/ledger?period=cycle`, the period segment from `/ledger?period=cycle&type=expense`, Laporan's basis toggle from `/laporan?basis=month`, and the sidebar `<Link>` "Transaksi" from `/ledger?type=income` all leave the URL and the list unchanged, with no list request;
+  - a second click fails the same way;
+  - from a plain initial URL (`/ledger`), the chips and the period segment work, and a link to another path (Beranda) works;
+  - `history.replaceState` in the failing state updates both the URL and the rendered filters.
+- **Newest patch:** the same seven steps on a scratch copy with Next.js 16.2.12 (the newest 16.2 patch on 2026-11-03) fail identically, so no version bump is proposed.
+- **Therefore** the helper also serves the navigation links: `SideNav` and `PhoneTabBar` handle a click on a link whose path equals the current path by `pushSearch`, so "Transaksi" from a filtered ledger opens `/ledger?period=cycle` (OD20). Links to other paths stay ordinary `<Link>`s.
 
 *Rejected:* `router.refresh()` after `router.replace`, which adds a server round trip and does not fix the uncommitted navigation. A hard `location` navigation, which reloads the page and loses state.
 
@@ -397,7 +405,7 @@ The owner's direction of 2026-11-03 (proposal, "Approval" item 7) sets the regis
 | Transaksi "Keluar" equals Beranda's Keluar, including Tabungan | The ledger summary counts spending only; Beranda's Keluar adds net fresh saving | Labelled "Belanja", with the caption "Di Beranda, Keluar = Belanja + yang ditabung" (OD24) |
 | Day "keluar" is one net number | Offsets are per category and window and cannot be placed on a day | Day headings gross; the KPI net, with "sudah dikurangi penggantian Rp X" |
 | Any row can switch to "Pindah saldo" | A movement needs two legs; no single-row endpoint | Selection-mode merge (OD23) |
-| Catat guesses a pillar from keywords | Amounts and facts are deterministic; category comes from memory or the capture path; no guessing in the preview | Server parse; "Kategori: dikenali setelah dicatat" |
+| Catat guesses a pillar from keywords | Amounts and facts are deterministic; category comes from memory or the capture path; no guessing in the preview | Server parse; "Kategori: dikenali saat dicatat" |
 | Chip counts | One aggregate per chip per request | Tab counts only |
 | "Ekspor" button | Not an existing feature | Not built |
 

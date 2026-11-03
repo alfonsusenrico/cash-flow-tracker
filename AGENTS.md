@@ -100,6 +100,8 @@ Use [frontend/tokens.css](frontend/tokens.css) (workspace tokens; legacy names l
 
 Keep account/pocket and financial status hierarchy legible at mobile and desktop densities. Do not add pseudo health meters or decorative empty KPI cards. Use tabular figures for comparable financial numbers. Preserve actual token choices; missing CSS variables, geometry/font-weight differences and the obsolete preset contract are recorded follow-ups, not new exceptions or fixes in this adoption.
 
+Copy register ([ui-copy-register](openspec/specs/ui-copy-register/spec.md) after the `redesign-transactions-workspace` archive, owner direction 2026-11-03): everything the interface names or labels (navigation, titles, headings, tabs, folders, chips, buttons, form labels and placeholders, status pills, figure names, captions, toasts, errors, empty states, figure explanations) is neutral standard Indonesian: "sudah"/"tidak", no slang ("nggak", "udah", "beres", "nangkep", "bikin", "aja"), and no "kamu"/"-mu". The casual assistant voice stays only in conversation: the connect-phone guide prose, AI and suggestion questions, the Tanya chat and Beranda's summary sentence. User data is never rewritten. `frontend/src/copyRegister.test.ts` guards it; add a conversational string to its allowlist only with that reason.
+
 Language sources: [Indonesian UI spec](openspec/specs/indonesian-daily-finance-ui/spec.md), [money/input formatters](frontend/src/lib/utils.ts), and the notification prompt linked above. Every page declares `lang="id"`.
 
 ## References
