@@ -10,10 +10,16 @@ import { NOTHING_TO_UNDO, UndoStack, batchOf, undoEntry, undoMessage, type UndoE
 /** Every view a drawer action can change (transaction-ledger-management "Consistent Post-Mutation Refresh"). */
 export function useRefreshTransactionViews() {
   const qc = useQueryClient();
-  return useCallback(() => {
+  /**
+   * `deletedId`: a row that no longer exists; its detail is not refetched into a 404. `drop` also removes it
+   * from the cache, which only a drawer that is closing may do (an open one would fetch it again).
+   */
+  return useCallback((deletedId?: string, drop = false) => {
+    if (deletedId && drop) qc.removeQueries({ queryKey: queryKeys.transactions.detail(deletedId) });
+    const deletedDetail = deletedId ? queryKeys.transactions.detail(deletedId).join("/") : null;
     for (const key of [queryKeys.transactions.all, queryKeys.review.all, queryKeys.dashboard.all, queryKeys.accounts,
       queryKeys.goals, queryKeys.obligations, queryKeys.pulse, queryKeys.insights]) {
-      qc.invalidateQueries({ queryKey: key });
+      qc.invalidateQueries({ queryKey: key, predicate: (query) => query.queryKey.join("/") !== deletedDetail });
     }
   }, [qc]);
 }

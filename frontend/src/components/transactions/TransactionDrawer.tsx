@@ -120,8 +120,8 @@ export function TransactionDrawer({
 
   // A row deleted elsewhere: the lists behind the drawer still show it, so they reload.
   useEffect(() => {
-    if (missing) refresh();
-  }, [missing, refresh]);
+    if (missing) refresh(transactionId ?? undefined);
+  }, [missing, refresh, transactionId]);
 
   const markChecked = useMutation({
     mutationFn: (target: LedgerRowDetail) => api.post<UndoFields>("/review/bulk", { action: "accept", transaction_ids: [target.id] }),
@@ -135,10 +135,10 @@ export function TransactionDrawer({
   const remove = useMutation({
     mutationFn: (target: LedgerRowDetail) => api.del(deletePath(target)),
     onSuccess: (_result, target) => {
-      refresh();
+      onClose();
+      refresh(target.id, true);
       showToast("Transaksi dihapus.");
       onDeleted?.(target);
-      onClose();
     },
     onError: (error: Error) => setActionError(error.message || "Gagal menghapus transaksi."),
   });
@@ -288,12 +288,10 @@ export function TransactionDrawer({
 
             {mode === "view" && (
               <div className="ws-tx-actions">
-                {!row.waiting && (
-                  <button type="button" className="ws-btn" onClick={() => (editInline ? setMode("edit") : setModalEdit(true))}>
-                    <Icon name="edit" className="h-4 w-4" />
-                    Ubah
-                  </button>
-                )}
+                <button type="button" className="ws-btn" onClick={() => (editInline ? setMode("edit") : setModalEdit(true))}>
+                  <Icon name="edit" className="h-4 w-4" />
+                  Ubah
+                </button>
                 {checkable(row) && (
                   <button type="button" className="ws-btn" disabled={markChecked.isPending} onClick={() => markChecked.mutate(row)}>
                     <Icon name="check" className="h-4 w-4" />

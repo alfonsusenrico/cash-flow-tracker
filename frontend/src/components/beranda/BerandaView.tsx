@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { EmergencyRunway, essentialBasisText } from "@/components/dashboard/EmergencyCoverage";
@@ -684,6 +684,13 @@ export default function BerandaView() {
     return rows ? consolidateLedgerMovements(rows, true) : null;
   }, [activityQuery.data]);
   const recent = activity ? activity.slice(0, ACTIVITY_LIMIT) : null;
+  // A row deleted from the drawer leaves the list once Beranda refreshes; focus then goes to the main region.
+  const [deletedId, setDeletedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!deletedId || activity?.some((row) => row.id === deletedId)) return;
+    if (document.activeElement === document.body) document.getElementById("main")?.focus();
+    setDeletedId(null);
+  }, [deletedId, activity]);
   const todayRows = activity ? activity.filter((row) => jakartaDay(row.date) === today) : [];
   const autoToday = todayRows.filter((row) => row.review_status === "auto").length;
 
@@ -806,7 +813,7 @@ export default function BerandaView() {
         )}
       </div>
 
-      <TransactionDrawer transactionId={selectedTx?.id ?? null} onClose={() => setSelectedTx(null)} record={record} />
+      <TransactionDrawer transactionId={selectedTx?.id ?? null} onClose={() => setSelectedTx(null)} record={record} onDeleted={(row) => setDeletedId(row.id)} />
       <Drawer open={plansOpen} onClose={() => setPlansOpen(false)} title="Rencana jatuh tempo" subtitle="Tautkan, lewati, atau catat manual">
         <PendingScheduledBanner onOpenRulesManager={() => setRulesOpen(true)} />
         {!(pendingQuery.data?.rules ?? []).length && !(pendingQuery.data?.recent_auto_links ?? []).length && (

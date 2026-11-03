@@ -263,14 +263,18 @@ function LedgerPageContent() {
     replaceSearch(query ? `/ledger?${query}` : "/ledger");
   };
 
+  // After a delete, focus moves to the next row (or the list heading) once the refreshed list no longer has it.
+  const [deleted, setDeleted] = useState<{ id: string; neighbour: string | null } | null>(null);
   const afterDelete = (row: { id: string }) => {
     const index = shownRows.findIndex((item) => item.id === row.id);
-    const neighbour = shownRows[index + 1] ?? shownRows[index - 1];
-    window.setTimeout(() => {
-      const target = neighbour ? document.querySelector<HTMLElement>(`[data-tx-row="${neighbour.id}"]`) : null;
-      (target ?? listHeadingRef.current)?.focus();
-    }, 0);
+    setDeleted({ id: row.id, neighbour: (shownRows[index + 1] ?? shownRows[index - 1])?.id ?? null });
   };
+  useEffect(() => {
+    if (!deleted || shownRows.some((item) => item.id === deleted.id)) return;
+    const target = deleted.neighbour ? document.querySelector<HTMLElement>(`[data-tx-row="${deleted.neighbour}"]`) : null;
+    (target ?? listHeadingRef.current)?.focus();
+    setDeleted(null);
+  }, [deleted, shownRows]);
 
   // Selection for "Jadikan Pindah Saldo": two unlinked rows, one out and one in (OD23).
   const selectionDisabled = useCallback((row: LedgerRow) => {

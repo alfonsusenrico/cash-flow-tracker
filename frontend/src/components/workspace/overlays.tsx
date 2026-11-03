@@ -64,7 +64,10 @@ export function Drawer({
     if (!open) return;
     returnFocus.current = document.activeElement as HTMLElement | null;
     return () => {
-      returnFocus.current?.focus?.();
+      // A row deleted from the drawer is gone; focus then goes to the main region, not to the page body.
+      const target = returnFocus.current;
+      if (target?.isConnected) target.focus();
+      else document.getElementById("main")?.focus();
     };
   }, [open]);
 

@@ -1048,3 +1048,4 @@ dialog.ws-more::backdrop { background: var(--scrim); }
 @media (prefers-reduced-motion: reduce) {
   .ws-tx-row td { transition: none; }
 }
+.ws-tx-more .ws-linkbtn { display: inline-flex; align-items: center; min-height: 24px; }
