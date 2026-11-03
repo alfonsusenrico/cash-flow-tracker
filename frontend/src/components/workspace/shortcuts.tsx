@@ -31,8 +31,27 @@ export interface ShortcutDefinition {
 
 export const SHORTCUTS_STORAGE_KEY = "shortcuts";
 
+/** One line of the help dialog: the keys and what they do. */
+export interface ShortcutHelpEntry {
+  keys: string[];
+  text: string;
+}
+
+/**
+ * A page's own keys, listed in the help under the page's name only while the page is mounted. The keys
+ * themselves are registered with `useShortcut` and a scope; Enter stays native and is only described.
+ */
+export interface PageShortcutGroup {
+  name: string;
+  /** How the switch caption names these keys, for example "tombol satu huruf di Tinjau". */
+  caption: string;
+  entries: ShortcutHelpEntry[];
+}
+
 interface ShortcutContextValue {
   register: (definition: ShortcutDefinition) => () => void;
+  registerPageGroup: (group: PageShortcutGroup) => () => void;
+  pageGroups: PageShortcutGroup[];
   singleKeysEnabled: boolean;
   setSingleKeysEnabled: (enabled: boolean) => void;
   openHelp: () => void;
@@ -64,6 +83,7 @@ export function ShortcutProvider({ children }: { children: ReactNode }) {
   const registry = useRef(new Set<ShortcutDefinition>());
   const [singleKeysEnabled, setEnabledState] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [pageGroups, setPageGroups] = useState<PageShortcutGroup[]>([]);
   const enabledRef = useRef(true);
 
   useEffect(() => {
@@ -87,6 +107,11 @@ export function ShortcutProvider({ children }: { children: ReactNode }) {
     return () => {
       registry.current.delete(definition);
     };
+  }, []);
+
+  const registerPageGroup = useCallback((group: PageShortcutGroup) => {
+    setPageGroups((groups) => [...groups, group]);
+    return () => setPageGroups((groups) => groups.filter((item) => item !== group));
   }, []);
 
   const openHelp = useCallback(() => setHelpOpen(true), []);
@@ -114,8 +139,8 @@ export function ShortcutProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ register, singleKeysEnabled, setSingleKeysEnabled, openHelp }),
-    [register, singleKeysEnabled, setSingleKeysEnabled, openHelp],
+    () => ({ register, registerPageGroup, pageGroups, singleKeysEnabled, setSingleKeysEnabled, openHelp }),
+    [register, registerPageGroup, pageGroups, singleKeysEnabled, setSingleKeysEnabled, openHelp],
   );
 
   return (
@@ -143,17 +168,47 @@ export function useShortcut(key: string, handler: (event: KeyboardEvent) => void
   useEffect(() => register({ key, scope, handler: (event) => handlerRef.current(event) }), [register, key, scope]);
 }
 
+/** Lists a page's keys in the help while the calling component is mounted; pass a stable object. */
+export function usePageShortcutGroup(group: PageShortcutGroup) {
+  const { registerPageGroup } = useShortcuts();
+  useEffect(() => registerPageGroup(group), [registerPageGroup, group]);
+}
+
 function ShortcutHelpRegistration({ onOpen }: { onOpen: () => void }) {
   useShortcut("?", onOpen);
   return null;
 }
 
-const GLOBAL_KEYS: { keys: string[]; text: string }[] = [
+const GLOBAL_KEYS: ShortcutHelpEntry[] = [
   { keys: ["⌘", "K"], text: "Cari transaksi (Ctrl+K di Windows)" },
   { keys: ["N"], text: "Catat transaksi" },
   { keys: ["?"], text: "Buka bantuan ini" },
   { keys: ["Esc"], text: "Tutup penjelasan, menu, atau jendela yang terbuka" },
 ];
+
+function KeyList({ entries }: { entries: ShortcutHelpEntry[] }) {
+  return (
+    <dl className="ws-keys">
+      {entries.map((entry) => (
+        <div key={entry.text} className="contents">
+          <dt>
+            {entry.keys.map((key) => (
+              <kbd key={key} className="ws-kbd mr-1">
+                {key}
+              </kbd>
+            ))}
+          </dt>
+          <dd>{entry.text}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function switchCaption(groups: PageShortcutGroup[]): string {
+  if (!groups.length) return "N dan ? jalan tanpa tombol lain.";
+  return `N, ?, dan ${groups.map((group) => group.caption).join(", ")} jalan tanpa tombol lain.`;
+}
 
 export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -187,20 +242,13 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
               <Icon name="x" className="h-4 w-4" />
             </button>
           </div>
-          <dl className="ws-keys">
-            {GLOBAL_KEYS.map((entry) => (
-              <div key={entry.text} className="contents">
-                <dt>
-                  {entry.keys.map((key) => (
-                    <kbd key={key} className="ws-kbd mr-1">
-                      {key}
-                    </kbd>
-                  ))}
-                </dt>
-                <dd>{entry.text}</dd>
-              </div>
-            ))}
-          </dl>
+          <KeyList entries={GLOBAL_KEYS} />
+          {context?.pageGroups.map((group) => (
+            <section key={group.name} aria-label={group.name}>
+              <h3 className="ws-keys-h">{group.name}</h3>
+              <KeyList entries={group.entries} />
+            </section>
+          ))}
           {context && (
             <button
               type="button"
@@ -212,7 +260,7 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
               <span>
                 <span className="block font-medium">Pintasan satu tombol</span>
                 <span className="block text-[13px] text-[var(--muted)]">
-                  N dan ? jalan tanpa tombol lain. Matikan kalau bentrok dengan pembaca layar atau alat bantumu.
+                  {switchCaption(context.pageGroups)} Matikan kalau bentrok dengan pembaca layar atau alat bantumu.
                 </span>
               </span>
               <span className="ws-switch-track" aria-hidden="true" />
