@@ -58,7 +58,7 @@ Expected Result: phase 2 is proven locally at all five widths in both themes, wi
 
 ## 6. Acceptance
 
-- [ ] 6.1 Present verification.md, the screenshots and OD14–OD17 to the owner. Record the acceptance with the owner's words and date in proposal.md and in PROJECT_STATE.md, together with the recorded debt (capture undo leaves its `capture` feedback row, see design.md Risks). Evidence: the owner's words quoted with the date.
+- [x] 6.1 Present verification.md, the screenshots and OD14–OD17 to the owner. Record the acceptance with the owner's words and date in proposal.md and in PROJECT_STATE.md, together with the recorded debt (capture undo leaves its `capture` feedback row, see design.md Risks). Evidence: the owner's words quoted with the date. Done 2026-11-03 in proposal.md item 8. PROJECT_STATE.md lives only in the owner's checkout, which agents do not edit, so the owner was told instead.
 
 ## Workflow follow-up
 

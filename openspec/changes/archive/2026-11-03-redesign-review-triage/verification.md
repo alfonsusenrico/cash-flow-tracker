@@ -108,3 +108,7 @@ Screenshots (`web-p2/matrix/`): `review-{1440,1280,1024,768,390}-{light,dark}.pn
 - Screen readers were not run; semantics were checked with axe and role queries.
 - Returning from `/ledger?edit=…&return=review` to the exact item is phase 3 work (D7); Tinjau selects by the D6 rule.
 - The capture undo still leaves its `capture` feedback row (existing debt, design Risks).
+
+## Acceptance
+
+- 2026-11-03: CI "Checks" run 41568677747 on `6032613` passed (backend on PostgreSQL 16, frontend, compose and backup). The owner merged PR #63 (merge `6992b4b`) and said "accepted, defaults ok". The change was archived afterwards on `docs/archive-redesign-review-triage`, because the pull request merged before the archive commit.

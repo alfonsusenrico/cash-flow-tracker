@@ -91,7 +91,7 @@ The redesign SHALL keep every existing route and query parameter working: `/`, `
 - **THEN** the matching report SHALL open
 
 ### Requirement: Global Keyboard Shortcuts
-The workspace SHALL support ⌘K/Ctrl+K to focus search, N to open capture, ? to open the shortcut help and Esc to close the top-most popover, sheet, drawer or dialog. Single-key shortcuts SHALL be ignored while typing in a field and SHALL be switchable off in the help dialog; the choice SHALL persist in the browser.
+The workspace SHALL support ⌘K/Ctrl+K to focus search, N to open capture, ? to open the shortcut help and Esc to close the top-most popover, sheet, drawer or dialog. Single-key shortcuts SHALL be ignored while typing in a field and SHALL be switchable off in the help dialog; the choice SHALL persist in the browser. The help SHALL also list the keys of the open page, and the switch SHALL cover them.
 
 #### Scenario: Typing in a field
 - **WHEN** the owner types "n" into the search field
@@ -100,6 +100,11 @@ The workspace SHALL support ⌘K/Ctrl+K to focus search, N to open capture, ? to
 #### Scenario: Turning single-key shortcuts off
 - **WHEN** the owner turns off "Pintasan satu tombol" and later presses N or ? outside a field
 - **THEN** nothing SHALL happen, while ⌘K/Ctrl+K and Esc keep working, and the setting SHALL survive a reload
+
+#### Scenario: Page keys in the help
+- **GIVEN** a page that registers its own keys, such as Tinjau
+- **WHEN** the owner opens the help on that page and on Beranda
+- **THEN** that page's keys SHALL be listed under the page's name only while it is open, and the switch caption SHALL say that it also turns them off
 
 ### Requirement: Companion Status
 The sidebar foot SHALL show whether a paired phone is ready, from the owner's devices and their latest health report: ready with the time of its last contact, needs attention with the reason, or no phone paired with a link to pairing. It SHALL be text, not colour alone.

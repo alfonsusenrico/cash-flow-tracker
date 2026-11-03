@@ -16,6 +16,7 @@ Binding earlier approvals:
 6. **Start of phase 2, 2026-11-03.** The owner said "merged, start phase 2". This authorises planning. It does not approve this plan.
 
 7. **Phase 2 plan, 2026-11-03.** The owner approved this plan (proposal, design, specs and tasks) with "approved, defaults ok". OD14–OD17 take their recommended defaults (design.md, "Open decisions for owner").
+8. **Acceptance, 2026-11-03.** After reviewing verification.md and the screenshots, the owner merged PR #63 and said "accepted, defaults ok". OD18 and OD19 keep their applied defaults. The header and badge keep counting rows while the inbox position counts merchant groups (OD16), and the focus outline on the item heading stays as built. Recorded debt: a capture undo still leaves its `capture` feedback row (design.md, Risks).
 
 ## Expected Outcome
 
