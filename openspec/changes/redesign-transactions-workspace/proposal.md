@@ -24,6 +24,7 @@ Binding earlier approvals:
 5. **Verification by the agent, 2026-11-03.** The owner said "I'm not going to test anything until all phases done implemented properly and approved". The agent's own checks are therefore the whole runtime evidence for this phase: the browser matrix, the real-interface flows, and screenshots the agent has read.
 6. **Start of phase 3, 2026-11-03.** The owner said "start phase 3". This authorised planning.
 7. **Phase 3 plan and the copy register, 2026-11-03.** The owner approved this plan with "approved, defaults ok": OD20–OD26 take their recommended defaults, except OD25, which the next sentence changes. The owner added: "for all labels shown in the app it should be not that informal terms or language for example "Udah dicek" it's good for onboarding interactive messages, but for label or term used in the UI should not use that kind of terms. I hope you can tell the difference and decide which is when". The lead's decision is design D20 and OD27: labels in neutral standard Indonesian, the casual voice only in conversation, and a sweep of the existing web copy in this phase.
+8. **Acceptance, 2026-11-03.** After the summary of verification.md and the screenshots, the owner merged PR #65 and said "accepted, defaults ok". The departures listed in design.md "Implementation notes" stand as built. The change was archived afterwards on `docs/archive-redesign-transactions-workspace`, because the pull request merged before the archive commit.
 
 ## Expected Outcome
 

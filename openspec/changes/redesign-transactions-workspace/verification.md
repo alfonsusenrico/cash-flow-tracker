@@ -135,3 +135,7 @@ Evidence:
 - Open a row on the phone and on the computer; try "Tandai sudah dicek" and Urungkan, "Top up Investasi" and Urungkan, and a delete after reading its confirmation.
 - Catat from the phone tab and with N: one sentence with an amount, one without, and one with an ambiguous time.
 - The wording: labels, buttons and messages should read as neutral Indonesian everywhere; the casual voice should remain only in the Beranda sentence, the connect-phone guide and the app's own questions.
+
+## Acceptance
+
+- 2026-11-03: CI "Checks" on `0abe48a` passed. The owner merged PR #65 (merge `3189a91`) and said "accepted, defaults ok". The end-of-redesign check list above stays open for the owner's review after all phases.

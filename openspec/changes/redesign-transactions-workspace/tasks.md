@@ -125,7 +125,7 @@ Expected Result: recording by text, Beranda's rows and Tinjau's edits all go thr
 
 ## 6. Integration verification
 
-- [ ] 6.1 **Full checks:** run `npm ci`, `npm test`, `npm run type-check`, `npm run lint` and `npm run build` in `frontend`, the backend suite on a disposable Flyway-migrated PostgreSQL 16, `openspec validate --all` (exit 0), `openspec validate --all --strict` (only the main-spec warning that 5.4 fixes may remain before the archive), and `git diff --check`. Evidence: pass, fail and skip counts tied to the commit.
+- [x] 6.1 **Full checks:** run `npm ci`, `npm test`, `npm run type-check`, `npm run lint` and `npm run build` in `frontend`, the backend suite on a disposable Flyway-migrated PostgreSQL 16, `openspec validate --all` (exit 0), `openspec validate --all --strict` (only the main-spec warning that 5.4 fixes may remain before the archive), and `git diff --check`. Evidence: pass, fail and skip counts tied to the commit. Done: verification.md §3, §4 and §6, and CI "Checks" green on `0abe48a`.
 - [x] 6.2 **Browser matrix** with a seeded synthetic owner (D16, D17) on `/ledger` (list), `/ledger?edit=<id>` (drawer: side, overlay or sheet), the Catat dialog (empty, preview, refused, question) and `/ledger?period=cycle&type=investment`. Check per cell:
   - axe with zero serious or critical violations;
   - measured contrast of tabs, chips, day headings, pills, amounts and captions;
@@ -157,7 +157,7 @@ Expected Result: phase 3 is proven locally at all five widths in both themes, wi
 
 ## 7. Acceptance
 
-- [ ] 7.1 Present to the owner:
+- [x] 7.1 Present to the owner:
   - verification.md;
   - the matrix and flow screenshots, which the agent has read;
   - the preview conflicts;
