@@ -428,15 +428,15 @@ Baselines are measured first, on the rebased branch, before any change.
 
 | ID | Question | Recommended default |
 | --- | --- | --- |
-| OD40 | Where category and budget management lives | **Stay on Analisis**, as Ringkasan's last card "Kategori & anggaran" (D5). Moving it to Pengaturan changes two specs and belongs with phase 5's plan |
-| OD41 | What Ringkasan's Kakeibo compares | **Kakeibo buckets with net fresh saving for both windows** (D3), so the total equals Beranda's Keluar. The alternative, `pillars`, leaves savings transfers out |
-| OD42 | "Kebiasaan dihafal" on Ringkasan | **Added by phase 5** together with `GET /api/habits`. Phase 4 leaves no placeholder |
-| OD43 | The weekday heatmap card | **Remove it from Analisis.** Kalender shows spending per day. The API field `day_of_week_heatmap` stays for compatibility |
-| OD44 | Account node granularity in Peta Aliran | **Top-level liquid accounts with their non-goal pockets folded.** Goal-linked pockets are saving nodes, and investment parents are investment nodes |
-| OD45 | Replay speed | **One day per 800 ms after each response**, off under reduced motion, with the slider always available |
-| OD46 | First day of the calendar week | **Monday**, as the preview and Indonesian calendars do |
-| OD47 | Heat levels | **Five levels from the period's own quartiles of non-zero days**, rounded to Rp 1.000 and written in the legend. Fixed amounts would make most months one colour |
-| OD48 | Expenses in excluded categories on the map | **A node "Tidak dihitung belanja"**, so every row on an account has a link and the account balances |
+| OD40 (resolved 2026-11-03: "approved, defaults ok") | Where category and budget management lives | **Stay on Analisis**, as Ringkasan's last card "Kategori & anggaran" (D5). Moving it to Pengaturan changes two specs and belongs with phase 5's plan |
+| OD41 (resolved 2026-11-03: "approved, defaults ok") | What Ringkasan's Kakeibo compares | **Kakeibo buckets with net fresh saving for both windows** (D3), so the total equals Beranda's Keluar. The alternative, `pillars`, leaves savings transfers out |
+| OD42 (resolved 2026-11-03: "approved, defaults ok") | "Kebiasaan dihafal" on Ringkasan | **Added by phase 5** together with `GET /api/habits`. Phase 4 leaves no placeholder |
+| OD43 (resolved 2026-11-03: "approved, defaults ok") | The weekday heatmap card | **Remove it from Analisis.** Kalender shows spending per day. The API field `day_of_week_heatmap` stays for compatibility |
+| OD44 (resolved 2026-11-03: "approved, defaults ok") | Account node granularity in Peta Aliran | **Top-level liquid accounts with their non-goal pockets folded.** Goal-linked pockets are saving nodes, and investment parents are investment nodes |
+| OD45 (resolved 2026-11-03: "approved, defaults ok") | Replay speed | **One day per 800 ms after each response**, off under reduced motion, with the slider always available |
+| OD46 (resolved 2026-11-03: "approved, defaults ok") | First day of the calendar week | **Monday**, as the preview and Indonesian calendars do |
+| OD47 (resolved 2026-11-03: "approved, defaults ok") | Heat levels | **Five levels from the period's own quartiles of non-zero days**, rounded to Rp 1.000 and written in the legend. Fixed amounts would make most months one colour |
+| OD48 (resolved 2026-11-03: "approved, defaults ok") | Expenses in excluded categories on the map | **A node "Tidak dihitung belanja"**, so every row on an account has a link and the account balances |
 
 ## Risks / Trade-offs
 

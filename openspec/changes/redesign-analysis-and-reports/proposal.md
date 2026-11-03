@@ -33,7 +33,7 @@ Binding earlier approvals:
 5. **Copy register, 2026-11-03.** The owner said: "for all labels shown in the app it should be not that informal terms or language for example "Udah dicek" it's good for onboarding interactive messages, but for label or term used in the UI should not use that kind of terms. I hope you can tell the difference and decide which is when". The lead's rule (phase 3 D20) is binding for this phase.
 6. **Planning of phases 4 to 6, 2026-11-03.** The owner said "yes, plan P4–P6 now". This authorises planning. It does not approve this plan.
 
-This plan is **pending the owner's approval**. No implementation starts before it.
+**Plan approval, 2026-11-03.** After a combined summary of the phase 4, 5 and 6 plans, the owner approved all three with "approved, defaults ok". OD40–OD48 take their recommended defaults (design.md, open decisions).
 
 ## Expected Outcome
 
