@@ -238,7 +238,8 @@ export function TanyaView() {
     <div className={styles.page}>
       <header className={styles.intro}>
         <div className={styles.introText}>
-          <h1 className={styles.greeting}>{greeting(hour, name)}</h1>
+          {/* The top bar holds the page h1 ("Tanya"); the greeting is the page's first section heading. */}
+          <h2 className={styles.greeting}>{greeting(hour, name)}</h2>
           {summary && <p className={styles.lead}>{leadLine(summary, reviewAttention, bal)}</p>}
         </div>
         {!empty && (

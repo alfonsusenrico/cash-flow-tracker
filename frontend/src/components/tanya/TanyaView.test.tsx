@@ -175,18 +175,18 @@ async function ask(user: ReturnType<typeof userEvent.setup>, composer: HTMLEleme
 describe("Tanya page", () => {
   it("greets by first name and leads with safe-to-spend and the waiting count", async () => {
     setup();
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^(Pagi|Siang|Sore|Malam), Raka\.$/);
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(/^(Pagi|Siang|Sore|Malam), Raka\.$/);
     expect(await screen.findByText("Aman dipakai hari ini Rp 240.000 · 3 hal nunggu jawabanmu.")).toBeInTheDocument();
   });
 
   it("falls back to the username, then to no name", () => {
     ctx.user = { id: "user-1", username: "raka" };
     const { unmount } = setup();
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/, raka\.$/);
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(/, raka\.$/);
     unmount();
     ctx.user = { id: "user-1" };
     setup();
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^(Pagi|Siang|Sore|Malam)\.$/);
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(/^(Pagi|Siang|Sore|Malam)\.$/);
   });
 
   it("names the remaining amount when safe-to-spend is unavailable, never 0", async () => {
