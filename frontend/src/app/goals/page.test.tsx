@@ -197,4 +197,43 @@ describe("goal backing forms", () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/obligations/obligation-1/payments", { transaction_id: "tx-2" }));
     expect(api.post).toHaveBeenCalledTimes(1);
   });
+
+  it("states each goal in words, lists the bills from the plan lines with the server's total and shows an unknown runway", async () => {
+    const reached = { ...standaloneGoal, id: "g-reached", name: "Sepeda", current_amount: 2_000_000, target_amount: 2_000_000, remaining_amount: 0, percentage_completed: 100 };
+    const paced = { ...standaloneGoal, id: "g-paced", name: "Liburan", target_date: "2027-06-30", monthly_target_pace: 750_000 };
+    currentObligations = [obligation, { ...obligation, id: "paid", name: "Pinjaman Lunas", remaining_amount: 0, payoff_percentage: 100, is_archived: true }];
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/goals") return { ok: true, goals: [standaloneGoal, reached, paced], summary: {} };
+      if (path === "/obligations") return { ok: true, obligations: currentObligations, summary: {} };
+      if (path === "/accounts") return { accounts: [] };
+      if (path === "/dashboard/cycle-summary") return {
+        scheduled: { total: 1_500_000, plans_total: 395_000, window_basis: "expected_salary", window_start: "2026-10-25", window_end: "2026-11-24",
+          lines: [
+            { kind: "plan", rule_id: "r1", label: "Streamio", due_date: "2026-11-03", overdue: false, amount: 65_000 },
+            { kind: "plan", rule_id: "r2", label: "Internet Rumah", due_date: "2026-11-10", overdue: false, amount: 330_000 },
+            { kind: "goal", goal_id: "g-paced", label: "Liburan", target_date: "2027-06-30", months_left: 8, set_aside: 750_000, funded: 0, amount: 1_105_000 },
+          ] },
+      };
+      if (path === "/dashboard/net-worth") return {
+        runway: { runway_days: null, runway_months: null, coverage_months: null, status: "unknown", emergency_fund_balance: 3_500_000, balance_basis: "goal",
+          essential_cost: { amount: null, method: "unknown", basis: "unknown" } },
+      };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    renderGoals();
+    expect(await screen.findByText("Tercapai")).toBeInTheDocument();
+    expect(screen.getByText("Tanpa tanggal")).toBeInTheDocument();
+    expect(screen.getByText("Perlu Rp 750.000/bulan")).toBeInTheDocument();
+    const bills = await screen.findByRole("table", { name: "Tagihan sampai gaji berikutnya" });
+    expect(within(bills).getAllByRole("row")).toHaveLength(4);
+    expect(within(bills).queryByText("Liburan")).not.toBeInTheDocument();
+    expect(within(bills).getByRole("row", { name: /Total/ })).toHaveTextContent("Rp 395.000");
+    expect(await screen.findByText("Belum dapat dihitung")).toBeInTheDocument();
+    expect(screen.queryByText(/^0 bulan/)).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Tampilkan 1 utang lunas" }));
+    expect(screen.getByText("Pinjaman Lunas")).toBeInTheDocument();
+    expect(screen.queryByText(/sudah mencapai|bebas utang/i)).not.toBeInTheDocument();
+  });
 });
+

@@ -1,5 +1,6 @@
 "use client";
 
+import { greetingName } from "@/lib/utils";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { CycleSummary } from "@/components/beranda/types";
@@ -228,7 +229,7 @@ export function TanyaView() {
 
   const summary = summaryQuery.data;
   const hour = new Date(now).getHours();
-  const name = (user?.name || user?.username || null) as string | null;
+  const name = greetingName(user);
   const empty = messages.length === 0;
   const last = messages.at(-1);
   const trailingChips = !empty && !pending && !(last && !isUser(last) && last.chips.length > 0);

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { CashFlowHistory, PeriodComparison, RecurringCharges } from "@/components/insights/ObservedInsights";
 import { QuestionRate } from "@/components/insights/QuestionRate";
+import { HabitsLearnedCard } from "@/components/analysis/HabitsLearnedCard";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import { ExplainableFigure, type ExplanationData } from "@/components/workspace/explain";
 import { Card, CardHeader, EmptyState, ErrorState, Kpi, KpiStrip, Pill, Skeleton } from "@/components/workspace/primitives";
@@ -99,6 +100,7 @@ export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodB
     <>
       <RecurringCharges bal={money} onCreatePlan={setPlanDraft} />
       <QuestionRate />
+      <HabitsLearnedCard />
     </>
   );
 

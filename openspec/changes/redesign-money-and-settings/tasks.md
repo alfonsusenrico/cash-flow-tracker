@@ -14,11 +14,11 @@ The owner will not test before every phase is done ("I'm not going to test anyth
 
 ## 1. Rebase, refresh and baseline
 
-- [ ] 1.1 Rebase `feat/money-and-settings` onto `main` after phases 3, 4 and 6 have merged (D1).
+- [x] 1.1 Rebase `feat/money-and-settings` onto `main` after phases 3, 4 and 6 have merged (D1).
   - Refresh every MODIFIED block in `specs/` from the then-current main specs, keeping every scenario name, and re-apply this change's edits.
   - Re-run the alias usage measurement (`var()` uses and legacy Tailwind keys per file, and the six legacy utility classes). Update design.md "Tokens and styles" with the new counts.
   - Evidence: `openspec validate redesign-money-and-settings --strict` passes, plus the measurement table.
-- [ ] 1.2 Record the baseline on the rebased branch before any change:
+- [x] 1.2 Record the baseline on the rebased branch before any change:
   - `npm test`, `npm run type-check`, `npm run lint` and `npm run build`;
   - first-load JS for `/accounts`, `/goals` and every `/settings/*` route, and the built CSS size;
   - the full backend suite with its skips;
@@ -27,7 +27,7 @@ The owner will not test before every phase is done ("I'm not going to test anyth
   - screenshots of every route (`/`, `/review`, `/ledger`, `/insights` and its tabs, `/laporan`, `/accounts`, `/goals`, every `/settings/*`, `/tanya`, `/auth/login`) at 1280 and 390 px in both themes, kept for the pixel comparison in 7.4.
 
   Evidence: the baseline table in verification.md.
-- [ ] 1.3 Build the unchanged-writes harness (D17) and run it on a production build of `main` against a fresh copy of the seeded database.
+- [x] 1.3 Build the unchanged-writes harness (D17) and run it on a production build of `main` against a fresh copy of the seeded database.
   - It covers every flow D17 lists.
   - It records normalised request bodies and normalised snapshots of the touched tables, including `transaction_obligation_allocations`.
   - The market price provider is stubbed, and no external request is made.
@@ -38,7 +38,7 @@ Expected Result: the plan matches the merged main specs, and every gate has a me
 
 ## 2. Backend
 
-- [ ] 2.1 Make `cycle_summary._net_worth` the public `net_worth_breakdown`, and compute `GET /dashboard/net-worth` from it (D3, OD57).
+- [x] 2.1 Make `cycle_summary._net_worth` the public `net_worth_breakdown`, and compute `GET /dashboard/net-worth` from it (D3, OD57).
   - The endpoint keeps every existing field and adds `liquid`, `investment`, `reconciliation_pending` and `lines`.
   - Tests:
     - `net_worth` equals `cycle-summary` `net_worth.total` with a parent and two pockets, an amount-tracked product, a unit-tracked position, a pocket at −Rp 50.000 waiting for reconciliation and one active debt;
@@ -68,7 +68,7 @@ Expected Result: the plan matches the merged main specs, and every gate has a me
   - the median time with the D7 dataset under 300 ms.
 
   Evidence: pytest counts and the timing.
-- [ ] 2.3 Capture undo reverts its label (D10, OD56). `text_capture.undo_capture` calls `review_undo.revert_feedback` for the capture's live `capture` rows in the same transaction. Tests:
+- [x] 2.3 Capture undo reverts its label (D10, OD56). `text_capture.undo_capture` calls `review_undo.revert_feedback` for the capture's live `capture` rows in the same transaction. Tests:
   - the label count of a key before and after;
   - the next payment of the key is asked with the guess instead of recorded;
   - a forced failure after the insert rolls the `undo` row back with the rest;
