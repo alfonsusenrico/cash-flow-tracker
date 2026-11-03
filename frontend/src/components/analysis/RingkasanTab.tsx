@@ -91,13 +91,14 @@ export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodB
       <KakeiboCard basis={basis} offset={offset} money={money} />
       <DailySpendCard days={data.daily_cadence ?? []} money={money} />
       <CashFlowHistory basis={basis} bal={money} />
+      {/* The comparison's three figures and two change lists need the wide column (implementation note). */}
+      <PeriodComparison basis={basis} offset={offset} bal={money} />
     </>
   );
   const right = (
     <>
       <RecurringCharges bal={money} onCreatePlan={setPlanDraft} />
       <QuestionRate />
-      <PeriodComparison basis={basis} offset={offset} bal={money} />
     </>
   );
 
@@ -127,7 +128,7 @@ export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodB
               explanation={serverExplanation("Belanja periode ini", "Pengeluaran yang dihitung belanja, dikurangi ganti uang. Sama dengan Belanja di Transaksi.", data.explanations.belanja, money, "Total belanja")}
             />
           ) : money(comparison.total_outflow)}
-          caption="Tanpa tabungan dan investasi"
+          caption="Tanpa tabungan"
         />
       </KpiStrip>
       <p className={styles.caption}>Keluar = Belanja ditambah yang ditabung atau diinvestasikan.</p>

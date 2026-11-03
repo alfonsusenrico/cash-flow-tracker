@@ -11,6 +11,8 @@ import type { FlowLink, FlowLinkKind, FlowNode } from "../types";
 
 export const BALANCE_KINDS: ReadonlySet<FlowLinkKind> = new Set(["opening", "remaining", "negative_opening", "negative_closing"]);
 
+const FOLDED_INBOUND: ReadonlySet<FlowLinkKind> = new Set(["income"]);
+
 export type Highlight = "all" | "spend" | "transfer" | "save" | "waiting";
 
 export function highlightMatches(kind: FlowLinkKind, highlight: Highlight): boolean {
@@ -68,12 +70,15 @@ function patternFor(kind: FlowLinkKind, waiting: boolean): DrawnLink["pattern"] 
   return null;
 }
 
-/** The drawable model for the visible links: columns, mirrored copies and netted opposite transfers. */
+/** The drawable model for the visible links: columns, mirrored copies and netted opposite transfers.
+ * Folded hides the balance and income links; the table always lists every link. */
 export function buildFlowModel(nodes: FlowNode[], links: FlowLink[], { folded }: { folded: boolean }): FlowModel {
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const hiddenLinkKeys: string[] = [];
+  // Folded, the map shows only money that left or moved, so spending sets the scale (the approved preview):
+  // balances and income are hidden from the drawing and stay in the table and the Masuk figure.
   const visible = links.filter((link) => {
-    const hide = folded && BALANCE_KINDS.has(link.kind);
+    const hide = folded && (BALANCE_KINDS.has(link.kind) || FOLDED_INBOUND.has(link.kind));
     if (hide) hiddenLinkKeys.push(link.key);
     return !hide && byId.has(link.from) && byId.has(link.to);
   });
@@ -109,15 +114,18 @@ export function buildFlowModel(nodes: FlowNode[], links: FlowLink[], { folded }:
     }
   }
   const accountDepth = Math.max(1, ...depth.values());
+  // Saving and investment nodes share the sink column with the buckets, so their labels stack together;
+  // only "Masih ada" sits one column further, since saving nodes also flow into it.
   const holdColumn = accountDepth + 1;
-  const sinkColumn = accountDepth + 2;
+  const sinkColumn = accountDepth + 1;
+  const remainingColumn = accountDepth + 2;
 
   const drawn = new Map<string, DrawnNode>();
   const copy = (node: FlowNode, side: "main" | "source"): DrawnNode => {
     const key = side === "source" && node.kind !== "source" ? `${node.id}@in` : node.id;
     let entry = drawn.get(key);
     if (!entry) {
-      let column = sinkColumn;
+      let column = node.kind === "remaining" ? remainingColumn : sinkColumn;
       if (side === "source" || node.kind === "source") column = 0;
       else if (node.kind === "account") column = depth.get(node.id) ?? 1;
       else if (node.kind === "saving" || node.kind === "investment") column = holdColumn;
@@ -158,6 +166,10 @@ export function buildFlowModel(nodes: FlowNode[], links: FlowLink[], { folded }:
     node.value = Math.max(moved(node.inbound), moved(node.outbound));
   }
   for (const [key, node] of drawn) if (node.value <= 0) drawn.delete(key);
+  // Folded, nothing may come from the left: the first column is then dropped so the map uses the width.
+  if (drawn.size && ![...drawn.values()].some((node) => node.column === 0)) {
+    for (const node of drawn.values()) node.column -= 1;
+  }
   const columns = drawn.size ? Math.max(...[...drawn.values()].map((node) => node.column)) + 1 : 0;
   return { nodes: drawn, links: drawnLinks, hiddenLinkKeys, columns };
 }

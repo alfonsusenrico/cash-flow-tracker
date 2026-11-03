@@ -235,15 +235,15 @@ export function PetaAliranTab({
           </div>
           <button type="button" className="ws-btn ws-btn-sm" aria-pressed={!folded} onClick={toggleFold}>
             <Icon name={folded ? "chevron-right" : "chevron-down"} className="h-4 w-4" />
-            {folded ? "Tampilkan saldo dan Masih ada" : "Ciutkan saldo dan Masih ada"} · {money(remaining)}
+            {folded ? "Tampilkan uang masuk, saldo dan Masih ada" : "Ciutkan uang masuk, saldo dan Masih ada"} · {money(remaining)}
           </button>
         </div>
         <p className={styles.flowNote}>
           <Icon name="info" className="h-4 w-4" />
           <span>
             {folded
-              ? "Peta hanya menampilkan uang yang bergerak di periode ini. Saldo awal dan Masih ada tetap tercantum di tabel."
-              : "Saldo sebelum periode masuk dari kiri, dan Masih ada adalah saldo tiap rekening di akhir hari yang dipilih."}
+              ? "Peta hanya menampilkan uang yang keluar dan dipindah, agar aliran belanja terbaca. Uang masuk, saldo awal dan Masih ada tetap tercantum di tabel."
+              : "Uang masuk dan saldo sebelum periode datang dari kiri, dan Masih ada adalah saldo tiap rekening di akhir hari yang dipilih."}
           </span>
         </p>
         {empty ? (
@@ -391,7 +391,11 @@ function FlowMap({
   const model = useMemo(() => buildFlowModel(data.nodes, data.links, { folded }), [data, folded]);
   const height = folded ? 420 : 520;
   const layout = useMemo(
-    () => layoutFlow(model, { width, height, stationWidth: 118, stationMin: 46, barWidth: 12, barMin: 3, pad: 12, leftLabel: 150, rightLabel: 220 }),
+    () => layoutFlow(model, {
+      width, height, stationWidth: 118, stationMin: 46, barWidth: 12, barMin: 3, pad: 12, rightLabel: 220,
+      // Room for labels on the left only when something is drawn there.
+      leftLabel: [...model.nodes.values()].some((node) => node.column === 0 && node.node.kind !== "account") ? 150 : 8,
+    }),
     [model, width, height],
   );
   const serverNodes = useMemo(() => new Map(data.nodes.map((node) => [node.id, node])), [data.nodes]);
@@ -452,8 +456,10 @@ function FlowMap({
             const sample = drawnNodes.find((node) => node.column === column);
             if (!sample) return null;
             const kind = sample.node.kind;
-            const text = column === 0 ? "Dari" : kind === "account" ? "Rekening" : kind === "saving" || kind === "investment" ? "Disimpan di" : "Dipakai untuk";
-            return <text key={column} x={column === 0 ? x + layout.columnWidth[column] : x} y={-12} className={styles.columnHead} textAnchor={column === 0 ? "end" : "start"} aria-hidden="true">{text}</text>;
+            const firstAccount = drawnNodes.filter((node) => node.node.kind === "account").reduce((min, node) => Math.min(min, node.column), Infinity);
+            const text = kind === "source" || sample.key.endsWith("@in") ? "Dari" : kind === "account" ? (column === firstAccount ? "Rekening" : "Lalu ke") : kind === "remaining" ? "Masih ada" : "Dipakai atau disimpan";
+            const left = text === "Dari";
+            return <text key={column} x={left ? x + layout.columnWidth[column] : x} y={-12} className={styles.columnHead} textAnchor={left ? "end" : "start"} aria-hidden="true">{text}</text>;
           })}
           <g aria-hidden="true">
             {model.links.map((link) => {
@@ -523,7 +529,7 @@ function FlowMap({
           })}
         </g>
       </svg>
-      {model.hiddenLinkKeys.some((key) => !data.links.find((link) => link.key === key && BALANCE_KINDS.has(link.kind))) && (
+      {model.hiddenLinkKeys.some((key) => data.links.find((link) => link.key === key)?.kind === "transfer") && (
         <p className={styles.caption}>Sebagian pindah saldo yang berputar antar rekening hanya tercantum di tabel.</p>
       )}
     </div>

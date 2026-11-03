@@ -238,7 +238,11 @@ describe("Peta Aliran layout", () => {
   it("folds balances, mirrors money flowing back and places every node deterministically", () => {
     const fixture = flowFixture();
     const folded = buildFlowModel(fixture.nodes, fixture.links, { folded: true });
-    expect(folded.hiddenLinkKeys.sort()).toEqual(["acc:bank>remaining", "acc:wallet>remaining", "opening>acc:bank", "sav:dd>remaining"]);
+    // Folded hides balances and income, so spending sets the scale; the table keeps them.
+    expect(folded.hiddenLinkKeys.sort()).toEqual(["acc:bank>remaining", "acc:wallet>remaining", "opening>acc:bank", "sav:dd>remaining", "src:gaji>acc:bank"]);
+    const open = buildFlowModel(fixture.nodes, fixture.links, { folded: false });
+    expect(open.nodes.get("remaining")?.column).toBe(open.columns - 1);
+    expect(open.nodes.get("sav:dd")?.column).toBe(open.nodes.get("pillar:need")?.column);
     expect(folded.nodes.has("remaining")).toBe(false);
     // The goal pocket paying back to the bank is drawn from its source-side copy.
     expect(folded.nodes.get("sav:dd@in")?.column).toBe(0);
@@ -267,7 +271,7 @@ describe("Peta Aliran layout", () => {
     expect(empty.columns).toBe(0);
     expect(layoutFlow(empty, LAYOUT).nodes.size).toBe(0);
     const fixture = flowFixture();
-    const one = buildFlowModel(fixture.nodes, fixture.links.filter((link) => link.key === "src:gaji>acc:bank"), { folded: true });
+    const one = buildFlowModel(fixture.nodes, fixture.links.filter((link) => link.key === "src:gaji>acc:bank"), { folded: false });
     expect(one.columns).toBe(2);
   });
 
@@ -311,7 +315,7 @@ describe("Peta Aliran tab", () => {
   it("keeps the fold per viewer, filters by highlight and steps the replay by day", async () => {
     const user = userEvent.setup();
     wrap(<PetaAliranTab basis="month" offset={-1} money={money} view="tabel" onView={() => {}} onLabel={() => {}} />);
-    const fold = await screen.findByRole("button", { name: /Tampilkan saldo dan Masih ada/ });
+    const fold = await screen.findByRole("button", { name: /Tampilkan uang masuk, saldo dan Masih ada/ });
     await user.click(fold);
     expect(window.localStorage.getItem("analysis.flow.folded")).toBe("open");
     await user.click(screen.getByRole("button", { name: "Menunggu pasangan" }));

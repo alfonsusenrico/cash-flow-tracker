@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { rowTitle } from "@/components/beranda/activity";
+import { rowKind, rowTitle } from "@/components/beranda/activity";
 import { TransactionDrawer } from "@/components/transactions/TransactionDrawer";
 import type { LedgerRow } from "@/components/transactions/types";
 import { useTransactionUndo } from "@/components/transactions/useTransactionUndo";
@@ -215,12 +215,12 @@ function CalendarGrid({ data, selected, onSelect, money }: { data: CalendarRespo
                       {Number(entry.date.slice(8))}{Number(entry.date.slice(8)) === 1 || entry.date === first ? ` ${shortDay(entry.date).split(" ")[1]}` : ""}
                       {entry.waiting_count > 0 && <span className={styles.qtag}><Icon name="help-circle" />{entry.waiting_count}</span>}
                     </span>
-                    {entry.date <= today && entry.spend > 0 && <span className={styles.spend} aria-hidden="true">{money(entry.spend)}</span>}
+                    {entry.date <= today && entry.spend > 0 && <span className={styles.spend} aria-hidden="true">{compactMoney(entry.spend, money)}</span>}
                     <span className={styles.marks} aria-hidden="true">
-                      {entry.income_count > 0 && <span className={cn(styles.mark, styles.markIn)}><Icon name="arrow-down-left" />Masuk</span>}
-                      {entry.movement_count > 0 && <span className={cn(styles.mark, styles.markTr)}><Icon name="arrows-right-left" />Pindah saldo</span>}
-                      {entry.topup_count > 0 && <span className={cn(styles.mark, styles.markInv)}><Icon name="trending-up" />Top up</span>}
-                      {entry.plans.slice(0, 1).map((plan) => <span key={plan.rule_id} className={cn(styles.mark, styles.markBill)}><Icon name="repeat" />{plan.label}</span>)}
+                      {entry.income_count > 0 && <span className={cn(styles.mark, styles.markIn)}><Icon name="arrow-down-left" /><span>Masuk</span></span>}
+                      {entry.movement_count > 0 && <span className={cn(styles.mark, styles.markTr)}><Icon name="arrows-right-left" /><span>Pindah</span></span>}
+                      {entry.topup_count > 0 && <span className={cn(styles.mark, styles.markInv)}><Icon name="trending-up" /><span>Top up</span></span>}
+                      {entry.plans.slice(0, 1).map((plan) => <span key={plan.rule_id} className={cn(styles.mark, styles.markBill)}><Icon name="repeat" /><span>{plan.label}</span></span>)}
                     </span>
                   </button>
                 </div>
@@ -243,7 +243,7 @@ function CalendarGrid({ data, selected, onSelect, money }: { data: CalendarRespo
         <span className={cn(styles.mark, styles.markBill)}><Icon name="repeat" />Tagihan</span>
         <span className={styles.qtag}><Icon name="help-circle" />Menunggu jawaban</span>
       </div>
-      <p className={styles.caption} style={{ marginTop: 8 }}>Jumlah belanja tertulis di tiap hari. Tombol panah memindahkan hari, Enter membuka rinciannya.</p>
+      <p className={styles.caption} style={{ marginTop: 8 }}>Jumlah belanja tertulis di tiap hari (rb = ribu, jt = juta). Tombol panah memindahkan hari, Enter membuka rinciannya.</p>
     </Card>
   );
 }
@@ -349,7 +349,7 @@ function DaySheet({ day, data, money }: { day: CalendarDay; data: CalendarRespon
           {rows.data.transactions.map((row) => (
             <button key={row.id} type="button" className={styles.sheetRow} onClick={() => setOpenId(row.id)}>
               <span><b>{rowTitle(row)}</b><span>{row.account_name}{row.category_name ? ` · ${row.category_name}` : ""}</span></span>
-              <span className={styles.amount}>{row.type === "income" ? "+" : "−"}{money(row.amount)}</span>
+              <span className={styles.amount}>{rowKind(row) === "movement" || rowKind(row) === "topup" ? "⇄ " : row.type === "income" ? "+" : "−"}{money(row.amount)}</span>
             </button>
           ))}
         </div>
