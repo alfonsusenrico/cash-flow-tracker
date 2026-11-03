@@ -188,7 +188,7 @@ The global stepper leaves the top bar. Legacy pages that read `timeframe` and `c
 
 ### D16. Beranda composition and what moves
 
-Desktop, matching the preview: lede, KPI strip, then two columns. Left: Uang siklus ini, Aktivitas terbaru, insight. Right: Kerjakan dulu, Kakeibo, Ketahanan Dana. Below 1180 px the columns stack in reading order. The phone layout follows `mobile-native-layout`. Moves:
+Desktop, matching the preview: lede, KPI strip, then two columns. Left: Uang siklus ini, Aktivitas terbaru, insight. Right: Kerjakan dulu, Kakeibo, Ketahanan Dana. When the main column is 900 px or narrower the cards form one column: Uang siklus ini, Kerjakan dulu, Aktivitas terbaru, insight, Kakeibo, Ketahanan Dana. Kerjakan dulu moves in the DOM (a width hook on the Beranda container at the same 900 px as the container query), not only visually, so reading and focus order follow the layout. The owner asked for this order at acceptance (2026-11-02). The phone layout follows `mobile-native-layout`. Moves:
 
 - `PendingScheduledBanner` actions become "Kerjakan dulu" items. They keep the same mutations and confirmations: link, skip, record, and unlink for undo.
 - `ReportReadyNotice` becomes a notification and the Laporan badge.
@@ -277,11 +277,11 @@ All eight decisions were resolved on 2026-11-02 when the owner approved the plan
 | OD7 | Wording of the third number | The lede says "{n} hal nunggu jawabanmu ({amount})", and the explanation shows what is already inside "Keluar" |
 | OD8 | Tanya free-form answers with a model | Deterministic intents first in phase 6. A model-backed answer needs its own approved change |
 
-### Raised during phase 1 implementation (2026-11-02, still open)
+### Raised during phase 1 implementation (2026-11-02, resolved)
 
-The conservative option is implemented for each; the owner can confirm or change it.
+The conservative option is implemented for each. The owner confirmed all of them at acceptance ("defaults ok", 2026-11-02).
 
-| # | Decision | Implemented (conservative) |
+| # | Decision | Resolved (conservative option) |
 | --- | --- | --- |
 | OD9 | Transfer and investment top-up plans in "Terjadwal" | Counted, as D11 says "non-income plans". A transfer plan into a goal pocket and that goal's set-aside can both count, which only lowers "Aman" |
 | OD10 | Plan occurrences that fell due before the period start and were never resolved | Not counted in "Terjadwal": the window starts at the period start |

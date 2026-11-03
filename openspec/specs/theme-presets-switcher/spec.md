@@ -5,48 +5,49 @@ Specify theme preset selection and persistence together with consistent shared b
 
 ## Requirements
 
-### Requirement: Interactive Design System Preset Switcher
-The application SHALL provide an interactive design system switcher supporting 4 distinct modern styles with seamless, borderless digital bank aesthetics.
-
-#### Scenario: Required behavior and constraints
-- **WHEN** an owner selects a design preset
-- **THEN** the following required behavior and constraints hold:
-
-  The application SHALL provide an interactive design system switcher supporting 4 distinct modern styles with seamless, borderless digital bank aesthetics:
-  1. `swiss` (Swiss Digital Bank / Default): Seamless floating card surfaces on subtle canvas, hairline/borderless dividers, Outfit rounded geometric typography, high-contrast electric mint & coral financial signals, inspired by Bank Jago, Bibit, and SeaBank.
-  2. `nordic` (Nordic Obsidian / Raycast): Cool slate & titanium canvas, Plus Jakarta Sans typography, JetBrains Mono tabular figures, indigo primary brand accent.
-  3. `bauhaus` (Modern Bauhaus / Apple Card): Warm alabaster & midnight canvas, Outfit rounded geometric typography, soft pill button geometry, forest emerald & warm rose accents.
-  4. `stripe` (Executive FinTech / Stripe): Crisp ice-grey canvas, Inter Display typography, SF Mono tabular figures, royal cobalt blue primary brand accent.
-
-#### Scenario: Switching design system presets in real-time
-- **WHEN** a user selects any design preset from the TopBar or Settings switcher
-- **THEN** the application immediately applies the chosen preset via `data-preset` attribute on `document.documentElement` without full page reload, updating fonts, colors, border radii, and button styles instantly
-
-#### Scenario: Persisting design system preference
-- **WHEN** a user selects a design system preset
-- **THEN** the selection is saved to `localStorage` under `theme_preset` and restored on subsequent visits across all screens
-
 ### Requirement: Modern Button Styling System
-The application SHALL provide a consistent, modern button styling hierarchy.
+The application SHALL provide a consistent button hierarchy built from the workspace tokens.
 
 #### Scenario: Required behavior and constraints
-- **WHEN** the application renders an action button for the active design preset
+- **WHEN** the application renders an action button
 - **THEN** the following required behavior and constraints hold:
 
-  The application SHALL provide a consistent, modern button styling hierarchy:
-  1. **Primary Action Buttons**: Solid background adhering to active preset colors, subtle 1px border, high-contrast text, smooth hover elevation, and tactile press scaling (`:active:scale-[0.98]`). Text and icons on the primary colour SHALL use `--primary-contrast` and SHALL measure at least 4.5:1 (WCAG 2.2 AA) against both `--primary` and `--primary-hover` in light and dark themes.
-  2. **Secondary / Outlined Buttons**: Clean border (`var(--border)`), surface background (`var(--surface)`), and subtle hover state.
-  3. **Preset-Adaptive Geometry**: Corner radii SHALL dynamically adapt to the active preset (`--radius-btn`), using compact geometry for Swiss Tech (`8px`), sleek curves for Nordic (`10px`), pill geometry for Bauhaus (`9999px`), and structured geometry for Stripe (`8px`).
-  4. **Destructive and Debt Action Buttons**: Solid rose fill from `--danger-solid` (`--danger-solid-hover` on hover) with `--danger-contrast` text, measuring at least 4.5:1 (WCAG 2.2 AA) in light and dark themes. A confirmation button SHALL keep this styling regardless of the styling of the control that opened it.
+  The application SHALL provide a consistent button hierarchy:
+  1. **Primary structural action**: the dark ink fill with its contrast ink, such as "+ Catat" in the top bar and the Catat button of the phone tab bar. Its label, icon and shortcut hint SHALL measure at least 4.5:1 (WCAG 2.2 AA) against the fill at rest and under the pointer, in light and dark themes.
+  2. **Positive action**: the lime fill with the lime ink, such as "Simpan", measuring at least 4.5:1 at rest and under the pointer in both themes.
+  3. **Secondary button**: the surface fill with the strong line token as a 1px border and a subtle hover fill.
+  4. **Semantic action pills**: small actions in a semantic soft fill with its ink, such as "Jawab" (coral), "Pasangkan" (sky), "Pilih" (amber) and "Lihat" (neutral), each at least 4.5:1.
+  5. **Geometry**: one fixed set of radii from the tokens (buttons about 11–12 px, cards about 20 px, pills fully rounded); there are no preset-dependent radii.
+  6. **Destructive and debt action buttons**: solid rose fill from `--danger-solid` (`--danger-solid-hover` on hover) with `--danger-contrast` text, measuring at least 4.5:1 (WCAG 2.2 AA) in light and dark themes. A confirmation button SHALL keep this styling regardless of the styling of the control that opened it.
+  7. Every button SHALL have a target of at least 24 by 24 CSS pixels and a visible focus ring from the focus token.
 
 #### Scenario: Tactile button press feedback
 - **WHEN** a user clicks or taps any primary or secondary action button
-- **THEN** the button provides instant tactile feedback with smooth micro-transition and active scale dampening
+- **THEN** the button gives immediate visual feedback with a short transition, and with reduced motion requested no scaling animation is used
 
 #### Scenario: Primary button text contrast
-- **WHEN** a primary action button such as "Simpan profil" or the top-bar "Catat" is shown at rest or under the pointer, in the light or the dark theme
-- **THEN** its label, icon and shortcut badge measure at least 4.5:1 against the button's background, and the coral background at rest is unchanged
+- **WHEN** a primary action button such as "+ Catat" or a positive action such as "Simpan profil" is shown at rest or under the pointer, in the light or the dark theme
+- **THEN** its label, icon and shortcut badge measure at least 4.5:1 against the button's background
 
 #### Scenario: Destructive button text contrast
 - **WHEN** a destructive or debt action such as "Ya, lanjutkan", "Ya, hapus", "Cabut perangkat" or "+ Tagihan Baru" is shown at rest or under the pointer, in the light or the dark theme
 - **THEN** its label measures at least 4.5:1 against the button's rose background
+
+### Requirement: Light, Dark and System Theme
+The web app SHALL offer "Terang", "Gelap" and "Ikuti sistem" themes, default to "Ikuti sistem", persist the choice in the browser, and apply it before the first paint so no page flashes the other theme. With "Ikuti sistem" the theme SHALL follow operating-system changes while the page is open.
+
+#### Scenario: First visit
+- **WHEN** a visitor with a dark operating-system theme opens any page for the first time
+- **THEN** the page SHALL render dark from the first paint
+
+#### Scenario: Persisted choice
+- **WHEN** the owner chooses "Terang" and reloads `/ledger`
+- **THEN** the page SHALL render light from the first paint, also when the operating system is dark
+
+#### Scenario: Earlier stored value
+- **WHEN** the browser still holds `theme = dark` from before the redesign
+- **THEN** the app SHALL treat it as the "Gelap" choice
+
+#### Scenario: Storage unavailable
+- **WHEN** browser storage throws or is empty
+- **THEN** the app SHALL follow the operating system and keep working without an error

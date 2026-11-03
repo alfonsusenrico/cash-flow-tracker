@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -356,6 +356,45 @@ describe("Beranda KPI strip and cards", () => {
 });
 
 describe("Kerjakan dulu", () => {
+  it("follows Uang siklus ini when the grid is one column, and leads the side column otherwise", async () => {
+    const region = (name: string | RegExp) => within(desk()).getByRole("region", { name });
+    const precedes = (first: HTMLElement, second: HTMLElement) =>
+      Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const todoFollowsMoney = () => {
+      const money = region("Uang siklus ini");
+      const todo = region(/Kerjakan dulu/);
+      const activity = region(/Aktivitas terbaru/);
+      return precedes(money, todo) && precedes(todo, activity);
+    };
+
+    await lede();
+    expect(todoFollowsMoney()).toBe(false);
+    expect(precedes(region(/Aktivitas terbaru/), region(/Kerjakan dulu/))).toBe(true);
+    cleanup();
+
+    let width = 820;
+    class FixedWidthObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe() {
+        this.callback([{ contentRect: { width } } as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FixedWidthObserver);
+    try {
+      await lede();
+      await waitFor(() => expect(todoFollowsMoney()).toBe(true));
+      cleanup();
+
+      width = 901;
+      await lede();
+      expect(todoFollowsMoney()).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("lists the question first and the plan last, each opening its place", async () => {
     await lede();
     const card = within(desk()).getByRole("region", { name: /Kerjakan dulu/ });

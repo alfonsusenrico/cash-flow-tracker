@@ -135,6 +135,21 @@ Visual comparison: the 1440 light and dark screenshots follow the preview's comp
 
 Review fix after the matrix (3ea44b8): at 1440 the Terjadwal segment of "Uang siklus ini" was narrower than its amount and clipped it ("Rp 995.00"). A segment of 8.5rem or less now shows colour only (container query on each segment); the legend below repeats every amount. Checked in headless Brave with the shipped rules at bar widths 690, 760 and 1000 px and with "Rp 999.999.999" at 136 px: no clipped text. After the fix, frontend type-check, lint (0 errors, 1 pre-existing warning), `npm test` (62 files, 563 passed) and build passed.
 
+### 6.6 Acceptance change: Kerjakan dulu in one column (2026-11-02)
+
+The owner accepted with "accepted, defaults ok, move Kerjakan dulu up". BerandaView now renders "Kerjakan dulu" right after "Uang siklus ini" when the Beranda container is 900 px or narrower (`useWidthAtMost`, the same width as `@container main (max-width: 900px)`).
+
+- Vitest: new test in `src/app/page.test.tsx` ("follows Uang siklus ini when the grid is one column…") fails on the previous BerandaView (1 failed, 24 passed) and passes with the change (25 passed).
+- Headless Brave on a fresh Flyway v43 database with the synthetic seed (`seed.py`), production build behind the loopback proxy. DOM order of the desktop cards, axe (WCAG 2.2 AA tags), horizontal overflow:
+
+| Theme | Width | Card order | axe | Overflow |
+| --- | --- | --- | --- | --- |
+| light, dark | 1440 | Uang siklus ini › Aktivitas terbaru › Kerjakan dulu › Kakeibo › Ketahanan Dana | 0 | 0 |
+| light, dark | 1024 | Uang siklus ini › Kerjakan dulu › Aktivitas terbaru › Kakeibo › Ketahanan Dana | 0 | 0 |
+| light, dark | 800 | Uang siklus ini › Kerjakan dulu › Aktivitas terbaru › Kakeibo › Ketahanan Dana | 0 | 0 |
+
+Console errors across the six cells: 0. The local stack (container, API, proxy, Next) was removed afterwards.
+
 ## 7. Not verified
 
 - Owner acceptance (task 7.1).
