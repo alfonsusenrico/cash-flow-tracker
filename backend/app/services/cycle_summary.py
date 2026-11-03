@@ -16,13 +16,11 @@ from zoneinfo import ZoneInfo
 
 from app.core.config import settings
 from app.routers.accounts import summarize_account_balances
-from app.routers.review import review_reasons
-from app.services.kakeibo import UNCLASSIFIED, pillar_bucket_sql
-from app.services.monthly_report import ATTENTION_SQL, OPEN_QUESTION_JOIN_SQL, REVIEWABLE_ROW_SQL
+from app.services.kakeibo import UNCLASSIFIED
 from app.services.observed_insights import comparison_windows, period_comparison
-from app.services.plan_occurrences import MAX_ADVANCE_STEPS, RESOLVED_STATUSES, calculate_next_due_date
+from app.services.plan_occurrences import unpaid_plan_lines
 from app.services.reimbursements import load_spending_offsets
-from app.services.report_figures import reportable_expense_sql, reportable_income_sql
+from app.services.report_figures import reportable_income_sql
 from app.services.report_windows import (
     MONTH_NAMES_ID,
     get_previous_timeframe_window,
@@ -31,6 +29,7 @@ from app.services.report_windows import (
 )
 from app.services.salary_cycles import ExpectedSalary, expected_next_salary, resolve_cycle
 from app.services.salary_receipts import get_source, receipts
+from app.services.waiting_rows import fetch_waiting_rows, waiting_summary
 
 SAFE_TO_SPEND_ROUNDING = 1000
 # Same horizon as the overview's upcoming commitments when no salary date can be expected.
@@ -47,9 +46,6 @@ KELUAR_BUCKETS: tuple[tuple[str, str, str], ...] = (
     (UNCLASSIFIED, "Belum diklasifikasi", "unclassified_spent"),
 )
 
-# Tinjau sections in the order the review page shows them.
-WAITING_SECTIONS: tuple[str, ...] = ("questions", "ambiguous", "awaiting", "groups")
-
 KakeiboBreakdown = Callable[..., dict[str, Any]]
 
 
@@ -62,7 +58,7 @@ def ledger_href(period: str, **filters: str) -> str:
     return f"/ledger?{query}"
 
 
-def _expected_salary(conn, user_id: str, cycle_open: bool, receipt_rows: list[dict], now: datetime) -> ExpectedSalary:
+def expected_salary_for_cycle(conn, user_id: str, cycle_open: bool, receipt_rows: list[dict], now: datetime) -> ExpectedSalary:
     if not cycle_open:
         return ExpectedSalary("unknown", reason="no_cycle")
     source = get_source(conn, user_id)
@@ -122,125 +118,6 @@ def _keluar(kakeibo: dict[str, Any], offsets, period: str) -> dict[str, Any]:
     if sum(line["amount"] for line in lines) != total:
         raise RuntimeError("Kakeibo buckets do not add up to their total")
     return {"total": total, "lines": lines, "offsets_total": offsets.applied}
-
-
-def _waiting_section(row: dict[str, Any]) -> str:
-    """The Tinjau section a waiting row is answered in, without the per-row candidate lookups.
-
-    A leg the pairing flagged as ambiguous is listed under "ambiguous" even when its candidates have
-    since been taken; the review page then shows it with the awaiting legs or the groups.
-    """
-    if row["has_open_question"]:
-        return "questions"
-    reasons = review_reasons(row)
-    if row["review_status"] == "needs_review" and "ambiguous_movement" in reasons:
-        return "ambiguous"
-    if row["movement_category"] and "awaiting_counterpart" in reasons:
-        return "awaiting"
-    return "groups"
-
-
-def _waiting(cur, user_id: str, start: datetime, end: datetime) -> dict[str, Any]:
-    """Rows the Tinjau badge counts in the window; they stay counted exactly as the ledger counts them."""
-    cur.execute(
-        f"""
-        SELECT t.id, t.type, t.amount, t.date, t.review_status, t.movement_id, t.merchant, t.notes,
-               a.name AS account_name, c.name AS category_name,
-               COALESCE(c.name = 'Internal Movement', FALSE) AS movement_category,
-               {reportable_expense_sql()} AS in_keluar,
-               {pillar_bucket_sql()} AS bucket,
-               ev.interpretation -> 'review_reasons' AS review_reasons,
-               question.id IS NOT NULL AS has_open_question
-        FROM transactions t
-        LEFT JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id
-        LEFT JOIN categories c ON c.id = t.category_id
-        LEFT JOIN LATERAL (
-            SELECT e.interpretation FROM notification_events e
-            WHERE e.user_id = t.user_id AND e.transaction_id = t.id
-            ORDER BY e.post_time, e.id LIMIT 1
-        ) ev ON TRUE
-        {OPEN_QUESTION_JOIN_SQL}
-        WHERE t.user_id = %s AND {REVIEWABLE_ROW_SQL} AND {ATTENTION_SQL}
-          AND t.date >= %s AND t.date <= %s
-        ORDER BY t.date DESC, t.id
-        """,
-        (user_id, start, end),
-    )
-    lines = []
-    for row in cur.fetchall():
-        in_keluar = bool(row["in_keluar"])
-        lines.append({
-            "section": _waiting_section(row),
-            "transaction_id": str(row["id"]),
-            "label": row["merchant"] or row["notes"] or row["category_name"] or "Tanpa keterangan",
-            "account_name": row["account_name"],
-            "type": row["type"],
-            "date": row["date"].isoformat(),
-            "amount": int(row["amount"]),
-            "in_keluar": in_keluar,
-            "in_keluar_as": row["bucket"] if in_keluar else None,
-        })
-    lines.sort(key=lambda line: WAITING_SECTIONS.index(line["section"]))
-    in_keluar_total = sum(line["amount"] for line in lines if line["in_keluar"])
-    total = sum(line["amount"] for line in lines)
-    return {
-        "count": len(lines),
-        "total": total,
-        "in_keluar": in_keluar_total,
-        "not_in_keluar": total - in_keluar_total,
-        "lines": lines,
-    }
-
-
-def _plan_lines(cur, user_id: str, payday_day: int, window_start: date, window_end: date, today: date) -> list[dict]:
-    """Unpaid occurrences of active non-income plans due in the window; linked or skipped ones are met."""
-    cur.execute(
-        """
-        SELECT r.id, r.name, r.amount, r.schedule_type, r.schedule_day, r.next_due_date
-        FROM recurring_rules r
-        WHERE r.user_id = %s AND r.is_active AND r.type <> 'income' AND r.next_due_date <= %s
-        """,
-        (user_id, window_end),
-    )
-    rules = cur.fetchall()
-    cur.execute(
-        """
-        SELECT e.recurring_rule_id, e.scheduled_for FROM recurring_executions e
-        WHERE e.user_id = %s AND e.status = ANY(%s) AND e.scheduled_for >= %s AND e.scheduled_for <= %s
-        """,
-        (user_id, list(RESOLVED_STATUSES), window_start, window_end),
-    )
-    resolved = {(str(row["recurring_rule_id"]), row["scheduled_for"]) for row in cur.fetchall()}
-    lines = []
-    for rule in rules:
-        rule_id = str(rule["id"])
-        due = rule["next_due_date"]
-        if due < window_start:
-            # Occurrences missed before this period are not this period's commitments.
-            due = calculate_next_due_date(
-                schedule_type=rule["schedule_type"], schedule_day=rule["schedule_day"],
-                user_payday_day=payday_day, from_date=window_start,
-            )
-        for _ in range(MAX_ADVANCE_STEPS):
-            if due > window_end:
-                break
-            if (rule_id, due) not in resolved:
-                lines.append({
-                    "kind": "plan",
-                    "rule_id": rule_id,
-                    "label": rule["name"],
-                    "due_date": due.isoformat(),
-                    "overdue": due < today,
-                    "amount": int(rule["amount"]),
-                })
-            due = calculate_next_due_date(
-                schedule_type=rule["schedule_type"], schedule_day=rule["schedule_day"],
-                user_payday_day=payday_day, from_date=due, advance=True,
-            )
-        else:
-            raise RuntimeError("plan schedule did not leave the summary window")
-    lines.sort(key=lambda line: (line["due_date"], line["label"], line["rule_id"]))
-    return lines
 
 
 def _months_left(start: date, target: date) -> int:
@@ -462,20 +339,20 @@ def build_cycle_summary(
         payday_day, basis, start_date, end_date, 0, user_id=user_id,
     )
     previous = None if previous_end < previous_start else (previous_start, previous_end, previous_label)
-    expected = _expected_salary(conn, user_id, basis == "cycle", receipt_rows, now)
+    expected = expected_salary_for_cycle(conn, user_id, basis == "cycle", receipt_rows, now)
 
     with conn.cursor() as cur:
         masuk = _masuk(cur, user_id, start, end, basis)
         offsets = load_spending_offsets(cur, user_id, start, end)
         keluar = _keluar(kakeibo_breakdown(cur, user_id, start, end, masuk["total"], offsets), offsets, basis)
-        waiting = _waiting(cur, user_id, start, end)
+        waiting = waiting_summary(fetch_waiting_rows(cur, user_id, start, end))
 
         if expected.status == "estimated" and expected.date > today:
             window_end, window_basis = expected.date - timedelta(days=1), "expected_salary"
         else:
             window_end, window_basis = today + timedelta(days=SCHEDULE_FALLBACK_DAYS), "next_30_days"
         scheduled_lines = (
-            _plan_lines(cur, user_id, payday_day, start_date, window_end, today)
+            unpaid_plan_lines(cur, user_id, payday_day, start_date, window_end, today)
             + _goal_lines(cur, user_id, accounts, start, end, start_date, today)
         )
         net_worth = _net_worth(cur, user_id, accounts)
