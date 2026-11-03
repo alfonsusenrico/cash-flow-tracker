@@ -40,7 +40,7 @@ Expected Result: Catat and Tanya share one capture client, and the shell links t
 
 ## 3. Intent layer and store
 
-- [ ] 3.1 Write `lib/tanya/intents.ts` (design D2), the normalisation and the intent table with `range` for bills. Tests:
+- [x] 3.1 Write `lib/tanya/intents.ts` (design D2), the normalisation and the intent table with `range` for bills. Tests:
   - every listed Indonesian and English phrase per intent, at least 6 per intent;
   - near misses that must match nothing ("bayar listrik 200rb", "kopi 18rb", "halo", "parkir tadi");
   - case, spacing and punctuation;
@@ -48,7 +48,7 @@ Expected Result: Catat and Tanya share one capture client, and the shell links t
   - a micro-benchmark under 1 ms for 200 characters.
 
   Evidence: Vitest counts.
-- [ ] 3.2 Write `lib/tanya/resolve.ts`, the resolver chain, and `lib/tanya/replies.ts`, which holds every assistant string. Tests with the API mocked:
+- [x] 3.2 Write `lib/tanya/resolve.ts`, the resolver chain, and `lib/tanya/replies.ts`, which holds every assistant string. Tests with the API mocked:
   - each intent;
   - capture with one amount (records once, with one `client_capture_id`);
   - question markers block capture;
@@ -59,7 +59,7 @@ Expected Result: Catat and Tanya share one capture client, and the shell links t
   - a resend reuses the id.
 
   Evidence: Vitest counts.
-- [ ] 3.3 Write `lib/tanya/thread.ts` (design D7): the store tagged with the user id, the 100-message cap and "Hapus percakapan". Tests:
+- [x] 3.3 Write `lib/tanya/thread.ts` (design D7): the store tagged with the user id, the 100-message cap and "Hapus percakapan". Tests:
   - spies on `localStorage`, `sessionStorage`, `indexedDB` and `document.cookie` record no write;
   - reset when the user id changes;
   - the cap drops the oldest;

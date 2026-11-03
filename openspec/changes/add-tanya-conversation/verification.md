@@ -39,9 +39,9 @@ Revisions: baseline `137eb6b`; revision under test and document-only commits are
 | --- | --- | --- |
 | `lib/capture.ts` move (CatatDialog tests before and after) | `CatatDialog.test.tsx` unchanged; new `lib/capture.test.ts` | CatatDialog 6 passed before and 6 after; helpers 6 passed |
 | Navigation | `workspace.test.tsx`: group order Harian, AI, Uang, Laporan with `/tanya`; Tanya active on `/tanya`; rail has 11 named items; Lainnya lists Tanya first; tab bar unchanged | 108 passed (6 files) |
-| Intent table (phrases per intent, near misses, benchmark) | | |
-| Resolver | | |
-| Thread store (no persistence, user reset, cap) | | |
+| Intent table (phrases per intent, near misses, benchmark) | `lib/tanya/intents.test.ts`: 6 to 11 Indonesian and English phrases per intent (53 in total), 7 near misses, specific intents before `cycle`, bills `range`, normalisation, the 200-character cap, question markers, and a 2000-run benchmark under 1 ms per 200-character text | 14 passed |
+| Resolver | `lib/tanya/resolve.test.ts` with the API mocked: each intent card and no capture request; help; failed card fetch is an error card; one amount records once with the message's id; Tinjau wording; `needs_detail` kept; four question phrasings never recorded; `missing_amount` and `several_amounts` ask and never submit; unknown text after exactly one parse call; mixed text offers the chip and the forced capture records; parse 429 and network failure keep the text; network failure then resend reuses the id; record 429; empty text | 23 passed |
+| Thread store (no persistence, user reset, cap) | `lib/tanya/thread.test.ts`: spies on `Storage.prototype.setItem`, `document.cookie` and `indexedDB.open` record no write; reset on a new user id; 100-message cap drops the oldest; clear; update in place | 5 passed |
 | Cards (figures equal fixtures, no "belum dihitung", hidden balances) | | |
 | Capture in the composer | | |
 | Accessibility (roles, focus, keys, axe) | | |
