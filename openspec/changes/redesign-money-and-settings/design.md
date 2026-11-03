@@ -482,6 +482,54 @@ No new dependency.
 | Kekayaan bersih subtracts only the debt | Negative balances waiting for reconciliation are owed too | A separate line "Saldo minus perlu dicocokkan" when present (D3) |
 | Ketahanan Dana counts only the Dana Darurat pocket | `emergency-cost-estimation` and the existing runway rules decide the basis | The server's runway basis is shown as is |
 
+## Implementation notes (2026-11-03)
+
+### Alias-to-token mapping (task 6.1, D11 step 1)
+
+Every alias in the old block pointed at one workspace token, so each `var(--alias)` became that token; the script is `scratchpad/web-p5/remove_aliases.py`, and its per-file counts (912 replacements in 53 files) are in verification.md.
+
+| Alias group | Token |
+| --- | --- |
+| `--bg`, `--color-paper`, `--sidebar` | `--window` |
+| `--color-paper-2` | `--canvas` |
+| `--color-surface` | `--surface` |
+| `--surface-raised`, `--color-surface-raised`, `--primary-soft`, `--sidebar-hover` | `--surface-2` |
+| `--sidebar-active` | `--surface-3` |
+| `--color-ink`, `--primary-text`, `--sidebar-text-active` | `--text` |
+| `--color-ink-2`, `--text-secondary`, `--sidebar-text` | `--text-2` |
+| `--color-muted` | `--muted` |
+| `--border`, `--color-rule` / `--border-strong`, `--color-rule-strong` | `--line` / `--line-strong` |
+| `--primary`, `--primary-hover`, `--primary-contrast` | `--ink`, `--ink-hover`, `--ink-fg` |
+| `--color-focus`, `--accent-lime`, `--accent-text` | `--focus`, `--lime`, `--lime-text` |
+| `--color-income`, `-hover`, `-soft`, `--income-text` | `--in-solid`, `--in-solid-hover`, `--in-bg`, `--in-fg` |
+| `--color-expense`, `-hover`, `-soft`, `--expense-text`, `--danger`, `--danger-hover`, `--danger-text` | `--out-solid`, `--out-solid-hover`, `--out-bg`, `--out-fg` |
+| `--color-warning`, `-soft`, `--warning-text` | `--warn-solid`, `--warn-bg`, `--warn-fg` |
+| `--color-transfer`, `--transfer-text` | `--tr-solid`, `--tr-fg` |
+| `--color-investment`, `-soft`, `--investment-text` | `--inv-solid`, `--inv-bg`, `--inv-fg` |
+| `--color-kakeibo-<pillar>`, `-soft` | `--k-<pillar>`, `--k-<pillar>-soft` (`unclassified` → `--k-none`) |
+
+Raw-valued aliases: `--income-contrast`, `--income-hover-contrast`, `--transfer-contrast` and `--investment-contrast` still had Tailwind consumers (`text-income-contrast` and the like), so they were renamed `--in-solid-fg`, `--in-solid-hover-fg`, `--tr-solid-fg` and `--inv-solid-fg` with their light and dark values unchanged.
+
+Tailwind (steps 3 and 5): the legacy keys and palette remaps are gone. The semantic keys are `in`, `out`, `tr`, `inv`, `warn` and `ok` with `fg`, `bg`, `solid` (and `solid-hover`, `solid-fg` where used), plus `window`, `surface-2`, `surface-3`, `line`, `line-strong`, `text-2` and `ink`. Only the solids are built with `color-mix(... <alpha-value> ...)`, because the sources tint only solids (`bg-out-solid/10`). Default palette classes were mapped by hue (rose/red → out, emerald/green → in, amber/yellow/orange → warn, sky/blue → tr, violet/purple → inv): text shades to `-fg`, 50–100 fills to `-bg`, other fills and borders to `-solid` keeping their opacity; a `dark:` palette override was dropped because the token is themed.
+
+### Deviations
+
+- **One dialogs hook per page instead of one file per dialog (D5).** The account, pocket, valuation and reconcile forms moved byte for byte (apart from colour names and copy) into `components/accounts/AccountDialogs.tsx` as `useAccountDialogs()`, and the goal and debt forms into `components/goals/GoalDialogs.tsx`. Splitting them further would have meant rewriting shared form state; the move keeps every request body, which D17 confirms.
+- **Reorder mode is one list.** The server keeps one top-level order, so "Ubah urutan" replaces both tables with a single list of accounts and their pockets, rather than a list per table.
+- **`scheduled.plans_total` is new in `/dashboard/cycle-summary`.** Target & Tagihan's bills total must be the server's (D4), and the summary had only the total including goal set-asides. The field is additive.
+- **The greeting rule is shared** (`greetingName`): the first word of the display name, else the capitalised username, on Beranda and Tanya.
+- **"Kalau ketemu" became "Saat ditemukan"** in the Kebiasaan habit table: "ketemu" is informal under `ui-copy-register`; the habit-learning delta was updated.
+- **Capture labels carry no habit key.** A capture's feedback row has no institution or text signature, so it never was evidence for a notification habit. The undo still reverts it (D10): purpose suggestions, the question rate and the habit list read live labels only. The scenario "Undone capture is not habit evidence" was reworded to what the data supports.
+- **Drawers now stack above their scrim.** The overlay drawer and the phone sheet had `z-index: 75` under the scrim's 79 since phase 1, so the scrim covered them on screens up to 1180 px (taps closed the sheet). Fixed in `globals.css` with a token test; found while reading the 390 px screenshots.
+- **The plans editor loads on demand on Target & Tagihan** to keep the page within the JS gate.
+- **Built CSS** (D18 gate): the shared stylesheet every page loads fell by 1.5 kB gzip, but the money pages' own module adds 2.5 kB on those three routes, so the total of all CSS files is 0.6 kB above the baseline. Recorded under Gates in verification.md.
+
+### Open decision
+
+| # | Decision | Default applied |
+| --- | --- | --- |
+| OD70 (open, conservative default applied) | Editing the target of an account-backed goal is refused by the API ("Account-backed goal progress is derived from linked account balances") because the form also sends `current_amount`. The same happens on `main` | **Unchanged in phase 5.** D17 requires identical writes, and fixing it changes a request body. Record it and fix it in a follow-up change (the form should omit `current_amount` for account-backed goals) |
+
 ## Open decisions for owner
 
 Each has a recommended default that this plan already uses.

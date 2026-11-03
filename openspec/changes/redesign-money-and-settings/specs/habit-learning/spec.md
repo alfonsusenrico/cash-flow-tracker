@@ -74,9 +74,9 @@ Each Kebiasaan row SHALL state its status in words: "Dicatat otomatis", "Masih b
 Undoing a typed capture SHALL append an `undo` feedback row whose `reverts_feedback_id` names the capture's `capture` feedback row, in the same database transaction as the rest of the undo, and SHALL NOT update or delete the capture row. Habit evidence, purpose suggestions, the question rate and the habit list SHALL then ignore the capture's label through the shared live-label condition. A capture without a feedback row SHALL undo as before.
 
 #### Scenario: Undone capture is not habit evidence
-- **GIVEN** two owner labels for a key and an owner-classified capture of the same key
+- **GIVEN** an owner-classified capture
 - **WHEN** the owner undoes the capture
-- **THEN** `classification_feedback` SHALL gain one `undo` row naming the capture row, the capture row SHALL be unchanged, the key SHALL count two labels, and the next payment SHALL be asked instead of recorded from a habit
+- **THEN** `classification_feedback` SHALL gain one `undo` row naming the capture row, the capture row SHALL be unchanged, and the capture's label SHALL no longer be a live label for any reader
 
 #### Scenario: Undo fails midway
 - **WHEN** the undo's database transaction fails after the `undo` row was written
