@@ -261,11 +261,6 @@ export function AccountsView() {
           </tbody>
         </table>
       )}
-      {awaitingTotal > 0 && (
-        <p className="ws-caption">
-          {awaitingTotal} pindah saldo belum lengkap. <Link href="/review?folder=pindah" className="ws-linkbtn">Lengkapi di Tinjau</Link>
-        </p>
-      )}
     </Card>
   );
 

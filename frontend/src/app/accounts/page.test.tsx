@@ -24,8 +24,9 @@ vi.mock("next/navigation", async () => {
 });
 
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() } }));
+const hidden = vi.hoisted(() => ({ on: false }));
 vi.mock("@/components/layout/AppLayout", () => ({
-  useAppCtx: () => ({ bal: (amount: number) => `Rp ${amount.toLocaleString("id-ID")}` }),
+  useAppCtx: () => ({ bal: (amount: number) => (hidden.on ? "••••" : `Rp ${amount.toLocaleString("id-ID")}`) }),
 }));
 vi.mock("@/hooks/useAnimatedCounter", () => ({ useAnimatedCounter: (amount: number) => amount }));
 
@@ -682,4 +683,23 @@ describe("account and pocket forms", () => {
     expect(screen.queryByRole("button", { name: "Bank Utama" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Broker" })).toBeInTheDocument();
   });
+
+  it("opens a drawer from ?akun= and masks every amount when balances are hidden", async () => {
+    const bank = { id: "bank", name: "Bank Utama", type: "bank", balance: 1_000, initial_balance: 0, is_archived: false, color: "#2563EB", children: [] };
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { ok: true, accounts: [bank], total_balance: 1_000 };
+      if (path === "/dashboard/net-worth") return { ...{ ok: true, net_worth: 1000, total_assets: 1000, total_liabilities: 0, accounts: [], obligations: [], liquid: 1000, investment: 0, reconciliation_pending: 0, lines: [{ key: "liquid", label: "Dana likuid", amount: 1000 }] } };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
+    });
+    realReplace(null, "", "/accounts?akun=bank");
+    hidden.on = true;
+    renderAccounts();
+    const drawer = await screen.findByRole("dialog", { name: /^Bank Utama/ });
+    expect(within(drawer).getByRole("button", { name: /Tambah kantong/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Rp 1\.000/)).not.toBeInTheDocument();
+    // The colour mark is decorative; the kind is written beside it.
+    expect(within(await row("Bank Utama")).getAllByText("Bank").length).toBeGreaterThan(0);
+    hidden.on = false;
+  });
 });
+

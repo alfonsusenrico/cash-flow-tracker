@@ -235,5 +235,17 @@ describe("goal backing forms", () => {
     expect(screen.getByText("Pinjaman Lunas")).toBeInTheDocument();
     expect(screen.queryByText(/sudah mencapai|bebas utang/i)).not.toBeInTheDocument();
   });
+
+  it("opens a goal from ?target= and confirms before archiving without touching an account", async () => {
+    realReplace(null, "", "/goals?target=goal-standalone");
+    const user = userEvent.setup();
+    renderGoals();
+    const drawer = await screen.findByRole("dialog", { name: /^Laptop/ });
+    await user.click(within(drawer).getByRole("button", { name: "Arsipkan target Laptop" }));
+    expect(api.del).not.toHaveBeenCalled();
+    expect(within(drawer).getByRole("group", { name: /Arsipkan target "Laptop"\? Saldo rekening tidak berubah\./ })).toBeInTheDocument();
+    await user.click(within(drawer).getByRole("button", { name: "Ya, lanjutkan" }));
+    await waitFor(() => expect(api.del).toHaveBeenCalledWith("/goals/goal-standalone"));
+  });
 });
 
