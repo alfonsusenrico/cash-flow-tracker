@@ -317,7 +317,7 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
                   <button
                     type="button"
                     onClick={() => setInputPrice(Math.round(pocket.last_price!).toLocaleString("id-ID"))}
-                    className="px-1.5 py-0.5 rounded bg-[var(--surface-2)] hover:bg-[var(--line)] border border-[var(--line)] text-in-fg font-semibold transition-colors motion-reduce:transition-none"
+                    className="inline-flex min-h-6 items-center px-1.5 py-0.5 rounded bg-[var(--surface-2)] hover:bg-[var(--line)] border border-[var(--line)] text-in-fg font-semibold transition-colors motion-reduce:transition-none"
                     title="Gunakan harga pasar terkini"
                   >
                     Pasar ({fmtMoney(pocket.last_price)})
@@ -327,7 +327,7 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
                   <button
                     type="button"
                     onClick={() => setInputPrice(Math.round(pocket.avg_buy_price!).toLocaleString("id-ID"))}
-                    className="px-1.5 py-0.5 rounded bg-[var(--surface-2)] hover:bg-[var(--line)] border border-[var(--line)] text-[var(--text)] font-semibold transition-colors motion-reduce:transition-none"
+                    className="inline-flex min-h-6 items-center px-1.5 py-0.5 rounded bg-[var(--surface-2)] hover:bg-[var(--line)] border border-[var(--line)] text-[var(--text)] font-semibold transition-colors motion-reduce:transition-none"
                     title="Gunakan harga modal rata-rata"
                   >
                     Modal ({fmtMoney(pocket.avg_buy_price)})
