@@ -555,6 +555,20 @@ def answer_capture(user_id: str, capture_id: str, raw: dict) -> dict:
     return view
 
 
+def revert_capture_labels(cur, user_id: str, transaction_ids: list[str]) -> None:
+    """Append an `undo` row for every live `capture` label of the recorded rows."""
+    from app.services.merchant_memory import live_feedback_sql
+    from app.services.review_undo import revert_feedback
+
+    cur.execute(
+        f"""SELECT f.id FROM classification_feedback f
+            WHERE f.user_id = %s AND f.kind = 'capture' AND f.transaction_id = ANY(%s::uuid[])
+              AND {live_feedback_sql("f")}""",
+        (user_id, transaction_ids),
+    )
+    revert_feedback(cur, user_id, [str(row["id"]) for row in cur.fetchall()])
+
+
 def undo_capture(user_id: str, capture_id: str) -> dict:
     """Remove the recorded rows within the undo window, if they are unchanged (D6)."""
     with db_conn() as conn:
@@ -571,6 +585,9 @@ def undo_capture(user_id: str, capture_id: str) -> dict:
             recorded = capture["recorded_rows"] or []
             if row_states(cur, user_id, [row["id"] for row in recorded], lock=True) != recorded:
                 raise HTTPException(status_code=409, detail={"code": "capture_transaction_changed"})
+            # The capture's own label stops counting as habit evidence (design D10). The undo row is
+            # appended in this transaction, so a failure later leaves the label live with the rows.
+            revert_capture_labels(cur, user_id, [row["id"] for row in recorded])
             if capture["movement_id"]:
                 delete_movement_rows(cur, user_id, str(capture["movement_id"]))
             else:

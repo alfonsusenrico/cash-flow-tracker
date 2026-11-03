@@ -16,6 +16,7 @@ from app.routers.classification import router as classification_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.devices import router as devices_router
 from app.routers.goals import router as goals_router
+from app.routers.habits import router as habits_router
 from app.routers.ingest import router as ingest_router
 from app.routers.movements import router as movements_router
 from app.routers.investment_topups import router as investment_topups_router
@@ -271,6 +272,7 @@ for prefix in ("", "/api", "/v1"):
     app.include_router(movements_router, prefix=prefix)
     app.include_router(investment_topups_router, prefix=f"{prefix}/investment-topups")
     app.include_router(goals_router, prefix=f"{prefix}/goals")
+    app.include_router(habits_router, prefix=f"{prefix}/habits")
     app.include_router(obligations_router, prefix=f"{prefix}/obligations")
     app.include_router(recurring_router, prefix=f"{prefix}/recurring")
     app.include_router(dashboard_router, prefix=f"{prefix}/dashboard")

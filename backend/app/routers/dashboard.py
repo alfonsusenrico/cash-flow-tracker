@@ -10,7 +10,7 @@ from app.db.pool import db_conn
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.services.auth import get_current_user
 from app.services.calendar import build_calendar
-from app.services.cycle_summary import KELUAR_BUCKETS, build_cycle_summary, rupiah
+from app.services.cycle_summary import KELUAR_BUCKETS, build_cycle_summary, net_worth_breakdown, rupiah
 from app.services.essential_cost import DEFAULT_TARGET_MONTHS, EssentialCost, coverage, estimate_essential_cost
 from app.services.kakeibo import UNCLASSIFIED, pillar_bucket_sql
 from app.services.money_flow import FlowKeyError, build_flow, clamp_through, flow_rows, load_flow_context
@@ -1245,9 +1245,7 @@ def get_dashboard_net_worth(current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
     emergency_multiplier = int(current_user.get("emergency_fund_multiplier") or DEFAULT_TARGET_MONTHS)
 
-    # 1. Liquid Accounts (Assets)
     accounts = get_accounts_with_balances(user_id, include_archived=False)
-    total_assets = sum(a["balance"] for a in accounts if a.get("parent_id") is None)
     liquid_balance = summarize_account_balances(accounts)["liquid_balance"]
 
     with db_conn() as conn:
@@ -1275,7 +1273,11 @@ def get_dashboard_net_worth(current_user: dict = Depends(get_current_user)):
                 for r in cur.fetchall()
             ]
             total_liabilities = sum(o["remaining_amount"] for o in obligations)
-            net_worth = total_assets - total_liabilities
+            # Same rule as Beranda: a negative balance waiting for reconciliation is its own owed line,
+            # not a reduction of the assets.
+            breakdown = net_worth_breakdown(cur, user_id, accounts)
+            total_assets = breakdown["liquid"] + breakdown["investment"]
+            net_worth = breakdown["total"]
 
             # 3. Ketahanan Dana / Runway calculation
             # The no-reserve fallback is liquid cash, as on the overview; investments are not a reserve.
@@ -1300,6 +1302,10 @@ def get_dashboard_net_worth(current_user: dict = Depends(get_current_user)):
         ],
         "obligations": obligations,
         "runway": runway_info,
+        "liquid": breakdown["liquid"],
+        "investment": breakdown["investment"],
+        "reconciliation_pending": breakdown["reconciliation_pending"],
+        "lines": breakdown["lines"],
     }
 
 

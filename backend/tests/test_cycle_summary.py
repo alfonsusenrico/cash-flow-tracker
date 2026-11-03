@@ -559,6 +559,81 @@ def test_net_worth_counts_parent_and_pockets_once_and_lists_each_debt(owner):
     assert owner.session.get("/api/dashboard/overview").json()["kpis"]["liquid_balance"] == net["liquid"]
 
 
+NET_WORTH = "/api/dashboard/net-worth"
+# The keys `/dashboard/net-worth` answered before it shared Beranda's rule; they must all stay.
+NET_WORTH_KEYS_BEFORE = {"ok", "net_worth", "total_assets", "total_liabilities", "accounts", "obligations", "runway"}
+
+
+def net_worth_owner(owner):
+    owner.account("platform", "Platform Contoh", kind="investment")
+    owner.account("fund", "Reksa Dana Contoh", kind="investment", initial=25_000_000, parent="platform")
+    owner.account("position", "Saham Contoh", kind="investment", initial=0)
+    owner.db(
+        "UPDATE accounts SET instrument_type = 'stock', instrument_symbol = 'AAAA', units = 200, avg_buy_price = 5000 "
+        "WHERE id = %s", (owner["position"],),
+    )
+    owner.account("child_pocket", "Kantong Anak", initial=1_000_000, parent="bank")
+    owner.account("minus_pocket", "Kantong Minus", initial=-50_000, parent="bank")
+    owner.db("UPDATE accounts SET reconciliation_required = TRUE WHERE id = %s", (owner["minus_pocket"],))
+    owner.db("INSERT INTO obligations (user_id, name, total_amount, remaining_amount) VALUES (%s, 'Pinjaman Contoh', 3000000, 2400000)", (owner.user_id,))
+    owner.db("INSERT INTO obligations (user_id, name, total_amount, remaining_amount, is_archived) VALUES (%s, 'Lunas Contoh', 100, 0, TRUE)", (owner.user_id,))
+    owner.db("INSERT INTO obligations (user_id, name, total_amount, remaining_amount) VALUES (%s, 'Selesai Contoh', 500000, 0)", (owner.user_id,))
+    return owner
+
+
+def test_rekening_net_worth_equals_beranda_with_a_pocket_waiting_for_reconciliation(owner):
+    net_worth_owner(owner)
+    beranda = owner.summary()["net_worth"]
+    rekening = owner.session.get(NET_WORTH).json()
+    assert rekening["net_worth"] == beranda["total"]
+    assert rekening["total_assets"] == beranda["liquid"] + beranda["investment"]
+    assert (rekening["liquid"], rekening["investment"], rekening["reconciliation_pending"]) == (
+        beranda["liquid"], beranda["investment"], beranda["reconciliation_pending"],
+    )
+    assert rekening["lines"] == beranda["lines"]
+    # The minus pocket is its own owed line, never a reduction of the assets; the pockets count once.
+    assert rekening["reconciliation_pending"] == 50_000
+    assert rekening["liquid"] == 21_000_000
+    assert {"key": "reconciliation_pending", "label": "Saldo minus perlu dicocokkan", "amount": -50_000} in rekening["lines"]
+    # Archived and paid-off debts are left out.
+    assert rekening["total_liabilities"] == 2_400_000
+    assert [line["label"] for line in rekening["lines"] if line["key"].startswith("debt:")] == ["Pinjaman Contoh"]
+    assert rekening["net_worth"] == rekening["total_assets"] - 50_000 - 2_400_000
+
+
+def test_rekening_net_worth_keeps_every_earlier_key(owner):
+    net_worth_owner(owner)
+    body = owner.session.get(NET_WORTH).json()
+    assert NET_WORTH_KEYS_BEFORE <= set(body)
+    assert {"liquid", "investment", "reconciliation_pending", "lines"} <= set(body)
+
+
+def test_rekening_net_worth_is_owner_scoped(make_owner):
+    first, second = make_owner(), make_owner()
+    net_worth_owner(second)
+    body = first.session.get(NET_WORTH).json()
+    assert body["net_worth"] == first.summary()["net_worth"]["total"]
+    assert body["total_liabilities"] == 0 and body["reconciliation_pending"] == 0
+    assert all(not line["key"].startswith("debt:") for line in body["lines"])
+
+
+def test_rekening_net_worth_statement_count_is_constant(owner, monkeypatch):
+    net_worth_owner(owner)
+
+    def count() -> int:
+        with monkeypatch.context() as patch:
+            with counted_statements(patch) as statements:
+                assert owner.session.get(NET_WORTH).status_code == 200
+                return len(statements)
+
+    baseline = count()
+    assert baseline > 0
+    for index in range(15):
+        owner.account(f"extra{index}", f"Kantong Ekstra {index}", initial=10_000, parent="bank")
+        owner.db("INSERT INTO obligations (user_id, name, total_amount, remaining_amount) VALUES (%s, %s, 1000, 500)", (owner.user_id, f"Utang Ekstra {index}"))
+    assert count() == baseline
+
+
 # --- Comparison -----------------------------------------------------------------------------------
 
 
