@@ -59,7 +59,10 @@ export type IconName =
   | "trending-up"
   | "chevron-left"
   | "chevron-right"
-  | "alert-triangle";
+  | "alert-triangle"
+  | "arrows-right-left"
+  | "sparkles"
+  | "chevron-down";
 
 interface IconProps extends SVGProps<SVGSVGElement> {
   name: IconName | string;

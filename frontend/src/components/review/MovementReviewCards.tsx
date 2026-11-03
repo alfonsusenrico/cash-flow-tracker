@@ -3,36 +3,16 @@
 import Link from "next/link";
 import { useId, useState, type FormEvent } from "react";
 import { useAppCtx } from "@/components/layout/AppLayout";
-import { AccountSelectOptions, type AccountOptionItem } from "@/components/ui/AccountSelectOptions";
-import { filterLiquidAccountChoices } from "@/lib/accountOptions";
-import {
-  reviewReasonLabel,
-  type AmbiguousItem,
-  type AwaitingItem,
-  type CompletionCandidate,
-  type ReviewItem,
-  type TopupProductChoice,
-} from "@/lib/review";
+import { Choice, Picker } from "@/components/review/triage/Choice";
+import { ItemHead, longWhen } from "@/components/review/triage/ItemHead";
+import type { AccountOptionItem } from "@/components/ui/AccountSelectOptions";
+import type { CategoryOption } from "@/components/review/ReviewGroupCard";
+import { listLiquidAccountChoices } from "@/lib/accountOptions";
+import { KAKEIBO_PILLARS } from "@/lib/kakeibo";
+import type { AmbiguousItem, AwaitingItem, CompletionCandidate, ReviewItem, TopupProductChoice } from "@/lib/review";
 
-const PRIMARY = "min-h-11 rounded-xl bg-[#1E201E] px-4 text-xs font-bold text-white transition-transform active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-50 dark:border dark:border-white/15";
-const SECONDARY = "min-h-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--text)] transition-colors hover:bg-[var(--surface-raised)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-50";
-
-function when(date: string | null): string | null {
-  return date
-    ? new Date(date).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
-    : null;
-}
-
-function EditLink({ item }: { item: ReviewItem }) {
-  return (
-    <Link
-      href={`/ledger?edit=${item.id}&return=review`}
-      className="inline-flex min-h-11 items-center rounded-lg px-2 text-xs font-semibold text-[var(--text)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
-    >
-      Ubah di buku kas
-    </Link>
-  );
-}
+/** Account choices numbered 1–9 before the rest move to a select (D4). */
+const NUMBERED_ACCOUNTS = 9;
 
 export interface TopupOptions {
   /** Amount-tracked mutual-fund products a debit can become a top-up of. */
@@ -43,358 +23,397 @@ export interface TopupOptions {
   onReject: (item: ReviewItem, suggestedId?: string) => Promise<boolean>;
 }
 
+interface Counterpart {
+  id: string;
+  label: string;
+}
+
+/** Liquid accounts and pockets the leg can pair with; a parent that holds pockets is not a counterpart. */
+export function counterpartChoices(accounts: AccountOptionItem[], excludeId: string): Counterpart[] {
+  const listed = listLiquidAccountChoices(accounts) as AccountOptionItem[];
+  const names = new Map(accounts.flatMap((account) => [account, ...(account.children ?? [])])
+    .map((account) => [String(account.id ?? account.account_id), String(account.name ?? account.account_name ?? "")]));
+  return listed
+    .filter((account) => !(account.children?.length) && !account.is_parent)
+    .map((account) => {
+      const id = String(account.id ?? account.account_id);
+      const parent = account.parent_id ? names.get(String(account.parent_id)) : null;
+      const name = String(account.name ?? account.account_name ?? "");
+      return { id, label: parent ? `${parent} · ${name}` : name };
+    })
+    .filter((choice) => choice.id !== excludeId);
+}
+
+function EditLink({ item }: { item: ReviewItem }) {
+  return (
+    <Link href={`/ledger?edit=${item.id}&return=review`} className="ws-btn ws-btn-sm">
+      Ubah di Transaksi
+    </Link>
+  );
+}
+
+/** "Ini top up investasi": each amount-tracked product is one press; unit-tracked funds are explained. */
+function TopupPicker({ item, topup, pending, suggestedId, id }: {
+  item: AwaitingItem;
+  topup: TopupOptions;
+  pending: boolean;
+  suggestedId?: string;
+  id: string;
+}) {
+  const products = suggestedId ? topup.products.filter((product) => product.id !== suggestedId) : topup.products;
+  return (
+    <Picker id={id} title="Ini top up investasi. Ke produk mana?">
+      {products.length > 0 ? (
+        <div className="ws-choices">
+          {products.map((product, index) => (
+            <Choice
+              key={product.id}
+              n={index + 1}
+              disabled={pending}
+              label={product.label}
+              sub="Dicatat per nominal"
+              onClick={() => void topup.onConvert(item, product.id, suggestedId)}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="ws-caption">Belum ada produk reksadana yang dicatat berdasarkan nominal.</p>
+      )}
+      {topup.unitFunds.length > 0 && (
+        <p className="ws-caption">
+          {topup.unitFunds.map((fund) => fund.label).join(", ")} masih dicatat per unit. Ubah dulu ke pelacakan nominal di{" "}
+          <Link href="/accounts" className="ws-linkbtn">Rekening</Link>{" "}
+          (menu produk, &quot;Ubah ke pelacakan nominal&quot;).
+        </p>
+      )}
+      <p className="ws-caption">Saldo {item.account_name} tidak berubah lagi karena debit ini sudah tercatat.</p>
+    </Picker>
+  );
+}
+
+/** OD15: the leg was never a transfer. It becomes an owner-classified expense through the bulk recategorise. */
+function ExpensePicker({ item, categories, pending, onExpense, id }: {
+  item: AwaitingItem;
+  categories: CategoryOption[];
+  pending: boolean;
+  onExpense: (item: ReviewItem, categoryId: string, pillar: string | null) => Promise<boolean>;
+  id: string;
+}) {
+  const [categoryId, setCategoryId] = useState("");
+  const [pillar, setPillar] = useState("");
+  const [error, setError] = useState("");
+  const choices = categories.filter((category) => category.kind === "expense" && !category.is_archived && category.name !== "Internal Movement");
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!categoryId) {
+      setError("Pilih kategori pengeluarannya.");
+      return;
+    }
+    setError("");
+    await onExpense(item, categoryId, pillar || null);
+  };
+  return (
+    <Picker id={id} title="Bukan pindah saldo, ini pengeluaran">
+      <form onSubmit={submit} className="ws-form-row">
+        <label className="ws-field">
+          Kategori
+          <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} aria-invalid={error ? true : undefined}>
+            <option value="">Pilih kategori</option>
+            {choices.map((category) => (
+              <option key={category.id} value={category.id}>{category.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="ws-field">
+          Pilar Kakeibo
+          <select value={pillar} onChange={(event) => setPillar(event.target.value)}>
+            <option value="">Ikuti kategori</option>
+            {KAKEIBO_PILLARS.map((entry) => (
+              <option key={entry.value} value={entry.value}>{entry.label}</option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" disabled={pending} className="ws-btn ws-btn-ink">Simpan sebagai pengeluaran</button>
+      </form>
+      <p className="ws-caption">Setelah disimpan, ini dihitung di Keluar dan tidak dipasangkan lagi.</p>
+      {error && <p role="alert" className="ws-alert">{error}</p>}
+    </Picker>
+  );
+}
+
 interface AwaitingMovementCardProps {
   item: AwaitingItem;
+  headingId: string;
   accounts: AccountOptionItem[];
+  categories: CategoryOption[];
   pending: boolean;
   /** Rows already on the chosen account that may be the missing leg; set after the server refuses to duplicate. */
   candidates?: CompletionCandidate[];
   onComplete: (item: ReviewItem, accountId: string, createNew?: boolean) => Promise<boolean>;
   onLinkExisting: (item: ReviewItem, candidateId: string) => Promise<boolean>;
+  onExpense: (item: ReviewItem, categoryId: string, pillar: string | null) => Promise<boolean>;
   /** Present for an outgoing leg from a liquid account: it may have bought a mutual fund. */
   topup?: TopupOptions;
 }
 
-const PRODUCT_FIELD = "min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]";
+type AwaitingPanel = "none" | "other" | "topup" | "expense";
 
 /**
- * "Ini top up investasi": the debit becomes the outgoing leg of a top-up of the chosen product. Unit-tracked
- * funds cannot take an amount, so they are named with the way to make them eligible.
+ * A one-sided own transfer. A learned top-up is offered first (1 Iya, 2 Pilih lain, 3 Bukan top up);
+ * otherwise the counterpart accounts, "Ini top up investasi" and "Bukan pindah saldo, ini pengeluaran".
  */
-function TopupProductForm({ item, topup, pending, suggestedId, onCancel }: {
-  item: AwaitingItem;
-  topup: TopupOptions;
-  pending: boolean;
-  suggestedId?: string;
-  onCancel: () => void;
-}) {
-  const baseId = useId();
-  const products = suggestedId ? topup.products.filter((product) => product.id !== suggestedId) : topup.products;
-  const [productId, setProductId] = useState(products.length === 1 ? products[0].id : "");
-  const [error, setError] = useState("");
-
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!productId) {
-      setError("Pilih produk reksadana tujuan.");
-      document.getElementById(`${baseId}-product`)?.focus();
-      return;
-    }
-    setError("");
-    await topup.onConvert(item, productId, suggestedId);
-  };
-
-  return (
-    <form onSubmit={submit} aria-label="Jadikan top up investasi" className="space-y-2 rounded-xl border border-[var(--border)] p-3">
-      {products.length > 0 ? (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1 space-y-1">
-            <label htmlFor={`${baseId}-product`} className="block text-[11px] font-medium text-[var(--muted)]">Produk tujuan</label>
-            <select
-              id={`${baseId}-product`}
-              value={productId}
-              onChange={(event) => setProductId(event.target.value)}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? `${baseId}-error` : undefined}
-              className={PRODUCT_FIELD}
-            >
-              <option value="">Pilih produk…</option>
-              {products.map((product) => (
-                <option key={product.id} value={product.id}>{product.label}</option>
-              ))}
-            </select>
-          </div>
-          <button type="submit" disabled={pending} className={PRIMARY}>Jadikan top up</button>
-          <button type="button" disabled={pending} onClick={onCancel} className={SECONDARY}>Batal</button>
-        </div>
-      ) : (
-        <p className="text-xs text-[var(--text)]">Belum ada produk reksadana yang dicatat berdasarkan nominal.</p>
-      )}
-      {topup.unitFunds.length > 0 && (
-        <p className="text-[11px] text-[var(--muted)]">
-          {topup.unitFunds.map((fund) => fund.label).join(", ")} masih dicatat per unit. Ubah dulu ke pelacakan nominal di{" "}
-          <Link href="/accounts" className="font-semibold text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]">
-            Rekening
-          </Link>{" "}
-          (menu produk, &quot;Ubah ke pelacakan nominal&quot;).
-        </p>
-      )}
-      <p className="text-[11px] text-[var(--muted)]">Saldo {item.account_name} tidak berubah lagi karena debit ini sudah tercatat.</p>
-      {error && <p id={`${baseId}-error`} role="alert" className="text-[11px] font-medium text-rose-600 dark:text-rose-400">{error}</p>}
-    </form>
-  );
-}
-
-/** A learned top-up for this debit: one-tap accept, another product, or "not a top-up". */
-function TopupSuggestionPanel({ item, topup, pending }: { item: AwaitingItem; topup: TopupOptions; pending: boolean }) {
-  const baseId = useId();
-  const suggestion = item.topup_suggestion;
-  const [picking, setPicking] = useState(false);
-  const [choice, setChoice] = useState("");
-  const [error, setError] = useState("");
-  if (!suggestion) return null;
-  const target = suggestion.target_account_id;
-
-  const chooseOne = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!choice) {
-      setError("Pilih produknya.");
-      return;
-    }
-    setError("");
-    await topup.onConvert(item, choice);
-  };
-
-  return (
-    <section aria-labelledby={`${baseId}-prompt`} className="space-y-2 rounded-xl border border-violet-500/25 bg-investment-soft p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-investment">Top up investasi</p>
-      <p id={`${baseId}-prompt`} className="text-sm font-semibold text-[var(--text)]">{suggestion.prompt}</p>
-      <p className="text-[11px] text-[var(--text-secondary)]">
-        {target && suggestion.target_label ? `${suggestion.target_label}. ` : null}{suggestion.explanation}
-      </p>
-      {target ? (
-        <div className="flex flex-wrap gap-2">
-          <button type="button" disabled={pending} onClick={() => topup.onConvert(item, target, target)} className={PRIMARY}>
-            Ya, top up
-          </button>
-          <button
-            type="button"
-            disabled={pending}
-            aria-expanded={picking}
-            onClick={() => setPicking((open) => !open)}
-            className={SECONDARY}
-          >
-            Pilih produk lain
-          </button>
-          <button type="button" disabled={pending} onClick={() => topup.onReject(item, target)} className={SECONDARY}>
-            Bukan top up
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={chooseOne} className="space-y-2">
-          <fieldset className="space-y-1.5">
-            <legend className="mb-1 text-[11px] font-medium text-[var(--muted)]">Top up ke</legend>
-            {suggestion.choices.map((product) => (
-              <label key={product.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text)]">
-                <input
-                  type="radio"
-                  name={`${baseId}-choice`}
-                  value={product.id}
-                  checked={choice === product.id}
-                  onChange={() => setChoice(product.id)}
-                  className="h-4 w-4 accent-[#1E201E] dark:accent-white"
-                />
-                <span className="font-semibold">{product.label}</span>
-              </label>
-            ))}
-          </fieldset>
-          <div className="flex flex-wrap gap-2">
-            <button type="submit" disabled={pending} className={PRIMARY}>Jadikan top up</button>
-            <button type="button" disabled={pending} onClick={() => topup.onReject(item)} className={SECONDARY}>Bukan top up</button>
-          </div>
-          {error && <p role="alert" className="text-[11px] font-medium text-rose-600 dark:text-rose-400">{error}</p>}
-        </form>
-      )}
-      {picking && target && (
-        <TopupProductForm item={item} topup={topup} pending={pending} suggestedId={target} onCancel={() => setPicking(false)} />
-      )}
-    </section>
-  );
-}
-
-/**
- * A one-sided own transfer: the owner names the other account. When that account already holds a matching
- * row, the owner links it or explicitly creates a new leg.
- */
-export function AwaitingMovementCard({ item, accounts, pending, candidates, onComplete, onLinkExisting, topup }: AwaitingMovementCardProps) {
+export function AwaitingMovementCard({
+  item, headingId, accounts, categories, pending, candidates, onComplete, onLinkExisting, onExpense, topup,
+}: AwaitingMovementCardProps) {
   const { bal } = useAppCtx();
   const baseId = useId();
-  const [accountId, setAccountId] = useState("");
-  const [topupOpen, setTopupOpen] = useState(false);
-  const offerTopup = Boolean(topup) && item.type === "expense";
-  const suggested = offerTopup && item.topup_suggestion !== null;
-  const [candidateId, setCandidateId] = useState("");
-  const [error, setError] = useState("");
   const outgoing = item.type === "expense";
+  const suggestion = topup && outgoing ? item.topup_suggestion : null;
+  const target = suggestion?.target_account_id ?? null;
+  const [panel, setPanel] = useState<AwaitingPanel>("none");
+  const [otherAccount, setOtherAccount] = useState("");
+  const [error, setError] = useState("");
+  const counterparts = counterpartChoices(accounts, item.account_id);
+  const numbered = counterparts.slice(0, NUMBERED_ACCOUNTS);
+  const rest = counterparts.slice(NUMBERED_ACCOUNTS);
+  const toggle = (next: AwaitingPanel) => setPanel((current) => (current === next ? "none" : next));
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
+  const submitOther = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!accountId) {
+    if (!otherAccount) {
       setError(outgoing ? "Pilih rekening tujuan." : "Pilih rekening asal.");
       return;
     }
     setError("");
-    await onComplete(item, accountId);
+    await onComplete(item, otherAccount);
+  };
+
+  const pairing = (startAt: number) => {
+    let n = startAt;
+    return (
+      <>
+        <div className="ws-choices">
+          {numbered.map((account) => (
+            <Choice
+              key={account.id}
+              n={n++}
+              disabled={pending}
+              label={account.label}
+              sub={outgoing ? "Pindah saldo ke sini" : "Pindah saldo dari sini"}
+              onClick={() => void onComplete(item, account.id)}
+            />
+          ))}
+          {topup && outgoing && (
+            <Choice
+              n={n++}
+              topup
+              disabled={pending}
+              label="Ini top up investasi"
+              sub="Masuk ke produk, dihitung Tabungan"
+              expanded={panel === "topup"}
+              controls={panel === "topup" ? `${baseId}-topup` : undefined}
+              onClick={() => toggle("topup")}
+            />
+          )}
+          {outgoing && (
+            <Choice
+              n={n++}
+              disabled={pending}
+              label="Bukan pindah saldo, ini pengeluaran"
+              sub="Pilih kategorinya, lalu dihitung di Keluar"
+              expanded={panel === "expense"}
+              controls={panel === "expense" ? `${baseId}-expense` : undefined}
+              onClick={() => toggle("expense")}
+            />
+          )}
+        </div>
+        {rest.length > 0 && (
+          <form onSubmit={submitOther} className="ws-form-row mt-3">
+            <label className="ws-field">
+              {outgoing ? "Rekening tujuan lain" : "Rekening asal lain"}
+              <select value={otherAccount} onChange={(event) => setOtherAccount(event.target.value)} aria-invalid={error ? true : undefined}>
+                <option value="">Pilih rekening atau kantong</option>
+                {rest.map((account) => (
+                  <option key={account.id} value={account.id}>{account.label}</option>
+                ))}
+              </select>
+            </label>
+            <button type="submit" disabled={pending} className="ws-btn">Lengkapi pindah saldo</button>
+          </form>
+        )}
+      </>
+    );
   };
 
   return (
-    <article aria-labelledby={`${baseId}-heading`} className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 id={`${baseId}-heading`} className="text-sm font-bold text-[var(--text)]">
-            {outgoing ? `Keluar dari ${item.account_name}, ke rekening mana?` : `Masuk ke ${item.account_name}, dari rekening mana?`}
-          </h3>
-          <p className="mt-0.5 text-xs text-[var(--muted)]">
-            {[when(item.date), item.notes, ...item.reasons.map(reviewReasonLabel)].filter(Boolean).join(" · ")}
-          </p>
-        </div>
-        <span className="shrink-0 text-sm font-bold tabular text-[var(--text)]">{bal(item.amount)}</span>
-      </div>
-      {suggested && topup && <TopupSuggestionPanel item={item} topup={topup} pending={pending} />}
-      <form onSubmit={submit} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="min-w-0 flex-1 space-y-1">
-          <label htmlFor={`${baseId}-account`} className="block text-[11px] font-medium text-[var(--muted)]">
-            {outgoing ? "Rekening tujuan" : "Rekening asal"}
-          </label>
-          <select
-            id={`${baseId}-account`}
-            value={accountId}
-            onChange={(event) => setAccountId(event.target.value)}
-            aria-invalid={error ? true : undefined}
-            className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
-          >
-            <option value="">Pilih rekening atau kantong</option>
-            {/* Pockets are listed under their parent; a parent with pockets is not a valid counterpart. */}
-            <AccountSelectOptions accounts={filterLiquidAccountChoices(accounts)} excludeAccountId={item.account_id} />
-          </select>
-        </div>
-        <button type="submit" disabled={pending} className={PRIMARY}>Lengkapi pindah saldo</button>
-        <EditLink item={item} />
-      </form>
-      {offerTopup && !suggested && topup && (
-        <div className="space-y-2">
-          <button
-            type="button"
-            disabled={pending}
-            aria-expanded={topupOpen}
-            onClick={() => setTopupOpen((open) => !open)}
-            className={SECONDARY}
-          >
-            Ini top up investasi
-          </button>
-          {topupOpen && <TopupProductForm item={item} topup={topup} pending={pending} onCancel={() => setTopupOpen(false)} />}
-        </div>
-      )}
-      {candidates && candidates.length > 0 && (
-        <fieldset className="space-y-2 rounded-xl border border-[var(--border)] p-3">
-          <legend className="px-1 text-xs font-bold text-[var(--text)]">Sudah ada di rekening ini</legend>
-          <p className="text-[11px] text-[var(--muted)]">
-            Transaksi ini mungkin sisi lain pindah saldo. Hubungkan agar tidak tercatat dua kali.
-          </p>
-          {candidates.map((candidate) => (
-            <label key={candidate.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-[var(--border)] px-3 py-2">
-              <input
-                type="radio"
-                name={`${baseId}-candidate`}
-                value={candidate.id}
-                checked={candidateId === candidate.id}
-                onChange={() => setCandidateId(candidate.id)}
-              />
-              <span className="min-w-0 flex-1 text-xs text-[var(--text)]">
-                {[when(candidate.date), candidate.category_name, candidate.notes].filter(Boolean).join(" · ")}
-              </span>
-              <span className="shrink-0 text-xs font-bold tabular text-[var(--text)]">{bal(candidate.amount)}</span>
-            </label>
-          ))}
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={pending || !candidateId}
-              onClick={() => onLinkExisting(item, candidateId)}
-              className={PRIMARY}
-            >
-              Hubungkan
-            </button>
-            <button type="button" disabled={pending} onClick={() => onComplete(item, accountId, true)} className={SECONDARY}>
-              Tetap buat baru
-            </button>
+    <>
+      <ItemHead
+        headingId={headingId}
+        kind={{ tone: "tr", icon: "arrows-right-left", text: "Pindah saldo belum lengkap" }}
+        title={outgoing ? `Uang keluar dari ${item.account_name}. Masuknya ke mana?` : `Uang masuk ke ${item.account_name}. Dari mana?`}
+        account={item.account_name}
+        date={item.date}
+        source={item.source}
+        amount={{ text: `⇄ ${bal(item.amount)}`, className: "ws-amt-tr" }}
+        reasons={item.reasons}
+      />
+      <p className="ws-caption">
+        {item.notes ? `${item.notes}. ` : ""}
+        {outgoing ? "Selama belum lengkap, ini belum masuk Keluar." : "Selama belum lengkap, ini belum masuk Masuk."}
+      </p>
+
+      {suggestion && topup && target && (
+        <section aria-labelledby={`${baseId}-suggest`} className="ws-suggest">
+          <b id={`${baseId}-suggest`}>{suggestion.prompt}</b>
+          <p>{suggestion.target_label ? `${suggestion.target_label}. ` : null}{suggestion.explanation}</p>
+          <div className="ws-choices">
+            <Choice
+              n={1}
+              primary
+              disabled={pending}
+              label={`Iya, top up ${topup.products.find((product) => product.id === target)?.name ?? suggestion.target_label ?? "produk ini"}`}
+              sub="Saranku"
+              onClick={() => void topup.onConvert(item, target, target)}
+            />
+            <Choice
+              n={2}
+              disabled={pending}
+              label="Pilih lain"
+              sub="Produk lain atau rekening pasangan"
+              expanded={panel === "other" || panel === "topup" || panel === "expense"}
+              controls={panel === "other" ? `${baseId}-other` : undefined}
+              onClick={() => toggle("other")}
+            />
+            <Choice n={3} disabled={pending} label="Bukan top up" sub="Aku ingat untuk debit seperti ini" onClick={() => void topup.onReject(item, target)} />
           </div>
-        </fieldset>
+        </section>
       )}
-      {error && <p role="alert" className="text-[11px] font-medium text-rose-600 dark:text-rose-400">{error}</p>}
-    </article>
+
+      {suggestion && topup && !target && (
+        <section aria-labelledby={`${baseId}-ask`} className="ws-suggest">
+          <b id={`${baseId}-ask`}>{suggestion.prompt}</b>
+          <p>{suggestion.explanation}</p>
+          <div className="ws-choices">
+            {suggestion.choices.map((product, index) => (
+              <Choice
+                key={product.id}
+                n={index + 1}
+                disabled={pending}
+                label={product.label}
+                sub="Top up ke sini"
+                onClick={() => void topup.onConvert(item, product.id)}
+              />
+            ))}
+            <Choice
+              n={suggestion.choices.length + 1}
+              disabled={pending}
+              label="Bukan top up"
+              sub="Pilih rekening pasangannya"
+              onClick={() => void topup.onReject(item)}
+            />
+          </div>
+        </section>
+      )}
+
+      {target ? (
+        panel !== "none" && (
+          <Picker id={`${baseId}-other`} title="Pilih pasangannya">
+            {pairing(1)}
+          </Picker>
+        )
+      ) : (
+        !suggestion && (
+          <div className="mt-3" role="group" aria-label="Pilih pasangannya">
+            {pairing(1)}
+          </div>
+        )
+      )}
+      {panel === "topup" && topup && (
+        <TopupPicker id={`${baseId}-topup`} item={item} topup={topup} pending={pending} suggestedId={target ?? undefined} />
+      )}
+      {panel === "expense" && (
+        <ExpensePicker id={`${baseId}-expense`} item={item} categories={categories} pending={pending} onExpense={onExpense} />
+      )}
+
+      {candidates && candidates.length > 0 && (
+        <Picker id={`${baseId}-candidates`} title="Sudah ada di rekening ini">
+          <p className="ws-caption">Transaksi ini mungkin sisi lain pindah saldo. Hubungkan agar tidak tercatat dua kali.</p>
+          <div className="ws-choices">
+            {candidates.map((candidate, index) => (
+              <Choice
+                key={candidate.id}
+                n={index + 1}
+                disabled={pending}
+                label={`Hubungkan: ${bal(candidate.amount)}`}
+                sub={[longWhen(candidate.date), candidate.category_name, candidate.notes].filter(Boolean).join(" · ")}
+                onClick={() => void onLinkExisting(item, candidate.id)}
+              />
+            ))}
+            <Choice
+              n={candidates.length + 1}
+              disabled={pending}
+              label="Tetap buat baru"
+              sub="Rekening itu memang punya transaksi lain"
+              onClick={() => void onComplete(item, candidates[0].account_id, true)}
+            />
+          </div>
+        </Picker>
+      )}
+      {error && <p role="alert" className="ws-alert">{error}</p>}
+      <div className="mt-4">
+        <EditLink item={item} />
+      </div>
+    </>
   );
 }
 
 interface AmbiguousMovementCardProps {
   item: AmbiguousItem;
+  headingId: string;
   pending: boolean;
   onLink: (item: AmbiguousItem, counterpartId: string) => Promise<boolean>;
   onKeepSeparate: (item: AmbiguousItem) => Promise<boolean>;
 }
 
-/** A leg with several possible counterparts: the owner links one or keeps it apart. */
-export function AmbiguousMovementCard({ item, pending, onLink, onKeepSeparate }: AmbiguousMovementCardProps) {
+/** A leg with several possible counterparts: each candidate is one press, then "Biarkan terpisah". */
+export function AmbiguousMovementCard({ item, headingId, pending, onLink, onKeepSeparate }: AmbiguousMovementCardProps) {
   const { bal } = useAppCtx();
-  const baseId = useId();
-  const [choice, setChoice] = useState("");
-  const [error, setError] = useState("");
   const outgoing = item.type === "expense";
-
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!choice) {
-      setError("Pilih pasangan transaksinya.");
-      return;
-    }
-    setError("");
-    await onLink(item, choice);
-  };
-
   return (
-    <article aria-labelledby={`${baseId}-heading`} className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 id={`${baseId}-heading`} className="text-sm font-bold text-[var(--text)]">
-            {outgoing ? `Keluar dari ${item.account_name}` : `Masuk ke ${item.account_name}`}
-          </h3>
-          <p className="mt-0.5 text-xs text-[var(--muted)]">
-            {[when(item.date), item.notes, ...item.reasons.map(reviewReasonLabel)].filter(Boolean).join(" · ")}
-          </p>
-        </div>
-        <span className="shrink-0 text-sm font-bold tabular text-[var(--text)]">{bal(item.amount)}</span>
+    <>
+      <ItemHead
+        headingId={headingId}
+        kind={{ tone: "tr", icon: "arrows-right-left", text: "Pasangan belum pasti" }}
+        title={outgoing ? `Keluar dari ${item.account_name}. Pasangannya yang mana?` : `Masuk ke ${item.account_name}. Asalnya yang mana?`}
+        account={item.account_name}
+        date={item.date}
+        source={item.source}
+        amount={{ text: `⇄ ${bal(item.amount)}`, className: "ws-amt-tr" }}
+        reasons={item.reasons}
+      />
+      {item.candidates.length === 0 && <p className="ws-caption">Tidak ada pasangan dengan nominal yang sama.</p>}
+      <div role="group" aria-label={outgoing ? "Uang ini masuk ke" : "Uang ini berasal dari"} className="ws-choices">
+        {item.candidates.map((candidate, index) => (
+          <Choice
+            key={candidate.id}
+            n={index + 1}
+            disabled={pending}
+            label={candidate.account_name ?? "Rekening"}
+            sub={`${longWhen(candidate.date) ?? ""} · ${bal(candidate.amount)} · gabungkan sebagai pindah saldo`}
+            onClick={() => void onLink(item, candidate.id)}
+          />
+        ))}
+        <Choice
+          n={item.candidates.length + 1}
+          disabled={pending}
+          label="Biarkan terpisah"
+          sub="Bukan pindah saldo, jangan dipasangkan otomatis"
+          onClick={() => void onKeepSeparate(item)}
+        />
       </div>
-      <form onSubmit={submit} className="space-y-3">
-        {item.candidates.length > 0 ? (
-          <fieldset className="space-y-1.5">
-            <legend className="mb-1 text-[11px] font-medium text-[var(--muted)]">
-              {outgoing ? "Uang ini masuk ke" : "Uang ini berasal dari"}
-            </legend>
-            {item.candidates.map((candidate) => (
-              <label
-                key={candidate.id}
-                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-[var(--border)] px-3 py-2 text-xs has-[:checked]:border-[var(--border-strong)] has-[:checked]:bg-[var(--surface-raised)]"
-              >
-                <input
-                  type="radio"
-                  name={`${baseId}-candidate`}
-                  value={candidate.id}
-                  checked={choice === candidate.id}
-                  onChange={() => setChoice(candidate.id)}
-                  className="h-4 w-4 accent-[#1E201E] dark:accent-white"
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block font-semibold text-[var(--text)]">{candidate.account_name ?? "Rekening"}</span>
-                  <span className="block text-[11px] text-[var(--muted)]">{when(candidate.date)}</span>
-                </span>
-                <span className="font-semibold tabular text-[var(--text)]">{bal(candidate.amount)}</span>
-              </label>
-            ))}
-          </fieldset>
-        ) : (
-          <p className="text-xs text-[var(--muted)]">Tidak ada pasangan dengan nominal yang sama.</p>
-        )}
-        <div className="flex flex-wrap items-center gap-2">
-          {item.candidates.length > 0 && (
-            <button type="submit" disabled={pending} className={PRIMARY}>Gabungkan sebagai pindah saldo</button>
-          )}
-          <button type="button" disabled={pending} onClick={() => onKeepSeparate(item)} className={SECONDARY}>
-            Tetap terpisah
-          </button>
-          <EditLink item={item} />
-        </div>
-      </form>
-      {error && <p role="alert" className="text-[11px] font-medium text-rose-600 dark:text-rose-400">{error}</p>}
-    </article>
+      <div className="mt-4">
+        <EditLink item={item} />
+      </div>
+    </>
   );
 }
