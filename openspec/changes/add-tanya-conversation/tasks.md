@@ -178,7 +178,7 @@ Expected Result: every gate passes with recorded evidence, and nothing outside T
 
 ## 6. Acceptance
 
-- [ ] 6.1 Present a short summary to the owner: what changed, the evidence, deviations, and new open decisions with defaults. Add what the owner should try at the end of the redesign (on-screen keyboard on a real phone, screen reader) to the end-of-redesign check list. Record the acceptance with the owner's words and date in proposal.md. Evidence: the owner's words quoted with the date.
+- [x] 6.1 Present a short summary to the owner: what changed, the evidence, deviations, and new open decisions with defaults. Add what the owner should try at the end of the redesign (on-screen keyboard on a real phone, screen reader) to the end-of-redesign check list. Record the acceptance with the owner's words and date in proposal.md. Evidence: the owner's words quoted with the date.
 
 ## Workflow follow-up
 

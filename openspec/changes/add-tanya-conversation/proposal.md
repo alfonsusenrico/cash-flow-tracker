@@ -40,6 +40,8 @@ Binding earlier approvals:
 
 **Plan approval, 2026-11-03.** After a combined summary of the phase 4, 5 and 6 plans, the owner approved all three with "approved, defaults ok". OD60–OD67 take their recommended defaults (design.md, open decisions).
 
+**Acceptance, 2026-11-03.** After the summary of verification.md and the screenshots (CI "Checks" green on `ed995a9`), the owner said "accepted, defaults ok". OD68 keeps its applied default. The change is archived on this branch before the merge.
+
 ## Expected Outcome
 
 - **The Tanya entry:** a "Tanya" entry in the sidebar (group AI, between Harian and Uang), the rail and the phone's Lainnya sheet opens `/tanya`.

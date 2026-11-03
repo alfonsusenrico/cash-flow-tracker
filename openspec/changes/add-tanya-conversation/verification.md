@@ -127,3 +127,7 @@ Zoom 200% and 400%, reduced motion, and focus not obscured at 390:
 - The on-screen keyboard on a real phone (headless browsers have none). This goes on the end-of-redesign check list.
 - Screen readers (semantics checked with role queries and axe). This also goes on the end-of-redesign check list.
 - The time a capture reads ("jam 2 tadi" before 14.00 is 02.00) is the server parser's, unchanged by this phase; the scenario's 14.00 holds only when the phrase is sent after 14.00.
+
+## Acceptance
+
+- 2026-11-03: CI "Checks" run 41590557161 on `ed995a9` passed (backend, frontend, compose and backup). The owner said "accepted, defaults ok". The Beranda lede greeting by username instead of the account name is a phase 1 behaviour, handed to phase 5 (Akun).
