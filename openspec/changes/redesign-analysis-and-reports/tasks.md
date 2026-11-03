@@ -174,7 +174,7 @@ Expected Result: both pages meet WCAG 2.2 AA in the matrix, the money figures ag
 ## 11. OpenSpec and diff
 
 - [x] 11.1 `openspec validate --all --strict` exits 0, and `git diff --check` is clean. Evidence: the output lines.
-- [ ] 11.2 Fill verification.md, including "Not verified" with reasons. Push `feat/analysis-and-reports` so CI runs. Open no pull request. Evidence: the CI run id and its result.
+- [x] 11.2 Fill verification.md, including "Not verified" with reasons. Push `feat/analysis-and-reports` so CI runs. Open no pull request. Evidence: the CI run id and its result.
 
 Expected Result: a pushed branch with green CI and a complete verification record.
 

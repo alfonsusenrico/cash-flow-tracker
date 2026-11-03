@@ -151,6 +151,7 @@ Production build at `b453ce8`; results in `web-p4/matrix/results.json` and 89 sc
 
 - `openspec validate --all --strict`: 75 passed, 0 failed, exit 0 (the main spec warning cleared with phase 3's archive).
 - `git diff --check`: clean.
+- CI "Checks" run 41591719715 on the pushed branch: success (backend on PostgreSQL 16, frontend type check, lint, tests and build, compose config and backup round trip).
 
 ## Not verified
 
