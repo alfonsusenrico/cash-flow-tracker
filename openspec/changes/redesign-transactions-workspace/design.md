@@ -422,6 +422,21 @@ The owner's direction of 2026-11-03 (proposal, "Approval" item 7) sets the regis
 | OD27 (resolved: delegated to the lead by the owner) | Which strings follow the neutral register, and the scope of the sweep | **D20:** labels neutral, conversation casual; the sweep covers phases 1–3 copy and informal strings on other routes, not backend questions or the companion |
 | OD26 (resolved: default) | What "Catat" records through | **`/capture/text`, the phone's path**, including its existing bounded model use for category. The alternative, a web-only deterministic save, would split the capture rules |
 
+## Implementation notes (2026-11-03)
+
+Where the built change differs from the decisions above, and why:
+
+- **One row per movement within a period (D3, D4):** `logical_movements` now also applies with a period or date window and on the Pindah saldo and Investasi tabs, so the tab counts and day counts equal the rows listed. A movement whose legs fall in two windows is listed in the window of its outbound leg. Any other filter still lists both legs.
+- **Waiting predicate:** `waiting=true`, day `waiting_count` and the drawer's `waiting` use `waiting_row_sql`, the badge's `REVIEWABLE_ROW_SQL AND ATTENTION_SQL` written without the question join. A test checks it equals `review/summary.attention`.
+- **The detail gains `local_date`, `waiting` and `origin`** (the notification's text or the typed capture text), additive fields read only by the drawer.
+- **Goal links are not a delete effect (D10):** a goal's progress follows its linked accounts or its manual amount, never a row's `goal_id` (`test_goal_link_is_not_a_delete_effect`). The confirmation names balance and debt effects only, and flow 5 deletes a debt payment instead of a goal-linked expense.
+- **Selection for "Jadikan Pindah Saldo":** a "Gabungkan" toolbar button and long-press on a phone row start selection mode with labelled checkboxes, instead of the old hold-or-Space on table rows, because each row's title is now a button.
+- **Z on Transaksi** undoes the page's own newest "Tandai sudah dicek", top-up conversion or merge. Tinjau keeps its own stack.
+- **⌘K on Transaksi** focuses the page's search; the top-bar search field is hidden there, so one field searches the rows.
+- **"Isi manual"** closes Catat and opens the form with the parsed amount; the typed text is not kept.
+- **Catat's notes:** "Rekening: ditentukan saat dicatat" and "Kategori: dikenali saat dicatat", because the capture may resolve both without asking.
+- **Bundle:** the drawer's editors and modals load on first use, so Beranda, which also opens the drawer, grows little.
+
 ## Risks / Trade-offs
 
 - **The URL defect's internal cause is in Next.js and not established.** The history-API writer avoids the failing transition, and the plan re-checks sidebar links and the newest patch (task 1.2). A future Next.js upgrade may fix it upstream. The helper stays correct either way.

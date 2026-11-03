@@ -168,7 +168,7 @@ Expected Result: phase 3 is proven locally at all five widths in both themes, wi
 
 ## Workflow follow-up
 
-- **After acceptance:** run `openspec archive redesign-transactions-workspace -y` on `feat/transactions-workspace`, then confirm that `openspec validate --all --strict` exits 0. Push the branch and report the compare link.
+- **After acceptance:** run `openspec archive redesign-transactions-workspace -y` on `feat/transactions-workspace`, replace the placeholder `## Purpose` of the new main spec `ui-copy-register` with "Keep the web interface's own words neutral and consistent while the assistant keeps its friendly voice in conversation.", then confirm that `openspec validate --all --strict` exits 0 (74 passed on a scratch copy, 2026-11-03). Push the branch and report the compare link.
 - **Merge and release:** the owner opens and merges the pull request, and the release runs only through `deploy.yml`.
 - **After the deploy:** with the owner's standing read-only permission, check production. Health returns 200, the containers come from the release, `GET /api/transactions?include=daily_totals` answers, and `/ledger` loads. Then delete the branch locally and on the remote.
 - **Next phase:** start phase 4 (`redesign-analysis-and-reports`) from the merged `main`.

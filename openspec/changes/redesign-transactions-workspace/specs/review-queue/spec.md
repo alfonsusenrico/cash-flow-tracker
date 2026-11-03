@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Triage Folders and Counts
-Tinjau SHALL offer the folder chips "Semua", "Belum dikenali", "Perlu jawaban" and "Pindah saldo belum lengkap" (awaiting and ambiguous legs), each with its row count. "Semua" SHALL be the default and SHALL list the three in that order. Without truncation, the three counts SHALL add up to the summary's `attention`. The header SHALL show no amount. The header label SHALL read "Perlu ditinjau", and the folder labels and messages SHALL use the neutral register of "Interface Copy Register" (ui-copy-register).
+Tinjau SHALL offer the folder chips "Semua", "Belum dikenali", "Perlu jawaban" and "Pindah saldo belum lengkap" (awaiting and ambiguous legs), each with its row count. "Semua" SHALL be the default and SHALL list the three in that order. Without truncation, the three counts SHALL add up to the summary's `attention`. The header, "Perlu ditinjau", SHALL show no amount.
 
 #### Scenario: Counts match the badge
 - **GIVEN** one open question, two needs-review rows in one group, one awaiting send and one ambiguous credit
