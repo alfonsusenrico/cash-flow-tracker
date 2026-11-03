@@ -63,7 +63,10 @@ export type IconName =
   | "alert-triangle"
   | "arrows-right-left"
   | "sparkles"
-  | "chevron-down";
+  | "chevron-down"
+  | "chevron-up"
+  | "arrow-up-down"
+  | "grip-vertical";
 
 interface IconProps extends SVGProps<SVGSVGElement> {
   name: IconName | string;
@@ -103,6 +106,9 @@ const paths: Record<string, ReactNode> = {
   "chevron-left": <polyline points="15 18 9 12 15 6" />,
   "chevron-right": <polyline points="9 18 15 12 9 6" />,
   "chevron-down": <polyline points="6 9 12 15 18 9" />,
+  "chevron-up": <polyline points="18 15 12 9 6 15" />,
+  "arrow-up-down": <><path d="m21 16-4 4-4-4" /><path d="M17 20V4" /><path d="m3 8 4-4 4 4" /><path d="M7 4v16" /></>,
+  "grip-vertical": <><circle cx="9" cy="5" r="1" /><circle cx="9" cy="12" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="19" r="1" /></>,
   download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></>,
   "more-horizontal": <><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></>,
   sparkles: <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z" />,
