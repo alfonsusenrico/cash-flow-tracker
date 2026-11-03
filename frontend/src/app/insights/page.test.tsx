@@ -259,7 +259,6 @@ describe("observed insights", () => {
 
   it("compares the same elapsed days and links each change to its exact window", async () => {
     mockInsights();
-    const user = userEvent.setup();
     const { container } = renderAnalytics();
     expect(await screen.findByText(/sama-sama 10 hari pertama/)).toBeInTheDocument();
     expect(api.get).toHaveBeenCalledWith("/dashboard/period-comparison?timeframe=month&cycle_offset=-1");
@@ -282,7 +281,6 @@ describe("observed insights", () => {
 
   it("lists cash flow per period with the current one in progress", async () => {
     mockInsights();
-    const user = userEvent.setup();
     renderAnalytics();
     const history = await screen.findByRole("region", { name: "Arus kas per periode" });
     expect(within(history).getAllByRole("listitem")).toHaveLength(7);

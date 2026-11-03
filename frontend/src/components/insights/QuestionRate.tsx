@@ -57,7 +57,7 @@ export function QuestionRate() {
       <div>
         <h2 id="question-rate-title" className="text-base font-bold tracking-tight text-[var(--text)]">Seberapa sering ditanya</h2>
         <p className="mt-0.5 text-[var(--text-secondary)]">
-          Transaksi dari notifikasi dan ketikan per minggu: berapa yang ditanyakan ke Anda, dan siapa yang mencatat sisanya.
+          Transaksi dari notifikasi dan ketikan per minggu: berapa yang ditanyakan, dan siapa yang mencatat sisanya.
         </p>
       </div>
       {isError && <p className="text-[var(--text-secondary)]">Hitungan belum dapat dimuat.</p>}
@@ -98,7 +98,7 @@ export function QuestionRate() {
                     <Count label="Kebiasaan" value={week.by_habit} whole={week.recorded} />
                     <Count label="AI" value={week.by_ai} whole={week.recorded} />
                     <Count label="Aturan & lainnya" value={week.by_other} whole={week.recorded} />
-                    <Count label="Dijawab Anda" value={week.answered} whole={week.recorded} />
+                    <Count label="Dijawab" value={week.answered} whole={week.recorded} />
                   </dl>
                 </>
               )}

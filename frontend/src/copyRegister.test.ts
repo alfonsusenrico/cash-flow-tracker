@@ -26,7 +26,10 @@ const CONVERSATION = [
 const ROOTS = ["components/workspace", "components/beranda", "components/review", "components/transactions", "components/capture",
   "components/ui/DeviceHealthChecklist.tsx", "components/ui/DevicePairingDialog.tsx", "components/ui/DevicePairingSection.tsx",
   "app/ledger/page.tsx", "app/review/page.tsx", "app/page.tsx", "lib/deviceHealth.ts", "lib/reviewUndo.ts", "lib/triage.ts",
-  "lib/provenance.ts", "lib/ledgerFilters.ts", "lib/historySuggestions.ts"];
+  "lib/provenance.ts", "lib/ledgerFilters.ts", "lib/historySuggestions.ts",
+  // Analisis and Laporan (redesign-analysis-and-reports D13).
+  "components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx",
+  "lib/reportLead.ts"];
 
 function sources(entry: string): string[] {
   const full = path.join(__dirname, entry);
@@ -54,6 +57,15 @@ describe("copy register", () => {
   it("keeps slang out of every label-type string outside the assistant's conversation", () => {
     expect(files.length).toBeGreaterThan(20);
     expect(offenders(files)).toEqual([]);
+  });
+
+  it("writes Analisis and Laporan impersonally, without the formal Anda", () => {
+    const roots = ["components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx", "lib/reportLead.ts"];
+    const analysis = roots.flatMap(sources).filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file));
+    const formal = analysis.flatMap((file) => visibleLines(file)
+      .filter(({ text }) => /\bAnda\b/.test(text))
+      .map(({ line, text }) => `${path.relative(__dirname, file)}:${line}: ${text.trim()}`));
+    expect(formal).toEqual([]);
   });
 
   it("catches a planted informal label", () => {

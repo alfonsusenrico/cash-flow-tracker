@@ -352,13 +352,11 @@ export type Direction = "up" | "down" | "left" | "right";
 export function nextNode(layout: FlowLayout, current: string, direction: Direction): string | null {
   const from = layout.nodes.get(current);
   if (!from) return null;
-  const cx = (from.x0 + from.x1) / 2;
   const cy = (from.y0 + from.y1) / 2;
   let best: string | null = null;
   let bestScore = Infinity;
   for (const node of layout.nodes.values()) {
     if (node.key === current) continue;
-    const dx = (node.x0 + node.x1) / 2 - cx;
     const dy = (node.y0 + node.y1) / 2 - cy;
     let score: number;
     if (direction === "up" || direction === "down") {

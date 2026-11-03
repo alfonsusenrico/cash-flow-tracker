@@ -1,38 +1,11 @@
-/* Analisis and Laporan (redesign-analysis-and-reports D1–D12). Heat and flow colours are designed for
-   each theme on its own surface; every value is also written as text, so colour never carries meaning alone. */
+/* Analisis and Laporan (redesign-analysis-and-reports D1–D12). The heat and flow colours are tokens in
+   tokens.css, designed per theme; every value is also written as text, so colour never carries meaning alone. */
 
 .root {
-  --heat-1: #fbeee9;
-  --heat-2: #f6dccf;
-  --heat-3: #f0c4b1;
-  --heat-4: #e9aa93;
-  --heat-5: #df8f74;
-  --flow-in: #2e9b64;
-  --flow-tr: #3787c8;
-  --flow-inv: #8466cc;
-  --flow-warn: #b97c0c;
-  --flow-left: #8f8d84;
-  --flow-other: #8f8d84;
-  --band-op: 0.42;
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-width: 0;
-}
-
-:global(.dark) .root {
-  --heat-1: #2c2421;
-  --heat-2: #3a2923;
-  --heat-3: #4b2e25;
-  --heat-4: #5e3427;
-  --heat-5: #753c2a;
-  --flow-in: #4cc48a;
-  --flow-tr: #58a6e6;
-  --flow-inv: #a68cee;
-  --flow-warn: #e5ae3e;
-  --flow-left: #6e736b;
-  --flow-other: #8a8d84;
-  --band-op: 0.5;
 }
 
 .toolbar {
