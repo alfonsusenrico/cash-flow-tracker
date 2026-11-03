@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unicodedata
 from datetime import datetime
 from typing import Any
@@ -172,6 +173,44 @@ def upsert_memory(cur, user_id: str, match_key: str, values: dict, source: str) 
     )
 
 
+def jsonable(value):
+    return json.loads(json.dumps(value, default=str))
+
+
+def memory_row(cur, user_id: str, match_key: str) -> dict | None:
+    cur.execute(
+        """SELECT match_key, key_kind, display_merchant, notes, category_id, kakeibo_type, offset_category_id,
+                  account_id, source, hit_count, last_used_at, updated_at
+           FROM merchant_memory WHERE user_id = %s AND match_key = %s FOR UPDATE""",
+        (user_id, match_key),
+    )
+    row = cur.fetchone()
+    return jsonable(row) if row else None
+
+
+def restore_memory(cur, user_id: str, learned: dict | None) -> None:
+    """Undo one memory write unless something changed the entry since (capture and review undo)."""
+    if not learned:
+        return
+    current = memory_row(cur, user_id, learned["match_key"])
+    if current is None or current["updated_at"] != learned["after_updated_at"]:
+        return
+    before = learned["before"]
+    if before is None:
+        cur.execute("DELETE FROM merchant_memory WHERE user_id = %s AND match_key = %s",
+                    (user_id, learned["match_key"]))
+        return
+    cur.execute(
+        """UPDATE merchant_memory SET display_merchant = %s, notes = %s, category_id = %s, kakeibo_type = %s,
+               offset_category_id = %s, account_id = %s, source = %s, hit_count = %s, last_used_at = %s,
+               updated_at = %s
+           WHERE user_id = %s AND match_key = %s""",
+        (before["display_merchant"], before["notes"], before["category_id"], before["kakeibo_type"],
+         before["offset_category_id"], before["account_id"], before["source"], before["hit_count"],
+         before["last_used_at"], before["updated_at"], user_id, learned["match_key"]),
+    )
+
+
 def snapshot_rows(cur, user_id: str, transaction_ids: list[str]) -> dict[str, dict]:
     """Classification state of rows, read before or after an owner edit."""
     if not transaction_ids:
@@ -234,8 +273,8 @@ def transaction_event_key(cur, user_id: str, transaction_id: str) -> dict:
 def insert_feedback(
     cur, user_id: str, *, kind: str, before: dict | None, after: dict, key: dict,
     answer: dict | None = None, history_suggestion_id: str | None = None,
-) -> None:
-    """Append one labelled example; feedback rows are never updated (V29 trigger)."""
+) -> str:
+    """Append one labelled example and return its id; feedback rows are never updated (V29 trigger)."""
     weekday, hour = local_time_features(after.get("date"))
     answer = answer or {}
     before = before or {}
@@ -250,7 +289,8 @@ def insert_feedback(
                transaction_source, history_suggestion_id, before_classified_by, after_classified_by,
                after_review_status)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                   %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+           RETURNING id""",
         (
             user_id, kind, str(after["id"]), key.get("event_id"), answer.get("question_id"),
             answer.get("reply_id"), answer.get("suggestion_id"), answer.get("text"),
@@ -264,6 +304,19 @@ def insert_feedback(
             key.get("text_signature"), key.get("match_key"), after.get("source"), history_suggestion_id,
             before.get("classified_by"), after.get("classified_by"), after.get("review_status"),
         ),
+    )
+    return str(cur.fetchone()["id"])
+
+
+def live_feedback_sql(alias: str) -> str:
+    """SQL condition: the feedback row is a label that still counts (neither an undo row nor reverted).
+
+    Undo appends an `undo` row naming the reverted label instead of changing it (redesign-review-triage
+    D13), so every reader of labels filters through this one condition.
+    """
+    return (
+        f"({alias}.kind <> 'undo' AND NOT EXISTS (SELECT 1 FROM classification_feedback reverting "
+        f"WHERE reverting.user_id = {alias}.user_id AND reverting.reverts_feedback_id = {alias}.id))"
     )
 
 

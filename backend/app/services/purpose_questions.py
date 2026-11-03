@@ -15,7 +15,7 @@ from app.core.config import settings
 from app.db.pool import db_conn
 from app.services.habits import HabitDecision, guess_label
 from app.services.merchant_memory import (
-    insert_feedback, is_masked, learn_from_owner, local_time_features, owner_identity, snapshot_rows,
+    insert_feedback, live_feedback_sql, is_masked, learn_from_owner, local_time_features, owner_identity, snapshot_rows,
     transaction_event_key,
 )
 from app.services.notification_mapping import version_tuple
@@ -23,6 +23,7 @@ from app.services.purpose_normalization import (
     PURPOSE_PROMPT_VERSION, InvalidNormalization, validate_normalization,
 )
 from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES, validate_offset_category
+from app.services.review_undo import ActionRecorder, null_token
 
 
 logger = logging.getLogger(__name__)
@@ -131,11 +132,13 @@ def rank_suggestions(
     categories = owner_categories(cur, user_id)
     weekday, hour = local_time_features(moment)
     cur.execute(
-        """SELECT after_merchant, after_notes, after_category_id, after_kakeibo_type, after_offset_category_id,
-                  text_signature, account_id, amount, local_weekday, local_hour, created_at
-           FROM classification_feedback
-           WHERE user_id = %s AND after_type = %s AND after_category_id IS NOT NULL
-           ORDER BY created_at DESC, id LIMIT %s""",
+        f"""SELECT f.after_merchant, f.after_notes, f.after_category_id, f.after_kakeibo_type,
+                   f.after_offset_category_id, f.text_signature, f.account_id, f.amount, f.local_weekday,
+                   f.local_hour, f.created_at
+            FROM classification_feedback f
+            WHERE f.user_id = %s AND f.after_type = %s AND f.after_category_id IS NOT NULL
+              AND {live_feedback_sql("f")}
+            ORDER BY f.created_at DESC, f.id LIMIT %s""",
         (user_id, direction, FEEDBACK_EXAMPLE_LIMIT),
     )
     groups: dict[tuple, dict] = {}
@@ -269,8 +272,11 @@ def locked_event(cur, user_id: str, event_id: str) -> dict:
 
 def receipt(cur, user_id: str, reply_id: str) -> dict | None:
     cur.execute(
-        """SELECT event_id, question_id, suggestion_id, answer_text FROM classification_feedback
-           WHERE user_id = %s AND reply_id = %s""",
+        """SELECT f.event_id, f.question_id, f.suggestion_id, f.answer_text,
+                  EXISTS (SELECT 1 FROM classification_feedback reverting
+                          WHERE reverting.user_id = f.user_id AND reverting.reverts_feedback_id = f.id) AS undone
+           FROM classification_feedback f
+           WHERE f.user_id = %s AND f.reply_id = %s""",
         (user_id, reply_id),
     )
     return cur.fetchone()
@@ -280,6 +286,9 @@ def replay_matches(row: dict, event_id: str, answer: dict) -> bool:
     if (str(row["event_id"]) != event_id or str(row["question_id"]) != answer["question_id"]
             or row["suggestion_id"] != answer["suggestion_id"] or row["answer_text"] != answer["text"]):
         raise HTTPException(status_code=409, detail={"code": "purpose_answer_conflict"})
+    if row["undone"]:
+        # The owner took this answer back in Tinjau; a late retry must not apply it again (D13).
+        raise HTTPException(status_code=409, detail={"code": "purpose_answer_undone"})
     return True
 
 
@@ -343,7 +352,7 @@ def prepare_answer(event_id: str, user_id: str, answer: dict) -> dict:
         with conn.cursor() as cur:
             event = locked_event(cur, user_id, event_id)
             if (row := receipt(cur, user_id, answer["reply_id"])) and replay_matches(row, event_id, answer):
-                result = {"replay": answer_response(cur, event, compact_result(cur, event))}
+                result = {"replay": {**answer_response(cur, event, compact_result(cur, event)), **null_token()}}
                 conn.commit()
                 return result
             question, _, _ = checked_question(cur, event, answer)
@@ -395,12 +404,15 @@ def apply_answer(event_id: str, user_id: str, answer: dict, normalized: dict | N
         with conn.cursor() as cur:
             event = locked_event(cur, user_id, event_id)
             if (row := receipt(cur, user_id, answer["reply_id"])) and replay_matches(row, event_id, answer):
-                response = answer_response(cur, event, compact_result(cur, event))
+                response = {**answer_response(cur, event, compact_result(cur, event)), **null_token()}
                 conn.commit()
                 return response
             question, transaction, chosen = checked_question(cur, event, answer)
             transaction_id = str(transaction["id"])
             values, review_status = answer_values(cur, user_id, transaction, chosen, normalized, answer["text"])
+            recorder = ActionRecorder(cur, user_id, "purpose_answer")
+            recorder.capture([transaction_id], event_ids=[event_id], learns=review_status == "reviewed",
+                             merchants=[values.get("merchant")])
             before = snapshot_rows(cur, user_id, [transaction_id])[transaction_id]
             assignments = ", ".join(f"{field} = %s" for field in values)
             cur.execute(
@@ -429,7 +441,7 @@ def apply_answer(event_id: str, user_id: str, answer: dict, normalized: dict | N
                 (Jsonb({"purpose_answer": outcome}), (after["notes"] or "")[:160], user_id, event_id),
             )
             event = cur.fetchone()
-            response = answer_response(cur, event, compact_result(cur, event))
+            response = {**answer_response(cur, event, compact_result(cur, event)), **recorder.finish()}
         conn.commit()
     # Reason codes only: answers and transaction content are personal data.
     logger.info("Purpose answer applied review_status=%s normalizer=%s", review_status, normalizer or "none")

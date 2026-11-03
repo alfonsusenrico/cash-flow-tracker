@@ -230,11 +230,3 @@ export function newReplyId(): string {
   const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
-
-/** Groups with a row that needs an answer, and groups of only automatic rows (optional to check). */
-export function splitGroups(groups: readonly ReviewGroup[]): { needsAnswer: ReviewGroup[]; automatic: ReviewGroup[] } {
-  return {
-    needsAnswer: groups.filter((group) => group.needs_review_count > 0),
-    automatic: groups.filter((group) => group.needs_review_count === 0),
-  };
-}

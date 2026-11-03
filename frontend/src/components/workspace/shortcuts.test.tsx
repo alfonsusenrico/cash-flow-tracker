@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useRef } from "react";
 import { axe } from "vitest-axe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SHORTCUTS_STORAGE_KEY, ShortcutProvider, isTypingTarget, useShortcut, useShortcuts } from "./shortcuts";
+import { SHORTCUTS_STORAGE_KEY, ShortcutProvider, isTypingTarget, usePageShortcutGroup, useShortcut, useShortcuts, type PageShortcutGroup } from "./shortcuts";
 
 const handlers = { n: vi.fn(), modK: vi.fn() };
 
@@ -255,5 +255,28 @@ describe("isTypingTarget", () => {
     // jsdom leaves isContentEditable undefined, so non-fields come back falsy rather than false here.
     expect(isTypingTarget(document.createElement("button"))).toBeFalsy();
     expect(isTypingTarget(null)).toBe(false);
+  });
+
+  it("Page keys in the help", async () => {
+    installStorage();
+    const group: PageShortcutGroup = { name: "Di Tinjau", caption: "tombol satu huruf di Tinjau", entries: [{ keys: ["J", "K"], text: "Pindah item" }] };
+    function PageKeys() {
+      usePageShortcutGroup(group);
+      return null;
+    }
+    const user = userEvent.setup();
+    const view = render(<ShortcutProvider><GlobalKeys /><PageKeys /></ShortcutProvider>);
+    await user.click(screen.getByRole("button", { name: "Bantuan" }));
+    let help = await screen.findByRole("dialog", { name: "Pintasan keyboard" });
+    expect(help).toHaveTextContent("Di Tinjau");
+    expect(help).toHaveTextContent("N, ?, dan tombol satu huruf di Tinjau jalan tanpa tombol lain.");
+    expect((await axe(help)).violations).toHaveLength(0);
+    view.unmount();
+    // On a page without its own keys (Beranda) the group and the caption are gone.
+    render(<ShortcutProvider><GlobalKeys /></ShortcutProvider>);
+    await user.click(screen.getByRole("button", { name: "Bantuan" }));
+    help = await screen.findByRole("dialog", { name: "Pintasan keyboard" });
+    expect(help).not.toHaveTextContent("Di Tinjau");
+    expect(help).toHaveTextContent("N dan ? jalan tanpa tombol lain.");
   });
 });

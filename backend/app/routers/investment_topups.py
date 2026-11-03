@@ -5,6 +5,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from app.db.pool import db_conn
 from app.services.auth import get_current_user
+from app.services.review_undo import ActionRecorder
 from app.services.investment_topups import (
     convert_transaction_to_topup,
     create_topup,
@@ -61,13 +62,20 @@ def record_topup(payload: TopupCreate, current_user: dict = Depends(get_current_
 def convert_recorded_expense(payload: TopupFromTransaction, current_user: dict = Depends(get_current_user)):
     with db_conn() as conn:
         with conn.cursor() as cur:
+            recorder = ActionRecorder(cur, current_user["id"], "topup_conversion")
             result = convert_transaction_to_topup(
                 cur, user_id=current_user["id"], transaction_id=str(payload.transaction_id),
                 target_id=str(payload.target_account_id),
                 suggested_target_id=str(payload.suggested_target_account_id) if payload.suggested_target_account_id else None,
+                recorder=recorder,
             )
+            if result.get("idempotent"):
+                undo = {"undo_token": None, "expires_at": None}
+            else:
+                topup = result["topup"]
+                undo = recorder.finish(created_transaction_ids=[topup["income_transaction_id"]], topup_id=topup["id"])
         conn.commit()
-    return result
+    return {**result, **undo}
 
 
 @router.get("/{topup_id}")

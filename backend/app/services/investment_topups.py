@@ -269,7 +269,7 @@ def lock_convertible_expense(cur, user_id: str, transaction_id: str) -> dict[str
 
 def convert_transaction_to_topup(
     cur, *, user_id: str, transaction_id: str, target_id: str,
-    suggested_target_id: str | None = None, learned_basis: dict[str, Any] | None = None,
+    suggested_target_id: str | None = None, learned_basis: dict[str, Any] | None = None, recorder=None,
 ) -> dict[str, Any]:
     """Turn a recorded standalone expense into the outbound leg of an amount top-up.
 
@@ -302,6 +302,10 @@ def convert_transaction_to_topup(
     locked = lock_owned_accounts(cur, user_id, [source_id, target_id])
     source, target = locked[source_id], locked[target_id]
     validate_topup_accounts(source, target)
+    if recorder is not None:
+        # The Tinjau undo record (redesign-review-triage D10), taken under the conversion's locks.
+        recorder.capture([transaction_id])
+        recorder.capture_product(target_id)
     if suggested_target_id is not None and suggested_target_id != target_id:
         cur.execute("SELECT 1 FROM accounts WHERE user_id = %s AND id = %s", (user_id, suggested_target_id))
         if not cur.fetchone():
