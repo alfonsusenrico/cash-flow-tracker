@@ -60,6 +60,25 @@ REVIEWABLE_ROW_SQL = (
     "t.type IN ('expense', 'income') AND (t.movement_id IS NULL OR question.id IS NOT NULL)"
 )
 
+
+def waiting_row_sql(tx: str = "t") -> str:
+    """The rows behind the badge's `attention`, as one predicate without the question join.
+
+    REVIEWABLE_ROW_SQL AND ATTENTION_SQL reduce to: an expense or income that is an unlinked row needing
+    review, or any row with an open purpose question. `GET /api/transactions?waiting=true` uses it, so
+    the ledger's waiting filter lists exactly the rows the badge counts.
+    """
+    open_question = (
+        "EXISTS (SELECT 1 FROM notification_events e"
+        f" WHERE e.user_id = {tx}.user_id AND e.processing_state = 'recorded'"
+        " AND e.active_question ->> 'type' = 'purpose'"
+        f" AND (e.active_question ->> 'transaction_id')::uuid = {tx}.id)"
+    )
+    return (
+        f"({tx}.type IN ('expense', 'income')"
+        f" AND (({tx}.movement_id IS NULL AND {tx}.review_status = 'needs_review') OR {open_question}))"
+    )
+
 # Rows waiting in Tinjau: the badge's "attention" (needs review or an open purpose question) and the
 # automatic rows nobody looked at yet. `GET /api/review/summary` and the review queue use this query too.
 # A leg of a linked movement is finished and never counts, unless it still carries an open question.
