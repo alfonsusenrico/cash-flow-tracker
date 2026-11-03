@@ -26,8 +26,12 @@ function itemLine(item: TriageItem): string {
       parts.push(group.count > 1 ? `${group.count} transaksi` : group.category?.name ?? "Kategori belum pasti");
       return parts.join(" · ");
     }
-    case "awaiting": return `Pindah saldo · ${item.item.topup_suggestion?.target_label ? `Top up ${item.item.topup_suggestion.target_label}?` : "Belum ketemu pasangannya"}`;
-    case "ambiguous": return `Pindah saldo · ${item.item.candidates.length} kemungkinan pasangan`;
+    case "awaiting": {
+      const suggestion = item.item.topup_suggestion;
+      const product = suggestion?.choices.find((choice) => choice.id === suggestion.target_account_id)?.name;
+      return product ? `Top up ${product}?` : "Belum ketemu pasangannya";
+    }
+    case "ambiguous": return `${item.item.candidates.length} kemungkinan pasangan`;
     case "suggestion": return `Saran · ${item.group.category.name}`;
   }
 }
