@@ -36,11 +36,11 @@ The web "+ Catat" action and the N key SHALL open a text-first dialog that previ
 
 #### Scenario: Typing shows the reading
 - **WHEN** the owner types "parkir 5rb jam 2"
-- **THEN** within a second the dialog SHALL show chips for Rp 5.000, 14.00 and the account or "rekening: nanti aku tanya", without recording anything
+- **THEN** within a second the dialog SHALL show chips for Rp 5.000, 14.00 and the account or "Rekening: ditanyakan setelah dicatat", without recording anything
 
 #### Scenario: Text without an amount is refused
 - **WHEN** the owner types "bayar parkir"
-- **THEN** "Catat" SHALL be disabled and the dialog SHALL say "Jumlahnya belum ada. Aku nggak nebak, tulis jumlahnya ya (misal 5rb)."
+- **THEN** "Catat" SHALL be disabled and the dialog SHALL say "Jumlah belum ada. Tulis jumlahnya, misalnya 5rb."
 
 #### Scenario: Recording with a follow-up question
 - **GIVEN** the owner has no memory for "pulsa" and no account was named

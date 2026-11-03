@@ -22,19 +22,20 @@ Binding earlier approvals:
    - returning from `/ledger?edit=…&return=review` to the exact Tinjau item;
    - the review undo contract (`undo_token`, `POST /api/review/undo`), which this phase reuses for "Tandai sudah dicek".
 5. **Verification by the agent, 2026-11-03.** The owner said "I'm not going to test anything until all phases done implemented properly and approved". The agent's own checks are therefore the whole runtime evidence for this phase: the browser matrix, the real-interface flows, and screenshots the agent has read.
-6. **Start of phase 3, 2026-11-03.** The owner said "start phase 3". This authorises planning. It does not approve this plan. Approval is pending.
+6. **Start of phase 3, 2026-11-03.** The owner said "start phase 3". This authorised planning.
+7. **Phase 3 plan and the copy register, 2026-11-03.** The owner approved this plan with "approved, defaults ok": OD20–OD26 take their recommended defaults, except OD25, which the next sentence changes. The owner added: "for all labels shown in the app it should be not that informal terms or language for example "Udah dicek" it's good for onboarding interactive messages, but for label or term used in the UI should not use that kind of terms. I hope you can tell the difference and decide which is when". The lead's decision is design D20 and OD27: labels in neutral standard Indonesian, the casual voice only in conversation, and a sweep of the existing web copy in this phase.
 
 ## Expected Outcome
 
 - **Opening Transaksi** shows this cycle (OD20) with the period stepper in the top bar.
   - Tabs: "Semua", "Keluar", "Masuk", "Pindah saldo" and "Investasi", each with its row count.
-  - Chips: "Nunggu jawaban", "Belum dicek", "Dari HP" and "Lewat Catat".
+  - Chips: "Menunggu jawaban", "Belum dicek", "Dari HP" and "Lewat Catat".
   - A search field.
   - The Masuk, Keluar and Bersih figures for the filtered rows.
-- **Day groups.** Rows are grouped by day, newest first. Each day heading shows that day's Keluar and Masuk for every matching row of the day, also rows on a page not yet loaded, and how many rows of the day "nunggu jawabanmu". The day totals add up to the period's figures.
+- **Day groups.** Rows are grouped by day, newest first. Each day heading shows that day's Keluar and Masuk for every matching row of the day, also rows on a page not yet loaded, and how many rows of the day are "menunggu jawaban". The day totals add up to the period's figures.
 - **Drawer.** Selecting a row opens a drawer: the third column on a wide window, an overlay on a narrower one, and a bottom sheet on a phone. It shows:
   - the amount, the type and the account;
-  - where the row came from ("Dari HP", "Lewat Catat" or "Kamu") and who classified it ("AI", "Kebiasaan" or "Kamu");
+  - where the row came from ("Dari HP", "Lewat Catat" or "Dicatat manual") and who classified it ("AI", "Kebiasaan" or "Pengguna");
   - the original notification or the typed text.
 
   From the drawer the owner can:
@@ -48,6 +49,7 @@ Binding earlier approvals:
 - **Beranda.** Selecting a row in Beranda's "Aktivitas terbaru" opens the same drawer.
 - **Back to Tinjau.** "Ubah" on a Tinjau row opens the drawer in Transaksi. Closing it returns to the same Tinjau item.
 - **Filters in the URL.** Every filter change, including clearing back to the plain `/ledger`, updates the URL. Reload and back keep the place.
+- **Neutral labels.** Every label, heading, button, status, toast and empty state on the web reads in neutral standard Indonesian ("Perlu tindakan", "Semua sudah ditinjau", "Sudah dicek", "HP terhubung"). The casual voice stays in conversation: the connect-phone guide, AI and suggestion questions, and Beranda's summary sentence (D20).
 - **Keys and accessibility.** J and K move between rows and Z undoes the last "sudah dicek". The keys work only while focus is in the list, and the existing switch turns them off. `/ledger`, the drawer or sheet and the Catat dialog pass WCAG 2.2 AA checks at 1440, 1280, 1024, 768 and 390 px in light and dark.
 
 ## What Changes
@@ -84,7 +86,7 @@ Binding earlier approvals:
 
 ### New Capabilities
 
-None. Each change extends an existing capability.
+- `ui-copy-register`: the register rule for visible web text (D20), with a regression guard.
 
 ### Modified Capabilities
 
@@ -92,6 +94,7 @@ None. Each change extends an existing capability.
 - `report-periods-and-drilldown`: "Ledger Filters in the URL" also covers clearing back to plain `/ledger`, back and reload, and the default period (OD20).
 - `text-capture`: a parse-only preview endpoint and the web Catat dialog that records through the existing capture path.
 - `beranda-cycle-summary`: selecting a row in "Recent Activity on Beranda" opens the shared transaction drawer.
+- `review-queue`, `review-undo`, `history-suggestions`, `mobile-native-layout` and `explainable-figures`: only the quoted labels change to the neutral register ("Belum dikenali", "Semua sudah ditinjau", "Perlu tindakan", "Rincian hitungan"). `beranda-cycle-summary` also changes "Sudah dipakai" and "Perlu tindakan".
 - `notification-purpose-questions`: the undo behaviour of "Answer a Purpose Question" becomes its own requirement, "Purpose Answer Undo". No behaviour changes.
 
 Standards that apply:
@@ -102,7 +105,7 @@ Standards that apply:
 - personal-data logging: the parse and capture logs hold ids and reason codes only;
 - llm boundaries: the preview calls no model.
 
-The capability list in AGENTS.md does not change. No database migration is needed.
+The capability list in AGENTS.md does not change. AGENTS.md gains the copy rule. No database migration is needed.
 
 ## Impact
 
@@ -123,4 +126,5 @@ The capability list in AGENTS.md does not change. No database migration is neede
   - `AppLayout` opens the Catat dialog.
   - Tests replace `app/ledger/page.test.tsx` and add tests for the drawer, day groups, the dialog, keys and the URL.
 - **API consumers:** responses only gain fields. The companion calls `PATCH` and `DELETE /transactions/{id}` and the capture endpoints, all unchanged. It does not call `GET /transactions`.
-- **Docs:** the Transaksi and Catat parts of `docs/NEW_USER_GUIDE.md`.
+- **Copy sweep (D20):** strings in `components/beranda/*`, `components/review/*`, `components/workspace/*`, `components/ui/Device*`, `lib/deviceHealth.ts`, `lib/reviewUndo.ts`, `lib/provenance.ts` and other routes' informal strings; a guard test.
+- **Docs:** the Transaksi and Catat parts of `docs/NEW_USER_GUIDE.md`, its quoted labels, and the copy rule in AGENTS.md.

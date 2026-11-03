@@ -108,7 +108,7 @@ See proposal.md for why and what. This section records the trace of 2026-11-03 t
 | Tab Masuk | `type=income` | `type=income` (existing) |
 | Tab Pindah saldo | `type=movement` | new `type=movement`: rows with category Internal Movement or an excluded category, not part of a top-up |
 | Tab Investasi | `type=investment` | new `type=investment`: legs of an `investment_topups` movement, and rows in the Investasi category (trades) |
-| Chip Nunggu jawaban | `waiting=1` | new `waiting=true`: `ATTENTION_SQL` with the open-question join, the same rows as the badge |
+| Chip Menunggu jawaban | `waiting=1` | new `waiting=true`: `ATTENTION_SQL` with the open-question join, the same rows as the badge |
 | Chip Belum dicek | `review=auto` | `review_status=auto` (existing) |
 | Chip Dari HP | `source=notification` | `source=notification` (existing) |
 | Chip Lewat Catat | `source=capture` | `source=capture` (existing) |
@@ -141,7 +141,7 @@ See proposal.md for why and what. This section records the trace of 2026-11-03 t
 - **Implementation:** one grouped statement over the same `WHERE`, limited to the local dates of the page's rows: `(t.date AT TIME ZONE tz)::date = ANY(%s)`. It is served by `idx_transactions_user_date`.
 - **Rows gain `local_date`** (`YYYY-MM-DD` in `settings.tz`), so the client groups by the server's day and never converts time zones itself.
 - **Order:** the page gets a unique tie-break, `ORDER BY t.date DESC, t.created_at DESC, t.id DESC`, so pages never repeat or skip a row.
-- **Waiting rows:** they appear in their day and are counted in that day's `inflow` or `outflow` like any row (D9 of the phase plan). The heading words them "{n} nunggu jawabanmu", never "belum dihitung".
+- **Waiting rows:** they appear in their day and are counted in that day's `inflow` or `outflow` like any row (D9 of the phase plan). The heading words them "{n} menunggu jawaban", never "belum dihitung" (D20).
 
 *Rejected:*
 - Totals for the whole filtered window: they are unbounded for "Semua waktu", years of days.
@@ -171,16 +171,16 @@ See proposal.md for why and what. This section records the trace of 2026-11-03 t
 - **Detail, top to bottom:**
   - the amount with its type pill;
   - the date and time and the account, with "Dari"/"Ke" for movements and top-ups;
-  - "Dicatat": source ("Dari HP", "Lewat Catat", "Dicatat manual", "Terjadwal" and so on) and classifier ("AI", "Kebiasaan" with the habit basis, "Kamu", "Aturan");
+  - "Dicatat": source ("Dari HP", "Lewat Catat", "Dicatat manual", "Terjadwal" and so on) and classifier ("AI", "Kebiasaan" with the habit basis, "Pengguna", "Aturan");
   - Kakeibo and category, notes and merchant, the debt and goal links, the receipt;
   - the original notification text or the typed capture text, read from the existing event or capture link where the row has one;
-  - "Dicek": "Udah kamu cek" or "Belum".
+  - "Dicek": "Sudah dicek" or "Belum dicek".
 - **Actions:** "Ubah" (D7), "Tandai sudah dicek" (D9), "Hapus" (D10), and for waiting rows "Jawab di Tinjau" (`/review?item=<id>`).
 - **URL and history:**
   - The open row is `edit=<id>`, the existing parameter, so old links open the drawer.
   - Opening from a row on one-column widths pushes a history entry, and back closes the sheet. On wider screens opening replaces the URL.
   - Closing restores focus to the row's button, or to the list heading if the row is gone.
-- **Loading and errors:** the drawer shows `Skeleton` while loading, and `ErrorState` with "Coba lagi" on failure. A 404 shows "Transaksi ini udah nggak ada" and clears `edit`.
+- **Loading and errors:** the drawer shows `Skeleton` while loading, and `ErrorState` with "Coba lagi" on failure. A 404 shows "Transaksi ini sudah tidak ada" and clears `edit`.
 
 *Rejected:* keeping the modal. The approved target is the drawer, and a modal hides the list the owner is checking against.
 
@@ -212,14 +212,14 @@ The drawer's "Jenis" control offers Keluar, Masuk, Pindah saldo and Top up Inves
   - Z inside the list or the drawer undoes the newest entry of the shared `reviewUndo` stack.
   - The undo calls `POST /api/review/undo`, and its 404, 409 and 410 messages are reused from Tinjau.
 - **Waiting rows** (in the attention set with an open question, or an awaiting leg) are not checked here. They show "Jawab di Tinjau".
-- **The wording follows the preview:** "Tandai sudah dicek" and "Udah dicek". The ledger's review filter caption says "Belum dicek" for `auto`. "Sudah ditinjau" remains the status name in provenance (OD25).
+- **Wording (OD25, resolved by the copy register D20):** the button reads "Tandai sudah dicek" and the status "Sudah dicek". The ledger's review filter caption says "Belum dicek" for `auto`. "Sudah ditinjau" remains the status name in provenance.
 - `PATCH review_status` keeps working for the companion and for owner edits.
 
 *Rejected:* keeping `PATCH`. It returns no undo token, so "Urungkan" could not be offered.
 
 ### D10. Delete asks first (OD6)
 
-- **Confirmation:** "Hapus" opens an inline confirmation inside the drawer. It names the amount and, where they apply, the effects: "Saldo {akun} balik", "Progres {target} berkurang", "Cicilan {utang} balik ke Rp X". Then come "Hapus" (danger) and "Batal", and focus moves to "Batal".
+- **Confirmation:** "Hapus" opens an inline confirmation inside the drawer. It names the amount and, where they apply, the effects: "Saldo {akun} dikembalikan", "Progres {target} berkurang", "Sisa {utang} kembali menjadi Rp X". Then come "Hapus" (danger) and "Batal", and focus moves to "Batal".
 - **Paths:** the existing ones.
   - `DELETE /transactions/{id}` for a single row.
   - `DELETE /movements/{movement_id}` for a movement.
@@ -230,11 +230,11 @@ The drawer's "Jenis" control offers Keluar, Masuk, Pindah saldo and Top up Inves
 ### D11. The Catat dialog
 
 - **Component:** `components/capture/CatatDialog.tsx` is a modal dialog, a bottom sheet at 760 px and below. It is loaded with `next/dynamic` on first open (N or "+ Catat") and prefetched on idle after the shell mounts.
-- **Field:** one text field, "Tulis aja, misal: parkir 5rb jam 2", 1–200 characters.
+- **Field:** one text field labelled "Tulis transaksi", placeholder "Contoh: parkir 5rb jam 2", 1–200 characters.
 - **Live preview:**
   - Typing calls `POST /api/capture/parse` 300 ms after the last keystroke and aborts the earlier request.
   - The preview shows chips for each fact: amount, time, account, and category with pillar.
-  - When a fact is missing it shows a plain note: "jam: nanti aku tanya" when the time is ambiguous, "rekening: nanti aku tanya", "kategori: nanti aku kenali".
+  - When a fact is missing it shows a plain note: "Jam: ditanyakan setelah dicatat" when the time is ambiguous, "Rekening: ditanyakan setelah dicatat", "Kategori: dikenali setelah dicatat".
   - An empty field shows the hint line instead.
 - **Contract:**
 
@@ -254,7 +254,7 @@ The drawer's "Jenis" control offers Keluar, Masuk, Pindah saldo and Top up Inves
   - It is bounded like `/capture/text`: 1–200 characters and owner-scoped.
   - Rate limit: its own bucket `capture-parse:user:{id}` at 120 per 60 s, so typing never uses up the submit budget. Over it, the answer is 429 `capture_rate_limited` and the dialog keeps the last preview.
   - Logs hold the user id, outcome and problem codes only.
-- **Submitting:** "Catat" is disabled while the preview reports `missing_amount` or `several_amounts`. The note under the field then says: "Jumlahnya belum ada. Aku nggak nebak, tulis jumlahnya ya (misal 5rb)." Otherwise "Catat" sends `POST /api/capture/text` with:
+- **Submitting:** "Catat" is disabled while the preview reports `missing_amount` or `several_amounts`. The note under the field then says: "Jumlah belum ada. Tulis jumlahnya, misalnya 5rb." Otherwise "Catat" sends `POST /api/capture/text` with:
   - a new `client_capture_id`;
   - `device_time`;
   - `question_types: ["amount", "time", "kind", "account", "category"]`.
@@ -343,29 +343,76 @@ Baselines are measured first, at the plan commit.
 - **No database migration.** Response fields and query values are additive: `include`, `local_date`, `type=movement|investment`, `waiting`. `type=transfer` and every other parameter keep their meaning.
 - **Rollback:** revert the pull request. Nothing persistent depends on this phase.
 
+### D20. Copy register: neutral labels, casual conversation
+
+The owner's direction of 2026-11-03 (proposal, "Approval" item 7) sets the register of every visible string. The lead's rule, binding for this and later phases, is recorded in the new capability `ui-copy-register` and in AGENTS.md:
+
+- **Neutral standard Indonesian** for everything the interface names or labels:
+  - navigation, page titles and subtitles, section headings, tabs, folders, chips and filters;
+  - buttons, form labels and placeholders, table headers;
+  - status pills and badges, figure names, units and captions;
+  - toasts, validation and error messages, empty states and the figure explanations.
+  - These use "sudah" and "tidak", no slang ("nggak", "udah", "beres", "nangkep", "nyambung", "bikin", "aja", "banget", "dimatiin", "gajian"), and no address of the user ("kamu", "-mu", "Anda"): they are written impersonally. "HP" stays as the established product term.
+- **The casual assistant voice stays** only where the app speaks in a conversation:
+  - the connect-phone guide's prose (headings, buttons and statuses inside it are labels);
+  - AI, purpose and learned-suggestion questions, including server text such as "Sepertinya top up ke X, kayak bulan lalu?";
+  - the Tanya chat (phase 6);
+  - Beranda's written summary sentence (phase 1, option F). OD7's "nunggu jawabanmu" therefore stays in that sentence only; labels say "Menunggu jawaban".
+- **User data** (category, account and merchant names) is never rewritten.
+- **Glossary of the visible renames** (the full list is in verification.md):
+
+  | Before | After |
+  | --- | --- |
+  | Perlu kamu | Perlu ditinjau |
+  | Semua beres | Semua sudah ditinjau |
+  | Kerjakan dulu | Perlu tindakan |
+  | Apa ini? (folder) | Belum dikenali |
+  | HP-mu siap · terakhir nangkep … | HP terhubung · Terakhir menangkap … |
+  | Udah dipakai | Sudah dipakai |
+  | Nunggu jawabanmu (figure label) | Menunggu jawaban |
+  | Nggak dihitung | Tidak dihitung |
+  | Udah bener | Sudah benar |
+  | Belum ketemu pasangannya | Pasangan belum ditemukan |
+  | Kok segini? | Rincian hitungan |
+  | Siklus gajian · sampai gajian | Siklus gaji · sampai gaji berikutnya |
+  | Balik ke Beranda | Kembali ke Beranda |
+  | Anda (classifier) | Pengguna |
+
+- **Scope (OD27):**
+  - every web string that phases 1–3 own or touch: the shell, Beranda, Tinjau, Transaksi, Catat, the help dialog, notifications and the explanations;
+  - informal strings on any other web route.
+  - Formal "Anda" on routes that phases 4 and 5 rewrite is left to those phases.
+  - Backend question text is conversational and stays. The Android companion is a separate repository; its sweep is a later follow-up.
+- **Guard:** a Vitest test reads the label-type component and library sources and fails on a listed slang token outside an allowlist of conversational files and strings.
+
+*Rejected:*
+- Leaving the casual tone everywhere: the owner rejected it.
+- Making the conversational voice formal too: the owner kept it for onboarding and interactive messages.
+
 ## Preview conflicts (the approved rule wins)
 
 | Preview | Rule | This change |
 | --- | --- | --- |
-| Waiting rows are "belum dihitung", and the day heading and KPIs leave them out | Phase plan D9, OD7: waiting rows stay recorded and counted | Counted in their day and in the KPIs; worded "{n} nunggu jawabanmu" |
+| Waiting rows are "belum dihitung", and the day heading and KPIs leave them out | Phase plan D9, OD7: waiting rows stay recorded and counted | Counted in their day and in the KPIs; worded "{n} menunggu jawaban" |
 | Transaksi "Keluar" equals Beranda's Keluar, including Tabungan | The ledger summary counts spending only; Beranda's Keluar adds net fresh saving | Labelled "Belanja", with the caption "Di Beranda, Keluar = Belanja + yang ditabung" (OD24) |
 | Day "keluar" is one net number | Offsets are per category and window and cannot be placed on a day | Day headings gross; the KPI net, with "sudah dikurangi penggantian Rp X" |
 | Any row can switch to "Pindah saldo" | A movement needs two legs; no single-row endpoint | Selection-mode merge (OD23) |
-| Catat guesses a pillar from keywords | Amounts and facts are deterministic; category comes from memory or the capture path; no guessing in the preview | Server parse; "kategori: nanti aku kenali" |
+| Catat guesses a pillar from keywords | Amounts and facts are deterministic; category comes from memory or the capture path; no guessing in the preview | Server parse; "Kategori: dikenali setelah dicatat" |
 | Chip counts | One aggregate per chip per request | Tab counts only |
 | "Ekspor" button | Not an existing feature | Not built |
 
-## Open decisions for owner (each with the applied default)
+## Open decisions for owner (resolved 2026-11-03: "approved, defaults ok")
 
 | ID | Question | Recommended default |
 | --- | --- | --- |
-| OD20 | What opens when the owner goes to Transaksi | **The nav link opens `/ledger?period=cycle` (this cycle, as in the preview).** Plain `/ledger` and every existing link (`?q=`, `?review=auto`, report ranges, `?edit=`) keep their all-time meaning, so no link changes what it shows. The tab bar and sidebar mark Transaksi active by path |
-| OD21 | Fix `/laporan`'s URL write with the same helper now | **Yes.** It is the same defect and a one-call change. Laporan's layout waits for phase 4 |
-| OD22 | Pages or "Muat lagi" | **"Muat 50 lagi"**, so day groups stay continuous (D5) |
-| OD23 | "Pindah saldo" in the type switch for an ordinary row | **Selection-mode merge with this row preselected.** No new endpoint |
-| OD24 | Name of the spending figure on Transaksi | **"Belanja"**, with a caption linking it to Beranda's Keluar. The alternative is to compute Beranda's Keluar here, which needs per-day saving figures and is not in this phase |
-| OD25 | Wording for confirming a row | **"Tandai sudah dicek" / "Udah dicek"** as in the preview. "Belum dicek" is the chip for automatic rows. "Sudah ditinjau" stays the provenance status name |
-| OD26 | What "Catat" records through | **`/capture/text`, the phone's path**, including its existing bounded model use for category. The alternative, a web-only deterministic save, would split the capture rules |
+| OD20 (resolved: default) | What opens when the owner goes to Transaksi | **The nav link opens `/ledger?period=cycle` (this cycle, as in the preview).** Plain `/ledger` and every existing link (`?q=`, `?review=auto`, report ranges, `?edit=`) keep their all-time meaning, so no link changes what it shows. The tab bar and sidebar mark Transaksi active by path |
+| OD21 (resolved: default) | Fix `/laporan`'s URL write with the same helper now | **Yes.** It is the same defect and a one-call change. Laporan's layout waits for phase 4 |
+| OD22 (resolved: default) | Pages or "Muat lagi" | **"Muat 50 lagi"**, so day groups stay continuous (D5) |
+| OD23 (resolved: default) | "Pindah saldo" in the type switch for an ordinary row | **Selection-mode merge with this row preselected.** No new endpoint |
+| OD24 (resolved: default) | Name of the spending figure on Transaksi | **"Belanja"**, with a caption linking it to Beranda's Keluar. The alternative is to compute Beranda's Keluar here, which needs per-day saving figures and is not in this phase |
+| OD25 (resolved: default overridden by D20) | Wording for confirming a row | **"Tandai sudah dicek" / "Sudah dicek".** The preview's "Udah dicek" breaks the copy register (D20). "Belum dicek" is the chip for automatic rows. "Sudah ditinjau" stays the provenance status name |
+| OD27 (resolved: delegated to the lead by the owner) | Which strings follow the neutral register, and the scope of the sweep | **D20:** labels neutral, conversation casual; the sweep covers phases 1–3 copy and informal strings on other routes, not backend questions or the companion |
+| OD26 (resolved: default) | What "Catat" records through | **`/capture/text`, the phone's path**, including its existing bounded model use for category. The alternative, a web-only deterministic save, would split the capture rules |
 
 ## Risks / Trade-offs
 

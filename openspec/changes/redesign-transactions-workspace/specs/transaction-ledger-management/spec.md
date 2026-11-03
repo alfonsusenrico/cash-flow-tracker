@@ -12,9 +12,9 @@ The application SHALL provide a dedicated `/ledger` screen showing recorded cash
   The application SHALL provide a dedicated `/ledger` screen with real-time filtering:
   1. Full-text search by notes, merchant, or category name.
   2. Type tabs "Semua", "Keluar", "Masuk", "Pindah saldo" and "Investasi", each with the count of rows matching the other filters.
-  3. Single-select chips "Nunggu jawaban", "Belum dicek", "Dari HP" and "Lewat Catat"; account, category and pillar filters behind "Filter"; every active filter shown as a removable chip.
+  3. Single-select chips "Menunggu jawaban", "Belum dicek", "Dari HP" and "Lewat Catat"; account, category and pillar filters behind "Filter"; every active filter shown as a removable chip.
   4. Cash flow figures for the filtered rows: the payday cycle (or labelled calendar month) and cumulative totals, or the selected period's figures, labelled Masuk, Belanja and Bersih, matching active filters and independent of how many rows are loaded.
-  5. Rows grouped by local day with one heading per day, holding that day's Belanja, Masuk and the number of rows that "nunggu jawabanmu".
+  5. Rows grouped by local day with one heading per day, holding that day's Belanja, Masuk and the number of rows that are "menunggu jawaban".
   6. On a phone, a purpose-built feed with sticky day headings instead of the table.
 
 #### Scenario: Searching transactions by note
@@ -41,11 +41,11 @@ The application SHALL provide a dedicated `/ledger` screen showing recorded cash
 #### Scenario: Waiting row is counted in its day
 - **GIVEN** an expense of Rp 45.000 with an open "Apa ini?" question on 2 November
 - **WHEN** the ledger shows 2 November
-- **THEN** the day's Belanja SHALL include Rp 45.000 and the heading SHALL say "1 nunggu jawabanmu", never that it is not counted
+- **THEN** the day's Belanja SHALL include Rp 45.000 and the heading SHALL say "1 menunggu jawaban", never that it is not counted
 
 #### Scenario: Empty result
 - **WHEN** no row matches the filters
-- **THEN** the ledger SHALL say "Nggak ketemu", name the search text if any, and offer "Hapus filter"
+- **THEN** the ledger SHALL say "Tidak ditemukan", name the search text if any, and offer "Hapus filter"
 
 ### Requirement: Transaction Detail & Inline Editing
 The application SHALL let users open any transaction row in a detail drawer (a side column on a wide window, an overlay on a narrower one, a bottom sheet on a phone) that shows the row's provenance and supports editing, a type switch, confirming and deleting.
@@ -61,7 +61,7 @@ The application SHALL let users open any transaction row in a detail drawer (a s
   4. Linking or unlinking savings goals (`goal_id`) and debt obligations (`obligation_id`), or assigning a debt payment among multiple obligations with explicit amounts (`obligation_allocations`).
   5. Showing each debt name and assigned amount for an allocated payment in ledger detail, including debts that were archived by that payment; the transaction SHALL remain one ledger row.
   6. Deleting the transaction with confirmation, cleanly reversing its balance impact on accounts, goals, or obligations.
-  7. Showing where the row came from ("Dari HP", "Lewat Catat", "Dicatat manual" and the other sources), who classified it ("AI", "Kebiasaan", "Kamu", "Aturan"), and the original notification or typed text when the row has one.
+  7. Showing where the row came from ("Dari HP", "Lewat Catat", "Dicatat manual" and the other sources), who classified it ("AI", "Kebiasaan", "Pengguna", "Aturan"), and the original notification or typed text when the row has one.
   8. Opening the existing movement or top-up edit dialog for a movement or top-up row.
 
   The Quick Capture and ledger edit forms SHALL let a user select multiple active debts for an expense. Selecting a new debt SHALL default its payment amount to that debt's outstanding balance and SHALL update the transaction total to the sum of selected payments. The default view SHALL show each amount without requiring a separate input. An explicit amount-edit action SHALL allow partial payments per debt and SHALL update the total as amounts change. The form SHALL prevent submission when a selected amount is not positive, exceeds the available debt balance, or does not match the transaction total. Reopening a saved payment SHALL show its recorded amounts rather than replacing them with current debt balances. The same behavior and feedback SHALL be available in desktop drawers and mobile sheets. A single-debt selection MAY keep the existing API field for compatibility.
@@ -181,7 +181,7 @@ The ledger SHALL load 50 rows at a time and offer "Muat 50 lagi" to append the n
 #### Scenario: Undo after a later edit
 - **GIVEN** the owner marked a row "sudah dicek" and then changed its category
 - **WHEN** the owner presses Z
-- **THEN** the undo SHALL be refused with the message "Nggak bisa dibatalkan: transaksinya udah berubah sejak itu" and the row SHALL keep the new category
+- **THEN** the undo SHALL be refused with the message "Tidak dapat dibatalkan: transaksi sudah berubah sejak itu" and the row SHALL keep the new category
 
 ### Requirement: Ledger Type Switch
 The drawer's type control SHALL switch an ordinary row between Keluar and Masuk through the existing update, SHALL convert an eligible expense into a "Top up Investasi" through the existing conversion that keeps both legs paired, and SHALL start the existing two-row merge for "Pindah saldo".

@@ -1,6 +1,6 @@
 # Tasks
 
-Plan approval is pending (proposal.md, "Approval").
+The owner approved this plan on 2026-11-03 ("approved, defaults ok") and set the copy register (proposal.md, "Approval" item 7; design D20).
 
 The owner tests nothing until every phase is done. The evidence here is therefore the whole runtime check of this phase, and each screenshot named below is read by the agent before the task is checked.
 
@@ -116,6 +116,11 @@ Expected Result: Transaksi is the approved workspace at every width, and its tot
 - [ ] 5.4 **Spec tidy:** the notification-purpose-questions delta of this change ("Purpose Answer Undo"). Check that the phase 2 tests behind its scenarios exist and pass, naming them. Evidence: pytest node ids and counts. `openspec validate redesign-transactions-workspace --strict` exits 0. Until the archive, `--all --strict` keeps failing only on the main spec's existing length warning, which the archive removes.
 - [ ] 5.5 **Docs:** the Transaksi and Catat parts of `docs/NEW_USER_GUIDE.md` (tabs, chips, day totals, drawer, "Tandai sudah dicek", typed Catat). Evidence: the diff.
 
+- [ ] 5.6 **Copy register sweep** (D20, OD27):
+  - Re-run the survey over `frontend/src` (tests excluded) and change every label-type string to the neutral register. The connect-phone guide prose, the AI and suggestion questions, and Beranda's summary sentence keep their voice.
+  - Update the tests that quote changed strings, the label quotes in `docs/NEW_USER_GUIDE.md`, and add the copy rule to AGENTS.md.
+  - Add `src/copyRegister.test.ts`: it fails on a listed slang token in the label-type sources outside the conversational allowlist.
+  - Evidence: the survey before and after (counts), the guard test failing on a planted token and passing after, Vitest counts, and the rename table in verification.md.
 Expected Result: recording by text, Beranda's rows and Tinjau's edits all go through the same drawer and capture paths.
 
 ## 6. Integration verification
@@ -142,6 +147,7 @@ Expected Result: recording by text, Beranda's rows and Tinjau's edits all go thr
   6. **Catat:** "parkir 5rb jam 2" shows the preview, records at 14.00, appears in today's group and the KPIs, and "Urungkan" removes it. "bayar parkir" is refused. A question flow records after the answer.
   7. **Tinjau:** "Ubah" on a "Perlu jawaban" row, save, return to the same item.
   8. **Beranda:** a row opens the drawer, and a delete there updates Beranda.
+  9. **Copy register:** screenshots of the shell, Beranda, Tinjau, Transaksi and Catat after the sweep, read for leftover informal labels.
 
   Evidence: the values and the screenshots.
 - [ ] 6.4 **Gates** (D17): the bundle and timing numbers against the baseline. Evidence: before and after.
