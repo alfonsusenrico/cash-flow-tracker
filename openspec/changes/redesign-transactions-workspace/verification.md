@@ -103,6 +103,18 @@ Screenshots of Beranda, Tinjau, Transaksi and Catat at 1280 and 390 px after the
 
 `/`, `/review`, `/insights`, `/laporan`, `/accounts`, `/goals` and `/settings` at 1280 and 390 px, on this build (`d5ae894`, repeated at `7372576`) and on a build of `origin/main` (`861212b`): no console errors and no overflow on either; the only serious axe finding is the known `/accounts` `color-contrast` (2 nodes at 1280), present on both builds.
 
+## 5a. Due plans on Transaksi (review fix, at `904853d`)
+
+The coordinator's review of `copy/transaksi-1280.png` and `copy/catat-390.png` found the old `PendingScheduledBanner` panel above the tabs (about 330 px at 1280, most of the first phone screen) with a raw ISO date. Fix:
+- **`DuePlansNotice`**: one line on the workspace banner, "1 rencana jatuh tempo · Streamio Rp 65.000 · 3 Nov", or "{n} rencana jatuh tempo · total Rp X · paling awal {date}" (the sum of the plans' own amounts), plus "{n} ditautkan otomatis" when there are automatic links. Amounts go through `bal()`, so hidden balances are hidden. "Lihat rencana" opens the unchanged `PendingScheduledBanner` in the shared drawer (side column, overlay or sheet), the same way Beranda already does.
+- The detail's dates now read "Jatuh tempo 3 Nov" (`planDay`), also in the unlink button's name.
+- Beranda's "Perlu tindakan" item for an open question was built on the client ("Apa ini? {name} {amount}"); it now reads "Belum dikenali: QRIS 0812-xxxx Rp 45.000", matching the folder. The review reason label "Menunggu jawaban "Apa ini?"" became "Menunggu jawaban: belum dikenali". The item's own heading in Tinjau stays the server's question text.
+
+Evidence:
+- **Vitest:** `DuePlansNotice.test.tsx` (one plan with axe, several plans with the total and earliest date, automatic links and nothing due, date format), a Transaksi case where the notice opens the detail in the drawer, and the existing `PendingScheduledBanner` tests for link, skip and record bodies. 69 files, 617 tests passed; type-check and lint clean.
+- **Real UI** (`plan_flow.mjs`, `link_flow.mjs`, fresh seed): the notice is 52 px tall at 1280 (tabs start at 180 px) and 62 px at 390 (tabs at 204 px). The drawer shows "Jatuh tempo 3 Nov" with 0 serious axe findings. "Lewati kali ini" sent `POST /recurring/{id}/occurrences/skip` with `{"scheduled_for":"2026-11-03"}`, and the plan left the pending list and the notice. After a reset, "Kaitkan" on the phone sheet sent `POST …/occurrences/link` with `{"scheduled_for":"2026-11-03","transaction_id":"…"}`, and the plan left the pending list. 0 console errors. Screenshots: `plans/`.
+- **Matrix** rerun on the build of `904853d` with the notice: all 62 cells (the 10 `/ledger` list cells, 2 zoom cells, and the drawer, Investasi and Catat cells) have 0 serious or critical axe findings, 0 overflow, 0 console errors and no target under 24 px.
+
 ## 6. OpenSpec and diff
 
 - `openspec validate redesign-transactions-workspace --strict`: valid.
