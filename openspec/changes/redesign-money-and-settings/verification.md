@@ -143,3 +143,11 @@ A typed capture through the API ("parkir 5rb tunai") asked a follow-up question 
 - Screen readers. Semantics were checked with axe, role queries and the keyboard walk.
 - Real phone touch and drag: drag reordering was exercised with synthetic drag events in Vitest; the move buttons cover touch.
 - Storage that throws for the Tampilan settings: the existing providers' try/catch covers it, but no browser run blocked storage.
+
+## OD70 fix (2026-11-03)
+
+- Cause: `GoalDialogs.tsx` sent `current_amount: 0` for account-backed goals; `PATCH /goals/{id}` refuses any `current_amount` when the goal ends up with linked accounts (409). Affected: editing an account-backed goal, and switching a standalone goal to linked accounts. Present on `main` too.
+- Fix: the form omits `current_amount` for account-backed payloads. The API rule is unchanged.
+- Regression: `app/goals/page.test.tsx` "changes the target of an account-backed goal without sending manual progress" and the corrected standalone-to-linked case both failed before the fix (`expected {…} to not have property "current_amount"`) and pass after. Backend `test_account_backed_goal_edit_changes_target_and_refuses_manual_progress`: the form's payload returns 200 with the new target, `current_amount` alone returns 409.
+- Runs: backend 1710 passed on a fresh Flyway V44 PostgreSQL 16 (`SKIP_TEST_MIGRATIONS=1`, `REQUIRE_TEST_DATABASE=1`); Vitest 78 files, 711 tests, 0 unhandled errors; type-check and lint clean.
+- D17: the goal edit and the standalone-to-linked switch are the one intended request-body change (no `current_amount`); every other flow stays identical.

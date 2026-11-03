@@ -528,7 +528,7 @@ Tailwind (steps 3 and 5): the legacy keys and palette remaps are gone. The seman
 
 | # | Decision | Default applied |
 | --- | --- | --- |
-| OD70 (open, conservative default applied) | Editing the target of an account-backed goal is refused by the API ("Account-backed goal progress is derived from linked account balances") because the form also sends `current_amount`. The same happens on `main` | **Unchanged in phase 5.** D17 requires identical writes, and fixing it changes a request body. Record it and fix it in a follow-up change (the form should omit `current_amount` for account-backed goals) |
+| OD70 (resolved 2026-11-03: owner said "fix the bug first") | Editing an account-backed goal was refused by the API (409, "Account-backed goal progress is derived from linked account balances") because the form sent `current_amount: 0`; the same happened when a standalone goal was switched to linked accounts. The same happened on `main` | **Fixed in the form**, the component that broke the contract: an account-backed payload omits `current_amount`, and the API rule stays. This is the one intended exception to D17's identical writes: the goal edit and the standalone-to-linked switch no longer send `current_amount`. Regression tests: `app/goals/page.test.tsx` (both flows, failing before the fix) and `test_account_backed_goal_edit_changes_target_and_refuses_manual_progress` |
 
 ## Open decisions for owner
 

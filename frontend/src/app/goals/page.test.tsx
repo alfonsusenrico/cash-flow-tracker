@@ -136,8 +136,25 @@ describe("goal backing forms", () => {
     await user.click(screen.getByRole("button", { name: "Konfirmasi & simpan" }));
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/goals/goal-standalone", expect.objectContaining({
       account_ids: ["account-1"],
-      current_amount: 0,
     })));
+    // Account-backed progress is derived on the server, which refuses any current_amount (409).
+    expect(vi.mocked(api.patch).mock.calls[0][1]).not.toHaveProperty("current_amount");
+  });
+
+  it("changes the target of an account-backed goal without sending manual progress", async () => {
+    const user = userEvent.setup();
+    renderGoals();
+    await user.click(within(await openDrawer(user, "Dana Darurat")).getByRole("button", { name: "Ubah target" }));
+    const target = screen.getByLabelText(/Target Nominal/i);
+    await user.clear(target);
+    await user.type(target, "2500000");
+    await user.click(screen.getByRole("button", { name: "Simpan Perubahan" }));
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/goals/goal-linked", expect.objectContaining({
+      target_amount: 2_500_000,
+      account_ids: ["account-1"],
+    })));
+    expect(vi.mocked(api.patch).mock.calls[0][1]).not.toHaveProperty("current_amount");
   });
 
   it("validates an obligation against the final total and remaining amounts", async () => {

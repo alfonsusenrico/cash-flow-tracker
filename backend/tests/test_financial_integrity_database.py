@@ -1695,6 +1695,38 @@ def test_account_backed_goal_follows_transactions_without_adjustment_record(auth
     assert "cannot be adjusted directly" in rejected_adjustment.json()["detail"]
 
 
+def test_account_backed_goal_edit_changes_target_and_refuses_manual_progress(auth_client):
+    account_id = _create_account(
+        auth_client,
+        name=f"Goal edit account {uuid4().hex[:8]}",
+        balance=0,
+    )
+    goal_id = auth_client.post(
+        "/api/goals",
+        json={"name": f"Linked edit {uuid4().hex[:8]}", "target_amount": 100_000, "account_ids": [account_id]},
+    ).json()["goal"]["id"]
+
+    # The web form's edit payload for an account-backed goal: everything except current_amount.
+    edited = auth_client.patch(
+        f"/api/goals/{goal_id}",
+        json={
+            "name": "Dana Darurat Contoh",
+            "target_amount": 250_000,
+            "target_date": "",
+            "color": "#66CC55",
+            "icon": "target",
+            "is_emergency": False,
+            "account_ids": [account_id],
+        },
+    )
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["goal"]["target_amount"] == 250_000
+
+    manual_progress = auth_client.patch(f"/api/goals/{goal_id}", json={"current_amount": 0})
+    assert manual_progress.status_code == 409
+    assert "derived from linked account balances" in manual_progress.json()["detail"]
+
+
 def test_settled_external_movement_marks_negative_source_for_reconciliation(
     client,
     monkeypatch,

@@ -245,6 +245,8 @@ Expected Result: only workspace tokens remain, a test keeps it that way, and eve
 
 Expected Result: phase 5 is proven locally. Every write is unchanged against `main`, every route keeps its look, and the three pages pass WCAG 2.2 AA checks at five widths in both themes.
 
+- [x] 7.9 Fix OD70 (owner, 2026-11-03: "fix the bug first"): the goal form omits `current_amount` for account-backed goals, so editing their target and switching a standalone goal to linked accounts are accepted. Evidence: the two Vitest cases failed before the fix with `current_amount` in the payload and pass after; the backend contract test passes on Flyway V44; backend 1710 passed, Vitest 78 files and 711 tests with no unhandled errors.
+
 ## 8. Acceptance
 
 - [ ] 8.1 Present to the owner:

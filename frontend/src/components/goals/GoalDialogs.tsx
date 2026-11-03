@@ -199,10 +199,12 @@ export function useGoalDialogs() {
       if (target <= 0) throw new Error("Target nominal harus lebih dari 0");
       const current = parseNumberFromDots(goalCurrent);
 
+      const accountBacked = goalAccountIds.length > 0;
       const payload = {
         name,
         target_amount: target,
-        current_amount: goalAccountIds.length > 0 ? 0 : current,
+        // Account-backed progress is derived from the linked balances; the API refuses any current_amount for it.
+        ...(accountBacked ? {} : { current_amount: current }),
         target_date: goalDate || (editingGoal ? "" : null),
         color: goalColor,
         icon: goalIcon,
