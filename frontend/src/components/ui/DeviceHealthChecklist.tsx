@@ -51,20 +51,20 @@ interface DeviceHealthChecklistProps {
   device: PairedDevice | undefined;
 }
 
-/** The pairing dialog's live "Status HP-mu" card; announcements are made by the dialog's live region. */
+/** The pairing dialog's live "Status HP" card; announcements are made by the dialog's live region. */
 export function DeviceHealthChecklist({ checklist, device }: DeviceHealthChecklistProps) {
   let headline = "Menunggu HP…";
-  let detail: string | null = "Halaman ini berubah sendiri begitu HP-mu nyambung. Nggak perlu di-refresh.";
+  let detail: string | null = "Halaman ini diperbarui otomatis begitu HP tersambung. Tidak perlu dimuat ulang.";
   if (checklist.stage === "setting-up") {
-    headline = "Terhubung! Lanjutin pengaturannya di HP, ya.";
-    detail = device ? `${device.name} lagi nuntun kamu langkah demi langkah.` : null;
+    headline = "Terhubung. Lanjutkan pengaturan di HP.";
+    detail = device ? `${device.name} sedang menampilkan langkah-langkahnya.` : null;
   } else if (checklist.stage === "failed" && checklist.failed) {
-    headline = `Ada yang belum beres: ${checklist.failed.label}`;
+    headline = `Ada yang belum siap: ${checklist.failed.label}`;
     detail = null;
   } else if (checklist.stage === "ready") {
     headline = READY_MESSAGE;
     detail = device?.health
-      ? `${device.name} · aplikasi pendamping v${device.health.app_version} · tes notifikasi ketangkep dan nggak dicatat jadi transaksi.`
+      ? `${device.name} · aplikasi pendamping v${device.health.app_version} · notifikasi tes tertangkap dan tidak dicatat sebagai transaksi.`
       : null;
   }
   const busy = checklist.stage === "waiting" || checklist.stage === "setting-up";
@@ -75,7 +75,7 @@ export function DeviceHealthChecklist({ checklist, device }: DeviceHealthCheckli
       className="space-y-2.5 rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface)] p-3.5"
     >
       <h3 id="device-health-title" className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-        Status HP-mu
+        Status HP
       </h3>
       <p className="flex items-center gap-2.5 text-sm font-bold text-[var(--text)]">
         {busy && <Pulse />}

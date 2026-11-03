@@ -29,7 +29,7 @@ function itemLine(item: TriageItem): string {
     case "awaiting": {
       const suggestion = item.item.topup_suggestion;
       const product = suggestion?.choices.find((choice) => choice.id === suggestion.target_account_id)?.name;
-      return product ? `Top up ${product}?` : "Belum ketemu pasangannya";
+      return product ? `Top up ${product}?` : "Pasangan belum ditemukan";
     }
     case "ambiguous": return `${item.item.candidates.length} kemungkinan pasangan`;
     case "suggestion": return `Saran · ${item.group.category.name}`;
@@ -126,7 +126,7 @@ export function TriageList({
     <section ref={listRef} className="ws-card ws-tri-list" aria-labelledby="triage-list-heading">
       <div className="ws-tri-head">
         <h2 id="triage-list-heading">
-          Perlu kamu
+          Perlu ditinjau
           <span className="ws-cnt">
             <span aria-hidden="true">{triage.attention}</span>
             <span className="sr-only">{triage.attention} transaksi</span>
@@ -145,7 +145,7 @@ export function TriageList({
       ) : (
         <p className="ws-tri-empty">
           <Icon name="check" className="h-4 w-4" />
-          {total ? "Folder ini udah kosong." : "Nggak ada yang perlu dijawab."}
+          {total ? "Folder ini sudah kosong." : "Tidak ada yang perlu dijawab."}
         </p>
       ))}
 
@@ -157,7 +157,7 @@ export function TriageList({
             <span className="ws-opt">opsional · boleh dilewati</span>
           </summary>
           <p className="ws-caption">
-            Udah aku catat dari aturan atau AI. Cek kalau mau aja.
+            Dicatat dari aturan atau AI. Pengecekan opsional.
             {triage.autoInMixedGroups > 0 && ` ${triage.autoInMixedGroups} lainnya ikut kelompok di Perlu jawaban.`}
           </p>
           {automatic.length > 0 && (
@@ -172,7 +172,7 @@ export function TriageList({
             <span><b>{FOLDER_LABELS.saran}</b> <span className="ws-cnt">{triage.counts.saran}</span></span>
             <span className="ws-opt">opsional</span>
           </summary>
-          <p className="ws-caption">Usulan untuk transaksi lama. Nggak dihitung sebagai yang perlu dijawab.</p>
+          <p className="ws-caption">Usulan untuk transaksi lama. Tidak dihitung sebagai yang perlu dijawab.</p>
           <TriageRows items={suggestions} selectedId={selectedId} onOpen={onOpen} label="Saran dari riwayat" />
         </details>
       )}

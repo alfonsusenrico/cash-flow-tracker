@@ -260,13 +260,13 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
               <span>
                 <span className="block font-medium">Pintasan satu tombol</span>
                 <span className="block text-[13px] text-[var(--muted)]">
-                  {switchCaption(context.pageGroups)} Matikan kalau bentrok dengan pembaca layar atau alat bantumu.
+                  {switchCaption(context.pageGroups)} Matikan jika bentrok dengan pembaca layar atau alat bantu lain.
                 </span>
               </span>
               <span className="ws-switch-track" aria-hidden="true" />
             </button>
           )}
-          <p className="ws-caption mt-3">Angka bergaris bawah titik-titik bisa diklik: aku tunjukin hitungannya.</p>
+          <p className="ws-caption mt-3">Angka bergaris bawah titik-titik dapat diklik untuk melihat rincian hitungannya.</p>
         </>
       )}
     </dialog>

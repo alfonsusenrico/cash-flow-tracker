@@ -259,7 +259,7 @@ export default function AnalyticsPage() {
 
         {(timeframe === "cycle" || timeframe === "month") && (
           <div role="group" aria-label="Dasar periode" className="flex items-center p-1 rounded-2xl bg-[var(--surface-raised)] border border-[var(--border)] self-start sm:self-auto">
-            {([["cycle", "Siklus gajian"], ["month", "Bulan kalender"]] as const).map(([value, label]) => (
+            {([["cycle", "Siklus gaji"], ["month", "Bulan kalender"]] as const).map(([value, label]) => (
               <button
                 key={value}
                 type="button"

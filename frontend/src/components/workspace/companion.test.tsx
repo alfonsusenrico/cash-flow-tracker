@@ -41,12 +41,12 @@ function device(overrides: Partial<PairedDevice> = {}): PairedDevice {
 
 describe("companionState", () => {
   it("is ready with the time of the last capture", () => {
-    expect(companionState([device()], NOW)).toEqual({ tone: "ok", title: "HP-mu siap", detail: "terakhir nangkep 09.15" });
+    expect(companionState([device()], NOW)).toEqual({ tone: "ok", title: "HP terhubung", detail: "Terakhir menangkap 09.15" });
   });
 
   it("says yesterday for a capture on the previous Jakarta day", () => {
     const state = companionState([device({ health: health({ last_capture_at: "2026-11-01T13:30:00Z" }) })], NOW);
-    expect(state.detail).toBe("terakhir nangkep kemarin 20.30");
+    expect(state.detail).toBe("Terakhir menangkap kemarin 20.30");
   });
 
   it("uses the newest health report when several phones are paired", () => {
@@ -63,7 +63,7 @@ describe("companionState", () => {
   it("needs attention when a ready phone has been quiet for more than a day", () => {
     const state = companionState([device({ health: health({ reported_at: "2026-11-01T02:00:00Z" }) })], NOW);
     expect(state.tone).toBe("warn");
-    expect(state.detail).toBe("Udah lebih dari 24 jam nggak ada kabar dari HP ini.");
+    expect(state.detail).toBe("Lebih dari 24 jam tidak ada kabar dari HP ini.");
   });
 
   it("needs attention when a paired phone never reported its health", () => {
@@ -76,7 +76,7 @@ describe("companionState", () => {
 
   it("has no phone when only a manual key exists", () => {
     expect(companionState([device({ created_via: "manual" })], NOW).tone).toBe("none");
-    expect(companionState([], NOW)).toEqual({ tone: "none", title: "Belum ada HP terhubung", detail: "Sambungkan HP-mu di Pengaturan" });
+    expect(companionState([], NOW)).toEqual({ tone: "none", title: "Belum ada HP terhubung", detail: "Sambungkan HP di Pengaturan" });
   });
 });
 
@@ -99,10 +99,10 @@ describe("CompanionStatus", () => {
       devices: [device({ health: health({ reported_at: minutesAgo(2), last_capture_at: minutesAgo(5) }) })],
     });
     const { container } = show();
-    const link = await screen.findByRole("link", { name: /^HP-mu siap, terakhir nangkep \d{2}\.\d{2}$/ });
+    const link = await screen.findByRole("link", { name: /^HP terhubung, Terakhir menangkap \d{2}\.\d{2}$/ });
     expect(link).toHaveAttribute("href", "/settings/perangkat");
     expect(link.querySelector(".ws-tip")).toHaveTextContent(link.getAttribute("aria-label")!);
-    expect(link).toHaveTextContent("HP-mu siap");
+    expect(link).toHaveTextContent("HP terhubung");
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
@@ -113,14 +113,14 @@ describe("CompanionStatus", () => {
     });
     show();
     expect(
-      await screen.findByRole("link", { name: "HP perlu dicek, Aplikasinya nggak jalan di latar belakang." }),
-    ).toHaveTextContent("Aplikasinya nggak jalan di latar belakang.");
+      await screen.findByRole("link", { name: "HP perlu dicek, Aplikasi tidak berjalan di latar belakang." }),
+    ).toHaveTextContent("Aplikasi tidak berjalan di latar belakang.");
   });
 
   it("links to the device settings when no phone is paired", async () => {
     vi.mocked(getDevices).mockResolvedValue({ ok: true, devices: [] });
     show();
-    const link = await screen.findByRole("link", { name: "Belum ada HP terhubung, Sambungkan HP-mu di Pengaturan" });
+    const link = await screen.findByRole("link", { name: "Belum ada HP terhubung, Sambungkan HP di Pengaturan" });
     expect(link).toHaveAttribute("href", "/settings/perangkat");
   });
 

@@ -361,7 +361,7 @@ describe("report drill-down", () => {
   it("switches the report basis and links Kakeibo pillars", async () => {
     const user = userEvent.setup();
     renderAnalytics();
-    await user.click(await screen.findByRole("button", { name: "Siklus gajian" }));
+    await user.click(await screen.findByRole("button", { name: "Siklus gaji" }));
     expect(setTimeframe).toHaveBeenCalledWith("cycle");
     expect(screen.getByRole("button", { name: "Bulan kalender" })).toHaveAttribute("aria-pressed", "true");
     await user.click(screen.getByRole("button", { name: "Bandingkan & Kakeibo" }));

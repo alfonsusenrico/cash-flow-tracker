@@ -83,7 +83,7 @@ export function InvestmentTopupModal({ open, onClose, product, allAccounts, edit
         <div className="rounded-xl border border-violet-500/25 bg-investment-soft p-3 text-investment">
           <p className="text-xs">Produk reksadana</p>
           <p className="break-words font-semibold">{product.name}</p>
-          <p className="mt-1 text-xs">Catat jumlah yang dibayarkan. Nilai investasi menjadi estimasi hingga Anda memperbarui nilai dari Bibit.</p>
+          <p className="mt-1 text-xs">Catat jumlah yang dibayarkan. Nilai investasi menjadi estimasi hingga nilainya diperbarui dari Bibit.</p>
         </div>
         {error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
         <div>

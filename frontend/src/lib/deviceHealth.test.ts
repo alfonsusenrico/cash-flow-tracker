@@ -37,7 +37,7 @@ describe("pairing checklist", () => {
 
     expect(checklist.stage).toBe("setting-up");
     expect(states(phone(null))).toEqual(["ok", "wait", "todo", "todo"]);
-    expect(checklistAnnouncement(checklist)).toBe("HP terhubung. Lanjutin pengaturannya di HP, ya.");
+    expect(checklistAnnouncement(checklist)).toBe("HP terhubung. Lanjutkan pengaturan di HP.");
   });
 
   it("treats permissions reported off before the self-test as still being set up", () => {
@@ -54,14 +54,14 @@ describe("pairing checklist", () => {
     const background = phone(healthReport({ self_test: { status: "not_run", at: null } }));
 
     expect(states(access)).toEqual(["ok", "ok", "wait", "todo"]);
-    expect(checklistAnnouncement(pairingChecklist(access))).toBe("Izin notifikasi beres.");
+    expect(checklistAnnouncement(pairingChecklist(access))).toBe("Izin notifikasi selesai.");
     expect(states(background)).toEqual(["ok", "ok", "ok", "wait"]);
-    expect(checklistAnnouncement(pairingChecklist(background))).toBe("Jalan di latar belakang beres.");
+    expect(checklistAnnouncement(pairingChecklist(background))).toBe("Jalan di latar belakang selesai.");
   });
 
   it.each([
-    ["post", "HP nggak bisa munculin notifikasi tes."],
-    ["capture", "Notifikasi tes nggak ketangkep sama aplikasinya."],
+    ["post", "HP tidak dapat menampilkan notifikasi tes."],
+    ["capture", "Notifikasi tes tidak tertangkap oleh aplikasi."],
     ["server", "HP belum bisa ngirim ke server."],
   ] as const)("names the failed self-test step %s", (step, text) => {
     const checklist = pairingChecklist(phone(healthReport({ self_test: { status: "failed", failed_step: step } })));
@@ -109,9 +109,9 @@ describe("device problems", () => {
 
     expect(deviceProblems(health, NOW)).toEqual([
       "Izin notifikasi mati.",
-      "Aplikasinya nggak jalan di latar belakang.",
+      "Aplikasi tidak berjalan di latar belakang.",
       "Tes tangkap notifikasi gagal. HP belum bisa ngirim ke server.",
-      "Udah lebih dari 24 jam nggak ada kabar dari HP ini.",
+      "Lebih dari 24 jam tidak ada kabar dari HP ini.",
     ]);
   });
 

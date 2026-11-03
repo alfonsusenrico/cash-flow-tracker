@@ -167,7 +167,7 @@ const row = (name: string) => {
 const status = () => screen.getAllByRole("status").map((node) => node.textContent ?? "").join(" ");
 
 async function loaded() {
-  await screen.findByRole("heading", { name: /Perlu kamu/ });
+  await screen.findByRole("heading", { name: /Perlu ditinjau/ });
   await waitFor(() => expect(itemHeading()).toBeInTheDocument());
 }
 
@@ -232,15 +232,15 @@ describe("Tinjau triage", () => {
     await loaded();
     const chips = screen.getByRole("group", { name: "Saring Tinjau" });
     expect(within(chips).getAllByRole("button").map((chip) => chip.textContent)).toEqual([
-      "Semua5", "Apa ini?1", "Perlu jawaban2", "Pindah saldo belum lengkap2",
+      "Semua5", "Belum dikenali1", "Perlu jawaban2", "Pindah saldo belum lengkap2",
     ]);
     expect(within(chips).getByRole("button", { name: /^Semua/ })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("heading", { name: "Perlu kamu 5 transaksi" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Perlu ditinjau 5 transaksi" })).toBeInTheDocument();
     expect(screen.getByText("2 dicatat otomatis · opsional")).toBeInTheDocument();
     const list = screen.getByRole("list", { name: /Semua: yang perlu dijawab/ });
     expect(within(list).getAllByRole("listitem")).toHaveLength(4);
     // The header shows no amount (phase plan D9: waiting rows are counted).
-    expect(screen.getByRole("heading", { name: /Perlu kamu/ }).parentElement).not.toHaveTextContent("Rp");
+    expect(screen.getByRole("heading", { name: /Perlu ditinjau/ }).parentElement).not.toHaveTextContent("Rp");
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
@@ -285,14 +285,14 @@ describe("Tinjau triage", () => {
   it("One pane at 768 px, and Back to the list", async () => {
     width = 660;
     const { user } = renderPage();
-    await screen.findByRole("heading", { name: /Perlu kamu/ });
+    await screen.findByRole("heading", { name: /Perlu ditinjau/ });
     expect(screen.getByRole("region", { name: "Tinjau" })).toHaveAttribute("data-panes", "one");
     expect(document.getElementById("triage-item-heading")).toBeNull();
     const length = window.history.length;
     await user.click(row("Toko Serba Ada"));
     expect(itemHeading()).toHaveTextContent("Toko Serba Ada");
     expect(window.history.length).toBe(length + 1);
-    expect(screen.queryByRole("heading", { name: /Perlu kamu/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Perlu ditinjau/ })).not.toBeInTheDocument();
     await waitFor(() => expect(itemHeading()).toHaveFocus());
     // The browser's back gesture returns to the list with focus on the item's row.
     act(() => {
@@ -302,7 +302,7 @@ describe("Tinjau triage", () => {
     await waitFor(() => expect(row("Toko Serba Ada")).toHaveFocus());
     await user.click(row("Toko Serba Ada"));
     await user.click(within(pane()).getByRole("button", { name: "Daftar" }));
-    await waitFor(() => expect(screen.getByRole("heading", { name: /Perlu kamu/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { name: /Perlu ditinjau/ })).toBeInTheDocument());
   });
 
   it("Hidden balances", async () => {
@@ -362,7 +362,7 @@ describe("Tinjau triage", () => {
     await user.click(screen.getByRole("button", { name: "Urungkan" }));
     await waitFor(() => expect(api.post).toHaveBeenLastCalledWith("/review/undo", { undo_token: expect.stringMatching(/^bulk/) }));
     await waitFor(() => expect(itemHeading()).toHaveTextContent("Toko Serba Ada"));
-    expect(status()).toContain("Dibatalkan. Toko Serba Ada balik ke Perlu jawaban.");
+    expect(status()).toContain("Dibatalkan. Toko Serba Ada kembali ke Perlu jawaban.");
   });
 
   it("recategorises and renames a group with one request each", async () => {
@@ -388,7 +388,7 @@ describe("Tinjau triage", () => {
     await waitFor(() => expect(api.post).toHaveBeenLastCalledWith("/review/bulk", {
       action: "rename", transaction_ids: ["tx-c", "tx-d"], merchant: "Toko Serba Ada Baru",
     }));
-    expect(within(pane()).getAllByRole("link", { name: /Ubah transaksi Toko Serba Ada/ })[0]).toHaveAttribute("href", "/ledger?edit=tx-c&return=review");
+    expect(within(pane()).getAllByRole("link", { name: /Ubah transaksi Toko Serba Ada/ })[0]).toHaveAttribute("href", "/ledger?edit=tx-c&return=review&folder=jawab");
   });
 
   it("Failed bulk action", async () => {
@@ -452,7 +452,7 @@ describe("Tinjau triage", () => {
     await user.click(within(pane()).getByRole("button", { name: /Terima semua/ }));
     await user.click(await screen.findByRole("button", { name: "Urungkan" }));
     const alert = await within(pane()).findByRole("alert");
-    expect(alert).toHaveTextContent("Udah lewat 10 menit, jadi nggak bisa dibatalkan di sini.");
+    expect(alert).toHaveTextContent("Sudah lewat 10 menit, jadi tidak dapat dibatalkan di sini.");
     expect(within(alert).getByRole("link", { name: "Buka di Transaksi" })).toHaveAttribute("href", "/ledger?edit=tx-c&return=review");
     expect(status()).not.toContain("Dibatalkan");
   });
@@ -468,7 +468,7 @@ describe("Tinjau triage", () => {
     expect(screen.queryByRole("button", { name: "Urungkan" })).not.toBeInTheDocument();
     act(() => itemHeading().focus());
     await user.keyboard("z");
-    expect(await screen.findByText("Nggak ada yang bisa dibatalkan.")).toBeInTheDocument();
+    expect(await screen.findByText("Tidak ada yang dapat dibatalkan.")).toBeInTheDocument();
     expect(api.post).not.toHaveBeenCalledWith("/review/undo", expect.anything());
     vi.mocked(api.post).mockResolvedValue({ ok: true, ...token("secret") });
     await user.click(within(pane()).getByRole("button", { name: /Terima semua/ }));
@@ -507,7 +507,7 @@ describe("Tinjau triage", () => {
       return { ok: true, ...token("walk") };
     });
     const { user } = renderPage("/review?folder=jawab");
-    await screen.findByRole("heading", { name: /Perlu kamu/ });
+    await screen.findByRole("heading", { name: /Perlu ditinjau/ });
     const list = await screen.findByRole("list", { name: /Perlu jawaban: yang perlu dijawab/ });
     within(list).getAllByRole("button")[0].focus();
     await user.keyboard("j");
@@ -740,29 +740,29 @@ describe("Tinjau triage", () => {
       await queryClient.invalidateQueries();
     });
     await waitFor(() => expect(itemHeading()).toHaveTextContent("Uang keluar dari GoPay"));
-    expect(screen.getByText("Item ini udah diberesin di tempat lain.")).toBeInTheDocument();
+    expect(screen.getByText("Item ini sudah diselesaikan di tempat lain.")).toBeInTheDocument();
   });
 
   it("Nothing waiting, with the cycle figures and Cek yang otomatis", async () => {
     currentQueue = { ...queue(), counts: { ...queue().counts, attention: 0 }, questions: [], awaiting: [], ambiguous: [], groups: [queue().groups[1]] };
     const { container, user } = renderPage();
-    expect(await screen.findByRole("heading", { name: "Semua beres" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Semua sudah ditinjau" })).toBeInTheDocument();
     const facts = await screen.findByLabelText("Siklus ini");
     expect(facts).toHaveTextContent("Keluar siklus iniRp 3.521.500");
     expect(facts).toHaveTextContent("Aman dipakai hari iniRp 145.000");
     expect(facts).toHaveTextContent("Belum diklasifikasiRp 357.000");
-    expect(screen.getByRole("link", { name: "Balik ke Beranda" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Kembali ke Beranda" })).toHaveAttribute("href", "/");
     expect((await axe(container)).violations).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "Cek yang otomatis" }));
     expect(itemHeading()).toHaveTextContent("Kedai Awan");
-    expect(within(pane()).getByRole("button", { name: /Udah bener/ })).toHaveAttribute("data-primary-choice");
+    expect(within(pane()).getByRole("button", { name: /Sudah benar/ })).toHaveAttribute("data-primary-choice");
   });
 
   it("Summary unavailable", async () => {
     summaryFails = true;
     currentQueue = { ...queue(), questions: [], awaiting: [], ambiguous: [], groups: [] };
     renderPage();
-    expect(await screen.findByRole("heading", { name: "Semua beres" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Semua sudah ditinjau" })).toBeInTheDocument();
     await waitFor(() => expect(api.get).toHaveBeenCalledWith("/dashboard/cycle-summary"));
     expect(screen.queryByLabelText("Siklus ini")).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("Rp 0");
@@ -772,11 +772,11 @@ describe("Tinjau triage", () => {
     currentQueue = { ...queue(), counts: { ...queue().counts, attention: 0 }, questions: [], awaiting: [], ambiguous: [], groups: [] };
     currentSuggestions = suggestionList();
     const { user } = renderPage();
-    expect(await screen.findByRole("heading", { name: "Semua beres" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Semua sudah ditinjau" })).toBeInTheDocument();
     const fold = screen.getByText("Saran dari riwayat", { selector: "b" }).closest("details") as HTMLElement;
     expect(within(fold).getByText("3")).toBeInTheDocument();
     expect(within(fold).getByText("opsional")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Perlu kamu 0 transaksi" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Perlu ditinjau 0 transaksi" })).toBeInTheDocument();
     await user.click(row("Kafe Senja Contoh"));
     await user.click(within(pane()).getAllByRole("button", { name: /^Tolak saran untuk/ })[0]);
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/review/suggestions/reject", { suggestion_ids: ["sg-a"] }));
@@ -792,7 +792,7 @@ describe("Tinjau triage", () => {
       .mockResolvedValueOnce({ ok: true, accepted: 2, skipped: ["sg-c"], corrections: 2, ...token("sugg") })
       .mockRejectedValueOnce(Object.assign(new Error("x"), { status: 404, detail: { code: "suggestions_not_found", message: "Sebagian saran tidak ditemukan." } }));
     const { user } = renderPage();
-    await screen.findByRole("heading", { name: "Semua beres" });
+    await screen.findByRole("heading", { name: "Semua sudah ditinjau" });
     await user.click(row("Kafe Senja Contoh"));
     await user.click(within(pane()).getByRole("button", { name: /Terima saran \(3\)/ }));
     await waitFor(() => expect(status()).toContain("Kafe Senja Contoh, 2 saran diterima; 1 dilewati"));
@@ -802,7 +802,7 @@ describe("Tinjau triage", () => {
     expect(status()).not.toContain("ditolak");
   });
 
-  it("Link from Kerjakan dulu", async () => {
+  it("Link from Perlu tindakan", async () => {
     renderPage("/review?item=tx-await#review-awaiting");
     await loaded();
     expect(itemHeading()).toHaveTextContent("Uang keluar dari GoPay");
@@ -826,9 +826,9 @@ describe("Tinjau triage", () => {
   it("Resolved meanwhile", async () => {
     renderPage("/review?item=tx-gone#review-questions");
     await loaded();
-    expect(screen.getByRole("button", { name: /^Apa ini\?/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^Belum dikenali/ })).toHaveAttribute("aria-pressed", "true");
     expect(itemHeading()).toHaveTextContent("Apa ini? Rp187.500");
-    expect(screen.getByText("Yang kamu buka udah beres.")).toBeInTheDocument();
+    expect(screen.getByText("Item yang dibuka sudah selesai.")).toBeInTheDocument();
   });
 
   it("shows ErrorState with Coba lagi when the queue fails", async () => {

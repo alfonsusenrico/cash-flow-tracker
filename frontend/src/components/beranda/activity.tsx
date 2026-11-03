@@ -49,8 +49,8 @@ export function rowTime(row: ActivityRow, today: string): string {
 /** Status cell: waiting rows say so instead of a pillar; movements are not counted. */
 export function rowStatus(row: ActivityRow): { text: string; bucket: string; color?: string } {
   const kind = rowKind(row);
-  if (isWaiting(row)) return { text: "Nunggu jawaban", bucket: "waiting" };
-  if (kind === "movement") return { text: "Nggak dihitung", bucket: "none" };
+  if (isWaiting(row)) return { text: "Menunggu jawaban", bucket: "waiting" };
+  if (kind === "movement") return { text: "Tidak dihitung", bucket: "none" };
   if (kind === "income") return { text: "Uang masuk", bucket: "none" };
   if (kind === "topup") {
     const info = kakeiboBucketInfo("saving");

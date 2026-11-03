@@ -381,7 +381,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                         )}
                         <span>
                           {rule.schedule_type === "payday"
-                            ? "Perkiraan dari tanggal gajian lama"
+                            ? "Perkiraan dari tanggal gaji lama"
                             : rule.schedule_type === "monthly_day"
                             ? `Tiap tgl ${rule.schedule_day}`
                             : "Mingguan"}
@@ -619,7 +619,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                   onChange={(e) => handleScheduleTypeChange(e.target.value as "monthly_day" | "payday" | "weekly")}
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
                 >
-                  {legacyPaydaySchedule && <option value="payday">Tanggal gajian lama (perkiraan)</option>}
+                  {legacyPaydaySchedule && <option value="payday">Tanggal gaji lama (perkiraan)</option>}
                   <option value="monthly_day">Tanggal Tertentu Bulanan</option>
                   <option value="weekly">Mingguan</option>
                 </select>

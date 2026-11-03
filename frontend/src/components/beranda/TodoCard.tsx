@@ -65,7 +65,7 @@ export function todoItems({
     items.push({
       key: "awaiting",
       title: `Pasangkan ${awaiting.length} pindah saldo`,
-      detail: `${accounts} · belum ketemu tujuannya`,
+      detail: `${accounts} · tujuan belum ditemukan`,
       action: reviewLink(awaiting[0].id, "review-awaiting", "Pasangkan", "ws-tone-tr", `${awaiting.length} pindah saldo`),
     });
   }
@@ -166,7 +166,7 @@ export function TodoCard({
     <Card labelledBy="beranda-todo">
       <CardHeader
         id="beranda-todo"
-        title="Kerjakan dulu"
+        title="Perlu tindakan"
         count={attention || undefined}
         countLabel={`${attention} perlu ditinjau`}
         action={
@@ -182,8 +182,8 @@ export function TodoCard({
         <ul className="ws-todo">
           <li className="ws-todo-item">
             <div className="ws-todo-t">
-              <b>Tinjau udah beres</b>
-              <span className="ws-todo-sub">Nggak ada yang perlu dijawab.</span>
+              <b>Semua sudah ditinjau</b>
+              <span className="ws-todo-sub">Tidak ada yang perlu dijawab.</span>
             </div>
             <Pill tone="ok" icon="check">
               Beres

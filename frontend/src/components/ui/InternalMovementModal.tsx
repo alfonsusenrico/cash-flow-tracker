@@ -276,7 +276,7 @@ export function InternalMovementModal({
 
         {parsedAmount > 0 && sourceAccountId && targetAccountId && (
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-xs text-[var(--text)]" role="status">
-            {fmtMoney(parsedAmount)} akan dipindahkan; total uang Anda tidak berubah.
+            {fmtMoney(parsedAmount)} akan dipindahkan; total uang tidak berubah.
           </div>
         )}
 

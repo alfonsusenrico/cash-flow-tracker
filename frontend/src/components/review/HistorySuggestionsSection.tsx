@@ -37,7 +37,7 @@ function RunSummary({ run }: { run: SuggestionRun }) {
       <p className="ws-caption tabular">
         Terakhir: {dateOnlyLabel(run.from_date)} – {dateOnlyLabel(run.to_date)} · {run.processed_count} transaksi diperiksa ·{" "}
         {made} saran baru ({run.memory_count} dari ingatan, {run.rule_count} dari aturan, {run.ai_count} dari AI)
-        {run.rejected_before_count > 0 ? ` · ${run.rejected_before_count} pernah Anda tolak` : ""}
+        {run.rejected_before_count > 0 ? ` · ${run.rejected_before_count} pernah ditolak` : ""}
       </p>
       {notice && (
         <p className={run.status === "failed" ? "ws-alert" : "ws-caption"}>
@@ -68,7 +68,7 @@ function EstimateBox({ estimate, pending, onConfirm, onCancel }: {
         Perkiraan: {estimate.selected_count} transaksi akan diperiksa
       </p>
       <ul className="ws-caption list-disc space-y-0.5 pl-4 tabular">
-        <li>{estimate.memory_count} cocok dengan ingatan Anda, {estimate.rule_count} dengan aturan</li>
+        <li>{estimate.memory_count} cocok dengan riwayat jawaban, {estimate.rule_count} dengan aturan</li>
         {estimate.ai_available ? (
           <li>{estimate.ai_rows} lewat AI dalam {estimate.ai_calls} panggilan (maks. {estimate.batch_size} per panggilan)</li>
         ) : (
@@ -168,7 +168,7 @@ export function HistorySuggestionsSection({ headingId }: { headingId?: string })
   return (
     <div className="space-y-3">
       <p className="ws-caption">
-        Nama, kategori dan pilar untuk transaksi lama yang dicatat otomatis. Tidak ada yang berubah sebelum kamu menerima.
+        Nama, kategori dan pilar untuk transaksi lama yang dicatat otomatis. Tidak ada yang berubah sebelum diterima.
       </p>
       <form noValidate onSubmit={requestEstimate} className="ws-form-row" aria-labelledby={headingId}>
         <label htmlFor={`${baseId}-from`} className="ws-field">
