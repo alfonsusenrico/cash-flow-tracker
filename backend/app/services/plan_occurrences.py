@@ -428,3 +428,88 @@ def link_requested_plans() -> int:
     for user_id in owners:
         _link_for_owner(user_id)
     return len(owners)
+
+
+def plan_occurrences_in_window(
+    cur, user_id: str, payday_day: int, window_start: date, window_end: date, today: date,
+    *, include_resolved: bool = False,
+) -> list[dict[str, Any]]:
+    """Occurrences of active non-income plans due in the window, in two statements.
+
+    Unpaid occurrences carry status `overdue` (before `today`) or `due`. With `include_resolved`, the
+    occurrences already linked or done (`met`) or skipped (`skipped`) in the window are listed too, so a
+    calendar can show every plan day. Occurrences missed before the window are not this window's.
+    """
+    cur.execute(
+        """
+        SELECT r.id, r.name, r.amount, r.schedule_type, r.schedule_day, r.next_due_date
+        FROM recurring_rules r
+        WHERE r.user_id = %s AND r.is_active AND r.type <> 'income'
+        """,
+        (user_id,),
+    )
+    rules = cur.fetchall()
+    cur.execute(
+        """
+        SELECT e.recurring_rule_id, e.scheduled_for, e.status FROM recurring_executions e
+        WHERE e.user_id = %s AND e.status = ANY(%s) AND e.scheduled_for >= %s AND e.scheduled_for <= %s
+        """,
+        (user_id, list(RESOLVED_STATUSES), window_start, window_end),
+    )
+    resolved = {(str(row["recurring_rule_id"]), row["scheduled_for"]): row["status"] for row in cur.fetchall()}
+    by_id = {str(rule["id"]): rule for rule in rules}
+    lines = []
+    for rule in rules:
+        rule_id = str(rule["id"])
+        due = rule["next_due_date"]
+        if due > window_end:
+            continue
+        if due < window_start:
+            due = calculate_next_due_date(
+                schedule_type=rule["schedule_type"], schedule_day=rule["schedule_day"],
+                user_payday_day=payday_day, from_date=window_start,
+            )
+        for _ in range(MAX_ADVANCE_STEPS):
+            if due > window_end:
+                break
+            if (rule_id, due) not in resolved:
+                lines.append({
+                    "kind": "plan",
+                    "rule_id": rule_id,
+                    "label": rule["name"],
+                    "due_date": due.isoformat(),
+                    "overdue": due < today,
+                    "status": "overdue" if due < today else "due",
+                    "amount": int(rule["amount"]),
+                })
+            due = calculate_next_due_date(
+                schedule_type=rule["schedule_type"], schedule_day=rule["schedule_day"],
+                user_payday_day=payday_day, from_date=due, advance=True,
+            )
+        else:
+            raise RuntimeError("plan schedule did not leave the window")
+    if include_resolved:
+        for (rule_id, scheduled_for), status in resolved.items():
+            rule = by_id.get(rule_id)
+            if rule is None:
+                continue
+            lines.append({
+                "kind": "plan",
+                "rule_id": rule_id,
+                "label": rule["name"],
+                "due_date": scheduled_for.isoformat(),
+                "overdue": False,
+                "status": "skipped" if status == "skipped" else "met",
+                "amount": int(rule["amount"]),
+            })
+    lines.sort(key=lambda line: (line["due_date"], line["label"], line["rule_id"]))
+    return lines
+
+
+def unpaid_plan_lines(cur, user_id: str, payday_day: int, window_start: date, window_end: date, today: date) -> list[dict]:
+    """Unpaid occurrences of active non-income plans due in the window; linked or skipped ones are met.
+
+    The Beranda "Terjadwal" lines. Each line keeps the shape Beranda has always read, without `status`.
+    """
+    lines = plan_occurrences_in_window(cur, user_id, payday_day, window_start, window_end, today)
+    return [{key: value for key, value in line.items() if key != "status"} for line in lines]

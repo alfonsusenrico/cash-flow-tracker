@@ -42,7 +42,7 @@ describe("question rate panel", () => {
     expect(current).toHaveTextContent("Memori9 (45%)");
     expect(current).toHaveTextContent("Kebiasaan5 (25%)");
     expect(current).toHaveTextContent("AI2 (10%)");
-    expect(current).toHaveTextContent("Dijawab Anda2 (10%)");
+    expect(current).toHaveTextContent("Dijawab2 (10%)");
     expect(current).toHaveTextContent("Koreksi: 2 (1 dari kebiasaan)");
     expect(previous).toHaveTextContent("Ditanya 8 dari 10 (80%)");
     expect(within(previous).queryByText("berjalan")).not.toBeInTheDocument();

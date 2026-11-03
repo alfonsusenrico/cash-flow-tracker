@@ -29,7 +29,10 @@ const ROOTS = ["components/workspace", "components/beranda", "components/review"
   "lib/provenance.ts", "lib/ledgerFilters.ts", "lib/historySuggestions.ts",
   // Tanya: every source except lib/tanya/replies.ts, the assistant's own words, and lib/tanya/intents.ts,
   // whose patterns match what owners type ("nunggu", "aja") and are never shown.
-  "components/tanya", "app/tanya", "lib/tanya/resolve.ts", "lib/tanya/thread.ts", "lib/tanya/types.ts", "lib/capture.ts"];
+  "components/tanya", "app/tanya", "lib/tanya/resolve.ts", "lib/tanya/thread.ts", "lib/tanya/types.ts", "lib/capture.ts",
+  // Analisis and Laporan (redesign-analysis-and-reports D13).
+  "components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx",
+  "lib/reportLead.ts"];
 
 function sources(entry: string): string[] {
   const full = path.join(__dirname, entry);
@@ -57,6 +60,15 @@ describe("copy register", () => {
   it("keeps slang out of every label-type string outside the assistant's conversation", () => {
     expect(files.length).toBeGreaterThan(20);
     expect(offenders(files)).toEqual([]);
+  });
+
+  it("writes Analisis and Laporan impersonally, without the formal Anda", () => {
+    const roots = ["components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx", "lib/reportLead.ts"];
+    const analysis = roots.flatMap(sources).filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file));
+    const formal = analysis.flatMap((file) => visibleLines(file)
+      .filter(({ text }) => /\bAnda\b/.test(text))
+      .map(({ line, text }) => `${path.relative(__dirname, file)}:${line}: ${text.trim()}`));
+    expect(formal).toEqual([]);
   });
 
   it("catches a planted informal label", () => {

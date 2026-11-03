@@ -116,7 +116,13 @@ describe("Laporan Bulanan page", () => {
   it("answers the four questions in order with drill-down links and no axe violations", async () => {
     mockApi(makeReport());
     const { container } = renderPage();
-    expect(await screen.findByRole("heading", { level: 1, name: "Oktober 2026" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 2, name: "Laporan Oktober 2026" })).toBeInTheDocument();
+    // The written lead is neutral and built from the report's own figures (D12).
+    const lead = screen.getByTestId("report-lead");
+    expect(lead).toHaveTextContent("Oktober 2026: masuk Rp 5.250.000, belanja Rp 832.500.");
+    expect(lead).toHaveTextContent("2 transaksi belum diklasifikasi.");
+    expect(within(lead).getByRole("button", { name: "Lengkapi klasifikasi" })).toBeInTheDocument();
+    expect(lead.textContent).not.toMatch(/\b(kamu|aku|nggak|udah|Anda)\b/i);
     const questions = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
     const order = ["Berapa uang masuk?", "Berapa yang ditabung?", "Berapa yang dibelanjakan?", "Apa yang mau diperbaiki bulan depan?"]
       .map((question) => questions.findIndex((text) => text?.includes(question)));
@@ -197,14 +203,20 @@ describe("Laporan Bulanan page", () => {
   it("switches periods through the URL and keeps the cycle switch unavailable without salary cycles", async () => {
     mockApi(makeReport());
     renderPage();
-    const select = await screen.findByLabelText("Laporan lain");
+    const previous = await screen.findByRole("button", { name: "Bulan sebelumnya" });
     const replaceState = vi.spyOn(window.history, "replaceState");
-    await userEvent.selectOptions(select, "2026-09-01");
+    await userEvent.click(previous);
     // The history API, because Next.js commits no same-path navigation from a URL with a query (D13).
     expect(replaceState).toHaveBeenCalledWith(null, "", "/laporan?basis=month&start=2026-09-01");
+    await userEvent.click(screen.getByRole("button", { name: "Bulan berikutnya" }));
+    expect(replaceState).toHaveBeenLastCalledWith(null, "", "/laporan?basis=month");
     expect(navigation.replace).not.toHaveBeenCalled();
     replaceState.mockRestore();
-    expect(screen.getByRole("button", { name: "Siklus gaji" })).toBeDisabled();
+    // Without salary cycles the basis switch offers only the calendar month.
+    expect(screen.queryByRole("button", { name: "Siklus gaji" })).not.toBeInTheDocument();
+    const past = screen.getByRole("region", { name: "Laporan sebelumnya" });
+    expect(within(past).getByRole("link", { name: /September 2026/ })).toHaveAttribute("href", "/laporan?basis=month&start=2026-09-01");
+    expect(within(past).getByRole("link", { name: /Oktober 2026/ })).toHaveAttribute("aria-current", "page");
   });
 
   it("explains an empty ledger without zero figures", async () => {

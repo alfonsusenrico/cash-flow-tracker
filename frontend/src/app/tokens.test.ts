@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest";
 
 const appDir = path.resolve(__dirname);
 const srcDir = path.resolve(appDir, "..");
-const insightsPage = readFileSync(path.join(appDir, "insights/page.tsx"), "utf8");
+// The category buttons moved from the Analisis page into its "Kategori & anggaran" section (phase 4 D5).
+const insightsPage = readFileSync(path.join(srcDir, "components/analysis/CategoryBudgetSection.tsx"), "utf8");
 const ledgerPage = readFileSync(path.join(appDir, "ledger/page.tsx"), "utf8");
 const goalsPage = readFileSync(path.join(appDir, "goals/page.tsx"), "utf8");
 const berandaActivity = readFileSync(path.join(srcDir, "components/beranda/activity.tsx"), "utf8");

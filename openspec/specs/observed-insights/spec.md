@@ -103,3 +103,11 @@ Any figure the Beranda insight card calls spending so far ("sejauh ini") SHALL b
 - **GIVEN** 31 October after a 30-day September without transactions, no spending on 1–30 October and Rp 3.600.000 spent today
 - **WHEN** the owner opens Beranda with the calendar-month basis
 - **THEN** the card SHALL say "Uang keluar sejauh ini Rp 3.600.000", not the compared Rp 0
+
+### Requirement: Kakeibo Comparison Block
+The period comparison SHALL also report a `kakeibo` block with the six Kakeibo buckets for the current and the previous compared windows, in which saving includes net fresh saving through linked movements, computed by the same rule as the dashboard's Kakeibo breakdown.
+
+#### Scenario: Kakeibo buckets with saving transfers
+- **GIVEN** Rp 500.000 moved from "Bank Utama" into a goal pocket in the current compared window, and none in the previous one
+- **WHEN** the comparison is requested
+- **THEN** `kakeibo.current.saving` SHALL include Rp 500.000, `kakeibo.previous.saving` SHALL not, the existing `pillars` entries SHALL keep their values, and `kakeibo.current` SHALL equal the dashboard's Kakeibo breakdown of the same window

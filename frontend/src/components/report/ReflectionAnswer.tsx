@@ -51,7 +51,7 @@ export function ReflectionAnswer({ report }: { report: MonthlyReport }) {
     <QuestionSection id="report-reflection" number={4} question="Apa yang mau diperbaiki bulan depan?">
       {previous && (
         <figure className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/40 p-3">
-          <figcaption className="text-xs font-semibold text-[var(--muted)]">Catatan Anda untuk {previous.label}</figcaption>
+          <figcaption className="text-xs font-semibold text-[var(--muted)]">Catatan untuk {previous.label}</figcaption>
           <blockquote className="mt-1 whitespace-pre-line text-sm text-[var(--text)]">{previous.note}</blockquote>
         </figure>
       )}

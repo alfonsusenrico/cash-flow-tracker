@@ -107,7 +107,7 @@ export function ClassificationDialog({ open, onClose, scope }: { open: boolean; 
     <Modal open={open} onClose={onClose} title="Lengkapi klasifikasi" wide>
       <div className="space-y-5">
         <p className="text-sm text-[var(--text-secondary)]">
-          Pengeluaran tanpa pilar tampil sebagai Belum diklasifikasi. Pilihan Anda juga dipakai untuk belajar kebiasaan Anda.
+          Pengeluaran tanpa pilar tampil sebagai Belum diklasifikasi. Pilihan ini juga dipakai untuk mempelajari kebiasaan.
         </p>
         <p role="status" className="min-h-5 text-sm font-semibold text-[var(--text)]">{status}</p>
         {isLoading && <p className="text-sm text-[var(--muted)]">Memuat…</p>}

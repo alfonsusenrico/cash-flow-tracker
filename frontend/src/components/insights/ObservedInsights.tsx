@@ -124,7 +124,7 @@ function ChangeList({ title, items, href, bal, empty }: {
             <li key={item.key} className="flex min-w-0 items-baseline justify-between gap-2">
               <Link
                 href={href(item)}
-                className="min-w-0 truncate underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                className="inline-block min-h-6 min-w-0 truncate leading-6 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
               >
                 {item.name}
               </Link>
@@ -204,7 +204,7 @@ export function PeriodComparison({ basis, offset, bal }: { basis: InsightBasis; 
                 <li key={item.pillar} className="flex min-w-0 items-baseline justify-between gap-2 py-1.5">
                   <Link
                     href={ledgerHref({ ...scope, type: "expense", kakeibo: item.pillar })}
-                    className="min-w-0 truncate underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                    className="inline-block min-h-6 min-w-0 truncate leading-6 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
                   >
                     {PILLAR_LABEL[item.pillar]}
                   </Link>
@@ -280,7 +280,7 @@ export function CashFlowHistory({ basis, bal }: { basis: InsightBasis; bal: Mone
               <div className="flex min-w-0 items-center gap-2">
                 <Link
                   href={ledgerHref({ from: period.start, to: period.end })}
-                  className="min-w-0 truncate font-semibold underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                  className="inline-block min-h-6 min-w-0 truncate font-semibold leading-6 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
                 >
                   {period.label}
                 </Link>
@@ -347,7 +347,7 @@ export function RecurringCharges({ bal, onCreatePlan }: { bal: Money; onCreatePl
                 <div className="min-w-0">
                   <Link
                     href={ledgerHref({ from: data.window.start, to: data.window.end, type: "expense", q: charge.search_text })}
-                    className="block truncate font-semibold text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                    className="block min-h-6 truncate font-semibold leading-6 text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
                   >
                     {charge.merchant}
                   </Link>

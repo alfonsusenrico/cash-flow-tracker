@@ -3,15 +3,17 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.config import settings
 from app.db.pool import db_conn
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.services.auth import get_current_user
-from app.services.cycle_summary import build_cycle_summary
+from app.services.calendar import build_calendar
+from app.services.cycle_summary import KELUAR_BUCKETS, build_cycle_summary, rupiah
 from app.services.essential_cost import DEFAULT_TARGET_MONTHS, EssentialCost, coverage, estimate_essential_cost
 from app.services.kakeibo import UNCLASSIFIED, pillar_bucket_sql
+from app.services.money_flow import FlowKeyError, build_flow, clamp_through, flow_rows, load_flow_context
 from app.services.reimbursements import SpendingOffsets, load_spending_offsets, not_reimbursement_sql
 from app.services.report_figures import (
     category_breakdown,
@@ -22,7 +24,7 @@ from app.services.report_figures import (
     sunday_first_weekday,
     top_categories,
 )
-from app.services.observed_insights import cash_flow_history, period_comparison, recurring_charges
+from app.services.observed_insights import cash_flow_history, comparison_windows, period_comparison, recurring_charges
 from app.services.question_rate import MAX_WEEKS, question_rate
 from app.services.report_windows import (
     PERIOD_PATTERN,
@@ -30,6 +32,8 @@ from app.services.report_windows import (
     get_previous_timeframe_window,
     get_timeframe_window,
 )
+from app.services.salary_cycles import resolve_cycle
+from app.services.salary_receipts import receipts as salary_receipts
 
 router = APIRouter(tags=["Dashboard"])
 
@@ -866,6 +870,81 @@ def get_dashboard_overview(
     }
 
 
+def analytics_ledger_href(timeframe: str, cycle_offset: int, **filters: str) -> str | None:
+    """The ledger rows behind an Analisis figure, for the same period; rolling windows have no link."""
+    if timeframe not in ("cycle", "month"):
+        return None
+    params = {"period": timeframe}
+    if cycle_offset:
+        params["offset"] = str(cycle_offset)
+    params.update(filters)
+    return "/ledger?" + "&".join(f"{key}={value}" for key, value in params.items())
+
+
+def analytics_explanations(
+    kakeibo: dict[str, Any], offsets: SpendingOffsets, flow: dict[str, int], timeframe: str, cycle_offset: int,
+) -> dict[str, Any]:
+    """The lines behind Analisis' Keluar and Belanja, built here so the page adds nothing up.
+
+    Keluar is the Kakeibo total, as on Beranda; Belanja is the reportable outflow net of reimbursements,
+    as on Transaksi. Each `lines` list adds up exactly to its `total`.
+    """
+    keluar_lines = []
+    for key, label, field in KELUAR_BUCKETS:
+        notes = []
+        if key == "saving":
+            notes.append("Termasuk uang yang dipindah ke kantong tabungan atau diinvestasikan")
+        offset = offsets.for_pillar(key)
+        if offset > 0:
+            notes.append(f"Sudah dikurangi ganti uang {rupiah(offset)}")
+        keluar_lines.append({
+            "key": key,
+            "label": label,
+            "amount": int(kakeibo[field]),
+            "note": ". ".join(notes) if notes else None,
+            "href": analytics_ledger_href(timeframe, cycle_offset, kakeibo=key),
+        })
+    keluar_total = int(kakeibo["total_allocated"])
+    if sum(line["amount"] for line in keluar_lines) != keluar_total:
+        raise RuntimeError("Kakeibo buckets do not add up to their total")
+    belanja_lines = [{
+        "key": "gross",
+        "label": "Belanja tercatat",
+        "amount": flow["gross_outflow"],
+        "note": "Pengeluaran di luar pindah saldo, investasi dan kategori yang tidak dihitung",
+        "href": analytics_ledger_href(timeframe, cycle_offset, type="expense"),
+    }]
+    if flow["reimbursement_offset"] > 0:
+        belanja_lines.append({
+            "key": "reimbursement",
+            "label": "Ganti uang",
+            "amount": -flow["reimbursement_offset"],
+            "note": "Uang pengganti mengurangi kategori yang dibayarnya",
+            "href": None,
+        })
+    if sum(line["amount"] for line in belanja_lines) != flow["outflow"]:
+        raise RuntimeError("Belanja lines do not add up to their total")
+    return {
+        "keluar": {
+            "total": keluar_total,
+            "lines": keluar_lines,
+            "caveat": "Pindah saldo antar rekening sendiri tidak dihitung keluar.",
+            "href": analytics_ledger_href(timeframe, cycle_offset, type="expense"),
+        },
+        "belanja": {
+            "total": flow["outflow"],
+            "lines": belanja_lines,
+            "caveat": "Belanja tidak termasuk yang ditabung atau diinvestasikan.",
+            "href": analytics_ledger_href(timeframe, cycle_offset, type="expense"),
+        },
+    }
+
+
+def kakeibo_buckets(breakdown: dict[str, Any]) -> dict[str, int]:
+    """The six Kakeibo buckets of a breakdown, keyed as the report buckets."""
+    return {key: int(breakdown[field]) for key, _label, field in KELUAR_BUCKETS}
+
+
 @router.get("/analytics")
 def get_dashboard_analytics(
     timeframe: str = Query(default="cycle", pattern=TIMEFRAME_PATTERN),
@@ -1150,6 +1229,7 @@ def get_dashboard_analytics(
             "prev_timeframe_label": prev_label,
         },
         "kakeibo": kakeibo_data,
+        "explanations": analytics_explanations(kakeibo_data, analytics_offsets, flow, timeframe, cycle_offset),
         "narrative": {
             "summary": narrative_summary,
             "trend_status": trend_status,
@@ -1260,7 +1340,20 @@ def get_period_comparison(
         with conn.cursor() as cur:
             cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
             comparison = period_comparison(cur, user_id, current=(start_utc, end_utc, label), previous=previous)
-    return {"ok": True, "timeframe": timeframe, "timezone": settings.tz, **comparison}
+            # Kakeibo buckets with net fresh saving for both compared windows (OD41), so their total
+            # equals Beranda's Keluar; `pillars` keeps its spending-only meaning for its readers.
+            current_window, previous_window = comparison_windows((start_utc, end_utc, label), previous)
+            kakeibo = {
+                "current": kakeibo_buckets(
+                    get_kakeibo_breakdown(cur, user_id, *current_window, comparison["current"]["inflow"])
+                ),
+                "previous": None,
+            }
+            if previous_window is not None and comparison["previous_has_data"]:
+                kakeibo["previous"] = kakeibo_buckets(
+                    get_kakeibo_breakdown(cur, user_id, *previous_window, comparison["previous"]["inflow"])
+                )
+    return {"ok": True, "timeframe": timeframe, "timezone": settings.tz, **comparison, "kakeibo": kakeibo}
 
 
 @router.get("/cash-flow-history")
@@ -1298,3 +1391,98 @@ def get_question_rate(
             cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
             rate = question_rate(cur, current_user["id"], weeks=weeks, today=today, tz=settings.tz)
     return {"ok": True, "timezone": settings.tz, **rate}
+
+
+@router.get("/calendar")
+def get_calendar(
+    timeframe: str = Query(default="cycle", pattern=PERIOD_PATTERN),
+    cycle_offset: int = Query(default=0, ge=-24, le=12),
+    current_user: dict = Depends(get_current_user),
+):
+    """Every local day of the period with its Belanja, heat level, markers and plans; days add up to Belanja."""
+    now = datetime.now(timezone.utc)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+        calendar_data = build_calendar(conn, current_user, timeframe=timeframe, cycle_offset=cycle_offset, now=now)
+    return {"ok": True, "timezone": settings.tz, **calendar_data}
+
+
+def _flow_window(conn, current_user: dict, timeframe: str, cycle_offset: int, now: datetime):
+    user_id = str(current_user["id"])
+    cycle = None
+    if timeframe == "cycle":
+        rows = salary_receipts(conn, user_id)
+        cycle = resolve_cycle([row["date"] for row in rows], offset=cycle_offset, tz_name=settings.tz, as_of=now)
+    return get_timeframe_window(
+        current_user.get("payday_day") or 25, timeframe, cycle_offset=cycle_offset, user_id=user_id, cycle=cycle,
+    )
+
+
+def _flow_error(error: FlowKeyError) -> HTTPException:
+    messages = {
+        "through_outside_window": "Tanggal putar ulang di luar periode ini.",
+        "flow_link_not_found": "Aliran ini tidak ditemukan.",
+        "flow_key_invalid": "Kunci aliran tidak valid.",
+    }
+    return HTTPException(status_code=error.status, detail={"code": error.code, "message": messages[error.code]})
+
+
+@router.get("/flow")
+def get_flow(
+    timeframe: str = Query(default="cycle", pattern=PERIOD_PATTERN),
+    cycle_offset: int = Query(default=0, ge=-24, le=12),
+    through: date | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Peta Aliran: nodes, links and summary up to the end of `through`; every holder node balances."""
+    user_id = str(current_user["id"])
+    now = datetime.now(timezone.utc)
+    today = now.astimezone(ZoneInfo(settings.tz)).date()
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+        start_utc, end_utc, start_date, end_date, label = _flow_window(conn, current_user, timeframe, cycle_offset, now)
+        try:
+            through_day = clamp_through(through, start_date, end_date, today)
+        except FlowKeyError as error:
+            raise _flow_error(error) from None
+        with conn.cursor() as cur:
+            context = load_flow_context(
+                cur, user_id, start=start_utc, end=end_utc, start_date=start_date, end_date=end_date,
+                through=through_day, include_opening=True,
+            )
+            flow = build_flow(cur, user_id, context, kakeibo_breakdown=get_kakeibo_breakdown)
+    flow["window"]["label"] = label
+    flow["window"]["is_current"] = start_date <= today <= end_date
+    return {"ok": True, "timezone": settings.tz, **flow}
+
+
+@router.get("/flow/rows")
+def get_flow_rows(
+    timeframe: str = Query(default="cycle", pattern=PERIOD_PATTERN),
+    cycle_offset: int = Query(default=0, ge=-24, le=12),
+    through: date | None = None,
+    link: str | None = Query(default=None, max_length=200),
+    node: str | None = Query(default=None, max_length=100),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=50),
+    current_user: dict = Depends(get_current_user),
+):
+    """The rows behind one Peta Aliran link or node, 50 per page, with the total that equals the link."""
+    user_id = str(current_user["id"])
+    now = datetime.now(timezone.utc)
+    today = now.astimezone(ZoneInfo(settings.tz)).date()
+    with db_conn() as conn:
+        start_utc, end_utc, start_date, end_date, _label = _flow_window(conn, current_user, timeframe, cycle_offset, now)
+        try:
+            through_day = clamp_through(through, start_date, end_date, today)
+            with conn.cursor() as cur:
+                context = load_flow_context(
+                    cur, user_id, start=start_utc, end=end_utc, start_date=start_date, end_date=end_date,
+                    through=through_day, include_opening=False,
+                )
+            rows = flow_rows(context, link=link, node=node, offset=offset, limit=limit)
+        except FlowKeyError as error:
+            raise _flow_error(error) from None
+    return {"ok": True, **rows}

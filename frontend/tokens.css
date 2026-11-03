@@ -86,6 +86,21 @@
   --k-none: #5F605A;
   --k-none-soft: #F0EFEA;
 
+  /* Analisis: calendar heat (each level also writes its amount) and Peta Aliran ribbons
+   * (patterns, not colour alone, mark Pindah saldo, investment and waiting money). */
+  --heat-1: #FBEEE9;
+  --heat-2: #F6DCCF;
+  --heat-3: #F0C4B1;
+  --heat-4: #E9AA93;
+  --heat-5: #DF8F74;
+  --flow-in: #2E9B64;
+  --flow-tr: var(--tr-solid);
+  --flow-inv: #8466CC;
+  --flow-warn: #B97C0C;
+  --flow-left: #8F8D84;
+  --flow-other: #8F8D84;
+  --band-op: 0.42;
+
   /* Focus ring: the text colour, so it reads on the window, surfaces and the lime pill alike. */
   --focus: #1B1C1A;
   --scrim: rgba(24, 22, 18, 0.36);
@@ -253,6 +268,18 @@
   --k-saving-soft: rgba(109, 199, 112, 0.14);
   --k-none: #A4A59C;
   --k-none-soft: #2B2C29;
+
+  --heat-1: #2C2421;
+  --heat-2: #3A2923;
+  --heat-3: #4B2E25;
+  --heat-4: #5E3427;
+  --heat-5: #753C2A;
+  --flow-in: #4CC48A;
+  --flow-inv: #A68CEE;
+  --flow-warn: #E5AE3E;
+  --flow-left: #6E736B;
+  --flow-other: #8A8D84;
+  --band-op: 0.5;
 
   --focus: #EEEEE8;
   --scrim: rgba(0, 0, 0, 0.55);
