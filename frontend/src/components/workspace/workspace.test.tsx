@@ -122,24 +122,30 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("SideNav", () => {
-  it("lists Harian, Uang and Laporan in order with their links and no Tanya", async () => {
+  it("lists Harian, AI, Uang and Laporan in order with their links", async () => {
     const { container } = renderShell(<SideNav />);
     const nav = screen.getByRole("navigation", { name: "Halaman" });
     const groups = within(nav).getAllByRole("group");
     expect(groups.map((group) => group.getAttribute("aria-labelledby") && document.getElementById(group.getAttribute("aria-labelledby")!)?.textContent)).toEqual([
       "Harian",
+      "AI",
       "Uang",
       "Laporan",
     ]);
     const hrefs = groups.map((group) => within(group).getAllByRole("link").map((link) => link.getAttribute("href")));
-    expect(hrefs).toEqual([["/", "/review", "/ledger?period=cycle"], ["/accounts", "/goals"], ["/insights", "/laporan"]]);
-    expect(within(groups[1]).getByRole("link", { name: "Rekening & Kantong" })).toBeInTheDocument();
-    expect(within(groups[1]).getByRole("link", { name: "Target & Tagihan" })).toBeInTheDocument();
-    expect(within(groups[2]).getByRole("link", { name: "Analisis" })).toBeInTheDocument();
-    expect(screen.queryByText("Tanya")).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Tanya/ })).not.toBeInTheDocument();
+    expect(hrefs).toEqual([["/", "/review", "/ledger?period=cycle"], ["/tanya"], ["/accounts", "/goals"], ["/insights", "/laporan"]]);
+    expect(within(groups[1]).getByRole("link", { name: "Tanya" })).toBeInTheDocument();
+    expect(within(groups[2]).getByRole("link", { name: "Rekening & Kantong" })).toBeInTheDocument();
+    expect(within(groups[2]).getByRole("link", { name: "Target & Tagihan" })).toBeInTheDocument();
+    expect(within(groups[3]).getByRole("link", { name: "Analisis" })).toBeInTheDocument();
     await screen.findByRole("link", { name: /Belum ada HP terhubung/ });
     expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  it("marks Tanya active on its page", () => {
+    navigation.pathname = "/tanya";
+    renderShell(<SideNav />);
+    expect(screen.getByRole("link", { name: "Tanya" })).toHaveAttribute("aria-current", "page");
   });
 
   it("marks only the active link with aria-current", () => {
@@ -188,7 +194,7 @@ describe("SideNav", () => {
     const { container } = renderShell(<SideNav />, { collapsed: true });
     await screen.findByRole("link", { name: /Belum ada HP terhubung/ });
     const items = Array.from(container.querySelectorAll<HTMLElement>(".ws-nav-item, .ws-companion"));
-    expect(items).toHaveLength(10);
+    expect(items).toHaveLength(11);
     for (const item of items) {
       const name = item.getAttribute("aria-label");
       const tip = item.querySelector(".ws-tip");
@@ -377,6 +383,7 @@ describe("PhoneTabBar and MoreSheet", () => {
     const sheet = screen.getByRole("dialog", { name: "Lainnya" });
     const pages = within(sheet).getByRole("navigation", { name: "Halaman lain" });
     expect(within(pages).getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Tanya",
       "Rekening & Kantong",
       "Target & Tagihan",
       "Analisis",
@@ -384,6 +391,7 @@ describe("PhoneTabBar and MoreSheet", () => {
       "Pengaturan",
     ]);
     expect(within(pages).getByRole("link", { name: "Laporan, laporan baru siap" })).toHaveAttribute("href", "/laporan");
+    expect(within(pages).getByRole("link", { name: "Tanya" })).toHaveAttribute("href", "/tanya");
     expect(within(sheet).getByRole("region", { name: "Notifikasi" })).toBeInTheDocument();
     expect(within(sheet).getByRole("button", { name: "Bantuan" })).toBeInTheDocument();
     await user.click(within(sheet).getByRole("button", { name: "Keluar" }));

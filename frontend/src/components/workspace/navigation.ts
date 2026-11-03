@@ -20,12 +20,13 @@ export interface NavGroup {
 
 export const REVIEW_HREF = "/review";
 export const LEDGER_HREF = "/ledger";
+export const TANYA_HREF = "/tanya";
 /** What the Transaksi entry opens: this cycle (OD20). Plain `/ledger` and every other link keep all time. */
 export const LEDGER_NAV_HREF = "/ledger?period=cycle";
 
 /**
- * One source for the sidebar, the phone tab bar and the "Lainnya" sheet. The AI group (Tanya) joins
- * once its page exists; an empty group is never shown.
+ * One source for the sidebar, the phone tab bar and the "Lainnya" sheet. Tanya has no tab-bar slot, so the
+ * phone reaches it through "Lainnya" (add-tanya-conversation OD65).
  */
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -35,6 +36,10 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: REVIEW_HREF, label: "Tinjau", icon: "inbox", badge: "review" },
       { href: LEDGER_NAV_HREF, label: "Transaksi", icon: "receipt" },
     ],
+  },
+  {
+    label: "AI",
+    links: [{ href: TANYA_HREF, label: "Tanya", icon: "message-circle" }],
   },
   {
     label: "Uang",
@@ -76,6 +81,7 @@ interface PageMeta {
 }
 
 const PAGE_META: [string, PageMeta][] = [
+  ["/tanya", { title: "Tanya", subtitle: "Catat transaksi atau tanyakan ringkasan keuangan" }],
   ["/review", { title: "Tinjau", subtitle: "Yang perlu dijawab dan yang dicatat otomatis" }],
   ["/ledger", { title: "Transaksi", subtitle: "Semua uang masuk, keluar, dan pindah saldo" }],
   ["/accounts", { title: "Rekening & Kantong", subtitle: "Bank, e-wallet, tunai, kantong, dan investasi" }],

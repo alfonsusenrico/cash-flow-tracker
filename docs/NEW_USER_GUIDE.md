@@ -147,11 +147,11 @@ Snapshots let you record net worth over time.
 
 ### Navigation
 
-Every page opens inside one workspace window. On a computer the sidebar groups the pages: Harian (Beranda, Tinjau, Transaksi), Uang (Rekening & Kantong, Target & Tagihan) and Laporan (Analisis, Laporan). Tinjau shows how many rows wait for your answer, and Laporan shows a badge while a new monthly report is fresh. The foot of the sidebar shows whether your phone is ready, plus Bantuan and Pengaturan. Between 761 and 1180 px wide the sidebar is an icon rail; above that you can collapse it yourself.
+Every page opens inside one workspace window. On a computer the sidebar groups the pages: Harian (Beranda, Tinjau, Transaksi), AI (Tanya), Uang (Rekening & Kantong, Target & Tagihan) and Laporan (Analisis, Laporan). Tinjau shows how many rows wait for your answer, and Laporan shows a badge while a new monthly report is fresh. The foot of the sidebar shows whether your phone is ready, plus Bantuan and Pengaturan. Between 761 and 1180 px wide the sidebar is an icon rail; above that you can collapse it yourself.
 
 The top bar holds the page title, search (⌘K or Ctrl+K; Enter opens Transaksi with your text), the theme (Terang, Gelap or Ikuti sistem), notifications, "+ Catat" and your account menu (Sembunyikan saldo, Pengaturan, Keluar). Transaksi and Analisis show their period stepper in the top bar too.
 
-On a phone a tab bar at the bottom offers Beranda, Tinjau, Catat, Transaksi and Lainnya; Lainnya lists every other page, the notifications, Bantuan and Keluar.
+On a phone a tab bar at the bottom offers Beranda, Tinjau, Catat, Transaksi and Lainnya; Lainnya lists every other page (Tanya first), the notifications, Bantuan and Keluar.
 
 Keyboard: N opens Catat, ? opens the shortcut help, Esc closes the open menu, explanation or dialog. The single-key shortcuts (N, ? and the keys of Tinjau) can be switched off in the help.
 
@@ -190,6 +190,17 @@ Tinjau is an inbox: the list on the left, one item large on the right. On a phon
 - One press answers: a numbered choice, "Terima", "Iya, top up …", an account for a transfer, or "Bukan pindah saldo, ini pengeluaran". Tinjau saves it, says what happened and moves to the next item. When nothing is left it shows "Semua sudah ditinjau" with this cycle's Keluar, Aman dipakai hari ini and Belum diklasifikasi.
 - Urungkan: the message after each answer offers "Urungkan", and Z does the same later, for 10 minutes. It puts the answer back exactly, including what the app learned. If the row changed since (for example you edited it in Transaksi), Tinjau says it cannot undo and links to the row.
 - Keys, while focus is in Tinjau: J and K move, Enter opens, E accepts the highlighted suggestion, T opens "Ini top up investasi", 1–9 pick a numbered choice, Z undoes and ? lists them. They are ignored while you type and can be switched off in the help ("Pintasan satu tombol").
+
+## Tanya
+
+Route: `/tanya`
+
+Tanya is a conversation about your own money. Type a question or a transaction in the box at the bottom; Enter sends and Shift+Enter starts a new line.
+
+- Questions it answers, in Indonesian or English: the summary of this cycle ("ringkasan siklus ini", "aman hari ini"), what waits in Tinjau ("menunggu jawaban"), bills and goal set-asides ("tagihan", "tagihan minggu ini" for the next 7 days), the Kakeibo split ("kakeibo", "ke mana uangku") and the latest monthly report ("laporan terbaru"). Each answer is a card with the server's own figures, stamped "Per hh.mm"; "Perbarui" fetches them again. Items waiting in Tinjau link to the exact item.
+- Recording: a sentence with one amount, such as "parkir 5rb jam 2", is recorded at once through the same path as the phone's text capture. The card that follows shows what was recorded, "Urungkan" for the first seconds and "Ubah" to open the transaction. If the app needs one more detail (for example the account), it asks in the conversation; the row is recorded once you answer.
+- It never guesses. A question is never recorded, even when it holds a number ("berapa keluar 2 hari ini?"). A sentence without an amount gets a request for the amount. Anything it does not understand gets a short list of questions it can answer. No AI model writes the answers; the figures come from the same calculations as Beranda, Tinjau and Target & Tagihan.
+- The conversation lives only in this browser tab. It is gone after a reload, after signing out and when another account signs in, and "Hapus percakapan" empties it at once. Nothing you type in Tanya is stored as a conversation.
 
 ## 2. Transactions
 
