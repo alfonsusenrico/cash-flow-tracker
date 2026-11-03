@@ -77,8 +77,8 @@ The design system SHALL follow the approved workspace design: calm warm neutrals
 - **THEN** the text measures at least 4.5:1 against that background, it still reads as amber, and the amber fills keep their colour
 
 #### Scenario: Text on the strong emerald fill
-- **WHEN** Target & Tagihan shows "Target Baru", "Buat Target Pertama Anda" or "Simpan Progres" on the strong green fill, in the light or the dark theme
-- **THEN** the text measures at least 4.5:1 against the fill, and the fill keeps its colour
+- **WHEN** Target & Tagihan shows "Tambah target", "Buat target pertama" or "Simpan progres" on the lime positive-action fill, in the light or the dark theme
+- **THEN** the text uses the fill's contrast ink and measures at least 4.5:1 against the fill, and the fill keeps its colour
 
 #### Scenario: Decorative icon tiles
 - **WHEN** the Beranda KPI strip and card headers show their icon tiles

@@ -1,7 +1,11 @@
 ## MODIFIED Requirements
 
 ### Requirement: Sectioned Settings Page
-Web Settings SHALL be a page at `/settings`, not a dialog, divided into eight sections with their own address, listed in this order: HP & perangkat (`/settings/perangkat`), Kebiasaan (`/settings/kebiasaan`), Tampilan (`/settings/tampilan`), and the group Akun with Profil (`/settings/profil`), Gaji & siklus (`/settings/gaji`), Mata uang & anggaran (`/settings/anggaran`), Pemetaan notifikasi (`/settings/pemetaan`) and Nama pengirim (`/settings/pengirim`). Each section SHALL be one card with a title and a one-line purpose written impersonally in neutral Indonesian (`ui-copy-register`). At 1024 px and wider a grouped section list SHALL stay beside the selected section, and `/settings` itself SHALL show HP & perangkat; narrower screens SHALL show the list first and open each section on its own screen with a way back.
+Settings SHALL be the page `/settings`, not a dialog, with eight sections in this order: HP & perangkat, Kebiasaan, Tampilan, and the group Akun with Profil, Gaji & siklus, Mata uang & anggaran, Pemetaan notifikasi and Nama pengirim. Each section SHALL have its own address and be one card with a title and neutral purpose. From 1024 px a grouped list SHALL sit beside the section and `/settings` SHALL show HP & perangkat; narrower screens SHALL show the list, then each section with a way back.
+
+#### Scenario: Section addresses
+- **WHEN** a section is opened
+- **THEN** its address SHALL be `/settings/perangkat`, `/settings/kebiasaan`, `/settings/tampilan`, `/settings/profil`, `/settings/gaji`, `/settings/anggaran`, `/settings/pemetaan` or `/settings/pengirim`, in the order of the list
 
 #### Scenario: Choosing a section on desktop
 - **GIVEN** a 1280 px wide window on `/settings`

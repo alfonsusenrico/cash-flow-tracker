@@ -1,15 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Net Worth & Liquidity Aggregation
-The system SHALL aggregate assets and outstanding liabilities to compute net worth with the same helper that Beranda's cycle summary uses, so every page shows one Kekayaan bersih:
-1. `liquid`: the liquid balance (`cash`, `bank`, `wallet`), each account counted once, a parent's balance already holding its pockets, and negative balances that wait for reconciliation left out.
-2. `investment`: the investment balance at its last recorded value.
-3. `total_assets`: `liquid + investment`.
-4. `reconciliation_pending`: the sum of negative balances waiting for reconciliation, as a positive amount that is still owed.
-5. `total_liabilities`: the sum of all active `obligations.remaining_amount` (not archived, remaining above zero).
-6. `net_worth`: `total_assets - reconciliation_pending - total_liabilities`, equal to `GET /api/dashboard/cycle-summary`'s `net_worth.total` at the same moment.
-7. `lines`: the explanation lines of the figure in the cycle summary's format (`key`, `label`, `amount`), one per part and one per active debt.
-8. The system SHALL expose `GET /api/dashboard/net-worth` with these fields in addition to its existing `accounts`, `obligations` and `runway` fields. The web SHALL show these server figures and SHALL NOT compute or substitute them; when the request fails it SHALL say that the figure cannot be calculated instead of showing Rp 0.
+Net worth SHALL use Beranda's cycle-summary helper, so every page shows one Kekayaan bersih: `liquid` (cash, bank and wallet, each account once, without negative balances awaiting reconciliation), `investment` (last recorded values), `total_assets` = `liquid + investment`, `reconciliation_pending` (those negative balances as a positive amount owed), `total_liabilities` (active `obligations.remaining_amount`) and `net_worth` = `total_assets - reconciliation_pending - total_liabilities`.
 
 #### Scenario: Calculating net worth
 - **WHEN** a user has 25,000,000 IDR across accounts and 5,000,000 IDR in outstanding debts
@@ -24,9 +16,6 @@ The system SHALL aggregate assets and outstanding liabilities to compute net wor
 - **WHEN** `GET /api/dashboard/net-worth` and `GET /api/dashboard/cycle-summary` are called at the same moment
 - **THEN** `net_worth` SHALL equal `net_worth.total`, `reconciliation_pending` SHALL be 50000, and no pocket balance SHALL be counted twice
 
-#### Scenario: Net worth unavailable on the page
-- **WHEN** `GET /api/dashboard/net-worth` fails
-- **THEN** Rekening & Kantong SHALL show "Kekayaan bersih belum dapat dihitung" with a retry action and SHALL NOT show Rp 0 or a sum computed in the browser
 
 #### Scenario: Another owner's accounts
 - **WHEN** two owners each have accounts and debts
@@ -56,3 +45,12 @@ The system SHALL express the emergency runway in days and months as coverage of 
 #### Scenario: Runway with an unknown cost
 - **WHEN** a user has a positive balance but no completed period and no `need` budget
 - **THEN** the runway is `null` with status `unknown` and Target & Tagihan shows that it cannot be calculated yet
+
+## ADDED Requirements
+
+### Requirement: Net Worth Endpoint and Display
+`GET /api/dashboard/net-worth` SHALL return `liquid`, `investment`, `total_assets`, `reconciliation_pending`, `total_liabilities`, `net_worth` and `lines` (the cycle summary's `key`, `label`, `amount` lines, one per part and per active debt) besides its existing fields. The web SHALL show these server figures without computing them, and when the request fails it SHALL say the figure cannot be calculated instead of showing Rp 0.
+
+#### Scenario: Net worth unavailable on the page
+- **WHEN** `GET /api/dashboard/net-worth` fails
+- **THEN** Rekening & Kantong SHALL show "Kekayaan bersih belum dapat dihitung" with a retry action and SHALL NOT show Rp 0 or a sum computed in the browser

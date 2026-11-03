@@ -24,11 +24,15 @@ The system SHALL compute the funding progress percentage and required monthly co
   The system SHALL compute the funding progress percentage and required monthly contribution pace for individual goals:
   1. `percentage_completed`: `min(100, round((current_amount / target_amount) * 100))`.
   2. `monthly_target_pace`: `max(0, round((target_amount - current_amount) / max(1, remaining_months)))`.
-  3. The Goals view SHALL display individual target cards with their linked accounts and pacing progress, and SHALL NOT display an aggregated global target summary card that sums unrelated goals together.
+  3. The Target & Tagihan page SHALL show each goal as its own row in "Target tabungan" with its name, a labelled progress bar (the bar hidden from assistive technology, the percentage and amounts in text), the saved and target amounts, its linked accounts or "Dicatat manual", its monthly pace when it has a target date, and a status pill in words. It SHALL NOT display an aggregated global target summary that sums unrelated goals together. Activating a row SHALL open the goal's drawer with its existing actions.
 
 #### Scenario: Viewing goals view without misleading aggregate banner
 - **WHEN** the user navigates to the Goals page with an Emergency Fund goal and a Long-term Savings goal
-- **THEN** both goals render as individual progress cards without an overarching combined target sum banner
+- **THEN** both goals render as individual rows with their own progress, without an overarching combined target sum
+
+#### Scenario: Goal without a target date
+- **WHEN** a goal has no `target_date`
+- **THEN** its row SHALL show the saved and target amounts and the percentage, and SHALL show no monthly pace instead of an invented one
 
 ### Requirement: Account-Backed Goals (Single or Multiple Linked Accounts)
 The system SHALL allow users to link a savings goal to one or more active physical accounts or pockets.
@@ -73,6 +77,11 @@ The system SHALL allow users to link a savings goal to one or more active physic
 #### Scenario: Linking multiple sibling child pockets without parent
 - **WHEN** two sibling pockets of 5,712,112 IDR and 5,688,503 IDR are linked without their parent
 - **THEN** the goal progress is their 11,400,615 IDR sum
+
+#### Scenario: Editing an account-backed goal
+- **WHEN** the owner changes the name, target or date of a goal with linked accounts in the edit form
+- **THEN** the change SHALL be saved, the request SHALL carry no `current_amount`, and progress SHALL keep following the linked balances
+- **AND** a request that sends `current_amount` for an account-backed goal SHALL be refused with 409
 
 ### Requirement: Goal Progress Action Presentation
 The Goals interface SHALL present progress actions according to goal backing.
