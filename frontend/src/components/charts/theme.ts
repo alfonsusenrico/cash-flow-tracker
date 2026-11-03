@@ -1,18 +1,18 @@
 import { getCurrencyConfig } from "@/lib/utils";
 
 export const chartColors = {
-  income: "var(--color-income)",
-  incomeLight: "var(--color-income-soft)",
-  expense: "var(--color-expense)",
-  expenseLight: "var(--color-expense-soft)",
-  warning: "var(--color-warning)",
-  grid: "var(--border)",
+  income: "var(--in-solid)",
+  incomeLight: "var(--in-bg)",
+  expense: "var(--out-solid)",
+  expenseLight: "var(--out-bg)",
+  warning: "var(--warn-solid)",
+  grid: "var(--line)",
   text: "var(--muted)",
 };
 
 export const chartGridProps = {
   strokeDasharray: "3 3",
-  stroke: "var(--border)",
+  stroke: "var(--line)",
   vertical: false,
 };
 
@@ -24,7 +24,7 @@ export const chartAxisProps = {
 
 export const chartTooltipStyle = {
   backgroundColor: "var(--surface)",
-  border: "1px solid var(--border)",
+  border: "1px solid var(--line)",
   borderRadius: "12px",
   boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
   color: "var(--text)",

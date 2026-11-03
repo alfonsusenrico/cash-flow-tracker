@@ -13,36 +13,36 @@ export const KAKEIBO_PILLARS: readonly KakeiboPillarInfo[] = [
     value: "need",
     label: "Kebutuhan",
     help: "Pokok sehari-hari: makan harian, belanja dapur, transport rutin, tagihan, cicilan.",
-    color: "var(--color-kakeibo-need)",
-    softColor: "var(--color-kakeibo-need-soft)",
+    color: "var(--k-need)",
+    softColor: "var(--k-need-soft)",
   },
   {
     value: "want",
     label: "Keinginan",
     help: "Bisa ditunda: kafe, jajan, makan di luar karena ingin, belanja non-pokok, hiburan.",
-    color: "var(--color-kakeibo-want)",
-    softColor: "var(--color-kakeibo-want-soft)",
+    color: "var(--k-want)",
+    softColor: "var(--k-want-soft)",
   },
   {
     value: "culture",
     label: "Budaya",
     help: "Pengembangan diri dan relasi: olahraga, kursus, buku, acara, persembahan, hadiah terencana.",
-    color: "var(--color-kakeibo-culture)",
-    softColor: "var(--color-kakeibo-culture-soft)",
+    color: "var(--k-culture)",
+    softColor: "var(--k-culture-soft)",
   },
   {
     value: "unexpected",
     label: "Tak Terduga",
     help: "Tidak direncanakan bulan ini: perbaikan, berobat mendadak, kondangan mendadak, denda.",
-    color: "var(--color-kakeibo-unexpected)",
-    softColor: "var(--color-kakeibo-unexpected-soft)",
+    color: "var(--k-unexpected)",
+    softColor: "var(--k-unexpected-soft)",
   },
   {
     value: "saving",
     label: "Tabungan",
     help: "Disisihkan, bukan dibelanjakan.",
-    color: "var(--color-kakeibo-saving)",
-    softColor: "var(--color-kakeibo-saving-soft)",
+    color: "var(--k-saving)",
+    softColor: "var(--k-saving-soft)",
   },
 ];
 
@@ -54,8 +54,8 @@ export const UNCLASSIFIED_BUCKET: Omit<KakeiboPillarInfo, "value"> & { value: ty
   value: UNCLASSIFIED,
   label: "Belum diklasifikasi",
   help: "Belum punya pilar, dari transaksi maupun kategorinya. Tidak dihitung sebagai Kebutuhan.",
-  color: "var(--color-kakeibo-unclassified)",
-  softColor: "var(--color-kakeibo-unclassified-soft)",
+  color: "var(--k-none)",
+  softColor: "var(--k-none-soft)",
 };
 
 /** The five pillars and the unclassified bucket, in report order. */

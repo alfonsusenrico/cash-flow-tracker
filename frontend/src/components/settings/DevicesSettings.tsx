@@ -8,7 +8,7 @@ export function DevicesSettings() {
     <SettingsCard section="perangkat">
       <CompanionDownloadSection />
       <DevicePairingSection />
-      <div className="border-t border-[var(--border)] pt-5">
+      <div className="border-t border-[var(--line)] pt-5">
         <ManualApiKey />
       </div>
     </SettingsCard>

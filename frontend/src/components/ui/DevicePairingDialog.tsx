@@ -140,7 +140,7 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
             <div className="flex flex-col items-center gap-3">
               {active ? (
                 <>
-                  <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-white p-2">
+                  <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-white p-2">
                     <canvas
                       ref={canvasRef}
                       width={QR_SIZE}
@@ -151,7 +151,7 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
                     />
                   </div>
                   {qrFailed && (
-                    <p role="alert" className="text-center text-[var(--danger-text)]">
+                    <p role="alert" className="text-center text-[var(--out-fg)]">
                       Kode QR gagal ditampilkan. Ketik kode di bawah ini di HP.
                     </p>
                   )}
@@ -166,12 +166,12 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
                   </p>
                 </>
               ) : (
-                <div className="flex h-64 w-64 max-w-full items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--border-strong)] p-4 text-center font-semibold text-[var(--text)]">
+                <div className="flex h-64 w-64 max-w-full items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--line-strong)] p-4 text-center font-semibold text-[var(--text)]">
                   {requestError ? "Kode gagal dibuat." : expired ? "Kode sudah kedaluwarsa." : "Membuat kode…"}
                 </div>
               )}
               {requestError && (
-                <p role="alert" className="text-center text-[var(--danger-text)]">{requestError}</p>
+                <p role="alert" className="text-center text-[var(--out-fg)]">{requestError}</p>
               )}
             </div>
           </>
@@ -198,7 +198,7 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
           </>
         )}
 
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] pt-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--line)] pt-3">
           {ready ? (
             <Button type="button" variant="primary" size="sm" className="min-h-11" onClick={onClose}>
               Selesai

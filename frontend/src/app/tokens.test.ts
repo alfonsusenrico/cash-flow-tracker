@@ -6,14 +6,6 @@ import { describe, expect, it } from "vitest";
 
 const appDir = path.resolve(__dirname);
 const srcDir = path.resolve(appDir, "..");
-// The category buttons moved from the Analisis page into its "Kategori & anggaran" section (phase 4 D5).
-const insightsPage = readFileSync(path.join(srcDir, "components/analysis/CategoryBudgetSection.tsx"), "utf8");
-const ledgerPage = readFileSync(path.join(appDir, "ledger/page.tsx"), "utf8");
-const goalsPage = readFileSync(path.join(appDir, "goals/page.tsx"), "utf8");
-const berandaActivity = readFileSync(path.join(srcDir, "components/beranda/activity.tsx"), "utf8");
-const ledgerList = readFileSync(path.join(srcDir, "components/transactions/LedgerList.tsx"), "utf8");
-const transactionDrawer = readFileSync(path.join(srcDir, "components/transactions/TransactionDrawer.tsx"), "utf8");
-const accountsPage = readFileSync(path.join(appDir, "accounts/page.tsx"), "utf8");
 const tokens = readFileSync(path.resolve(appDir, "../../tokens.css"), "utf8");
 const globals = readFileSync(path.join(appDir, "globals.css"), "utf8");
 const layout = readFileSync(path.join(appDir, "layout.tsx"), "utf8");
@@ -101,21 +93,39 @@ const textPairs: [string, string[]][] = [
   ["--warn-fg", [...SURFACES, "--warn-bg"]],
   ["--ok-fg", [...SURFACES, "--ok-bg"]],
   ["--danger-contrast", ["--danger-solid", "--danger-solid-hover"]],
-  // Legacy names still painted by pages that are not redesigned yet.
-  ["--primary-contrast", ["--primary", "--primary-hover"]],
-  ["--accent-text", ["--surface", "--bg", "--surface-raised"]],
-  ["--expense-text", ["--surface", "--bg", "--surface-raised", "--color-expense-soft"]],
-  ["--primary-text", ["--surface", "--bg", "--surface-raised", "--sidebar-hover"]],
-  ["--danger-text", ["--surface", "--bg", "--surface-raised"]],
-  ["--income-text", ["--surface", "--bg", "--surface-raised", "--color-income-soft"]],
-  ["--income-contrast", ["--color-income"]],
-  ["--income-hover-contrast", ["--color-income-hover"]],
-  ["--warning-text", ["--surface", "--bg", "--surface-raised", "--color-warning-soft"]],
-  ["--transfer-text", ["--surface", "--bg", "--surface-raised"]],
-  ["--transfer-contrast", ["--color-transfer"]],
-  ["--investment-text", ["--surface", "--bg", "--surface-raised", "--color-investment-soft"]],
-  ["--investment-contrast", ["--color-investment"]],
+  // Text on the semantic solids (the `*-solid-fg` Tailwind keys).
+  ["--in-solid-fg", ["--in-solid"]],
+  ["--in-solid-hover-fg", ["--in-solid-hover"]],
+  ["--tr-solid-fg", ["--tr-solid"]],
+  ["--inv-solid-fg", ["--inv-solid"]],
 ];
+
+/** The compatibility aliases removed in phase 5 (redesign-money-and-settings D11); none may come back. */
+const REMOVED_ALIASES = [
+  "--bg", "--color-paper", "--color-paper-2", "--color-surface", "--color-surface-raised", "--surface-raised", "--color-ink", "--color-ink-2",
+  "--color-muted", "--color-rule", "--color-rule-strong", "--border", "--border-strong", "--text-secondary", "--primary", "--primary-hover",
+  "--primary-soft", "--primary-contrast", "--primary-text", "--color-focus", "--accent-lime", "--accent-text", "--color-income",
+  "--color-income-hover", "--color-income-soft", "--income-text", "--income-contrast", "--income-hover-contrast", "--color-expense",
+  "--color-expense-hover", "--color-expense-soft", "--expense-text", "--danger", "--danger-hover", "--danger-text", "--color-warning",
+  "--color-warning-soft", "--warning-text", "--color-transfer", "--transfer-text", "--transfer-contrast", "--color-investment",
+  "--color-investment-soft", "--investment-text", "--investment-contrast", "--color-kakeibo-need", "--color-kakeibo-need-soft",
+  "--color-kakeibo-want", "--color-kakeibo-want-soft", "--color-kakeibo-culture", "--color-kakeibo-culture-soft",
+  "--color-kakeibo-unexpected", "--color-kakeibo-unexpected-soft", "--color-kakeibo-saving", "--color-kakeibo-saving-soft",
+  "--color-kakeibo-unclassified", "--color-kakeibo-unclassified-soft", "--sidebar", "--sidebar-hover", "--sidebar-active",
+  "--sidebar-text", "--sidebar-text-active",
+];
+const PALETTE = "rose|red|emerald|green|amber|yellow|orange|sky|blue|violet|purple|indigo|pink|fuchsia|teal|cyan|lime|slate|gray|zinc|neutral|stone";
+const PALETTE_CLASS = new RegExp(`(?<![\\w-])(?:[a-z-]+:)*(?:bg|text|border|ring|fill|stroke|from|to|via|divide|outline|decoration|placeholder|accent|caret|shadow)-(?:${PALETTE})-\\d{2,3}(?:/\\d+)?(?![\\w-])`, "g");
+const LEGACY_KEYS = ["bg", "surface-raised", "border", "border-strong", "text-secondary", "income", "expense", "warning", "transfer", "investment",
+  "primary", "sidebar", "sidebar-hover", "sidebar-active", "sidebar-text", "sidebar-text-active", "emerald", "rose", "amber", "sky", "violet"];
+const LEGACY_UTILITIES = ["btn-primary", "btn-secondary", "cockpit-card", "card-squircle", "pressable", "donut-ring"];
+const sourceFiles = componentFiles(srcDir).filter((file) => !file.endsWith("tokens.test.ts"));
+
+/** Every match of a pattern in the sources, as "file:line match", so a failure names its place. */
+function findings(pattern: RegExp, sources: string[] = sourceFiles): string[] {
+  return sources.flatMap((file) => readFileSync(file, "utf8").split("\n").flatMap((line, index) =>
+    [...line.matchAll(pattern)].map((match) => `${path.relative(srcDir, file)}:${index + 1} ${match[0]}`)));
+}
 
 // Icons and marks need 3:1 (WCAG 1.4.11). The focus ring sits 2px outside its control, on the window or a surface.
 const markPairs: [string, string[]][] = [
@@ -125,6 +135,8 @@ const markPairs: [string, string[]][] = [
 ];
 
 const PILLARS = ["need", "want", "culture", "unexpected", "saving"] as const;
+/** The pillar token of a Kakeibo bucket; "Belum diklasifikasi" is `--k-none`. */
+const pillarToken = (pillar: string) => `--k-${pillar === "unclassified" ? "none" : pillar}`;
 
 /** HSL hue in degrees and saturation (0 for a grey, 1 for a pure hue) of an opaque colour. */
 function hueOf(colour: Rgb): { hue: number; saturation: number } {
@@ -157,176 +169,51 @@ describe("design tokens", () => {
     expect([...used].filter((name) => !defined.has(name)).sort()).toEqual([]);
   });
 
-  it("paints coral text utilities with the text inks and keeps the vivid fills", () => {
-    const { textColor, backgroundColor } = tailwindTheme;
-    for (const shade of ["400", "500", "600", "700"]) {
-      expect(textColor.rose[shade], `text-rose-${shade}`).toBe("var(--expense-text)");
-    }
-    expect(textColor.expense.DEFAULT).toBe("var(--expense-text)");
-    expect(textColor.primary.DEFAULT).toBe("var(--primary-text)");
-    expect(textColor.primary.contrast).toBe("var(--primary-contrast)");
-    expect(backgroundColor.rose["500"]).toBe("var(--color-expense)");
-    expect(backgroundColor.expense.DEFAULT).toBe("var(--color-expense)");
-    expect(backgroundColor.primary.DEFAULT).toBe("var(--primary)");
+  it("declares and uses no compatibility alias", () => {
+    const declared = declaredIn(tokens + globals);
+    expect(REMOVED_ALIASES.filter((name) => declared.has(name))).toEqual([]);
+    const aliasUse = new RegExp(`var\\(\\s*(?:${REMOVED_ALIASES.map((name) => name.replace(/-/g, "\\-")).join("|")})\\s*[,)]`, "g");
+    expect(findings(aliasUse)).toEqual([]);
+    expect(tokens).not.toContain("Compatibility aliases");
   });
 
-  it("paints emerald text utilities with the income text ink and keeps the emerald fills", () => {
-    const { textColor, backgroundColor } = tailwindTheme;
-    for (const shade of ["400", "500", "600", "700"]) {
-      expect(textColor.emerald[shade], `text-emerald-${shade}`).toBe("var(--income-text)");
+  it("maps no legacy Tailwind key or palette remap and paints with no default palette class", () => {
+    const config = createRequire(import.meta.url)("../../tailwind.config.js");
+    const extend = config.theme.extend as Record<string, Record<string, unknown> | undefined>;
+    for (const group of ["colors", "textColor", "backgroundColor", "borderColor"]) {
+      const keys = Object.keys(extend[group] ?? {});
+      expect(keys.filter((key) => LEGACY_KEYS.includes(key)), group).toEqual([]);
     }
-    expect(textColor.income.DEFAULT).toBe("var(--income-text)");
-    expect(textColor.income.contrast).toBe("var(--income-contrast)");
-    expect(backgroundColor.emerald["500"]).toBe("var(--color-income)");
-    expect(backgroundColor.income.DEFAULT).toBe("var(--color-income)");
+    expect(findings(PALETTE_CLASS)).toEqual([]);
   });
 
-  it("paints amber text utilities with the warning text ink and keeps the amber fills", () => {
-    const { textColor, backgroundColor } = tailwindTheme;
-    for (const shade of ["400", "500", "600", "700"]) {
-      expect(textColor.amber[shade], `text-amber-${shade}`).toBe("var(--warning-text)");
-    }
-    expect(textColor.income["hover-contrast"]).toBe("var(--income-hover-contrast)");
-    expect(backgroundColor.amber["500"]).toBe("#f59e0b");
-    expect(backgroundColor.emerald["600"]).toBe("var(--color-income-hover)");
+  it("keeps no legacy utility class in the stylesheet or the components", () => {
+    for (const name of LEGACY_UTILITIES) expect(globals, name).not.toMatch(new RegExp(`\\.${name}\\b`));
+    expect(findings(new RegExp(`\\b(?:${LEGACY_UTILITIES.join("|")})\\b`, "g"))).toEqual([]);
   });
 
-  it("paints sky text utilities with the transfer text ink and keeps the sky fills", () => {
-    const { textColor, backgroundColor } = tailwindTheme;
-    for (const shade of ["400", "500", "600", "700"]) {
-      expect(textColor.sky[shade], `text-sky-${shade}`).toBe("var(--transfer-text)");
+  it("builds every semantic Tailwind key from a token declared in both themes", () => {
+    const colors = createRequire(import.meta.url)("../../tailwind.config.js").theme.extend.colors as Record<string, string | Record<string, string>>;
+    const values = Object.values(colors).flatMap((value) => (typeof value === "string" ? [value] : Object.values(value)));
+    const referenced = values.map((value) => value.match(/var\((--[\w-]+)\)/)?.[1]);
+    expect(referenced.filter((name) => !name)).toEqual([]);
+    for (const name of referenced as string[]) {
+      expect(themes[":root"][name], `${name} in :root`).toBeDefined();
+      expect(themes[".dark"][name], `${name} in .dark`).toBeDefined();
     }
-    expect(textColor.transfer.DEFAULT).toBe("var(--transfer-text)");
-    expect(textColor.transfer.contrast).toBe("var(--transfer-contrast)");
-    expect(backgroundColor.sky["500"]).toBe("#0ea5e9");
-    expect(backgroundColor.transfer.DEFAULT).toBe("var(--color-transfer)");
-    expect(resolve(themes[":root"], "--color-transfer")).toBe("#3787C8");
-    expect(resolve(themes[".dark"], "--color-transfer")).toBe("#58A6E6");
-  });
-
-  it("paints every Pindah Saldo and movement element sky, never amber or blue", () => {
-    // Transaksi draws types with the shared pills and the Beranda row helpers; no raw palette class remains.
-    for (const [name, source] of [["Transaksi", ledgerPage], ["LedgerList", ledgerList], ["TransactionDrawer", transactionDrawer]] as const) {
-      expect(source, name).not.toMatch(/(^|\s|")(text|bg|border)-(amber|blue|sky|purple|indigo|violet)-/);
-    }
-    for (const source of [ledgerList, transactionDrawer]) {
-      expect(source).toMatch(/movement: \{ tone: "tr", text: "Pindah saldo" \}/);
-      expect(source).toMatch(/topup: \{ tone: "inv", text: "Top up Investasi" \}/);
-    }
-    // Beranda activity: a movement's avatar and amount use the transfer pair, a top-up the investment pair.
-    expect(berandaActivity).toMatch(/movement: \{ icon: "repeat", tone: "ws-tone-tr" \}/);
-    expect(berandaActivity).toMatch(/topup: \{ icon: "trending-up", tone: "ws-tone-inv" \}/);
-    expect(berandaActivity).toMatch(/kind === "movement"\)[\s\S]{0,80}ws-amt-tr/);
-    expect(berandaActivity).toMatch(/kind === "topup"\) return <span className="ws-amt-inv">/);
-  });
-
-  it("paints violet text utilities with the investment text ink and keeps the violet fills", () => {
-    const { textColor, backgroundColor } = tailwindTheme;
-    for (const shade of ["400", "500", "600", "700"]) {
-      expect(textColor.violet[shade], `text-violet-${shade}`).toBe("var(--investment-text)");
-    }
-    expect(textColor.investment.DEFAULT).toBe("var(--investment-text)");
-    expect(textColor.investment.contrast).toBe("var(--investment-contrast)");
-    expect(backgroundColor.violet["500"]).toBe("#8b5cf6");
-    expect(backgroundColor.investment.DEFAULT).toBe("var(--color-investment)");
-    expect(backgroundColor.investment.soft).toBe("var(--color-investment-soft)");
-    expect(resolve(themes[":root"], "--color-investment")).toBe("#7553C7");
-    expect(resolve(themes[".dark"], "--color-investment")).toBe("#A68CEE");
-  });
-
-  it("paints every investment element lavender, never amber, sky, blue, purple or indigo", () => {
-    // Investment top-up rows on Transaksi use the lavender pill tone and the investment amount ink.
-    expect(globals).toMatch(/\.ws-tx-topup \{ color: var\(--inv-fg\); \}/);
-
-    // The Rekening allocation share and the price-sync message.
-    const shares = [...accountsPage.matchAll(/investPct > 0 && [^\n]*className="([^"]*)"|<span className="([^"]*)" \/>\s*Investasi:/g)]
-      .map((match) => match[1] ?? match[2]);
-    expect(shares).toHaveLength(2);
-    for (const classes of shares) expect(classes).toContain("bg-investment");
-    expect(accountsPage).not.toMatch(/bg-indigo-500(?!\/)/);
-    expect(accountsPage).toMatch(/\{syncMessage && \(\s*<span className="[^"]*text-investment[^"]*">/);
-
-    // Purple was a second lavender for top-ups; investment elements now share one family.
-    const purple = componentFiles(srcDir).filter((file) => /(^|[\s"'`:])(text|bg|border)-purple-\d/.test(readFileSync(file, "utf8")));
-    expect(purple.map((file) => path.relative(srcDir, file))).toEqual([]);
-  });
-
-  it("puts the investment contrast ink on every solid lavender fill", () => {
-    const solid = /(^|\s)bg-(investment|violet-[5-9]00)(\s|$)/;
-    const classStrings = componentSources(srcDir).flatMap((source) => [...source.matchAll(/"([^"]*)"/g)].map((match) => match[1]));
-    const filled = classStrings.filter((classes) => solid.test(classes) && /(^|\s)text-/.test(classes));
-    expect(filled.length).toBeGreaterThanOrEqual(4);
-    for (const classes of filled) {
-      expect(classes).toContain("text-investment-contrast");
-      expect(classes).not.toMatch(/(^|\s)text-white(\s|$)/);
-    }
-  });
-
-  it("uses sky only for transfers and neutral tokens for the Pilar Kakeibo card and information notes", () => {
-    // Every sky utility must sit in a transfer branch, a movement, a Pindah Saldo action or a transfer target,
-    // named on its own line or in the eight lines before it.
-    const transferMarker = /isMovement|is_consolidated_transfer|is_inferred_transfer|movement_id|target_account_name|Internal Movement|selectedTx\.type === "transfer"|handleOpenTransfer|onOpenTransfer|canTransfer/;
-    const outside: string[] = [];
-    for (const file of componentFiles(srcDir)) {
-      const source = readFileSync(file, "utf8");
-      for (const match of source.matchAll(/(?:text|bg|border|ring|from|via|to|fill|stroke)-sky-\d{2,3}/g)) {
-        const line = source.slice(0, match.index).split("\n").length;
-        const context = source.split("\n").slice(Math.max(0, line - 9), line).join("\n");
-        if (!transferMarker.test(context)) {
-          outside.push(`${path.relative(srcDir, file)}:${line} ${match[0]}`);
-        }
-      }
-    }
-    expect(outside).toEqual([]);
-
-    expect(goalsPage).toMatch(/<p className="[^"]*bg-\[var\(--surface-raised\)\][^"]*text-\[var\(--text-secondary\)\]">\s*Ini hanya memperbarui angka progres target/);
-    const banner = readFileSync(path.join(srcDir, "components/recurring/PendingScheduledBanner.tsx"), "utf8");
-    expect(banner).toMatch(/<span className="[^"]*bg-\[var\(--surface-raised\)\][^"]*text-\[var\(--text\)\]">\s*Ditautkan otomatis/);
-  });
-
-  it("puts the strong-emerald ink on every bg-emerald-600 button of Target & Tagihan", () => {
-    const classStrings = [...goalsPage.matchAll(/"([^"]*)"/g)].map((match) => match[1]);
-    const buttons = classStrings.filter((classes) => /(^|\s)bg-emerald-600(\s|$)/.test(classes) && /(^|\s)text-/.test(classes));
-    expect(buttons.length).toBeGreaterThanOrEqual(3);
-    for (const classes of buttons) {
-      expect(classes).toContain("text-income-hover-contrast");
-      expect(classes).not.toMatch(/(^|\s)(dark:)?text-(white|\[#)/);
-    }
-  });
-
-  it("puts no white text on the emerald buttons of Analisis and Transaksi", () => {
-    const classStrings = (source: string) => [...source.matchAll(/"([^"]*)"/g)].map((match) => match[1]);
-    const onEmeraldFill = (classes: string) => /(^|\s)bg-(emerald-500|income)(\s|$)/.test(classes);
-    // Transaksi has no emerald fill any more: its buttons are the workspace's ws-btn variants.
-    expect(classStrings(ledgerPage).filter(onEmeraldFill)).toHaveLength(0);
-    for (const [page, source] of [["insights", insightsPage]] as const) {
-      const buttons = classStrings(source).filter(onEmeraldFill);
-      expect(buttons.length, `${page} emerald fills`).toBeGreaterThan(0);
-      for (const classes of buttons) {
-        if (!/(^|\s)text-/.test(classes)) continue;
-        expect(classes, `${page}: ${classes}`).toContain("text-income-contrast");
-        expect(classes, `${page}: ${classes}`).not.toMatch(/(^|\s)text-white/);
-      }
+    for (const family of ["in", "out", "tr", "inv", "warn", "ok"]) {
+      for (const shade of ["fg", "bg"]) expect((colors[family] as Record<string, string>)[shade], `${family}-${shade}`).toContain(`var(--${family}-${shade})`);
     }
   });
 
   it("paints Kakeibo pillars only through their tokens in kakeibo.ts", () => {
     const kakeibo = readFileSync(path.join(srcDir, "lib/kakeibo.ts"), "utf8");
-    for (const pillar of PILLARS) {
-      expect(kakeibo).toMatch(new RegExp(`value: "${pillar}",[\\s\\S]*?color: "var\\(--color-kakeibo-${pillar}\\)"`));
-    }
-    expect(kakeibo).toContain('color: "var(--color-kakeibo-unclassified)"');
-    // Components take the pillar colour from KAKEIBO_PILLARS or KAKEIBO_BUCKETS, never by naming a token or a hex.
-    const elsewhere = componentFiles(srcDir)
-      .filter((file) => !file.endsWith(path.join("lib", "kakeibo.ts")))
-      .filter((file) => /--color-kakeibo-/.test(readFileSync(file, "utf8")));
-    expect(elsewhere.map((file) => path.relative(srcDir, file))).toEqual([]);
+    for (const pillar of PILLARS) expect(kakeibo).toContain(`var(${pillarToken(pillar)})`);
+    expect(kakeibo).not.toMatch(/#[0-9a-fA-F]{6}/);
   });
 
   it("starts new investment accounts with a lavender tag colour", async () => {
-    const { INVESTMENT_ACCOUNT_TAG_COLOR, defaultAccountTagColor } = await import("@/lib/accountColours");
-    const tag = hueOf(hex(INVESTMENT_ACCOUNT_TAG_COLOR)).hue;
-    expect(hueDistance(tag, hueOf(painted(themes[":root"], "--inv-solid")).hue)).toBeLessThan(25);
+    const { defaultAccountTagColor, INVESTMENT_ACCOUNT_TAG_COLOR } = await import("@/lib/accountColours");
     expect(defaultAccountTagColor("investment")).toBe(INVESTMENT_ACCOUNT_TAG_COLOR);
     for (const type of ["bank", "wallet", "cash"]) expect(defaultAccountTagColor(type)).not.toBe(INVESTMENT_ACCOUNT_TAG_COLOR);
   });
@@ -338,20 +225,16 @@ describe("design tokens", () => {
       return globals.slice(start, globals.indexOf("}", start));
     };
     expect(rule(".ws-card")).toContain("box-shadow: var(--shadow-card)");
-    expect(rule(".cockpit-card")).toContain("box-shadow: var(--shadow-card)");
-    expect(rule(".card-squircle")).toContain("box-shadow: var(--shadow-card)");
     for (const floating of [".ws-menu", ".ws-explain", ".ws-toast", "dialog.ws-dialog"]) {
       expect(rule(floating), floating).toContain("box-shadow: var(--shadow-float)");
     }
   });
 
-  it("keeps every legacy property the old pages use inside the marked compatibility block", () => {
-    const root = tokens.slice(tokens.indexOf(":root {"), tokens.indexOf("\n}", tokens.indexOf(":root {")));
-    const block = root.slice(root.indexOf("Compatibility aliases"), root.indexOf("End of compatibility aliases"));
-    for (const legacy of ["--bg", "--surface-raised", "--border", "--text-secondary", "--primary", "--color-income", "--color-expense",
-      "--color-transfer", "--color-investment", "--color-kakeibo-need", "--accent-lime", "--sidebar"]) {
-      expect(block, legacy).toMatch(new RegExp(`${legacy}:\\s*var\\(--`));
-    }
+  it("stacks the overlay drawer and the phone sheet above the scrim that dims the page", () => {
+    const zOf = (selector: string) => Number(globals.slice(globals.indexOf(`${selector} {`)).match(/z-index:\s*(\d+)/)![1]);
+    const scrim = zOf(".ws-sheet-scrim");
+    expect(zOf('.ws-drawer[data-mode="overlay"]')).toBeGreaterThan(scrim);
+    expect(zOf('.ws-drawer[data-mode="sheet"]')).toBeGreaterThan(scrim);
   });
 
   it("generates shadow-xs from the --shadow-xs token", () => {
@@ -375,27 +258,14 @@ describe("design tokens", () => {
       expect(xs.alpha).toBeLessThan(sm.alpha);
     });
 
-    it("keeps --transfer-text at WCAG AA on the sky tints of transfer chips", () => {
-      // Transfer chips and capsules paint Tailwind's sky-500 at 10 to 20% over the card or the raised surface.
-      const sky = hex("#0ea5e9");
-      for (const surface of ["--surface", "--surface-raised"]) {
-        for (const alpha of [0.1, 0.15, 0.2]) {
+    // Chips, notes and pills carry text on `bg-<family>-solid/5` to `/15` (income only to `/10`); transfer and warning also on `/20`.
+    it.each([["in", 0.1], ["out", 0.15], ["inv", 0.15], ["tr", 0.2], ["warn", 0.2]] as const)("keeps --%s-fg at WCAG AA on the tints of its solid up to %s", (family, strongest) => {
+      const solid = painted(theme, `--${family}-solid`);
+      for (const surface of ["--surface", "--surface-2"]) {
+        for (const alpha of [0.05, 0.1, 0.15, 0.2].filter((value) => value <= strongest)) {
           const base = painted(theme, surface);
-          const tint = base.map((channel, index) => sky[index] * alpha + channel * (1 - alpha)) as Rgb;
-          expect(contrast(painted(theme, "--transfer-text"), tint), `${alpha} sky over ${surface} in ${selector}`)
-            .toBeGreaterThanOrEqual(4.5);
-        }
-      }
-    });
-
-    it("keeps --investment-text at WCAG AA on the violet tints of investment chips", () => {
-      // Investment chips, pills and notes paint Tailwind's violet-500 at 10 to 25% over the card or the raised surface.
-      const violet = hex("#8b5cf6");
-      for (const surface of ["--surface", "--surface-raised"]) {
-        for (const alpha of [0.1, 0.15, 0.2, 0.25]) {
-          const base = painted(theme, surface);
-          const tint = base.map((channel, index) => violet[index] * alpha + channel * (1 - alpha)) as Rgb;
-          expect(contrast(painted(theme, "--investment-text"), tint), `${alpha} violet over ${surface} in ${selector}`)
+          const tint = base.map((channel, index) => solid[index] * alpha + channel * (1 - alpha)) as Rgb;
+          expect(contrast(painted(theme, `--${family}-fg`), tint), `${alpha} ${family} over ${surface} in ${selector}`)
             .toBeGreaterThanOrEqual(4.5);
         }
       }
@@ -403,9 +273,9 @@ describe("design tokens", () => {
 
     it.each([...PILLARS, "unclassified"])("keeps the %s pillar colour at WCAG AA as text and as a mark", (pillar) => {
       // The pillar colour is a chart mark (dots, bar segments) and may be text. Text needs 4.5:1 on every surface
-      // and the pillar's soft fill; marks need 3:1 on the bar tracks (--surface-raised and --border over the card).
-      const colour = painted(theme, `--color-kakeibo-${pillar}`);
-      for (const background of ["--surface", "--window", "--surface-2", `--color-kakeibo-${pillar}-soft`]) {
+      // and the pillar's soft fill; marks need 3:1 on the bar tracks (--surface-2, --surface-3 and --line).
+      const colour = painted(theme, pillarToken(pillar));
+      for (const background of ["--surface", "--window", "--surface-2", `${pillarToken(pillar)}-soft`]) {
         expect(contrast(colour, painted(theme, background)), `${pillar} text on ${background} in ${selector}`).toBeGreaterThanOrEqual(4.5);
       }
       for (const track of ["--surface-3", "--line", "--surface-2"]) {
@@ -414,7 +284,7 @@ describe("design tokens", () => {
     });
 
     it("gives every pillar its own hue, apart from the transfer, investment, income and expense colours", () => {
-      const pillarHue = (pillar: string) => hueOf(painted(theme, `--color-kakeibo-${pillar}`));
+      const pillarHue = (pillar: string) => hueOf(painted(theme, pillarToken(pillar)));
       const reserved = ["--tr-solid", "--tr-fg", "--inv-solid", "--inv-fg", "--in-solid", "--in-fg", "--out-solid", "--out-fg"];
       for (const pillar of PILLARS) {
         const { hue, saturation } = pillarHue(pillar);

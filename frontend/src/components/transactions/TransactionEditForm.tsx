@@ -16,7 +16,7 @@ import type { LedgerRowDetail } from "./types";
 
 type EditKind = "expense" | "income";
 
-const FIELD = "min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]";
+const FIELD = "min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]";
 const LABEL = "mb-1 block text-xs font-medium text-[var(--muted)]";
 
 function initialDebtRows(tx: LedgerRowDetail): DebtAllocationValue[] {

@@ -2,13 +2,31 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
+import { ExplainProvider } from "@/components/workspace/explain";
 import AccountsPage from "./page";
 
+// Next.js keeps `useSearchParams` in sync with the history API; the mock does the same.
+vi.mock("next/navigation", async () => {
+  const react = await import("react");
+  return {
+    usePathname: () => window.location.pathname,
+    useSearchParams: () => {
+      const [, rerender] = react.useReducer((count: number) => count + 1, 0);
+      react.useEffect(() => {
+        window.addEventListener("test-history", rerender);
+        return () => window.removeEventListener("test-history", rerender);
+      }, []);
+      return new URLSearchParams(window.location.search);
+    },
+  };
+});
+
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() } }));
+const hidden = vi.hoisted(() => ({ on: false }));
 vi.mock("@/components/layout/AppLayout", () => ({
-  useAppCtx: () => ({ bal: (amount: number) => `Rp ${amount.toLocaleString("id-ID")}` }),
+  useAppCtx: () => ({ bal: (amount: number) => (hidden.on ? "••••" : `Rp ${amount.toLocaleString("id-ID")}`) }),
 }));
 vi.mock("@/hooks/useAnimatedCounter", () => ({ useAnimatedCounter: (amount: number) => amount }));
 
@@ -23,20 +41,46 @@ const investmentParent = {
   created_at: "2026-09-01T00:00:00.000Z",
 };
 
+const realReplace = window.history.replaceState.bind(window.history);
+
+/** The table row of an account or pocket; pocket rows name their parent for assistive technology. */
+async function row(name: string | RegExp) {
+  const button = (await screen.findAllByRole("button", { name }))[0];
+  return button.closest("tr") as HTMLElement;
+}
+
+/** Opens the row's drawer and returns it. */
+async function openDrawer(user: ReturnType<typeof userEvent.setup>, name: string | RegExp, title: string) {
+  await user.click((await screen.findAllByRole("button", { name }))[0]);
+  return screen.findByRole("dialog", { name: new RegExp(`^${title}`) });
+}
+
 function renderAccounts() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <AccountsPage />
+      <ExplainProvider>
+        <AccountsPage />
+      </ExplainProvider>
     </QueryClientProvider>,
   );
 }
 
 describe("account and pocket forms", () => {
+  afterEach(() => {
+    window.history.replaceState = realReplace;
+    realReplace(null, "", "/accounts");
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    realReplace(null, "", "/accounts");
+    window.history.replaceState = (state, title, url) => {
+      realReplace(state, title, url);
+      window.dispatchEvent(new Event("test-history"));
+    };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [investmentParent], total_balance: 0 };
       if (path === "/dashboard/net-worth") {
@@ -47,38 +91,39 @@ describe("account and pocket forms", () => {
     vi.mocked(api.post).mockResolvedValue({ ok: true });
   });
 
-  it("does not present assets as net worth when liabilities are unavailable", async () => {
+  it("does not present assets as net worth when net worth is unavailable", async () => {
     const liquid = { id: "cash-a", name: "Cash A", type: "cash", initial_balance: 1000, balance: 1000, is_archived: false, children: [] };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [liquid], total_balance: 1000 };
       if (path === "/dashboard/net-worth") throw new Error("unavailable");
-      return { ok: true, rules: [], accounts: [], results: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
     renderAccounts();
-    expect((await screen.findAllByText("Kekayaan bersih belum dapat dihitung")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Tidak tersedia").length).toBeGreaterThan(0);
-    expect(screen.queryByText("Saldo kas mencukupi seluruh kewajiban")).not.toBeInTheDocument();
+    expect(await screen.findByText(/Kekayaan bersih belum dapat dihitung/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Kekayaan bersih Rp/ })).not.toBeInTheDocument();
+    // The account's own balance stays visible; no client-side sum stands in for the server figure.
+    expect(within(await row("Cash A")).getByText("Rp 1.000")).toBeInTheDocument();
   });
 
-  it("shows unknown coverage and the all-liquid basis instead of a sentinel", async () => {
+  it("shows the server's total assets and net worth with their lines", async () => {
     const liquid = { id: "cash-a", name: "Cash A", type: "cash", initial_balance: 1000, balance: 1000, is_archived: false, children: [] };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [liquid], total_balance: 1000 };
       if (path === "/dashboard/net-worth") return {
-        ok: true, net_worth: 1000, total_assets: 1000, total_liabilities: 0, accounts: [], obligations: [],
-        runway: {
-          runway_days: null, runway_months: null, coverage_months: null, status: "unknown", daily_burn_rate: null,
-          emergency_fund_balance: 1000, balance_basis: "all_liquid", emergency_goal_names: [], monthly_primary_expense: null,
-          essential_cost: { amount: null, living_amount: null, debt_minimum: 0, method: "unknown", basis: "unknown",
-            period_count: 0, periods_used: [], limited_history: false },
-        },
+        ok: true, net_worth: 450, total_assets: 1000, total_liabilities: 500, accounts: [], obligations: [],
+        liquid: 1000, investment: 0, reconciliation_pending: 50,
+        lines: [{ key: "liquid", label: "Dana likuid", amount: 1000 }, { key: "investment", label: "Investasi", amount: 0 },
+          { key: "reconciliation_pending", label: "Saldo minus perlu dicocokkan", amount: -50 }, { key: "debt:d1", label: "Cicilan Contoh", amount: -500 }],
       };
-      return { ok: true, rules: [], accounts: [], results: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
     renderAccounts();
-    expect((await screen.findAllByText("Ketahanan Dana: Belum dapat dihitung")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Belum ada dana darurat khusus — dihitung dari seluruh saldo kas").length).toBeGreaterThan(0);
-    expect(screen.queryByText(/> 12x|999/)).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Kekayaan bersih Rp 450: lihat rincian" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Total aset Rp 1.000: lihat rincian" })).toBeInTheDocument();
+    expect(screen.getByText("Saldo minus perlu dicocokkan")).toBeInTheDocument();
+    expect(screen.getByText("Utang Cicilan Contoh")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Lihat Ketahanan Dana" })).toHaveAttribute("href", "/goals");
   });
 
   it("removes dedicated transfer controls from account actions", async () => {
@@ -88,16 +133,14 @@ describe("account and pocket forms", () => {
     ];
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [investmentParent, ...liquid], total_balance: 1000 };
-      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 1000, total_assets: 1000, total_liabilities: 0, accounts: [], obligations: [] };
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
     const user = userEvent.setup();
     renderAccounts();
-    const cash = (await screen.findAllByRole("region", { name: "Rekening Cash A" }))[0];
-    expect(within(cash).getByRole("button", { name: "Tambah kantong Cash A" })).toBeInTheDocument();
-    expect(within(cash).queryByRole("button", { name: /pindah saldo/i })).not.toBeInTheDocument();
-    await user.click(within(cash).getByRole("button", { name: "Opsi Cash A" }));
-    expect(within(screen.getByRole("group", { name: "Opsi Cash A" })).queryByRole("button", { name: /pindah saldo/i })).not.toBeInTheDocument();
+    const drawer = await openDrawer(user, "Cash A", "Cash A");
+    expect(within(drawer).getByRole("button", { name: /Tambah kantong/ })).toBeInTheDocument();
+    expect(within(drawer).queryByRole("button", { name: /pindah saldo/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: /pindah saldo/i })).not.toBeInTheDocument();
   });
 
@@ -105,14 +148,14 @@ describe("account and pocket forms", () => {
     const liquid = { id: "cash-a", name: "Cash A", type: "cash", initial_balance: 1000, balance: 1000, is_archived: false, children: [] };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [liquid], total_balance: 1000 };
-      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 1000, total_assets: 1000, total_liabilities: 0, accounts: [], obligations: [] };
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
 
     const user = userEvent.setup();
     renderAccounts();
-    const cash = (await screen.findAllByRole("region", { name: "Rekening Cash A" }))[0];
-    await user.click(within(cash).getByRole("button", { name: "Tambah kantong Cash A" }));
+    const drawer = await openDrawer(user, "Cash A", "Cash A");
+    await user.click(within(drawer).getByRole("button", { name: /Tambah kantong/ }));
     const dialog = screen.getByRole("dialog", { name: "Tambah Kantong di Cash A" });
     await user.type(within(dialog).getByRole("textbox", { name: "Nama kantong" }), "Tabungan");
     await user.click(within(dialog).getByRole("button", { name: "Buat Kantong" }));
@@ -135,15 +178,18 @@ describe("account and pocket forms", () => {
     };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [position], total_balance: 600_000 };
-      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 600_000, total_assets: 600_000, total_liabilities: 0, accounts: [], obligations: [] };
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
 
+    const user = userEvent.setup();
     renderAccounts();
-    const holding = (await screen.findAllByRole("region", { name: "Rekening BBCA" }))[0];
-    expect(within(holding).getByRole("button", { name: "Beli" })).toBeInTheDocument();
-    expect(within(holding).getByRole("button", { name: "Jual" })).toBeInTheDocument();
-    expect(within(holding).queryByRole("button", { name: "Tambah kantong BBCA" })).not.toBeInTheDocument();
+    expect(within(await row("BBCA")).getByText("1 lot × 100 lembar × Rp 6.000")).toBeInTheDocument();
+    const drawer = await openDrawer(user, "BBCA", "BBCA");
+    expect(within(drawer).getByRole("button", { name: "Beli" })).toBeInTheDocument();
+    expect(within(drawer).getByRole("button", { name: "Jual" })).toBeInTheDocument();
+    expect(within(drawer).getByRole("button", { name: "Perbarui nilai" })).toBeInTheDocument();
+    expect(within(drawer).queryByRole("button", { name: /Tambah kantong/ })).not.toBeInTheDocument();
   });
 
   it.each([false, true])("offers nominal top-up for an eligible product (child=%s)", async (child) => {
@@ -152,12 +198,13 @@ describe("account and pocket forms", () => {
     const parent = { ...investmentParent, default_funding_account_id: "rdn", children: [product] };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { accounts: child ? [parent, product, source] : [product, source], total_balance: 500_000 };
-      if (path === "/dashboard/net-worth") return { net_worth: 500_000, total_assets: 500_000, total_liabilities: 0, accounts: [], obligations: [] };
-      return { rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { rules: [], accounts: [], results: [], awaiting: [] };
     });
     const user = userEvent.setup();
     renderAccounts();
-    await user.click((await screen.findAllByRole("button", { name: "Top up" }))[0]);
+    const drawer = await openDrawer(user, /^Bibit Fund/, "Bibit Fund");
+    await user.click(within(drawer).getByRole("button", { name: "Top up" }));
     const dialog = screen.getByRole("dialog", { name: "Top up Investasi" });
     expect(within(dialog).getByText("Bibit Fund")).toBeInTheDocument();
     expect(within(dialog).queryByLabelText(/Unit Penyertaan|NAB/)).not.toBeInTheDocument();
@@ -167,8 +214,7 @@ describe("account and pocket forms", () => {
   it("creates a cash funding pocket under an investment platform as liquid", async () => {
     const user = userEvent.setup();
     renderAccounts();
-    const addPocket = await screen.findAllByRole("button", { name: "Tambah kantong Broker" });
-    await user.click(addPocket[0]);
+    await user.click(within(await openDrawer(user, "Broker", "Broker")).getByRole("button", { name: /Tambah kantong/ }));
 
     const dialog = screen.getByRole("dialog", { name: /tambah kantong/i });
     expect((await axe(dialog)).violations).toHaveLength(0);
@@ -189,8 +235,7 @@ describe("account and pocket forms", () => {
   it("creates a deposit pocket with principal but no rate or purchase price", async () => {
     const user = userEvent.setup();
     renderAccounts();
-    const addPocket = await screen.findAllByRole("button", { name: "Tambah kantong Broker" });
-    await user.click(addPocket[0]);
+    await user.click(within(await openDrawer(user, "Broker", "Broker")).getByRole("button", { name: /Tambah kantong/ }));
 
     const dialog = screen.getByRole("dialog", { name: /tambah kantong/i });
     await user.type(within(dialog).getByRole("textbox", { name: /nama kantong/i }), "Deposito 2026");
@@ -211,9 +256,9 @@ describe("account and pocket forms", () => {
   it("creates an investment platform without a misleading spendable opening balance", async () => {
     const user = userEvent.setup();
     renderAccounts();
-    await user.click(await screen.findByRole("button", { name: /rekening baru/i }));
+    await user.click(await screen.findByRole("button", { name: "Tambah rekening" }));
 
-    const dialog = screen.getByRole("dialog", { name: "Tambah Rekening Baru" });
+    const dialog = screen.getByRole("dialog", { name: "Tambah rekening" });
     await user.type(within(dialog).getByRole("textbox", { name: "Nama Rekening" }), "New broker");
     await user.selectOptions(within(dialog).getByRole("combobox", { name: "Jenis rekening" }), "investment");
     expect(within(dialog).queryByRole("textbox", { name: /saldo kas \/ rdn awal/i })).not.toBeInTheDocument();
@@ -232,8 +277,8 @@ describe("account and pocket forms", () => {
   it("starts a new investment account lavender and a new bank account blue", async () => {
     const user = userEvent.setup();
     renderAccounts();
-    await user.click(await screen.findByRole("button", { name: /rekening baru/i }));
-    const dialog = screen.getByRole("dialog", { name: "Tambah Rekening Baru" });
+    await user.click(await screen.findByRole("button", { name: "Tambah rekening" }));
+    const dialog = screen.getByRole("dialog", { name: "Tambah rekening" });
     const type = within(dialog).getByRole("combobox", { name: "Jenis rekening" });
 
     expect(within(dialog).getByRole("button", { name: "Warna Biru" })).toHaveAttribute("aria-pressed", "true");
@@ -250,8 +295,8 @@ describe("account and pocket forms", () => {
   it("keeps the colour the owner picked when the account type changes", async () => {
     const user = userEvent.setup();
     renderAccounts();
-    await user.click(await screen.findByRole("button", { name: /rekening baru/i }));
-    const dialog = screen.getByRole("dialog", { name: "Tambah Rekening Baru" });
+    await user.click(await screen.findByRole("button", { name: "Tambah rekening" }));
+    const dialog = screen.getByRole("dialog", { name: "Tambah rekening" });
 
     await user.click(within(dialog).getByRole("button", { name: "Warna Teal" }));
     await user.selectOptions(within(dialog).getByRole("combobox", { name: "Jenis rekening" }), "investment");
@@ -280,17 +325,14 @@ describe("account and pocket forms", () => {
       if (path === "/accounts") {
         return { ok: true, accounts: [{ ...investmentParent, children: [position] }, position], total_balance: 100_000 };
       }
-      if (path === "/dashboard/net-worth") {
-        return { ok: true, net_worth: 100_000, total_assets: 100_000, total_liabilities: 0, accounts: [], obligations: [] };
-      }
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
     vi.mocked(api.patch).mockResolvedValue({ ok: true });
     renderAccounts();
 
-    const broker = (await screen.findAllByRole("region", { name: "Rekening Broker" }))[0];
-    await user.click(within(broker).getByRole("button", { name: "Opsi Stock" }));
-    await user.click(within(screen.getByRole("group", { name: "Opsi Stock" })).getByRole("button", { name: "Ubah kantong" }));
+    const drawer = await openDrawer(user, "Stock, kantong di Broker", "Stock");
+    await user.click(within(drawer).getByRole("button", { name: "Ubah kantong" }));
     const dialog = screen.getByRole("dialog", { name: "Ubah Kantong: Stock" });
     await user.click(within(dialog).getByRole("button", { name: /kas \/ tabungan biasa/i }));
     await user.click(within(dialog).getByRole("button", { name: "Simpan Perubahan" }));
@@ -327,17 +369,14 @@ describe("account and pocket forms", () => {
     };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [parent, child], total_balance: 0 };
-      if (path === "/dashboard/net-worth") {
-        return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [] };
-      }
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
     vi.mocked(api.patch).mockResolvedValue({ ok: true });
     renderAccounts();
 
-    const bank = (await screen.findAllByRole("region", { name: "Rekening BCA" }))[0];
-    await user.click(within(bank).getByRole("button", { name: "Opsi BCA" }));
-    await user.click(within(screen.getByRole("group", { name: "Opsi BCA" })).getByRole("button", { name: "Ubah rekening" }));
+    const drawer = await openDrawer(user, "BCA", "BCA");
+    await user.click(within(drawer).getByRole("button", { name: "Ubah rekening" }));
     const dialog = screen.getByRole("dialog", { name: "Ubah Rekening: BCA" });
     const pocketSelect = within(dialog).getByRole("combobox", { name: /kantong default/i });
     expect(pocketSelect).toHaveValue("bank-pocket");
@@ -360,17 +399,14 @@ describe("account and pocket forms", () => {
     };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [jago, gopay, investmentParent], total_balance: 0 };
-      if (path === "/dashboard/net-worth") {
-        return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [] };
-      }
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
     vi.mocked(api.patch).mockResolvedValue({ ok: true });
     renderAccounts();
 
-    const wallet = (await screen.findAllByRole("region", { name: "Rekening GoPay" }))[0];
-    await user.click(within(wallet).getByRole("button", { name: "Opsi GoPay" }));
-    await user.click(within(screen.getByRole("group", { name: "Opsi GoPay" })).getByRole("button", { name: "Ubah rekening" }));
+    const drawer = await openDrawer(user, "GoPay", "GoPay");
+    await user.click(within(drawer).getByRole("button", { name: "Ubah rekening" }));
     const dialog = screen.getByRole("dialog", { name: "Ubah Rekening: GoPay" });
     const parentSelect = within(dialog).getByRole("combobox", { name: "Jadikan kantong di bawah" });
     expect(parentSelect).toHaveValue("");
@@ -393,8 +429,7 @@ describe("account and pocket forms", () => {
     const user = userEvent.setup();
     vi.mocked(api.post).mockRejectedValue(new Error("Nama kantong sudah digunakan"));
     renderAccounts();
-    const addPocket = await screen.findAllByRole("button", { name: "Tambah kantong Broker" });
-    await user.click(addPocket[0]);
+    await user.click(within(await openDrawer(user, "Broker", "Broker")).getByRole("button", { name: /Tambah kantong/ }));
     const dialog = screen.getByRole("dialog", { name: /tambah kantong/i });
     const name = within(dialog).getByRole("textbox", { name: "Nama kantong" });
     await user.type(name, "Duplicated");
@@ -409,9 +444,7 @@ describe("account and pocket forms", () => {
   it("submits a balance reconciliation without changing the opening balance", async () => {
     const user = userEvent.setup();
     renderAccounts();
-    const broker = (await screen.findAllByRole("region", { name: "Rekening Broker" }))[0];
-    await user.click(within(broker).getByRole("button", { name: "Opsi Broker" }));
-    await user.click(within(screen.getByRole("group", { name: "Opsi Broker" })).getByRole("button", { name: "Sesuaikan Saldo" }));
+    await user.click(within(await openDrawer(user, "Broker", "Broker")).getByRole("button", { name: "Sesuaikan Saldo" }));
     const dialog = screen.getByRole("dialog", { name: "Sesuaikan Saldo: Broker" });
     const actualBalance = within(dialog).getByRole("textbox", { name: /saldo sebenarnya/i });
     await user.type(actualBalance, "250000");
@@ -423,7 +456,7 @@ describe("account and pocket forms", () => {
     expect(api.patch).not.toHaveBeenCalled();
   });
 
-  it("keeps cards equal height and twelve pockets in a scrollable region", async () => {
+  it("lists twelve pockets as indented rows under their parent and collapses them", async () => {
     const pockets = Array.from({ length: 12 }, (_, index) => ({
       id: `pocket-${index}`,
       parent_id: "jago",
@@ -436,23 +469,21 @@ describe("account and pocket forms", () => {
     }));
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [{ ...investmentParent, id: "jago", name: "Jago", type: "bank", color: "#D97706", balance: 1_200_000, children: pockets }, { ...investmentParent, id: "cash", name: "Cash", type: "cash", balance: 42_000 }, ...pockets], total_balance: 1_242_000 };
-      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 1_200_000, total_assets: 1_200_000, total_liabilities: 0, accounts: [], obligations: [] };
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
 
+    const user = userEvent.setup();
     renderAccounts();
-    const account = (await screen.findAllByRole("region", { name: "Rekening Jago" }))[0];
-    const cash = (await screen.findAllByRole("region", { name: "Rekening Cash" }))[0];
-    expect(screen.getByText("2 Rekening Utama (12 Kantong)")).toBeInTheDocument();
-    expect(within(account).getAllByRole("group", { name: /^Kantong Kantong/ })).toHaveLength(12);
-    expect(within(account).getByRole("region", { name: "12 kantong Jago" })).toHaveClass("overflow-y-auto");
-    expect(within(account).getByRole("region", { name: "12 kantong Jago" })).toHaveAttribute("tabindex", "0");
-    expect(account).toHaveClass("h-[28rem]");
-    expect(cash).toHaveClass("h-[28rem]");
-    expect(within(account).getByText("Jago")).toHaveStyle({ color: "#000000" });
-    expect(within(account).getByText("Rp 1.200.000")).toBeInTheDocument();
-    expect(account).not.toHaveClass("columns-1");
-    expect((await axe(account)).violations).toHaveLength(0);
+    const jago = await row("Jago");
+    expect(within(jago).getByText("12 kantong")).toBeInTheDocument();
+    expect(within(jago).getByText("Rp 1.200.000")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /, kantong di Jago$/ })).toHaveLength(12);
+    const table = jago.closest("table")!;
+    expect((await axe(table)).violations).toHaveLength(0);
+    await user.click(within(jago).getByRole("button", { name: "Tutup kantong Jago" }));
+    expect(screen.queryAllByRole("button", { name: /, kantong di Jago$/ })).toHaveLength(0);
+    expect(within(jago).getByRole("button", { name: "Buka kantong Jago" })).toHaveAttribute("aria-expanded", "false");
   });
 
   it("keeps investment and liquid pocket actions specific to their account types", async () => {
@@ -460,27 +491,28 @@ describe("account and pocket forms", () => {
     const funding = { id: "funding", parent_id: "broker", name: "RDN", type: "bank", balance: 500_000, initial_balance: 500_000, is_archived: false, created_at: "2026-09-01T00:00:00.000Z" };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [{ ...investmentParent, id: "broker", balance: 1_100_000, children: [position, funding] }, position, funding], total_balance: 1_100_000 };
-      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 1_100_000, total_assets: 1_100_000, total_liabilities: 0, accounts: [], obligations: [] };
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
 
     const user = userEvent.setup();
     renderAccounts();
-    const shares = (await screen.findAllByRole("group", { name: "Kantong BBCA" }))[0];
-    const rdn = screen.getAllByRole("group", { name: "Kantong RDN" })[0];
+    const shares = await openDrawer(user, "BBCA, kantong di Broker", "BBCA");
     expect(within(shares).getByRole("button", { name: "Beli" })).toBeInTheDocument();
     expect(within(shares).getByRole("button", { name: "Jual" })).toBeInTheDocument();
+    expect(within(shares).getByRole("button", { name: "Perbarui nilai" })).toBeInTheDocument();
+    expect(within(shares).getByRole("button", { name: "Sesuaikan Saldo" })).toBeInTheDocument();
+    expect(within(shares).getByText("Untung/rugi: +Rp 100.000 (20%)")).toBeInTheDocument();
+    // Escape goes through the workspace's layer stack (covered by the overlay tests); the close control here.
+    await user.click(within(shares).getByRole("button", { name: "Tutup detail" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "BBCA, kantong di Broker" })).toHaveFocus());
+
+    const rdn = await openDrawer(user, "RDN, kantong di Broker", "RDN");
     expect(within(rdn).queryByRole("button", { name: "Beli" })).not.toBeInTheDocument();
     expect(within(rdn).queryByRole("button", { name: /pindah saldo/i })).not.toBeInTheDocument();
-    await user.click(within(shares).getByRole("button", { name: "Opsi BBCA" }));
-    const options = screen.getByRole("group", { name: "Opsi BBCA" });
-    expect(within(options).getByRole("button", { name: "Update Nilai" })).toBeInTheDocument();
-    expect(within(options).getByRole("button", { name: "Sesuaikan Saldo" })).toBeInTheDocument();
-    await user.keyboard("{Escape}");
-    expect(within(shares).getByRole("button", { name: "Opsi BBCA" })).toHaveFocus();
   });
 
-  it("persists explicit top-level and sibling-pocket moves", async () => {
+  it("persists explicit top-level and sibling-pocket moves and returns focus when done", async () => {
     const first = { id: "bank-a", name: "Bank A", type: "bank", balance: 0, initial_balance: 0, is_archived: false, created_at: "2026-09-01T00:00:00.000Z", children: [
       { id: "pocket-a", parent_id: "bank-a", name: "Poket A", type: "bank", balance: 0, initial_balance: 0, is_archived: false },
       { id: "pocket-b", parent_id: "bank-a", name: "Poket B", type: "bank", balance: 0, initial_balance: 0, is_archived: false },
@@ -488,35 +520,31 @@ describe("account and pocket forms", () => {
     const second = { id: "bank-b", name: "Bank B", type: "bank", balance: 0, initial_balance: 0, is_archived: false, created_at: "2026-09-01T00:00:00.000Z", children: [] };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [first, second], total_balance: 0 };
-      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [] };
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
 
     const user = userEvent.setup();
     renderAccounts();
-    const bank = (await screen.findAllByRole("region", { name: "Rekening Bank A" }))[0];
-    await user.click(within(bank).getByRole("button", { name: "Opsi Bank A" }));
-    const bankOptions = screen.getByRole("group", { name: "Opsi Bank A" });
-    expect(within(bankOptions).getByRole("button", { name: "Naikkan urutan" })).toBeDisabled();
-    await user.click(within(bankOptions).getByRole("button", { name: "Turunkan urutan" }));
+    await user.click(await screen.findByRole("button", { name: "Ubah urutan" }));
+    expect(screen.getByRole("button", { name: "Naikkan Bank A" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Turunkan Bank A" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/accounts/reorder", { account_ids: ["bank-b", "bank-a"] }));
 
-    const pocket = within(bank).getByRole("group", { name: "Kantong Poket B" });
-    await user.click(within(pocket).getByRole("button", { name: "Opsi Poket B" }));
-    await user.click(within(screen.getByRole("group", { name: "Opsi Poket B" })).getByRole("button", { name: "Naikkan urutan" }));
+    await user.click(screen.getByRole("button", { name: "Naikkan Poket B" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/accounts/reorder", { account_ids: ["pocket-b", "pocket-a"] }));
+    await user.click(screen.getByRole("button", { name: "Selesai" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Ubah urutan" })).toHaveFocus());
   });
 
   it("requires archive confirmation and reports a failed archive", async () => {
     const user = userEvent.setup();
     vi.mocked(api.del).mockRejectedValue(new Error("Arsip gagal disimpan"));
     renderAccounts();
-    const broker = (await screen.findAllByRole("region", { name: "Rekening Broker" }))[0];
-    await user.click(within(broker).getByRole("button", { name: "Opsi Broker" }));
-    const options = screen.getByRole("group", { name: "Opsi Broker" });
-    await user.click(within(options).getByRole("button", { name: "Arsipkan rekening Broker" }));
+    const drawer = await openDrawer(user, "Broker", "Broker");
+    await user.click(within(drawer).getByRole("button", { name: "Arsipkan rekening Broker" }));
     expect(api.del).not.toHaveBeenCalled();
-    await user.click(within(options).getByRole("button", { name: "Ya, lanjutkan" }));
+    await user.click(within(drawer).getByRole("button", { name: "Ya, lanjutkan" }));
     await waitFor(() => expect(api.del).toHaveBeenCalledWith("/accounts/investment-parent"));
     expect(await screen.findAllByRole("alert", { name: "" })).toEqual(expect.arrayContaining([
       expect.objectContaining({ textContent: "Arsip gagal disimpan" }),
@@ -527,21 +555,20 @@ describe("account and pocket forms", () => {
     const second = { ...investmentParent, id: "second", name: "Second" };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [investmentParent, second], total_balance: 0 };
-      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [] };
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
     vi.mocked(api.post).mockRejectedValue(new Error("Network unavailable"));
     const user = userEvent.setup();
     renderAccounts();
-    const broker = (await screen.findAllByRole("region", { name: "Rekening Broker" }))[0];
-    await user.click(within(broker).getByRole("button", { name: "Opsi Broker" }));
-    await user.click(within(screen.getByRole("group", { name: "Opsi Broker" })).getByRole("button", { name: "Turunkan urutan" }));
+    await user.click(await screen.findByRole("button", { name: "Ubah urutan" }));
+    await user.click(screen.getByRole("button", { name: "Turunkan Broker" }));
     expect((await screen.findAllByRole("alert")).some((alert) => alert.textContent?.includes("Urutan gagal disimpan"))).toBe(true);
-    const groups = screen.getAllByRole("region", { name: /^Rekening / });
-    expect(groups[0]).toHaveAccessibleName("Rekening Broker");
+    const list = screen.getByRole("list", { name: "Ubah urutan rekening" });
+    expect(within(list).getAllByRole("listitem")[0]).toHaveTextContent(/^Broker/);
   });
 
-  it("keeps pointer drag ordering on account groups and sibling rows", async () => {
+  it("keeps pointer drag ordering on accounts and sibling pockets", async () => {
     const pockets = [
       { id: "first-pocket", parent_id: "first", name: "First pocket", type: "bank", balance: 0, initial_balance: 0, is_archived: false },
       { id: "second-pocket", parent_id: "first", name: "Second pocket", type: "bank", balance: 0, initial_balance: 0, is_archived: false },
@@ -551,22 +578,23 @@ describe("account and pocket forms", () => {
     const second = { ...investmentParent, id: "second", name: "Second", type: "bank", children: [targetPocket] };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [first, second, ...pockets, targetPocket], total_balance: 0 };
-      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [] };
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
+    const user = userEvent.setup();
     renderAccounts();
-    const firstGroup = (await screen.findAllByRole("region", { name: "Rekening First" }))[0];
-    const secondGroup = screen.getAllByRole("region", { name: "Rekening Second" })[0];
+    await user.click(await screen.findByRole("button", { name: "Ubah urutan" }));
+    const list = screen.getByRole("list", { name: "Ubah urutan rekening" });
+    const [firstItem, secondItem] = within(list).getAllByRole("listitem").filter((item) => item.parentElement === list);
     const dragData = { setData: vi.fn(), effectAllowed: "move", dropEffect: "move" };
 
-    fireEvent.dragStart(firstGroup.querySelector('[draggable="true"]')!, { dataTransfer: dragData });
-    const targetRow = within(secondGroup).getByRole("group", { name: "Kantong Target pocket" });
-    fireEvent.dragOver(targetRow, { dataTransfer: dragData });
-    fireEvent.drop(targetRow, { dataTransfer: dragData });
+    fireEvent.dragStart(firstItem.querySelector('[draggable="true"]')!, { dataTransfer: dragData });
+    fireEvent.dragOver(secondItem, { dataTransfer: dragData });
+    fireEvent.drop(secondItem, { dataTransfer: dragData });
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/accounts/reorder", { account_ids: ["second", "first"] }));
 
-    const firstPocket = within(firstGroup).getByRole("group", { name: "Kantong First pocket" });
-    const secondPocket = within(firstGroup).getByRole("group", { name: "Kantong Second pocket" });
+    const pocketList = screen.getByRole("list", { name: "Ubah urutan kantong First" });
+    const [firstPocket, secondPocket] = within(pocketList).getAllByRole("listitem");
     fireEvent.dragStart(firstPocket.querySelector('[draggable="true"]')!, { dataTransfer: dragData });
     fireEvent.dragOver(secondPocket, { dataTransfer: dragData });
     fireEvent.drop(secondPocket, { dataTransfer: dragData });
@@ -584,28 +612,21 @@ describe("account and pocket forms", () => {
     const fine = { ...investmentParent, id: "fine", name: "GoPay", type: "wallet", balance: 5_000, reconciliation_required: false };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [jago, cash, fine, flaggedPocket, calmPocket], total_balance: -15_000 };
-      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [] };
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
     const user = userEvent.setup();
     renderAccounts();
 
-    for (const region of await screen.findAllByRole("region", { name: "Rekening Kas" })) {
-      expect(within(region).getByRole("button", { name: "Perlu rekonsiliasi: sesuaikan saldo Kas" })).toHaveTextContent("Perlu rekonsiliasi");
-    }
-    for (const region of screen.getAllByRole("region", { name: "Rekening Bank Jago" })) {
-      expect(within(region).getByText("1 kantong perlu rekonsiliasi")).toBeInTheDocument();
-      expect(within(within(region).getByRole("group", { name: "Kantong Kantong Utama" })).getByRole("button", { name: "Perlu rekonsiliasi: sesuaikan saldo Kantong Utama" })).toBeInTheDocument();
-      expect(within(within(region).getByRole("group", { name: "Kantong Tabungan" })).queryByText(/rekonsiliasi/i)).not.toBeInTheDocument();
-    }
-    for (const region of screen.getAllByRole("region", { name: "Rekening GoPay" })) {
-      expect(within(region).queryByText(/rekonsiliasi/i)).not.toBeInTheDocument();
-    }
-    const jagoCard = screen.getAllByRole("region", { name: "Rekening Bank Jago" })[0];
-    expect((await axe(jagoCard)).violations).toHaveLength(0);
-    expect((await axe(screen.getAllByRole("region", { name: "Rekening Kas" })[0])).violations).toHaveLength(0);
+    expect(within(await row("Kas")).getByRole("button", { name: "Perlu rekonsiliasi: sesuaikan saldo Kas" })).toHaveTextContent("Perlu rekonsiliasi");
+    expect(within(await row("Bank Jago")).getByText("1 kantong perlu rekonsiliasi")).toBeInTheDocument();
+    const pocketRow = await row("Kantong Utama, kantong di Bank Jago");
+    expect(within(pocketRow).getByRole("button", { name: "Perlu rekonsiliasi: sesuaikan saldo Kantong Utama" })).toBeInTheDocument();
+    expect(within(await row("Tabungan, kantong di Bank Jago")).queryByText(/rekonsiliasi/i)).not.toBeInTheDocument();
+    expect(within(await row("GoPay")).queryByText(/rekonsiliasi/i)).not.toBeInTheDocument();
+    expect((await axe(pocketRow.closest("table")!)).violations).toHaveLength(0);
 
-    const pocketFlag = within(jagoCard).getByRole("button", { name: "Perlu rekonsiliasi: sesuaikan saldo Kantong Utama" });
+    const pocketFlag = within(pocketRow).getByRole("button", { name: "Perlu rekonsiliasi: sesuaikan saldo Kantong Utama" });
     pocketFlag.focus();
     await user.keyboard("{Enter}");
     const dialog = screen.getByRole("dialog", { name: "Sesuaikan Saldo: Kantong Utama" });
@@ -617,8 +638,8 @@ describe("account and pocket forms", () => {
         const cleared = { ...flaggedPocket, balance: 0, reconciliation_required: false };
         return { ok: true, accounts: [{ ...jago, children: [cleared, calmPocket] }, cash, fine, cleared, calmPocket], total_balance: 10_000 };
       }
-      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [] };
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
     await user.click(within(dialog).getByRole("button", { name: "Konfirmasi & Sesuaikan Saldo" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/accounts/jago-main/reconcile", { actual_balance: 0, notes: null }));
@@ -632,12 +653,52 @@ describe("account and pocket forms", () => {
     };
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/accounts") return { ok: true, accounts: [product], total_balance: 0 };
-      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [] };
-      return { ok: true, rules: [], accounts: [], results: [] };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
     });
+    const user = userEvent.setup();
     renderAccounts();
-    const card = (await screen.findAllByRole("region", { name: "Rekening Reksa Contoh" }))[0];
-    expect(within(card).getByText("Perlu rekonsiliasi")).toBeInTheDocument();
-    expect(within(card).queryByRole("button", { name: /perlu rekonsiliasi/i })).not.toBeInTheDocument();
+    const productRow = await row("Reksa Contoh");
+    expect(within(productRow).getByText("Perlu rekonsiliasi")).toBeInTheDocument();
+    expect(within(productRow).queryByRole("button", { name: /perlu rekonsiliasi/i })).not.toBeInTheDocument();
+    const drawer = await openDrawer(user, "Reksa Contoh", "Reksa Contoh");
+    expect(within(drawer).getByText("Perlu rekonsiliasi")).toBeInTheDocument();
+    expect(within(drawer).queryByRole("button", { name: "Sesuaikan Saldo" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the table switch in the address and counts unfinished movements without amounts", async () => {
+    const bank = { id: "bank", name: "Bank Utama", type: "bank", balance: 1_000, initial_balance: 0, is_archived: false, children: [] };
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { ok: true, accounts: [bank, investmentParent], total_balance: 1_000 };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      if (path === "/review/queue") return { ok: true, awaiting: [{ id: "t1", account_id: "bank", amount: 50_000 }, { id: "t2", account_id: "bank", amount: 70_000 }] };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
+    });
+    const user = userEvent.setup();
+    renderAccounts();
+    expect(within(await row("Bank Utama")).getByText("2 pindah saldo belum lengkap")).toBeInTheDocument();
+    expect(screen.queryByText(/Rp 120\.000|Rp 50\.000/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Investasi" }));
+    expect(window.location.search).toBe("?tampil=investasi");
+    expect(screen.queryByRole("button", { name: "Bank Utama" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Broker" })).toBeInTheDocument();
+  });
+
+  it("opens a drawer from ?akun= and masks every amount when balances are hidden", async () => {
+    const bank = { id: "bank", name: "Bank Utama", type: "bank", balance: 1_000, initial_balance: 0, is_archived: false, color: "#2563EB", children: [] };
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { ok: true, accounts: [bank], total_balance: 1_000 };
+      if (path === "/dashboard/net-worth") return { ...{ ok: true, net_worth: 1000, total_assets: 1000, total_liabilities: 0, accounts: [], obligations: [], liquid: 1000, investment: 0, reconciliation_pending: 0, lines: [{ key: "liquid", label: "Dana likuid", amount: 1000 }] } };
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
+    });
+    realReplace(null, "", "/accounts?akun=bank");
+    hidden.on = true;
+    renderAccounts();
+    const drawer = await screen.findByRole("dialog", { name: /^Bank Utama/ });
+    expect(within(drawer).getByRole("button", { name: /Tambah kantong/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Rp 1\.000/)).not.toBeInTheDocument();
+    // The colour mark is decorative; the kind is written beside it.
+    expect(within(await row("Bank Utama")).getAllByText("Bank").length).toBeGreaterThan(0);
+    hidden.on = false;
   });
 });

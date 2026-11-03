@@ -200,7 +200,7 @@ export function CategoryBudgetSection({
                     {anyBudget ? "Batas Anggaran Kategori" : "Pengeluaran per Kategori"}
                   </h3>
                   {overBudgetCount > 0 && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-out-solid/10 text-out-fg border border-out-solid/20">
                       {overBudgetCount} melebihi batas
                     </span>
                   )}
@@ -230,7 +230,7 @@ export function CategoryBudgetSection({
                 <button
                   type="button"
                   onClick={() => openCreateCategory()}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-income-contrast text-xs font-bold shadow-xs transition-[background-color,transform] active:scale-95 cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-in-solid hover:bg-in-solid text-in-solid-fg text-xs font-bold shadow-xs transition-[background-color,transform] active:scale-95 cursor-pointer"
                 >
                   <Icon name="plus" className="h-3.5 w-3.5" />
                   <span>Tambah Kategori</span>
@@ -248,7 +248,7 @@ export function CategoryBudgetSection({
                 <div className="hidden lg:block overflow-x-auto">
                   <table className="w-full text-xs text-left">
                     <thead>
-                      <tr className="border-b border-[var(--border)] text-[var(--muted)] uppercase text-[10px] font-semibold">
+                      <tr className="border-b border-[var(--line)] text-[var(--muted)] uppercase text-[10px] font-semibold">
                         <th className="pb-3 font-semibold">Kategori</th>
                         <th className="pb-3 font-semibold text-right">Terpakai</th>
                         {anyBudget && (
@@ -261,7 +261,7 @@ export function CategoryBudgetSection({
                         <th className="pb-3 font-semibold text-right w-16">Aksi</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[var(--border)]">
+                    <tbody className="divide-y divide-[var(--line)]">
                       {categories.map((cat: any) => {
                         const hasBudget = cat.budget && cat.budget > 0;
                         const isOver = cat.status === "over_budget";
@@ -272,7 +272,7 @@ export function CategoryBudgetSection({
                         return (
                           <tr
                             key={cat.id ?? "uncategorized"}
-                            className="hover:bg-[var(--surface-raised)]/50 transition-colors"
+                            className="hover:bg-[var(--surface-2)]/50 transition-colors"
                           >
                             <td className="py-3.5 pr-4">
                               <div className="flex items-center gap-2.5">
@@ -291,11 +291,11 @@ export function CategoryBudgetSection({
                                       {cat.name}
                                     </span>
                                     {cat.is_archived && (
-                                      <span className="rounded-full border border-[var(--border)] px-1.5 text-[10px] font-semibold text-[var(--text-secondary)]">Diarsipkan</span>
+                                      <span className="rounded-full border border-[var(--line)] px-1.5 text-[10px] font-semibold text-[var(--text-2)]">Diarsipkan</span>
                                     )}
                                   </div>
                                   {hasBudget && (
-                                    <div className="w-24 sm:w-36 h-1.5 rounded-full bg-[var(--border)]/60 overflow-hidden mt-1">
+                                    <div className="w-24 sm:w-36 h-1.5 rounded-full bg-[var(--line)]/60 overflow-hidden mt-1">
                                       <div
                                         style={{
                                           width: `${Math.min(cat.percentage_used, 100)}%`,
@@ -303,10 +303,10 @@ export function CategoryBudgetSection({
                                         className={cn(
                                           "h-full rounded-full transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
                                           isOver
-                                            ? "bg-rose-500 shadow-rose-500/30"
+                                            ? "bg-out-solid shadow-out-solid/30"
                                             : isWarning
-                                            ? "bg-amber-500 shadow-amber-500/30"
-                                            : "bg-emerald-500 shadow-emerald-500/30"
+                                            ? "bg-warn-solid shadow-warn-solid/30"
+                                            : "bg-in-solid shadow-in-solid/30"
                                         )}
                                       />
                                     </div>
@@ -320,7 +320,7 @@ export function CategoryBudgetSection({
                                 <Link
                                   href={drill}
                                   aria-label={`${bal(cat.spent)}, lihat transaksi ${cat.name}`}
-                                  className="rounded underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                                  className="rounded underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
                                 >
                                   {bal(cat.spent)}
                                 </Link>
@@ -334,7 +334,7 @@ export function CategoryBudgetSection({
                               <button
                                 type="button"
                                 onClick={() => openEditCategory(cat)}
-                                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-[var(--surface-raised)] text-[var(--text)] font-semibold border border-transparent hover:border-[var(--border)] transition-colors group/btn cursor-pointer"
+                                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-[var(--surface-2)] text-[var(--text)] font-semibold border border-transparent hover:border-[var(--line)] transition-colors group/btn cursor-pointer"
                                 title="Atur batas anggaran"
                               >
                                 <span>{hasBudget ? bal(cat.budget) : "Atur batas"}</span>
@@ -353,7 +353,7 @@ export function CategoryBudgetSection({
                                 <span
                                   className={cn(
                                     "font-semibold",
-                                    cat.variance >= 0 ? "text-emerald-500" : "text-rose-500"
+                                    cat.variance >= 0 ? "text-in-fg" : "text-out-fg"
                                   )}
                                 >
                                   {cat.variance >= 0
@@ -370,12 +370,12 @@ export function CategoryBudgetSection({
                                 className={cn(
                                   "px-2 py-0.5 rounded-full text-[10px] font-bold tabular",
                                   isOver
-                                    ? "bg-rose-500/10 text-rose-500 border border-rose-500/20"
+                                    ? "bg-out-solid/10 text-out-fg border border-out-solid/20"
                                     : isWarning
-                                    ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                                    ? "bg-warn-solid/10 text-warn-fg border border-warn-solid/20"
                                     : hasBudget
-                                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                                    : "bg-[var(--surface-raised)] text-[var(--muted)]"
+                                    ? "bg-in-solid/10 text-in-fg border border-in-solid/20"
+                                    : "bg-[var(--surface-2)] text-[var(--muted)]"
                                 )}
                               >
                                 {isOver
@@ -398,7 +398,7 @@ export function CategoryBudgetSection({
                                   type="button"
                                   onClick={() => openEditCategory(cat)}
                                   aria-label={`Edit kategori ${cat.name}`}
-                                  className="p-1.5 rounded-lg hover:bg-[var(--surface-raised)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
+                                  className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
                                   title="Edit kategori"
                                 >
                                   <Icon name="edit" className="h-3.5 w-3.5" />
@@ -408,7 +408,7 @@ export function CategoryBudgetSection({
                                   confirmation={`Yakin ingin mengarsipkan kategori "${cat.name}"?`}
                                   onConfirm={() => deleteCategoryMutation.mutate(cat.id)}
                                   disabled={deleteCategoryMutation.isPending}
-                                  className="p-1.5 rounded-lg hover:bg-rose-500/10 text-[var(--muted)] hover:text-rose-500 transition-colors disabled:opacity-50 cursor-pointer"
+                                  className="p-1.5 rounded-lg hover:bg-out-solid/10 text-[var(--muted)] hover:text-out-fg transition-colors disabled:opacity-50 cursor-pointer"
                                 >
                                   <Icon name="trash" className="h-3.5 w-3.5" />
                                 </ConfirmActionButton>
@@ -434,7 +434,7 @@ export function CategoryBudgetSection({
                     return (
                       <div
                         key={`mobile-cat-${cat.id ?? "uncategorized"}`}
-                        className="p-3.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)]/30 hover:bg-[var(--surface-raised)]/60 transition-colors space-y-2.5"
+                        className="p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/60 transition-colors space-y-2.5"
                       >
                         {/* Row 1: Icon + Name + Terpakai */}
                         <div className="flex items-center justify-between gap-2">
@@ -452,7 +452,7 @@ export function CategoryBudgetSection({
                               {cat.name}
                             </span>
                             {cat.is_archived && (
-                              <span className="shrink-0 rounded-full border border-[var(--border)] px-1.5 text-[10px] font-semibold text-[var(--text-secondary)]">Diarsipkan</span>
+                              <span className="shrink-0 rounded-full border border-[var(--line)] px-1.5 text-[10px] font-semibold text-[var(--text-2)]">Diarsipkan</span>
                             )}
                           </div>
                           <div className="text-right shrink-0">
@@ -460,7 +460,7 @@ export function CategoryBudgetSection({
                               <Link
                                 href={drill}
                                 aria-label={`${bal(cat.spent)}, lihat transaksi ${cat.name}`}
-                                className="inline-flex min-h-6 items-center text-xs font-black tabular tracking-tight text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                                className="inline-flex min-h-6 items-center text-xs font-black tabular tracking-tight text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
                               >
                                 {bal(cat.spent)}
                               </Link>
@@ -475,7 +475,7 @@ export function CategoryBudgetSection({
 
                         {/* Row 2: 6px Smooth Progress Bar (if budget set) */}
                         {hasBudget && (
-                          <div className="w-full h-1.5 rounded-full bg-[var(--border)]/60 overflow-hidden">
+                          <div className="w-full h-1.5 rounded-full bg-[var(--line)]/60 overflow-hidden">
                             <div
                               style={{
                                 width: `${Math.min(cat.percentage_used, 100)}%`,
@@ -483,10 +483,10 @@ export function CategoryBudgetSection({
                               className={cn(
                                 "h-full rounded-full transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
                                 isOver
-                                  ? "bg-rose-500 shadow-rose-500/30"
+                                  ? "bg-out-solid shadow-out-solid/30"
                                   : isWarning
-                                  ? "bg-amber-500 shadow-amber-500/30"
-                                  : "bg-emerald-500 shadow-emerald-500/30"
+                                  ? "bg-warn-solid shadow-warn-solid/30"
+                                  : "bg-in-solid shadow-in-solid/30"
                               )}
                             />
                           </div>
@@ -499,12 +499,12 @@ export function CategoryBudgetSection({
                             className={cn(
                               "px-2 py-0.5 rounded-full text-[10px] font-bold tabular",
                               isOver
-                                ? "bg-rose-500/10 text-rose-500 border border-rose-500/20"
+                                ? "bg-out-solid/10 text-out-fg border border-out-solid/20"
                                 : isWarning
-                                ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                                ? "bg-warn-solid/10 text-warn-fg border border-warn-solid/20"
                                 : hasBudget
-                                ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                                : "bg-[var(--surface-raised)] text-[var(--muted)] border border-[var(--border)]"
+                                ? "bg-in-solid/10 text-in-fg border border-in-solid/20"
+                                : "bg-[var(--surface-2)] text-[var(--muted)] border border-[var(--line)]"
                             )}
                           >
                             {isOver
@@ -521,7 +521,7 @@ export function CategoryBudgetSection({
                               <span
                                 className={cn(
                                   "font-semibold",
-                                  cat.variance >= 0 ? "text-emerald-500" : "text-rose-500"
+                                  cat.variance >= 0 ? "text-in-fg" : "text-out-fg"
                                 )}
                               >
                                 {cat.variance >= 0
@@ -541,11 +541,11 @@ export function CategoryBudgetSection({
 
                         {/* Row 4: Subtle Touch Actions */}
                         {managed && (
-                        <div className="border-t border-[var(--border)]/50 pt-2 flex items-center justify-between gap-2">
+                        <div className="border-t border-[var(--line)]/50 pt-2 flex items-center justify-between gap-2">
                           <button
                             type="button"
                             onClick={() => openEditCategory(cat)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-raised)] text-[11px] font-semibold text-[var(--text)] border border-[var(--border)] transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] text-[11px] font-semibold text-[var(--text)] border border-[var(--line)] transition-colors cursor-pointer"
                           >
                             <Icon name="edit" className="h-3 w-3 text-[var(--muted)]" />
                             <span>{hasBudget ? "Ubah Batas" : anyBudget ? "Atur Batas" : "Ubah"}</span>
@@ -556,7 +556,7 @@ export function CategoryBudgetSection({
                             confirmation={`Yakin ingin mengarsipkan kategori "${cat.name}"?`}
                             onConfirm={() => deleteCategoryMutation.mutate(cat.id)}
                             disabled={deleteCategoryMutation.isPending}
-                            className="p-1.5 rounded-lg text-[var(--muted)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors disabled:opacity-50 cursor-pointer"
+                            className="p-1.5 rounded-lg text-[var(--muted)] hover:text-out-fg hover:bg-out-solid/10 transition-colors disabled:opacity-50 cursor-pointer"
                           >
                             <Icon name="trash" className="h-3.5 w-3.5" />
                           </ConfirmActionButton>
@@ -572,7 +572,7 @@ export function CategoryBudgetSection({
 
           <section
             aria-labelledby="income-category-heading"
-            className="space-y-4 border-t border-[var(--border)] pt-5"
+            className="space-y-4 border-t border-[var(--line)] pt-5"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -586,7 +586,7 @@ export function CategoryBudgetSection({
               <button
                 type="button"
                 onClick={() => openCreateCategory("income")}
-                className="inline-flex min-h-10 items-center justify-center gap-1.5 self-start rounded-xl bg-emerald-500 px-3.5 py-1.5 text-xs font-bold text-income-contrast shadow-xs transition-colors hover:bg-emerald-400 sm:self-auto"
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 self-start rounded-xl bg-in-solid px-3.5 py-1.5 text-xs font-bold text-in-solid-fg shadow-xs transition-colors hover:bg-in-solid sm:self-auto"
               >
                 <Icon name="plus" className="h-3.5 w-3.5" />
                 Tambah Kategori Pemasukan
@@ -602,7 +602,7 @@ export function CategoryBudgetSection({
                 {incomeCategories.map((category) => (
                   <li
                     key={category.id}
-                    className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3"
+                    className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3"
                   >
                     <div className="flex min-w-0 items-center gap-2">
                       <span
@@ -634,7 +634,7 @@ export function CategoryBudgetSection({
                           confirmation={`Yakin ingin mengarsipkan kategori "${category.name}"?`}
                           onConfirm={() => deleteCategoryMutation.mutate(category.id)}
                           disabled={deleteCategoryMutation.isPending}
-                          className="min-h-9 min-w-9 rounded-lg text-[var(--muted)] transition-colors hover:bg-rose-500/10 hover:text-rose-500 disabled:opacity-50"
+                          className="min-h-9 min-w-9 rounded-lg text-[var(--muted)] transition-colors hover:bg-out-solid/10 hover:text-out-fg disabled:opacity-50"
                         >
                           <Icon name="trash" className="mx-auto h-3.5 w-3.5" />
                         </ConfirmActionButton>
@@ -649,7 +649,7 @@ export function CategoryBudgetSection({
           {archivedCategories.length > 0 && (
             <section
               aria-labelledby="archived-category-heading"
-              className="space-y-4 border-t border-[var(--border)] pt-5"
+              className="space-y-4 border-t border-[var(--line)] pt-5"
             >
               <div>
                 <h3 id="archived-category-heading" className="text-base font-bold tracking-tight text-[var(--text)]">
@@ -663,7 +663,7 @@ export function CategoryBudgetSection({
                 {archivedCategories.map((category) => (
                   <li
                     key={category.id}
-                    className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3"
+                    className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3"
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-[var(--text)]">{category.name}</p>
@@ -676,7 +676,7 @@ export function CategoryBudgetSection({
                       aria-label={`Pulihkan kategori ${category.name}`}
                       onClick={() => restoreCategoryMutation.mutate(category.id)}
                       disabled={restoreCategoryMutation.isPending}
-                      className="min-h-9 shrink-0 rounded-lg border border-[var(--border)] px-3 text-xs font-semibold text-[var(--text)] transition-colors hover:bg-[var(--surface)] disabled:opacity-50"
+                      className="min-h-9 shrink-0 rounded-lg border border-[var(--line)] px-3 text-xs font-semibold text-[var(--text)] transition-colors hover:bg-[var(--surface)] disabled:opacity-50"
                     >
                       Pulihkan
                     </button>
@@ -703,7 +703,7 @@ export function CategoryBudgetSection({
             }}
           >
             {catError && (
-              <div role="alert" aria-live="assertive" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-medium">
+              <div role="alert" aria-live="assertive" className="p-3 rounded-xl bg-out-solid/10 border border-out-solid/20 text-out-fg font-medium">
                 {catError}
               </div>
             )}
@@ -722,7 +722,7 @@ export function CategoryBudgetSection({
                 value={catName}
                 onChange={(e) => setCatName(e.target.value)}
                 placeholder="Contoh: Langganan Streaming, Asuransi, dsb"
-                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-semibold text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+                className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-semibold text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
               />
             </div>
 
@@ -733,7 +733,7 @@ export function CategoryBudgetSection({
                 name="kind"
                 value={catKind}
                 onChange={(event) => setCatKind(event.target.value as "expense" | "income")}
-                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+                className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
               >
                 <option value="expense">Pengeluaran</option>
                 <option value="income">Pemasukan</option>
@@ -744,7 +744,7 @@ export function CategoryBudgetSection({
               <div>
                 <div>
                   <label htmlFor="category-kakeibo" className="text-xs font-medium text-[var(--muted)] block mb-1">Pilar Kakeibo bawaan</label>
-                  <select id="category-kakeibo" name="kakeibo_type" value={catKakeiboType} onChange={(event) => setCatKakeiboType(event.target.value as typeof catKakeiboType)} className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]">
+                  <select id="category-kakeibo" name="kakeibo_type" value={catKakeiboType} onChange={(event) => setCatKakeiboType(event.target.value as typeof catKakeiboType)} className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]">
                     <option value="">Belum diklasifikasi</option>
                     {KAKEIBO_PILLARS.map((pillar) => (
                       <option key={pillar.value} value={pillar.value}>{pillar.label}</option>
@@ -771,8 +771,8 @@ export function CategoryBudgetSection({
                     className={cn(
                       "flex min-h-11 flex-col items-center justify-center rounded-xl border p-2 transition-[border-color,background-color,color] cursor-pointer",
                       catIcon === ic.id
-                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-500"
-                        : "border-[var(--border)] bg-[var(--surface-raised)]/60 text-[var(--muted)] hover:text-[var(--text)]"
+                        ? "border-in-solid bg-in-solid/10 text-in-fg"
+                        : "border-[var(--line)] bg-[var(--surface-2)]/60 text-[var(--muted)] hover:text-[var(--text)]"
                     )}
                   >
                     <Icon name={ic.id} className="h-4 w-4 mb-1" />
@@ -796,7 +796,7 @@ export function CategoryBudgetSection({
                     className={cn(
                       "min-h-11 min-w-11 rounded-full border-4 border-[var(--surface)] transition-transform cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--text)]",
                       catColor === c
-                        ? "ring-2 ring-offset-2 ring-offset-[var(--surface)] ring-emerald-500 scale-110"
+                        ? "ring-2 ring-offset-2 ring-offset-[var(--surface)] ring-in-solid scale-110"
                         : "opacity-80 hover:opacity-100 hover:scale-105"
                     )}
                   />
@@ -819,18 +819,18 @@ export function CategoryBudgetSection({
                   setCatBudget(formatNumberWithDots(e.target.value))
                 }
                 placeholder="Kosongkan jika tanpa batas"
-                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-semibold tabular text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+                className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-base font-semibold tabular text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
               />
               <p className="text-[11px] text-[var(--muted)] mt-1">
                 Batas pengeluaran bulanan untuk memantau disiplin anggaran kategori.
               </p>
             </div></FormSection>}
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border)]">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--line)]">
               <button
                 type="button"
                 onClick={() => setCatModalOpen(false)}
-                className="px-4 py-2 rounded-xl border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-raised)] cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-[var(--line)] text-[var(--muted)] hover:bg-[var(--surface-2)] cursor-pointer"
               >
                 Batal
               </button>

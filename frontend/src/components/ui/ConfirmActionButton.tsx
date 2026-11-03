@@ -65,7 +65,7 @@ export function ConfirmActionButton({
           stopEventPropagation(event);
           setIsConfirming(false);
         }}
-        className="min-h-11 rounded-lg border border-[var(--border)] px-2.5 text-[11px] font-semibold text-[var(--muted)]"
+        className="min-h-11 rounded-lg border border-[var(--line)] px-2.5 text-[11px] font-semibold text-[var(--muted)]"
       >
         Batal
       </button>

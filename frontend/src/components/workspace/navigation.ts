@@ -88,7 +88,7 @@ const PAGE_META: [string, PageMeta][] = [
   ["/goals", { title: "Target & Tagihan", subtitle: "Target tabungan, utang, dan rencana bayar" }],
   ["/insights", { title: "Analisis", subtitle: "Ke mana uang digunakan, dibanding periode lalu" }],
   ["/laporan", { title: "Laporan", subtitle: "Laporan bulanan Kakeibo" }],
-  ["/settings", { title: "Pengaturan", subtitle: "Profil, gaji, anggaran, HP, dan pengirim" }],
+  ["/settings", { title: "Pengaturan", subtitle: "HP, kebiasaan, tampilan dan akun" }],
 ];
 
 /** Title and subtitle of the top bar from the route; Beranda writes its own date and period line. */

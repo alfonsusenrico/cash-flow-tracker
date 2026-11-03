@@ -212,8 +212,11 @@ def _goal_lines(
     return lines
 
 
-def _net_worth(cur, user_id: str, accounts: list[dict[str, Any]]) -> dict[str, Any]:
-    """Assets less active debts, each account counted once (a parent's balance already holds its pockets)."""
+def net_worth_breakdown(cur, user_id: str, accounts: list[dict[str, Any]]) -> dict[str, Any]:
+    """Assets less active debts, each account counted once (a parent's balance already holds its pockets).
+
+    The one net worth rule: Beranda (`/dashboard/cycle-summary`) and Rekening (`/dashboard/net-worth`) both use it.
+    """
     balances = summarize_account_balances(accounts)
     cur.execute(
         """
@@ -355,7 +358,7 @@ def build_cycle_summary(
             unpaid_plan_lines(cur, user_id, payday_day, start_date, window_end, today)
             + _goal_lines(cur, user_id, accounts, start, end, start_date, today)
         )
-        net_worth = _net_worth(cur, user_id, accounts)
+        net_worth = net_worth_breakdown(cur, user_id, accounts)
         comparison = _comparison(cur, user_id, kakeibo_breakdown, (start, end, window_label), previous)
 
     scheduled_total = sum(line["amount"] for line in scheduled_lines)
@@ -394,6 +397,8 @@ def build_cycle_summary(
         "waiting": waiting,
         "scheduled": {
             "total": scheduled_total,
+            # The bills part alone, for Target & Tagihan's list (redesign-money-and-settings D4).
+            "plans_total": sum(line["amount"] for line in scheduled_lines if line["kind"] == "plan"),
             "window_start": start_date.isoformat(),
             "window_end": window_end.isoformat(),
             "window_basis": window_basis,

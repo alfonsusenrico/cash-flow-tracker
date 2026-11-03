@@ -253,41 +253,29 @@ Transactions is the cash ledger. This is the most important operational page bec
 
 Enter transactions regularly. If the ledger is incomplete, almost every other screen becomes less useful.
 
-## 3. Accounts
+## 3. Rekening & Kantong
 
-Route: `/accounts`
+Route: `/accounts` (`?tampil=siap|investasi` shows one table, `?akun=<id>` opens an account's drawer)
 
-Accounts are where cash lives. Create accounts before entering transactions.
+Rekening & Kantong lists where the money is. The summary card comes first on a phone and beside the tables on a computer.
+
+### What You See
+
+- **Uang siap pakai**: a table of bank, e-wallet and cash accounts with their balances. Pockets ("kantong") are indented rows under their account and can be folded. A row says when an account needs reconciliation ("Perlu rekonsiliasi") and how many unfinished movements it has; the movements are completed in Tinjau.
+- **Investasi**: products grouped by platform, with how each is tracked ("Dicatat per nominal", lots × price, or units) and its value.
+- **Total aset**: the server's liquid and investment totals, a bar of the two, and Kekayaan bersih with its lines. Kekayaan bersih is the same figure as on Beranda: a negative balance that waits for reconciliation and every active debt are subtracted on their own lines, and pockets are counted once.
 
 ### What You Can Do
 
-- Add an account with an initial balance.
-- Edit account name and account profile.
-- Delete an account.
-- Search and filter accounts by profile type.
-- Set profile details such as payroll source, buffer account, fixed spending, dynamic spending, no-limit account, and fixed limit amount.
-
-### Data Used
-
-- Account records
-- Current balances from transactions
-- Budgets for the current month or cycle
+- Open a row to see its details and actions in a drawer (a bottom sheet on a phone): add a pocket, top up or buy and sell a product, update a value ("Perbarui nilai"), switch a product to amount tracking, reconcile ("Sesuaikan Saldo"), edit and archive (after a confirmation).
+- "Ubah urutan" lists accounts and pockets with drag handles and move buttons; the order is saved at once. "Selesai" leaves the mode.
+- "Perbarui harga" refreshes market prices, "Rencana" manages planned payments and "Tambah rekening" opens the account form.
 
 ### How It Connects to Other Menus
 
 - Transactions require accounts.
-- Summary uses account balances and account movement.
-- Net Worth uses account balances as liquid assets.
-- Allocation and Buckets can refer to account-linked planning concepts.
-- Assets can optionally link holdings to an account or broker.
-
-### Account Profile Meaning
-
-- Payroll source: account where income arrives.
-- Buffer account: account used as safety reserve.
-- Dynamic spending: account where spending can vary.
-- Fixed spending: account intended for fixed costs.
-- Savings/tabungan: account intended for holding money.
+- Beranda and Tanya show the same Kekayaan bersih.
+- Ketahanan Dana moved to Target & Tagihan.
 
 ## 4. Buckets
 
@@ -435,42 +423,14 @@ Rules are applied by type first, then priority inside each type:
 
 Lower priority numbers run first inside the same type.
 
-## 8. Goals
+## 8. Target & Tagihan
 
-Route: `/goals`
+Route: `/goals` (`?target=<id>` or `?utang=<id>` opens a drawer)
 
-Goals track long-term targets and show how much progress is needed.
-
-### What You Can Do
-
-- Create a goal.
-- Edit or delete/cancel a goal.
-- Set target amount and target date.
-- Set inflation rate and expected return.
-- Link a goal to a bucket.
-- Add a manual contribution.
-
-### Data Used
-
-- Goal records
-- Optional linked buckets and their linked account balances
-- Projection math based on target date, target amount, inflation, and expected return
-
-### How It Connects to Other Menus
-
-- Buckets can represent the money container for a goal. When linked, goal progress uses the bucket balance.
-- Allocation can fund a bucket that supports a goal.
-- Summary shows top goal progress.
-- Dashboard health considers active goals.
-
-### Example
-
-If your goal is "Emergency Fund 30,000,000", create:
-
-- A bucket named Emergency Fund.
-- A goal named Emergency Fund.
-- Link the goal to the bucket.
-- Add allocation items each cycle to fund that bucket.
+- **Ketahanan Dana** comes first on a phone: how many months the emergency fund covers, from the server's runway, or "Belum dapat dihitung" when the essential monthly cost is unknown.
+- **Target tabungan**: one row per goal with its status in words ("Tercapai", "Perlu Rp X/bulan", "Tanpa tanggal"), progress and where the progress comes from. A goal's drawer offers "Tambah progres" only for goals without linked accounts (it records progress, not a transaction), "Ubah target" and "Arsipkan target".
+- **Utang**: paid against total, the remaining amount and the minimum payment. The drawer links an existing payment or records one, edits and archives. Paid-off debts move to the archive list.
+- **Tagihan sampai gaji berikutnya**: the planned payments due before the next salary, the same lines and total as Beranda's Terjadwal (or the next 30 days when the salary date cannot be estimated). "Kelola rencana" opens the plans.
 
 ## 9. Assets
 
@@ -562,6 +522,15 @@ If transactions are uncategorized or categorized incorrectly, spending analysis 
 ## Form Field Reference
 
 This section documents the fields users see when creating or editing data. "Required" means the app expects a value before the record is useful or can be saved correctly. "Optional" means the field can be left blank or at its default value.
+
+## Pengaturan
+
+Route: `/settings` (each section has its own address; wide screens open HP & perangkat)
+
+- **HP & perangkat**: paired phones, the pairing code, device health and the manual API key.
+- **Kebiasaan** (`/settings/kebiasaan`): the habits and investment top-ups learned from answers in Tinjau, read only. Each row says whether it is recorded automatically ("Dicatat otomatis"), still learning ("Masih belajar · 2 dari 3") or asked because answers differ. The automatic-recording switches are server settings and are shown as facts.
+- **Tampilan** (`/settings/tampilan`): theme, single-key shortcuts and "Sembunyikan saldo", the same settings as the account menu and the help dialog.
+- **Akun**: Profil, Gaji & siklus, Mata uang & anggaran, Pemetaan notifikasi and Nama pengirim. Every section saves its own fields.
 
 ## Settings Fields
 

@@ -23,6 +23,12 @@ const CONVERSATION = [
   "Aku berhenti ngecek dulu. Lanjutin di aplikasi HP-mu, ya.",
 ];
 
+const MONEY_ROOTS = ["components/accounts", "components/goals", "components/settings", "app/accounts", "app/goals", "app/settings",
+  "app/auth/login/page.tsx", "components/ui/InvestmentTradeModal.tsx", "components/ui/InvestmentTopupModal.tsx",
+  "components/ui/AmountTrackingSwitchModal.tsx", "components/ui/ReconciliationFlag.tsx", "components/ui/DebtAllocationEditor.tsx",
+  "components/ui/SalarySettingsSection.tsx", "components/ui/SenderAliasesSection.tsx", "components/recurring/RecurringRulesModal.tsx",
+  "components/dashboard/EmergencyCoverage.tsx", "lib/habits.ts"];
+
 const ROOTS = ["components/workspace", "components/beranda", "components/review", "components/transactions", "components/capture",
   "components/ui/DeviceHealthChecklist.tsx", "components/ui/DevicePairingDialog.tsx", "components/ui/DevicePairingSection.tsx",
   "app/ledger/page.tsx", "app/review/page.tsx", "app/page.tsx", "lib/deviceHealth.ts", "lib/reviewUndo.ts", "lib/triage.ts",
@@ -32,7 +38,9 @@ const ROOTS = ["components/workspace", "components/beranda", "components/review"
   "components/tanya", "app/tanya", "lib/tanya/resolve.ts", "lib/tanya/thread.ts", "lib/tanya/types.ts", "lib/capture.ts",
   // Analisis and Laporan (redesign-analysis-and-reports D13).
   "components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx",
-  "lib/reportLead.ts"];
+  "lib/reportLead.ts",
+  // Rekening & Kantong, Target & Tagihan, Pengaturan, their modals and the sign-in page (redesign-money-and-settings D16).
+  ...MONEY_ROOTS];
 
 function sources(entry: string): string[] {
   const full = path.join(__dirname, entry);
@@ -69,6 +77,15 @@ describe("copy register", () => {
       .filter(({ text }) => /\bAnda\b/.test(text))
       .map(({ line, text }) => `${path.relative(__dirname, file)}:${line}: ${text.trim()}`));
     expect(formal).toEqual([]);
+  });
+
+  it("writes the money pages, Pengaturan and their modals impersonally, without the formal Anda", () => {
+    const money = MONEY_ROOTS.flatMap(sources).filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file));
+    const formal = money.flatMap((file) => visibleLines(file)
+      .filter(({ text }) => /\bAnda\b/.test(text))
+      .map(({ line, text }) => `${path.relative(__dirname, file)}:${line}: ${text.trim()}`));
+    expect(formal).toEqual([]);
+    expect(SLANG.test("Anda") || /\bAnda\b/.test('label="Rekening Anda"')).toBe(true);
   });
 
   it("catches a planted informal label", () => {

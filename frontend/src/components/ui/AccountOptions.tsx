@@ -100,7 +100,7 @@ export function AccountOptions({ name, children, iconOnly = false }: AccountOpti
         aria-controls={position ? menuId : undefined}
         onClick={toggle}
         title={`Opsi ${name}`}
-        className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] text-sm font-semibold text-[var(--text)] hover:border-[var(--border-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] ${iconOnly ? "min-w-11" : "px-4"}`}
+        className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--surface-2)] text-sm font-semibold text-[var(--text)] hover:border-[var(--line-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)] ${iconOnly ? "min-w-11" : "px-4"}`}
       >
         {iconOnly ? <Icon name="more-horizontal" className="h-4 w-4" /> : "Opsi"}
       </button>
@@ -112,7 +112,7 @@ export function AccountOptions({ name, children, iconOnly = false }: AccountOpti
           aria-label={`Opsi ${name}`}
           onKeyDown={keepTabOrder}
           style={{ left: position.left, top: position.top, maxHeight: position.maxHeight }}
-          className="fixed z-[100] flex w-60 max-w-[calc(100vw-1rem)] flex-col gap-1 overflow-y-auto overscroll-contain rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-2 text-[var(--text)] shadow-lg [&_button]:min-h-11 [&_button]:w-full [&_button]:rounded-lg [&_button]:px-3 [&_button]:text-left [&_button]:text-sm [&_button]:font-medium [&_button:hover]:bg-[var(--surface-raised)] [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-2 [&_button:focus-visible]:outline-[var(--primary)]"
+          className="fixed z-[100] flex w-60 max-w-[calc(100vw-1rem)] flex-col gap-1 overflow-y-auto overscroll-contain rounded-xl border border-[var(--line-strong)] bg-[var(--surface)] p-2 text-[var(--text)] shadow-lg [&_button]:min-h-11 [&_button]:w-full [&_button]:rounded-lg [&_button]:px-3 [&_button]:text-left [&_button]:text-sm [&_button]:font-medium [&_button:hover]:bg-[var(--surface-2)] [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-2 [&_button:focus-visible]:outline-[var(--ink)]"
         >
           {children}
         </div>,

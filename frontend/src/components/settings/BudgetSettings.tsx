@@ -141,7 +141,7 @@ export function BudgetSettings() {
             help="Berapa bulan pengeluaran pokok yang ingin dicadangkan, 1–36 bulan (umumnya 6)."
             aside={
               Number.isInteger(monthCount) && monthCount > 0 ? (
-                <span className="text-xs font-semibold tabular-nums text-[var(--text-secondary)]">{monthCount}× pengeluaran pokok</span>
+                <span className="text-xs font-semibold tabular-nums text-[var(--text-2)]">{monthCount}× pengeluaran pokok</span>
               ) : undefined
             }
           >

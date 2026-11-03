@@ -50,7 +50,7 @@ export function ReflectionAnswer({ report }: { report: MonthlyReport }) {
   return (
     <QuestionSection id="report-reflection" number={4} question="Apa yang mau diperbaiki bulan depan?">
       {previous && (
-        <figure className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/40 p-3">
+        <figure className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)]/40 p-3">
           <figcaption className="text-xs font-semibold text-[var(--muted)]">Catatan untuk {previous.label}</figcaption>
           <blockquote className="mt-1 whitespace-pre-line text-sm text-[var(--text)]">{previous.note}</blockquote>
         </figure>
@@ -73,7 +73,7 @@ export function ReflectionAnswer({ report }: { report: MonthlyReport }) {
           aria-describedby={helpId}
           onChange={(event) => setNote(event.target.value)}
           placeholder="Misalnya: masak di rumah tiga kali seminggu"
-          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+          className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
         />
         <p id={helpId} className="text-xs text-[var(--muted)]">
           Satu atau dua hal saja. Catatan ini muncul lagi di laporan berikutnya. <span className="tabular-nums">{note.length}/{MAX_LENGTH}</span>
@@ -87,7 +87,7 @@ export function ReflectionAnswer({ report }: { report: MonthlyReport }) {
               Hapus catatan
             </Button>
           )}
-          <p role="status" className="text-xs text-[var(--text-secondary)]">{status}</p>
+          <p role="status" className="text-xs text-[var(--text-2)]">{status}</p>
         </div>
       </form>
     </QuestionSection>

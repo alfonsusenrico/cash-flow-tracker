@@ -46,7 +46,7 @@ export function FormField({
         "aria-invalid": error ? true : undefined,
       })}
       {error ? (
-        <p id={errorId} className="text-[11px] font-medium text-rose-600" role="alert">
+        <p id={errorId} className="text-[11px] font-medium text-out-fg" role="alert">
           {error}
         </p>
       ) : null}
@@ -92,7 +92,7 @@ export function MonetaryInput({
           onChange={(event) => onChange(formatNumberWithDots(event.target.value))}
           placeholder={placeholder}
           className={cn(
-            "min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-bold tabular-nums text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]",
+            "min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-bold tabular-nums text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)]",
             className,
           )}
         />
@@ -108,7 +108,7 @@ export function FormErrorSummary({ message }: { message?: string }) {
       role="alert"
       aria-live="assertive"
       tabIndex={-1}
-      className="rounded-xl border border-rose-500/25 bg-rose-500/10 p-3 text-xs font-medium text-rose-600"
+      className="rounded-xl border border-out-solid/25 bg-out-solid/10 p-3 text-xs font-medium text-out-fg"
     >
       {message}
     </div>
@@ -126,7 +126,7 @@ export function FormSection({ title, description, children, className }: FormSec
   const titleId = useId();
 
   return (
-    <section aria-labelledby={titleId} className={cn("space-y-3 border-t border-[var(--border)] pt-4", className)}>
+    <section aria-labelledby={titleId} className={cn("space-y-3 border-t border-[var(--line)] pt-4", className)}>
       <div className="flex items-center gap-1">
         <h3 id={titleId} className="text-sm font-semibold text-[var(--text)]">{title}</h3>
         {description ? <InfoHelp label={title}>{description}</InfoHelp> : null}
@@ -161,8 +161,8 @@ export function ChoiceGroup({ label, name, value, options, onChange }: ChoiceGro
             className={cn(
               "inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 text-xs font-semibold",
               value === option.value
-                ? "border-[var(--text)] bg-[var(--surface-raised)] text-[var(--text)]"
-                : "border-[var(--border)] text-[var(--muted)]",
+                ? "border-[var(--text)] bg-[var(--surface-2)] text-[var(--text)]"
+                : "border-[var(--line)] text-[var(--muted)]",
               option.disabled && "cursor-not-allowed opacity-50",
             )}
           >

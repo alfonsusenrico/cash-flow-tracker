@@ -135,45 +135,57 @@ def assign(debit_id: str, pending: list[str], learned: list[str], filled: set[st
 # --- Evidence and state ----------------------------------------------------------------------
 
 
-def load_labels(cur, user_id: str, *, account_id: str, amount: int, match_key: str | None) -> list[TopupLabel]:
-    """The owner's labels of a pattern, newest EVIDENCE_WINDOW first (design D4).
+def label_rows(cur, user_id: str, *, account_id: str | None, amount: int | None, limit: int) -> list[dict]:
+    """The owner's live conversions and latest suggestion answers, one row per transaction, newest first.
 
-    Confirmations are read from live converted top-ups, so conversions made before the learner existed
-    count without being copied. Top-ups the learner recorded itself are not evidence.
+    With `account_id` and `amount` the rows of one pattern; without them every pattern of the owner
+    (the habit list), each row naming its `source_account_id` and `amount`.
     """
     cur.execute(
         f"""
         WITH conversions AS (
             SELECT t.id AS transaction_id, it.target_account_id, it.created_at AS converted_at, t.date,
+                   it.source_account_id, it.amount,
                    ev.interpretation ->> 'match_key' AS match_key
             FROM investment_topups it
             JOIN transactions t ON t.user_id = it.user_id AND t.movement_id = it.id
                  AND t.id = (it.converted_from ->> 'transaction_id')::uuid
             {FIRST_EVENT_INTERPRETATION}
-            WHERE it.user_id = %(user_id)s AND it.source_account_id = %(account_id)s AND it.amount = %(amount)s
+            WHERE it.user_id = %(user_id)s
+              AND (%(account_id)s::uuid IS NULL OR it.source_account_id = %(account_id)s::uuid)
+              AND (%(amount)s::bigint IS NULL OR it.amount = %(amount)s::bigint)
               AND it.is_deleted = FALSE AND it.converted_from IS NOT NULL
               AND t.classified_by IS DISTINCT FROM 'habit'
         ), answers AS (
-            SELECT DISTINCT ON (f.transaction_id) f.transaction_id, f.outcome,
+            SELECT DISTINCT ON (f.transaction_id) f.transaction_id, f.outcome, f.source_account_id, f.amount,
                    f.suggested_target_account_id, f.chosen_target_account_id, f.created_at AS answered_at,
                    t.date, ev.interpretation ->> 'match_key' AS match_key
             FROM investment_topup_feedback f
             JOIN transactions t ON t.user_id = f.user_id AND t.id = f.transaction_id
             {FIRST_EVENT_INTERPRETATION}
-            WHERE f.user_id = %(user_id)s AND f.source_account_id = %(account_id)s AND f.amount = %(amount)s
+            WHERE f.user_id = %(user_id)s
+              AND (%(account_id)s::uuid IS NULL OR f.source_account_id = %(account_id)s::uuid)
+              AND (%(amount)s::bigint IS NULL OR f.amount = %(amount)s::bigint)
             ORDER BY f.transaction_id, f.created_at DESC, f.id DESC
         )
         SELECT COALESCE(c.transaction_id, a.transaction_id) AS transaction_id, c.target_account_id,
                c.converted_at, a.outcome, a.suggested_target_account_id, a.chosen_target_account_id,
-               a.answered_at, COALESCE(c.date, a.date) AS date, COALESCE(c.match_key, a.match_key) AS match_key
+               a.answered_at, COALESCE(c.date, a.date) AS date, COALESCE(c.match_key, a.match_key) AS match_key,
+               COALESCE(c.source_account_id, a.source_account_id) AS source_account_id,
+               COALESCE(c.amount, a.amount) AS amount
         FROM conversions c FULL OUTER JOIN answers a ON a.transaction_id = c.transaction_id
         ORDER BY GREATEST(c.converted_at, a.answered_at) DESC
         LIMIT %(limit)s
         """,
-        {"user_id": user_id, "account_id": account_id, "amount": amount, "limit": EVIDENCE_ROW_LIMIT},
+        {"user_id": user_id, "account_id": account_id, "amount": amount, "limit": limit},
     )
+    return cur.fetchall()
+
+
+def labels_from_rows(rows: list[dict], match_key: str | None = None) -> list[TopupLabel]:
+    """Labels of one pattern from its rows, newest EVIDENCE_WINDOW first (design D4)."""
     labels = []
-    for row in cur.fetchall():
+    for row in rows:
         if match_key and row["match_key"] and row["match_key"] != match_key:
             continue
         if row["target_account_id"]:
@@ -193,6 +205,16 @@ def load_labels(cur, user_id: str, *, account_id: str, amount: int, match_key: s
                 labelled_at=row["answered_at"], date=row["date"],
             ))
     return latest_labels(labels)
+
+
+def load_labels(cur, user_id: str, *, account_id: str, amount: int, match_key: str | None) -> list[TopupLabel]:
+    """The owner's labels of a pattern, newest EVIDENCE_WINDOW first (design D4).
+
+    Confirmations are read from live converted top-ups, so conversions made before the learner existed
+    count without being copied. Top-ups the learner recorded itself are not evidence.
+    """
+    rows = label_rows(cur, user_id, account_id=account_id, amount=amount, limit=EVIDENCE_ROW_LIMIT)
+    return labels_from_rows(rows, match_key)
 
 
 def eligible_products(cur, user_id: str, product_ids: list[str]) -> dict[str, dict]:

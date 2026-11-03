@@ -187,7 +187,7 @@ export function InternalMovementModal({
               name="source_account_id"
               value={sourceAccountId}
               onChange={(e) => setSourceAccountId(e.target.value)}
-              className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+              className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
             >
               <AccountSelectOptions accounts={accounts} formatBalance={fmtMoney} allowParentSelection={true} liquidOnly />
             </select>
@@ -202,7 +202,7 @@ export function InternalMovementModal({
               name="target_account_id"
               value={targetAccountId}
               onChange={(e) => setTargetAccountId(e.target.value)}
-              className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+              className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
             >
               <AccountSelectOptions
                 accounts={accounts}
@@ -217,7 +217,7 @@ export function InternalMovementModal({
         </FormSection>
 
         <FormSection title="Nominal dan waktu">
-        <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--surface)] p-4 focus-within:border-[var(--text)] focus-within:ring-2 focus-within:ring-[var(--primary)]/30">
+        <div className="rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] p-4 focus-within:border-[var(--text)] focus-within:ring-2 focus-within:ring-[var(--ink)]/30">
           <div className="flex items-baseline justify-between">
             <label htmlFor="movement-amount" className="text-xs font-semibold text-[var(--muted)]">Nominal (IDR)</label>
             {parsedAmount > 0 && (
@@ -252,7 +252,7 @@ export function InternalMovementModal({
             step={1}
             value={txDate}
             onChange={(e) => setTxDate(e.target.value)}
-            className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+            className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
           />
         </div>
 
@@ -269,29 +269,29 @@ export function InternalMovementModal({
             placeholder="Misal: Alokasi jajan, Pindah ke tabungan darurat"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+            className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
           />
         </div>
         </FormSection>
 
         {parsedAmount > 0 && sourceAccountId && targetAccountId && (
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-xs text-[var(--text)]" role="status">
+          <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 text-xs text-[var(--text)]" role="status">
             {fmtMoney(parsedAmount)} akan dipindahkan; total uang tidak berubah.
           </div>
         )}
 
         {err && (
-          <div role="alert" aria-live="assertive" className="p-2.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-medium">
+          <div role="alert" aria-live="assertive" className="p-2.5 rounded-2xl bg-out-solid/10 border border-out-solid/20 text-out-fg text-xs font-medium">
             {err}
           </div>
         )}
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--line)]">
           {editingMovement ? (
             confirmDelete ? (
               <div className="mr-auto flex items-center gap-2" role="alert">
-                <span className="text-[11px] font-medium text-rose-600">Hapus kedua catatan?</span>
+                <span className="text-[11px] font-medium text-out-fg">Hapus kedua catatan?</span>
                 <button type="button" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending} className="min-h-11 rounded-xl bg-[var(--danger-solid)] px-3 text-xs font-bold text-[var(--danger-contrast)] hover:bg-[var(--danger-solid-hover)] disabled:opacity-50">
                   {deleteMutation.isPending ? "Menghapus…" : "Ya, hapus"}
                 </button>
@@ -307,25 +307,25 @@ export function InternalMovementModal({
               </div>
             ) : (
               <div className="mr-auto flex items-center gap-2">
-                <button type="button" onClick={() => setConfirmDelete(true)} className="min-h-11 rounded-xl border border-rose-500/25 px-3 text-xs font-semibold text-rose-600">Hapus</button>
+                <button type="button" onClick={() => setConfirmDelete(true)} className="min-h-11 rounded-xl border border-out-solid/25 px-3 text-xs font-semibold text-out-fg">Hapus</button>
                 <button
                   type="button"
                   onClick={() => setConfirmSplit(true)}
                   title="Pisahkan jika dua catatan ini ternyata bukan satu pemindahan saldo"
-                  className="min-h-11 rounded-xl border border-[var(--border)] px-3 text-xs font-semibold text-[var(--text)]"
+                  className="min-h-11 rounded-xl border border-[var(--line)] px-3 text-xs font-semibold text-[var(--text)]"
                 >
                   Pisahkan
                 </button>
               </div>
             )
           ) : null}
-          <button type="button" onClick={onClose} className="btn-secondary pressable rounded-xl">Batal</button>
+          <button type="button" onClick={onClose} className="ws-btn rounded-xl">Batal</button>
           <button
             type="submit"
             disabled={parsedAmount <= 0 || mutation.isPending || isSuccess}
             className={cn(
               "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--text)] px-5 text-sm font-semibold text-[var(--surface)] transition-colors hover:opacity-90 motion-reduce:transition-none",
-              isSuccess && "bg-[var(--primary)] text-[var(--primary-contrast)]",
+              isSuccess && "bg-[var(--ink)] text-[var(--ink-fg)]",
               "disabled:cursor-not-allowed disabled:opacity-40"
             )}
           >

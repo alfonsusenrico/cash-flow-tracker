@@ -29,11 +29,11 @@ export function DataQualityPanel({ report, onClassify }: { report: MonthlyReport
   return (
     <ReportPanel id="report-quality" title="Kualitas data">
       {dataQualityIssues(report) === 0 ? (
-        <p className="text-sm text-[var(--text-secondary)]">Semua transaksi periode ini sudah ditinjau dan diklasifikasi.</p>
+        <p className="text-sm text-[var(--text-2)]">Semua transaksi periode ini sudah ditinjau dan diklasifikasi.</p>
       ) : (
         <>
-          <p className="text-xs text-[var(--text-secondary)]">Perbaiki ini dulu supaya angka di laporan makin tepat.</p>
-          <ul className="divide-y divide-[var(--border)]">
+          <p className="text-xs text-[var(--text-2)]">Perbaiki ini dulu supaya angka di laporan makin tepat.</p>
+          <ul className="divide-y divide-[var(--line)]">
             {quality.pending_review > 0 && (
               <Item count={quality.pending_review}>
                 <p>transaksi menunggu di Tinjau</p>
@@ -63,7 +63,7 @@ export function DataQualityPanel({ report, onClassify }: { report: MonthlyReport
             {days.count > 0 && (
               <Item count={days.count}>
                 <p>hari tanpa catatan</p>
-                <details className="text-xs text-[var(--text-secondary)]">
+                <details className="text-xs text-[var(--text-2)]">
                   <summary className="inline-flex min-h-11 cursor-pointer items-center font-semibold text-[var(--text)]">Lihat tanggalnya</summary>
                   <p className="tabular-nums">{days.dates.map(shortDate).join(", ")}</p>
                 </details>

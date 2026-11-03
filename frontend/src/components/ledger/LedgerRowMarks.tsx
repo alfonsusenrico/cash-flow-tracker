@@ -19,8 +19,8 @@ export function ReviewStatusMark({ status, className }: { status?: string | null
       className={cn(
         "inline-flex shrink-0 items-center rounded-full border px-1.5 py-px text-[10px] font-semibold",
         status === "needs_review"
-          ? "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300"
-          : "border-[var(--border)] bg-[var(--surface-raised)]/60 text-[var(--text-secondary)]",
+          ? "border-warn-solid/30 bg-warn-solid/10 text-warn-fg"
+          : "border-[var(--line)] bg-[var(--surface-2)]/60 text-[var(--text-2)]",
         className,
       )}
     >
@@ -39,7 +39,7 @@ export function HabitMark({ classifiedBy, basis, className }: {
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--surface-raised)]/60 px-1.5 py-px text-[10px] font-semibold text-[var(--text-secondary)]",
+        "inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-[var(--line)] bg-[var(--surface-2)]/60 px-1.5 py-px text-[10px] font-semibold text-[var(--text-2)]",
         className,
       )}
     >

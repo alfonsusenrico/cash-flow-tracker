@@ -21,7 +21,7 @@ function show() {
   return { ...view, user: userEvent.setup() };
 }
 
-describe("Perangkat & akses", () => {
+describe("HP & perangkat", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getDevices).mockResolvedValue({ ok: true, devices: [] });
@@ -67,7 +67,7 @@ describe("Perangkat & akses", () => {
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Perangkat & akses" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "HP & perangkat" })).toBeInTheDocument();
     expect(trigger).toHaveFocus();
     vi.unstubAllGlobals();
   });

@@ -59,12 +59,16 @@ The system SHALL support dynamic currency conversion and formatting between `IDR
 - **THEN** all balances and metrics immediately re-render in Indonesian Rupiah with "Rp" prefix and dot thousand separators without conversion loss
 
 ### Requirement: Sectioned Settings Page
-Web Settings SHALL be a page at `/settings`, not a dialog, divided into six sections with their own address: Profil, Gaji & siklus, Mata uang & anggaran, Perangkat & akses, Pemetaan notifikasi and Nama pengirim. Each section SHALL be one card with a title and a one-line purpose. At 1024 px and wider a section list SHALL stay beside the selected section; narrower screens SHALL show the list first and open each section on its own screen with a way back.
+Settings SHALL be the page `/settings`, not a dialog, with eight sections in this order: HP & perangkat, Kebiasaan, Tampilan, and the group Akun with Profil, Gaji & siklus, Mata uang & anggaran, Pemetaan notifikasi and Nama pengirim. Each section SHALL have its own address and be one card with a title and neutral purpose. From 1024 px a grouped list SHALL sit beside the section and `/settings` SHALL show HP & perangkat; narrower screens SHALL show the list, then each section with a way back.
+
+#### Scenario: Section addresses
+- **WHEN** a section is opened
+- **THEN** its address SHALL be `/settings/perangkat`, `/settings/kebiasaan`, `/settings/tampilan`, `/settings/profil`, `/settings/gaji`, `/settings/anggaran`, `/settings/pemetaan` or `/settings/pengirim`, in the order of the list
 
 #### Scenario: Choosing a section on desktop
 - **GIVEN** a 1280 px wide window on `/settings`
-- **WHEN** the owner selects "Perangkat & akses" in the section list
-- **THEN** the address SHALL become `/settings/perangkat`, that section's card SHALL be shown beside the list, and the list SHALL mark it as the current page
+- **WHEN** the owner selects "Kebiasaan" in the section list
+- **THEN** the address SHALL become `/settings/kebiasaan`, that section's card SHALL be shown beside the list, and the list SHALL mark it as the current page
 
 #### Scenario: Opening a section on a phone
 - **GIVEN** a 390 px wide window on `/settings`
@@ -74,6 +78,14 @@ Web Settings SHALL be a page at `/settings`, not a dialog, divided into six sect
 #### Scenario: Unknown section address
 - **WHEN** the owner opens a `/settings/` address that names no section
 - **THEN** the application SHALL show its not-found page instead of an empty settings card
+
+#### Scenario: Existing section addresses keep working
+- **WHEN** the owner opens a bookmarked `/settings/perangkat`, `/settings/profil`, `/settings/gaji`, `/settings/anggaran`, `/settings/pemetaan` or `/settings/pengirim`
+- **THEN** the same section SHALL open, with "Perangkat & akses" now titled "HP & perangkat"
+
+#### Scenario: Grouped list for assistive technology
+- **WHEN** a screen reader user reaches the section list
+- **THEN** it SHALL be a labelled navigation whose Akun entries are grouped under a heading "Akun", and the current section SHALL carry `aria-current="page"`
 
 ### Requirement: Section-Scoped Settings Save
 A settings section with editable fields SHALL have its own Save action at the foot of its card that sends only that section's fields. Profil SHALL save display name and bank-notification name aliases; Mata uang & anggaran SHALL save currency, emergency-fund months and the monthly operational limit. Validation and error messages SHALL apply only to the fields of the section being saved.

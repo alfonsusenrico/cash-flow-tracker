@@ -135,76 +135,12 @@
   --font-display: var(--font-body);
   --font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
-  /* ---- Compatibility aliases (removed in phase 5, when no page still uses the legacy names) ----
-   * Pages not yet redesigned paint with these names; each maps to a workspace token so those pages
-   * follow the new palette. The vivid fills keep their own hue family. */
-  --bg: var(--window);
-  --color-paper: var(--window);
-  --color-paper-2: var(--canvas);
-  --color-surface: var(--surface);
-  --color-surface-raised: var(--surface-2);
-  --surface-raised: var(--surface-2);
-  --color-ink: var(--text);
-  --color-ink-2: var(--text-2);
-  --color-muted: var(--muted);
-  --color-rule: var(--line);
-  --color-rule-strong: var(--line-strong);
-  --border: var(--line);
-  --border-strong: var(--line-strong);
-  --text-secondary: var(--text-2);
-
-  --primary: var(--ink);
-  --primary-hover: var(--ink-hover);
-  --primary-soft: var(--surface-2);
-  --primary-contrast: var(--ink-fg);
-  --primary-text: var(--text);
-  --color-focus: var(--focus);
-  --accent-lime: var(--lime);
-  --accent-text: var(--lime-text);
-
-  --color-income: var(--in-solid);
-  --color-income-hover: var(--in-solid-hover);
-  --color-income-soft: var(--in-bg);
-  --income-text: var(--in-fg);
-  --income-contrast: #141513;
-  --income-hover-contrast: #FFFFFF;
-  --color-expense: var(--out-solid);
-  --color-expense-hover: var(--out-solid-hover);
-  --color-expense-soft: var(--out-bg);
-  --expense-text: var(--out-fg);
-  --danger: var(--out-solid);
-  --danger-hover: var(--out-solid-hover);
-  --danger-text: var(--out-fg);
-  --color-warning: var(--warn-solid);
-  --color-warning-soft: var(--warn-bg);
-  --warning-text: var(--warn-fg);
-  --color-transfer: var(--tr-solid);
-  --transfer-text: var(--tr-fg);
-  --transfer-contrast: #141513;
-  --color-investment: var(--inv-solid);
-  --color-investment-soft: var(--inv-bg);
-  --investment-text: var(--inv-fg);
-  --investment-contrast: #FFFFFF;
-
-  --color-kakeibo-need: var(--k-need);
-  --color-kakeibo-need-soft: var(--k-need-soft);
-  --color-kakeibo-want: var(--k-want);
-  --color-kakeibo-want-soft: var(--k-want-soft);
-  --color-kakeibo-culture: var(--k-culture);
-  --color-kakeibo-culture-soft: var(--k-culture-soft);
-  --color-kakeibo-unexpected: var(--k-unexpected);
-  --color-kakeibo-unexpected-soft: var(--k-unexpected-soft);
-  --color-kakeibo-saving: var(--k-saving);
-  --color-kakeibo-saving-soft: var(--k-saving-soft);
-  --color-kakeibo-unclassified: var(--k-none);
-  --color-kakeibo-unclassified-soft: var(--k-none-soft);
-
-  --sidebar: var(--window);
-  --sidebar-hover: var(--surface-2);
-  --sidebar-active: var(--surface-3);
-  --sidebar-text: var(--text-2);
-  --sidebar-text-active: var(--text);
-  /* ---- End of compatibility aliases ---- */
+  /* Text on the income and transfer solids, and on the investment solid (raw because the light and dark
+     solids need different inks for 4.5:1). */
+  --in-solid-fg: #141513;
+  --in-solid-hover-fg: #FFFFFF;
+  --tr-solid-fg: #141513;
+  --inv-solid-fg: #FFFFFF;
 }
 
 .dark {
@@ -291,7 +227,6 @@
   --shadow-sm: 0 4px 14px -2px rgba(0, 0, 0, 0.6);
   --shadow-md: 0 14px 36px -4px rgba(0, 0, 0, 0.8);
 
-  --income-contrast: #141513;
-  --income-hover-contrast: #141513;
-  --investment-contrast: #141513;
+  --in-solid-hover-fg: #141513;
+  --inv-solid-fg: #141513;
 }

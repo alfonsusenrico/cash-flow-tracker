@@ -53,4 +53,7 @@ export const queryKeys = {
   notificationAliases: ["notification-aliases"] as const,
   senderAliases: ["sender-aliases"] as const,
   devices: ["devices"] as const,
+  habits: {
+    list: ["habits", "list"] as const,
+  },
 } as const;

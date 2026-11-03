@@ -102,15 +102,15 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
   return (
     <div className="space-y-3">
       {autoLinks.length > 0 && (
-        <section aria-labelledby="auto-linked-title" className="space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 text-xs text-[var(--text)] sm:p-5">
+        <section aria-labelledby="auto-linked-title" className="space-y-2 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 text-xs text-[var(--text)] sm:p-5">
           <div>
             <h2 id="auto-linked-title" className="text-xs font-bold sm:text-sm">Ditautkan otomatis</h2>
-            <p className="mt-0.5 text-[var(--text-secondary)]">
+            <p className="mt-0.5 text-[var(--text-2)]">
               Satu-satunya transaksi tercatat yang sama persis (rekening, nominal, sekitar jatuh tempo) dikaitkan ke rencana
               ini. Batalkan jika keliru; transaksi itu tidak akan dikaitkan otomatis lagi ke rencana yang sama.
             </p>
           </div>
-          <ul className="space-y-2 border-t border-[var(--border)] pt-2">
+          <ul className="space-y-2 border-t border-[var(--line)] pt-2">
             {autoLinks.map((link) => {
               const key = linkKey(link);
               const busy = unlink.isPending && unlink.variables && linkKey(unlink.variables) === key;
@@ -121,14 +121,14 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                       {link.name}
                       {link.obligation_name && link.obligation_name !== link.name ? ` · ${link.obligation_name}` : ""}
                     </p>
-                    <p className="text-[var(--text-secondary)]">
-                      <span className="mr-1 inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-raised)] px-1.5 font-semibold text-[var(--text)]">
+                    <p className="text-[var(--text-2)]">
+                      <span className="mr-1 inline-flex rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-1.5 font-semibold text-[var(--text)]">
                         Ditautkan otomatis
                       </span>
                       <span className="tabular-nums">Jatuh tempo {planDay(link.scheduled_for)} · {autoLinkLabel(link)}</span>
                     </p>
                     {unlinkErrors[key] && (
-                      <p role="alert" className="font-medium text-rose-700 dark:text-rose-300">{unlinkErrors[key]}</p>
+                      <p role="alert" className="font-medium text-out-fg">{unlinkErrors[key]}</p>
                     )}
                   </div>
                   <button
@@ -136,7 +136,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                     disabled={Boolean(busy)}
                     onClick={() => unlink.mutate(link)}
                     aria-label={`Batalkan tautan ${link.name} jatuh tempo ${planDay(link.scheduled_for)}`}
-                    className="min-h-11 shrink-0 rounded-lg border border-[var(--border)] px-3 font-semibold disabled:opacity-50"
+                    className="min-h-11 shrink-0 rounded-lg border border-[var(--line)] px-3 font-semibold disabled:opacity-50"
                   >
                     Batalkan tautan
                   </button>
@@ -149,18 +149,18 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
       {dueRules.length > 0 && (
       <section
         aria-labelledby="due-plans-title"
-        className="space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[var(--text)] sm:p-5"
+        className="space-y-3 rounded-2xl border border-warn-solid/20 bg-warn-solid/10 p-4 text-[var(--text)] sm:p-5"
       >
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div className="flex items-start gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-warn-solid/20 text-warn-fg">
               <Icon name="clock" className="h-4 w-4" />
             </div>
             <div>
               <h2 id="due-plans-title" className="text-xs font-bold sm:text-sm">
                 {dueRules.length} rencana jatuh tempo
               </h2>
-              <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+              <p className="mt-0.5 text-xs text-[var(--text-2)]">
                 Rencana tidak mengubah saldo. Kaitkan transaksi yang sudah tercatat, lewati jika tidak terjadi, atau catat
                 manual hanya jika notifikasinya terlewat.
               </p>
@@ -170,14 +170,14 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
             <button
               type="button"
               onClick={onOpenRulesManager}
-              className="min-h-11 self-start rounded-xl border border-amber-500/30 px-3 text-xs font-semibold text-amber-800 hover:bg-amber-500/20 dark:text-amber-200"
+              className="min-h-11 self-start rounded-xl border border-warn-solid/30 px-3 text-xs font-semibold text-warn-fg hover:bg-warn-solid/20"
             >
               Kelola rencana
             </button>
           )}
         </div>
 
-        <ul className="space-y-2 border-t border-amber-500/15 pt-2">
+        <ul className="space-y-2 border-t border-warn-solid/15 pt-2">
           {dueRules.map((rule) => {
             const isTransfer = rule.type === "transfer" || rule.type === "investment_topup";
             const candidates = rule.candidates ?? [];
@@ -213,7 +213,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                   <span className="shrink-0 font-bold tabular-nums">{fmtMoney(rule.amount)}</span>
                 </div>
 
-                <p className="text-[var(--text-secondary)]">{MATCH_TEXT[rule.match_state]}</p>
+                <p className="text-[var(--text-2)]">{MATCH_TEXT[rule.match_state]}</p>
                 {sameAmount.length > 0 && (
                   <ul aria-label={`Transaksi bernominal sama untuk ${rule.name}`} className="min-w-0 space-y-1">
                     {sameAmount.map(renderCandidate)}
@@ -228,12 +228,12 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                   </details>
                 )}
 
-                <div className="flex flex-wrap gap-2 border-t border-[var(--border)] pt-2">
+                <div className="flex flex-wrap gap-2 border-t border-[var(--line)] pt-2">
                   <button
                     type="button"
                     disabled={busy}
                     onClick={() => occurrence.mutate({ kind: "skip", rule })}
-                    className="min-h-11 rounded-lg border border-[var(--border)] px-3 font-semibold disabled:opacity-50"
+                    className="min-h-11 rounded-lg border border-[var(--line)] px-3 font-semibold disabled:opacity-50"
                   >
                     Lewati kali ini
                   </button>
@@ -241,14 +241,14 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                     type="button"
                     disabled={busy}
                     onClick={() => occurrence.mutate({ kind: "record", rule })}
-                    className="min-h-11 rounded-lg border border-[var(--border)] px-3 font-semibold disabled:opacity-50"
+                    className="min-h-11 rounded-lg border border-[var(--line)] px-3 font-semibold disabled:opacity-50"
                   >
                     {hasSameAmount ? "Bukan salah satunya, catat manual" : "Catat manual (tidak tertangkap)"}
                   </button>
                 </div>
                 {rule.type === "investment_topup" && <p className="text-[var(--muted)]">Catat top up hanya setelah debit berhasil.</p>}
                 {errors[rule.id] && (
-                  <p role="alert" className="font-medium text-rose-700 dark:text-rose-300">
+                  <p role="alert" className="font-medium text-out-fg">
                     {errors[rule.id]}
                   </p>
                 )}

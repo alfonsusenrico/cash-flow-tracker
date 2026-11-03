@@ -17,7 +17,7 @@ export function IncomeAnswer({ report }: { report: MonthlyReport }) {
       {income.sources.length === 0 ? (
         <p className="text-sm text-[var(--muted)]">Belum ada uang masuk tercatat pada periode ini.</p>
       ) : (
-        <ul className="divide-y divide-[var(--border)]">
+        <ul className="divide-y divide-[var(--line)]">
           {income.sources.map((source) => (
             <AmountRow
               key={source.category_id ?? "uncategorized"}
@@ -30,7 +30,7 @@ export function IncomeAnswer({ report }: { report: MonthlyReport }) {
           ))}
         </ul>
       )}
-      <p className="text-xs text-[var(--text-secondary)]">Ganti uang dari teman dan pindah saldo antar rekening tidak dihitung sebagai uang masuk.</p>
+      <p className="text-xs text-[var(--text-2)]">Ganti uang dari teman dan pindah saldo antar rekening tidak dihitung sebagai uang masuk.</p>
     </QuestionSection>
   );
 }
@@ -45,7 +45,7 @@ export function SavingsAnswer({ report }: { report: MonthlyReport }) {
       question="Berapa yang ditabung?"
       answer={<AnswerAmount href={null} amount={bal(savings.fresh_saving)} label="tabungan baru" />}
     >
-      <ul className="divide-y divide-[var(--border)]">
+      <ul className="divide-y divide-[var(--line)]">
         <AmountRow
           label="Pengeluaran berpilar Tabungan"
           amount={bal(savings.saving_expenses)}
@@ -58,12 +58,12 @@ export function SavingsAnswer({ report }: { report: MonthlyReport }) {
           amount={bal(savings.net_saving_transfers)}
         />
       </ul>
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/40 p-3">
+      <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)]/40 p-3">
         <p className="text-sm text-[var(--text)]">
           Selisih uang masuk dan keluar:{" "}
           <span className="font-bold tabular-nums">{bal(savings.surplus)}</span>
         </p>
-        <p className="mt-1 text-xs text-[var(--text-secondary)]">
+        <p className="mt-1 text-xs text-[var(--text-2)]">
           Selisih ini surplus arus kas, bukan bukti uang sudah disisihkan. Tabungan baru hanya dari pilar Tabungan dan
           pindah saldo ke rekening tabungan atau investasi.
         </p>

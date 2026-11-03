@@ -504,6 +504,57 @@ def test_undo_too_late_or_after_an_edit_changes_nothing(client, owner):
 # --- Learning ---------------------------------------------------------------------------------
 
 
+def live_capture_labels(owner):
+    from app.services.merchant_memory import live_feedback_sql
+    return query(f"SELECT f.id FROM classification_feedback f WHERE f.user_id = %s AND f.kind = 'capture' AND {live_feedback_sql('f')}",
+                 (owner["user_id"],))
+
+
+def undo_rows(owner):
+    return query("SELECT * FROM classification_feedback WHERE user_id = %s AND kind = 'undo' ORDER BY created_at", (owner["user_id"],))
+
+
+def test_undo_reverts_the_capture_label_once(client, owner):
+    capture = recorded_capture(client, owner)
+    label = feedback(owner)
+    assert len(label) == 1 and len(live_capture_labels(owner)) == 1
+    assert client.post(f"/api/capture/{capture['id']}/undo").status_code == 200
+    reverting = undo_rows(owner)
+    assert [str(row["reverts_feedback_id"]) for row in reverting] == [str(label[0]["id"])]
+    assert live_capture_labels(owner) == []
+    # The label itself is unchanged (append-only); a replayed undo writes no second undo row.
+    assert feedback(owner)[0]["after_category_id"] == label[0]["after_category_id"]
+    assert client.post(f"/api/capture/{capture['id']}/undo").json()["capture"]["status"] == "undone"
+    assert len(undo_rows(owner)) == 1
+
+
+def test_failed_undo_rolls_the_undo_row_back(client, owner, monkeypatch):
+    import app.services.text_capture as text_capture
+
+    capture = recorded_capture(client, owner)
+
+    def failing_delete(*_args, **_kwargs):
+        raise RuntimeError("synthetic failure after the undo row")
+
+    monkeypatch.setattr(text_capture, "delete_transaction_rows", failing_delete)
+    with pytest.raises(RuntimeError):
+        client.post(f"/api/capture/{capture['id']}/undo")
+    assert undo_rows(owner) == [] and len(live_capture_labels(owner)) == 1
+    assert len(capture_rows(owner)) == 1
+    assert client.get(f"/api/capture/{capture['id']}").json()["capture"]["status"] == "recorded"
+
+
+def test_capture_labels_stay_append_only(client, owner):
+    import psycopg
+    from app.db.pool import db_conn
+
+    recorded_capture(client, owner)
+    with pytest.raises(psycopg.Error):
+        with db_conn() as conn:
+            conn.execute("UPDATE classification_feedback SET after_notes = 'diubah' WHERE user_id = %s AND kind = 'capture'",
+                         (owner["user_id"],))
+
+
 def test_answers_teach_memory_and_the_second_capture_needs_no_question(client, owner):
     capture = captured(client, "parkir ptc 10rb")
     assert capture["question"]["type"] == "account"

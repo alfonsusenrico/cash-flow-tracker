@@ -18,3 +18,14 @@ describe("greeting name", () => {
     expect(greetingName({ username: "  " })).toBeNull();
   });
 });
+
+describe("greetingName", () => {
+  it("greets with the display name, as Tanya and Beranda both do", () => {
+    expect(greetingName({ name: "Raka", username: "beranda_contoh" })).toBe("Raka");
+    expect(greetingName({ name: "Raka Contoh", username: "beranda_contoh" })).toBe("Raka");
+  });
+  it("falls back to the capitalised username without a name", () => {
+    expect(greetingName({ name: "  ", username: "beranda_contoh" })).toBe("Beranda_contoh");
+    expect(greetingName({ username: null })).toBeNull();
+  });
+});

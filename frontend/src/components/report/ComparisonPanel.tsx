@@ -22,7 +22,7 @@ export function ComparisonPanel({ report }: { report: MonthlyReport }) {
       <div className="space-y-1 text-sm">
         <SubHeading>{previousLabel}</SubHeading>
         {!previous.previous_has_data || !previous.previous ? (
-          <p className="text-[var(--text-secondary)]">Belum ada data {previousLabel} untuk dibandingkan.</p>
+          <p className="text-[var(--text-2)]">Belum ada data {previousLabel} untuk dibandingkan.</p>
         ) : (
           <>
             <p className="text-[var(--text)]">
@@ -42,12 +42,12 @@ export function ComparisonPanel({ report }: { report: MonthlyReport }) {
               </Link>
               .
             </p>
-            <p className="text-[var(--text-secondary)]">
+            <p className="text-[var(--text-2)]">
               Uang masuk {bal(previous.current.inflow)}, {difference(bal, previous.current.inflow, previous.previous.inflow)} dari{" "}
               {bal(previous.previous.inflow)}.
             </p>
             {partial && previousPeriod?.first_recorded_date && (
-              <p className="text-xs text-[var(--text-secondary)]">
+              <p className="text-xs text-[var(--text-2)]">
                 {previousPeriod.label} baru tercatat sejak {shortDate(previousPeriod.first_recorded_date)}, jadi angkanya belum lengkap.
               </p>
             )}
@@ -55,10 +55,10 @@ export function ComparisonPanel({ report }: { report: MonthlyReport }) {
         )}
       </div>
 
-      <div className="space-y-1 border-t border-[var(--border)] pt-3 text-sm">
+      <div className="space-y-1 border-t border-[var(--line)] pt-3 text-sm">
         <SubHeading>Median 3 periode</SubHeading>
         {!median.available ? (
-          <p className="text-[var(--text-secondary)]">
+          <p className="text-[var(--text-2)]">
             Muncul setelah ada {median.required} periode lengkap sebelum ini. Sekarang baru {median.period_count}.
           </p>
         ) : (
@@ -67,7 +67,7 @@ export function ComparisonPanel({ report }: { report: MonthlyReport }) {
               Pada {median.compared_days} hari pertama, uang keluar {bal(median.current.outflow)},{" "}
               {difference(bal, median.current.outflow, median.median.outflow)} dari median {bal(median.median.outflow)}.
             </p>
-            <p className="text-xs text-[var(--text-secondary)]">
+            <p className="text-xs text-[var(--text-2)]">
               Median dari {median.periods.map((item) => item.label).join(", ")}, masing-masing {median.compared_days} hari pertama.
             </p>
           </>
