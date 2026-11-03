@@ -1,23 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { rowKind, rowStatus, rowTitle } from "@/components/beranda/activity";
-import { ExpenseTopupConversionModal } from "@/components/ui/ExpenseTopupConversionModal";
 import { Icon } from "@/components/ui/Icon";
-import { InternalMovementModal } from "@/components/ui/InternalMovementModal";
-import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
 import { Drawer, useToast } from "@/components/workspace/overlays";
 import { ErrorState, Pill, Skeleton, type Tone } from "@/components/workspace/primitives";
 import { ApiError, api } from "@/lib/api";
 import { classifierLabel, habitBasisText, isHabitRecorded, sourceLabel } from "@/lib/provenance";
 import { queryKeys } from "@/lib/queryKeys";
 import type { UndoFields } from "@/lib/reviewUndo";
-import { TransactionEditForm } from "./TransactionEditForm";
 import type { LedgerRowDetail } from "./types";
 import { useRefreshTransactionViews } from "./useTransactionUndo";
+
+// The editors load when first used, so Beranda, which also opens this drawer, stays light.
+const TransactionEditForm = dynamic(() => import("./TransactionEditForm").then((module) => module.TransactionEditForm), { ssr: false });
+const ExpenseTopupConversionModal = dynamic(() => import("@/components/ui/ExpenseTopupConversionModal").then((module) => module.ExpenseTopupConversionModal), { ssr: false });
+const InternalMovementModal = dynamic(() => import("@/components/ui/InternalMovementModal").then((module) => module.InternalMovementModal), { ssr: false });
+const InvestmentTopupModal = dynamic(() => import("@/components/ui/InvestmentTopupModal").then((module) => module.InvestmentTopupModal), { ssr: false });
 
 type RecordUndo = (text: string, label: string, response: UndoFields | null | undefined, transactionId: string) => void;
 
@@ -307,7 +310,7 @@ export function TransactionDrawer({
         )}
       </Drawer>
 
-      {row && (
+      {row && topupOpen && (
         <ExpenseTopupConversionModal
           expense={topupOpen ? row : null}
           accounts={accounts}

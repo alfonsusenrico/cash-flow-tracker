@@ -309,7 +309,7 @@ describe("Transaction drawer", () => {
     const { user } = renderPage("/ledger?period=cycle&edit=00000000-0000-4000-8000-00000000000c");
     const drawer = await screen.findByRole("dialog", { name: /^Bakso Mas Joko/ });
     await user.click(await within(drawer).findByRole("button", { name: "Ubah" }));
-    const merchant = within(drawer).getByLabelText("Merchant atau tempat (opsional)");
+    const merchant = await within(drawer).findByLabelText("Merchant atau tempat (opsional)");
     await user.clear(merchant);
     await user.type(merchant, "Bakso Contoh");
     await user.click(within(drawer).getByRole("button", { name: "Simpan" }));
