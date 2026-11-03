@@ -180,7 +180,7 @@ Expected Result: a pushed branch with green CI and a complete verification recor
 
 ## 12. Acceptance
 
-- [ ] 12.1 Present verification.md, the key screenshots, the deviations and any new open decisions to the owner. Record the acceptance with the owner's words and the date in proposal.md. The owner accepts on this evidence, because they test only after all phases are done. Evidence: the owner's words quoted with the date.
+- [x] 12.1 Present verification.md, the key screenshots, the deviations and any new open decisions to the owner. Record the acceptance with the owner's words and the date in proposal.md. The owner accepts on this evidence, because they test only after all phases are done. Evidence: the owner's words quoted with the date.
 
 ## Workflow follow-up
 

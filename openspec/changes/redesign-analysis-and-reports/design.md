@@ -452,7 +452,7 @@ Where the build differs from the decisions above, and why. Each is covered by te
 | OD46 (resolved 2026-11-03: "approved, defaults ok") | First day of the calendar week | **Monday**, as the preview and Indonesian calendars do |
 | OD47 (resolved 2026-11-03: "approved, defaults ok") | Heat levels | **Five levels from the period's own quartiles of non-zero days**, rounded to Rp 1.000 and written in the legend. Fixed amounts would make most months one colour |
 | OD48 (resolved 2026-11-03: "approved, defaults ok") | Expenses in excluded categories on the map | **A node "Tidak dihitung belanja"**, so every row on an account has a link and the account balances |
-| OD49 (open, conservative default applied) | Whether the folded map also hides the income links | **Hide them, as the approved preview does**, so spending sets the scale; the table, the Masuk figure and the unfolded map show income |
+| OD49 (resolved 2026-11-03: "accepted, defaults ok") | Whether the folded map also hides the income links | **Hide them, as the approved preview does**, so spending sets the scale; the table, the Masuk figure and the unfolded map show income |
 
 ## Risks / Trade-offs
 

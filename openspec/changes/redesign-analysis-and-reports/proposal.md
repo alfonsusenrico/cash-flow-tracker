@@ -35,6 +35,8 @@ Binding earlier approvals:
 
 **Plan approval, 2026-11-03.** After a combined summary of the phase 4, 5 and 6 plans, the owner approved all three with "approved, defaults ok". OD40–OD48 take their recommended defaults (design.md, open decisions).
 
+**Acceptance, 2026-11-03.** After the summary of verification.md and the screenshots (CI "Checks" green on `783780d`; the branch then merged `main` with phase 6, and the merged tree passed type-check, lint, 716 Vitest tests and strict OpenSpec validation), the owner said "accepted, defaults ok". OD49 keeps its applied default. The change is archived on this branch before the merge.
+
 ## Expected Outcome
 
 - **Analisis tabs.** Analisis has three tabs, Ringkasan, Kalender and Peta Aliran, kept in the URL (`/insights?tab=kalender`). A Siklus gaji / Bulan kalender toggle and the period stepper apply to all three tabs.

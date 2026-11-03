@@ -159,3 +159,7 @@ Production build at `b453ce8`; results in `web-p4/matrix/results.json` and 89 sc
 - **The phone's on-screen keyboard and real touch:** the browser emulated 390 px with touch only.
 - **Calendar test gaps:** a month whose 31st is clamped by a short cycle and a movement fee row are not separate calendar or flow fixtures. Fee rows follow the generic expense rule, covered by the excluded and bucket cases.
 - **Timings:** measured on a shared developer machine, not on the server.
+
+## Acceptance
+
+- 2026-11-03: the branch merged `main` (`5d97cd5`, phase 6) in `294cfbe`, resolving `copyRegister.test.ts` and `docs/NEW_USER_GUIDE.md` by keeping both phases' additions. The merged tree: type-check 0, lint 0 warnings, Vitest 716 passed, `openspec validate --all --strict` 76 passed. The owner said "accepted, defaults ok".
