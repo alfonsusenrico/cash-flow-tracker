@@ -21,6 +21,7 @@
 
 .tabs {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 2px;
   padding: 3px;
   border-radius: 12px;
@@ -269,6 +270,7 @@
 
 /* Peta Aliran */
 .flowTools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0 6px; }
+.foldButton { white-space: normal; text-align: left; height: auto; min-height: 36px; max-width: 100%; }
 .flowNote { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0 8px; color: var(--muted); font-size: 13px; }
 .map { display: block; width: 100%; height: auto; overflow: visible; }
 .ribbon { fill-opacity: var(--band-op); transition: fill-opacity 0.12s linear; }
@@ -304,7 +306,7 @@
 .sums { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .sum { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; }
 .sum b { font-size: 19px; font-weight: 500; }
-.mini { display: none; }
+.mini { display: block; }
 
 .drawerFacts { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; margin: 0 0 12px; font-size: 13.5px; }
 .drawerFacts dt { color: var(--muted); }
@@ -334,6 +336,5 @@
   .sums { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .scrub { grid-template-columns: auto minmax(0, 1fr); }
   .scrubRead { grid-column: 1 / -1; text-align: left; }
-  .mapWide { display: none; }
-  .mini { display: block; }
+  .countColumn { display: none; }
 }

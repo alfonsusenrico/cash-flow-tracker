@@ -8,7 +8,7 @@ import { useTransactionUndo } from "@/components/transactions/useTransactionUndo
 import { Icon } from "@/components/ui/Icon";
 import { Drawer } from "@/components/workspace/overlays";
 import { Card, CardHeader, EmptyState, ErrorState, Segmented, Skeleton } from "@/components/workspace/primitives";
-import { useWidthAtMost } from "@/hooks/useWidthAtMost";
+import { PHONE_QUERY, useMediaQuery } from "@/components/workspace/layers";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { addDays, dayDiff, longDay, shortDay, todayIso } from "../format";
@@ -137,8 +137,9 @@ export function PetaAliranTab({
   onLabel: (label: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const phone = useWidthAtMost(rootRef, 760);
+  // The viewport, not the column, decides the phone layout, so opening the side drawer does not swap the
+  // map for the table under the focused node.
+  const phone = useMediaQuery(PHONE_QUERY);
   const reduced = usePrefersReducedMotion();
   const { record } = useTransactionUndo();
   const [through, setThrough] = useState<string | null>(null);
@@ -216,7 +217,7 @@ export function PetaAliranTab({
   const showMap = view === "peta" && !phone;
 
   return (
-    <div ref={rootRef} className={styles.stack}>
+    <div className={styles.stack}>
       <Card labelledBy="flow-heading">
         <CardHeader
           id="flow-heading"
@@ -233,7 +234,7 @@ export function PetaAliranTab({
               </button>
             ))}
           </div>
-          <button type="button" className="ws-btn ws-btn-sm" aria-pressed={!folded} onClick={toggleFold}>
+          <button type="button" className={cn("ws-btn ws-btn-sm", styles.foldButton)} aria-pressed={!folded} onClick={toggleFold}>
             <Icon name={folded ? "chevron-right" : "chevron-down"} className="h-4 w-4" />
             {folded ? "Tampilkan uang masuk, saldo dan Masih ada" : "Ciutkan uang masuk, saldo dan Masih ada"} · {money(remaining)}
           </button>
@@ -578,7 +579,7 @@ function FlowTable({
       <table className={styles.table}>
         <caption>Semua aliran sampai {longDay(data.window.through)}, termasuk saldo awal dan Masih ada</caption>
         <thead>
-          <tr><th scope="col">Dari → Ke</th><th scope="col">Jenis</th><th scope="col" className={styles.r}>Jumlah</th><th scope="col" className={styles.r}>Transaksi</th></tr>
+          <tr><th scope="col">Dari → Ke</th><th scope="col">Jenis</th><th scope="col" className={styles.r}>Jumlah</th><th scope="col" className={cn(styles.r, styles.countColumn)}>Transaksi</th></tr>
         </thead>
         <tbody>
           {rows.map((link) => (
@@ -593,7 +594,7 @@ function FlowTable({
                 {link.waiting_count > 0 && link.kind !== "waiting" && <span className={styles.caption}> · termasuk {link.waiting_count} menunggu jawaban</span>}
               </td>
               <td className={styles.r}>{money(link.amount)}</td>
-              <td className={styles.r}>{BALANCE_KINDS.has(link.kind) ? "–" : link.count}</td>
+              <td className={cn(styles.r, styles.countColumn)}>{BALANCE_KINDS.has(link.kind) ? "–" : link.count}</td>
             </tr>
           ))}
         </tbody>
