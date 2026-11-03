@@ -557,7 +557,7 @@ function TotalAssets({
   const owedLines = lines.filter((line) => line.key !== "liquid" && line.key !== "investment");
   const assetsExplanation: ExplanationData = {
     title: "Total aset",
-    rule: "Uang siap pakai ditambah investasi. Saldo kantong dihitung sekali, tidak dobel dengan rekening induknya.",
+    rule: "Uang siap pakai ditambah investasi. Saldo kantong dihitung sekali, tidak dihitung dua kali dengan rekening induknya.",
     lines: assetLines.map((line) => ({ label: line.key === "liquid" ? "Uang siap pakai" : "Investasi", amount: money(line.amount) })),
     total: { label: "Total aset", amount: money(data.total_assets) },
   };
@@ -596,7 +596,7 @@ function TotalAssets({
           <ExplainableFigure label="Kekayaan bersih" amountText={money(data.net_worth)} explanation={netExplanation} />
         </dd>
       </dl>
-      <p className="ws-caption">Saldo kantong dihitung sekali, tidak dobel dengan rekening induknya.</p>
+      <p className="ws-caption">Saldo kantong dihitung sekali, tidak dihitung dua kali dengan rekening induknya.</p>
       {awaitingTotal > 0 && (
         <p className="ws-caption">
           {awaitingTotal} pindah saldo belum lengkap, jadi tujuannya belum masuk aset mana pun.{" "}

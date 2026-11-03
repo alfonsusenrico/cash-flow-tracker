@@ -42,7 +42,7 @@ export function NotificationMappings() {
                   {alias.name} <span aria-hidden="true">→</span><span className="sr-only">dipetakan ke</span> {alias.account}
                 </p>
                 <p className="text-xs text-[var(--muted)]">
-                  {alias.institution.toUpperCase()} · {alias.source === "owner" ? "Dikonfirmasi Anda" : "Dipetakan otomatis"}
+                  {alias.institution.toUpperCase()} · {alias.source === "owner" ? "Dikonfirmasi pemilik" : "Dipetakan otomatis"}
                 </p>
               </div>
               <ConfirmRemove

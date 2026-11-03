@@ -237,7 +237,7 @@ export function SalarySettingsSection() {
             ) : (
               <SettingsList label="Gaji terkonfirmasi">
                 {receipts.data.receipts.map((row) => (
-                  <IncomeRow key={row.id} row={row} detail={row.confirmation_method === "detected" ? "Dikenali otomatis" : "Dikonfirmasi Anda"}>
+                  <IncomeRow key={row.id} row={row} detail={row.confirmation_method === "detected" ? "Dikenali otomatis" : "Dikonfirmasi pemilik"}>
                     <Button
                       type="button"
                       variant="ghost"

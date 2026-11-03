@@ -118,7 +118,7 @@ describe("goal backing forms", () => {
     expect(screen.getByRole("dialog", { name: "Catat Progres: Laptop" })).toBeVisible();
     expect(screen.queryByRole("combobox", { name: /rekening/i })).not.toBeInTheDocument();
     await user.type(screen.getByRole("textbox", { name: "Tambahan Progres" }), "250000");
-    await user.click(screen.getByRole("button", { name: "Simpan Progres" }));
+    await user.click(screen.getByRole("button", { name: "Simpan progres" }));
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/goals/goal-standalone/adjust", { amount: 250_000 }));
     expect(api.post).not.toHaveBeenCalledWith("/transactions", expect.anything());

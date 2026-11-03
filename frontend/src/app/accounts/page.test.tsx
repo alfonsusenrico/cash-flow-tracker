@@ -257,7 +257,7 @@ describe("account and pocket forms", () => {
     renderAccounts();
     await user.click(await screen.findByRole("button", { name: "Tambah rekening" }));
 
-    const dialog = screen.getByRole("dialog", { name: "Tambah Rekening Baru" });
+    const dialog = screen.getByRole("dialog", { name: "Tambah rekening" });
     await user.type(within(dialog).getByRole("textbox", { name: "Nama Rekening" }), "New broker");
     await user.selectOptions(within(dialog).getByRole("combobox", { name: "Jenis rekening" }), "investment");
     expect(within(dialog).queryByRole("textbox", { name: /saldo kas \/ rdn awal/i })).not.toBeInTheDocument();
@@ -277,7 +277,7 @@ describe("account and pocket forms", () => {
     const user = userEvent.setup();
     renderAccounts();
     await user.click(await screen.findByRole("button", { name: "Tambah rekening" }));
-    const dialog = screen.getByRole("dialog", { name: "Tambah Rekening Baru" });
+    const dialog = screen.getByRole("dialog", { name: "Tambah rekening" });
     const type = within(dialog).getByRole("combobox", { name: "Jenis rekening" });
 
     expect(within(dialog).getByRole("button", { name: "Warna Biru" })).toHaveAttribute("aria-pressed", "true");
@@ -295,7 +295,7 @@ describe("account and pocket forms", () => {
     const user = userEvent.setup();
     renderAccounts();
     await user.click(await screen.findByRole("button", { name: "Tambah rekening" }));
-    const dialog = screen.getByRole("dialog", { name: "Tambah Rekening Baru" });
+    const dialog = screen.getByRole("dialog", { name: "Tambah rekening" });
 
     await user.click(within(dialog).getByRole("button", { name: "Warna Teal" }));
     await user.selectOptions(within(dialog).getByRole("combobox", { name: "Jenis rekening" }), "investment");

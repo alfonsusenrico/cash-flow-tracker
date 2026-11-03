@@ -314,7 +314,7 @@ Two facts come first:
 They are followed by "Diatur oleh pengaturan server." (OD51) and one sentence on the threshold: "Kebiasaan dipakai setelah 3 jawaban yang sama, dengan kecocokan minimal 90%."
 
 The two tables follow spec `habit-learning`:
-- **Habits:** columns "Kalau ketemu", "Dicatat sebagai", "Dikonfirmasi" and "Status". "Kalau ketemu" shows the label and the account. "Dicatat sebagai" shows the category and the pillar name.
+- **Habits:** columns "Saat ditemukan", "Dicatat sebagai", "Dikonfirmasi" and "Status". "Saat ditemukan" shows the label and the account. "Dicatat sebagai" shows the category and the pillar name.
 - **Top-ups:** columns "Debit", "Dicatat sebagai", "Dikonfirmasi" and "Status". "Debit" is "Rp X dari <rekening>", masked when balances are hidden. "Dicatat sebagai" is "<Induk> · <Produk>".
 
 The status words follow the spec. On a phone each row becomes a two-line item. The empty, loading (`Skeleton`) and error (`ErrorState`) states follow the spec. There is no edit or forget action, which is a later change.

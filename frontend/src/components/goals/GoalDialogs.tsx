@@ -922,7 +922,7 @@ export function useGoalDialogs() {
                 disabled={depositGoalMutation.isPending}
                 className="flex-1 rounded-xl bg-in-solid py-2 text-xs font-semibold text-in-solid-hover-fg hover:bg-in-solid disabled:opacity-50"
               >
-                {depositGoalMutation.isPending ? "Menyimpan…" : "Simpan Progres"}
+                {depositGoalMutation.isPending ? "Menyimpan…" : "Simpan progres"}
               </button>
             </div>
           </form>

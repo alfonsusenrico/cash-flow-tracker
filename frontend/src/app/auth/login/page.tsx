@@ -72,7 +72,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm sm:p-8">
         <h1 className="text-2xl font-bold mb-1 text-center tracking-tight">CashFlow</h1>
         <p className="text-center text-xs text-[var(--muted)] mb-6">
-          {mode === "login" ? "Masuk ke akun Anda" : "Buat akun baru"}
+          {mode === "login" ? "Masuk ke akun" : "Buat akun baru"}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">

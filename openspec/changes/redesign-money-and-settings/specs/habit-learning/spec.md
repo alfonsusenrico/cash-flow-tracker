@@ -49,7 +49,7 @@ A top-up entry SHALL describe one learned pattern (source account and exact amou
 - **THEN** `topups` SHALL hold one entry with that source, amount and product, `confirmations` 2 and `state` "learning"
 
 ### Requirement: Kebiasaan Settings Section
-Pengaturan SHALL have a Kebiasaan section at `/settings/kebiasaan` that shows `GET /api/habits`: the auto-record state of habits and of top-ups as read-only facts controlled by the server setting, a table of habits ("Kalau ketemu", "Dicatat sebagai", "Dikonfirmasi", "Status") and a table of learned top-ups ("Debit", "Dicatat sebagai", "Dikonfirmasi", "Status"). It SHALL offer no edit or forget action, and amounts SHALL respect "Sembunyikan saldo".
+Pengaturan SHALL have a Kebiasaan section at `/settings/kebiasaan` that shows `GET /api/habits`: the auto-record state of habits and of top-ups as read-only facts controlled by the server setting, a table of habits ("Saat ditemukan", "Dicatat sebagai", "Dikonfirmasi", "Status") and a table of learned top-ups ("Debit", "Dicatat sebagai", "Dikonfirmasi", "Status"). It SHALL offer no edit or forget action, and amounts SHALL respect "Sembunyikan saldo".
 
 #### Scenario: Viewing learned habits
 - **WHEN** the owner opens Kebiasaan with one ready habit and one learning top-up

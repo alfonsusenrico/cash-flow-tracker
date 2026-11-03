@@ -43,7 +43,7 @@ export function HabitsSettings() {
               {data.habits.length > 0 && (
                 <table className={`ws-tbl ${styles.table} ${styles.habitTable}`}>
                   <caption className={styles.tableCaption}>Kebiasaan pembayaran</caption>
-                  <thead><tr><th scope="col">Kalau ketemu</th><th scope="col">Dicatat sebagai</th><th scope="col" className="r">Dikonfirmasi</th><th scope="col">Status</th></tr></thead>
+                  <thead><tr><th scope="col">Saat ditemukan</th><th scope="col">Dicatat sebagai</th><th scope="col" className="r">Dikonfirmasi</th><th scope="col">Status</th></tr></thead>
                   <tbody>
                     {data.habits.map((habit) => (
                       <tr key={habit.key}>

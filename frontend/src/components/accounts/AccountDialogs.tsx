@@ -150,7 +150,7 @@ export function useAccountDialogs() {
   const [pocketTickerSuggestions, setPocketTickerSuggestions] = useState<Array<{ symbol: string; name: string; type: string; exchange: string }>>([]);
   const [pocketIsSearchingTicker, setPocketIsSearchingTicker] = useState(false);
 
-  // Valuation Modal States (Mode B / Update Nilai)
+  // Valuation modal state ("Perbarui nilai")
   const [valuationAccount, setValuationAccount] = useState<AccountItem | null>(null);
   const [valCurrentBalStr, setValCurrentBalStr] = useState("");
   const [valCostBasisStr, setValCostBasisStr] = useState("");
@@ -179,11 +179,11 @@ export function useAccountDialogs() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: queryKeys.accounts });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      setSyncMessage(`Sync selesai: ${data.accounts_updated} akun diperbarui`);
+      setSyncMessage(`Harga diperbarui: ${data.accounts_updated} produk`);
       setTimeout(() => setSyncMessage(null), 4000);
     },
     onError: () => {
-      setSyncMessage("Gagal sinkronisasi harga pasar");
+      setSyncMessage("Harga belum dapat diperbarui");
       setTimeout(() => setSyncMessage(null), 4000);
     },
   });
@@ -528,7 +528,7 @@ export function useAccountDialogs() {
             ? editingAccount.parent_id
               ? `Ubah Kantong: ${editingAccount.name}`
               : `Ubah Rekening: ${editingAccount.name}`
-            : "Tambah Rekening Baru"
+            : "Tambah rekening"
         }
       >
         <form
@@ -733,7 +733,7 @@ export function useAccountDialogs() {
 
                   {accIsMultiInstrument && (
                     <div className="p-3 rounded-xl bg-inv-solid/10 border border-inv-solid/20 text-inv-fg text-[11px] leading-relaxed">
-                      💡 Rekening <strong>{accName || "Investasi"}</strong> akan dibuat sebagai akun induk platform. Setelah dibuat, Anda bisa menambahkan berbagai kantong instrumen (seperti RDPU, Saham BBCA, Bareksa Sukuk, dll) di dalamnya.
+                      💡 Rekening <strong>{accName || "Investasi"}</strong> akan dibuat sebagai akun induk platform. Setelah dibuat, berbagai kantong instrumen dapat ditambahkan (seperti RDPU, Saham BBCA, Bareksa Sukuk, dll) di dalamnya.
                     </div>
                   )}
 
@@ -1114,7 +1114,7 @@ export function useAccountDialogs() {
                     )}
                   </div>
                   <p className="text-[10px] text-[var(--muted)] mt-1">
-                    Kosongkan jika produk manual tanpa ticker publik (misal RDPU Bibit / BCA Reksadana). Nilai pasar dapat diupdate berkala via tombol "Update Nilai".
+                    Kosongkan jika produk manual tanpa ticker publik (misal RDPU Bibit / BCA Reksadana). Nilai pasar dapat diupdate berkala via tombol "Perbarui nilai".
                   </p>
 
                   {pocketTickerSuggestions.length > 0 && (
@@ -1238,12 +1238,12 @@ export function useAccountDialogs() {
         </Modal>
       )}
 
-      {/* Valuation Modal (Update Nilai Investasi - Mode B / Penyesuaian) */}
+      {/* Valuation modal ("Perbarui nilai") */}
       {valuationAccount && (
         <Modal
           open={Boolean(valuationAccount)}
           onClose={() => setValuationAccount(null)}
-          title={`Update Nilai: ${valuationAccount.name}`}
+          title={`Perbarui nilai: ${valuationAccount.name}`}
         >
           <form
             className="space-y-4 pt-2 text-xs [&_input]:min-h-11 [&_select]:min-h-11"
@@ -1259,7 +1259,7 @@ export function useAccountDialogs() {
             )}
 
             <p className="text-xs text-[var(--muted)]">
-              Perbarui nilai pasar investasi terkini (misal dari aplikasi Bibit, Bareksa, atau harga penutupan). Capital Gain akan dihitung otomatis terhadap modal beli Anda.
+              Perbarui nilai pasar investasi terkini (misal dari aplikasi Bibit, Bareksa, atau harga penutupan). Untung/rugi dihitung otomatis terhadap modal beli.
             </p>
 
             <div className="p-3.5 rounded-2xl bg-[var(--surface-2)] border border-[var(--line)] space-y-1.5">
@@ -1327,7 +1327,7 @@ export function useAccountDialogs() {
               return (
                 <div className="p-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)]/50 space-y-1">
                   <div className="flex justify-between items-center tabular">
-                    <span className="text-[var(--muted)]">Estimasi Capital Gain:</span>
+                    <span className="text-[var(--muted)]">Estimasi untung/rugi:</span>
                     <span
                       className={cn(
                         "font-bold text-xs",
@@ -1395,7 +1395,7 @@ export function useAccountDialogs() {
             )}
 
             <p className="text-xs text-[var(--muted)]">
-              Masukkan nominal saldo yang saat ini tercatat pada aplikasi bank atau dompet fisik Anda. Transaksi penyesuaian akan dicatat secara otomatis jika ada selisih.
+              Masukkan nominal saldo yang saat ini tercatat pada aplikasi bank atau dompet fisik. Transaksi penyesuaian akan dicatat secara otomatis jika ada selisih.
             </p>
 
             <div className="p-3.5 rounded-2xl bg-[var(--surface-2)] border border-[var(--line)] flex items-center justify-between">

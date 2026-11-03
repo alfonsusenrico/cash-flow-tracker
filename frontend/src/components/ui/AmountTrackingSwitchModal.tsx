@@ -47,7 +47,7 @@ export function AmountTrackingSwitchModal({ product, onClose }: Props) {
           </div>
         </dl>
         <p className="text-sm">
-          Nilai dan modal di atas tetap. Jumlah unit dan harga rata-rata per unit tidak lagi dicatat, lalu produk memakai Top up dan Update Nilai dalam rupiah, seperti tampilan Bibit.
+          Nilai dan modal di atas tetap. Jumlah unit dan harga rata-rata per unit tidak lagi dicatat, lalu produk memakai Top up dan Perbarui nilai dalam rupiah, seperti tampilan Bibit.
         </p>
         <p className="text-sm font-semibold">Perubahan ini tidak dapat dibatalkan.</p>
         {error && <p role="alert" className="text-sm text-out-fg">{error}</p>}

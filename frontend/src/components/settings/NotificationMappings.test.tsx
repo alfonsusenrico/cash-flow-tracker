@@ -30,7 +30,7 @@ describe("Pemetaan notifikasi", () => {
     const user = show();
     const section = await screen.findByRole("region", { name: "Pemetaan notifikasi" });
     expect(await within(section).findByText(/Dipetakan otomatis/)).toBeInTheDocument();
-    expect(within(section).getByText(/Dikonfirmasi Anda/)).toBeInTheDocument();
+    expect(within(section).getByText(/Dikonfirmasi pemilik/)).toBeInTheDocument();
     expect((await axe(section)).violations).toHaveLength(0);
 
     await user.click(within(section).getByRole("button", { name: "Hapus pemetaan GoPay Tabungan" }));
