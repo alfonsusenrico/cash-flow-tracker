@@ -407,7 +407,7 @@ Where the build differs from the decisions above, and why. Each point is also in
 | OD65 (resolved 2026-11-03: "approved, defaults ok") | Phone entry | **Lainnya sheet only.** The tab bar is unchanged |
 | OD66 (resolved 2026-11-03: "approved, defaults ok") | Recording keeps `/capture/text`'s bounded server-side model use | **Yes,** consistent with phase 3 OD26. Tanya's answers never use a model |
 | OD67 (resolved 2026-11-03: "approved, defaults ok") | Bills card range | **"minggu ini" or "this week" shows the next 7 days; otherwise the cycle-summary window** |
-| OD68 (open, conservative default applied) | When text without an amount gets "Jumlahnya berapa?" | **Only when the parser found a time phrase, an account or a category**; other text gets the unknown reply with a line on how to record. The alternative, asking for every text without an amount, would answer "halo" with a request for money |
+| OD68 (resolved 2026-11-03: "accepted, defaults ok") | When text without an amount gets "Jumlahnya berapa?" | **Only when the parser found a time phrase, an account or a category**; other text gets the unknown reply with a line on how to record. The alternative, asking for every text without an amount, would answer "halo" with a request for money |
 
 ## Open Questions
 
