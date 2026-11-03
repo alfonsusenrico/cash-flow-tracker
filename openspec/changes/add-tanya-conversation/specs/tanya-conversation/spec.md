@@ -26,7 +26,7 @@ Tanya SHALL answer a fixed set of question kinds by matching the typed text agai
 
 #### Scenario: Bills this week
 - **WHEN** the owner sends "tagihan minggu ini apa aja?"
-- **THEN** Tanya SHALL list only the scheduled plan and goal lines due within 7 days of today, with their sum, and SHALL show "Tidak ada tagihan atau setoran dalam periode ini." when there are none
+- **THEN** Tanya SHALL list only the scheduled plans due within 7 days of today, with their sum, SHALL say that goal set-asides are counted per period, and SHALL show "Tidak ada tagihan atau setoran dalam periode ini." when there are none
 
 #### Scenario: Kakeibo question
 - **WHEN** the owner sends "kakeibo siklus ini"
@@ -75,11 +75,15 @@ When the sent text matches no question kind and the server's parse-only capture 
 - **THEN** the same text SHALL go through the capture path once
 
 ### Requirement: Amounts Are Never Guessed
-Tanya SHALL take an amount only from the server's capture parser. When the parser reports a missing amount or several amounts, Tanya SHALL ask for the amount and SHALL NOT record anything.
+Tanya SHALL take an amount only from the server's capture parser and SHALL NOT record anything when the parser reports a missing amount or several amounts. It SHALL ask for one amount when there are several, and for the amount when the parser read a transaction without one (a time phrase, an account or a category). Other text without an amount SHALL get the unknown reply, which says that a transaction needs its amount.
 
 #### Scenario: No amount
 - **WHEN** the owner sends "parkir tadi"
 - **THEN** Tanya SHALL ask for the amount with an example, and no capture SHALL be submitted
+
+#### Scenario: No amount and nothing read as a transaction
+- **WHEN** the owner sends "halo" and the parser finds no amount, time, account or category
+- **THEN** Tanya SHALL give the unknown reply with the chips and its line on recording with an amount, and no capture SHALL be submitted
 
 #### Scenario: Several amounts
 - **WHEN** the owner sends "kopi 18rb roti 12rb"

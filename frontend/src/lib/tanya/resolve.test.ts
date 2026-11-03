@@ -111,7 +111,7 @@ describe("resolver chain", () => {
   });
 
   it("asks for one amount when there are several and never submits", async () => {
-    const d = deps({ parse: vi.fn(async () => ({ preview: preview({ amount: null, problems: ["several_amounts"] }) })) });
+    const d = deps({ parse: vi.fn(async () => ({ preview: preview({ amount: null, problems: ["several_amounts"], time_phrase: null, occurred_at: null }) })) });
     const outcome = await runTurn("kopi 18rb roti 12rb", "client-1", d);
     expect(outcome.reply?.text).toBe(SEVERAL_AMOUNTS_TEXT);
     expect(d.submit).not.toHaveBeenCalled();

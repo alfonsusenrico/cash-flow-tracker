@@ -356,6 +356,19 @@ The phase 3 rule applies element by element. Tanya is where the assistant speaks
 
 Everything else is new: `app/tanya/`, `components/tanya/`, `lib/tanya/` and `lib/capture.ts`. The existing keys `queryKeys.auth.me`, `queryKeys.review.summary` and `queryKeys.reports.latest` are reused, so `queryKeys.ts` and `AppLayout.tsx` are not edited.
 
+## Implementation notes (2026-11-03)
+
+Where the build differs from the decisions above, and why. Each point is also in verification.md.
+
+- **When Tanya asks for the amount (D2, OD68).** The server parser fills `kind` and `description` for every text ("halo" reads as an expense described as "Halo"), so the planned test "`kind` or `description` not null" would have asked "Jumlahnya berapa?" for anything. Tanya now asks only when the parser found evidence of a transaction: a time phrase, an account hint or a category hint ("parkir tadi"). Any other text without an amount gets the unknown reply, which now also says how to record ("tulis juga jumlahnya, misalnya …"). Nothing is recorded in either case.
+- **A follow-up question that is not answered (D6).** A `needs_detail` capture is not a row yet and does not appear in Tinjau, so "Jawab nanti di Tinjau" would be untrue. Instead the question stays answerable in the thread, and once a newer message follows it says "Belum dicatat sampai pertanyaan ini dijawab.". After a reload the capture stays unanswered on the server, as when the Catat dialog is closed mid-question (phase 3).
+- **Bills for "minggu ini" (D3, OD67).** Goal set-asides have a target date, not a due date in the week, so the 7-day card lists plan lines only and says that set-asides are counted per period. The window card lists both.
+- **Help keys without a switch caption (D5).** `PageShortcutGroup.caption` became optional in `components/workspace/shortcuts.tsx`: the help switch's caption names keys that the switch turns off, and Enter in the composer is not one of them. This adds that file to the D15 list (two lines).
+- **Copy guard scope (D10).** The phase 3 guard now covers `components/tanya`, `app/tanya`, `lib/tanya/resolve.ts`, `thread.ts`, `types.ts` and `lib/capture.ts`. Besides `lib/tanya/replies.ts`, `lib/tanya/intents.ts` stays outside: its patterns match what owners type ("nunggu", "aja") and are never shown.
+- **The capture card's account and category (D3).** They come from `capture.transaction`, which `/capture/text` already returns. `lib/capture.ts` types that field and adds `amountRefused`, used by both Catat and Tanya.
+- **Focus not obscured (D8, 2.4.11).** The browser check found focused controls under the sticky composer and the phone bars, so the page sets `scroll-padding` on the document while Tanya is open, and below 520 px of height (high zoom, landscape phones) the composer stays in the flow instead of sticking.
+- **The thread store (D7).** `useThreadState` exposes the bound user, and the view shows messages only when that user is the signed-in one, so a new session never flashes another user's thread before the reset.
+
 ## Preview conflicts (the approved rule wins)
 
 | Preview | This change | Rule |
@@ -394,6 +407,7 @@ Everything else is new: `app/tanya/`, `components/tanya/`, `lib/tanya/` and `lib
 | OD65 (resolved 2026-11-03: "approved, defaults ok") | Phone entry | **Lainnya sheet only.** The tab bar is unchanged |
 | OD66 (resolved 2026-11-03: "approved, defaults ok") | Recording keeps `/capture/text`'s bounded server-side model use | **Yes,** consistent with phase 3 OD26. Tanya's answers never use a model |
 | OD67 (resolved 2026-11-03: "approved, defaults ok") | Bills card range | **"minggu ini" or "this week" shows the next 7 days; otherwise the cycle-summary window** |
+| OD68 (open, conservative default applied) | When text without an amount gets "Jumlahnya berapa?" | **Only when the parser found a time phrase, an account or a category**; other text gets the unknown reply with a line on how to record. The alternative, asking for every text without an amount, would answer "halo" with a request for money |
 
 ## Open Questions
 

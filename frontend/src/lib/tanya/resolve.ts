@@ -113,9 +113,10 @@ export const captureResolver: Resolver = async ({ text, normalised, clientCaptur
     return { route: "error", restoreText: true, reply: draft({ notice: isRateLimited(failure) ? NOTICE_RATE_LIMITED : NOTICE_PARSE_FAILED }) };
   }
   if (amountRefused(preview)) {
+    // Several amounts are always a transaction; a missing amount only when the parser read one.
+    if (preview.problems.includes("several_amounts")) return { route: "ask_amount", reply: draft({ text: SEVERAL_AMOUNTS_TEXT }) };
     if (!forceCapture && !readAsTransaction(preview)) return null;
-    const several = preview.problems.includes("several_amounts");
-    return { route: "ask_amount", reply: draft({ text: several ? SEVERAL_AMOUNTS_TEXT : ASK_AMOUNT_TEXT }) };
+    return { route: "ask_amount", reply: draft({ text: ASK_AMOUNT_TEXT }) };
   }
   if (preview.amount === null) return forceCapture ? { route: "ask_amount", reply: draft({ text: ASK_AMOUNT_TEXT }) } : null;
   try {

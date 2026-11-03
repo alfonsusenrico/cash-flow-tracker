@@ -114,6 +114,10 @@
 
 .end { height: 1px; }
 
+/* Focus never lands under the sticky composer, the phone top bar or the tab bar (WCAG 2.4.11): the page
+   scrolls a focused control above them. */
+:global(html):has(.page) { scroll-padding-bottom: 150px; }
+
 /* The glow is decorative, behind the composer only, and never animated. */
 .composerWrap {
   position: sticky;
@@ -165,6 +169,7 @@
     margin: 0 -16px;
     padding: 2px 16px 6px;
     overflow-x: auto;
+    scroll-padding-inline: 16px;
     scroll-snap-type: x mandatory;
   }
   .suggestions li { flex: none; width: 70%; scroll-snap-align: start; }
@@ -174,6 +179,16 @@
   .hint { display: none; }
   .chip { min-height: 44px; }
   .question :global(.ws-btn), .cardFoot :global(.ws-btn) { min-height: 44px; }
+}
+
+@media (max-width: 760px) {
+  :global(html):has(.page) { scroll-padding-top: 76px; scroll-padding-bottom: calc(184px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* A short window (high zoom, a phone in landscape) keeps the composer in the flow, so it never covers the thread. */
+@media (max-height: 520px) {
+  .composerWrap { position: static; }
+  :global(html):has(.page) { scroll-padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
