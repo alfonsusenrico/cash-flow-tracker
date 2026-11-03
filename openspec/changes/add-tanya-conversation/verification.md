@@ -6,28 +6,32 @@ To be filled during implementation. Every check runs locally against disposable 
 - `next start` behind a loopback proxy;
 - headless Brave over CDP.
 
-No production host, phone or real model is used. Name the containers, ports and seed scripts here.
+No production host, phone or real model is used.
 
-Revisions: name the baseline revision, the revision under test, and which later commits touch only documents.
+- **Resources:** Postgres container `cft-tanya-pg` on 127.0.0.1:55522 (databases `ledger_test` for pytest, `ledger_browser` for the browser); API on 8222 (`run_api.sh`: AI off, jobs off, outbound HTTP through a dead proxy); `next start` on 3223 behind `proxy.mjs` on 3222; headless Brave CDP on 9522.
+- **Scripts and seed:** `scratchpad/web-p6/` (copied from `web-p3/` with ports and paths retargeted). `seed.py` creates the synthetic owners `beranda_contoh` and `pemilik_lain`; the seeded database is dumped once and restored with `reset_db.sh` before each flow run.
+- **Base:** phase 3 is not merged yet. The branch is rebased onto its pushed tip `17e15bd` (`origin/feat/transactions-workspace`), and the baseline is measured at `137eb6b` (plan approval on top of it). It is rebased onto `main` once phase 3 merges.
+
+Revisions: baseline `137eb6b`; revision under test and document-only commits are named in each section.
 
 ## 1. Prerequisites (task 1.1)
 
 | Phase 3 contract | Expected (design) | Found on `main` | Drift and action |
 | --- | --- | --- | --- |
-| `POST /api/capture/parse` | | | |
-| `CatatDialog` inline client | | | |
-| `TransactionDrawer` open API | | | |
-| Copy-register guard | | | |
-| `LEDGER_NAV_HREF` | | | |
+| `POST /api/capture/parse` | `{text, device_time}` → `preview` with `amount`, `problems`, `kind`, `description`, `occurred_at`, `time_phrase`, account and category hints; own bucket 120 per 60 s | `routers/capture.py` `parse_capture_text`: exactly those fields plus `time_options`; `PARSE_RATE_LIMIT = 120`, `PARSE_RATE_WINDOW = 60`, 429 `capture_rate_limited`. Problem codes `missing_amount` and `several_amounts` | None |
+| `CatatDialog` inline client | Types and helpers inside `CatatDialog.tsx` | `Preview`, `CaptureQuestion`, `Capture`, `deviceTime`, `newId`, `timeText`, `undoStillOpen` and the inline `api.post` calls are there. The `/capture/text` response also carries `transaction` (account, category, pillar, `review_status`) and `movement` | Moved types are named `CapturePreview`, `CaptureQuestion`, `Capture` (D6). The capture card reads `capture.transaction` for account and category; no contract change |
+| `TransactionDrawer` open API | Opened with a row id | `TransactionDrawer({ transactionId, onClose, record, onPickPair?, onDeleted? })`; `record` comes from `useTransactionUndo()` | Tanya passes `record` from its own `useTransactionUndo()` and no `onPickPair` (no list to pick from) |
+| Copy-register guard | A test with an allowlist mechanism | `frontend/src/copyRegister.test.ts`: `SLANG` token regex, `CONVERSATION` exact-string allowlist, `ROOTS` scope | Tanya adds `components/tanya`, `app/tanya` and `lib/tanya` (minus `replies.ts`) to `ROOTS`; `lib/tanya/replies.ts` stays out of scope as the assistant-voice module (D10) |
+| `LEDGER_NAV_HREF` | Exported from `navigation.ts` | `"/ledger?period=cycle"` in `components/workspace/navigation.ts` | None |
 
 ## 2. Baseline (task 1.2)
 
 | Check | Result |
 | --- | --- |
-| `npm ci` / type-check / lint / `npm test` / build | |
-| First-load JS per route and shared chunk (raw, gzip) | |
-| Backend suite (Flyway, `REQUIRE_TEST_DATABASE=1`) | |
-| Sidebar 1440 and Lainnya 390 screenshots | |
+| `npm ci` / type-check / lint / `npm test` / build | All pass at `137eb6b`. Lint 0 errors, 0 warnings. Vitest 68 files, 612 tests |
+| First-load JS per route and shared chunk (raw, gzip) | Shared chunk 13 scripts, 226.7 KB gzip. Route totals (raw / gzip KB): `/` 844.3 / 253.9, `/review` 811.8 / 244.6, `/ledger` 835.7 / 252.7, `/accounts` 871.4 / 255.3, `/goals` 790.2 / 234.9, `/insights` 1195.1 / 345.4, `/laporan` 790.3 / 237.1, `/settings` 765.5 / 232.1. CSS 18.6 KB gzip |
+| Backend suite (Flyway, `REQUIRE_TEST_DATABASE=1`) | Flyway V1 to V44 on a fresh database; 1664 passed, 0 failed, 0 skipped (111 s) |
+| Sidebar 1440 and Lainnya 390 screenshots | `web-p6/baseline/nav-{1440,1024,390}-{light,dark}.png`: sidebar groups Harian, Uang, Laporan; Lainnya lists Rekening & Kantong, Target & Tagihan, Analisis, Laporan, Pengaturan |
 
 ## 3. Unit and component tests (tasks 2.1–4.8)
 

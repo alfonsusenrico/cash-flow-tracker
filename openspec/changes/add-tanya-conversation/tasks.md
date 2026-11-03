@@ -1,6 +1,6 @@
 # Tasks
 
-The owner's approval of this plan is pending (proposal.md, "Approval"). Implementation starts only after it is recorded there with the owner's words and date, and only from a `main` that contains phase 3 (`redesign-transactions-workspace`).
+The owner approved this plan on 2026-11-03 ("approved, defaults ok", proposal.md, "Approval"). Phase 3 (`redesign-transactions-workspace`) is pushed but not merged yet, so implementation starts on its pushed tip and the branch is rebased onto `main` once phase 3 merges.
 
 The owner tests nothing until every phase is done (2026-11-03). The agent's own evidence is therefore the only runtime check, and every task's evidence must be complete in `verification.md`: commands, counts, skips with reasons, screenshots the agent has looked at, and measured values.
 
@@ -8,7 +8,7 @@ Data is synthetic only (for example "beranda_contoh", "Kedai Awan", "Dompet Digi
 
 ## 1. Prerequisites and baseline
 
-- [ ] 1.1 Rebase `feat/tanya-conversation` onto the `main` that contains phase 3. Check that phase 3's contracts exist as this plan names them:
+- [x] 1.1 Rebase `feat/tanya-conversation` onto the `main` that contains phase 3. Check that phase 3's contracts exist as this plan names them:
   - `POST /api/capture/parse` (request and response fields, the 120-per-60 s bucket);
   - `CatatDialog` with its inline capture client;
   - `TransactionDrawer` and how a row is opened in it;
@@ -16,7 +16,7 @@ Data is synthetic only (for example "beranda_contoh", "Kedai Awan", "Dompet Digi
   - `LEDGER_NAV_HREF`.
 
   Record any drift and update design.md before code. Evidence: a short table in verification.md, and the design diff if any.
-- [ ] 1.2 Record the baseline before any change:
+- [x] 1.2 Record the baseline before any change:
   - `npm ci`, `npm run type-check`, `npm run lint`, `npm test` and `npm run build` results;
   - first-load JS of every route and of the shared chunk (raw and gzip);
   - the full backend suite with its skips (expected unchanged by this phase);
