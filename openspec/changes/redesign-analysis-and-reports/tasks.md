@@ -147,7 +147,7 @@ Expected Result: the frontend passes as CI runs it, and the bundle gates hold.
 
 ## 10. Browser verification
 
-- [ ] 10.1 Run the browser matrix on `/insights?tab=ringkasan`, `?tab=kalender` (with a selected day), `?tab=aliran` (map and table, folded and unfolded, a node drawer and a link drawer) and `/laporan` (a complete report and the new-user state). For every cell record:
+- [x] 10.1 Run the browser matrix on `/insights?tab=ringkasan`, `?tab=kalender` (with a selected day), `?tab=aliran` (map and table, folded and unfolded, a node drawer and a link drawer) and `/laporan` (a complete report and the new-user state). For every cell record:
   - axe with 0 serious or critical violations;
   - horizontal overflow of 0;
   - 0 console errors;
@@ -156,7 +156,7 @@ Expected Result: the frontend passes as CI runs it, and the bundle gates hold.
   - focus not obscured.
 
   Also check 200% and 400% zoom on each tab, and reduced motion on Peta Aliran. Evidence: results JSON and screenshots, each read by the agent.
-- [ ] 10.2 Real-UI checks on the seeded owner:
+- [x] 10.2 Real-UI checks on the seeded owner:
   - Ringkasan's Keluar equals Beranda's and its Belanja equals Transaksi's;
   - the calendar's day amounts add up to Belanja (read from the page);
   - for each account node in the table, the in and out sums are equal;
@@ -167,13 +167,13 @@ Expected Result: the frontend passes as CI runs it, and the bundle gates hold.
   - Laporan stepping back and forward with the URL updated from a URL with a query.
 
   Evidence: the interaction JSON and screenshots.
-- [ ] 10.3 Regression pass on `/`, `/review`, `/ledger`, `/accounts`, `/goals` and `/settings`, against a build of `main` at the merge base. Evidence: per route, axe, overflow and console results for both builds.
+- [x] 10.3 Regression pass on `/`, `/review`, `/ledger`, `/accounts`, `/goals` and `/settings`, against a build of `main` at the merge base. Evidence: per route, axe, overflow and console results for both builds.
 
 Expected Result: both pages meet WCAG 2.2 AA in the matrix, the money figures agree across pages, and no other route regressed.
 
 ## 11. OpenSpec and diff
 
-- [ ] 11.1 `openspec validate --all --strict` exits 0, and `git diff --check` is clean. Evidence: the output lines.
+- [x] 11.1 `openspec validate --all --strict` exits 0, and `git diff --check` is clean. Evidence: the output lines.
 - [ ] 11.2 Fill verification.md, including "Not verified" with reasons. Push `feat/analysis-and-reports` so CI runs. Open no pull request. Evidence: the CI run id and its result.
 
 Expected Result: a pushed branch with green CI and a complete verification record.
