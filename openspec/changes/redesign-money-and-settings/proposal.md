@@ -33,7 +33,7 @@ Binding earlier approvals:
    - Amounts are never guessed.
 7. **Planning of phases 4–6, 2026-11-03.** The owner said "yes, plan P4–P6 now". This authorises planning. It does not approve this plan. The same day the owner said "I'm not going to test anything until all phases done implemented properly and approved". So acceptance of this phase rests on the agent's recorded evidence (tasks.md, group 7).
 
-**Pending:** the owner's approval of this plan (proposal, design, specs and tasks) and of OD50–OD59.
+**Plan approval, 2026-11-03.** After a combined summary of the phase 4, 5 and 6 plans, the owner approved all three with "approved, defaults ok". OD50–OD59 take their recommended defaults (design.md, open decisions). Phase 5 also adds the "Kebiasaan dihafal" card on Analisis Ringkasan that phase 4 deferred to it (phase 4 OD42), from `GET /api/habits`.
 
 ## Expected Outcome
 

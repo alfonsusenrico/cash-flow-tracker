@@ -488,16 +488,16 @@ Each has a recommended default that this plan already uses.
 
 | # | Decision | Recommended default |
 | --- | --- | --- |
-| OD50 | List merchant memory (suggestion memory) in Kebiasaan? | **No.** Only habits that record by themselves and learned top-ups. Merchant memory does not record anything and would read as "learned" while still asking |
-| OD51 | Per-user switches for automatic recording, as in the preview | **Not in phase 5.** Show the server switch states read-only. A per-user switch is its own change with a migration |
-| OD52 | "Tabel rapat" (compact rows) in Tampilan | **No.** No density system exists |
-| OD53 | Order and landing of Pengaturan | **HP & perangkat, Kebiasaan, Tampilan, then the Akun group.** Wide `/settings` opens HP & perangkat. Every address keeps working |
-| OD54 | Rekening layout | **The preview's tables with a row drawer and an "Ubah urutan" mode** (D2). The alternative, restyled cards, keeps the card requirements unchanged |
-| OD55 | Where Ketahanan Dana lives | **Target & Tagihan**, as in the preview. Beranda keeps its card, and Rekening drops it |
-| OD56 | Fix the capture-undo label debt here | **Yes** (D10). Kebiasaan would otherwise show counts that include undone captures |
-| OD57 | One net worth helper for Rekening and Beranda | **Yes** (D3). `total_assets` then excludes negative balances waiting for reconciliation, which become their own line. `net_worth` keeps its value |
-| OD58 | "Ekspor semua data" | **Not in phase 5.** It needs its own change with a privacy and format design |
-| OD59 | Unfinished movements on Rekening | **A count on the account row and a caption on Total aset with a link to Tinjau** ("Pindah saldo belum lengkap"). Counts come from `GET /review/queue` awaiting legs. No amount is shown until the server offers an all-time total |
+| OD50 (resolved 2026-11-03: "approved, defaults ok") | List merchant memory (suggestion memory) in Kebiasaan? | **No.** Only habits that record by themselves and learned top-ups. Merchant memory does not record anything and would read as "learned" while still asking |
+| OD51 (resolved 2026-11-03: "approved, defaults ok") | Per-user switches for automatic recording, as in the preview | **Not in phase 5.** Show the server switch states read-only. A per-user switch is its own change with a migration |
+| OD52 (resolved 2026-11-03: "approved, defaults ok") | "Tabel rapat" (compact rows) in Tampilan | **No.** No density system exists |
+| OD53 (resolved 2026-11-03: "approved, defaults ok") | Order and landing of Pengaturan | **HP & perangkat, Kebiasaan, Tampilan, then the Akun group.** Wide `/settings` opens HP & perangkat. Every address keeps working |
+| OD54 (resolved 2026-11-03: "approved, defaults ok") | Rekening layout | **The preview's tables with a row drawer and an "Ubah urutan" mode** (D2). The alternative, restyled cards, keeps the card requirements unchanged |
+| OD55 (resolved 2026-11-03: "approved, defaults ok") | Where Ketahanan Dana lives | **Target & Tagihan**, as in the preview. Beranda keeps its card, and Rekening drops it |
+| OD56 (resolved 2026-11-03: "approved, defaults ok") | Fix the capture-undo label debt here | **Yes** (D10). Kebiasaan would otherwise show counts that include undone captures |
+| OD57 (resolved 2026-11-03: "approved, defaults ok") | One net worth helper for Rekening and Beranda | **Yes** (D3). `total_assets` then excludes negative balances waiting for reconciliation, which become their own line. `net_worth` keeps its value |
+| OD58 (resolved 2026-11-03: "approved, defaults ok") | "Ekspor semua data" | **Not in phase 5.** It needs its own change with a privacy and format design |
+| OD59 (resolved 2026-11-03: "approved, defaults ok") | Unfinished movements on Rekening | **A count on the account row and a caption on Total aset with a link to Tinjau** ("Pindah saldo belum lengkap"). Counts come from `GET /review/queue` awaiting legs. No amount is shown until the server offers an all-time total |
 
 ## Expected overlap with phases 3, 4 and 6
 

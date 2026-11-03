@@ -170,6 +170,7 @@ Expected Result: Target & Tagihan shows goals, bills, Ketahanan Dana and debts w
   - no edit or forget control.
 
   Evidence: Vitest counts.
+- [ ] 5.3a Add the "Kebiasaan dihafal" card to Analisis Ringkasan (phase 4 OD42, deferred here), reading `GET /api/habits`: the count of `ready` habits and the most recent ones, a link to Pengaturan · Kebiasaan, an error state with retry (never 0 when the request fails), and an empty state when nothing is learned yet. Copy follows the register. If phase 4's Ringkasan spec delta names the card, MODIFY that requirement here; otherwise ADD it to `observed-insights`. Tests: loaded, empty and failed states. Evidence: Vitest counts and a Ringkasan screenshot at 1280 and 390.
 - [ ] 5.4 Add Tampilan (D9). The `ShortcutProvider` exposes the switch state. Tests:
   - the theme choice syncs with the account menu and persists;
   - the shortcut switch syncs with the help dialog, and ⌘K still works when off;
