@@ -6,7 +6,7 @@ Give the owner observed, actionable insights on Analisis instead of averages and
 ## Requirements
 
 ### Requirement: Fair period comparison
-The system SHALL compare the selected salary cycle or calendar month with the previous one over the same elapsed time from each period's start, shortening both windows to the previous period's length when it is shorter. It SHALL report inflow, outflow and net, spending per Kakeibo pillar with unclassified spending as a sixth `unclassified` entry, and the top three category and merchant increases and decreases with amounts, and SHALL NOT present a percentage change.
+The system SHALL compare the selected salary cycle or calendar month with the previous one over the same elapsed time from each period's start, shortening both windows to the previous period's length when it is shorter. It SHALL report inflow, outflow and net, spending per Kakeibo pillar with unclassified spending as a sixth `unclassified` entry, and the top three category and merchant increases and decreases with amounts, and SHALL NOT present a percentage change. It SHALL also report a `kakeibo` block with the six Kakeibo buckets for the current and the previous compared windows, in which saving includes net fresh saving through linked movements, computed by the same rule as the dashboard's Kakeibo breakdown.
 
 #### Scenario: Same elapsed days
 - **GIVEN** the current month observed through its 10th day, previous-month spending of Rp 100.000 on the 5th and Rp 900.000 on the 20th
@@ -29,6 +29,11 @@ The system SHALL compare the selected salary cycle or calendar month with the pr
 #### Scenario: Unclassified spending in the comparison
 - **WHEN** both windows hold spending without a pillar
 - **THEN** the pillar list SHALL include `unclassified` with its current, previous and change amounts, and the six entries SHALL add up to each window's outflow
+
+#### Scenario: Kakeibo buckets with saving transfers
+- **GIVEN** Rp 500.000 moved from "Bank Utama" into a goal pocket in the current compared window, and none in the previous one
+- **WHEN** the comparison is requested
+- **THEN** `kakeibo.current.saving` SHALL include Rp 500.000, `kakeibo.previous.saving` SHALL not, the existing `pillars` entries SHALL keep their values, and `kakeibo.current` SHALL equal the dashboard's Kakeibo breakdown of the same window
 
 ### Requirement: Net cash flow history
 The system SHALL list observed inflow, outflow net of reimbursements and net cash flow for the last six completed periods and the current period, using the same period rule as the essential cost, and SHALL label the current period as in progress ("berjalan"). Calendar months SHALL be used when the owner selects the calendar-month basis.
