@@ -386,14 +386,14 @@ Everything else is new: `app/tanya/`, `components/tanya/`, `lib/tanya/` and `lib
 
 | ID | Decision | Default |
 | --- | --- | --- |
-| OD60 | Record on send, or show a "Catat?" confirmation card first | **Record on send**, with Urungkan and Ubah on the card, as the preview and the phone do. Questions with a question marker are never recorded |
-| OD61 | Per-pillar previous-cycle marks in the Kakeibo card | **Not in this phase.** Show the `belanja` comparison sentence. Analisis (phase 4) owns pillar comparisons |
-| OD62 | Answer Tinjau items inside Tanya | **No.** Link to the exact item (`/review?item=…&folder=…`) |
-| OD63 | Include the latest-report intent and suggestion card (not in the P6 row's four) | **Yes, as a link card** using the shell's cached `/reports/monthly/latest` |
-| OD64 | Conversation lifetime | **Memory only, per tab, 100 messages, cleared on reload, sign-out and user change,** plus "Hapus percakapan" |
-| OD65 | Phone entry | **Lainnya sheet only.** The tab bar is unchanged |
-| OD66 | Recording keeps `/capture/text`'s bounded server-side model use | **Yes,** consistent with phase 3 OD26. Tanya's answers never use a model |
-| OD67 | Bills card range | **"minggu ini" or "this week" shows the next 7 days; otherwise the cycle-summary window** |
+| OD60 (resolved 2026-11-03: "approved, defaults ok") | Record on send, or show a "Catat?" confirmation card first | **Record on send**, with Urungkan and Ubah on the card, as the preview and the phone do. Questions with a question marker are never recorded |
+| OD61 (resolved 2026-11-03: "approved, defaults ok") | Per-pillar previous-cycle marks in the Kakeibo card | **Not in this phase.** Show the `belanja` comparison sentence. Analisis (phase 4) owns pillar comparisons |
+| OD62 (resolved 2026-11-03: "approved, defaults ok") | Answer Tinjau items inside Tanya | **No.** Link to the exact item (`/review?item=…&folder=…`) |
+| OD63 (resolved 2026-11-03: "approved, defaults ok") | Include the latest-report intent and suggestion card (not in the P6 row's four) | **Yes, as a link card** using the shell's cached `/reports/monthly/latest` |
+| OD64 (resolved 2026-11-03: "approved, defaults ok") | Conversation lifetime | **Memory only, per tab, 100 messages, cleared on reload, sign-out and user change,** plus "Hapus percakapan" |
+| OD65 (resolved 2026-11-03: "approved, defaults ok") | Phone entry | **Lainnya sheet only.** The tab bar is unchanged |
+| OD66 (resolved 2026-11-03: "approved, defaults ok") | Recording keeps `/capture/text`'s bounded server-side model use | **Yes,** consistent with phase 3 OD26. Tanya's answers never use a model |
+| OD67 (resolved 2026-11-03: "approved, defaults ok") | Bills card range | **"minggu ini" or "this week" shows the next 7 days; otherwise the cycle-summary window** |
 
 ## Open Questions
 

@@ -38,7 +38,7 @@ Binding earlier approvals:
    - Amounts are never guessed.
 6. **Start of planning for phases 4–6, 2026-11-03.** The owner said "yes, plan P4–P6 now". This authorises planning. It does not approve this plan.
 
-Approval of this plan is pending.
+**Plan approval, 2026-11-03.** After a combined summary of the phase 4, 5 and 6 plans, the owner approved all three with "approved, defaults ok". OD60–OD67 take their recommended defaults (design.md, open decisions).
 
 ## Expected Outcome
 
