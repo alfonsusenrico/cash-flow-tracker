@@ -27,6 +27,9 @@ const ROOTS = ["components/workspace", "components/beranda", "components/review"
   "components/ui/DeviceHealthChecklist.tsx", "components/ui/DevicePairingDialog.tsx", "components/ui/DevicePairingSection.tsx",
   "app/ledger/page.tsx", "app/review/page.tsx", "app/page.tsx", "lib/deviceHealth.ts", "lib/reviewUndo.ts", "lib/triage.ts",
   "lib/provenance.ts", "lib/ledgerFilters.ts", "lib/historySuggestions.ts",
+  // Tanya: every source except lib/tanya/replies.ts, the assistant's own words, and lib/tanya/intents.ts,
+  // whose patterns match what owners type ("nunggu", "aja") and are never shown.
+  "components/tanya", "app/tanya", "lib/tanya/resolve.ts", "lib/tanya/thread.ts", "lib/tanya/types.ts", "lib/capture.ts",
   // Analisis and Laporan (redesign-analysis-and-reports D13).
   "components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx",
   "lib/reportLead.ts"];

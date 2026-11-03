@@ -5,72 +5,13 @@ import { useAppCtx } from "@/components/layout/AppLayout";
 import { useRefreshTransactionViews } from "@/components/transactions/useTransactionUndo";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/workspace/overlays";
-import { ApiError, api } from "@/lib/api";
+import { ApiError } from "@/lib/api";
+import {
+  CAPTURE_TEXT_LIMIT, amountRefused, answerCapture, newId, parseCapture, submitCapture, timeText, undoCapture, undoStillOpen,
+  type Capture, type CapturePreview,
+} from "@/lib/capture";
 
 const PARSE_DELAY_MS = 300;
-const TEXT_LIMIT = 200;
-/** Every question type the web dialog can answer, so time questions are asked here too. */
-const QUESTION_TYPES = ["amount", "time", "kind", "account", "category"];
-const TIME = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
-const DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });
-
-interface Preview {
-  amount: number | null;
-  problems: string[];
-  kind: "expense" | "income" | "movement" | null;
-  description: string | null;
-  occurred_at: string | null;
-  time_phrase: string | null;
-  time_options: string[];
-  account_hint: { account_id: string; label: string } | null;
-  category_hint: { category_id: string; label: string; pillar: string | null } | null;
-}
-
-interface CaptureQuestion {
-  question_id: string;
-  type: string;
-  prompt: string;
-  options: { id: string; label: string }[];
-  allows_text: boolean;
-}
-
-interface Capture {
-  id: string;
-  status: "recorded" | "needs_detail" | "undone" | string;
-  question: CaptureQuestion | null;
-  summary: { amount: number | null; description: string | null; time_label: string | null };
-  undo_until: string | null;
-}
-
-function deviceTime(): string {
-  const now = new Date();
-  const offset = -now.getTimezoneOffset();
-  const sign = offset >= 0 ? "+" : "-";
-  const pad = (value: number) => String(Math.floor(Math.abs(value))).padStart(2, "0");
-  const local = new Date(now.getTime() + offset * 60_000).toISOString().slice(0, 19);
-  return `${local}${sign}${pad(offset / 60)}:${pad(offset % 60)}`;
-}
-
-function newId(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (Number(c) ^ (Math.random() * 16) >> (Number(c) / 4)).toString(16));
-}
-
-function timeText(preview: Preview): { text: string; missing: boolean } {
-  if (preview.occurred_at) {
-    const sameDay = DAY.format(new Date(preview.occurred_at)) === DAY.format(new Date());
-    const clock = TIME.format(new Date(preview.occurred_at));
-    if (!preview.time_phrase) return { text: `Waktu: sekarang, ${clock}`, missing: false };
-    return { text: sameDay ? `Jam ${clock}` : `${preview.time_phrase}, ${clock}`, missing: false };
-  }
-  return { text: "Jam: ditanyakan setelah dicatat", missing: true };
-}
-
-/** Whether the capture's own undo window (10 s plus grace on the server) is still open. */
-function undoStillOpen(until: string | null): boolean {
-  return Boolean(until) && Date.parse(until as string) > Date.now();
-}
 
 const KIND_TEXT: Record<string, string> = { expense: "Keluar", income: "Masuk", movement: "Pindah saldo" };
 
@@ -86,7 +27,7 @@ export default function CatatDialog({ open, onClose, onManual }: { open: boolean
   const fieldId = useId();
   const noteId = useId();
   const [text, setText] = useState("");
-  const [preview, setPreview] = useState<Preview | null>(null);
+  const [preview, setPreview] = useState<CapturePreview | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
   const [capture, setCapture] = useState<Capture | null>(null);
   const [answerText, setAnswerText] = useState("");
@@ -113,7 +54,7 @@ export default function CatatDialog({ open, onClose, onManual }: { open: boolean
     }
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      api.post<{ preview: Preview }>("/capture/parse", { text: value, device_time: deviceTime() }, controller.signal)
+      parseCapture(value, controller.signal)
         .then((response) => {
           setPreview(response.preview);
           setPreviewFailed(false);
@@ -131,7 +72,7 @@ export default function CatatDialog({ open, onClose, onManual }: { open: boolean
     };
   }, [text, capture]);
 
-  const refused = preview?.problems.includes("missing_amount") || preview?.problems.includes("several_amounts");
+  const refused = amountRefused(preview);
   const refusal = preview?.problems.includes("several_amounts")
     ? "Ada lebih dari satu jumlah. Tulis satu jumlah saja."
     : "Jumlah belum ada. Tulis jumlahnya, misalnya 5rb.";
@@ -144,7 +85,7 @@ export default function CatatDialog({ open, onClose, onManual }: { open: boolean
     const undoOpen = undoStillOpen(recorded.undo_until);
     showToast(`Dicatat: ${label}${when ? `, ${when}` : ""}.`, undoOpen ? {
       onUndo: () => {
-        api.post(`/capture/${recorded.id}/undo`)
+        undoCapture(recorded.id)
           .then(() => {
             refresh();
             showToast("Catatan dibatalkan.");
@@ -169,9 +110,7 @@ export default function CatatDialog({ open, onClose, onManual }: { open: boolean
     setSubmitting(true);
     setError("");
     try {
-      const response = await api.post<{ capture: Capture }>("/capture/text", {
-        client_capture_id: clientId.current, text: value, device_time: deviceTime(), question_types: QUESTION_TYPES,
-      });
+      const response = await submitCapture(value, clientId.current);
       handle(response.capture);
     } catch (failure) {
       // The same client id is resent on retry, so a capture that did reach the server is not recorded twice.
@@ -186,9 +125,7 @@ export default function CatatDialog({ open, onClose, onManual }: { open: boolean
     setSubmitting(true);
     setError("");
     try {
-      const response = await api.post<{ capture: Capture }>(`/capture/${capture.id}/answer`, {
-        question_id: capture.question.question_id, reply_id: newId(), ...body,
-      });
+      const response = await answerCapture(capture, body);
       handle(response.capture);
     } catch (failure) {
       setError(failure instanceof Error && failure.message ? failure.message : "Jawaban belum tersimpan. Coba lagi.");
@@ -222,7 +159,7 @@ export default function CatatDialog({ open, onClose, onManual }: { open: boolean
               type="text"
               data-autofocus
               autoComplete="off"
-              maxLength={TEXT_LIMIT}
+              maxLength={CAPTURE_TEXT_LIMIT}
               value={text}
               onChange={(event) => setText(event.target.value)}
               placeholder="Contoh: parkir 5rb jam 2"

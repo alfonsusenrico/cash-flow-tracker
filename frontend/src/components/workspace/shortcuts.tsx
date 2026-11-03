@@ -43,8 +43,11 @@ export interface ShortcutHelpEntry {
  */
 export interface PageShortcutGroup {
   name: string;
-  /** How the switch caption names these keys, for example "tombol satu huruf di Tinjau". */
-  caption: string;
+  /**
+   * How the switch caption names these keys, for example "tombol satu huruf di Tinjau". Absent for keys the
+   * switch does not turn off (Enter in a composer), so the caption never claims them.
+   */
+  caption?: string;
   entries: ShortcutHelpEntry[];
 }
 
@@ -206,8 +209,9 @@ function KeyList({ entries }: { entries: ShortcutHelpEntry[] }) {
 }
 
 function switchCaption(groups: PageShortcutGroup[]): string {
-  if (!groups.length) return "N dan ? jalan tanpa tombol lain.";
-  return `N, ?, dan ${groups.map((group) => group.caption).join(", ")} jalan tanpa tombol lain.`;
+  const captions = groups.flatMap((group) => (group.caption ? [group.caption] : []));
+  if (!captions.length) return "N dan ? jalan tanpa tombol lain.";
+  return `N, ?, dan ${captions.join(", ")} jalan tanpa tombol lain.`;
 }
 
 export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
