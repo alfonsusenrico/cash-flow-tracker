@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Report page layout
-The web page `/laporan` ("Laporan" in the navigation) SHALL present the report in Indonesian without verdicts, on phone and desktop, in the light and the dark theme. The basis switch and a report stepper SHALL be in the top bar, with `basis` and `start` kept in the URL. The written lead SHALL come first, then the four questions; the comparison, "Kualitas data", the budget and past reports SHALL sit beside them on wide screens and between them on the phone. Loading, empty and error states SHALL be truthful.
+The web page `/laporan` ("Laporan" in the navigation) SHALL present the report in Indonesian without verdicts, on phone and desktop in both themes. The basis switch and a report stepper SHALL be in the top bar, with `basis` and `start` in the URL. The written lead SHALL come first, then the four questions; the comparison, "Kualitas data", the budget and past reports SHALL sit beside them on wide screens and between them on the phone. Loading, empty and error states SHALL be truthful.
 
 #### Scenario: Phone width
 - **WHEN** the page is shown at 390 CSS pixels
