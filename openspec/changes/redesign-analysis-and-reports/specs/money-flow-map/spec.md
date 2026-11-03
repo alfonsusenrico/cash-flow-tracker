@@ -103,11 +103,11 @@ A "Tabel" view SHALL list every link, including folded ones, exactly once with D
 - **THEN** the table SHALL be shown and reachable, and no content SHALL overflow horizontally
 
 ### Requirement: Peta Aliran Fold
-The opening and "Masih ada" links SHALL be hidden from the map by default, behind a button that names their amount. The table SHALL keep listing them.
+The opening, "Masih ada" and income links SHALL be hidden from the map by default, so spending sets the scale, behind a button that names the "Masih ada" amount. The table SHALL keep listing them.
 
 #### Scenario: Fold
 - **WHEN** Peta Aliran opens for the first time
-- **THEN** the opening and "Masih ada" links SHALL be hidden from the map, the button SHALL read "Tampilkan Saldo dan Masih ada" with the amount, and the table SHALL still list them
+- **THEN** the opening, "Masih ada" and income links SHALL be hidden from the map, the button SHALL read "Tampilkan uang masuk, saldo dan Masih ada" with the amount, and the table SHALL still list them
 
 ### Requirement: Peta Aliran Replay
 Replay SHALL step one local day at a time through the period up to today and SHALL announce the day. It SHALL keep the node order of the full period, and SHALL not play automatically under reduced motion.

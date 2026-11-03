@@ -424,6 +424,21 @@ Baselines are measured first, on the rebased branch, before any change.
 | "Kebiasaan dihafal" card on Ringkasan | Needs `GET /api/habits` (phase 5) | Not in this phase (OD42) |
 | Laporan lead written casually | Copy register: reports are records (D12) | Neutral lead |
 
+## Implementation notes (2026-11-03)
+
+Where the build differs from the decisions above, and why. Each is covered by tests or the browser record in verification.md.
+
+- **Calendar window of an open cycle (D6).** An open salary cycle has no known end, so the calendar runs to the day before the expected salary, or one nominal month from the cycle start when that date cannot be estimated. A month window is the calendar month. The expected salary is only estimated for the open cycle; other windows report `no_cycle`.
+- **Calendar statement count (D6, D14).** Eight queries, plus the read-only isolation statement every dashboard route opens with: the test caps the total at 9 and checks it does not grow with rows or plans.
+- **Flow summary (D8).** Masuk, Belanja and Keluar are computed from the same report rows as analytics, so at the window end they equal it even when a reportable row waits for a counterpart and is drawn into "Menunggu pasangan". The summary also returns `spend_gross`, the sum of the drawn bucket links, and `belanja_gross`.
+- **Flow rows shape (D9).** Rows carry what the drawer lists (date, account, label, amount, waiting) and the transaction id. The shared transaction drawer loads the full row by id, so the ledger row shape is not repeated here.
+- **Fold (D10, OD49).** Folded, the map hides the income links as well as the balance links, as the approved preview does, so spending sets the scale; otherwise the salary made every spending ribbon a hairline. The fold button reads "Tampilkan uang masuk, saldo dan Masih ada", and the table and the Masuk figure always list everything.
+- **Columns (D10).** Saving and investment nodes share the bucket column so their labels stack together; "Masih ada" sits one column further. An empty first column is dropped. A transfer cycle between accounts that cannot be drawn left to right is listed in the table, with a note under the map.
+- **Dialogs (D5, D11).** The project has no native dialog primitive; `Modal` stays the app's dialog (phase 5 keeps it too).
+- **Card markup (D2, D11).** The observed-insight cards (comparison, history, recurring charges, question rate) and the report answer components keep their markup inside the new layout; their links gained 24 px targets. Their full restyle belongs to phase 5's alias removal. The period comparison sits in the wide column, because its three figures and two change lists were cut off in the side column.
+- **Kalender cells (D7).** Cells write the amount in short form ("109rb", "1,2 jt"); the full amount is in the cell's accessible name, the day sheet and the legend.
+- **Tokens (D14).** The heat and flow colours are tokens in `tokens.css` per theme; the transfer ribbon uses the transfer token. `recharts` and the old `BurnCadenceChart`, `SpendingHeatmap` and `KakeiboBenchmark` were removed with their last use.
+
 ## Open decisions for owner
 
 | ID | Question | Recommended default |
@@ -437,6 +452,7 @@ Baselines are measured first, on the rebased branch, before any change.
 | OD46 (resolved 2026-11-03: "approved, defaults ok") | First day of the calendar week | **Monday**, as the preview and Indonesian calendars do |
 | OD47 (resolved 2026-11-03: "approved, defaults ok") | Heat levels | **Five levels from the period's own quartiles of non-zero days**, rounded to Rp 1.000 and written in the legend. Fixed amounts would make most months one colour |
 | OD48 (resolved 2026-11-03: "approved, defaults ok") | Expenses in excluded categories on the map | **A node "Tidak dihitung belanja"**, so every row on an account has a link and the account balances |
+| OD49 (open, conservative default applied) | Whether the folded map also hides the income links | **Hide them, as the approved preview does**, so spending sets the scale; the table, the Masuk figure and the unfolded map show income |
 
 ## Risks / Trade-offs
 
