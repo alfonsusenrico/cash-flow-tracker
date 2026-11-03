@@ -598,7 +598,7 @@ function TotalAssets({
           <Link href="/review?folder=pindah" className="ws-linkbtn">Buka Tinjau</Link>
         </p>
       )}
-      <p className="ws-caption"><Link href="/goals" className="ws-linkbtn">Lihat Ketahanan Dana</Link></p>
+      <p className={styles.linkRow}><Link href="/goals" className="ws-linkbtn">Lihat Ketahanan Dana</Link></p>
     </Card>
   );
 }
