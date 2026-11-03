@@ -462,7 +462,7 @@ export function TriageInbox() {
         if (!candidates) throw failed;
         // The other leg may already be recorded; creating another would count the money twice.
         setCompletionChoices((current) => ({ ...current, [leg.id]: candidates }));
-        return { message: "rekening itu sudah punya transaksi yang cocok. Hubungkan, atau buat baru", batches: [], stay: true };
+        return { message: "rekening itu sudah punya transaksi yang cocok. Hubungkan, atau catat baru", batches: [], stay: true };
       }
     });
 
@@ -538,7 +538,7 @@ export function TriageInbox() {
   useShortcut("j", () => move(1, inList()), regionRef);
   useShortcut("k", () => move(-1, inList()), regionRef);
   useShortcut("e", () => {
-    if (!pressMarked(itemRef.current, "data-primary-choice")) setNotice("Belum ada saran buat diterima.");
+    if (!pressMarked(itemRef.current, "data-primary-choice")) setNotice("Belum ada saran untuk diterima.");
   }, regionRef);
   useShortcut("t", () => {
     if (!pressMarked(itemRef.current, "data-topup")) setNotice("T hanya untuk pindah saldo keluar yang belum lengkap.");
@@ -691,7 +691,7 @@ export function TriageInbox() {
                   Tidak ada yang perlu dijawab. Transaksi baru dari HP tetap dicatat.
                 </EmptyState>
               ) : (
-                <EmptyState icon="inbox" title="Pilih satu dari daftar">Atau tekan J buat mulai dari atas.</EmptyState>
+                <EmptyState icon="inbox" title="Pilih satu dari daftar">Atau tekan J untuk mulai dari atas.</EmptyState>
               )
             ) : (
               body()

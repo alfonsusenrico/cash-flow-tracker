@@ -19,7 +19,7 @@ function itemDate(item: TriageItem): string | null {
 
 function itemLine(item: TriageItem): string {
   switch (item.kind) {
-    case "question": return "Apa ini? · Pembayaran tanpa nama toko";
+    case "question": return "Belum dikenali · Pembayaran tanpa nama toko";
     case "group": {
       const { group } = item;
       const parts = item.folder === "otomatis" ? ["Dicatat otomatis"] : ["Perlu jawaban"];

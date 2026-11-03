@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
  * errors, empty states and explanations are neutral standard Indonesian. Only the assistant's own
  * conversation keeps the casual voice; those strings are listed here one by one.
  */
-const SLANG = /\b(nggak|ngga|gak|udah|beres|nangkep|ketangkep|nyambung|nyambungin|bikin|aja|banget|dimatiin|kamu|aku|nunggu|gajian|lagi bikin|cuma|nebak|dobel|ketemu|benerin|lanjutin|nuntun|tunjukin|ngecek)\b|\b\w+-mu\b/i;
+const SLANG = /\b(saranku|buat baru|buat diterima|buat mulai|nggak|ngga|gak|udah|beres|nangkep|ketangkep|nyambung|nyambungin|bikin|aja|banget|dimatiin|kamu|aku|nunggu|gajian|lagi bikin|cuma|nebak|dobel|ketemu|benerin|lanjutin|nuntun|tunjukin|ngecek)\b|\b\w+-mu\b/i;
 
 const CONVERSATION = [
   // Beranda's written summary sentence (option F narrative).

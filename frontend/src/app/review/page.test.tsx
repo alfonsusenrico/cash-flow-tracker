@@ -318,7 +318,7 @@ describe("Tinjau triage", () => {
   it("answers a question with a numbered choice or with text", async () => {
     const { user } = renderPage();
     await loaded();
-    const choice = within(pane()).getByRole("button", { name: /belanja dapur.*Saranku/ });
+    const choice = within(pane()).getByRole("button", { name: /belanja dapur.*Saran/ });
     expect(choice).toHaveAttribute("data-primary-choice");
     await user.click(within(pane()).getByRole("button", { name: "Simpan jawaban" }));
     expect(within(pane()).getByRole("alert")).toHaveTextContent("Tulis jawaban singkat");
@@ -337,7 +337,7 @@ describe("Tinjau triage", () => {
     ] } }] };
     const { container } = renderPage();
     await loaded();
-    expect(within(pane()).getByRole("button", { name: /^Sepertinya Makanan & Minuman\?.*Saranku.*3 dari 4 jawaban sebelumnya/ })).toBeInTheDocument();
+    expect(within(pane()).getByRole("button", { name: /^Sepertinya Makanan & Minuman\?.*Saran.*3 dari 4 jawaban sebelumnya/ })).toBeInTheDocument();
     expect(within(pane()).getAllByText(/jawaban sebelumnya/)).toHaveLength(1);
     expect((await axe(container)).violations).toHaveLength(0);
   });
@@ -557,7 +557,7 @@ describe("Tinjau triage", () => {
     await user.click(row("Masuk ke BCA Harian"));
     act(() => itemHeading().focus());
     await user.keyboard("e");
-    expect(await screen.findByText("Belum ada saran buat diterima.")).toBeInTheDocument();
+    expect(await screen.findByText("Belum ada saran untuk diterima.")).toBeInTheDocument();
   });
 
   it("Help lists the page keys", async () => {
@@ -620,7 +620,7 @@ describe("Tinjau triage", () => {
     await loaded();
     await user.click(row("Keluar dari GoPay"));
     await user.click(within(pane()).getByRole("button", { name: /^BCA Harian/ }));
-    await user.click(await within(pane()).findByRole("button", { name: /Tetap buat baru/ }));
+    await user.click(await within(pane()).findByRole("button", { name: /Tetap catat baru/ }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/movements/complete", { transaction_id: "tx-await", target_account_id: "account-bca", create_new: true }));
   });
 

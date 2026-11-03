@@ -273,7 +273,7 @@ export function AwaitingMovementCard({
               primary
               disabled={pending}
               label={`Iya, top up ${topup.products.find((product) => product.id === target)?.name ?? suggestion.target_label ?? "produk ini"}`}
-              sub="Saranku"
+              sub="Saran"
               onClick={() => void topup.onConvert(item, target, target)}
             />
             <Choice
@@ -353,7 +353,7 @@ export function AwaitingMovementCard({
             <Choice
               n={candidates.length + 1}
               disabled={pending}
-              label="Tetap buat baru"
+              label="Tetap catat baru"
               sub="Rekening itu memang punya transaksi lain"
               onClick={() => void onComplete(item, candidates[0].account_id, true)}
             />

@@ -258,7 +258,7 @@ export function MoneyCard({ summary }: { summary: CycleSummary }) {
         caption={
           <>
             Masuk {money(masuk.total)}. Setelah tagihan dan setoran target, sisa {remainingFigure}
-            {safe.days_left ? ` buat ${safe.days_left} hari` : ""}.
+            {safe.days_left ? ` untuk ${safe.days_left} hari` : ""}.
           </>
         }
         action={
@@ -539,7 +539,7 @@ export function PhoneHero({ summary }: { summary: CycleSummary }) {
       <p className="ws-ph-sub">
         Sisa{" "}
         <ExplainableFigure label="Sisa aman sampai gaji berikutnya" amountText={balance(remaining.total, money)} explanation={remainingExplanation(summary, money)} />
-        {safe.days_left ? ` buat ${safe.days_left} hari` : `, ${unavailableReason(summary).short}`}
+        {safe.days_left ? ` untuk ${safe.days_left} hari` : `, ${unavailableReason(summary).short}`}
       </p>
       <div className="ws-ph-bar" aria-hidden="true">
         {keluar.total > 0 && <i style={{ flex: keluar.total, background: "var(--surface-3)" }} />}
