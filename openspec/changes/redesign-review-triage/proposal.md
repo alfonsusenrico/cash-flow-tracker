@@ -15,7 +15,7 @@ Binding earlier approvals:
 5. **Phase 0, 2026-11-02.** The product is public and multi-user, the design is not specific to the owner, optional features stay hidden until needed, the AI asks only when a human would ask, and amounts are never guessed.
 6. **Start of phase 2, 2026-11-03.** The owner said "merged, start phase 2". This authorises planning. It does not approve this plan.
 
-Phase 2 plan approval: **pending.** The owner reviews proposal, design (including OD14–OD17), specs and tasks. No application code is written before that approval.
+7. **Phase 2 plan, 2026-11-03.** The owner approved this plan (proposal, design, specs and tasks) with "approved, defaults ok". OD14–OD17 take their recommended defaults (design.md, "Open decisions for owner").
 
 ## Expected Outcome
 

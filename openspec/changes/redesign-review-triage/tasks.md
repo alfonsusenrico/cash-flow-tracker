@@ -1,6 +1,6 @@
 # Tasks
 
-No task starts before the owner approves this plan (proposal.md, "Approval"). Evidence for every task goes into `verification.md` of this change: commands, counts, skips with reasons, screenshots and measured values. Use synthetic data only (for example "Kedai Awan", "RDN Contoh", "Bibit Contoh · Reksa Dana A"). Backend tests run on a disposable PostgreSQL 16 migrated by Flyway V1 to V44 with `REQUIRE_TEST_DATABASE=1`, as `.github/workflows/checks.yml` does. The browser matrix means 1440, 1280, 1024, 768 and 390 px, each in light and dark, in a headless browser on a local build.
+The owner approved this plan on 2026-11-03 ("approved, defaults ok"; proposal.md, "Approval"). Evidence for every task goes into `verification.md` of this change: commands, counts, skips with reasons, screenshots and measured values. Use synthetic data only (for example "Kedai Awan", "RDN Contoh", "Bibit Contoh · Reksa Dana A"). Backend tests run on a disposable PostgreSQL 16 migrated by Flyway V1 to V44 with `REQUIRE_TEST_DATABASE=1`, as `.github/workflows/checks.yml` does. The browser matrix means 1440, 1280, 1024, 768 and 390 px, each in light and dark, in a headless browser on a local build.
 
 ## 1. Baseline and migration
 
