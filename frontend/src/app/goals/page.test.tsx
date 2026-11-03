@@ -248,4 +248,3 @@ describe("goal backing forms", () => {
     await waitFor(() => expect(api.del).toHaveBeenCalledWith("/goals/goal-standalone"));
   });
 });
-

@@ -702,4 +702,3 @@ describe("account and pocket forms", () => {
     hidden.on = false;
   });
 });
-

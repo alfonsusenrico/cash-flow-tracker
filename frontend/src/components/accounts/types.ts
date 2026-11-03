@@ -49,4 +49,3 @@ export interface NetWorthResponse {
   reconciliation_pending: number;
   lines: { key: string; label: string; amount: number }[];
 }
-
