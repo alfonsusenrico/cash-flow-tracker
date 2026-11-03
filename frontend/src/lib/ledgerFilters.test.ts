@@ -14,7 +14,7 @@ const CATEGORY = "11111111-2222-4333-8444-555555555555";
 describe("ledger URL filters", () => {
   it("round-trips through the URL and leaves out defaults", () => {
     const filters = parseLedgerFilters(new URLSearchParams(`period=month&offset=-2&category=${CATEGORY}&kakeibo=culture&type=expense&review=auto`));
-    expect(filters).toEqual({ period: "month", offset: -2, category: CATEGORY, kakeibo: "culture", type: "expense", account: "all", review: "auto", from: null, to: null, q: "", dup: false });
+    expect(filters).toEqual({ period: "month", offset: -2, category: CATEGORY, kakeibo: "culture", type: "expense", account: "all", review: "auto", from: null, to: null, q: "", dup: false, source: "all", waiting: false });
     expect(parseLedgerFilters(new URLSearchParams(ledgerFilterQuery(filters)))).toEqual(filters);
     expect(ledgerFilterQuery(DEFAULT_LEDGER_FILTERS)).toBe("");
     expect(ledgerHref({})).toBe("/ledger");

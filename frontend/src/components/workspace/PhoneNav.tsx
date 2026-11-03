@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { sameRouteClick } from "@/lib/urlState";
 import { useWorkspace } from "./context";
 import { syncDialog, useEscapeLayer, useFocusTrap } from "./layers";
 import { NAV_GROUPS, PHONE_TAB_HREFS, REVIEW_HREF, SETTINGS_LINK, badgeWords, isActivePath } from "./navigation";
@@ -30,6 +31,7 @@ export function PhoneTabBar() {
       <Link
         key={link.href}
         href={link.href}
+        onClick={sameRouteClick(link.href, pathname)}
         className="ws-tab"
         aria-current={active ? "page" : undefined}
         aria-label={count ? `${link.label}, ${badgeWords("review", count)}` : link.label}
@@ -131,7 +133,7 @@ export function MoreSheet({ open, onClose }: { open: boolean; onClose: () => voi
                   className="ws-menu-item"
                   aria-current={active ? "page" : undefined}
                   aria-label={badge ? `${link.label}, ${badgeWords("report", 1)}` : link.label}
-                  onClick={onClose}
+                  onClick={sameRouteClick(link.href, pathname, onClose)}
                 >
                   <Icon name={link.icon} className="h-5 w-5" />
                   <span className="flex-1">{link.label}</span>

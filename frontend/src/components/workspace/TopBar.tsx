@@ -57,14 +57,23 @@ function Disclosure({
   );
 }
 
+/** The id of Transaksi's own search field, which ⌘K focuses while Transaksi is open (D12). */
+export const LEDGER_SEARCH_ID = "ledger-search";
+
 function SearchBox() {
   const router = useRouter();
+  const pathname = usePathname();
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
+  const onLedger = pathname === LEDGER_HREF;
   useShortcut("mod+k", () => {
-    if (input.current && input.current.offsetParent !== null) input.current.focus();
+    const pageSearch = onLedger ? document.getElementById(LEDGER_SEARCH_ID) : null;
+    if (pageSearch) pageSearch.focus();
+    else if (input.current && input.current.offsetParent !== null) input.current.focus();
     else router.push(LEDGER_HREF);
   });
+  // Transaksi has its own search in its toolbar; a second field would search the same rows.
+  if (onLedger) return null;
   return (
     <form
       role="search"

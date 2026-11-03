@@ -20,6 +20,8 @@ export interface NavGroup {
 
 export const REVIEW_HREF = "/review";
 export const LEDGER_HREF = "/ledger";
+/** What the Transaksi entry opens: this cycle (OD20). Plain `/ledger` and every other link keep all time. */
+export const LEDGER_NAV_HREF = "/ledger?period=cycle";
 
 /**
  * One source for the sidebar, the phone tab bar and the "Lainnya" sheet. The AI group (Tanya) joins
@@ -31,7 +33,7 @@ export const NAV_GROUPS: NavGroup[] = [
     links: [
       { href: "/", label: "Beranda", icon: "home" },
       { href: REVIEW_HREF, label: "Tinjau", icon: "inbox", badge: "review" },
-      { href: LEDGER_HREF, label: "Transaksi", icon: "receipt" },
+      { href: LEDGER_NAV_HREF, label: "Transaksi", icon: "receipt" },
     ],
   },
   {
@@ -53,9 +55,10 @@ export const NAV_GROUPS: NavGroup[] = [
 export const SETTINGS_LINK: NavLink = { href: SETTINGS_HOME, label: "Pengaturan", icon: "sliders" };
 
 /** Pages on the phone tab bar; every other page sits in "Lainnya". */
-export const PHONE_TAB_HREFS = ["/", REVIEW_HREF, LEDGER_HREF] as const;
+export const PHONE_TAB_HREFS = ["/", REVIEW_HREF, LEDGER_NAV_HREF] as const;
 
 export function isActivePath(pathname: string, href: string): boolean {
+  href = href.split("?")[0];
   if (href === "/") return pathname === "/";
   if (href.startsWith("/settings")) return pathname.startsWith("/settings");
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -73,11 +76,11 @@ interface PageMeta {
 }
 
 const PAGE_META: [string, PageMeta][] = [
-  ["/review", { title: "Tinjau", subtitle: "Yang perlu jawabanmu dan yang dicatat otomatis" }],
+  ["/review", { title: "Tinjau", subtitle: "Yang perlu dijawab dan yang dicatat otomatis" }],
   ["/ledger", { title: "Transaksi", subtitle: "Semua uang masuk, keluar, dan pindah saldo" }],
   ["/accounts", { title: "Rekening & Kantong", subtitle: "Bank, e-wallet, tunai, kantong, dan investasi" }],
   ["/goals", { title: "Target & Tagihan", subtitle: "Target tabungan, utang, dan rencana bayar" }],
-  ["/insights", { title: "Analisis", subtitle: "Ke mana uangmu pergi, dibanding periode lalu" }],
+  ["/insights", { title: "Analisis", subtitle: "Ke mana uang digunakan, dibanding periode lalu" }],
   ["/laporan", { title: "Laporan", subtitle: "Laporan bulanan Kakeibo" }],
   ["/settings", { title: "Pengaturan", subtitle: "Profil, gaji, anggaran, HP, dan pengirim" }],
 ];

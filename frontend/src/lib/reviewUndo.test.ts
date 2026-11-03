@@ -30,7 +30,7 @@ describe("undo stack", () => {
     expect(batchOf({}, 2)).toBeNull();
     expect(stack.push({ batches: [], label: "Kedai Awan", transactionId: "tx", folderLabel: "Perlu jawaban" })).toBeNull();
     expect(stack.newest()).toBeNull();
-    expect(NOTHING_TO_UNDO).toBe("Nggak ada yang bisa dibatalkan.");
+    expect(NOTHING_TO_UNDO).toBe("Tidak ada yang dapat dibatalkan.");
   });
 
   it("writes nothing to storage or the URL", () => {
@@ -66,9 +66,9 @@ describe("undoing an entry", () => {
   it("maps 404, 409, 410 and a network failure", async () => {
     const subject = entry([1]);
     const cases: [unknown, string][] = [
-      [refusal(410), "Udah lewat 10 menit, jadi nggak bisa dibatalkan di sini."],
-      [refusal(409), "Nggak bisa dibatalkan: transaksinya udah berubah sejak itu."],
-      [refusal(404), "Nggak bisa dibatalkan lagi di sini."],
+      [refusal(410), "Sudah lewat 10 menit, jadi tidak dapat dibatalkan di sini."],
+      [refusal(409), "Tidak dapat dibatalkan: transaksi sudah berubah sejak itu."],
+      [refusal(404), "Tidak dapat dibatalkan lagi di sini."],
       [new TypeError("Failed to fetch"), "Gagal membatalkan. Coba lagi."],
     ];
     for (const [error, text] of cases) {
@@ -76,6 +76,6 @@ describe("undoing an entry", () => {
       expect(undoMessage(outcome, subject)).toBe(text);
     }
     const success = await undoEntry(subject, async () => ok);
-    expect(undoMessage(success, subject)).toBe("Dibatalkan. Kedai Awan balik ke Perlu jawaban.");
+    expect(undoMessage(success, subject)).toBe("Dibatalkan. Kedai Awan kembali ke Perlu jawaban.");
   });
 });

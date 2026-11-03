@@ -10,6 +10,7 @@ export const queryKeys = {
     all: ["transactions"] as const,
     ledger: (params?: string) => ["transactions", "ledger", params ?? ""] as const,
     recent: (from: string) => ["transactions", "recent", from] as const,
+    detail: (id: string) => ["transactions", "detail", id] as const,
   },
   dashboard: {
     all: ["dashboard"] as const,

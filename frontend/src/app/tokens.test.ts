@@ -10,7 +10,8 @@ const insightsPage = readFileSync(path.join(appDir, "insights/page.tsx"), "utf8"
 const ledgerPage = readFileSync(path.join(appDir, "ledger/page.tsx"), "utf8");
 const goalsPage = readFileSync(path.join(appDir, "goals/page.tsx"), "utf8");
 const berandaActivity = readFileSync(path.join(srcDir, "components/beranda/activity.tsx"), "utf8");
-const mobileLedgerFeed = readFileSync(path.join(srcDir, "components/ledger/MobileLedgerFeed.tsx"), "utf8");
+const ledgerList = readFileSync(path.join(srcDir, "components/transactions/LedgerList.tsx"), "utf8");
+const transactionDrawer = readFileSync(path.join(srcDir, "components/transactions/TransactionDrawer.tsx"), "utf8");
 const accountsPage = readFileSync(path.join(appDir, "accounts/page.tsx"), "utf8");
 const tokens = readFileSync(path.resolve(appDir, "../../tokens.css"), "utf8");
 const globals = readFileSync(path.join(appDir, "globals.css"), "utf8");
@@ -203,22 +204,14 @@ describe("design tokens", () => {
   });
 
   it("paints every Pindah Saldo and movement element sky, never amber or blue", () => {
-    const classLists = (source: string) =>
-      [...source.matchAll(/(?:isMovement|is_excluded_from_budget)\s*\?\s*"([^"]*)"/g)]
-        .map((match) => match[1])
-        .filter((classes) => /(^|\s)(text|bg|border)-/.test(classes));
-    for (const [name, source] of [
-      ["Transaksi", ledgerPage],
-      ["MobileLedgerFeed", mobileLedgerFeed],
-    ] as const) {
-      const movementClasses = classLists(source);
-      expect(movementClasses.length, `${name} movement branches`).toBeGreaterThan(0);
-      for (const classes of movementClasses) {
-        expect(classes, `${name}: ${classes}`).toMatch(/(^|\s)text-sky-500(\s|$)/);
-        expect(classes, `${name}: ${classes}`).not.toMatch(/(amber|blue)-/);
-      }
+    // Transaksi draws types with the shared pills and the Beranda row helpers; no raw palette class remains.
+    for (const [name, source] of [["Transaksi", ledgerPage], ["LedgerList", ledgerList], ["TransactionDrawer", transactionDrawer]] as const) {
+      expect(source, name).not.toMatch(/(^|\s|")(text|bg|border)-(amber|blue|sky|purple|indigo|violet)-/);
     }
-    expect(ledgerPage).toMatch(/isMovement\s*\?\s*"var\(--color-transfer\)"/);
+    for (const source of [ledgerList, transactionDrawer]) {
+      expect(source).toMatch(/movement: \{ tone: "tr", text: "Pindah saldo" \}/);
+      expect(source).toMatch(/topup: \{ tone: "inv", text: "Top up Investasi" \}/);
+    }
     // Beranda activity: a movement's avatar and amount use the transfer pair, a top-up the investment pair.
     expect(berandaActivity).toMatch(/movement: \{ icon: "repeat", tone: "ws-tone-tr" \}/);
     expect(berandaActivity).toMatch(/topup: \{ icon: "trending-up", tone: "ws-tone-inv" \}/);
@@ -241,17 +234,8 @@ describe("design tokens", () => {
   });
 
   it("paints every investment element lavender, never amber, sky, blue, purple or indigo", () => {
-    // Investment top-up rows on Transaksi: every class or colour branch keyed on the top-up is lavender.
-    for (const [name, source] of [["Transaksi", ledgerPage], ["MobileLedgerFeed", mobileLedgerFeed]] as const) {
-      const branches = [...source.matchAll(/investment_topup_id\s*\?\s*"([^"]*)"/g)]
-        .map((match) => match[1])
-        .filter((value) => /(^|\s)(text|bg|border)-|var\(/.test(value));
-      expect(branches.length, `${name} top-up branches`).toBeGreaterThanOrEqual(name === "Transaksi" ? 5 : 3);
-      for (const classes of branches) {
-        expect(classes, `${name}: ${classes}`).toMatch(/investment/);
-        expect(classes, `${name}: ${classes}`).not.toMatch(/(amber|sky|blue|purple|indigo)-|--color-transfer/);
-      }
-    }
+    // Investment top-up rows on Transaksi use the lavender pill tone and the investment amount ink.
+    expect(globals).toMatch(/\.ws-tx-topup \{ color: var\(--inv-fg\); \}/);
 
     // The Rekening allocation share and the price-sync message.
     const shares = [...accountsPage.matchAll(/investPct > 0 && [^\n]*className="([^"]*)"|<span className="([^"]*)" \/>\s*Investasi:/g)]
@@ -312,7 +296,9 @@ describe("design tokens", () => {
   it("puts no white text on the emerald buttons of Analisis and Transaksi", () => {
     const classStrings = (source: string) => [...source.matchAll(/"([^"]*)"/g)].map((match) => match[1]);
     const onEmeraldFill = (classes: string) => /(^|\s)bg-(emerald-500|income)(\s|$)/.test(classes);
-    for (const [page, source] of [["insights", insightsPage], ["ledger", ledgerPage]] as const) {
+    // Transaksi has no emerald fill any more: its buttons are the workspace's ws-btn variants.
+    expect(classStrings(ledgerPage).filter(onEmeraldFill)).toHaveLength(0);
+    for (const [page, source] of [["insights", insightsPage]] as const) {
       const buttons = classStrings(source).filter(onEmeraldFill);
       expect(buttons.length, `${page} emerald fills`).toBeGreaterThan(0);
       for (const classes of buttons) {
