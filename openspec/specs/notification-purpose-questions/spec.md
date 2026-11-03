@@ -49,7 +49,7 @@ After a habit guess (habit-learning), suggestions SHALL rank the owner's other f
 - **THEN** the suggestions SHALL contain only the current classification and, for incoming transfers, the repayment suggestion.
 
 ### Requirement: Answer a Purpose Question
-`POST /api/ingest/notifications/{event_id}/answer-purpose` SHALL take `question_id`, `reply_id` and one of `suggestion_id` or `text`. A suggestion's values, or the validated output of a text normaliser, SHALL be applied with `classified_by = owner` and `review_status = reviewed`, closing the question and writing feedback and memory. If normalising fails, the text SHALL become the notes and the row SHALL stay `needs_review`. It SHALL be owner-scoped and idempotent on `reply_id`.
+`POST /api/ingest/notifications/{event_id}/answer-purpose` SHALL take `question_id`, `reply_id` and one of `suggestion_id` or `text`. A suggestion's values, or the validated output of a text normaliser, SHALL be applied with `classified_by = owner` and `review_status = reviewed`, closing the question and writing feedback and memory. If normalising fails, the text SHALL become the notes and the row SHALL stay `needs_review`. It SHALL be owner-scoped and idempotent on `reply_id`, and an applied answer SHALL return an undo token.
 
 #### Scenario: Answer with a suggestion
 - **WHEN** the owner answers with the suggestion "makan kafe senja" in "Makanan & Minuman"
@@ -65,7 +65,7 @@ After a habit guess (habit-learning), suggestions SHALL rank the owner's other f
 
 #### Scenario: Replay
 - **WHEN** the same `reply_id` is sent again with the same answer
-- **THEN** the response SHALL be the current result and nothing SHALL change.
+- **THEN** the response SHALL be the current result, `undo_token` SHALL be `null`, and nothing SHALL change.
 
 #### Scenario: Conflicting replay
 - **WHEN** the same `reply_id` is sent with a different answer
@@ -82,6 +82,15 @@ After a habit guess (habit-learning), suggestions SHALL rank the owner's other f
 #### Scenario: Invalid body
 - **WHEN** both or neither of `suggestion_id` and `text` are sent, or the suggestion id is unknown
 - **THEN** the response SHALL be 422.
+
+#### Scenario: Undo token
+- **WHEN** an answer is applied, also one that leaves the row `needs_review`
+- **THEN** the response SHALL carry its existing fields plus a non-null `undo_token` and `expires_at`
+
+#### Scenario: Replay of an undone answer
+- **GIVEN** an answer that the owner undid
+- **WHEN** the same `reply_id` is sent again with the same answer
+- **THEN** the response SHALL be 409 `purpose_answer_undone`, nothing SHALL be reapplied, and the reopened question SHALL accept an answer with a new `reply_id`
 
 ### Requirement: Owner Edit Closes the Question
 When the owner corrects a row's classification through the ledger while its purpose question is open, the question SHALL close and the correction SHALL be recorded as feedback.

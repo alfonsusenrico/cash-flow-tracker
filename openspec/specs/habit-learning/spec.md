@@ -6,7 +6,7 @@ Learn the owner's habits from their own answers about merchant-less payments, so
 ## Requirements
 
 ### Requirement: Habit Evidence Is the Owner's Own Labels
-Habit evidence SHALL come only from the owner's feedback rows: purpose answers that classified the row as reviewed, corrections, and captures the owner classified. Automatic classifications, accepted history suggestions, unclassified text answers, rows recorded from a habit and other owners' rows SHALL never count. Only the latest feedback row of each transaction SHALL count.
+Habit evidence SHALL come only from the owner's feedback rows: purpose answers that classified the row as reviewed, corrections, and captures the owner classified. Automatic classifications, accepted history suggestions, unclassified text answers, rows recorded from a habit, undone labels, undo rows and other owners' rows SHALL never count. Only the latest remaining feedback row of each transaction SHALL count.
 
 #### Scenario: Automatic and unconfirmed labels
 - **GIVEN** three purpose answers whose text the normaliser could not classify, three AI-classified captures and three accepted history suggestions for one habit key
@@ -31,6 +31,11 @@ Habit evidence SHALL come only from the owner's feedback rows: purpose answers t
 - **GIVEN** feedback rows written before V39 without review state
 - **WHEN** habit evidence is read
 - **THEN** a purpose answer SHALL count only when its event recorded the same reply as reviewed, and a capture SHALL NOT count
+
+#### Scenario: Undone answers
+- **GIVEN** three agreeing owner answers for one key, the third of which the owner undid in Tinjau
+- **WHEN** another payment with that key is recorded
+- **THEN** its basis SHALL be "2 dari 2 jawaban sebelumnya" and it SHALL be asked, because support is below 3
 
 ### Requirement: Habit Key and Amount Band
 A habit SHALL be keyed by institution, bank category signature and observed account. A label SHALL belong to a payment's habit only when its amount is within ±25% as a ratio, that is when each amount is at most 1.25 times the other. Local time and weekday SHALL NOT be part of the key.
@@ -151,7 +156,7 @@ A habit-recorded row SHALL be explained everywhere it is shown: the companion re
 - **THEN** no habit label SHALL be shown
 
 ### Requirement: Weekly Question Rate
-`GET /api/dashboard/question-rate?weeks=1..26` (default 8) SHALL report, per local week oldest first with the current one in progress, the owner's notification and capture expenses and incomes that are not movement legs or fees: recorded, asked, answered, recorded by memory, habit, AI or other rules, and owner corrections (of which on habit rows). Only real counts SHALL be reported and an out-of-range `weeks` SHALL be rejected with 422.
+`GET /api/dashboard/question-rate?weeks=1..26` (default 8) SHALL report, per local week oldest first with the current one in progress, the owner's notification and capture expenses and incomes that are not movement legs or fees: recorded, asked, answered, recorded by memory, habit, AI or other rules, and owner corrections (of which on habit rows). Undone corrections SHALL not count. Only real counts SHALL be reported and an out-of-range `weeks` SHALL be rejected with 422.
 
 #### Scenario: Outcomes counted
 - **GIVEN** in one week three answered questions, one open question, two habit records, one rule-recorded merchant payment and one capture recorded from memory
@@ -165,6 +170,11 @@ A habit-recorded row SHALL be explained everywhere it is shown: the companion re
 #### Scenario: Invalid range
 - **WHEN** `weeks` is 0 or 27
 - **THEN** the response SHALL be 422
+
+#### Scenario: Undone answer and correction
+- **GIVEN** in one week an answered question whose answer the owner undid, and a correction the owner undid
+- **WHEN** the rate is requested for that week
+- **THEN** the question SHALL count as asked but not answered, and no correction SHALL be counted
 
 ### Requirement: Seberapa Sering Ditanya Panel
 Analisis SHALL show a "Seberapa sering ditanya" panel listing the weeks newest first with "Ditanya <n> dari <m> (<p>%)", the shares by memory, habit, AI, other rules and answered, and the corrections; a week without recorded payments SHALL say so, no data SHALL give an honest empty state, and a failed load SHALL show no figures.
