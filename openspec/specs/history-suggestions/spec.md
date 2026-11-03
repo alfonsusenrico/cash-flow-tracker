@@ -154,7 +154,7 @@ The `/review` page SHALL offer, in Indonesian and regardless of the rest of the 
 #### Scenario: Not counted as waiting
 - **GIVEN** three pending suggestions and nothing else in Tinjau
 - **WHEN** Tinjau loads
-- **THEN** "Saran dari riwayat" SHALL show 3 marked optional, the header and badge SHALL show 0 needing the owner, and Tinjau SHALL show "Semua beres"
+- **THEN** "Saran dari riwayat" SHALL show 3 marked optional, the header and badge SHALL show 0 needing the owner, and Tinjau SHALL show "Semua sudah ditinjau"
 
 ### Requirement: Confirmed Suggestion Run Start
 Only a suggestion run request with `confirm: true` SHALL create a run and start it in the background.

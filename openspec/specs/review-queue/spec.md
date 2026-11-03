@@ -242,12 +242,12 @@ Groups larger than 200 rows SHALL be sent in batches, and a partial failure SHAL
 - **THEN** the page SHALL state that 50 of 250 rows were restored
 
 ### Requirement: Triage Folders and Counts
-Tinjau SHALL offer the folder chips "Semua", "Apa ini?", "Perlu jawaban" and "Pindah saldo belum lengkap" (awaiting and ambiguous legs), each with its row count. "Semua" SHALL be the default and SHALL list the three in that order. Without truncation, the three counts SHALL add up to the summary's `attention`. The header SHALL show no amount.
+Tinjau SHALL offer the folder chips "Semua", "Belum dikenali", "Perlu jawaban" and "Pindah saldo belum lengkap" (awaiting and ambiguous legs), each with its row count. "Semua" SHALL be the default and SHALL list the three in that order. Without truncation, the three counts SHALL add up to the summary's `attention`. The header, "Perlu ditinjau", SHALL show no amount.
 
 #### Scenario: Counts match the badge
 - **GIVEN** one open question, two needs-review rows in one group, one awaiting send and one ambiguous credit
 - **WHEN** Tinjau loads
-- **THEN** the chips SHALL read Apa ini? 1, Perlu jawaban 2 and Pindah saldo belum lengkap 2, the header and the sidebar badge SHALL both read 5, and "Semua" SHALL list four items
+- **THEN** the chips SHALL read Belum dikenali 1, Perlu jawaban 2 and Pindah saldo belum lengkap 2, the header and the sidebar badge SHALL both read 5, and "Semua" SHALL list four items
 
 #### Scenario: Folder filter
 - **WHEN** the owner chooses the "Pindah saldo belum lengkap" chip
@@ -283,17 +283,17 @@ After a successful action, Tinjau SHALL select the item that followed the answer
 - **THEN** it SHALL select the next item by the same rule and say that the item was resolved elsewhere
 
 ### Requirement: Semua Beres
-When no item needs the owner, Tinjau SHALL show "Semua beres" with this cycle's Keluar, the safe-to-spend amount (or the remaining amount when no daily figure is available) and the unclassified amount from the cycle summary, a link back to Beranda and, when automatic rows exist, "Cek yang otomatis". A failed summary SHALL omit the figures rather than show zero.
+When no item needs the owner, Tinjau SHALL show "Semua sudah ditinjau" with this cycle's Keluar, the safe-to-spend amount (or the remaining amount when no daily figure is available) and the unclassified amount from the cycle summary, a link back to Beranda and, when automatic rows exist, "Cek yang otomatis". A failed summary SHALL omit the figures rather than show zero.
 
 #### Scenario: Nothing waiting
 - **GIVEN** no question, group, awaiting or ambiguous leg, and three automatic rows
 - **WHEN** Tinjau loads
-- **THEN** it SHALL show "Semua beres", the three cycle figures and "Cek yang otomatis"
+- **THEN** it SHALL show "Semua sudah ditinjau", the three cycle figures and "Cek yang otomatis"
 
 #### Scenario: Summary unavailable
 - **GIVEN** nothing is waiting and the cycle summary request fails
 - **WHEN** Tinjau loads
-- **THEN** it SHALL show "Semua beres" without figures and SHALL NOT show Rp 0
+- **THEN** it SHALL show "Semua sudah ditinjau" without figures and SHALL NOT show Rp 0
 
 ### Requirement: Phone List and Item
 At 720 px main width or narrower, opening an item SHALL show it in place of the list with a "Daftar" button, and SHALL add a browser history entry. "Daftar", Esc and the browser's back SHALL return to the list with focus on that item's row.
@@ -312,7 +312,7 @@ At 720 px main width or narrower, opening an item SHALL show it in place of the 
 
 #### Scenario: Resolved meanwhile
 - **WHEN** the owner opens `/review?item=<id>#review-questions` for a question already answered
-- **THEN** "Apa ini?" SHALL open at its first item, or "Semua beres" if empty, with the message that the item was already resolved
+- **THEN** "Belum dikenali" SHALL open at its first item, or "Semua sudah ditinjau" if empty, with the message that the item was already resolved
 
 ### Requirement: Triage Keys
 While focus is inside the triage region, J and K SHALL move to the next and previous item of the folder. E SHALL press the item's highlighted choice. T SHALL open "Ini top up investasi" on an eligible outgoing leg. 1–9 SHALL press the nth numbered choice of an open picker, else of the item. Z SHALL undo. Keys SHALL be ignored in fields, outside the region and with the single-key switch off.
