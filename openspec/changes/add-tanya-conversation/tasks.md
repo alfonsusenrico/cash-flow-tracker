@@ -71,7 +71,7 @@ Expected Result: the conversation logic is pure, deterministic and memory-only, 
 
 ## 4. Tanya page
 
-- [ ] 4.1 Build `app/tanya/page.tsx` and `components/tanya/` (design D3, D4, D8):
+- [x] 4.1 Build `app/tanya/page.tsx` and `components/tanya/` (design D3, D4, D8):
   - the greeting, with the name fallback and time-of-day buckets;
   - the lead line, including the unavailable safe-to-spend wording;
   - the four suggestion cards, with counts only when loaded;
@@ -113,7 +113,7 @@ Expected Result: the conversation logic is pure, deterministic and memory-only, 
   - the "Di Tanya" help group.
 
   Evidence: Testing Library role queries plus `vitest-axe`, with 0 violations.
-- [ ] 4.5 Phone composition (design D8):
+- [x] 4.5 Phone composition (design D8):
   - the compact greeting;
   - the suggestion strip scrolls inside itself;
   - the composer sits above the tab bar;
@@ -134,17 +134,17 @@ Expected Result: `/tanya` answers, records and fails honestly, and works by keyb
 
 ## 5. Integration verification
 
-- [ ] 5.1 Run the full checks as CI does:
+- [x] 5.1 Run the full checks as CI does:
   - frontend `npm ci`, type-check, lint with 0 warnings, `npm test` and build;
   - the backend suite on Flyway-migrated PostgreSQL 16 with `REQUIRE_TEST_DATABASE=1`, expected unchanged.
 
   Evidence: counts in verification.md.
-- [ ] 5.2 Prove no model call:
+- [x] 5.2 Prove no model call:
   - the Vitest whole-session fetch allowlist (design D12);
   - in the browser, a CDP network log of a scripted session (every intent, unknown text, a capture with a follow-up, undo, errors) in which every request is same-origin `/api/` on the allowlist or a static asset, and no other host appears.
 
   Evidence: the allowlist test count, plus the request log summary (counts per path, 0 foreign hosts).
-- [ ] 5.3 Run the browser matrix on `/tanya` (empty thread, and a thread with every card kind, a capture card and an error card), in light and dark at the five widths. Check:
+- [x] 5.3 Run the browser matrix on `/tanya` (empty thread, and a thread with every card kind, a capture card and an error card), in light and dark at the five widths. Check:
   - axe 0 serious or critical;
   - horizontal overflow 0;
   - console errors 0;
@@ -155,7 +155,7 @@ Expected Result: `/tanya` answers, records and fails honestly, and works by keyb
   - reduced motion.
 
   Read every screenshot and fix what looks off. Evidence: the matrix table and screenshot paths.
-- [ ] 5.4 Run the real-UI flows against the local stack:
+- [x] 5.4 Run the real-UI flows against the local stack:
   - **Figures:** each suggestion card's figures equal the API response and Beranda's figures.
   - **Recording:** "parkir 5rb jam 2 tadi" records one row (count before and after) at 14.00.
   - **Undo:** "Urungkan" removes it, and Beranda's Keluar returns to the same value.
@@ -170,9 +170,9 @@ Expected Result: `/tanya` answers, records and fails honestly, and works by keyb
   - **Failure:** a stopped API shows error cards without 0.
 
   Evidence: `web-p6/interact/interact.json` and screenshots.
-- [ ] 5.5 Run a regression pass on every other route against a build of the `main` this branch starts from: axe, overflow and console errors equal or better. Confirm the sidebar, rail and Lainnya show Tanya in order at 1440, 1024 and 390. Evidence: the table and screenshots.
-- [ ] 5.6 Check the bundle gate (design D11): `/tanya` route JS at most 30 kB gzip over the shared chunk, the shared chunk at most +1 kB gzip, and no new dependency (`package.json` diff empty). Evidence: the numbers against the 1.2 baseline.
-- [ ] 5.7 `openspec validate add-tanya-conversation --strict` and `openspec validate --all --strict` exit 0. `git diff --check` is clean. Review the final diff for secrets, dead code and unrequested changes. Evidence: command output in verification.md.
+- [x] 5.5 Run a regression pass on every other route against a build of the `main` this branch starts from: axe, overflow and console errors equal or better. Confirm the sidebar, rail and Lainnya show Tanya in order at 1440, 1024 and 390. Evidence: the table and screenshots.
+- [x] 5.6 Check the bundle gate (design D11): `/tanya` route JS at most 30 kB gzip over the shared chunk, the shared chunk at most +1 kB gzip, and no new dependency (`package.json` diff empty). Evidence: the numbers against the 1.2 baseline.
+- [x] 5.7 `openspec validate add-tanya-conversation --strict` and `openspec validate --all --strict` exit 0. `git diff --check` is clean. Review the final diff for secrets, dead code and unrequested changes. Evidence: command output in verification.md.
 
 Expected Result: every gate passes with recorded evidence, and nothing outside Tanya changed behaviour.
 

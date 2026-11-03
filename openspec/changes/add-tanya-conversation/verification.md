@@ -12,7 +12,7 @@ No production host, phone or real model is used.
 - **Scripts and seed:** `scratchpad/web-p6/` (copied from `web-p3/` with ports and paths retargeted). `seed.py` creates the synthetic owners `beranda_contoh` and `pemilik_lain`; the seeded database is dumped once and restored with `reset_db.sh` before each flow run.
 - **Base:** phase 3 is not merged yet. The branch is rebased onto its pushed tip `17e15bd` (`origin/feat/transactions-workspace`), and the baseline is measured at `137eb6b` (plan approval on top of it). It is rebased onto `main` once phase 3 merges.
 
-Revisions: baseline `137eb6b`; revision under test and document-only commits are named in each section.
+Revisions: baseline `137eb6b` (on phase 3's tip, before the rebase). Phase 3 then merged (`3189a91`) and its archive merged (`0ba4c41`), and the branch was rebased twice onto `origin/main`; neither rebase touched a file this change edits outside OpenSpec. The revision under test is `0e79103` (the browser runs used a build of the working tree that equals it). The bundle comparison uses a build of `origin/main` made from `git archive`. Document-only commits: the plan, approval and baseline commits.
 
 ## 1. Prerequisites (task 1.1)
 
@@ -52,67 +52,78 @@ Revisions: baseline `137eb6b`; revision under test and document-only commits are
 
 | Check | Result |
 | --- | --- |
-| Frontend `npm ci` / type-check / lint / `npm test` / build | |
-| Backend suite | |
+| Frontend `npm ci` / type-check / lint / `npm test` / build | All pass at `0e79103`. Lint 0 errors, 0 warnings. Vitest 76 files, 702 tests (701 on the rebased main plus this change's tests counted below; the network test adds 1). `/tanya` is a static route |
+| Backend suite | Unchanged by this change. Fresh Flyway V1–V44 database, `REQUIRE_TEST_DATABASE=1`: 1664 passed, 0 failed, 0 skipped (103 s), at `93d7f5c` (no backend file changes after it) |
 
 ## 5. No model call (task 5.2)
 
 | Check | Result |
 | --- | --- |
-| Vitest whole-session allowlist | |
-| Browser request log: requests per path, foreign hosts | |
+| Vitest whole-session allowlist | `components/tanya/TanyaNetwork.test.tsx` drives the real API client with `fetch` stubbed through every intent, help, unknown text, a question with a number, a capture with a follow-up, undo and a failed card refresh: every one of the requests is a relative `/api/` path on the allowlist, none matches a model-provider host, and the distinct paths are exactly the eight expected. 1 passed |
+| Browser request log: requests per path, foreign hosts | `web-p6/interact/request-log.json`, a scripted session of 11 texts, the forced capture, a capture with follow-ups, Urungkan and a blocked cycle summary: 28 requests, 0 foreign hosts. `POST /api/capture/parse` 5, `POST /api/capture/text` 2, `POST /api/capture/{id}/answer` 4, `POST /api/capture/{id}/undo` 1, `GET /api/dashboard/cycle-summary` 6, `GET /api/review/summary` 5, `GET /api/review/queue` 1, plus same-origin page prefetches of the card links (`GET /review` 3, `GET /laporan` 1). Questions never reached the parser |
 
 ## 6. Browser matrix on `/tanya` (task 5.3)
 
 | Width | Theme | axe serious or critical | Overflow | Console errors | Lowest contrast | Small targets | Screenshot |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1440 | light | | | | | | |
-| 1440 | dark | | | | | | |
-| 1280 | light | | | | | | |
-| 1280 | dark | | | | | | |
-| 1024 | light | | | | | | |
-| 1024 | dark | | | | | | |
-| 768 | light | | | | | | |
-| 768 | dark | | | | | | |
-| 390 | light | | | | | | |
-| 390 | dark | | | | | | |
+| 1440 | light | 0 (empty and full thread) | 0 | 0 | 5.31 (needs 4.5) | 0 | `matrix/tanya-1440-light.png`, `-full.png`, `-empty.png` |
+| 1440 | dark | 0 (empty and full thread) | 0 | 0 | 6.35 (needs 4.5) | 0 | `matrix/tanya-1440-dark.png`, `-full.png`, `-empty.png` |
+| 1280 | light | 0 (empty and full thread) | 0 | 0 | 5.31 | 0 | `matrix/tanya-1280-light.png`, `-full.png`, `-empty.png` |
+| 1280 | dark | 0 (empty and full thread) | 0 | 0 | 6.35 | 0 | `matrix/tanya-1280-dark.png`, `-full.png`, `-empty.png` |
+| 1024 | light | 0 (empty and full thread) | 0 | 0 | 5.31 | 0 | `matrix/tanya-1024-light.png`, `-full.png`, `-empty.png` |
+| 1024 | dark | 0 (empty and full thread) | 0 | 0 | 6.35 | 0 | `matrix/tanya-1024-dark.png`, `-full.png`, `-empty.png` |
+| 768 | light | 0 (empty and full thread) | 0 | 0 | 5.31 | 0 | `matrix/tanya-768-light.png`, `-full.png`, `-empty.png` |
+| 768 | dark | 0 (empty and full thread) | 0 | 0 | 6.35 | 0 | `matrix/tanya-768-dark.png`, `-full.png`, `-empty.png` |
+| 390 | light | 0 (empty and full thread) | 0 | 0 | 5.31 | 0 | `matrix/tanya-390-light.png`, `-full.png`, `-empty.png` |
+| 390 | dark | 0 (empty and full thread) | 0 | 0 | 6.35 | 0 | `matrix/tanya-390-dark.png`, `-full.png`, `-empty.png` |
+
+Every cell had the full thread: the cycle, Kakeibo, bills (week), waiting and report cards, a capture card recorded after two follow-up questions, the unknown reply with chips, and an error card (the cycle summary blocked, then "Perbarui"). The lowest text contrast in light is the error message, in dark the card caption. Script: `web-p6/matrix_tanya.mjs`; results `web-p6/matrix/matrix.json`.
 
 Zoom 200% and 400%, reduced motion, and focus not obscured at 390:
+
+- **Focus not obscured (2.4.11):** every control in the thread (18 per cell) was focused in turn; none ended under the sticky composer, the phone top bar or the tab bar at any width, and none at 200% (7 of 7) or 400% (7 of 7) zoom. The first run found 5 to 6 covered controls at 768 and 390 and 1 to 7 under zoom; fixed with `scroll-padding` while Tanya is open and a composer that stays in the flow below 520 px of height (design, implementation notes).
+- **Zoom:** 200% and 400% of a 1280 × 900 window: overflow 0, the phone tab bar shown, screenshots `matrix/tanya-zoom200.png` and `tanya-zoom400.png`.
+- **Reduced motion:** the typing dots' animation is `none`; the newest message is scrolled into view without smooth scrolling.
+- **Keyboard:** after sending, focus stays in the composer ("Tulis transaksi atau pertanyaan"); Shift+Tab reaches the newest reply's chips and then the capture card's buttons in the thread.
+- I read the screenshots of every width and theme. Fixed from them: the phone suggestion strip started flush at the screen edge (now 16 px scroll padding); everything else matched the preview's composition.
 
 ## 7. Real-UI flows (task 5.4)
 
 | Flow | Expected | Observed |
 | --- | --- | --- |
-| Card figures equal the API and Beranda | | |
-| "parkir 5rb jam 2 tadi" records one row at 14.00 | | |
-| Urungkan restores Beranda's Keluar | | |
-| `needs_detail` answered in the thread | | |
-| Ubah opens the drawer | | |
-| "parkir tadi" records nothing | | |
-| "berapa keluar 2 hari ini?" records nothing | | |
-| "halo" gives chips, records nothing | | |
-| Waiting links land on the exact Tinjau item | | |
-| Reload empties; navigation keeps | | |
-| Second user sees nothing of the first | | |
-| API stopped: error cards, no 0 | | |
+| Card figures equal the API and Beranda | Every figure from `/api/dashboard/cycle-summary` and the badge | Cycle card: Rp 240.000, Rp 3.521.500, Rp 9.800.000, Rp 46.330.000 and "4 · Rp 581.000" all present; Kakeibo lines and total equal; bills total Rp 995.000 equals the scheduled lines; "4 perlu ditinjau" equals `attention`; Beranda's four KPIs show the same four amounts |
+| "parkir 5rb jam 2 tadi" records one row at 14.00 | One row | Run at 13.2x, before 14.00, so the server read "jam 2 tadi" as 02.00 today ("tadi" is earlier); it asked "Dari rekening mana?" and "Kategorinya apa?" in the thread, then recorded one row (123 → 124): `2026-11-03 02:00 5000 Parkir`. The same flow with "parkir 5rb jam 1 tadi" at 13.29 recorded 13.00. The time is the server's reading, not Tanya's |
+| Urungkan restores Beranda's Keluar | Row gone, Keluar back | Keluar 3.521.500 → 3.526.500 recorded → 3.521.500 after Urungkan; rows 124 → 123; status "Catatan dibatalkan."; focus back in the composer; the card says "Dibatalkan" |
+| `needs_detail` answered in the thread | Question and answer in the thread | Two questions (account, then category) answered by their buttons; the card updated in place to "Dicatat" |
+| Ubah opens the drawer | Drawer on the row | "kopi 18rb" recorded at once; Ubah opened the shared drawer on it (−Rp 18.000, "Teks yang diketik: kopi 18rb"), screenshot `interact/ubah-drawer.png` |
+| "parkir tadi" records nothing | No row | Asked "Jumlahnya berapa? …"; rows 125 → 125 |
+| "berapa keluar 2 hari ini?" records nothing | No row | Unknown reply with chips, no parse request; rows 125 → 125 |
+| "halo" gives chips, records nothing | No row | Unknown reply (with the line on recording) and the four chips; rows 125 → 125 |
+| Waiting links land on the exact Tinjau item | Each link opens its item | QRIS 0812-xxxx → "Apa ini? Rp45.000 dari Dompet Digital" (folder apa), Toko Serba Ada → "Toko Serba Ada" (jawab), Keluar dari RDN Contoh → "Uang keluar dari RDN Contoh. Masuknya ke mana?" (pindah); focus on each item's heading |
+| Reload empties; navigation keeps | Kept across in-app navigation, gone on reload | 2 messages before, 2 after Beranda → Tanya through the sidebar, 0 after a reload. `localStorage`, `sessionStorage` and readable cookies held no Tanya key |
+| Second user sees nothing of the first | Empty thread | After signing out and in as `pemilik_lain`: 0 messages, greeting "Siang, Dewi." |
+| API stopped: error cards, no 0 | Errors, never 0 | With the API stopped: "Perbarui" gave "Data ini tidak dapat dimuat." with "Coba lagi"; a new capture gave "Pesan ini tidak dapat diproses. Coba lagi." with the text kept in the composer; 0 figures of Rp 0; rows unchanged (125) |
 
 ## 8. Regression and bundle (tasks 5.5, 5.6)
 
 | Check | Result |
 | --- | --- |
-| Other routes against `main` (axe, overflow, console) | |
-| Nav order at 1440, 1024 and 390 | |
-| `/tanya` route JS over shared (gzip) | |
-| Shared chunk change (gzip) | |
-| `package.json` dependency diff | |
+| Other routes against `main` (axe, overflow, console) | `/`, `/review`, `/ledger`, `/insights`, `/laporan`, `/accounts`, `/goals` and `/settings` at 1280 and 390 on this build and on a build of `origin/main`: identical. Overflow 0 and console errors 0 everywhere; the only serious axe finding is the known `/accounts` colour contrast (2 nodes at 1280), on both builds. `web-p6/regression-new/`, `regression-main/` |
+| Nav order at 1440, 1024 and 390 | Sidebar and rail list Beranda, Tinjau, Transaksi, Tanya, Rekening & Kantong, Target & Tagihan, Analisis, Laporan (11 named items with the foot); Lainnya at 390 lists Tanya first; the tab bar is unchanged. `web-p6/after/nav-*.png` against `web-p6/baseline/` |
+| `/tanya` route JS over shared (gzip) | 19.7 KB (gate 30 KB); route total 246.6 KB gzip, 811.0 KB raw; route CSS 20.9 KB gzip with the module |
+| Shared chunk change (gzip) | 226.7 → 226.9 KB (+0.2 KB, gate +1 KB) against the `origin/main` build. `/` and `/ledger` grew by 1.0 and 0.9 KB gzip because the chunk shared by Catat and the drawer split in two once Tanya imports the same pieces (one extra script, +0.7 KB); `/review` unchanged in size |
+| `package.json` dependency diff | Empty: no new dependency |
 
 ## 9. OpenSpec and diff (task 5.7)
 
-- `openspec validate add-tanya-conversation --strict`:
-- `openspec validate --all --strict`:
-- `git diff --check`:
+- `openspec validate add-tanya-conversation --strict`: valid.
+- `openspec validate --all --strict`: 75 passed, 0 failed, exit 0 (on main after phase 3's archive).
+- `git diff --check`: clean. The diff against `origin/main` touches 25 files outside this change's folder: the Tanya page, components and `lib/tanya/`, the moved capture client, and the shared files of design D15 plus `shortcuts.tsx` (implementation notes). No secret, log line or dependency was added.
 
 ## Not verified
 
+- No production, phone or companion check (none expected: no endpoint or contract changed).
+
 - The on-screen keyboard on a real phone (headless browsers have none). This goes on the end-of-redesign check list.
-- Screen readers (semantics checked with role queries and axe).
+- Screen readers (semantics checked with role queries and axe). This also goes on the end-of-redesign check list.
+- The time a capture reads ("jam 2 tadi" before 14.00 is 02.00) is the server parser's, unchanged by this phase; the scenario's 14.00 holds only when the phrase is sent after 14.00.
