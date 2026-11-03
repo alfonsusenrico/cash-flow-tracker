@@ -48,6 +48,7 @@ import { pushSearch, replaceSearch } from "@/lib/urlState";
 const PAGE_SIZE = 50;
 const SEARCH_DELAY_MS = 300;
 const PHONE_LIST_WIDTH = 760;
+const RESIZE_SETTLE_MS = 150;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface CashFlowMetrics {
@@ -269,8 +270,9 @@ function LedgerPageContent() {
     const closed = lastEdit.current;
     lastEdit.current = editId;
     if (!closed || editId || returnTo) return;
-    const row = document.querySelector<HTMLElement>(`[data-tx-row="${closed}"]`);
-    if (row) row.focus();
+    // The side drawer narrows the list, so closing it can swap the feed back to the table a frame later.
+    const timer = window.setTimeout(() => document.querySelector<HTMLElement>(`[data-tx-row="${closed}"]`)?.focus(), RESIZE_SETTLE_MS);
+    return () => window.clearTimeout(timer);
   }, [editId, returnTo]);
 
   // After a delete, focus moves to the next row (or the list heading) once the refreshed list no longer has it.
