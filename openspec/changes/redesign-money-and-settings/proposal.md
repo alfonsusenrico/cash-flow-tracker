@@ -35,6 +35,8 @@ Binding earlier approvals:
 
 **Plan approval, 2026-11-03.** After a combined summary of the phase 4, 5 and 6 plans, the owner approved all three with "approved, defaults ok". OD50–OD59 take their recommended defaults (design.md, open decisions). Phase 5 also adds the "Kebiasaan dihafal" card on Analisis Ringkasan that phase 4 deferred to it (phase 4 OD42), from `GET /api/habits`.
 
+**Carried-over scope, 2026-11-03.** Two small items found while accepting earlier phases are added as tasks 5.2a and 6.10: Beranda's lede greets with the display name as Tanya does (phase 6 acceptance), and the observed-insight and report cards that phase 4 left on their own markup are restyled with the alias removal. Neither changes a money figure.
+
 ## Expected Outcome
 
 - **Rekening & Kantong** matches the preview:

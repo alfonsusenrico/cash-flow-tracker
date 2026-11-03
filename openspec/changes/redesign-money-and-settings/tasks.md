@@ -162,6 +162,7 @@ Expected Result: Target & Tagihan shows goals, bills, Ketahanan Dana and debts w
 
   Tests: the scenarios of the modified "Sectioned Settings Page". Evidence: Vitest counts.
 - [ ] 5.2 Restyle HP & perangkat, Profil, Gaji & siklus, Mata uang & anggaran, Pemetaan notifikasi and Nama pengirim on `Card` and the restyled `FormField`, keeping each section's save scope. Tests: the existing section tests unchanged in request bodies, plus the copy register. Evidence: Vitest counts.
+- [ ] 5.2a Name the owner the same way everywhere (carried over from phase 6 acceptance, 2026-11-03): Beranda's written lede greets with the account's display name, as Tanya does, and falls back to the username only when no name is set. Tests: Beranda lede with a name, without a name, and Tanya and Beranda using the same name. Evidence: Vitest counts and a Beranda screenshot at 1280.
 - [ ] 5.3 Add Kebiasaan (D8). Tests:
   - the habit and top-up rows and status words;
   - the server switch facts, including off;
@@ -200,6 +201,8 @@ Expected Result: Pengaturan has eight sections in the approved order, two new on
   Show that the test fails on a planted `var(--text-secondary)`, `text-emerald-600` and `btn-primary`. Evidence: the failing and then passing runs.
 - [ ] 6.8 Apply `ui-copy-register` to every string on `/accounts`, `/goals` and `/settings/*` and their modals, and to `/auth/login` (D16). Extend `copyRegister.test.ts` with these files. Evidence: the rename list (old → new) in verification.md, and the guard test passing and failing on a planted "Anda" label.
 - [ ] 6.9 Docs: AGENTS.md (styling notes without the alias wording; Rekening, Target & Tagihan and Pengaturan in the frontend layout) and `docs/NEW_USER_GUIDE.md` (Rekening & Kantong, Target & Tagihan, Kebiasaan and Tampilan). Evidence: the diff.
+
+- [ ] 6.10 Restyle the observed-insight and report cards that phase 4 left on their own markup (phase 4 design, "Implementation notes") on the workspace primitives and semantic tokens, with unchanged content, links and states. Tests: their existing Vitest suites unchanged in behaviour, plus the token test. Evidence: Vitest counts and Ringkasan and Laporan screenshots at 1280 and 390 in both themes.
 
 Expected Result: only workspace tokens remain, a test keeps it that way, and every label on these pages follows the register.
 
