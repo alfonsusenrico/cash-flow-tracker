@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -10,7 +11,6 @@ import { replaceSearch } from "@/lib/urlState";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
 import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
-import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import { coverageText, essentialBasisText, ALL_LIQUID_NOTICE } from "@/components/dashboard/EmergencyCoverage";
 import { Card, CardHeader, ErrorState, Pill, Skeleton, type Tone } from "@/components/workspace/primitives";
 import { Drawer } from "@/components/workspace/overlays";
@@ -19,6 +19,9 @@ import type { NetWorthResponse } from "@/components/accounts/types";
 import styles from "@/components/accounts/money.module.css";
 import { useGoalDialogs } from "./GoalDialogs";
 import type { GoalItem, ObligationItem } from "./types";
+
+// The plans editor loads when it is opened, so the page's first load does not carry it (gate D18).
+const RecurringRulesModal = dynamic(() => import("@/components/recurring/RecurringRulesModal").then((module) => module.RecurringRulesModal), { ssr: false });
 
 const DAY_MONTH = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
 const MONTH_YEAR = new Intl.DateTimeFormat("id-ID", { month: "short", year: "numeric", timeZone: "Asia/Jakarta" });
@@ -200,7 +203,7 @@ export function GoalsView() {
       </div>
       <GoalDrawer goal={selectedGoal} money={bal} dialogs={dialogs} onClose={() => open("target", null)} />
       <DebtDrawer debt={selectedDebt} money={bal} dialogs={dialogs} onClose={() => open("utang", null)} />
-      <RecurringRulesModal open={plansOpen} onClose={() => setPlansOpen(false)} />
+      {plansOpen && <RecurringRulesModal open onClose={() => setPlansOpen(false)} />}
       {dialogs.dialogs}
     </div>
   );
