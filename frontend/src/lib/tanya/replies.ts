@@ -54,7 +54,8 @@ export const HELP_TEXT =
   "Aku bisa catat transaksi dari satu kalimat, misalnya \"parkir 5rb jam 2\". Aku juga bisa kasih ringkasan siklus ini, " +
   "yang nunggu jawabanmu, tagihan, pembagian Kakeibo, dan laporan terbaru. Aku nggak nebak angka. Coba salah satu ini:";
 
-export const UNKNOWN_TEXT = "Aku belum bisa jawab itu. Coba salah satu ini:";
+export const UNKNOWN_TEXT =
+  "Aku belum bisa jawab itu. Kalau mau catat transaksi, tulis juga jumlahnya, misalnya \"parkir 5rb jam 2\". Atau coba salah satu ini:";
 
 export const ASK_AMOUNT_TEXT = "Jumlahnya berapa? Aku nggak nebak. Tulis juga angkanya, misalnya \"parkir 5rb jam 2\".";
 
@@ -68,4 +69,3 @@ export function recordedText(toReview: boolean): string {
     : "Udah aku catat.";
 }
 
-export const DETAIL_LATER_TEXT = "Pertanyaannya aku simpan. Kamu bisa jawab nanti di Tinjau.";

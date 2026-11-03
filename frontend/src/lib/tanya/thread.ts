@@ -53,8 +53,10 @@ export function clearThread(): void {
   emit({ ...state, messages: EMPTY });
 }
 
-/** The messages of the signed-in user. */
-export function useThread(): ThreadMessage[] {
-  const read = useCallback(() => state.messages, []);
-  return useSyncExternalStore(subscribeThread, read, () => EMPTY);
+const SERVER_STATE: ThreadState = { userId: null, messages: EMPTY };
+
+/** The store as React reads it; the view shows its messages only when `userId` is the signed-in user. */
+export function useThreadState(): ThreadState {
+  const read = useCallback(() => state, []);
+  return useSyncExternalStore(subscribeThread, read, () => SERVER_STATE);
 }

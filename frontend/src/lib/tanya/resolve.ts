@@ -20,7 +20,8 @@ export const NOTICE_PARSE_FAILED = "Pesan ini tidak dapat diproses. Coba lagi.";
 export interface TurnDeps {
   parse: (text: string) => Promise<{ preview: CapturePreview }>;
   submit: (text: string, clientCaptureId: string) => Promise<{ capture: Capture }>;
-  loadCard: (kind: CardKind) => Promise<CardData>;
+  /** `fresh` skips the cache ("Perbarui"). */
+  loadCard: (kind: CardKind, fresh?: boolean) => Promise<CardData>;
   now: () => Date;
 }
 
@@ -52,10 +53,12 @@ function draft(fields: Partial<AssistantDraft>): AssistantDraft {
 }
 
 /** Builds a card from a fresh fetch; a failed fetch is an error card, never a figure of 0 (D9). */
-export async function buildCard(kind: CardKind, range: BillsRange | undefined, deps: Pick<TurnDeps, "loadCard" | "now">): Promise<CardSnapshot> {
+export async function buildCard(
+  kind: CardKind, range: BillsRange | undefined, deps: Pick<TurnDeps, "loadCard" | "now">, fresh = false,
+): Promise<CardSnapshot> {
   const asOf = deps.now().toISOString();
   try {
-    return { kind, range, status: "ready", asOf, data: await deps.loadCard(kind) };
+    return { kind, range, status: "ready", asOf, data: fresh ? await deps.loadCard(kind, true) : await deps.loadCard(kind) };
   } catch {
     return { kind, range, status: "error", asOf, data: null };
   }
@@ -92,6 +95,15 @@ function isNetworkFailure(failure: unknown): boolean {
   return !(failure instanceof ApiError);
 }
 
+/**
+ * Whether the parser found evidence that the text describes a transaction: a time phrase, an account or a
+ * category. `kind` and `description` are always filled (any text reads as an expense with itself as the
+ * description), so they cannot tell "parkir tadi" from "halo".
+ */
+function readAsTransaction(preview: CapturePreview): boolean {
+  return Boolean(preview.time_phrase || preview.account_hint || preview.category_hint);
+}
+
 export const captureResolver: Resolver = async ({ text, normalised, clientCaptureId, forceCapture, deps }) => {
   if (!forceCapture && looksLikeQuestion(normalised)) return null;
   let preview: CapturePreview;
@@ -101,7 +113,7 @@ export const captureResolver: Resolver = async ({ text, normalised, clientCaptur
     return { route: "error", restoreText: true, reply: draft({ notice: isRateLimited(failure) ? NOTICE_RATE_LIMITED : NOTICE_PARSE_FAILED }) };
   }
   if (amountRefused(preview)) {
-    if (!forceCapture && !preview.kind && !preview.description) return null;
+    if (!forceCapture && !readAsTransaction(preview)) return null;
     const several = preview.problems.includes("several_amounts");
     return { route: "ask_amount", reply: draft({ text: several ? SEVERAL_AMOUNTS_TEXT : ASK_AMOUNT_TEXT }) };
   }

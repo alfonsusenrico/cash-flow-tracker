@@ -97,11 +97,17 @@ describe("resolver chain", () => {
     expect(d.submit).not.toHaveBeenCalled();
   });
 
-  it("asks for the amount when it is missing and never submits", async () => {
-    const d = deps({ parse: vi.fn(async () => ({ preview: preview({ amount: null, problems: ["missing_amount"] }) })) });
+  it("asks for the amount when the parser read a transaction without one, and never submits", async () => {
+    const d = deps({ parse: vi.fn(async () => ({ preview: preview({ amount: null, problems: ["missing_amount"], time_phrase: "tadi" }) })) });
     const outcome = await runTurn("parkir tadi", "client-1", d);
     expect(outcome).toMatchObject({ route: "ask_amount", reply: { text: ASK_AMOUNT_TEXT } });
     expect(d.submit).not.toHaveBeenCalled();
+  });
+
+  it("asks for the amount on an account or category hint too", async () => {
+    const hint = deps({ parse: vi.fn(async () => ({ preview: preview({ amount: null, problems: ["missing_amount"], time_phrase: null, occurred_at: null,
+      category_hint: { category_id: "c-1", label: "Transportasi", pillar: "need" } }) })) });
+    expect((await runTurn("bensin", "client-1", hint)).route).toBe("ask_amount");
   });
 
   it("asks for one amount when there are several and never submits", async () => {
@@ -112,7 +118,8 @@ describe("resolver chain", () => {
   });
 
   it("answers unknown text with the chips after exactly one parse call and nothing else", async () => {
-    const d = deps({ parse: vi.fn(async () => ({ preview: preview({ amount: null, problems: ["missing_amount"], kind: null, description: null }) })) });
+    // What the server parser really returns for "halo": an expense described as itself, with nothing else found.
+    const d = deps({ parse: vi.fn(async () => ({ preview: preview({ amount: null, problems: ["missing_amount"], description: "Halo", time_phrase: null, occurred_at: null }) })) });
     const outcome = await runTurn("halo", "client-1", d);
     expect(outcome.reply).toMatchObject({ text: UNKNOWN_TEXT, chips: SUGGESTION_CHIPS, card: null, capture: null });
     expect(d.parse).toHaveBeenCalledTimes(1);

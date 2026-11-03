@@ -79,7 +79,7 @@ Expected Result: the conversation logic is pure, deterministic and memory-only, 
   - `Tanya.module.css` with the per-theme glow.
 
   Evidence: component tests (greeting buckets, name fallback, no 0 for unloaded counts), plus screenshots at 1440 light and dark.
-- [ ] 4.2 Build the cards `cycle`, `kakeibo`, `bills`, `waiting` and `report` (design D3):
+- [x] 4.2 Build the cards `cycle`, `kakeibo`, `bills`, `waiting` and `report` (design D3):
   - each holds a snapshot with "Per hh.mm" and "Perbarui";
   - hidden balances mask every amount, including assistant text;
   - the waiting card uses `buildTriage` and deep links.
@@ -93,7 +93,7 @@ Expected Result: the conversation logic is pure, deterministic and memory-only, 
   - no "belum dihitung".
 
   Evidence: Vitest counts.
-- [ ] 4.3 Add capture in the composer (design D6):
+- [x] 4.3 Add capture in the composer (design D6):
   - recording on send;
   - the capture card;
   - `needs_detail` question and answer with a fresh `reply_id`;
@@ -103,7 +103,7 @@ Expected Result: the conversation logic is pure, deterministic and memory-only, 
   - 429 and network errors with "Kirim ulang" reusing the id.
 
   Evidence: component tests with the API mocked, covering each branch.
-- [ ] 4.4 Accessibility (design D5):
+- [x] 4.4 Accessibility (design D5):
   - `role="log"`, message `li`s with speaker and time labels;
   - card summaries;
   - focus stays in the composer, and Shift+Tab reaches the reply;
@@ -120,15 +120,15 @@ Expected Result: the conversation logic is pure, deterministic and memory-only, 
   - bottom padding keeps the last message and focused buttons visible.
 
   Evidence: covered in 5.3 at 390, plus a focused test of the padding custom property.
-- [ ] 4.6 Failure states (design D9):
+- [x] 4.6 Failure states (design D9):
   - card fetch failure shows the error with retry, never 0;
   - empty bills;
   - offline;
   - 401 follows the app's redirect.
 
   Evidence: component tests per row of the D9 table.
-- [ ] 4.7 Copy register (design D10): add `components/tanya/` to the phase 3 guard, with only `lib/tanya/replies.ts` allowlisted for the assistant voice. Evidence: the guard passes, and a planted slang label in a Tanya component makes it fail (shown once, then removed).
-- [ ] 4.8 Add a Tanya section to `docs/NEW_USER_GUIDE.md`: what it answers, how recording works, that it never guesses, and that the conversation is gone after a reload. Evidence: the diff.
+- [x] 4.7 Copy register (design D10): add `components/tanya/` to the phase 3 guard, with only `lib/tanya/replies.ts` allowlisted for the assistant voice. Evidence: the guard passes, and a planted slang label in a Tanya component makes it fail (shown once, then removed).
+- [x] 4.8 Add a Tanya section to `docs/NEW_USER_GUIDE.md`: what it answers, how recording works, that it never guesses, and that the conversation is gone after a reload. Evidence: the diff.
 
 Expected Result: `/tanya` answers, records and fails honestly, and works by keyboard, by screen-reader semantics and at every width.
 
