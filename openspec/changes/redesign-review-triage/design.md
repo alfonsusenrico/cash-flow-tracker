@@ -272,6 +272,18 @@ The snapshot contains the owner's merchants, notes and amounts, copies of data t
 - Performance on the synthetic dataset, median of 20 local calls: `GET /review/queue` no slower than the baseline by more than 10% (it is unchanged). `POST /review/undo` under 300 ms for a one-row action and under 1 s for a 200-row recategorise. The undo statement count does not grow with row count, except one memory statement per distinct key.
 - Bundle: no new runtime dependency, and `/review` first-load JS (from `next build`) at most 10 kB above the baseline.
 
+### Implementation notes (2026-11-03)
+
+Recorded during implementation; none changes approved scope or a money rule.
+
+- **Conflict images ignore the write time.** The record stores each row's `updated_at`, but the D12 comparison leaves it out. An undo writes `updated_at = NOW()`, so with the write time compared, undoing a tab's newest action would block its next-newest action on the same row although the row is exactly back in that action's after-state. Every value undo restores or must not touch is still compared, so a later change by anyone is still refused.
+- **Feedback, memory and top-up answers of the action are found by the transaction timestamp.** Rows that the action inserted or upserted carry PostgreSQL's `NOW()` of the action's transaction. Before images of memory are read for the keys an owner edit can write (each row's event key and the merchant keys before and after); an entry the action wrote outside those keys is left as it is and logged by kind only.
+- **Page keys in the help** are registered as a page group (`usePageShortcutGroup`) next to the scoped `useShortcut` registrations, instead of `label` and `group` fields on `ShortcutDefinition`: Enter stays native and J/K share one line.
+- **Undo errors** use the app's existing envelope, `{"ok": false, "detail": {"code": "undo_conflict", "transaction_ids": [...]}}`, like every other route (see OD19).
+- **Hidden balances:** the server's "Apa ini?" prompt names the amount, so with "Sembunyikan saldo" on, the item title reads "Apa ini? Dari {rekening}" and the amount is masked.
+- **Choices are one press.** Ambiguous candidates and account choices of an awaiting leg are buttons (one press links or completes), replacing the radio-and-submit forms; a second select keeps accounts past the ninth.
+- **Rollback companion** is prepared as `db/rollback/V45__clear_review_actions.sql`, outside Flyway's location, so main's chain never applies it.
+
 ## Risks / Trade-offs
 
 - [The 10-minute window is longer than the toast] → Z and the stack keep undo reachable, and each entry disappears at its server expiry.
@@ -302,3 +314,5 @@ Resolved 2026-11-03: the owner answered "approved, defaults ok", so OD14–OD17 
 | OD15 (resolved: default) | Offer "Bukan pindah saldo, ini pengeluaran" on an awaiting leg, as the preview does | **Yes.** It uses the existing bulk recategorise, which already accepts an unlinked "Internal Movement" row. The owner picks a category and pillar, the row becomes a reviewed, owner-classified expense and enters Keluar, and it is undoable. Without it the only way out is editing in Transaksi. If you prefer to keep Tinjau's money choices as they are, it waits for phase 3 |
 | OD16 (resolved: default) | One item per merchant group, or per transaction, in "Perlu jawaban" and "Dicatat otomatis" | **Per group, as today.** One answer settles every row of the same merchant or signature, and each row keeps "Ubah". The preview shows single rows, but it has no repeated merchants |
 | OD17 (resolved: default) | Undo of a movement completion or merge: restore the exact state before, or call the existing `split` | **Restore the exact state before.** `split` marks the legs "never pair automatically again" and re-derives their categories. An undo should leave them exactly as they were, still pairable. The approved draft said "existing reversal paths", and this keeps that for top-ups only |
+| OD18 (open, conservative default applied) | `POST /movements/merge` now takes the per-owner `notification:{user}` lock before reading the legs | **Keep the lock.** Merge had no owner lock, so a notification could change a leg between the undo record's before image and the link. The lock only serialises a merge with ingestion and other Tinjau actions of the same owner; it changes no result |
+| OD19 (open, conservative default applied) | Error body of `POST /api/review/undo`: the design table shows `{"code"}`, the app wraps every error as `{"ok": false, "detail": {...}}` | **Keep the app's envelope.** The web client and the companion already read `detail.code`; a second error shape for one route would be a new contract |
