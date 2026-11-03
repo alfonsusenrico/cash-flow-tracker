@@ -10,9 +10,11 @@ const click = (extra: Partial<{ metaKey: boolean; button: number }> = {}) => {
 
 describe("filter URL writes", () => {
   it("clears back to the plain path from a URL with a query (the Next.js defect it avoids)", () => {
-    window.history.replaceState(null, "", "/ledger?type=income");
+    window.history.replaceState({ __NA: true, tree: "next" }, "", "/ledger?type=income");
     replaceSearch("/ledger");
     expect(`${window.location.pathname}${window.location.search}`).toBe("/ledger");
+    // Next's own keys would make Next.js skip its useSearchParams sync.
+    expect(window.history.state).toBeNull();
   });
 
   it("adds an entry for a phone sheet so back returns to the list", () => {

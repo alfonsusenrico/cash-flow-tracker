@@ -263,6 +263,16 @@ function LedgerPageContent() {
     replaceSearch(query ? `/ledger?${query}` : "/ledger");
   };
 
+  // Closing the drawer returns focus to its row; the list may have re-rendered between table and feed.
+  const lastEdit = useRef<string | null>(null);
+  useEffect(() => {
+    const closed = lastEdit.current;
+    lastEdit.current = editId;
+    if (!closed || editId || returnTo) return;
+    const row = document.querySelector<HTMLElement>(`[data-tx-row="${closed}"]`);
+    if (row) row.focus();
+  }, [editId, returnTo]);
+
   // After a delete, focus moves to the next row (or the list heading) once the refreshed list no longer has it.
   const [deleted, setDeleted] = useState<{ id: string; neighbour: string | null } | null>(null);
   const afterDelete = (row: { id: string }) => {

@@ -201,7 +201,7 @@ describe("Laporan Bulanan page", () => {
     const replaceState = vi.spyOn(window.history, "replaceState");
     await userEvent.selectOptions(select, "2026-09-01");
     // The history API, because Next.js commits no same-path navigation from a URL with a query (D13).
-    expect(replaceState).toHaveBeenCalledWith(expect.anything(), "", "/laporan?basis=month&start=2026-09-01");
+    expect(replaceState).toHaveBeenCalledWith(null, "", "/laporan?basis=month&start=2026-09-01");
     expect(navigation.replace).not.toHaveBeenCalled();
     replaceState.mockRestore();
     expect(screen.getByRole("button", { name: "Siklus gaji" })).toBeDisabled();

@@ -7,9 +7,12 @@
  * round trip, because each page reads its filters on the client.
  */
 
-/** Replaces the current entry, keeping Next's own state. */
-export function replaceSearch(href: string): void {
-  window.history.replaceState({ ...(window.history.state ?? {}) }, "", href);
+/**
+ * Replaces the current entry. The state passed must not carry Next's own keys (`__NA`): Next.js treats a
+ * call with them as its own and then skips the `useSearchParams` sync. It adds its keys itself.
+ */
+export function replaceSearch(href: string, state: Record<string, unknown> | null = null): void {
+  window.history.replaceState(state, "", href);
 }
 
 /** Adds an entry, so the browser's back returns to the previous filters or closes a phone sheet. */
