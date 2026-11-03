@@ -70,6 +70,11 @@ export function QuickCaptureModal({
   const sourceAccountRef = useRef<HTMLSelectElement>(null);
   const targetAccountRef = useRef<HTMLSelectElement>(null);
   const dateRef = useRef<HTMLInputElement>(null);
+  // The success pause outlives a fast unmount (navigation, tests); clearing it keeps setState off an unmounted modal.
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+  }, []);
 
   const [type, setType] = useState<QuickCaptureMode>(defaultType);
   const [amountStr, setAmountStr] = useState("");
@@ -365,7 +370,8 @@ export function QuickCaptureModal({
         setErr(`Transaksi tersimpan, tetapi bukti belum terunggah: ${result.receiptWarning}`);
         return;
       }
-      setTimeout(() => {
+      closeTimerRef.current = setTimeout(() => {
+        closeTimerRef.current = null;
         setIsSuccess(false);
         onClose();
       }, 450);
