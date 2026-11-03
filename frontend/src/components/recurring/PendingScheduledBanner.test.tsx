@@ -53,7 +53,7 @@ describe("PendingScheduledBanner", () => {
     expect(await screen.findByRole("heading", { name: "Ditautkan otomatis" })).toBeInTheDocument();
     expect(screen.queryByText(/rencana jatuh tempo/)).not.toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
-    await user.click(screen.getByRole("button", { name: "Batalkan tautan Listrik bulanan jatuh tempo 2026-10-01" }));
+    await user.click(screen.getByRole("button", { name: "Batalkan tautan Listrik bulanan jatuh tempo 1 Okt" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/recurring/bill-rule/occurrences/unlink", {
       scheduled_for: "2026-10-01",
     }));

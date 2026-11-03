@@ -54,7 +54,7 @@ export function todoItems({
     const name = tx.merchant || tx.notes || "transaksi tanpa nama";
     items.push({
       key: `q-${tx.id}`,
-      title: `Apa ini? ${name} ${bal(tx.amount)}`,
+      title: `Belum dikenali: ${name} ${bal(tx.amount)}`,
       detail: `${tx.account_name} · ${when(tx.date, today)}`,
       action: reviewLink(tx.id, "review-questions", "Jawab", "ws-tone-out", name),
     });

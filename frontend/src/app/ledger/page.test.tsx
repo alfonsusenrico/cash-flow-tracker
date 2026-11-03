@@ -40,7 +40,7 @@ const app = vi.hoisted(() => ({ setTimeframe: vi.fn(), setCycleOffset: vi.fn() }
 vi.mock("@/components/layout/AppLayout", () => ({
   useAppCtx: () => ({ bal: (amount: number) => `Rp ${amount.toLocaleString("id-ID")}`, ...app }),
 }));
-vi.mock("@/components/recurring/PendingScheduledBanner", () => ({ PendingScheduledBanner: () => null }));
+vi.mock("@/components/recurring/PendingScheduledBanner", () => ({ PendingScheduledBanner: () => <p>Detail rencana</p> }));
 vi.mock("@/components/recurring/RecurringRulesModal", () => ({ RecurringRulesModal: () => null }));
 
 type Row = Record<string, unknown> & { id: string; date: string; local_date: string; review_status: string };
@@ -101,6 +101,7 @@ function mockApi() {
     if (path === "/categories") return { categories: [{ id: "cat-makan", name: "Makan di Luar", kind: "expense", kakeibo_type: "want" }] };
     if (path === "/goals") return { goals: [] };
     if (path === "/obligations") return { obligations: [] };
+    if (path === "/recurring/pending") return { ok: true, rules: [{ id: "plan-1", name: "Streamio", type: "expense", amount: 65_000, next_due_date: "2026-11-03", match_state: "none", candidates: [] }], recent_auto_links: [] };
     throw new Error(`Unexpected GET ${path}`);
   });
 }
@@ -221,6 +222,18 @@ describe("Transaksi list", () => {
     renderPage();
     expect(await screen.findByRole("heading", { name: /Senin, 2 November/ })).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+});
+
+describe("Due plans on Transaksi", () => {
+  it("shows one compact line and opens the existing detail in the drawer", async () => {
+    const { user } = renderPage();
+    const notice = await screen.findByRole("region", { name: "Rencana jatuh tempo" });
+    expect(notice).toHaveTextContent("1 rencana jatuh tempo · Streamio Rp 65.000 · 3 Nov");
+    expect(screen.queryByText("Detail rencana")).not.toBeInTheDocument();
+    await user.click(within(notice).getByRole("button", { name: "Lihat rencana" }));
+    const drawer = await screen.findByRole("dialog", { name: /^Rencana jatuh tempo/ });
+    expect(within(drawer).getByText("Detail rencana")).toBeInTheDocument();
   });
 });
 

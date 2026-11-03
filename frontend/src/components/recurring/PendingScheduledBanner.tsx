@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { fmtMoney } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
+import { planDay } from "./DuePlansNotice";
 import { AutoLinkedOccurrence, DueExpectation, OccurrenceCandidate } from "@/types/recurring";
 
 interface Props {
@@ -124,7 +125,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                       <span className="mr-1 inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-raised)] px-1.5 font-semibold text-[var(--text)]">
                         Ditautkan otomatis
                       </span>
-                      <span className="tabular-nums">Jatuh tempo {shortDay(`${link.scheduled_for}T00:00:00`)} · {autoLinkLabel(link)}</span>
+                      <span className="tabular-nums">Jatuh tempo {planDay(link.scheduled_for)} · {autoLinkLabel(link)}</span>
                     </p>
                     {unlinkErrors[key] && (
                       <p role="alert" className="font-medium text-rose-700 dark:text-rose-300">{unlinkErrors[key]}</p>
@@ -134,7 +135,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                     type="button"
                     disabled={Boolean(busy)}
                     onClick={() => unlink.mutate(link)}
-                    aria-label={`Batalkan tautan ${link.name} jatuh tempo ${link.scheduled_for}`}
+                    aria-label={`Batalkan tautan ${link.name} jatuh tempo ${planDay(link.scheduled_for)}`}
                     className="min-h-11 shrink-0 rounded-lg border border-[var(--border)] px-3 font-semibold disabled:opacity-50"
                   >
                     Batalkan tautan
@@ -207,7 +208,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                       {isTransfer ? `${rule.source_account_name} → ${rule.target_account_name}` : rule.source_account_name}
                       {rule.obligation_name ? ` · ${rule.obligation_name}` : ""}
                     </p>
-                    <p className="text-[11px] tabular-nums text-[var(--muted)]">Jatuh tempo {rule.next_due_date}</p>
+                    <p className="text-[11px] tabular-nums text-[var(--muted)]">Jatuh tempo {planDay(rule.next_due_date)}</p>
                   </div>
                   <span className="shrink-0 font-bold tabular-nums">{fmtMoney(rule.amount)}</span>
                 </div>

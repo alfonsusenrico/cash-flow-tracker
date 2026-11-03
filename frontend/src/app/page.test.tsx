@@ -408,7 +408,7 @@ describe("Perlu tindakan", () => {
     const card = within(desk()).getByRole("region", { name: /Perlu tindakan/ });
     await waitFor(() => expect(within(card).getAllByRole("listitem")).toHaveLength(4));
     const items = within(card).getAllByRole("listitem");
-    expect(items[0]).toHaveTextContent("Apa ini? QRIS 0812-xxxx Rp 45.000");
+    expect(items[0]).toHaveTextContent("Belum dikenali: QRIS 0812-xxxx Rp 45.000");
     expect(items[1]).toHaveTextContent("Pasangkan 2 pindah saldo");
     expect(items[2]).toHaveTextContent("Toko Serba Ada: perlu jawaban");
     expect(items[3]).toHaveTextContent("Streamio Rp 65.000 besok");

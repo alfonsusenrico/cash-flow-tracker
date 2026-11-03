@@ -1026,6 +1026,11 @@ dialog.ws-more::backdrop { background: var(--scrim); }
 .ws-tx-edit { padding-top: 4px; border-top: 1px solid var(--line); }
 .ws-tx-kind { flex-wrap: wrap; }
 
+/* Due plans on Transaksi: one line; the detail opens in the drawer. */
+.ws-plan-notice { align-items: center; gap: 10px; padding: 10px 12px 10px 14px; }
+.ws-plan-notice-t { flex: 1; min-width: 0; }
+.ws-plan-notice .ws-btn { flex: none; min-height: 32px; }
+
 /* Catat dialog */
 .ws-catat textarea, .ws-catat input[type="text"] { width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 14px; background: var(--surface); color: var(--text); font-size: 16px; }
 .ws-catat-preview { display: flex; flex-wrap: wrap; gap: 8px; min-height: 34px; margin-top: 10px; }

@@ -5,6 +5,7 @@ import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
+import { DuePlansNotice } from "@/components/recurring/DuePlansNotice";
 import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
 import { LedgerFeed, LedgerTable, type ListSelection } from "@/components/transactions/LedgerList";
 import { TransactionDrawer } from "@/components/transactions/TransactionDrawer";
@@ -15,7 +16,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Modal } from "@/components/ui/Modal";
 import { PeriodStepper } from "@/components/ui/PeriodStepper";
 import { TopBarControls } from "@/components/workspace/context";
-import { useToast } from "@/components/workspace/overlays";
+import { Drawer, useToast } from "@/components/workspace/overlays";
 import { EmptyState, ErrorState, Kpi, KpiStrip, Segmented, Skeleton } from "@/components/workspace/primitives";
 import { useShortcut, usePageShortcutGroup, type PageShortcutGroup } from "@/components/workspace/shortcuts";
 import { LEDGER_SEARCH_ID } from "@/components/workspace/TopBar";
@@ -165,6 +166,7 @@ function LedgerPageContent() {
 
   const [filterOpen, setFilterOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
+  const [plansOpen, setPlansOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<LedgerRow[]>([]);
   const [mergeError, setMergeError] = useState("");
@@ -401,7 +403,7 @@ function LedgerPageContent() {
         </TopBarControls>
       )}
 
-      <PendingScheduledBanner onOpenRulesManager={() => setRecurringOpen(true)} />
+      <DuePlansNotice onOpen={() => setPlansOpen(true)} />
 
       <div className="ws-tx-toolbar">
         <div className="ws-seg ws-tx-tabs" role="group" aria-label="Jenis transaksi">
@@ -538,6 +540,11 @@ function LedgerPageContent() {
           </div>
         )}
       </Modal>
+
+      {/* The existing matching detail: link, skip and record manually, unchanged. */}
+      <Drawer open={plansOpen} onClose={() => setPlansOpen(false)} title="Rencana jatuh tempo" subtitle="Tautkan, lewati, atau catat manual">
+        <PendingScheduledBanner onOpenRulesManager={() => { setPlansOpen(false); setRecurringOpen(true); }} />
+      </Drawer>
 
       <RecurringRulesModal open={recurringOpen} onClose={() => setRecurringOpen(false)} />
 
