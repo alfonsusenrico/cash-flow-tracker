@@ -153,7 +153,7 @@ The top bar holds the page title, search (⌘K or Ctrl+K; Enter opens Transaksi 
 
 On a phone a tab bar at the bottom offers Beranda, Tinjau, Catat, Transaksi and Lainnya; Lainnya lists every other page, the notifications, Bantuan and Keluar.
 
-Keyboard: N opens Catat, ? opens the shortcut help, Esc closes the open menu, explanation or dialog. The single-key shortcuts (N and ?) can be switched off in the help.
+Keyboard: N opens Catat, ? opens the shortcut help, Esc closes the open menu, explanation or dialog. The single-key shortcuts (N, ? and the keys of Tinjau) can be switched off in the help.
 
 ## 1. Beranda
 
@@ -178,6 +178,18 @@ Beranda describes the current salary cycle, or the current calendar month while 
 ### When to Use It
 
 Open Beranda once a day: check what is safe to spend, then clear "Kerjakan dulu".
+
+## Tinjau
+
+Route: `/review` (links such as `/review?item=<id>&folder=pindah` open one item; the older `#review-…` links still work)
+
+Tinjau is an inbox: the list on the left, one item large on the right. On a phone, or in a narrow window, you see the list first; tapping an item opens it with a "Daftar" button, and the browser's back gesture returns to the list.
+
+- Folders: Semua, Apa ini? (payments without a shop name), Perlu jawaban (groups the app is unsure about, one answer for every row of the same shop) and Pindah saldo belum lengkap (transfers whose other side is missing). Their counts add up to the number on the Tinjau badge.
+- Optional, folded below the list: Dicatat otomatis (rows the rules or the AI recorded; checking them is optional) and Saran dari riwayat (proposals for older rows; nothing changes until you accept). "Cari saran dari riwayat" starts a new proposal run after showing its estimate.
+- One press answers: a numbered choice, "Terima", "Iya, top up …", an account for a transfer, or "Bukan pindah saldo, ini pengeluaran". Tinjau saves it, says what happened and moves to the next item. When nothing is left it shows "Semua beres" with this cycle's Keluar, Aman dipakai hari ini and Belum diklasifikasi.
+- Urungkan: the message after each answer offers "Urungkan", and Z does the same later, for 10 minutes. It puts the answer back exactly, including what the app learned. If the row changed since (for example you edited it in Transaksi), Tinjau says it cannot undo and links to the row.
+- Keys, while focus is in Tinjau: J and K move, Enter opens, E accepts the highlighted suggestion, T opens "Ini top up investasi", 1–9 pick a numbered choice, Z undoes and ? lists them. They are ignored while you type and can be switched off in the help ("Pintasan satu tombol").
 
 ## 2. Transactions
 
