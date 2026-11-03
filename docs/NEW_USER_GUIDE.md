@@ -191,6 +191,22 @@ Tinjau is an inbox: the list on the left, one item large on the right. On a phon
 - Urungkan: the message after each answer offers "Urungkan", and Z does the same later, for 10 minutes. It puts the answer back exactly, including what the app learned. If the row changed since (for example you edited it in Transaksi), Tinjau says it cannot undo and links to the row.
 - Keys, while focus is in Tinjau: J and K move, Enter opens, E accepts the highlighted suggestion, T opens "Ini top up investasi", 1–9 pick a numbered choice, Z undoes and ? lists them. They are ignored while you type and can be switched off in the help ("Pintasan satu tombol").
 
+## Analisis
+
+Route: `/insights` (`?tab=kalender&day=YYYY-MM-DD` opens a day of the calendar, `?tab=aliran&view=tabel` the money map as a table; `/insights` alone is Ringkasan)
+
+Analisis has three tabs. One switch, Siklus gaji or Bulan kalender, and the period stepper in the top bar apply to all three.
+
+- Ringkasan: Masuk, Keluar and Belanja for the period. Keluar is the same number as on Beranda and includes what you saved or invested; Belanja is the same number as on Transaksi and does not. Each figure opens the lines it is made of. Below: Kakeibo against the same days of the previous period (as amounts, with a mark at last period's value), Belanja harian with its highest day and a table, cash flow per period, the comparison of categories and shops, detected bills and subscriptions, how often the app asked, and Kategori & anggaran, where categories and budgets are managed.
+- Kalender: every day of the period with its spending written in the cell and shaded by level (the legend names each level's amounts), plus marks for money in, transfers, top-ups, bills and rows waiting in Tinjau. Arrow keys move between days, Home and End go to the start and end of the week, PageUp and PageDown move a week, and Enter opens the day: its spending, its transactions (each opens the transaction drawer), its waiting rows (each links to Tinjau) and its bills. "Sebelum gaji berikutnya" lists the bills still due before the expected salary, or until the end of the period when that date cannot be estimated yet. On a phone the calendar is a week strip.
+- Peta Aliran: where money came from and where it went, as a map with a full table ("Peta" or "Tabel"). Each account balances: what was there before the period plus what came in equals what went out plus "Masih ada". Transfers waiting for their other side go to "Menunggu pasangan"; rows waiting for a category answer stay in their pillar and are marked. By default the map shows only money that left or moved; "Tampilkan uang masuk, saldo dan Masih ada" adds the rest, and the table always lists everything. Choose a point or a row to see its transactions; Tab into the map and use the arrow keys, Enter for details. "Putar ulang" replays the period day by day (off when your system asks for reduced motion; the slider still works).
+
+## Laporan
+
+Route: `/laporan?basis=month|cycle&start=YYYY-MM-DD` (`lengkapi=1` opens the classification dialog, `atur=anggaran` the budget editor)
+
+The basis switch and the report stepper are in the top bar. Each report opens with a short neutral lead written from its own figures (money in and spending, the pillar that changed most against the previous period, rows still unclassified), then the four Kakeibo questions. The side column has the comparison, data quality, the budget and "Laporan sebelumnya", a list of every period with whether it is complete.
+
 ## 2. Transactions
 
 Route: `/ledger`
