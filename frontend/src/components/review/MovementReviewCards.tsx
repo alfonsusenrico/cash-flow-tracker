@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { transaksiHref } from "@/lib/triage";
 import { useId, useState, type FormEvent } from "react";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Choice, Picker } from "@/components/review/triage/Choice";
@@ -46,7 +47,7 @@ export function counterpartChoices(accounts: AccountOptionItem[], excludeId: str
 
 function EditLink({ item }: { item: ReviewItem }) {
   return (
-    <Link href={`/ledger?edit=${item.id}&return=review`} className="ws-btn ws-btn-sm">
+    <Link href={transaksiHref(item.id, "pindah")} className="ws-btn ws-btn-sm">
       Ubah di Transaksi
     </Link>
   );
@@ -272,7 +273,7 @@ export function AwaitingMovementCard({
               primary
               disabled={pending}
               label={`Iya, top up ${topup.products.find((product) => product.id === target)?.name ?? suggestion.target_label ?? "produk ini"}`}
-              sub="Saranku"
+              sub="Saran"
               onClick={() => void topup.onConvert(item, target, target)}
             />
             <Choice
@@ -284,7 +285,7 @@ export function AwaitingMovementCard({
               controls={panel === "other" ? `${baseId}-other` : undefined}
               onClick={() => toggle("other")}
             />
-            <Choice n={3} disabled={pending} label="Bukan top up" sub="Aku ingat untuk debit seperti ini" onClick={() => void topup.onReject(item, target)} />
+            <Choice n={3} disabled={pending} label="Bukan top up" sub="Diingat untuk debit seperti ini" onClick={() => void topup.onReject(item, target)} />
           </div>
         </section>
       )}
@@ -352,7 +353,7 @@ export function AwaitingMovementCard({
             <Choice
               n={candidates.length + 1}
               disabled={pending}
-              label="Tetap buat baru"
+              label="Tetap catat baru"
               sub="Rekening itu memang punya transaksi lain"
               onClick={() => void onComplete(item, candidates[0].account_id, true)}
             />

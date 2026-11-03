@@ -3,7 +3,7 @@ import { kakeiboBucketInfo } from "@/lib/kakeibo";
 import type { CycleSummary, ExpectedReason, SummaryLine, WaitingSection } from "./types";
 
 /**
- * "Kok segini?" content for the Beranda figures. Everything here formats the server's figures and lines;
+ * "Rincian hitungan" content for the Beranda figures. Everything here formats the server's figures and lines;
  * nothing is added up on the client (design D13), so the web and any later view cannot drift.
  */
 export type Money = (amount: number) => string;
@@ -43,7 +43,7 @@ function ledgerPeriod(summary: CycleSummary): string {
 }
 
 const SECTION_LABELS: Record<WaitingSection, string> = {
-  questions: "Apa ini?",
+  questions: "Belum dikenali",
   ambiguous: "Pasangan pindah saldo belum pasti",
   awaiting: "Pindah saldo belum lengkap",
   groups: "Perlu jawaban",
@@ -57,10 +57,10 @@ export function comparisonNote(summary: CycleSummary): string | null {
 }
 
 export function keluarExplanation(summary: CycleSummary, money: Money): ExplanationData {
-  const notes = ["Pindah saldo antar rekeningmu sendiri nggak dihitung keluar."];
+  const notes = ["Pindah saldo antar rekening sendiri tidak dihitung keluar."];
   if (summary.keluar.offsets_total > 0) notes.push(`Sudah dikurangi ganti uang ${money(summary.keluar.offsets_total)}.`);
   if (summary.waiting.in_keluar > 0) {
-    notes.push(`${money(summary.waiting.in_keluar)} dari yang nunggu jawabanmu sudah ikut di sini. Jawabanmu cuma memindahkan pilarnya.`);
+    notes.push(`${money(summary.waiting.in_keluar)} dari yang menunggu jawaban sudah termasuk di sini. Jawabannya hanya memindahkan pilarnya.`);
   }
   const comparison = comparisonNote(summary);
   if (comparison) notes.push(comparison);
@@ -75,7 +75,7 @@ export function keluarExplanation(summary: CycleSummary, money: Money): Explanat
 }
 
 export function masukExplanation(summary: CycleSummary, money: Money): ExplanationData {
-  const notes = ["Pindah saldo antar rekeningmu dan ganti uang nggak dihitung masuk."];
+  const notes = ["Pindah saldo antar rekening sendiri dan uang pengganti tidak dihitung masuk."];
   const comparison = comparisonNote(summary);
   if (comparison) notes.push(comparison);
   return {
@@ -111,31 +111,31 @@ function expectedBasisNote(summary: CycleSummary): string | null {
   const expected = summary.expected_salary;
   if (!expected.date || expected.basis !== "regular_receipts") return null;
   const receipts = expected.receipt_dates.map(shortDate).join(", ");
-  return `Gajian berikutnya diperkirakan ${longDate(expected.date)}, dari gaji yang kamu konfirmasi tanggal ${receipts}. Ini perkiraan, bukan batas siklus.`;
+  return `Gaji berikutnya diperkirakan ${longDate(expected.date)}, dari gaji yang dikonfirmasi tanggal ${receipts}. Ini perkiraan, bukan batas siklus.`;
 }
 
 function waitingNote(summary: CycleSummary, money: Money): string {
   const { waiting } = summary;
-  if (!waiting.count) return "Semua transaksi udah beres, nggak ada yang nunggu jawaban.";
-  return `${waiting.count} hal (${money(waiting.total)}) masih nunggu jawabanmu; ${money(waiting.in_keluar)} di antaranya sudah ikut dihitung keluar.`;
+  if (!waiting.count) return "Semua transaksi sudah ditinjau, tidak ada yang menunggu jawaban.";
+  return `${waiting.count} hal (${money(waiting.total)}) masih menunggu jawaban; ${money(waiting.in_keluar)} di antaranya sudah termasuk dalam keluar.`;
 }
 
 const EXPECTED_REASONS: Record<ExpectedReason, { reason: string; fix: string }> = {
   too_few_receipts: {
-    reason: "tanggal gajian berikutnya belum bisa diperkirakan karena gaji yang terkonfirmasi belum ada tiga.",
+    reason: "tanggal gaji berikutnya belum dapat diperkirakan karena gaji yang terkonfirmasi belum ada tiga.",
     fix: "Begitu ada tiga gaji terkonfirmasi yang jaraknya teratur (26–35 hari), angka per hari muncul.",
   },
   irregular_receipts: {
-    reason: "tanggal tiga gaji terakhirmu nggak teratur, jadi aku nggak mau nebak tanggal gajian berikutnya.",
-    fix: "Kalau gajimu memang tiap bulan di tanggal yang sama, angka per hari muncul setelah tiga gaji yang teratur.",
+    reason: "tanggal tiga gaji terakhir tidak teratur, sehingga tanggal gaji berikutnya tidak ditebak.",
+    fix: "Jika gaji memang diterima setiap bulan pada tanggal yang sama, angka per hari muncul setelah tiga gaji yang teratur.",
   },
   no_salary_source: {
-    reason: "sumber gajimu belum diatur, jadi aku belum tahu gaji mana yang dipakai buat perkiraan.",
+    reason: "sumber gaji belum diatur, sehingga gaji yang dipakai untuk perkiraan belum diketahui.",
     fix: "Pilih sumber gaji di Pengaturan › Gaji.",
   },
   no_cycle: {
     reason: "belum ada siklus gaji yang terkonfirmasi, jadi Beranda pakai bulan kalender.",
-    fix: "Konfirmasi gajimu di Pengaturan › Gaji.",
+    fix: "Konfirmasi gaji di Pengaturan › Gaji.",
   },
 };
 
@@ -144,28 +144,28 @@ export function unavailableReason(summary: CycleSummary): { reason: string; fix:
   if (safe.reason === "salary_overdue") {
     const date = summary.expected_salary.date ? longDate(summary.expected_salary.date) : "sebelumnya";
     return {
-      reason: `gajian diperkirakan ${date}, tapi gaji baru belum tercatat.`,
-      fix: "Begitu gajinya masuk dan kamu konfirmasi, siklus baru mulai dan angka per hari muncul lagi.",
+      reason: `gaji diperkirakan masuk ${date}, tetapi gaji baru belum tercatat.`,
+      fix: "Setelah gaji masuk dan dikonfirmasi, siklus baru dimulai dan angka per hari muncul lagi.",
       short: "gaji baru belum tercatat",
     };
   }
   if (safe.reason === "no_cycle") return { ...EXPECTED_REASONS.no_cycle, short: "siklus gaji belum ada" };
   const detail = safe.detail ?? summary.expected_salary.reason ?? "too_few_receipts";
-  return { ...EXPECTED_REASONS[detail], short: detail === "no_salary_source" ? "sumber gaji belum diatur" : "tanggal gajian belum jelas" };
+  return { ...EXPECTED_REASONS[detail], short: detail === "no_salary_source" ? "sumber gaji belum diatur" : "tanggal gaji belum jelas" };
 }
 
 export function safeExplanation(summary: CycleSummary, money: Money): ExplanationData {
   const safe = summary.safe_to_spend;
   const base = {
     title: "Aman dipakai hari ini",
-    rule: "Uang periode ini yang belum dipakai dan belum dijadwalkan, dibagi sisa hari sampai perkiraan gajian.",
+    rule: "Uang periode ini yang belum dipakai dan belum dijadwalkan, dibagi sisa hari sampai perkiraan gaji berikutnya.",
   };
   if (safe.status !== "available" || safe.per_day === null || safe.days_left === null) {
     const why = unavailableReason(summary);
     return {
       ...base,
       lines: [...summary.remaining.lines.map((line) => ({ label: line.label, amount: signed(line.amount, money) })), { label: "Sisa", amount: balance(summary.remaining.total, money) }],
-      unavailable: { reason: `Angka per hari butuh tanggal gajian yang teratur: ${why.reason}`, fix: why.fix },
+      unavailable: { reason: `Angka per hari memerlukan tanggal gaji yang teratur: ${why.reason}`, fix: why.fix },
       notes: [waitingNote(summary, money)],
       link: { href: "/settings/gaji", label: "Buka Pengaturan › Gaji" },
     };
@@ -185,7 +185,7 @@ export function safeExplanation(summary: CycleSummary, money: Money): Explanatio
       { label: "Sisa", amount: balance(summary.remaining.total, money) },
       {
         label: `÷ ${safe.days_left} hari (${shortDate(summary.period.today)} – ${shortDate(summary.scheduled.window_end)})`,
-        note: `dibulatkan ke bawah per ${money(safe.rounding)}, nggak pernah di bawah nol`,
+        note: `dibulatkan ke bawah per ${money(safe.rounding)}, tidak pernah di bawah nol`,
         amount: "",
       },
     ],
@@ -199,15 +199,15 @@ export function waitingExplanation(summary: CycleSummary, money: Money): Explana
   const { waiting } = summary;
   if (!waiting.count) {
     return {
-      title: "Nunggu jawabanmu",
-      rule: "Nggak ada yang nunggu jawaban. Semua transaksi udah beres.",
+      title: "Menunggu jawaban",
+      rule: "Tidak ada yang menunggu jawaban. Semua transaksi sudah ditinjau.",
       lines: [],
       link: { href: "/review", label: "Buka Tinjau" },
     };
   }
   return {
-    title: "Nunggu jawabanmu",
-    rule: "Transaksi yang sudah tercatat tapi masih perlu kamu jawab di Tinjau. Semuanya tetap tercatat; aku nggak nebak jawabannya.",
+    title: "Menunggu jawaban",
+    rule: "Transaksi yang sudah tercatat tetapi masih perlu dijawab di Tinjau. Semuanya tetap tercatat; jawabannya tidak ditebak.",
     lines: waiting.lines.map((line) => ({
       label: line.label,
       note: `${SECTION_LABELS[line.section]} · ${
@@ -225,22 +225,22 @@ export function scheduledExplanation(summary: CycleSummary, money: Money): Expla
   const { scheduled } = summary;
   const window =
     scheduled.window_basis === "expected_salary"
-      ? `Sampai sehari sebelum perkiraan gajian (${shortDate(scheduled.window_end)}).`
-      : `Tanggal gajian belum diketahui, jadi aku pakai 30 hari ke depan (sampai ${shortDate(scheduled.window_end)}).`;
+      ? `Sampai sehari sebelum perkiraan gaji berikutnya (${shortDate(scheduled.window_end)}).`
+      : `Tanggal gaji belum diketahui, sehingga dipakai 30 hari ke depan (sampai ${shortDate(scheduled.window_end)}).`;
   return {
     title: "Terjadwal",
-    rule: "Tagihan yang belum dibayar dan setoran target yang belum masuk, sebelum gajian berikutnya.",
+    rule: "Tagihan yang belum dibayar dan setoran target yang belum masuk, sebelum gaji berikutnya.",
     lines: scheduledDetailLines(summary, money).map((line) => ({ ...line, amount: line.amount.replace("−", "") })),
     total: { label: "Total terjadwal", amount: money(scheduled.total) },
-    notes: [window, "Rencana itu pengingat, bukan pembayaran. Begitu pembayarannya kamu tautkan, angkanya pindah ke Keluar."],
+    notes: [window, "Rencana adalah pengingat, bukan pembayaran. Setelah pembayarannya ditautkan, angkanya pindah ke Keluar."],
     link: { href: "/goals", label: "Buka Target & Tagihan" },
   };
 }
 
 export function remainingExplanation(summary: CycleSummary, money: Money): ExplanationData {
   return {
-    title: "Sisa aman sampai gajian",
-    rule: "Masuk dikurangi yang udah dipakai dan yang terjadwal.",
+    title: "Sisa aman sampai gaji berikutnya",
+    rule: "Masuk dikurangi yang sudah dipakai dan yang terjadwal.",
     lines: summary.remaining.lines.map((line) => ({ label: line.label, amount: signed(line.amount, money) })),
     total: { label: "Sisa", amount: balance(summary.remaining.total, money) },
     notes: [waitingNote(summary, money)],
@@ -253,7 +253,7 @@ export function netWorthExplanation(summary: CycleSummary, money: Money): Explan
     rule: "Semua saldo dan investasi dikurangi utang yang masih aktif.",
     lines: summary.net_worth.lines.map((line) => ({ label: line.label, amount: signed(line.amount, money) })),
     total: { label: "Kekayaan bersih", amount: money(summary.net_worth.total) },
-    notes: ["Kantong dihitung sekali, nggak dobel dengan rekening induknya. Investasi pakai nilai terakhir yang tercatat."],
+    notes: ["Kantong dihitung sekali, tidak ganda dengan rekening induknya. Investasi memakai nilai terakhir yang tercatat."],
     link: { href: "/accounts", label: "Buka Rekening & Kantong" },
   };
 }

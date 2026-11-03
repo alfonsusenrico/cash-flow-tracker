@@ -97,7 +97,7 @@ export interface SuggestionDecisionResult {
 }
 
 const SOURCE_LABELS: Record<SuggestionSource, string> = {
-  memory: "Dari ingatan Anda",
+  memory: "Dari riwayat jawaban",
   rule: "Aturan",
   ai: "Saran AI",
 };

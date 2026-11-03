@@ -21,7 +21,7 @@ describe("provenance labels", () => {
       "Otomatis, belum ditinjau", "Perlu ditinjau", "Sudah ditinjau",
     ]);
     expect(["rule", "ai", "owner", "system", "habit"].map(classifierLabel)).toEqual([
-      "Aturan", "AI", "Anda", "Sistem", "Kebiasaan",
+      "Aturan", "AI", "Pengguna", "Sistem", "Kebiasaan",
     ]);
   });
 

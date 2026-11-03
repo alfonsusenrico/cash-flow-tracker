@@ -7,6 +7,7 @@ import { Icon } from "@/components/ui/Icon";
 import { getDevices, type PairedDevice } from "@/lib/api";
 import { deviceProblems, isStale } from "@/lib/deviceHealth";
 import { queryKeys } from "@/lib/queryKeys";
+import { sameRouteClick } from "@/lib/urlState";
 import { useWorkspace } from "./context";
 import { NAV_GROUPS, PRODUCT_NAME, SETTINGS_LINK, badgeWords, isActivePath, type NavLink } from "./navigation";
 
@@ -23,6 +24,7 @@ export function SideNavLink({ link, count }: { link: NavLink; count: number }) {
   return (
     <Link
       href={link.href}
+      onClick={sameRouteClick(link.href, pathname)}
       className="ws-nav-item"
       aria-current={active ? "page" : undefined}
       aria-label={`${link.label}${words}`}
@@ -114,7 +116,7 @@ function clock(iso: string, now: Date): string {
 /** Ready with the last contact, needs attention with the reason, or no phone paired. */
 export function companionState(devices: PairedDevice[], now = new Date()): CompanionState {
   const paired = devices.filter((device) => device.created_via === "pairing");
-  if (!paired.length) return { tone: "none", title: "Belum ada HP terhubung", detail: "Sambungkan HP-mu di Pengaturan" };
+  if (!paired.length) return { tone: "none", title: "Belum ada HP terhubung", detail: "Sambungkan HP di Pengaturan" };
   const reporting = paired
     .filter((device) => device.health)
     .sort((a, b) => Date.parse(b.health!.reported_at) - Date.parse(a.health!.reported_at));
@@ -123,9 +125,9 @@ export function companionState(devices: PairedDevice[], now = new Date()): Compa
   const health = device.health;
   const lastContact = health.last_capture_at ?? device.last_used_at ?? health.reported_at;
   if (health.ready && !isStale(health, now.getTime())) {
-    return { tone: "ok", title: "HP-mu siap", detail: `terakhir nangkep ${clock(lastContact, now)}` };
+    return { tone: "ok", title: "HP terhubung", detail: `Terakhir menangkap ${clock(lastContact, now)}` };
   }
-  const problem = deviceProblems(health, now.getTime())[0] ?? "HP belum siap nangkep notifikasi.";
+  const problem = deviceProblems(health, now.getTime())[0] ?? "HP belum siap menangkap notifikasi.";
   return { tone: "warn", title: "HP perlu dicek", detail: problem };
 }
 

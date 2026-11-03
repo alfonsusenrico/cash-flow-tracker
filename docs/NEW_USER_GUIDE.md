@@ -163,10 +163,10 @@ Beranda describes the current salary cycle, or the current calendar month while 
 
 ### What You See
 
-- Three sentences with three numbers: how much went out since payday, how much is safe to spend today, and how much is still waiting for your answer. Every underlined number opens "Kok segini?", which lists the lines that make it up and links to the matching transactions.
+- Three sentences with three numbers: how much went out since payday, how much is safe to spend today, and how much is still waiting for your answer. Every underlined number opens "Rincian hitungan", which lists the lines that make it up and links to the matching transactions.
 - Four figures: Aman dipakai hari ini, Keluar, Masuk and Kekayaan bersih. Keluar and Masuk compare with the same number of days of the previous period, as an amount.
 - Uang siklus ini: what you received, split into what is used, what is scheduled (unpaid plans and goal set-asides) and what is safe to use until payday.
-- Kerjakan dulu: open questions, transfers waiting for their other side, groups that need an answer and plans due within two days.
+- Perlu tindakan: open questions, transfers waiting for their other side, groups that need an answer and plans due within two days.
 - Aktivitas terbaru (on phones: Hari ini), Kakeibo, Ketahanan Dana and one comparison with the previous period.
 
 ### How the numbers are counted
@@ -177,7 +177,7 @@ Beranda describes the current salary cycle, or the current calendar month while 
 
 ### When to Use It
 
-Open Beranda once a day: check what is safe to spend, then clear "Kerjakan dulu".
+Open Beranda once a day: check what is safe to spend, then clear "Perlu tindakan".
 
 ## Tinjau
 
@@ -185,9 +185,9 @@ Route: `/review` (links such as `/review?item=<id>&folder=pindah` open one item;
 
 Tinjau is an inbox: the list on the left, one item large on the right. On a phone, or in a narrow window, you see the list first; tapping an item opens it with a "Daftar" button, and the browser's back gesture returns to the list.
 
-- Folders: Semua, Apa ini? (payments without a shop name), Perlu jawaban (groups the app is unsure about, one answer for every row of the same shop) and Pindah saldo belum lengkap (transfers whose other side is missing). Their counts add up to the number on the Tinjau badge.
+- Folders: Semua, Belum dikenali (payments without a shop name), Perlu jawaban (groups the app is unsure about, one answer for every row of the same shop) and Pindah saldo belum lengkap (transfers whose other side is missing). Their counts add up to the number on the Tinjau badge.
 - Optional, folded below the list: Dicatat otomatis (rows the rules or the AI recorded; checking them is optional) and Saran dari riwayat (proposals for older rows; nothing changes until you accept). "Cari saran dari riwayat" starts a new proposal run after showing its estimate.
-- One press answers: a numbered choice, "Terima", "Iya, top up …", an account for a transfer, or "Bukan pindah saldo, ini pengeluaran". Tinjau saves it, says what happened and moves to the next item. When nothing is left it shows "Semua beres" with this cycle's Keluar, Aman dipakai hari ini and Belum diklasifikasi.
+- One press answers: a numbered choice, "Terima", "Iya, top up …", an account for a transfer, or "Bukan pindah saldo, ini pengeluaran". Tinjau saves it, says what happened and moves to the next item. When nothing is left it shows "Semua sudah ditinjau" with this cycle's Keluar, Aman dipakai hari ini and Belum diklasifikasi.
 - Urungkan: the message after each answer offers "Urungkan", and Z does the same later, for 10 minutes. It puts the answer back exactly, including what the app learned. If the row changed since (for example you edited it in Transaksi), Tinjau says it cannot undo and links to the row.
 - Keys, while focus is in Tinjau: J and K move, Enter opens, E accepts the highlighted suggestion, T opens "Ini top up investasi", 1–9 pick a numbered choice, Z undoes and ? lists them. They are ignored while you type and can be switched off in the help ("Pintasan satu tombol").
 
@@ -195,16 +195,17 @@ Tinjau is an inbox: the list on the left, one item large on the right. On a phon
 
 Route: `/ledger`
 
-Transactions is the cash ledger. This is the most important operational page because it records the activity that drives the rest of the app.
+Transactions is the cash ledger. This is the most important operational page because it records the activity that drives the rest of the app. The sidebar and the phone tab open this salary cycle (`/ledger?period=cycle`); the top-bar stepper moves to earlier cycles or months, and "Semua waktu" shows everything.
 
 ### What You Can Do
 
-- Add a transaction.
-- Add a transfer between accounts.
-- Edit a transaction.
-- Delete a transaction.
-- Filter by account, category, date range, search, and review state.
-- Mark or view reviewed/unreviewed transaction state.
+- Switch tabs: Semua, Keluar, Masuk, Pindah saldo and Investasi, each with its row count.
+- Narrow with one chip: Menunggu jawaban (the rows behind the Tinjau badge), Belum dicek (recorded automatically), Dari HP or Lewat Catat. "Filter" adds account, category, Kakeibo pillar and status; each active filter shows as a chip you can remove.
+- Read the period's Masuk, Belanja and Bersih. Belanja leaves out what you saved; on Beranda, Keluar is Belanja plus what you saved. A reimbursement appears as "sudah dikurangi penggantian".
+- Read rows grouped by day. Each day heading shows that day's Belanja, Masuk, Pindah saldo and how many rows are "menunggu jawaban", counted over the whole day even when part of it is not loaded yet ("2 lagi di hari ini · Muat lagi"). "Muat 50 lagi" adds older rows.
+- Open a row: a panel on a wide screen, a sheet on a phone. It shows the amount, where the row came from and who classified it, and the original notification or typed text. From there: "Ubah" (including switching between Keluar and Masuk, "Pindah saldo" to pick its pair in the list, and "Top up Investasi"), "Tandai sudah dicek" with "Urungkan", and "Hapus", which first says what the delete changes and cannot be undone. A row waiting in Tinjau shows "Jawab di Tinjau".
+- "Gabungkan" picks one outgoing and one incoming row of the same amount and makes them one Pindah saldo.
+- Keys while focus is in the list: J and K move, Enter opens, Z undoes the last "Tandai sudah dicek" or top up, and ⌘K focuses the search.
 
 ### Data Used
 
@@ -746,7 +747,7 @@ Category creation and editing exist in the backend, but the current UI presents 
 
 ## Quick Actions
 
-"+ Catat" in the top bar, the Catat button of the phone tab bar and the N key open quick capture for an expense, income or a move between your accounts. "Kerjakan dulu" on Beranda opens the item that needs you.
+"+ Catat" in the top bar, the Catat button of the phone tab bar and the N key open Catat: type one sentence such as "parkir 5rb jam 2". While you type, Catat shows what it read (amount, time, account, category) without recording anything; text without an amount is refused with the reason. "Catat" records it the way the phone does, asks a follow-up question inline when one is needed, and the message offers "Urungkan" for a few seconds. "Isi manual" opens the full form for an expense, income or a move between your accounts, with the amount already filled in. "Perlu tindakan" on Beranda opens the item that needs you.
 
 ## Common Workflows
 

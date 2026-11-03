@@ -50,6 +50,8 @@ interface QuickCaptureModalProps {
   defaultSourceAccountId?: string;
   defaultTargetAccountId?: string;
   defaultType?: QuickCaptureMode;
+  /** An amount already read elsewhere, such as the Catat dialog's preview ("Isi manual"). */
+  defaultAmount?: number | null;
 }
 
 export function QuickCaptureModal({
@@ -59,6 +61,7 @@ export function QuickCaptureModal({
   defaultSourceAccountId,
   defaultTargetAccountId,
   defaultType = "expense",
+  defaultAmount = null,
 }: QuickCaptureModalProps) {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -181,7 +184,7 @@ export function QuickCaptureModal({
   useEffect(() => {
     if (open) {
       setType(defaultType);
-      setAmountStr("");
+      setAmountStr(defaultAmount ? formatNumberWithDots(String(defaultAmount)) : "");
       setMovementSourceAccountId(defaultSourceAccountId ?? "");
       setMovementTargetAccountId(defaultTargetAccountId ?? "");
       setMovementFieldErrors({});
@@ -198,7 +201,7 @@ export function QuickCaptureModal({
       setReceipt(null);
       setSavedTransactionId(null);
     }
-  }, [defaultSourceAccountId, defaultTargetAccountId, open, defaultType]);
+  }, [defaultSourceAccountId, defaultTargetAccountId, open, defaultType, defaultAmount]);
 
   // Parse numeric amount or math expression (CSP-safe, no eval / Function)
   const parseAmount = (val: string): number => {
@@ -698,7 +701,7 @@ export function QuickCaptureModal({
         )}
         {type === "expense" && (
           <fieldset className="space-y-2">
-            <legend className="text-xs font-medium text-[var(--muted)]">Pilar Kakeibo <InfoHelp label="Pilar Kakeibo">Mengikuti pilar kategori, kecuali Anda memilih pilar lain untuk transaksi ini.</InfoHelp></legend>
+            <legend className="text-xs font-medium text-[var(--muted)]">Pilar Kakeibo <InfoHelp label="Pilar Kakeibo">Mengikuti pilar kategori, kecuali pilar lain dipilih untuk transaksi ini.</InfoHelp></legend>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               {KAKEIBO_PILLARS.map(({ value, label }) => (
                 <button

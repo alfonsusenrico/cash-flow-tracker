@@ -8,7 +8,7 @@ import { ShortcutProvider } from "./shortcuts";
 
 const SAFE_TO_SPEND: ExplanationData = {
   title: "Aman dipakai hari ini",
-  rule: "Sisa uang siklus ini dibagi hari sampai gajian.",
+  rule: "Sisa uang siklus ini dibagi hari sampai gaji berikutnya.",
   lines: [
     { label: "Masuk", amount: "+Rp 8.000.000" },
     { label: "Keluar", amount: "−Rp 3.100.000", href: "/ledger?type=expense" },
@@ -51,8 +51,8 @@ function show() {
       </ExplainProvider>
     </ShortcutProvider>,
   );
-  const safe = screen.getByRole("button", { name: "Aman dipakai hari ini Rp 214.000: kok segini?" });
-  const spent = screen.getByRole("button", { name: "Keluar siklus ini belum tersedia: kok segini?" });
+  const safe = screen.getByRole("button", { name: "Aman dipakai hari ini Rp 214.000: lihat rincian" });
+  const spent = screen.getByRole("button", { name: "Keluar siklus ini belum tersedia: lihat rincian" });
   return { ...view, user, safe, spent };
 }
 
@@ -62,7 +62,7 @@ describe("ExplainableFigure", () => {
     document.body.style.overflow = "";
   });
 
-  it("is a button that keeps the figure as text and names it with kok segini?", () => {
+  it("is a button that keeps the figure as text and names it with lihat rincian", () => {
     const { safe } = show();
     expect(safe).toHaveTextContent("Rp 214.000");
     expect(safe).toHaveAttribute("aria-haspopup", "dialog");
@@ -93,7 +93,7 @@ describe("ExplainableFigure", () => {
     const { user, safe, baseElement } = show();
     await user.click(safe);
     const dialog = screen.getByRole("dialog", { name: "Aman dipakai hari ini" });
-    expect(dialog).toHaveTextContent("Kok segini?");
+    expect(dialog).toHaveTextContent("Rincian hitungan");
     expect(dialog).toHaveTextContent(SAFE_TO_SPEND.rule);
 
     const rows = within(dialog).getAllByRole("row");

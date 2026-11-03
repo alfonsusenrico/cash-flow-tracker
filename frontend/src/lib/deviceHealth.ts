@@ -29,9 +29,9 @@ export const STEP_LABELS: Record<ChecklistStepKey, string> = {
 };
 
 export const STEP_STATE_TEXT: Record<ChecklistStepState, string> = {
-  ok: "Beres",
-  fail: "Belum jalan",
-  wait: "Lagi diatur di HP",
+  ok: "Selesai",
+  fail: "Belum berjalan",
+  wait: "Sedang diatur di HP",
   todo: "Belum",
 };
 
@@ -41,8 +41,8 @@ export const BATTERY_HINT =
   "Biar nggak dimatiin diam-diam, izinkan aplikasinya jalan tanpa batasan baterai. Di HP TECNO/Infinix (HiOS) atau Xiaomi (MIUI), biasanya perlu izin tambahan biar aplikasinya nggak dibekukan.";
 
 export const SELF_TEST_STEP_TEXT: Record<SelfTestFailedStep, string> = {
-  post: "HP nggak bisa munculin notifikasi tes.",
-  capture: "Notifikasi tes nggak ketangkep sama aplikasinya.",
+  post: "HP tidak dapat menampilkan notifikasi tes.",
+  capture: "Notifikasi tes tidak tertangkap oleh aplikasi.",
   server: "HP belum bisa ngirim ke server.",
 };
 
@@ -116,8 +116,8 @@ export function checklistAnnouncement(checklist: PairingChecklist): string {
   }
   if (checklist.failed) return `${checklist.failed.label} belum jalan. ${FIX_ON_PHONE}`;
   const lastDone = [...checklist.steps].reverse().find((step) => step.state === "ok");
-  if (!lastDone || lastDone.key === "connected") return "HP terhubung. Lanjutin pengaturannya di HP, ya.";
-  return `${lastDone.label} beres.`;
+  if (!lastDone || lastDone.key === "connected") return "HP terhubung. Lanjutkan pengaturan di HP.";
+  return `${lastDone.label} selesai.`;
 }
 
 export function isStale(health: DeviceHealth, now: number) {
@@ -128,12 +128,12 @@ export function isStale(health: DeviceHealth, now: number) {
 export function deviceProblems(health: DeviceHealth, now: number): string[] {
   const problems: string[] = [];
   if (!health.notification_access) problems.push("Izin notifikasi mati.");
-  if (!health.listener_connected) problems.push("Aplikasinya nggak jalan di latar belakang.");
+  if (!health.listener_connected) problems.push("Aplikasi tidak berjalan di latar belakang.");
   if (health.self_test.status === "failed") {
     problems.push(`Tes tangkap notifikasi gagal. ${selfTestProblem(health) ?? ""}`.trim());
   } else if (health.self_test.status === "not_run") {
     problems.push("Tes tangkap notifikasi belum dijalankan.");
   }
-  if (isStale(health, now)) problems.push("Udah lebih dari 24 jam nggak ada kabar dari HP ini.");
+  if (isStale(health, now)) problems.push("Lebih dari 24 jam tidak ada kabar dari HP ini.");
   return problems;
 }

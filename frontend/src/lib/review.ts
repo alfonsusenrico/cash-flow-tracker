@@ -142,7 +142,7 @@ const REASON_LABELS: Record<string, string> = {
   low_confidence: "Keyakinan AI rendah",
   model_flagged: "Ditandai AI untuk dicek",
   ambiguous_movement: "Pasangan pindah saldo belum pasti",
-  purpose_question: "Menunggu jawaban \"Apa ini?\"",
+  purpose_question: "Menunggu jawaban: belum dikenali",
   awaiting_counterpart: "Menunggu rekening pasangan",
 };
 

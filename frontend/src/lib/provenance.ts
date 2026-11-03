@@ -40,7 +40,7 @@ const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
 const CLASSIFIER_LABELS: Record<Classifier, string> = {
   rule: "Aturan",
   ai: "AI",
-  owner: "Anda",
+  owner: "Pengguna",
   system: "Sistem",
   habit: "Kebiasaan",
 };

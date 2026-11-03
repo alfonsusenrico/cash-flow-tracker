@@ -56,7 +56,7 @@ export function DataQualityPanel({ report, onClassify }: { report: MonthlyReport
             )}
             {quality.possible_duplicates > 0 && (
               <Item count={quality.possible_duplicates}>
-                <p>kemungkinan dobel: rekening, nominal dan jenis sama dalam 3 menit</p>
+                <p>kemungkinan duplikat: rekening, nominal dan jenis sama dalam 3 menit</p>
                 <Link href={reportLedgerHref(period, { dup: true })} className={actionClass}>Periksa di Transaksi</Link>
               </Item>
             )}

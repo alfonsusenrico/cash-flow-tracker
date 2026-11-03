@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { replaceSearch } from "@/lib/urlState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { BudgetEditorDialog, BudgetPanel } from "@/components/report/BudgetPanel";
 import { ClassificationDialog } from "@/components/report/ClassificationDialog";
@@ -39,7 +40,6 @@ function periodNote(report: MonthlyReport): string | null {
 }
 
 function ReportView() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const basis: ReportBasis = searchParams?.get("basis") === "cycle" ? "cycle" : "month";
@@ -63,7 +63,9 @@ function ReportView() {
     params.set("basis", next.basis ?? basis);
     const nextStart = next.start === undefined ? start : next.start;
     if (nextStart) params.set("start", nextStart);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    // The history API, not `router.replace`: from an initial URL with a query Next.js commits no same-path
+    // navigation (redesign-transactions-workspace D13, OD21).
+    replaceSearch(`${pathname}?${params.toString()}`);
   };
 
   const report = reportQueryResult.data && !reportQueryResult.data.empty ? reportQueryResult.data : null;

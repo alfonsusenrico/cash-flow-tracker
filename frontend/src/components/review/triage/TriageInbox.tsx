@@ -53,6 +53,7 @@ import {
   buildTriage,
   FOLDER_LABELS,
   folderFromParams,
+  transaksiHref,
   folderItems,
   itemFolderLabel,
   itemTitle,
@@ -205,7 +206,7 @@ export function TriageInbox() {
     setFolder(link.folder);
     setSelectedId(target);
     if (link.folder === "otomatis" || link.folder === "saran") setFoldOpen((open) => ({ ...open, [link.folder]: true }));
-    if (link.resolved) setNotice("Yang kamu buka udah beres.");
+    if (link.resolved) setNotice("Item yang dibuka sudah selesai.");
     const item = everyItemOf(triage).find((entry) => entry.id === target) ?? null;
     writeUrl(link.folder, link.itemId ? item : null, false);
     if (link.itemId) {
@@ -222,7 +223,7 @@ export function TriageInbox() {
     if (!acting.current && selectedId && selectedId !== RUN_PANEL_ID && !visible.has(selectedId)) {
       const next = nextAfter(lastIds.current, selectedId, new Set(ids));
       setSelectedId(next);
-      setNotice("Item ini udah diberesin di tempat lain.");
+      setNotice("Item ini sudah diselesaikan di tempat lain.");
     }
     lastIds.current = ids;
   }, [triage, items, selectedId]);
@@ -366,7 +367,7 @@ export function TriageInbox() {
     setSelectedId(nextId);
     writeUrl(nextFolder, onePane && !next ? null : next, false);
     if (onePane && !next) setPane("item");
-    const following = next ? ` Berikutnya: ${itemTitle(next)}.` : neededCount(fresh) === 0 ? " Semua beres." : "";
+    const following = next ? ` Berikutnya: ${itemTitle(next)}.` : neededCount(fresh) === 0 ? " Semua sudah ditinjau." : "";
     showToast(`Tersimpan: ${outcome.message}.${following}`, entry ? { onUndo: () => void undo.current() } : undefined);
     focusHeading();
     return true;
@@ -461,7 +462,7 @@ export function TriageInbox() {
         if (!candidates) throw failed;
         // The other leg may already be recorded; creating another would count the money twice.
         setCompletionChoices((current) => ({ ...current, [leg.id]: candidates }));
-        return { message: "rekening itu sudah punya transaksi yang cocok. Hubungkan, atau buat baru", batches: [], stay: true };
+        return { message: "rekening itu sudah punya transaksi yang cocok. Hubungkan, atau catat baru", batches: [], stay: true };
       }
     });
 
@@ -537,15 +538,15 @@ export function TriageInbox() {
   useShortcut("j", () => move(1, inList()), regionRef);
   useShortcut("k", () => move(-1, inList()), regionRef);
   useShortcut("e", () => {
-    if (!pressMarked(itemRef.current, "data-primary-choice")) setNotice("Belum ada saran buat diterima.");
+    if (!pressMarked(itemRef.current, "data-primary-choice")) setNotice("Belum ada saran untuk diterima.");
   }, regionRef);
   useShortcut("t", () => {
-    if (!pressMarked(itemRef.current, "data-topup")) setNotice("T cuma buat pindah saldo keluar yang belum lengkap.");
+    if (!pressMarked(itemRef.current, "data-topup")) setNotice("T hanya untuk pindah saldo keluar yang belum lengkap.");
   }, regionRef);
   useShortcut("z", () => void runUndo(), regionRef);
   useEffect(() => {
     const press = (n: number) => {
-      if (!pressChoice(itemRef.current, n)) setNotice(`Nggak ada pilihan nomor ${n}.`);
+      if (!pressChoice(itemRef.current, n)) setNotice(`Tidak ada pilihan nomor ${n}.`);
     };
     const removers = DIGITS.map((n) => register({ key: String(n), scope: regionRef, handler: () => press(n) }));
     return () => removers.forEach((remove) => remove());
@@ -648,7 +649,7 @@ export function TriageInbox() {
         />
       )}
       {showItemPane && (
-        <section ref={itemRef} className="ws-card ws-tri-item" aria-labelledby={empty ? undefined : HEADING_ID} aria-label={empty ? (doneState ? "Semua beres" : "Item") : undefined}>
+        <section ref={itemRef} className="ws-card ws-tri-item" aria-labelledby={empty ? undefined : HEADING_ID} aria-label={empty ? (doneState ? "Semua sudah ditinjau" : "Item") : undefined}>
           {!empty && (
             <div className="ws-tri-bar">
               {onePane && (
@@ -679,18 +680,18 @@ export function TriageInbox() {
                 {failure.transactionId && (
                   <>
                     {" "}
-                    <Link href={`/ledger?edit=${failure.transactionId}&return=review`}>Buka di Transaksi</Link>
+                    <Link href={transaksiHref(failure.transactionId, folder)}>Buka di Transaksi</Link>
                   </>
                 )}
               </p>
             )}
             {empty ? (
               doneState ? (
-                <EmptyState title="Semua beres">
-                  Nggak ada yang perlu kamu jawab. Transaksi baru dari HP-mu tetap aku catat.
+                <EmptyState title="Semua sudah ditinjau">
+                  Tidak ada yang perlu dijawab. Transaksi baru dari HP tetap dicatat.
                 </EmptyState>
               ) : (
-                <EmptyState icon="inbox" title="Pilih satu dari daftar">Atau tekan J buat mulai dari atas.</EmptyState>
+                <EmptyState icon="inbox" title="Pilih satu dari daftar">Atau tekan J untuk mulai dari atas.</EmptyState>
               )
             ) : (
               body()
@@ -711,10 +712,10 @@ export function TriageInbox() {
                   </dl>
                 )}
                 {triage.folders.otomatis.length > 0 && (
-                  <p className="ws-caption">{triage.counts.otomatis} dicatat otomatis masih bisa kamu cek. Opsional.</p>
+                  <p className="ws-caption">{triage.counts.otomatis} transaksi dicatat otomatis dapat dicek. Opsional.</p>
                 )}
                 <div className="ws-btn-row">
-                  <Link href="/" className="ws-btn">Balik ke Beranda</Link>
+                  <Link href="/" className="ws-btn">Kembali ke Beranda</Link>
                   {triage.folders.otomatis.length > 0 && (
                     <button type="button" className="ws-btn" onClick={() => {
                       setFoldOpen((current) => ({ ...current, otomatis: true }));

@@ -69,7 +69,7 @@ async function openDialog() {
 }
 
 function statusCard(dialog: HTMLElement) {
-  return within(within(dialog).getByRole("region", { name: "Status HP-mu" }));
+  return within(within(dialog).getByRole("region", { name: "Status HP" }));
 }
 
 async function expectNoAxeViolations(dialog: HTMLElement) {
@@ -102,7 +102,7 @@ describe("live pairing checklist", () => {
     const dialog = await openDialog();
 
     expect(within(dialog).getByText("Menunggu HP…")).toBeInTheDocument();
-    expect(within(dialog).getByText(/Nggak perlu di-refresh/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Tidak perlu dimuat ulang/)).toBeInTheDocument();
     expect(stepStates(dialog)).toEqual([
       ["Terhubung", "todo"], ["Izin notifikasi", "todo"], ["Jalan di latar belakang", "todo"], ["Tes tangkap notifikasi", "todo"],
     ]);
@@ -120,25 +120,25 @@ describe("live pairing checklist", () => {
 
     phonePairs(null);
     await advance(3_000);
-    expect(within(dialog).getByText("Terhubung! Lanjutin pengaturannya di HP, ya.")).toBeInTheDocument();
-    expect(within(dialog).getByText("TECNO CN7c lagi nuntun kamu langkah demi langkah.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Terhubung. Lanjutkan pengaturan di HP.")).toBeInTheDocument();
+    expect(within(dialog).getByText("TECNO CN7c sedang menampilkan langkah-langkahnya.")).toBeInTheDocument();
     expect(within(dialog).queryByRole("img", { name: /Kode QR pemasangan ponsel/ })).not.toBeInTheDocument();
     expect(stepStates(dialog).map(([, state]) => state)).toEqual(["ok", "wait", "todo", "todo"]);
-    expect(within(dialog).getByText("Lagi diatur di HP")).toBeInTheDocument();
-    expect(live).toHaveTextContent("HP terhubung. Lanjutin pengaturannya di HP, ya.");
-    expect(within(dialog).getByRole("button", { name: "Nanti aja" })).toBeInTheDocument();
+    expect(within(dialog).getByText("Sedang diatur di HP")).toBeInTheDocument();
+    expect(live).toHaveTextContent("HP terhubung. Lanjutkan pengaturan di HP.");
+    expect(within(dialog).getByRole("button", { name: "Nanti saja" })).toBeInTheDocument();
     await expectNoAxeViolations(dialog);
 
     phonePairs(report({ listener_connected: false, self_test: { status: "not_run", at: null } }));
     await advance(3_000);
     expect(stepStates(dialog).map(([, state]) => state)).toEqual(["ok", "ok", "wait", "todo"]);
-    expect(live).toHaveTextContent("Izin notifikasi beres.");
+    expect(live).toHaveTextContent("Izin notifikasi selesai.");
     await expectNoAxeViolations(dialog);
 
     phonePairs(report({ self_test: { status: "not_run", at: null } }));
     await advance(3_000);
     expect(stepStates(dialog).map(([, state]) => state)).toEqual(["ok", "ok", "ok", "wait"]);
-    expect(live).toHaveTextContent("Jalan di latar belakang beres.");
+    expect(live).toHaveTextContent("Jalan di latar belakang selesai.");
 
     phonePairs(report({ app_version: "2.4.0" }));
     await advance(3_000);
@@ -170,8 +170,8 @@ describe("live pairing checklist", () => {
   });
 
   it.each([
-    ["post", "HP nggak bisa munculin notifikasi tes."],
-    ["capture", "Notifikasi tes nggak ketangkep sama aplikasinya."],
+    ["post", "HP tidak dapat menampilkan notifikasi tes."],
+    ["capture", "Notifikasi tes tidak tertangkap oleh aplikasi."],
     ["server", "HP belum bisa ngirim ke server."],
   ] as const)("shows a self-test that failed at %s", async (step, text) => {
     const dialog = await openDialog();
@@ -179,10 +179,10 @@ describe("live pairing checklist", () => {
     phonePairs(report({ self_test: { status: "failed", failed_step: step } }));
     await advance(3_000);
 
-    expect(within(dialog).getByText("Ada yang belum beres: Tes tangkap notifikasi")).toBeInTheDocument();
+    expect(within(dialog).getByText("Ada yang belum siap: Tes tangkap notifikasi")).toBeInTheDocument();
     const selfTest = within(dialog).getByText("Tes tangkap notifikasi").closest("li") as HTMLElement;
     expect(selfTest).toHaveAttribute("data-state", "fail");
-    expect(within(selfTest).getByText("Belum jalan")).toBeInTheDocument();
+    expect(within(selfTest).getByText("Belum berjalan")).toBeInTheDocument();
     expect(within(selfTest).getByText(text)).toBeInTheDocument();
     expect(within(dialog).getByText("Tenang, aplikasi di HP-mu bakal nunjukin cara benerinnya.")).toBeInTheDocument();
     expect(within(dialog).getByRole("status")).toHaveTextContent(`Tes tangkap notifikasi gagal. ${text}`);
@@ -198,7 +198,7 @@ describe("live pairing checklist", () => {
     phonePairs(report({ [field]: false }));
     await advance(3_000);
 
-    expect(within(dialog).getByText(`Ada yang belum beres: ${label}`)).toBeInTheDocument();
+    expect(within(dialog).getByText(`Ada yang belum siap: ${label}`)).toBeInTheDocument();
     expect(within(dialog).getByText(label).closest("li")).toHaveAttribute("data-state", "fail");
     expect(within(dialog).getByRole("status")).toHaveTextContent(`${label} belum jalan.`);
     await expectNoAxeViolations(dialog);

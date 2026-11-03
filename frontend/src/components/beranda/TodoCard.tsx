@@ -54,7 +54,7 @@ export function todoItems({
     const name = tx.merchant || tx.notes || "transaksi tanpa nama";
     items.push({
       key: `q-${tx.id}`,
-      title: `Apa ini? ${name} ${bal(tx.amount)}`,
+      title: `Belum dikenali: ${name} ${bal(tx.amount)}`,
       detail: `${tx.account_name} · ${when(tx.date, today)}`,
       action: reviewLink(tx.id, "review-questions", "Jawab", "ws-tone-out", name),
     });
@@ -65,7 +65,7 @@ export function todoItems({
     items.push({
       key: "awaiting",
       title: `Pasangkan ${awaiting.length} pindah saldo`,
-      detail: `${accounts} · belum ketemu tujuannya`,
+      detail: `${accounts} · tujuan belum ditemukan`,
       action: reviewLink(awaiting[0].id, "review-awaiting", "Pasangkan", "ws-tone-tr", `${awaiting.length} pindah saldo`),
     });
   }
@@ -166,7 +166,7 @@ export function TodoCard({
     <Card labelledBy="beranda-todo">
       <CardHeader
         id="beranda-todo"
-        title="Kerjakan dulu"
+        title="Perlu tindakan"
         count={attention || undefined}
         countLabel={`${attention} perlu ditinjau`}
         action={
@@ -182,11 +182,11 @@ export function TodoCard({
         <ul className="ws-todo">
           <li className="ws-todo-item">
             <div className="ws-todo-t">
-              <b>Tinjau udah beres</b>
-              <span className="ws-todo-sub">Nggak ada yang perlu dijawab.</span>
+              <b>Semua sudah ditinjau</b>
+              <span className="ws-todo-sub">Tidak ada yang perlu dijawab.</span>
             </div>
             <Pill tone="ok" icon="check">
-              Beres
+              Selesai
             </Pill>
           </li>
         </ul>

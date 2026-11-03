@@ -67,7 +67,7 @@ export function SuggestionGroupCard({ group, headingId, pending, onDecide }: Sug
         date={group.last_date}
         amount={{ text: `${group.type === "income" ? "+" : "−"}${bal(group.total)}` }}
       />
-      <p className="ws-notice">Opsional. Tidak ada yang berubah sebelum kamu menerima.</p>
+      <p className="ws-notice">Opsional. Tidak ada yang berubah sebelum diterima.</p>
       <dl className="ws-tri-note grid gap-1.5 sm:grid-cols-[auto_1fr] sm:gap-x-3">
         <dt className="text-[var(--muted)]">Sebelum</dt>
         <dd className="min-w-0 space-y-0.5 text-[var(--text-2)]">

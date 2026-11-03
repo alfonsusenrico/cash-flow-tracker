@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { QuickCaptureModal } from "@/components/ui/QuickCaptureModal";
@@ -27,6 +28,10 @@ import { ExplainProvider } from "@/components/workspace/explain";
 import { DrawerSlotContext, ToastProvider } from "@/components/workspace/overlays";
 
 type QuickCaptureMode = "expense" | "income" | "movement";
+
+// Loaded on first open and prefetched when the browser is idle, so the shell's first load stays small (D11).
+const loadCatatDialog = () => import("@/components/capture/CatatDialog");
+const CatatDialog = dynamic(loadCatatDialog, { ssr: false });
 
 /** Report window basis: payday cycle or calendar month (both stepped by `cycleOffset`), or rolling days. */
 export type ReportTimeframe = "cycle" | "month" | "30d" | "90d";
@@ -131,6 +136,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const [quickAddType, setQuickAddType] = useState<"expense" | "income">("expense");
   const [quickAddDefaultType, setQuickAddDefaultType] = useState<QuickCaptureMode>("expense");
   const [movementDefaults, setMovementDefaults] = useState({ sourceAccountId: "", targetAccountId: "" });
+  const [catatOpen, setCatatOpen] = useState(false);
+  const [manualAmount, setManualAmount] = useState<number | null>(null);
   const [header, setHeader] = useState<PageHeader | null>(null);
   const [controlsSlot, setControlsSlot] = useState<HTMLElement | null>(null);
   const [drawerSlot, setDrawerSlot] = useState<HTMLElement | null>(null);
@@ -141,6 +148,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     if (type) setQuickAddType(type);
     setMovementDefaults({ sourceAccountId: "", targetAccountId: "" });
     setQuickAddDefaultType(defaultType);
+    setManualAmount(null);
     setQuickAddOpen(true);
   };
 
@@ -153,10 +161,21 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     setQuickAddOpen(true);
   };
 
-  const openExpenseCapture = useCallback(() => {
+  // "+ Catat", N and the phone tab open the text-first dialog; "Isi manual" there opens the form.
+  const openExpenseCapture = useCallback(() => setCatatOpen(true), []);
+
+  const openManualCapture = useCallback((amount: number | null) => {
+    setCatatOpen(false);
     setMovementDefaults({ sourceAccountId: "", targetAccountId: "" });
     setQuickAddDefaultType("expense");
+    setManualAmount(amount);
     setQuickAddOpen(true);
+  }, []);
+
+  useEffect(() => {
+    const idle = (window as Window & { requestIdleCallback?: (callback: () => void) => number }).requestIdleCallback;
+    if (idle) idle(() => void loadCatatDialog());
+    else window.setTimeout(() => void loadCatatDialog(), 2000);
   }, []);
 
   // The pre-paint script already applied the theme; this only syncs React state with it.
@@ -361,7 +380,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 defaultType={quickAddDefaultType}
                 defaultSourceAccountId={movementDefaults.sourceAccountId}
                 defaultTargetAccountId={movementDefaults.targetAccountId}
+                defaultAmount={manualAmount}
               />
+              {catatOpen && <CatatDialog open onClose={() => setCatatOpen(false)} onManual={openManualCapture} />}
             </ExplainProvider>
           </ToastProvider>
         </DrawerSlotContext.Provider>

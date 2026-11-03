@@ -25,8 +25,11 @@ vi.mock("@/lib/api", () => ({
   },
   getDevices: vi.fn(),
 }));
+vi.mock("@/components/capture/CatatDialog", () => ({
+  default: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="Catat transaksi" /> : null),
+}));
 vi.mock("@/components/ui/QuickCaptureModal", () => ({
-  QuickCaptureModal: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="Catat transaksi" /> : null),
+  QuickCaptureModal: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="Isi manual" /> : null),
 }));
 
 /** Node's own experimental localStorage global shadows jsdom's, so each test gets an in-memory one. */
@@ -129,7 +132,7 @@ describe("SideNav", () => {
       "Laporan",
     ]);
     const hrefs = groups.map((group) => within(group).getAllByRole("link").map((link) => link.getAttribute("href")));
-    expect(hrefs).toEqual([["/", "/review", "/ledger"], ["/accounts", "/goals"], ["/insights", "/laporan"]]);
+    expect(hrefs).toEqual([["/", "/review", "/ledger?period=cycle"], ["/accounts", "/goals"], ["/insights", "/laporan"]]);
     expect(within(groups[1]).getByRole("link", { name: "Rekening & Kantong" })).toBeInTheDocument();
     expect(within(groups[1]).getByRole("link", { name: "Target & Tagihan" })).toBeInTheDocument();
     expect(within(groups[2]).getByRole("link", { name: "Analisis" })).toBeInTheDocument();
@@ -497,7 +500,7 @@ describe("AppLayout wiring", () => {
     expect(screen.queryByRole("dialog", { name: "Catat transaksi" })).not.toBeInTheDocument();
     search.blur();
     await user.keyboard("n");
-    expect(screen.getByRole("dialog", { name: "Catat transaksi" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Catat transaksi" })).toBeInTheDocument();
   });
 
   it("stores the theme choice and applies the dark class", async () => {

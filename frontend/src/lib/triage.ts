@@ -16,12 +16,21 @@ export const FOLDER_PARAMS: readonly FolderKey[] = ["apa", "jawab", "pindah", "s
 
 export const FOLDER_LABELS: Record<FolderKey, string> = {
   semua: "Semua",
-  apa: "Apa ini?",
+  apa: "Belum dikenali",
   jawab: "Perlu jawaban",
   pindah: "Pindah saldo belum lengkap",
   saran: "Saran dari riwayat",
   otomatis: "Dicatat otomatis",
 };
+
+/**
+ * The Transaksi drawer for a row of Tinjau; closing it returns to the same item (redesign-transactions-workspace
+ * D14). Only the five folder parameters travel, never "semua".
+ */
+export function transaksiHref(transactionId: string, folder?: FolderKey | null): string {
+  const back = folder && FOLDER_PARAMS.includes(folder) ? `&folder=${folder}` : "";
+  return `/ledger?edit=${transactionId}&return=review${back}`;
+}
 
 export type TriageItem =
   | { kind: "question"; id: string; folder: "apa"; transactionIds: string[]; entry: PurposeQuestionEntry }
@@ -137,7 +146,7 @@ export function resolveDeepLink(triage: Triage, transactionId: string | null, fo
   return { folder: "semua", itemId: null, resolved: transactionId !== null };
 }
 
-/** The folder an item belongs to when it is shown on its own (for messages and "balik ke"). */
+/** The folder an item belongs to when it is shown on its own (for messages and "kembali ke"). */
 export function itemFolderLabel(item: TriageItem): string {
   return FOLDER_LABELS[item.folder];
 }

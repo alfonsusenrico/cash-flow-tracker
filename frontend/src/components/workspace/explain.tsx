@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { PHONE_QUERY, useEscapeLayer, useFocusTrap, useOutsidePress, useScrollLock } from "./layers";
 
 /**
- * "Kok segini?": any figure marked explainable opens the lines that make it up. The content comes from
+ * "Rincian hitungan": any figure marked explainable opens the lines that make it up. The content comes from
  * the server's lines; this module only lays them out (explainable-figures spec).
  */
 export interface ExplanationLine {
@@ -90,7 +90,7 @@ function useExplain(): ExplainContextValue {
 
 /**
  * The figure as a button: visible text stays the figure, a dotted underline marks it, and the accessible
- * name reads "<label> <amount>: kok segini?".
+ * name reads "<label> <amount>: lihat rincian".
  */
 export function ExplainableFigure({
   label,
@@ -115,7 +115,7 @@ export function ExplainableFigure({
       className={cn("ws-xn", className)}
       aria-haspopup="dialog"
       aria-expanded={expanded}
-      aria-label={`${label} ${amountText}: kok segini?`}
+      aria-label={`${label} ${amountText}: lihat rincian`}
       data-explain-trigger={id}
       onClick={(event) => (expanded ? close() : open(id, event.currentTarget, explanation))}
     >
@@ -185,7 +185,7 @@ function ExplanationPanel({ state, onClose }: { state: OpenState; onClose: () =>
         }
       >
         <div className="ws-x-head">
-          <span className="ws-x-kick">Kok segini?</span>
+          <span className="ws-x-kick">Rincian hitungan</span>
           <h2 id={titleId} ref={headingRef} tabIndex={-1}>
             {data.title}
           </h2>

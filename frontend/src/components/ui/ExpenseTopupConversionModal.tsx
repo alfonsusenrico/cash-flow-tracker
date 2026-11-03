@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { InvestmentAccount, listAmountInvestmentProducts } from "@/lib/investmentTopups";
 import { queryKeys } from "@/lib/queryKeys";
+import type { UndoFields } from "@/lib/reviewUndo";
 import { fmtIDR } from "@/lib/utils";
 import { Modal } from "./Modal";
 
@@ -18,7 +19,8 @@ interface Props {
   expense: ExpenseForTopup | null;
   accounts: InvestmentAccount[];
   onClose: () => void;
-  onConverted: () => void;
+  /** Receives the conversion response, whose undo token lets the caller offer "Urungkan". */
+  onConverted: (response?: UndoFields) => void;
 }
 
 export function ExpenseTopupConversionModal({ expense, accounts, onClose, onConverted }: Props) {
@@ -32,11 +34,11 @@ export function ExpenseTopupConversionModal({ expense, accounts, onClose, onConv
   }, [expense?.id, products]);
   const mutation = useMutation({
     mutationFn: ({ transactionId, targetId }: { transactionId: string; targetId: string }) =>
-      api.post("/investment-topups/from-transaction", { transaction_id: transactionId, target_account_id: targetId }),
-    onSuccess: () => {
+      api.post<UndoFields>("/investment-topups/from-transaction", { transaction_id: transactionId, target_account_id: targetId }),
+    onSuccess: (response) => {
       [queryKeys.accounts, queryKeys.transactions.all, queryKeys.dashboard.all, queryKeys.pulse, queryKeys.insights]
         .forEach((key) => qc.invalidateQueries({ queryKey: key }));
-      onConverted();
+      onConverted(response);
     },
     onError: (failure: Error) => setError(failure.message || "Top up gagal dicatat. Coba lagi."),
   });
@@ -61,7 +63,7 @@ export function ExpenseTopupConversionModal({ expense, accounts, onClose, onConv
       >
         <p className="text-sm">
           Debit <span className="font-semibold tabular-nums">{fmtIDR(expense.amount)}</span>
-          {expense.account_name ? <> dari <span className="font-semibold">{expense.account_name}</span></> : null} dicatat sebagai top up ke produk yang Anda pilih. Saldo rekening sumber tidak berubah karena debit ini sudah tercatat.
+          {expense.account_name ? <> dari <span className="font-semibold">{expense.account_name}</span></> : null} dicatat sebagai top up ke produk yang dipilih. Saldo rekening sumber tidak berubah karena debit ini sudah tercatat.
         </p>
         {products.length === 0 ? (
           <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-sm">

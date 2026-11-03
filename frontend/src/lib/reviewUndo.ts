@@ -27,7 +27,7 @@ export interface UndoEntry {
   label: string;
   /** A transaction of the answered item, to select it again after the undo. */
   transactionId: string | null;
-  /** Folder name the item returns to, for "balik ke {folder}". */
+  /** Folder name the item returns to, for "kembali ke {folder}"; empty outside Tinjau. */
   folderLabel: string;
 }
 
@@ -123,18 +123,20 @@ export async function undoEntry(
 }
 
 const FAILURE_TEXT: Record<Exclude<UndoFailure, "network">, string> = {
-  expired: "Udah lewat 10 menit, jadi nggak bisa dibatalkan di sini.",
-  conflict: "Nggak bisa dibatalkan: transaksinya udah berubah sejak itu.",
-  not_found: "Nggak bisa dibatalkan lagi di sini.",
+  expired: "Sudah lewat 10 menit, jadi tidak dapat dibatalkan di sini.",
+  conflict: "Tidak dapat dibatalkan: transaksi sudah berubah sejak itu.",
+  not_found: "Tidak dapat dibatalkan lagi di sini.",
 };
 
 /** The text for an undo outcome (D14, D15). */
 export function undoMessage(outcome: UndoOutcome, entry: UndoEntry): string {
-  if (outcome.failure === null) return `Dibatalkan. ${entry.label} balik ke ${entry.folderLabel}.`;
+  if (outcome.failure === null) {
+    return entry.folderLabel ? `Dibatalkan. ${entry.label} kembali ke ${entry.folderLabel}.` : `Dibatalkan: ${entry.label}.`;
+  }
   if (outcome.failure === "network") return "Gagal membatalkan. Coba lagi.";
   const reason = FAILURE_TEXT[outcome.failure];
   if (outcome.restored > 0) return `${outcome.restored} dari ${outcome.total} transaksi dibatalkan. Sisanya: ${reason}`;
   return reason;
 }
 
-export const NOTHING_TO_UNDO = "Nggak ada yang bisa dibatalkan.";
+export const NOTHING_TO_UNDO = "Tidak ada yang dapat dibatalkan.";

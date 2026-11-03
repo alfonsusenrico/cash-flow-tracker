@@ -36,7 +36,7 @@ describe("Saran dari riwayat item", () => {
     expect(screen.getByRole("heading", { name: "Ganti uang patungan" })).toBeInTheDocument();
     expect(screen.getByText("Transfer masuk · Pendapatan Lain")).toBeInTheDocument();
     expect(screen.getByText("Ganti uang patungan · Patungan & Ganti Uang · mengurangi Makanan & Minuman", { selector: "dd" })).toBeInTheDocument();
-    expect(screen.getByText(/Opsional\. Tidak ada yang berubah sebelum kamu menerima\./)).toBeInTheDocument();
+    expect(screen.getByText(/Opsional\. Tidak ada yang berubah sebelum diterima\./)).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
     const accept = screen.getByRole("button", { name: /Terima saran \(2\)/ });
     expect(accept).toHaveAttribute("data-primary-choice");

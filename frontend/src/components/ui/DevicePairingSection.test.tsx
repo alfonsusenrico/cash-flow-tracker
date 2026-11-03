@@ -131,7 +131,7 @@ describe("paired devices in Settings", () => {
     expect(qr).toHaveAttribute("width", "240");
     expect(within(dialog).getByText("ABCDE 12345")).toBeInTheDocument();
     expect(within(dialog).getByRole("timer")).toHaveTextContent("Berlaku 05:00");
-    expect(within(dialog).getByText(/cuma bisa dipakai sekali/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/hanya dapat dipakai sekali/)).toBeInTheDocument();
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
     expect((await axe(dialog)).violations).toHaveLength(0);
 
@@ -152,7 +152,7 @@ describe("paired devices in Settings", () => {
     await within(dialog).findByRole("img", { name: /Kode QR pemasangan ponsel/ });
     await tick(300_000);
 
-    expect(within(dialog).getByRole("status")).toHaveTextContent("Kodenya udah kedaluwarsa. Bikin kode baru buat nyambungin HP.");
+    expect(within(dialog).getByRole("status")).toHaveTextContent("Kode sudah kedaluwarsa. Buat kode baru untuk menyambungkan HP.");
     expect(within(dialog).queryByRole("img", { name: /Kode QR pemasangan ponsel/ })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("timer")).not.toBeInTheDocument();
     expect((await axe(dialog)).violations).toHaveLength(0);
@@ -193,9 +193,9 @@ describe("paired devices in Settings", () => {
     });
     await tick(3_500);
 
-    await waitFor(() => expect(within(dialog).getByRole("status")).toHaveTextContent("HP terhubung. Lanjutin pengaturannya di HP, ya."));
+    await waitFor(() => expect(within(dialog).getByRole("status")).toHaveTextContent("HP terhubung. Lanjutkan pengaturan di HP."));
     expect(within(dialog).queryByRole("img", { name: /Kode QR pemasangan ponsel/ })).not.toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: "Nanti aja" }));
+    await user.click(within(dialog).getByRole("button", { name: "Nanti saja" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -255,8 +255,8 @@ describe("phone readiness in Settings", () => {
     const problems = within(row).getByRole("list", { name: "Masalah di TECNO CN7c" });
     expect(within(problems).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
       "Izin notifikasi mati.",
-      "Aplikasinya nggak jalan di latar belakang.",
-      "Tes tangkap notifikasi gagal. Notifikasi tes nggak ketangkep sama aplikasinya.",
+      "Aplikasi tidak berjalan di latar belakang.",
+      "Tes tangkap notifikasi gagal. Notifikasi tes tidak tertangkap oleh aplikasi.",
     ]);
     expect((await axe(section)).violations).toHaveLength(0);
   });
@@ -274,7 +274,7 @@ describe("phone readiness in Settings", () => {
     );
 
     expect(within(row).getByText("Perlu dicek")).toBeInTheDocument();
-    expect(within(row).getByRole("listitem")).toHaveTextContent("Udah lebih dari 24 jam nggak ada kabar dari HP ini.");
+    expect(within(row).getByRole("listitem")).toHaveTextContent("Lebih dari 24 jam tidak ada kabar dari HP ini.");
     expect((await axe(section)).violations).toHaveLength(0);
   });
 

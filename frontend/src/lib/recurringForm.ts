@@ -53,7 +53,7 @@ export const recurringRuleFormSchema = z
       context.addIssue({
         code: "custom",
         path: ["scheduleDay"],
-        message: "Jadwal tanggal gajian tidak menggunakan hari atau tanggal khusus",
+        message: "Jadwal tanggal gaji tidak menggunakan hari atau tanggal khusus",
       });
     } else if (rule.scheduleType === "weekly" && (rule.scheduleDay === null || rule.scheduleDay < 1 || rule.scheduleDay > 7)) {
       context.addIssue({

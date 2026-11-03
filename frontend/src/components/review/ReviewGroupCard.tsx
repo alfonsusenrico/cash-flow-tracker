@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { transaksiHref } from "@/lib/triage";
 import { useId, useState, type FormEvent } from "react";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Choice, Picker } from "@/components/review/triage/Choice";
@@ -29,7 +30,7 @@ interface ReviewGroupCardProps {
   headingId: string;
   categories: CategoryOption[];
   pending: boolean;
-  /** "Dicatat otomatis": the accept reads "Udah bener" and the item is optional. */
+  /** "Dicatat otomatis": the accept reads "Sudah benar" and the item is optional. */
   automatic?: boolean;
   onAction: (request: GroupActionRequest) => Promise<boolean>;
 }
@@ -115,7 +116,7 @@ export function ReviewGroupCard({ group, headingId, categories, pending, automat
         </p>
       </div>
       {automatic && (
-        <p className="ws-notice">Ini opsional. Udah tercatat. Kalau kamu lewati, catatannya tetap aman.</p>
+        <p className="ws-notice">Opsional. Transaksi ini sudah tercatat dan tetap tersimpan meskipun dilewati.</p>
       )}
 
       <div role="group" aria-label="Pilihan" className="ws-choices">
@@ -123,7 +124,7 @@ export function ReviewGroupCard({ group, headingId, categories, pending, automat
           n={1}
           primary
           disabled={pending}
-          label={automatic ? "Udah bener" : `Terima semua (${group.count})`}
+          label={automatic ? "Sudah benar" : `Terima semua (${group.count})`}
           sub={automatic ? "Tandai sudah dicek" : "Kategorinya sudah benar"}
           onClick={() => void onAction({ action: "accept", ids, label: group.label })}
         />
@@ -209,7 +210,7 @@ export function ReviewGroupCard({ group, headingId, categories, pending, automat
             <span className="flex shrink-0 items-center gap-2">
               <span className="tabular font-medium">{item.type === "income" ? "+" : "−"}{bal(item.amount)}</span>
               <Link
-                href={`/ledger?edit=${item.id}&return=review`}
+                href={transaksiHref(item.id, automatic ? "otomatis" : "jawab")}
                 aria-label={`Ubah transaksi ${item.notes || item.merchant || group.label}`}
                 className="ws-btn ws-btn-sm"
               >

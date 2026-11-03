@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from app.services import capture_suggestions, text_capture
+from app.services import capture_preview, capture_suggestions, text_capture
 from app.services.auth import get_current_user
 from app.services.kakeibo import Pillar
 from app.services.state import rate_limiter
@@ -23,6 +23,11 @@ class CaptureTextIn(BaseModel):
     device_time: datetime
     # Question types this client can answer; absent means the original four (no `time`).
     question_types: list[str] | None = Field(default=None, max_length=5)
+
+
+class CaptureParseIn(BaseModel):
+    text: str = Field(max_length=400)
+    device_time: datetime
 
 
 class CaptureAnswerIn(BaseModel):
@@ -46,6 +51,18 @@ async def capture_text(payload: CaptureTextIn, request: Request, current_user: d
         user_id, payload.model_dump(), getattr(request.app.state, "notification_provider", None),
     )
     return {"ok": True, "capture": capture}
+
+
+@router.post("/parse")
+def parse_capture_text(payload: CaptureParseIn, current_user: dict = Depends(get_current_user)):
+    """What the deterministic parser reads in the text; writes nothing and asks no model (web Catat preview)."""
+    user_id = str(current_user["id"])
+    # Its own bucket: a preview per keystroke pause must never use up the budget for recording.
+    if rate_limiter.exceeded(f"capture-parse:user:{user_id}", capture_preview.PARSE_RATE_LIMIT,
+                             capture_preview.PARSE_RATE_WINDOW):
+        raise HTTPException(status_code=429, detail={"code": "capture_rate_limited"},
+                            headers={"Retry-After": str(capture_preview.PARSE_RATE_WINDOW)})
+    return {"ok": True, "preview": capture_preview.preview_capture(user_id, payload.text, payload.device_time)}
 
 
 @router.post("/{capture_id}/answer")

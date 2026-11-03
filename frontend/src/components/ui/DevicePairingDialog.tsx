@@ -124,9 +124,9 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
 
   const gaveUp = paired !== undefined && !ready && pollingOver;
   let announcement = "";
-  if (pending) announcement = "Lagi bikin kode…";
+  if (pending) announcement = "Membuat kode…";
   else if (paired) announcement = checklistAnnouncement(checklist);
-  else if (expired) announcement = "Kodenya udah kedaluwarsa. Bikin kode baru buat nyambungin HP.";
+  else if (expired) announcement = "Kode sudah kedaluwarsa. Buat kode baru untuk menyambungkan HP.";
 
   return (
     <Modal open onClose={onClose} title="Hubungkan ponsel" centered>
@@ -152,7 +152,7 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
                   </div>
                   {qrFailed && (
                     <p role="alert" className="text-center text-[var(--danger-text)]">
-                      Kode QR-nya gagal ditampilkan. Ketik kode di bawah di HP aja.
+                      Kode QR gagal ditampilkan. Ketik kode di bawah ini di HP.
                     </p>
                   )}
                   <p className="text-center text-[var(--muted)]">
@@ -167,7 +167,7 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
                 </>
               ) : (
                 <div className="flex h-64 w-64 max-w-full items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--border-strong)] p-4 text-center font-semibold text-[var(--text)]">
-                  {requestError ? "Kodenya gagal dibuat." : expired ? "Kodenya udah kedaluwarsa." : "Lagi bikin kode…"}
+                  {requestError ? "Kode gagal dibuat." : expired ? "Kode sudah kedaluwarsa." : "Membuat kode…"}
                 </div>
               )}
               {requestError && (
@@ -192,7 +192,7 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
         {!paired && (
           <>
             <p className="text-[11px] text-[var(--muted)]">
-              Kodenya cuma bisa dipakai sekali dan berlaku 5 menit. Bikin kode baru bakal ngebatalin kode sebelumnya.
+              Kode hanya dapat dipakai sekali dan berlaku 5 menit. Membuat kode baru membatalkan kode sebelumnya.
             </p>
             <CompanionDownloadDisclosure />
           </>
@@ -205,7 +205,7 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
             </Button>
           ) : paired ? (
             <Button type="button" variant="secondary" size="sm" className="min-h-11" onClick={onClose}>
-              Nanti aja
+              Nanti saja
             </Button>
           ) : (
             <>

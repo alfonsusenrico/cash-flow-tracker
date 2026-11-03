@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  chipOf,
+  listsLogicalMovements,
+  withChip,
   DEFAULT_LEDGER_FILTERS,
   hasRowFilters,
   ledgerApiParams,
@@ -14,7 +17,7 @@ const CATEGORY = "11111111-2222-4333-8444-555555555555";
 describe("ledger URL filters", () => {
   it("round-trips through the URL and leaves out defaults", () => {
     const filters = parseLedgerFilters(new URLSearchParams(`period=month&offset=-2&category=${CATEGORY}&kakeibo=culture&type=expense&review=auto`));
-    expect(filters).toEqual({ period: "month", offset: -2, category: CATEGORY, kakeibo: "culture", type: "expense", account: "all", review: "auto", from: null, to: null, q: "", dup: false });
+    expect(filters).toEqual({ period: "month", offset: -2, category: CATEGORY, kakeibo: "culture", type: "expense", account: "all", review: "auto", from: null, to: null, q: "", dup: false, source: "all", waiting: false });
     expect(parseLedgerFilters(new URLSearchParams(ledgerFilterQuery(filters)))).toEqual(filters);
     expect(ledgerFilterQuery(DEFAULT_LEDGER_FILTERS)).toBe("");
     expect(ledgerHref({})).toBe("/ledger");
@@ -60,5 +63,31 @@ describe("ledger URL filters", () => {
     expect(reportPeriodFilters("cycle", 0)).toEqual({ period: "cycle", offset: 0 });
     expect(reportPeriodFilters("30d", 0)).toBeNull();
     expect(ledgerHref({ period: "month", offset: -1, kakeibo: "want", type: "expense" })).toBe("/ledger?period=month&offset=-1&kakeibo=want&type=expense");
+  });
+
+  it("maps the Transaksi tabs and chips onto the URL and the API", () => {
+    const base = parseLedgerFilters(new URLSearchParams("period=cycle&type=movement"));
+    const waiting = withChip(base, "waiting");
+    expect(ledgerFilterQuery(waiting)).toBe("period=cycle&type=movement&waiting=1");
+    expect(ledgerApiParams(waiting).get("waiting")).toBe("true");
+    expect(ledgerApiParams(waiting).get("type")).toBe("movement");
+    const phone = withChip(waiting, "phone");
+    expect(chipOf(phone)).toBe("phone");
+    expect(ledgerFilterQuery(phone)).toBe("period=cycle&type=movement&source=notification");
+    expect(chipOf(withChip(phone, "phone"))).toBe("none");
+    expect(ledgerFilterQuery(withChip(base, "unreviewed"))).toBe("period=cycle&type=movement&review=auto");
+  });
+
+  it("keeps one row per movement only without row filters", () => {
+    const parse = (query: string) => parseLedgerFilters(new URLSearchParams(query));
+    expect(listsLogicalMovements(parse("period=cycle&type=investment"), "")).toBe(true);
+    expect(listsLogicalMovements(parse("period=cycle"), "kopi")).toBe(false);
+    expect(listsLogicalMovements(parse("type=expense"), "")).toBe(false);
+    expect(listsLogicalMovements(parse("waiting=1"), "")).toBe(false);
+  });
+
+  it("falls back to all for unknown tab and chip values", () => {
+    const filters = parseLedgerFilters(new URLSearchParams("type=everything&source=fax&waiting=yes"));
+    expect([filters.type, filters.source, filters.waiting]).toEqual(["all", "all", false]);
   });
 });

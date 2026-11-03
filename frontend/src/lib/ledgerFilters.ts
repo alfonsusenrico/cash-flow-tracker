@@ -1,7 +1,9 @@
 import { isKakeiboBucket, type KakeiboBucket } from "@/lib/kakeibo";
 
 export type LedgerPeriod = "all" | "cycle" | "month";
-export type LedgerTypeFilter = "all" | "expense" | "income";
+/** The Transaksi tabs; "movement" and "investment" are the Pindah saldo and Investasi tabs. */
+export type LedgerTypeFilter = "all" | "expense" | "income" | "movement" | "investment";
+export type LedgerSourceFilter = "all" | "notification" | "capture";
 export type LedgerReviewFilter = "all" | "needs_review" | "auto" | "reviewed";
 
 /** Category filter value that selects rows without a category ("Tanpa kategori"). */
@@ -23,6 +25,10 @@ export interface LedgerFilters {
   q: string;
   /** Possible duplicates only: same account, amount and type within 3 minutes (URL `dup=1`). */
   dup: boolean;
+  /** Rows from the phone or typed in Catat (URL `source`). */
+  source: LedgerSourceFilter;
+  /** The rows behind the Tinjau badge (URL `waiting=1`). */
+  waiting: boolean;
 }
 
 export const DEFAULT_LEDGER_FILTERS: LedgerFilters = {
@@ -37,7 +43,11 @@ export const DEFAULT_LEDGER_FILTERS: LedgerFilters = {
   to: null,
   q: "",
   dup: false,
+  source: "all",
+  waiting: false,
 };
+
+export const LEDGER_TYPES: readonly LedgerTypeFilter[] = ["all", "expense", "income", "movement", "investment"];
 
 // Matches the backend's period_offset bounds.
 const MIN_OFFSET = -36;
@@ -69,13 +79,15 @@ export function parseLedgerFilters(params: URLSearchParams | null): LedgerFilter
     offset,
     category: category === UNCATEGORIZED || (category && UUID_PATTERN.test(category)) ? category : "all",
     kakeibo: isKakeiboBucket(kakeibo) ? kakeibo : "all",
-    type: oneOf(params.get("type"), ["expense", "income"] as const, "all"),
+    type: oneOf(params.get("type"), ["expense", "income", "movement", "investment"] as const, "all"),
     account: account && UUID_PATTERN.test(account) ? account : "all",
     review: oneOf(params.get("review"), ["needs_review", "auto", "reviewed"] as const, "all"),
     from: ranged ? instantOrNull(params.get("from")) : null,
     to: ranged ? instantOrNull(params.get("to")) : null,
     q: (params.get("q") ?? "").trim().slice(0, MAX_SEARCH_LENGTH),
     dup: params.get("dup") === "1",
+    source: oneOf(params.get("source"), ["notification", "capture"] as const, "all"),
+    waiting: params.get("waiting") === "1",
   };
 }
 
@@ -96,6 +108,8 @@ export function ledgerFilterQuery(filters: Partial<LedgerFilters>): string {
   if (merged.period === "all" && merged.to) params.set("to", merged.to);
   if (merged.q) params.set("q", merged.q);
   if (merged.dup) params.set("dup", "1");
+  if (merged.source !== "all") params.set("source", merged.source);
+  if (merged.waiting) params.set("waiting", "1");
   return params.toString();
 }
 
@@ -120,6 +134,8 @@ export function ledgerApiParams(filters: LedgerFilters): URLSearchParams {
   if (filters.period === "all" && filters.from) params.set("from_date", filters.from);
   if (filters.period === "all" && filters.to) params.set("to_date", filters.to);
   if (filters.dup) params.set("possible_duplicates", "true");
+  if (filters.source !== "all") params.set("source", filters.source);
+  if (filters.waiting) params.set("waiting", "true");
   return params;
 }
 
@@ -129,7 +145,50 @@ export function hasDateRange(filters: LedgerFilters): boolean {
 
 export function hasRowFilters(filters: LedgerFilters): boolean {
   return filters.category !== "all" || filters.kakeibo !== "all" || filters.type !== "all"
-    || filters.account !== "all" || filters.review !== "all" || hasDateRange(filters) || filters.dup;
+    || filters.account !== "all" || filters.review !== "all" || hasDateRange(filters) || filters.dup
+    || filters.source !== "all" || filters.waiting;
+}
+
+/**
+ * Whether the list may show one row per movement. A period, a date range and the Pindah saldo and
+ * Investasi tabs keep it; any other filter lists both legs, because either side may match on its own.
+ */
+export function listsLogicalMovements(filters: LedgerFilters, search: string): boolean {
+  const tabKeepsMovements = filters.type === "all" || filters.type === "movement" || filters.type === "investment";
+  return tabKeepsMovements && !search.trim() && filters.category === "all" && filters.kakeibo === "all"
+    && filters.account === "all" && filters.review === "all" && !filters.dup && filters.source === "all" && !filters.waiting;
+}
+
+/** The single-select chip row of Transaksi, mapped onto the existing URL keys (design D2). */
+export type LedgerChip = "none" | "waiting" | "unreviewed" | "phone" | "typed";
+
+export const LEDGER_CHIPS: { value: Exclude<LedgerChip, "none">; label: string }[] = [
+  { value: "waiting", label: "Menunggu jawaban" },
+  { value: "unreviewed", label: "Belum dicek" },
+  { value: "phone", label: "Dari HP" },
+  { value: "typed", label: "Lewat Catat" },
+];
+
+export function chipOf(filters: LedgerFilters): LedgerChip {
+  if (filters.waiting) return "waiting";
+  if (filters.review === "auto") return "unreviewed";
+  if (filters.source === "notification") return "phone";
+  if (filters.source === "capture") return "typed";
+  return "none";
+}
+
+/** Filters with `chip` selected, or cleared when it is already the selected one. */
+export function withChip(filters: LedgerFilters, chip: Exclude<LedgerChip, "none">): LedgerFilters {
+  const cleared: LedgerFilters = {
+    ...filters,
+    waiting: false,
+    source: "all",
+    review: filters.review === "auto" ? "all" : filters.review,
+  };
+  if (chipOf(filters) === chip) return cleared;
+  if (chip === "waiting") return { ...cleared, waiting: true };
+  if (chip === "unreviewed") return { ...cleared, review: "auto" };
+  return { ...cleared, source: chip === "phone" ? "notification" : "capture" };
 }
 
 /** A report period of the dashboard (`timeframe` + `cycle_offset`) as ledger filters; null for rolling windows. */

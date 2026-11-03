@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { EmergencyRunway, essentialBasisText } from "@/components/dashboard/EmergencyCoverage";
@@ -40,11 +40,12 @@ import {
   waitingExplanation,
 } from "./explanations";
 import { AutoRowsNote, TodoCard, TodoList, todoItems } from "./TodoCard";
-import { TransactionDetailDialog } from "./TransactionDetailDialog";
+import { TransactionDrawer } from "@/components/transactions/TransactionDrawer";
+import { useTransactionUndo } from "@/components/transactions/useTransactionUndo";
 import type { ActivityRow, CycleSummary } from "./types";
 
 const SUMMARY_REFRESH_MS = 30_000;
-// Plans due today, overdue, or due within this many days appear in "Kerjakan dulu".
+// Plans due today, overdue, or due within this many days appear in "Perlu tindakan".
 const PLAN_NOTICE_DAYS = 2;
 
 const WEEKDAY_DATE = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Jakarta" });
@@ -119,7 +120,7 @@ export function Lede({ summary, name }: { summary: CycleSummary; name: string | 
     second = (
       <>
         Hari ini{" "}
-        <ExplainableFigure label="Aman dipakai hari ini" amountText="nggak ada" explanation={safeExplanation(summary, money)}>
+        <ExplainableFigure label="Aman dipakai hari ini" amountText="tidak ada" explanation={safeExplanation(summary, money)}>
           belum ada yang aman dipakai
         </ExplainableFigure>
         , uang {periodWord(summary)} sudah terpakai semua.
@@ -140,7 +141,7 @@ export function Lede({ summary, name }: { summary: CycleSummary; name: string | 
   const third = waiting.count ? (
     <>
       {waiting.count} hal nunggu jawabanmu (
-      <ExplainableFigure label="Nunggu jawabanmu" amountText={money(waiting.total)} explanation={waitingExplanation(summary, money)} />
+      <ExplainableFigure label="Menunggu jawaban" amountText={money(waiting.total)} explanation={waitingExplanation(summary, money)} />
       ).
     </>
   ) : (
@@ -194,7 +195,7 @@ export function BerandaKpis({ summary }: { summary: CycleSummary }) {
             {available ? <AnimatedMoney value={safe.per_day!} /> : "Belum bisa dihitung"}
           </ExplainableFigure>
         }
-        caption={available ? `${safe.days_left} hari lagi sampai gajian` : unavailableReason(summary).short}
+        caption={available ? `${safe.days_left} hari lagi sampai gaji berikutnya` : unavailableReason(summary).short}
       />
       <Kpi
         icon="arrow-up-right"
@@ -246,7 +247,7 @@ export function MoneyCard({ summary }: { summary: CycleSummary }) {
   const over = remaining.total < 0;
   const free = over ? 0 : remaining.total;
   const remainingFigure = (
-    <ExplainableFigure label="Sisa aman sampai gajian" amountText={balance(remaining.total, money)} explanation={remainingExplanation(summary, money)} />
+    <ExplainableFigure label="Sisa aman sampai gaji berikutnya" amountText={balance(remaining.total, money)} explanation={remainingExplanation(summary, money)} />
   );
   return (
     <Card labelledBy="beranda-money">
@@ -257,7 +258,7 @@ export function MoneyCard({ summary }: { summary: CycleSummary }) {
         caption={
           <>
             Masuk {money(masuk.total)}. Setelah tagihan dan setoran target, sisa {remainingFigure}
-            {safe.days_left ? ` buat ${safe.days_left} hari` : ""}.
+            {safe.days_left ? ` untuk ${safe.days_left} hari` : ""}.
           </>
         }
         action={
@@ -272,7 +273,7 @@ export function MoneyCard({ summary }: { summary: CycleSummary }) {
         <MoneyBar
           legend={false}
           segments={[
-            { key: "used", label: "Udah dipakai", amount: keluar.total, display: money(keluar.total), className: "ws-seg-used" },
+            { key: "used", label: "Sudah dipakai", amount: keluar.total, display: money(keluar.total), className: "ws-seg-used" },
             { key: "scheduled", label: "Terjadwal", amount: scheduled.total, display: money(scheduled.total), className: "ws-seg-sched" },
             { key: "safe", label: "Aman dipakai", amount: free, display: money(free), className: "ws-seg-safe" },
           ]}
@@ -280,10 +281,10 @@ export function MoneyCard({ summary }: { summary: CycleSummary }) {
         <ul className="ws-legend" aria-label={`Pembagian uang ${word}`}>
           <li>
             <span className="ws-legend-h" style={{ ["--sc" as string]: "var(--muted)" }}>
-              Udah dipakai
+              Sudah dipakai
             </span>
             <div className="ws-legend-v">
-              <ExplainableFigure label="Udah dipakai" amountText={money(keluar.total)} explanation={keluarExplanation(summary, money)} />
+              <ExplainableFigure label="Sudah dipakai" amountText={money(keluar.total)} explanation={keluarExplanation(summary, money)} />
             </div>
             {saving && saving.amount > 0 && (
               <div className="ws-legend-f">
@@ -311,7 +312,7 @@ export function MoneyCard({ summary }: { summary: CycleSummary }) {
             <div className="ws-legend-f">
               {safe.days_left ? (
                 <>
-                  <b>{safe.days_left} hari</b> lagi sampai gajian
+                  <b>{safe.days_left} hari</b> lagi sampai gaji berikutnya
                 </>
               ) : (
                 unavailableReason(summary).short
@@ -329,7 +330,7 @@ export function MoneyCard({ summary }: { summary: CycleSummary }) {
         <p className="ws-caption mt-3 flex items-start gap-2">
           <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--warn-fg)]" />
           <span>
-            {waiting.count} hal masih nunggu jawabanmu di Tinjau. {money(waiting.in_keluar)} di antaranya sudah ikut di Udah dipakai; jawabanmu bisa
+            {waiting.count} hal masih menunggu jawaban di Tinjau. {money(waiting.in_keluar)} di antaranya sudah termasuk dalam Sudah dipakai; jawabannya dapat
             mengubah angka aman.
           </span>
         </p>
@@ -386,8 +387,8 @@ export function KakeiboCard({ summary }: { summary: CycleSummary }) {
       </ul>
       <p className="ws-caption mt-2">
         {unclassified && unclassified.amount > 0
-          ? `${money(unclassified.amount)} belum diklasifikasi. Yang belum jelas aku tanya di Tinjau, nggak aku masukkan diam-diam ke Kebutuhan.`
-          : "Belum diklasifikasi Rp 0. Yang belum jelas aku tanya di Tinjau, nggak aku masukkan diam-diam ke Kebutuhan."}
+          ? `${money(unclassified.amount)} belum diklasifikasi. Yang belum jelas ditanyakan di Tinjau dan tidak dimasukkan ke Kebutuhan tanpa konfirmasi.`
+          : "Belum diklasifikasi Rp 0. Yang belum jelas ditanyakan di Tinjau dan tidak dimasukkan ke Kebutuhan tanpa konfirmasi."}
       </p>
     </Card>
   );
@@ -415,7 +416,7 @@ export function DanaCard({ overview, error }: { overview: Overview | undefined; 
       {error && <p className="ws-caption mt-3">Ketahanan Dana belum bisa dimuat.</p>}
       {kpis && unknown && (
         <p className="ws-caption mt-3">
-          Belum bisa dihitung: biaya kebutuhan bulananmu belum diketahui. {essentialBasisText(kpis.essential_cost)}
+          Belum bisa dihitung: biaya kebutuhan bulanan belum diketahui. {essentialBasisText(kpis.essential_cost)}
         </p>
       )}
       {kpis && !unknown && (
@@ -438,7 +439,7 @@ export function DanaCard({ overview, error }: { overview: Overview | undefined; 
             </div>
           )}
           <p className="ws-caption mt-2.5">
-            Kalau gaji berhenti, {kpis.emergency_balance_basis === "all_liquid" ? "saldo kasmu" : "Dana Darurat"} cukup buat{" "}
+            Jika gaji berhenti, {kpis.emergency_balance_basis === "all_liquid" ? "saldo kas" : "Dana Darurat"} cukup untuk{" "}
             {months!.toLocaleString("id-ID", { maximumFractionDigits: 1 })} bulan kebutuhan
             {kpis.monthly_primary_expense ? ` (${bal(kpis.monthly_primary_expense)}/bulan)` : ""}.
           </p>
@@ -537,8 +538,8 @@ export function PhoneHero({ summary }: { summary: CycleSummary }) {
       </div>
       <p className="ws-ph-sub">
         Sisa{" "}
-        <ExplainableFigure label="Sisa aman sampai gajian" amountText={balance(remaining.total, money)} explanation={remainingExplanation(summary, money)} />
-        {safe.days_left ? ` buat ${safe.days_left} hari` : `, ${unavailableReason(summary).short}`}
+        <ExplainableFigure label="Sisa aman sampai gaji berikutnya" amountText={balance(remaining.total, money)} explanation={remainingExplanation(summary, money)} />
+        {safe.days_left ? ` untuk ${safe.days_left} hari` : `, ${unavailableReason(summary).short}`}
       </p>
       <div className="ws-ph-bar" aria-hidden="true">
         {keluar.total > 0 && <i style={{ flex: keluar.total, background: "var(--surface-3)" }} />}
@@ -549,7 +550,7 @@ export function PhoneHero({ summary }: { summary: CycleSummary }) {
         <li style={{ ["--sc" as string]: "var(--muted)" }}>
           Dipakai
           <b>
-            <ExplainableFigure label="Udah dipakai" amountText={money(keluar.total)} explanation={keluarExplanation(summary, money)} />
+            <ExplainableFigure label="Sudah dipakai" amountText={money(keluar.total)} explanation={keluarExplanation(summary, money)} />
           </b>
         </li>
         <li style={{ ["--sc" as string]: "var(--warn-fg)" }}>
@@ -566,11 +567,11 @@ export function PhoneHero({ summary }: { summary: CycleSummary }) {
       <p className="ws-caption mt-3">
         {waiting.count ? (
           <>
-            <ExplainableFigure label="Nunggu jawabanmu" amountText={money(waiting.total)} explanation={waitingExplanation(summary, money)} /> nunggu
-            jawabanmu ({waiting.count} hal).
+            <ExplainableFigure label="Menunggu jawaban" amountText={money(waiting.total)} explanation={waitingExplanation(summary, money)} /> menunggu
+            jawaban ({waiting.count} hal).
           </>
         ) : (
-          "Nggak ada yang nunggu jawaban."
+          "Tidak ada yang menunggu jawaban."
         )}
       </p>
     </section>
@@ -617,7 +618,7 @@ export function headerFor(summary: CycleSummary | undefined, now: Date) {
   if (!summary) return { title, subtitle: "" };
   const { period, expected_salary: expected } = summary;
   if (period.basis === "cycle") {
-    const next = expected.date && expected.status === "estimated" ? ` · gajian berikutnya ± ${shortDate(expected.date)}` : "";
+    const next = expected.date && expected.status === "estimated" ? ` · gaji berikutnya ± ${shortDate(expected.date)}` : "";
     return { title, subtitle: `Siklus gaji hari ke-${period.day_index} · sejak ${shortDate(period.start_date)}${next}` };
   }
   const month = MONTH_NAME.format(new Date(`${period.start_date}T00:00:00Z`));
@@ -635,11 +636,12 @@ export default function BerandaView() {
   const [now] = useState(() => new Date());
   const today = jakartaDay(now);
   const [selectedTx, setSelectedTx] = useState<ActivityRow | null>(null);
+  const { record } = useTransactionUndo();
   const [plansOpen, setPlansOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const deskRef = useRef<HTMLDivElement>(null);
   // Same width as `@container main (max-width: 900px)`, where the grid becomes one column.
-  // Kerjakan dulu then moves up in the DOM, so reading and focus order follow the layout.
+  // Perlu tindakan then moves up in the DOM, so reading and focus order follow the layout.
   const singleColumn = useWidthAtMost(deskRef, 900);
 
   const summaryQuery = useQuery<CycleSummary>({
@@ -682,6 +684,13 @@ export default function BerandaView() {
     return rows ? consolidateLedgerMovements(rows, true) : null;
   }, [activityQuery.data]);
   const recent = activity ? activity.slice(0, ACTIVITY_LIMIT) : null;
+  // A row deleted from the drawer leaves the list once Beranda refreshes; focus then goes to the main region.
+  const [deletedId, setDeletedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!deletedId || activity?.some((row) => row.id === deletedId)) return;
+    if (document.activeElement === document.body) document.getElementById("main")?.focus();
+    setDeletedId(null);
+  }, [deletedId, activity]);
   const todayRows = activity ? activity.filter((row) => jakartaDay(row.date) === today) : [];
   const autoToday = todayRows.filter((row) => row.review_status === "auto").length;
 
@@ -725,7 +734,7 @@ export default function BerandaView() {
         {summaryQuery.isLoading && <DesktopSkeleton />}
         {summaryFailed && (
           <div className="my-4">
-            <ErrorState message="Angka Beranda belum bisa dimuat. Saldo dan transaksimu aman; coba muat lagi." onRetry={retry} />
+            <ErrorState message="Angka Beranda belum dapat dimuat. Saldo dan transaksi tetap aman; coba muat lagi." onRetry={retry} />
           </div>
         )}
         {summary && (
@@ -763,7 +772,7 @@ export default function BerandaView() {
         {noCycleNote && <div className="mt-4">{noCycleNote}</div>}
 
         <div className="ws-ph-sect">
-          <h2>Kerjakan dulu</h2>
+          <h2>Perlu tindakan</h2>
           {attention > 0 && <Link href="/review">Tinjau {attention}</Link>}
         </div>
         {items.length ? (
@@ -772,7 +781,7 @@ export default function BerandaView() {
           </div>
         ) : (
           <div className="ws-ph-list">
-            <p className="py-3 text-[14px]">Tinjau udah beres. Nggak ada yang perlu dijawab.</p>
+            <p className="py-3 text-[14px]">Semua sudah ditinjau. Tidak ada yang perlu dijawab.</p>
           </div>
         )}
         <AutoRowsNote count={autoToday} />
@@ -804,11 +813,11 @@ export default function BerandaView() {
         )}
       </div>
 
-      <TransactionDetailDialog selectedTx={selectedTx} onClose={() => setSelectedTx(null)} />
+      <TransactionDrawer transactionId={selectedTx?.id ?? null} onClose={() => setSelectedTx(null)} record={record} onDeleted={(row) => setDeletedId(row.id)} />
       <Drawer open={plansOpen} onClose={() => setPlansOpen(false)} title="Rencana jatuh tempo" subtitle="Tautkan, lewati, atau catat manual">
         <PendingScheduledBanner onOpenRulesManager={() => setRulesOpen(true)} />
         {!(pendingQuery.data?.rules ?? []).length && !(pendingQuery.data?.recent_auto_links ?? []).length && (
-          <p className="ws-caption">Nggak ada rencana yang jatuh tempo hari ini.</p>
+          <p className="ws-caption">Tidak ada rencana yang jatuh tempo hari ini.</p>
         )}
       </Drawer>
       <RecurringRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />

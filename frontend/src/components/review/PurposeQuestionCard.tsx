@@ -20,14 +20,14 @@ interface PurposeQuestionCardProps {
 
 function suggestionSub(suggestion: PurposeSuggestion, first: boolean): string {
   return [
-    first ? "Saranku" : null,
+    first ? "Saran" : null,
     suggestion.category_name,
     suggestion.kakeibo ? kakeiboLabel(suggestion.kakeibo) : null,
     suggestion.kind === "habit" && suggestion.basis ? habitBasisText(suggestion.basis) : null,
   ].filter(Boolean).join(" · ");
 }
 
-/** "Apa ini?": numbered suggestions with "Saranku" first, then "Jawab sendiri" (D4). */
+/** "Belum dikenali": numbered suggestions with "Saran" first, then "Jawab sendiri" (D4). */
 export function PurposeQuestionCard({ entry, headingId, pending, onAnswer }: PurposeQuestionCardProps) {
   const { bal, hideBalances } = useAppCtx();
   const inputId = useId();
@@ -51,7 +51,7 @@ export function PurposeQuestionCard({ entry, headingId, pending, onAnswer }: Pur
     <>
       <ItemHead
         headingId={headingId}
-        kind={{ tone: "warn", icon: "help-circle", text: "Apa ini?" }}
+        kind={{ tone: "warn", icon: "help-circle", text: "Belum dikenali" }}
         // The server's prompt names the amount; with balances hidden the title leaves it out.
         title={hideBalances ? `Apa ini? Dari ${transaction.account_name}` : question.prompt}
         account={transaction.account_name}

@@ -12,6 +12,11 @@ import BerandaPage from "./page";
 vi.mock("@/lib/api", () => ({
   api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() },
   getDevices: vi.fn().mockResolvedValue({ ok: true, devices: [] }),
+  ApiError: class ApiError extends Error {
+    constructor(readonly status: number, readonly detail: unknown) {
+      super(typeof detail === "string" ? detail : "Request failed");
+    }
+  },
 }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/", useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/components/recurring/PendingScheduledBanner", () => ({ PendingScheduledBanner: () => null }));
@@ -139,6 +144,9 @@ function mockApi() {
     if (path === "/recurring") return { rules: [plan] };
     if (path === "/recurring/pending") return { rules: [], recent_auto_links: [] };
     if (path.startsWith("/transactions?")) return { transactions: recent };
+    const detail = /^\/transactions\/([^/?]+)$/.exec(path);
+    if (detail) return { transaction: { ...recent.find((row) => row.id === detail[1]), waiting: false, origin: null } };
+    if (path === "/accounts") return { accounts: [] };
     throw new Error(`Unexpected GET ${path}`);
   });
 }
@@ -178,9 +186,9 @@ describe("Beranda summary sentences", () => {
     const text = await lede();
     const figures = within(text).getAllByRole("button");
     expect(figures.map((figure) => figure.getAttribute("aria-label"))).toEqual([
-      "Keluar siklus ini Rp 3.164.500: kok segini?",
-      "Aman dipakai hari ini Rp 214.000: kok segini?",
-      "Nunggu jawabanmu Rp 581.000: kok segini?",
+      "Keluar siklus ini Rp 3.164.500: lihat rincian",
+      "Aman dipakai hari ini Rp 214.000: lihat rincian",
+      "Menunggu jawaban Rp 581.000: lihat rincian",
     ]);
     const outside = figures.reduce((rest, figure) => rest.replace(figure.textContent ?? "", ""), text.textContent ?? "");
     expect(outside).not.toMatch(/Rp/);
@@ -196,7 +204,7 @@ describe("Beranda summary sentences", () => {
     expect(rows).toHaveLength(7);
     expect(rows[6]).toHaveTextContent("Total keluarRp 3.164.500");
     expect(dialog).toHaveTextContent("Termasuk uang yang dipindah ke kantong tabungan atau diinvestasikan");
-    expect(dialog).toHaveTextContent("Pindah saldo antar rekeningmu sendiri nggak dihitung keluar.");
+    expect(dialog).toHaveTextContent("Pindah saldo antar rekening sendiri tidak dihitung keluar.");
     expect(within(dialog).getByRole("link", { name: "Keinginan" })).toHaveAttribute("href", "/ledger?period=cycle&kakeibo=want");
     expect(document.activeElement).toBe(within(dialog).getByRole("heading", { name: "Keluar siklus ini" }));
   });
@@ -213,14 +221,14 @@ describe("Beranda summary sentences", () => {
     expect(cells).toContain("SisaRp 4.922.000");
     expect(cells.some((cell) => cell?.startsWith("÷ 23 hari (2 Nov – 24 Nov)"))).toBe(true);
     expect(cells.at(-1)).toBe("Aman hari iniRp 214.000");
-    expect(dialog).toHaveTextContent("Gajian berikutnya diperkirakan 25 November, dari gaji yang kamu konfirmasi tanggal 25 Agu, 25 Sep, 25 Okt.");
+    expect(dialog).toHaveTextContent("Gaji berikutnya diperkirakan 25 November, dari gaji yang dikonfirmasi tanggal 25 Agu, 25 Sep, 25 Okt.");
   });
 
   it("explains what is waiting and what is already inside Keluar", async () => {
     const user = userEvent.setup();
-    await user.click(within(await lede()).getByRole("button", { name: /^Nunggu jawabanmu/ }));
-    const dialog = await screen.findByRole("dialog", { name: "Nunggu jawabanmu" });
-    expect(dialog).toHaveTextContent("Apa ini? · sudah di Keluar sebagai Belum diklasifikasi");
+    await user.click(within(await lede()).getByRole("button", { name: /^Menunggu jawaban/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Menunggu jawaban" });
+    expect(dialog).toHaveTextContent("Belum dikenali · sudah di Keluar sebagai Belum diklasifikasi");
     expect(dialog).toHaveTextContent("Pindah saldo belum lengkap · belum masuk Keluar");
     expect(dialog).toHaveTextContent("Rp 357.000 sudah ikut dihitung di Keluar, Rp 224.000 belum.");
     expect(within(dialog).getByRole("link", { name: /Jawab di Tinjau/ })).toHaveAttribute("href", "/review");
@@ -241,11 +249,11 @@ describe("Beranda summary sentences", () => {
       scheduled: { ...base.scheduled, window_basis: "next_30_days", window_end: "2026-12-02" } };
     const user = userEvent.setup();
     const text = await lede();
-    expect(text).toHaveTextContent("Angka aman per hari belum bisa aku hitung: tanggal gajian belum jelas.");
+    expect(text).toHaveTextContent("Angka aman per hari belum bisa aku hitung: tanggal gaji belum jelas.");
     expect(text).not.toHaveTextContent("Rp 214.000");
-    await user.click(within(text).getByRole("button", { name: "Aman dipakai hari ini belum tersedia: kok segini?" }));
+    await user.click(within(text).getByRole("button", { name: "Aman dipakai hari ini belum tersedia: lihat rincian" }));
     const dialog = await screen.findByRole("dialog", { name: "Aman dipakai hari ini" });
-    expect(dialog).toHaveTextContent("tanggal tiga gaji terakhirmu nggak teratur");
+    expect(dialog).toHaveTextContent("tanggal tiga gaji terakhir tidak teratur");
     expect(dialog).toHaveTextContent("SisaRp 4.922.000");
     expect(within(dialog).queryByText("Aman hari ini")).not.toBeInTheDocument();
     expect(within(desk()).getByText("Belum bisa dihitung")).toBeInTheDocument();
@@ -278,7 +286,7 @@ describe("Beranda period and header", () => {
   it("names the cycle day and start date", () => {
     expect(headerFor(previewSummary(), NOW)).toEqual({
       title: "Senin, 2 November",
-      subtitle: "Siklus gaji hari ke-9 · sejak 25 Okt · gajian berikutnya ± 25 Nov",
+      subtitle: "Siklus gaji hari ke-9 · sejak 25 Okt · gaji berikutnya ± 25 Nov",
     });
   });
 
@@ -300,7 +308,7 @@ describe("Beranda KPI strip and cards", () => {
     await lede();
     const strip = within(desk()).getByRole("region", { name: "Ringkasan siklus ini" });
     expect(strip).toHaveTextContent("Rp 214.000");
-    expect(strip).toHaveTextContent("23 hari lagi sampai gajian");
+    expect(strip).toHaveTextContent("23 hari lagi sampai gaji berikutnya");
     expect(strip).toHaveTextContent("+Rp 154.500");
     expect(strip).toHaveTextContent("+Rp 300.000");
     expect(strip).toHaveTextContent("Rp 46.330.000");
@@ -336,7 +344,7 @@ describe("Beranda KPI strip and cards", () => {
     expect(items).toHaveLength(6);
     expect(items[5]).toHaveTextContent("Belum diklasifikasiRp 00%");
     expect(within(card).getByRole("link", { name: "Belum diklasifikasi" })).toHaveAttribute("href", "/ledger?period=cycle&kakeibo=unclassified");
-    expect(within(card).getByRole("button", { name: "Keluar siklus ini Rp 3.164.500: kok segini?" })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Keluar siklus ini Rp 3.164.500: lihat rincian" })).toBeInTheDocument();
   });
 
   it("keeps an unknown Ketahanan Dana unknown, without a sentinel", async () => {
@@ -355,21 +363,21 @@ describe("Beranda KPI strip and cards", () => {
   });
 });
 
-describe("Kerjakan dulu", () => {
+describe("Perlu tindakan", () => {
   it("follows Uang siklus ini when the grid is one column, and leads the side column otherwise", async () => {
     const region = (name: string | RegExp) => within(desk()).getByRole("region", { name });
     const precedes = (first: HTMLElement, second: HTMLElement) =>
       Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
     const todoFollowsMoney = () => {
       const money = region("Uang siklus ini");
-      const todo = region(/Kerjakan dulu/);
+      const todo = region(/Perlu tindakan/);
       const activity = region(/Aktivitas terbaru/);
       return precedes(money, todo) && precedes(todo, activity);
     };
 
     await lede();
     expect(todoFollowsMoney()).toBe(false);
-    expect(precedes(region(/Aktivitas terbaru/), region(/Kerjakan dulu/))).toBe(true);
+    expect(precedes(region(/Aktivitas terbaru/), region(/Perlu tindakan/))).toBe(true);
     cleanup();
 
     let width = 820;
@@ -397,23 +405,23 @@ describe("Kerjakan dulu", () => {
 
   it("lists the question first and the plan last, each opening its place", async () => {
     await lede();
-    const card = within(desk()).getByRole("region", { name: /Kerjakan dulu/ });
+    const card = within(desk()).getByRole("region", { name: /Perlu tindakan/ });
     await waitFor(() => expect(within(card).getAllByRole("listitem")).toHaveLength(4));
     const items = within(card).getAllByRole("listitem");
-    expect(items[0]).toHaveTextContent("Apa ini? QRIS 0812-xxxx Rp 45.000");
+    expect(items[0]).toHaveTextContent("Belum dikenali: QRIS 0812-xxxx Rp 45.000");
     expect(items[1]).toHaveTextContent("Pasangkan 2 pindah saldo");
     expect(items[2]).toHaveTextContent("Toko Serba Ada: perlu jawaban");
     expect(items[3]).toHaveTextContent("Streamio Rp 65.000 besok");
     expect(within(items[0]).getByRole("link", { name: "Jawab: QRIS 0812-xxxx" })).toHaveAttribute("href", "/review?item=qris#review-questions");
     expect(within(card).getByRole("link", { name: "Buka Tinjau" })).toHaveAttribute("href", "/review");
-    expect(within(card).getByRole("heading", { name: /Kerjakan dulu.*4 perlu ditinjau/ })).toBeInTheDocument();
+    expect(within(card).getByRole("heading", { name: /Perlu tindakan.*4 perlu ditinjau/ })).toBeInTheDocument();
   });
 
   it("says Tinjau is settled and offers the automatic rows of today", async () => {
     reviewQueue = { ...queue, counts: { ...queue.counts, attention: 0 }, questions: [], groups: [], awaiting: [] };
     await lede();
-    const card = within(desk()).getByRole("region", { name: /Kerjakan dulu/ });
-    await waitFor(() => expect(card).toHaveTextContent("Tinjau udah beres"));
+    const card = within(desk()).getByRole("region", { name: /Perlu tindakan/ });
+    await waitFor(() => expect(card).toHaveTextContent("Semua sudah ditinjau"));
     await waitFor(() => expect(card).toHaveTextContent("2 dicatat otomatis hari ini."));
     expect(within(card).getByRole("link", { name: "cek kalau mau" })).toHaveAttribute("href", "/ledger?review=auto");
   });
@@ -429,19 +437,39 @@ describe("Beranda recent activity", () => {
     expect(topup.querySelector(".ws-ava")).toHaveClass("ws-tone-inv");
     const movement = within(card).getByRole("button", { name: "Bank Utama → Dompet Digital" }).closest("tr")!;
     expect(movement.querySelector(".ws-amt-tr")).toHaveTextContent("Rp 500.000");
-    expect(movement).toHaveTextContent("Nggak dihitung");
+    expect(movement).toHaveTextContent("Tidak dihitung");
     const waiting = within(card).getByRole("button", { name: "QRIS 0812-xxxx" }).closest("tr")!;
-    expect(waiting).toHaveTextContent("Nunggu jawaban");
+    expect(waiting).toHaveTextContent("Menunggu jawaban");
     expect(waiting).toHaveTextContent("−Rp 45.000");
   });
 
-  it("opens the existing detail dialog for a row", async () => {
+  it("opens the shared transaction drawer for a row", async () => {
     const user = userEvent.setup();
     await lede();
     const card = within(desk()).getByRole("region", { name: /Aktivitas terbaru/ });
-    await user.click(await within(card).findByRole("button", { name: "Top up Investasi" }));
-    const dialog = await screen.findByRole("dialog", { name: "Detail Transaksi" });
-    expect(dialog).toHaveTextContent("Top up Investasi");
+    const opener = await within(card).findByRole("button", { name: "Kopi Pagi" });
+    await user.click(opener);
+    const drawer = await screen.findByRole("dialog", { name: /^Kopi Pagi/ });
+    expect(await within(drawer).findByText("Diklasifikasikan")).toBeInTheDocument();
+    expect(within(drawer).getByRole("button", { name: "Tandai sudah dicek" })).toBeInTheDocument();
+    expect(within(drawer).getByRole("button", { name: "Hapus" })).toBeInTheDocument();
+    await user.click(within(drawer).getByRole("button", { name: "Tutup detail" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /^Kopi Pagi/ })).not.toBeInTheDocument());
+    expect(opener).toHaveFocus();
+  });
+
+  it("says a row deleted elsewhere is gone", async () => {
+    const user = userEvent.setup();
+    await lede();
+    const base = vi.mocked(api.get).getMockImplementation()!;
+    const { ApiError } = await import("@/lib/api");
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === "/transactions/kopi") throw new ApiError(404, "Transaction not found");
+      return base(path);
+    });
+    const card = within(desk()).getByRole("region", { name: /Aktivitas terbaru/ });
+    await user.click(await within(card).findByRole("button", { name: "Kopi Pagi" }));
+    expect(await screen.findByText(/Transaksi ini sudah tidak ada/)).toBeInTheDocument();
   });
 });
 
@@ -451,11 +479,11 @@ describe("Beranda on phones", () => {
     const hero = within(phone()).getByRole("region", { name: "Aman dipakai hari ini" });
     expect(phone().querySelector("section")).toBe(hero);
     const name = (scope: HTMLElement, label: RegExp) => within(scope).getAllByRole("button", { name: label })[0].getAttribute("aria-label");
-    for (const label of [/^Aman dipakai hari ini/, /^Keluar siklus ini/, /^Masuk siklus ini/, /^Nunggu jawabanmu/, /^Sisa aman/]) {
+    for (const label of [/^Aman dipakai hari ini/, /^Keluar siklus ini/, /^Masuk siklus ini/, /^Menunggu jawaban/, /^Sisa aman/]) {
       expect(name(phone(), label)).toBe(name(desk(), label));
     }
     const headings = within(phone()).getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
-    expect(headings).toEqual(["Aman dipakai hari ini", "Kerjakan dulu", "Siklus ini", "Hari ini"]);
+    expect(headings).toEqual(["Aman dipakai hari ini", "Perlu tindakan", "Siklus ini", "Hari ini"]);
   });
 });
 
@@ -471,10 +499,10 @@ describe("Beranda loading and failure", () => {
     const user = userEvent.setup();
     renderBeranda();
     const alert = await within(desk()).findByRole("alert");
-    expect(alert).toHaveTextContent("Angka Beranda belum bisa dimuat.");
+    expect(alert).toHaveTextContent("Angka Beranda belum dapat dimuat.");
     expect(desk()).not.toHaveTextContent("Rp 0");
     expect(within(desk()).queryByRole("region", { name: /Ringkasan/ })).not.toBeInTheDocument();
-    expect(within(desk()).getByRole("region", { name: /Kerjakan dulu/ })).toBeInTheDocument();
+    expect(within(desk()).getByRole("region", { name: /Perlu tindakan/ })).toBeInTheDocument();
     expect(within(desk()).getByRole("region", { name: /Aktivitas terbaru/ })).toBeInTheDocument();
     summary = previewSummary();
     await user.click(within(alert).getByRole("button", { name: "Coba lagi" }));

@@ -1,6 +1,7 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field, field_validator
@@ -28,6 +29,7 @@ from app.services.ledger_mutations import (
     lock_owned_accounts,
 )
 from app.services.merchant_memory import record_owner_corrections, snapshot_rows
+from app.services.monthly_report import waiting_row_sql
 from app.services.plan_occurrences import request_plan_linking
 from app.services.provenance import (
     CLASSIFICATION_FIELDS,
@@ -173,6 +175,37 @@ PROVENANCE_SELECT = """
 """
 
 
+LIST_INCLUDES = ("daily_totals", "type_counts")
+
+# Movement legs of an investment top-up belong to the Investasi tab, never to Pindah saldo.
+TOPUP_LEG_SQL = "EXISTS (SELECT 1 FROM investment_topups it WHERE it.id = t.movement_id AND it.user_id = t.user_id)"
+TYPE_FILTER_SQL = {
+    "transfer": "(t.type = 'transfer' OR c.name IN ('Internal Movement', 'Investasi') OR c.is_excluded_from_budget = true)",
+    "expense": "t.type = 'expense' AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND COALESCE(c.is_excluded_from_budget, false) = false",
+    "income": "t.type = 'income' AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND COALESCE(c.is_excluded_from_budget, false) = false",
+    "movement": f"((t.type = 'transfer' OR c.name = 'Internal Movement' OR c.is_excluded_from_budget = true) AND COALESCE(c.name, '') <> 'Investasi' AND NOT {TOPUP_LEG_SQL})",
+    "investment": f"({TOPUP_LEG_SQL} OR c.name = 'Investasi')",
+}
+TAB_KEYS = ("expense", "income", "movement", "investment")
+
+
+def parse_includes(value: str | None) -> set[str]:
+    """`include=daily_totals,type_counts`; an unknown part is a 422 rather than silently ignored."""
+    if not value:
+        return set()
+    parts = {part.strip() for part in value.split(",") if part.strip()}
+    unknown = sorted(parts - set(LIST_INCLUDES))
+    if unknown:
+        raise HTTPException(status_code=422, detail={"code": "unknown_include", "message": "Nilai include tidak dikenal.", "values": unknown})
+    return parts
+
+
+def local_day_bounds(days: list[date]) -> tuple[datetime, datetime]:
+    """The instants that contain the given local days, so the per-day aggregate can use the date index."""
+    zone = ZoneInfo(settings.tz)
+    return datetime.combine(min(days), time.min, zone), datetime.combine(max(days) + timedelta(days=1), time.min, zone)
+
+
 class TransactionCreate(TransactionClassificationInput):
     account_id: UUID | None = None
     account_name: str | None = Field(default=None, max_length=100)
@@ -214,7 +247,7 @@ def list_transactions(
     category_id: UUID | None = None,
     goal_id: UUID | None = None,
     obligation_id: UUID | None = None,
-    type: str | None = Query(default=None, pattern="^(expense|income|transfer)$"),
+    type: str | None = Query(default=None, pattern="^(expense|income|transfer|movement|investment)$"),
     kakeibo_type: str | None = Query(default=None, pattern=PILLAR_FILTER_PATTERN),
     source: str | None = Query(default=None, pattern=SOURCE_PATTERN),
     review_status: str | None = Query(default=None, pattern=REVIEW_STATUS_PATTERN),
@@ -226,11 +259,14 @@ def list_transactions(
     possible_duplicates: bool = False,
     q: str | None = None,
     logical_movements: bool = False,
+    waiting: bool = False,
+    include: str | None = Query(default=None, max_length=100),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     current_user: dict = Depends(get_current_user),
 ):
     user_id = current_user["id"]
+    includes = parse_includes(include)
     payday_day = current_user.get("payday_day") or 25
     if period and (from_date or to_date):
         raise HTTPException(status_code=422, detail={"code": "period_with_dates", "message": "Gunakan periode atau rentang tanggal, bukan keduanya."})
@@ -267,13 +303,8 @@ def list_transactions(
             if obligation_id:
                 conditions.append("(t.obligation_id = %s OR EXISTS (SELECT 1 FROM transaction_obligation_allocations a WHERE a.transaction_id = t.id AND a.obligation_id = %s))")
                 params.extend([str(obligation_id), str(obligation_id)])
-            if type and isinstance(type, str):
-                if type == "transfer":
-                    conditions.append("(t.type = 'transfer' OR c.name IN ('Internal Movement', 'Investasi') OR c.is_excluded_from_budget = true)")
-                elif type == "expense":
-                    conditions.append("t.type = 'expense' AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND COALESCE(c.is_excluded_from_budget, false) = false")
-                elif type == "income":
-                    conditions.append("t.type = 'income' AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND COALESCE(c.is_excluded_from_budget, false) = false")
+            if waiting:
+                conditions.append(waiting_row_sql("t"))
             if kakeibo_type and isinstance(kakeibo_type, str):
                 # "unclassified" selects expenses with neither a row nor a category pillar.
                 conditions.append(f"{pillar_bucket_sql()} = %s")
@@ -297,10 +328,12 @@ def list_transactions(
                 conditions.append("(t.notes ILIKE %s OR t.merchant ILIKE %s OR c.name ILIKE %s OR g.name ILIKE %s OR o.name ILIKE %s OR EXISTS (SELECT 1 FROM transaction_obligation_allocations a JOIN obligations debt ON debt.id = a.obligation_id WHERE a.transaction_id = t.id AND debt.name ILIKE %s))")
                 params.extend([search_pattern] * 6)
 
-            # Filtered views retain individual legs: either side may match independently.
+            # Filtered views retain individual legs: either side may match independently. A period or date
+            # window and the Pindah saldo and Investasi tabs keep one row per movement (its outbound leg, or
+            # the only leg), so Transaksi's tab and day counts match the rows it lists.
             if logical_movements and not any((
-                account_id, category_id, goal_id, obligation_id, type,
-                kakeibo_type, source, review_status, from_date, to_date, q, uncategorized, possible_duplicates,
+                account_id, category_id, goal_id, obligation_id, type not in (None, "movement", "investment"),
+                kakeibo_type, source, review_status, q, uncategorized, possible_duplicates, waiting,
             )):
                 conditions.append(
                     """(
@@ -314,6 +347,10 @@ def list_transactions(
                     )"""
                 )
 
+            # Every filter but the type tab: what the tab counts are computed over.
+            tab_where_clause = " AND ".join(conditions)
+            if type:
+                conditions.append(TYPE_FILTER_SQL[type])
             where_clause = " AND ".join(conditions)
 
             # Combined total count and cash flow summary query
@@ -339,7 +376,7 @@ def list_transactions(
             total = agg["total"]
             # Offsets apply where the filtered rows are exactly what a report figure covers.
             offset_scope = None
-            if not any((account_id, goal_id, obligation_id, source, review_status, q, uncategorized, possible_duplicates)) \
+            if not any((account_id, goal_id, obligation_id, source, review_status, q, uncategorized, possible_duplicates, waiting)) \
                     and type in (None, "expense") and not (category_id and kakeibo_type):
                 offset_scope = {"category_id": str(category_id) if category_id else None, "pillar": kakeibo_type}
             cumulative = ledger_cash_flow(
@@ -386,6 +423,7 @@ def list_transactions(
                     partner.account_id AS movement_target_account_id,
                     partner_account.name AS movement_target_account_name,
                     t.created_at,
+                    (t.date AT TIME ZONE %s)::date AS local_date,
                     {PROVENANCE_SELECT}
                 FROM transactions t
                 JOIN accounts sa ON sa.id = t.account_id
@@ -401,18 +439,30 @@ def list_transactions(
                 LEFT JOIN goals g ON g.id = t.goal_id
                 LEFT JOIN obligations o ON o.id = t.obligation_id
                 WHERE {where_clause}
-                ORDER BY t.date DESC, t.created_at DESC
+                ORDER BY t.date DESC, t.created_at DESC, t.id DESC
                 LIMIT %s OFFSET %s
             """
-            cur.execute(select_query, params + [limit, offset])
+            cur.execute(select_query, [settings.tz] + params + [limit, offset])
             rows = cur.fetchall()
             allocation_breakdowns = load_allocation_breakdowns(cur, rows)
+            daily_totals = None
+            if "daily_totals" in includes:
+                daily_totals = load_daily_totals(cur, where_clause, params, sorted({r["local_date"] for r in rows}))
+            type_counts = None
+            if "type_counts" in includes:
+                type_counts = load_type_counts(cur, tab_where_clause, params)
 
+    extras: dict[str, Any] = {}
+    if daily_totals is not None:
+        extras["daily_totals"] = daily_totals
+    if type_counts is not None:
+        extras["type_counts"] = type_counts
     return {
         "ok": True,
         "total": total,
         "limit": limit,
         "offset": offset,
+        **extras,
         "summary": {
             "cycle": {"start": cycle_start.isoformat(), "end": cycle_end.isoformat(), "label": cycle_label, **cycle},
             "cumulative": cumulative,
@@ -455,6 +505,7 @@ def list_transactions(
                 "amount": r["amount"],
                 "notes": r["notes"],
                 "date": r["date"].isoformat() if r["date"] else None,
+                "local_date": r["local_date"].isoformat(),
                 "receipt_path": r["receipt_path"],
                 "created_at": r["created_at"].isoformat() if r["created_at"] else None,
                 **provenance_fields(r),
@@ -462,6 +513,71 @@ def list_transactions(
             for r in rows
         ],
     }
+
+
+LIST_FROM_SQL = """
+    FROM transactions t
+    LEFT JOIN categories c ON c.id = t.category_id
+    LEFT JOIN goals g ON g.id = t.goal_id
+    LEFT JOIN obligations o ON o.id = t.obligation_id
+"""
+
+
+def load_daily_totals(cur, where_clause: str, params: list[Any], days: list[date]) -> list[dict[str, Any]]:
+    """Figures for each local day the page touches, over every row of that day that matches the filters.
+
+    Inflow and outflow use the summary's gross rules, so over all pages they add up to the summary's
+    inflow and gross outflow. A movement counts once (its legs share the movement id), and waiting rows
+    are counted like any row and also reported on their own.
+    """
+    if not days:
+        return []
+    start, end = local_day_bounds(days)
+    cur.execute(
+        f"""
+        WITH matching AS (
+            SELECT t.id, t.amount, t.movement_id, (t.date AT TIME ZONE %s)::date AS day,
+                   {reportable_income_sql()} AS is_inflow, {reportable_expense_sql()} AS is_outflow,
+                   {waiting_row_sql("t")} AS is_waiting
+            {LIST_FROM_SQL}
+            WHERE {where_clause} AND t.date >= %s AND t.date < %s
+        ), movements AS (
+            SELECT day, movement_id, MAX(amount) AS amount FROM matching
+            WHERE movement_id IS NOT NULL GROUP BY day, movement_id
+        )
+        SELECT m.day, COUNT(*) AS count,
+               COALESCE(SUM(m.amount) FILTER (WHERE m.is_inflow), 0) AS inflow,
+               COALESCE(SUM(m.amount) FILTER (WHERE m.is_outflow), 0) AS outflow,
+               COALESCE((SELECT SUM(mv.amount) FROM movements mv WHERE mv.day = m.day), 0) AS movements,
+               COUNT(*) FILTER (WHERE m.is_waiting) AS waiting_count,
+               COALESCE(SUM(m.amount) FILTER (WHERE m.is_waiting), 0) AS waiting_amount
+        FROM matching m
+        WHERE m.day = ANY(%s)
+        GROUP BY m.day
+        ORDER BY m.day DESC
+        """,
+        [settings.tz] + params + [start, end, days],
+    )
+    return [
+        {
+            "date": row["day"].isoformat(),
+            "count": int(row["count"]),
+            "inflow": int(row["inflow"]),
+            "outflow": int(row["outflow"]),
+            "movements": int(row["movements"]),
+            "waiting_count": int(row["waiting_count"]),
+            "waiting_amount": int(row["waiting_amount"]),
+        }
+        for row in cur.fetchall()
+    ]
+
+
+def load_type_counts(cur, tab_where_clause: str, params: list[Any]) -> dict[str, int]:
+    """Rows behind each type tab under every filter except the type itself."""
+    tabs = ", ".join(f"COUNT(*) FILTER (WHERE {TYPE_FILTER_SQL[key]}) AS {key}" for key in TAB_KEYS)
+    cur.execute(f"SELECT COUNT(*) AS all_rows, {tabs} {LIST_FROM_SQL} WHERE {tab_where_clause}", params)
+    row = cur.fetchone()
+    return {"all": int(row["all_rows"]), **{key: int(row[key]) for key in TAB_KEYS}}
 
 
 def resolve_effective_account(
@@ -899,6 +1015,8 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                     partner.account_id AS movement_target_account_id,
                     partner_account.name AS movement_target_account_name,
                     t.created_at,
+                    (t.date AT TIME ZONE %s)::date AS local_date,
+                    {waiting_row_sql("t")} AS waiting,
                     {PROVENANCE_SELECT}
                 FROM transactions t
                 JOIN accounts sa ON sa.id = t.account_id
@@ -913,12 +1031,13 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                 LEFT JOIN obligations o ON o.id = t.obligation_id
                 WHERE t.user_id = %s AND t.id = %s
                 """,
-                (user_id, tid),
+                (settings.tz, user_id, tid),
             )
             r = cur.fetchone()
             if not r:
                 raise HTTPException(status_code=404, detail="Transaction not found")
             allocation_breakdowns = load_allocation_breakdowns(cur, [r])
+            origin = load_origin(cur, user_id, tid, r.get("movement_id"))
 
     return {
         "ok": True,
@@ -950,9 +1069,32 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             "date": r["date"].isoformat() if r["date"] else None,
             "receipt_path": r["receipt_path"],
             "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            "local_date": r["local_date"].isoformat(),
+            "waiting": bool(r["waiting"]),
+            "origin": origin,
             **provenance_fields(r),
         },
     }
+
+
+def load_origin(cur, user_id: str, transaction_id: str, movement_id) -> dict[str, Any] | None:
+    """The owner's own source text of a row: the phone notification it came from, or the typed capture."""
+    cur.execute(
+        """SELECT app_label, title, COALESCE(NULLIF(big_text, ''), body_text) AS text FROM notification_events
+           WHERE user_id = %s AND transaction_id = %s ORDER BY post_time, id LIMIT 1""",
+        (user_id, transaction_id),
+    )
+    event = cur.fetchone()
+    if event and event["text"]:
+        return {"kind": "notification", "app": event["app_label"], "title": event["title"], "text": event["text"]}
+    cur.execute(
+        """SELECT text FROM text_captures WHERE user_id = %s AND undone_at IS NULL
+             AND (transaction_id = %s OR (%s::uuid IS NOT NULL AND movement_id = %s::uuid))
+           ORDER BY created_at LIMIT 1""",
+        (user_id, transaction_id, movement_id, movement_id),
+    )
+    capture = cur.fetchone()
+    return {"kind": "capture", "text": capture["text"]} if capture else None
 
 
 @router.put("/{transaction_id}")
