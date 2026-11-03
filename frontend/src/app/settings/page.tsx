@@ -1,6 +1,6 @@
-import { ProfileSettings } from "@/components/settings/ProfileSettings";
+import { DevicesSettings } from "@/components/settings/DevicesSettings";
 
-/** Wide screens show Profil here; narrow screens show only the section list from the layout. */
+/** Wide screens open HP & perangkat here (OD53); narrow screens show only the section list from the layout. */
 export default function SettingsIndexPage() {
-  return <ProfileSettings />;
+  return <DevicesSettings />;
 }
