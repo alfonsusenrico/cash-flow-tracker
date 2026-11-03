@@ -161,6 +161,7 @@ def load_labels(cur, user_id: str, *, institution: str, signature: str, account_
     Every feedback row of a transaction is read so that its latest one decides; a later row that is not an
     owner label (an accepted history suggestion, an unclassified answer) leaves the transaction out.
     """
+    from app.services.merchant_memory import live_feedback_sql
     from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES
 
     cur.execute(
@@ -172,7 +173,9 @@ def load_labels(cur, user_id: str, *, institution: str, signature: str, account_
         ), latest AS (
             SELECT DISTINCT ON (f.transaction_id) f.*
             FROM classification_feedback f JOIN keyed ON keyed.transaction_id = f.transaction_id
-            WHERE f.user_id = %(user_id)s
+            -- An undone label and the undo row are left out before the latest one is chosen, so the
+            -- transaction's earlier live label counts again.
+            WHERE f.user_id = %(user_id)s AND {live_feedback_sql("f")}
             ORDER BY f.transaction_id, f.created_at DESC, f.id DESC
         )
         SELECT f.transaction_id, f.kind, f.after_category_id, f.after_kakeibo_type, f.after_notes,

@@ -33,7 +33,9 @@ from app.services.ledger_mutations import (
     create_bilateral_movement, delete_movement_rows, delete_transaction_rows, ensure_generic_movement_accounts,
     lock_owned_accounts,
 )
-from app.services.merchant_memory import count_memory_hit, insert_feedback, snapshot_rows, upsert_memory
+from app.services.merchant_memory import (
+    count_memory_hit, insert_feedback, memory_row, restore_memory, snapshot_rows, upsert_memory,
+)
 from app.services.movement_linkage import ensure_internal_movement_categories, movement_note
 from app.services.provenance import capture_provenance, normalize_merchant
 
@@ -168,17 +170,6 @@ def merchant_named(merchant: str | None, text: str) -> bool:
     return bool(words) and all(word in folded for word in words)
 
 
-def memory_row(cur, user_id: str, match_key: str) -> dict | None:
-    cur.execute(
-        """SELECT match_key, key_kind, display_merchant, notes, category_id, kakeibo_type, offset_category_id,
-                  account_id, source, hit_count, last_used_at, updated_at
-           FROM merchant_memory WHERE user_id = %s AND match_key = %s FOR UPDATE""",
-        (user_id, match_key),
-    )
-    row = cur.fetchone()
-    return jsonable(row) if row else None
-
-
 def learn(cur, user_id: str, capture: dict, draft: dict, plan: dict, recorded: dict) -> dict | None:
     """One `capture` feedback row, and memory for expense and income (D5); returns what undo must restore."""
     transaction_id = recorded["transaction_ids"][0]
@@ -203,29 +194,6 @@ def learn(cur, user_id: str, capture: dict, draft: dict, plan: dict, recorded: d
     }, "owner" if taught else "ai")
     written = memory_row(cur, user_id, match_key)
     return {"match_key": match_key, "before": before, "after_updated_at": written["updated_at"] if written else None}
-
-
-def restore_memory(cur, user_id: str, learned: dict | None) -> None:
-    """Undo the capture's memory write unless something changed the entry since."""
-    if not learned:
-        return
-    current = memory_row(cur, user_id, learned["match_key"])
-    if current is None or current["updated_at"] != learned["after_updated_at"]:
-        return
-    before = learned["before"]
-    if before is None:
-        cur.execute("DELETE FROM merchant_memory WHERE user_id = %s AND match_key = %s",
-                    (user_id, learned["match_key"]))
-        return
-    cur.execute(
-        """UPDATE merchant_memory SET display_merchant = %s, notes = %s, category_id = %s, kakeibo_type = %s,
-               offset_category_id = %s, account_id = %s, source = %s, hit_count = %s, last_used_at = %s,
-               updated_at = %s
-           WHERE user_id = %s AND match_key = %s""",
-        (before["display_merchant"], before["notes"], before["category_id"], before["kakeibo_type"],
-         before["offset_category_id"], before["account_id"], before["source"], before["hit_count"],
-         before["last_used_at"], before["updated_at"], user_id, learned["match_key"]),
-    )
 
 
 def advance(cur, user_id: str, capture: dict) -> dict:

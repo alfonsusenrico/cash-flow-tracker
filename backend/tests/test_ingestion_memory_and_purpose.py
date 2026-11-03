@@ -505,7 +505,9 @@ def test_answer_with_suggestion_updates_row_feedback_memory_and_result(client, o
     assert len(stored) == 1 and stored[0]["suggestion_id"] == "s1" and stored[0]["after_notes"] == "makan kafe senja"
     assert memory_rows(owner)["signature:bca|expense|groceries"]["source"] == "owner"
     replay = answer(client, event_id, body)
-    assert replay.status_code == 200 and replay.json() == payload
+    # A replay changes nothing, so it carries no undo token (redesign-review-triage D9).
+    assert payload["undo_token"] and payload["expires_at"]
+    assert replay.status_code == 200 and replay.json() == {**payload, "undo_token": None, "expires_at": None}
     assert len([item for item in feedback_rows(owner) if item["kind"] == "purpose_answer"]) == 1
     conflict = answer(client, event_id, {**body, "suggestion_id": None, "text": "lain"})
     assert conflict.status_code == 409 and conflict.json()["detail"]["code"] == "purpose_answer_conflict"

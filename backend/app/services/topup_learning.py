@@ -341,15 +341,17 @@ def topup_suggestion(cur, user_id: str, debit: dict, account_type: str | None, c
 
 
 def record_answer(cur, user_id: str, transaction: dict, *, outcome: str, suggested_id: str | None,
-                  chosen_id: str | None) -> None:
+                  chosen_id: str | None) -> str:
+    """Store the owner's answer about one debit and return its id."""
     cur.execute(
         """INSERT INTO investment_topup_feedback (
                user_id, transaction_id, source_account_id, amount, outcome,
                suggested_target_account_id, chosen_target_account_id
-           ) VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+           ) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
         (user_id, str(transaction["id"]), str(transaction["account_id"]), int(transaction["amount"]),
          outcome, suggested_id, chosen_id),
     )
+    return str(cur.fetchone()["id"])
 
 
 def reject_suggestion(cur, user_id: str, transaction_id: str, suggested_id: str | None) -> bool:

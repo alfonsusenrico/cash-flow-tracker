@@ -22,6 +22,7 @@ from app.services.merchant_memory import record_owner_corrections, snapshot_rows
 from app.services.movement_pairing import complete_movement, undo_movement_fee
 from app.services.notification_application import account_label, committed_snapshot
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, system_provenance
+from app.services.review_undo import ActionRecorder
 
 router = APIRouter(prefix="/movements", tags=["Movements"])
 
@@ -196,9 +197,14 @@ def merge_transactions_as_movement(
     payload: MovementMerge,
     current_user: dict = Depends(get_current_user),
 ):
+    user_id = current_user["id"]
     with db_conn() as conn:
         with conn.cursor() as cur:
             expense_id, income_id = str(payload.expense_transaction_id), str(payload.income_transaction_id)
+            # Serialises with notification processing, so the undo record's before images stay exact.
+            cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{user_id}",))
+            recorder = ActionRecorder(cur, user_id, "movement_merge")
+            recorder.capture([expense_id, income_id])
             cur.execute("SELECT movement_id FROM transactions WHERE user_id = %s AND id = ANY(%s)", (current_user["id"], [expense_id, income_id]))
             for row in cur.fetchall():
                 reject_topup_movement(cur, current_user["id"], str(row["movement_id"]) if row["movement_id"] else None)
@@ -216,8 +222,9 @@ def merge_transactions_as_movement(
             result = link_transactions_as_movement(
                 cur, current_user["id"], expense_id, income_id, notes=note, owner_edit=True,
             )
+            undo = recorder.finish()
         conn.commit()
-    return result
+    return {**result, **undo}
 
 
 @router.post("/complete")
@@ -227,12 +234,15 @@ def complete_one_sided_movement(payload: MovementCompletion, current_user: dict 
     account_id = str(payload.target_account_id or payload.source_account_id)
     with db_conn() as conn:
         with conn.cursor() as cur:
+            recorder = ActionRecorder(cur, current_user["id"], "movement_complete")
             result = complete_movement(
                 cur, current_user["id"], str(payload.transaction_id), counterpart_account_id=account_id, role=role,
-                create_new=payload.create_new,
+                create_new=payload.create_new, recorder=recorder,
             )
+            undo = recorder.finish(created_transaction_ids=[] if result.get("idempotent") else [
+                result.get("created_transaction_id")])
         conn.commit()
-    return result
+    return {**result, **undo}
 
 
 @router.post("/{movement_id}/split")

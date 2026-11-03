@@ -181,7 +181,10 @@ def test_accept_marks_rows_reviewed_without_reclassifying(client, owner):
     second, _ = kedai(client, 20)
     response = bulk(client, "accept", [first, second])
     assert response.status_code == 200, response.text
-    assert response.json() == {"ok": True, "action": "accept", "transaction_count": 2, "corrections": 0}
+    body = response.json()
+    assert body["undo_token"] and body["expires_at"]
+    assert {key: body[key] for key in ("ok", "action", "transaction_count", "corrections")} == {
+        "ok": True, "action": "accept", "transaction_count": 2, "corrections": 0}
     for tx_id in (first, second):
         stored = row(tx_id)
         assert (stored["review_status"], stored["classified_by"], stored["owner_edited_at"]) == ("reviewed", "rule", None)

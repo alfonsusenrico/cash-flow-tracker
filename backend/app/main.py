@@ -27,6 +27,7 @@ from app.routers.history_suggestions import router as history_suggestions_router
 from app.routers.review import router as review_router
 from app.routers.salary import router as salary_router
 from app.services.plan_occurrences import link_requested_plans, process_due_plan_links, set_plan_link_waker
+from app.services.review_undo import sweep_expired as sweep_review_actions
 from app.services.salary_receipts import process_sources as process_salary_sources
 from app.routers.transactions import router as transactions_router
 
@@ -102,7 +103,7 @@ async def _daily_price_sync_loop():
 
 
 async def _ledger_matching_loop():
-    """Salary detection and the plan auto-linking sweep, one bounded page of owners at a time."""
+    """Salary detection, the review undo sweep and plan auto-linking, one bounded page at a time."""
     await asyncio.sleep(15)
     salary_cursor = None
     plan_cursor = None
@@ -114,6 +115,13 @@ async def _ledger_matching_loop():
         except Exception as exc:
             logger.warning("Salary detection unavailable: %s", type(exc).__name__)
             salary_cursor = None
+        try:
+            # Undo snapshots hold personal data only until their token expires (redesign-review-triage D17).
+            await asyncio.to_thread(sweep_review_actions)
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.warning("Review undo sweep unavailable: %s", type(exc).__name__)
         if settings.plan_auto_link_enabled:
             try:
                 plan_cursor = await asyncio.to_thread(process_due_plan_links, plan_cursor)

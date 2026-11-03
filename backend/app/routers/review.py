@@ -24,6 +24,7 @@ from app.services.monthly_report import review_counts
 from app.services.movement_pairing import CANDIDATE_LIMIT, load_candidates
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, normalize_merchant
 from app.services.purpose_questions import list_open_questions
+from app.services.review_undo import TOKEN_PATTERN, ActionRecorder, undo_action
 from app.services.topup_learning import reject_suggestion, topup_suggestion
 
 router = APIRouter(prefix="/review", tags=["Review"])
@@ -280,6 +281,12 @@ class BulkReview(BaseModel):
         return self
 
 
+BULK_UNDO_KINDS = {
+    "accept": "review_accept", "recategorise": "review_recategorise", "rename": "review_rename",
+    "keep_separate": "review_keep_separate",
+}
+
+
 def bulk_error(status: int, code: str, message: str, **extra: Any) -> HTTPException:
     return HTTPException(status_code=status, detail={"code": code, "message": message, **extra})
 
@@ -407,6 +414,11 @@ def bulk_review(payload: BulkReview, current_user: dict = Depends(get_current_us
             # Serialises with notification processing, which writes the same rows, questions and memory.
             cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{user_id}",))
             rows = locked_rows(cur, user_id, ids)
+            recorder = ActionRecorder(cur, user_id, BULK_UNDO_KINDS[payload.action])
+            recorder.capture(
+                ids, learns=payload.action in {"recategorise", "rename"},
+                merchants=[payload.merchant] if payload.action == "rename" else [],
+            )
             if payload.action == "accept":
                 mark_reviewed(cur, user_id, ids)
             elif payload.action == "recategorise":
@@ -415,8 +427,9 @@ def bulk_review(payload: BulkReview, current_user: dict = Depends(get_current_us
                 corrections = rename(cur, user_id, rows, payload)
             else:
                 keep_separate(cur, user_id, rows)
+            undo = recorder.finish()
         conn.commit()
-    return {"ok": True, "action": payload.action, "transaction_count": len(ids), "corrections": corrections}
+    return {"ok": True, "action": payload.action, "transaction_count": len(ids), "corrections": corrections, **undo}
 
 
 class TopupSuggestionRejection(BaseModel):
@@ -432,6 +445,19 @@ def reject_topup_suggestion(payload: TopupSuggestionRejection, current_user: dic
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{user_id}",))
+            recorder = ActionRecorder(cur, user_id, "topup_rejection")
+            recorder.capture([str(payload.transaction_id)])
             recorded = reject_suggestion(cur, user_id, str(payload.transaction_id), suggested)
+            undo = recorder.finish()
         conn.commit()
-    return {"ok": True, "recorded": recorded}
+    return {"ok": True, "recorded": recorded, **undo}
+
+
+class UndoRequest(BaseModel):
+    undo_token: str = Field(pattern=TOKEN_PATTERN)
+
+
+@router.post("/undo")
+def undo_review_action(payload: UndoRequest, current_user: dict = Depends(get_current_user)):
+    """Restore the state before one review action of the last ten minutes (redesign-review-triage D9)."""
+    return undo_action(current_user["id"], payload.undo_token)

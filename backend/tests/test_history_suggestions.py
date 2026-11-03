@@ -373,7 +373,10 @@ def test_accept_applies_through_owner_edit_hooks(client, owner):
         conn.commit()
     response = client.post("/api/review/suggestions/accept", json={"suggestion_ids": suggestion_ids})
     assert response.status_code == 200, response.text
-    assert response.json() == {"ok": True, "accepted": 2, "skipped": [], "corrections": 2}
+    body = response.json()
+    assert body["undo_token"] and body["expires_at"]
+    assert {key: body[key] for key in ("ok", "accepted", "skipped", "corrections")} == {
+        "ok": True, "accepted": 2, "skipped": [], "corrections": 2}
     for tx_id in tx_ids:
         row = transaction(tx_id)
         assert (row["notes"], row["merchant"], str(row["category_id"])) == ("Ngopi di Kedai Awan", "Kedai Awan", owner["jajan"])
@@ -409,7 +412,8 @@ def test_accept_one_row_of_a_group(client, owner):
 def test_reject_is_remembered_by_later_runs(client, owner):
     _, suggestion_ids = two_kedai_suggestions(client, owner)
     response = client.post("/api/review/suggestions/reject", json={"suggestion_ids": suggestion_ids})
-    assert response.status_code == 200 and response.json() == {"ok": True, "rejected": 2, "skipped": []}
+    assert response.status_code == 200 and response.json()["undo_token"]
+    assert {key: response.json()[key] for key in ("ok", "rejected", "skipped")} == {"ok": True, "rejected": 2, "skipped": []}
     assert pending_by_transaction(client) == {}
     assert feedback_rows(owner) == []
     assert start(client).status_code == 200

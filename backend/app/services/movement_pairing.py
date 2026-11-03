@@ -428,6 +428,7 @@ def repair_unpaired_movements(*, now: datetime | None = None) -> dict[str, int]:
 
 def complete_movement(
     cur, user_id: str, transaction_id: str, *, counterpart_account_id: str, role: str, create_new: bool = False,
+    recorder=None,
 ) -> dict:
     """Complete a one-sided own transfer on the account the owner names, and link both legs as one movement.
 
@@ -448,6 +449,9 @@ def complete_movement(
     row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Transaction not found")
+    if recorder is not None:
+        # The Tinjau undo record (redesign-review-triage D10): the leg's state before anything is written.
+        recorder.capture([transaction_id])
     expected_role = {"expense": "target", "income": "source"}.get(row["type"])
     if expected_role != role:
         raise HTTPException(status_code=422, detail={
@@ -495,6 +499,8 @@ def complete_movement(
     if not create_new and candidates:
         only = candidates[0]
         if len(candidates) == 1 and only["category_name"] == "Internal Movement" and only["owner_split_at"] is None:
+            if recorder is not None:
+                recorder.capture([str(only["id"])])
             return link_existing_counterpart(cur, user_id, row, only, notes)
         raise HTTPException(status_code=409, detail={
             "code": "counterpart_candidates",

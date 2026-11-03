@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from app.core.config import settings
 from app.db.pool import db_conn
 from app.services.kakeibo import Pillar, effective_pillar
-from app.services.merchant_memory import merchant_match_key, normalize_key_text, owner_identity
+from app.services.merchant_memory import live_feedback_sql, merchant_match_key, normalize_key_text, owner_identity
 from app.services.provenance import MERCHANT_MAX_LENGTH, normalize_merchant
 from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES
 
@@ -230,9 +230,10 @@ def load_owner_memory(cur, user_id: str) -> dict[str, dict]:
 def preferred_repayment_offset(cur, user_id: str, eligible: set[str]) -> str | None:
     """The spending category the owner most often marked as repaid by a friend."""
     cur.execute(
-        """SELECT after_offset_category_id AS id, COUNT(*) AS uses FROM classification_feedback
-           WHERE user_id = %s AND after_type = 'income' AND after_offset_category_id IS NOT NULL
-           GROUP BY after_offset_category_id ORDER BY uses DESC, MAX(created_at) DESC""",
+        f"""SELECT f.after_offset_category_id AS id, COUNT(*) AS uses FROM classification_feedback f
+            WHERE f.user_id = %s AND f.after_type = 'income' AND f.after_offset_category_id IS NOT NULL
+              AND {live_feedback_sql("f")}
+            GROUP BY f.after_offset_category_id ORDER BY uses DESC, MAX(f.created_at) DESC""",
         (user_id,),
     )
     for row in cur.fetchall():
@@ -861,6 +862,7 @@ def accept_suggestions(user_id: str, ids: list[str]) -> dict:
     from app.services.merchant_memory import record_owner_corrections, snapshot_rows
     from app.services.provenance import OWNER_EDIT_ASSIGNMENTS
     from app.services.reimbursements import validate_offset_category
+    from app.services.review_undo import ActionRecorder
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -879,6 +881,11 @@ def accept_suggestions(user_id: str, ids: list[str]) -> dict:
                 (user_id, transaction_ids),
             )
             rows = {str(row["id"]): row for row in cur.fetchall()}
+            # Only applied suggestions enter the undo record (redesign-review-triage D16).
+            recorder = ActionRecorder(cur, user_id, "suggestion_accept")
+            recorder.capture(transaction_ids, learns=True,
+                             merchants=[row["proposed_merchant"] for row in pending.values()])
+            recorder.capture_suggestions(list(pending))
             categories = load_categories(cur, user_id)
             planned: dict[str, tuple[dict, dict]] = {}
             for sid, suggestion in pending.items():
@@ -926,26 +933,33 @@ def accept_suggestions(user_id: str, ids: list[str]) -> dict:
                 cur, user_id, before, kind="accepted_suggestion",
                 history_suggestions={transaction_id: sid for sid, transaction_id in transaction_of.items()},
             )
+            undo = recorder.finish()
         conn.commit()
     logger.info("History suggestions accepted count=%s skipped=%s corrections=%s", len(pending), len(skipped), corrections)
-    return {"accepted": len(pending), "skipped": skipped, "corrections": corrections}
+    return {"accepted": len(pending), "skipped": skipped, "corrections": corrections, **undo}
 
 
 def reject_suggestions(user_id: str, ids: list[str]) -> dict:
     """Mark pending suggestions rejected; a later run never proposes the same values for the row again."""
+    from app.services.review_undo import ActionRecorder
+
     with db_conn() as conn:
         with conn.cursor() as cur:
             supersede_stale(cur, user_id)
             suggestions = locked_suggestions(cur, user_id, ids)
             pending = [sid for sid, row in suggestions.items() if row["status"] == "pending"]
+            recorder = ActionRecorder(cur, user_id, "suggestion_reject")
+            recorder.capture(sorted(str(suggestions[sid]["transaction_id"]) for sid in pending))
+            recorder.capture_suggestions(pending)
             if pending:
                 cur.execute(
                     """UPDATE transaction_suggestions SET status = 'rejected', decided_at = NOW(), updated_at = NOW()
                        WHERE user_id = %s AND id = ANY(%s::uuid[]) AND status = 'pending'""",
                     (user_id, pending),
                 )
+            undo = recorder.finish()
         conn.commit()
-    return {"rejected": len(pending), "skipped": sorted(sid for sid in ids if sid not in pending)}
+    return {"rejected": len(pending), "skipped": sorted(sid for sid in ids if sid not in pending), **undo}
 
 
 def parse_batch(output: str) -> HistorySuggestionBatch:

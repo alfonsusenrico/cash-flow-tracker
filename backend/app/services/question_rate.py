@@ -9,6 +9,8 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from app.services.merchant_memory import live_feedback_sql
+
 MAX_WEEKS = 26
 # Interpretation sources of a notification row recorded without a question.
 NOTIFICATION_OUTCOMES = {"memory": "memory", "habit": "habit", "ai": "ai"}
@@ -81,9 +83,9 @@ def question_rate(cur, user_id: str, *, weeks: int, today: date, tz: str) -> dic
         else:
             bucket[f"by_{kind}"] += 1
     cur.execute(
-        """SELECT created_at, before_classified_by FROM classification_feedback
-           WHERE user_id = %s AND kind = 'correction' AND transaction_source IN ('notification', 'capture')
-             AND created_at >= %s AND created_at < %s""",
+        f"""SELECT f.created_at, f.before_classified_by FROM classification_feedback f
+            WHERE f.user_id = %s AND f.kind = 'correction' AND f.transaction_source IN ('notification', 'capture')
+              AND f.created_at >= %s AND f.created_at < %s AND {live_feedback_sql("f")}""",
         (user_id, start, end),
     )
     for row in cur.fetchall():
