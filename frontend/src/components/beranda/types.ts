@@ -77,6 +77,8 @@ export interface CycleSummary {
   waiting: { count: number; total: number; in_keluar: number; not_in_keluar: number; lines: WaitingLine[] };
   scheduled: {
     total: number;
+    /** The bills (plan lines) alone; absent from an API older than Target & Tagihan's list. */
+    plans_total?: number;
     window_start: string;
     window_end: string;
     window_basis: "expected_salary" | "next_30_days";

@@ -1,9 +1,31 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import GoalsAndDebtsPage from "./page";
+
+// Next.js keeps `useSearchParams` in sync with the history API; the mock does the same.
+vi.mock("next/navigation", async () => {
+  const react = await import("react");
+  return {
+    usePathname: () => window.location.pathname,
+    useSearchParams: () => {
+      const [, rerender] = react.useReducer((count: number) => count + 1, 0);
+      react.useEffect(() => {
+        window.addEventListener("test-history", rerender);
+        return () => window.removeEventListener("test-history", rerender);
+      }, []);
+      return new URLSearchParams(window.location.search);
+    },
+  };
+});
+const realReplace = window.history.replaceState.bind(window.history);
+
+async function openDrawer(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(await screen.findByRole("button", { name }));
+  return screen.findByRole("dialog", { name: new RegExp(`^${name}`) });
+}
 
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() } }));
 vi.mock("@/components/layout/AppLayout", () => ({
@@ -60,8 +82,18 @@ function renderGoals() {
 }
 
 describe("goal backing forms", () => {
+  afterEach(() => {
+    window.history.replaceState = realReplace;
+    realReplace(null, "", "/goals");
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    realReplace(null, "", "/goals");
+    window.history.replaceState = (state, title, url) => {
+      realReplace(state, title, url);
+      window.dispatchEvent(new Event("test-history"));
+    };
     currentObligations = [];
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path === "/goals") return { ok: true, goals: [standaloneGoal, linkedGoal], summary: {} };
@@ -77,9 +109,12 @@ describe("goal backing forms", () => {
     const user = userEvent.setup();
     renderGoals();
 
-    const progressActions = await screen.findAllByRole("button", { name: "+ Catat Progres" });
-    expect(progressActions).toHaveLength(1);
-    await user.click(progressActions[0]);
+    const linked = await openDrawer(user, "Dana Darurat");
+    expect(within(linked).queryByRole("button", { name: "Tambah progres" })).not.toBeInTheDocument();
+    await user.click(within(linked).getByRole("button", { name: "Tutup detail" }));
+    const standalone = await openDrawer(user, "Laptop");
+    expect(within(standalone).getByText("Progres manual tidak membuat transaksi di rekening.")).toBeInTheDocument();
+    await user.click(within(standalone).getByRole("button", { name: "Tambah progres" }));
     expect(screen.getByRole("dialog", { name: "Catat Progres: Laptop" })).toBeVisible();
     expect(screen.queryByRole("combobox", { name: /rekening/i })).not.toBeInTheDocument();
     await user.type(screen.getByRole("textbox", { name: "Tambahan Progres" }), "250000");
@@ -92,7 +127,7 @@ describe("goal backing forms", () => {
   it("requires confirmation before changing a standalone goal to account-backed progress", async () => {
     const user = userEvent.setup();
     renderGoals();
-    await user.click(await screen.findByRole("button", { name: "Ubah target Laptop" }));
+    await user.click(within(await openDrawer(user, "Laptop")).getByRole("button", { name: "Ubah target" }));
     await user.click(screen.getByRole("checkbox", { name: /BCA/ }));
     await user.click(screen.getByRole("button", { name: "Simpan Perubahan" }));
 
@@ -109,7 +144,7 @@ describe("goal backing forms", () => {
     currentObligations = [obligation];
     const user = userEvent.setup();
     renderGoals();
-    await user.click(await screen.findByRole("button", { name: "Ubah tagihan Kartu Kredit" }));
+    await user.click(within(await openDrawer(user, "Kartu Kredit")).getByRole("button", { name: "Ubah utang" }));
 
     expect(screen.getByText(/otomatis diarsipkan saat sisa mencapai nol/)).toBeInTheDocument();
     const total = screen.getByRole("textbox", { name: "Total Tagihan / Pinjaman (IDR)" });
@@ -151,9 +186,10 @@ describe("goal backing forms", () => {
     const user = userEvent.setup();
     renderGoals();
 
-    expect(await screen.findByText("20% terbayar")).toBeInTheDocument();
-    expect(screen.queryByText(/bln lagi/)).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Kaitkan pembayaran/ }));
+    expect(await screen.findByText("Terbayar Rp 3.000.000 dari Rp 15.000.000 · 20%")).toBeInTheDocument();
+    const drawer = await openDrawer(user, "Kartu Kredit");
+    expect(within(drawer).queryByText(/bulan lagi|bln lagi/)).not.toBeInTheDocument();
+    await user.click(within(drawer).getByRole("button", { name: "Kaitkan atau catat pembayaran" }));
     expect(await screen.findByText(/Pilih yang benar/)).toBeInTheDocument();
     expect(api.post).not.toHaveBeenCalled();
     const choices = screen.getAllByRole("button", { name: /^Kaitkan 1 Okt/ });

@@ -397,6 +397,8 @@ def build_cycle_summary(
         "waiting": waiting,
         "scheduled": {
             "total": scheduled_total,
+            # The bills part alone, for Target & Tagihan's list (redesign-money-and-settings D4).
+            "plans_total": sum(line["amount"] for line in scheduled_lines if line["kind"] == "plan"),
             "window_start": start_date.isoformat(),
             "window_end": window_end.isoformat(),
             "window_basis": window_basis,

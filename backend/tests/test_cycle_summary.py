@@ -634,6 +634,17 @@ def test_rekening_net_worth_statement_count_is_constant(owner, monkeypatch):
     assert count() == baseline
 
 
+def test_scheduled_names_the_bills_total_apart_from_goal_set_asides(owner):
+    owner.salary(today() - timedelta(days=5))
+    owner.plan("air", "Air Contoh", 100_000, today() + timedelta(days=3))
+    owner.plan("listrik", "Listrik Contoh", 250_000, today() + timedelta(days=4))
+    owner.goal("liburan", "Liburan Contoh", 6_000_000, shift_months(today(), 6))
+    scheduled = owner.summary()["scheduled"]
+    plans = [line for line in scheduled["lines"] if line["kind"] == "plan"]
+    assert scheduled["plans_total"] == sum(line["amount"] for line in plans) == 350_000
+    assert scheduled["total"] > scheduled["plans_total"]
+
+
 # --- Comparison -----------------------------------------------------------------------------------
 
 

@@ -71,3 +71,21 @@
   .moveButtons :global(.ws-icon-btn) { min-width: 44px; min-height: 44px; }
   .disclosure { width: 44px; height: 44px; margin: -10px 0 -10px -10px; }
 }
+
+/* Target & Tagihan */
+.emptyBlock { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.goalList { display: flex; flex-direction: column; gap: 16px; margin: 14px 0 0; padding: 0; list-style: none; }
+.goal { display: flex; flex-direction: column; gap: 8px; }
+.goalTop { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.goalTop :global(.ws-rowbtn) { white-space: normal; }
+.progress { overflow: hidden; height: 8px; border-radius: 99px; background: var(--surface-3); }
+.progress > i { display: block; height: 100%; border-radius: inherit; }
+.goalMeta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.archived { margin-top: 10px; }
+.archivedList { margin: 8px 0 0; padding: 0; list-style: none; font-size: 14px; }
+.archivedList li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.runway { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 12px; }
+.runway > i { height: 8px; border-radius: 4px; background: var(--surface-3); }
+.runway > i.on { background: var(--lime); }
+.table tfoot th, .table tfoot td { padding-top: 10px; border-top: 1px solid var(--line); font-weight: 500; text-align: left; }
+.table tfoot td.r, .table tfoot td:last-child { text-align: right; }
