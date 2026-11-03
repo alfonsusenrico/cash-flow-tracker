@@ -4,17 +4,22 @@ import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
+import { ExplainProvider } from "@/components/workspace/explain";
 import AnalyticsPage from "./page";
 
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() } }));
+const navigation = vi.hoisted(() => ({ params: new URLSearchParams() }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => navigation.params,
+  usePathname: () => "/insights",
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+}));
 const setTimeframe = vi.fn();
 vi.mock("@/components/layout/AppLayout", () => ({
   useAppCtx: () => ({
     timeframe: "month", setTimeframe, cycleOffset: -1, bal: (amount: number) => `Rp ${amount.toLocaleString("id-ID")}`,
   }),
 }));
-vi.mock("@/components/dashboard/BurnCadenceChart", () => ({ BurnCadenceChart: () => null }));
-vi.mock("@/components/dashboard/SpendingHeatmap", () => ({ SpendingHeatmap: () => null }));
 vi.mock("@/hooks/useAnimatedCounter", () => ({ useAnimatedCounter: (value: number) => value }));
 vi.mock("@/components/recurring/RecurringRulesModal", () => ({
   RecurringRulesModal: ({ open, expenseDraft }: { open: boolean; expenseDraft?: { name: string; amount: number } | null }) =>
@@ -41,15 +46,18 @@ function renderAnalytics() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(<QueryClientProvider client={queryClient}><AnalyticsPage /></QueryClientProvider>);
+  return render(<QueryClientProvider client={queryClient}><ExplainProvider><AnalyticsPage /></ExplainProvider></QueryClientProvider>);
 }
 
 describe("category management form", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    navigation.params = new URLSearchParams();
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path.startsWith("/dashboard/analytics?")) return { category_variance: [expenseCategory] };
       if (path === "/categories?include_archived=true") return { categories: [expenseCategory] };
+      const insight = insightResponse(path);
+      if (insight) return insight;
       throw new Error(`Unexpected GET ${path}`);
     });
     vi.mocked(api.post).mockResolvedValue({ ok: true });
@@ -253,7 +261,6 @@ describe("observed insights", () => {
     mockInsights();
     const user = userEvent.setup();
     const { container } = renderAnalytics();
-    await user.click(await screen.findByRole("button", { name: "Bandingkan & Kakeibo" }));
     expect(await screen.findByText(/sama-sama 10 hari pertama/)).toBeInTheDocument();
     expect(api.get).toHaveBeenCalledWith("/dashboard/period-comparison?timeframe=month&cycle_offset=-1");
     const window = `from=${encodeURIComponent(FROM)}&to=${encodeURIComponent(TO)}`;
@@ -268,9 +275,7 @@ describe("observed insights", () => {
 
   it("says so when the previous period has no data", async () => {
     mockInsights(false);
-    const user = userEvent.setup();
     renderAnalytics();
-    await user.click(await screen.findByRole("button", { name: "Bandingkan & Kakeibo" }));
     expect(await screen.findByText(/Periode lalu belum punya transaksi tercatat/)).toBeInTheDocument();
     expect(screen.queryByText("Kategori yang berubah")).not.toBeInTheDocument();
   });
@@ -279,7 +284,6 @@ describe("observed insights", () => {
     mockInsights();
     const user = userEvent.setup();
     renderAnalytics();
-    await user.click(await screen.findByRole("button", { name: "Bandingkan & Kakeibo" }));
     const history = await screen.findByRole("region", { name: "Arus kas per periode" });
     expect(within(history).getAllByRole("listitem")).toHaveLength(7);
     expect(within(history).getByText("berjalan")).toBeInTheDocument();
@@ -292,7 +296,6 @@ describe("observed insights", () => {
     mockInsights();
     const user = userEvent.setup();
     const { container } = renderAnalytics();
-    await user.click(await screen.findByRole("button", { name: "Bandingkan & Kakeibo" }));
     const charges = await screen.findByRole("region", { name: "Tagihan & langganan terdeteksi" });
     expect(await within(charges).findByText("Sudah ada rencana: Kopi mingguan")).toBeInTheDocument();
     expect(within(charges).getAllByText(/berikutnya perkiraan/)).toHaveLength(2);
@@ -358,15 +361,29 @@ describe("report drill-down", () => {
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
-  it("switches the report basis and links Kakeibo pillars", async () => {
+  it("switches the report basis and explains Keluar from the server's lines", async () => {
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path.startsWith("/dashboard/analytics?")) return {
+        timeframe_label: "September 2026", category_variance: [],
+        comparison: { total_inflow: 5_000_000, total_outflow: 100_000, net_cashflow: 4_900_000 },
+        kakeibo: { total_allocated: 100_000 },
+        explanations: {
+          keluar: { total: 100_000, caveat: null, href: null, lines: [{ key: "want", label: "Keinginan", amount: 100_000, note: null, href: "/ledger?period=month&offset=-1&kakeibo=want" }] },
+          belanja: { total: 100_000, caveat: null, href: null, lines: [{ key: "gross", label: "Belanja tercatat", amount: 100_000, note: null, href: null }] },
+        },
+      };
+      if (path === "/categories?include_archived=true") return { categories: [] };
+      const insight = insightResponse(path);
+      if (insight) return insight;
+      throw new Error(`Unexpected GET ${path}`);
+    });
     const user = userEvent.setup();
     renderAnalytics();
     await user.click(await screen.findByRole("button", { name: "Siklus gaji" }));
     expect(setTimeframe).toHaveBeenCalledWith("cycle");
     expect(screen.getByRole("button", { name: "Bulan kalender" })).toHaveAttribute("aria-pressed", "true");
-    await user.click(screen.getByRole("button", { name: "Bandingkan & Kakeibo" }));
-    expect(screen.getByRole("link", { name: "Keinginan Rp 100.000, lihat transaksinya" })).toHaveAttribute(
-      "href", "/ledger?period=month&offset=-1&kakeibo=want&type=expense",
-    );
+    await user.click(screen.getByRole("button", { name: "Keluar Rp 100.000: lihat rincian" }));
+    const panel = await screen.findByRole("dialog", { name: /Keluar periode ini/ });
+    expect(within(panel).getByRole("link", { name: /Keinginan/ })).toHaveAttribute("href", "/ledger?period=month&offset=-1&kakeibo=want");
   });
 });

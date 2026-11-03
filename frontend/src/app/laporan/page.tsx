@@ -1,10 +1,16 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useSearchParams } from "next/navigation";
+import styles from "@/components/analysis/analysis.module.css";
+import { useAppCtx } from "@/components/layout/AppLayout";
+import { PeriodStepper } from "@/components/ui/PeriodStepper";
+import { TopBarControls } from "@/components/workspace/context";
+import { Card, CardHeader, EmptyState, ErrorState, Pill, Segmented, Skeleton } from "@/components/workspace/primitives";
+import { reportLead } from "@/lib/reportLead";
 import { replaceSearch } from "@/lib/urlState";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { BudgetEditorDialog, BudgetPanel } from "@/components/report/BudgetPanel";
 import { ClassificationDialog } from "@/components/report/ClassificationDialog";
 import { ComparisonPanel } from "@/components/report/ComparisonPanel";
@@ -17,12 +23,12 @@ import {
   type MonthlyReport,
   type MonthlyReportResponse,
   type ReportBasis,
+  type ReportPeriod,
   type ReportPeriodList,
   reportQuery,
   shortDate,
 } from "@/lib/monthlyReport";
 import { queryKeys } from "@/lib/queryKeys";
-import { cn } from "@/lib/utils";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const BASIS_OPTIONS: { value: ReportBasis; label: string }[] = [
@@ -42,6 +48,7 @@ function periodNote(report: MonthlyReport): string | null {
 function ReportView() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { bal } = useAppCtx();
   const basis: ReportBasis = searchParams?.get("basis") === "cycle" ? "cycle" : "month";
   const rawStart = searchParams?.get("start") ?? null;
   const start = rawStart && DATE_PATTERN.test(rawStart) ? rawStart : null;
@@ -74,90 +81,62 @@ function ReportView() {
   }, [report]);
 
   const cycleAvailable = periods.data?.cycle_available ?? reportQueryResult.data?.cycle_available ?? false;
-  const header = (
-    <PageHeader
-      eyebrow="Laporan Bulanan"
-      title={report ? report.period.label : "Laporan Bulanan"}
-      description="Empat pertanyaan Kakeibo untuk menutup periode: uang masuk, tabungan, belanja, dan rencana perbaikan."
-    />
-  );
+  // Newest first, so the stepper's offset 0 is the latest report and −n steps back n reports.
+  const ordered = [...(periods.data?.periods ?? [])].sort((left, right) => right.start_date.localeCompare(left.start_date));
+  const shownStart = report?.period.start_date ?? null;
+  const position = Math.max(0, ordered.findIndex((item) => item.start_date === shownStart));
 
   const controls = (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div role="group" aria-label="Dasar periode" className="flex w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] p-1 sm:w-auto">
-        {BASIS_OPTIONS.map((option) => {
-          const unavailable = option.value === "cycle" && !cycleAvailable;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={basis === option.value}
-              disabled={unavailable}
-              onClick={() => navigate({ basis: option.value, start: null })}
-              className={cn(
-                "min-h-11 flex-1 rounded-xl px-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none",
-                basis === option.value
-                  ? "border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-xs"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text)]",
-              )}
-            >
-              {option.label}
-            </button>
-          );
-        })}
+    <TopBarControls>
+      <div className={styles.toolbar}>
+        <Segmented
+          label="Dasar periode"
+          options={BASIS_OPTIONS.filter((option) => option.value === "month" || cycleAvailable)}
+          value={basis}
+          onChange={(value) => navigate({ basis: value, start: null })}
+        />
+        {ordered.length > 0 && (
+          <PeriodStepper
+            unit={basis === "cycle" ? "Siklus" : "Bulan"}
+            label={report?.period.label ?? "Memuat…"}
+            offset={-position}
+            minOffset={-(ordered.length - 1)}
+            onChange={(offset) => navigate({ start: offset === 0 ? null : ordered[-offset]?.start_date ?? null })}
+          />
+        )}
       </div>
-      {periods.data && periods.data.periods.length > 0 && (
-        <div className="flex flex-col gap-1">
-          <label htmlFor="report-period" className="text-xs font-semibold text-[var(--muted)]">Laporan lain</label>
-          <select
-            id="report-period"
-            value={report?.period.start_date ?? ""}
-            onChange={(event) => navigate({ start: event.target.value })}
-            className="min-h-11 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-sm text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
-          >
-            {periods.data.periods.map((item) => (
-              <option key={item.start_date} value={item.start_date}>
-                {item.label}
-                {item.complete ? "" : " (berjalan)"}
-                {item.has_reflection ? " · ada catatan" : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-    </div>
+    </TopBarControls>
   );
 
   if (reportQueryResult.isLoading) {
     return (
-      <div className="space-y-4">
-        {header}
-        <p role="status" className="text-sm text-[var(--muted)]">Menyiapkan laporan…</p>
-        <div aria-hidden="true" className="h-40 animate-pulse rounded-3xl bg-[var(--border)]/30 motion-reduce:animate-none" />
+      <div className={styles.root}>
+        {controls}
+        <p role="status" className={styles.caption}>Menyiapkan laporan…</p>
+        <Skeleton style={{ height: 160 }} />
       </div>
     );
   }
   if (reportQueryResult.isError || !reportQueryResult.data) {
     return (
-      <div className="space-y-4">
-        {header}
+      <div className={styles.root}>
         {controls}
-        <div role="alert" className="cockpit-card border border-[var(--border)] p-5 text-sm text-[var(--text)]">
-          {(reportQueryResult.error as Error | null)?.message || "Laporan belum bisa dimuat. Coba muat ulang halaman."}
-        </div>
+        <ErrorState
+          message={(reportQueryResult.error as Error | null)?.message || "Laporan belum bisa dimuat."}
+          onRetry={() => reportQueryResult.refetch()}
+        />
       </div>
     );
   }
   if (!report) {
     return (
-      <div className="space-y-4">
-        {header}
-        <div className="cockpit-card space-y-2 border border-[var(--border)] p-5">
-          <h2 className="text-base font-bold text-[var(--text)]">Belum ada laporan</h2>
-          <p className="text-sm text-[var(--text-secondary)]">
+      <div className={styles.root}>
+        {controls}
+        <Card>
+          <EmptyState icon="file-text" title="Belum ada laporan">
             Laporan pertama muncul setelah ada transaksi tercatat. Catat pengeluaran atau sambungkan ponsel untuk mulai.
-          </p>
-        </div>
+          </EmptyState>
+        </Card>
       </div>
     );
   }
@@ -165,28 +144,47 @@ function ReportView() {
   const note = periodNote(report);
   const issues = dataQualityIssues(report) > 0;
   const openClassify = () => setClassifyOpen(true);
+  const lead = reportLead(report, bal);
+
+  const side = (
+    <>
+      <ComparisonPanel report={report} />
+      {!issues && <DataQualityPanel report={report} onClassify={openClassify} />}
+      <BudgetPanel report={report} onEdit={() => setBudgetOpen(true)} />
+      <PastReports periods={ordered} current={shownStart} basis={basis} />
+    </>
+  );
 
   return (
-    <div className="space-y-4">
-      {header}
+    <div className={styles.root}>
       {controls}
-      {note && <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/40 p-3 text-sm text-[var(--text)]">{note}</p>}
-
-      <div className="flex flex-col gap-4 lg:grid lg:grid-flow-row-dense lg:grid-cols-12 lg:items-start">
-        {/* On the phone the data-quality box comes first when there is something to fix. */}
-        <div className={cn("lg:col-span-4 lg:col-start-9", issues ? "order-first" : "order-last lg:order-none")}>
-          <DataQualityPanel report={report} onClassify={openClassify} />
-        </div>
-        <div className="space-y-4 lg:col-span-8 lg:col-start-1 lg:row-span-3 lg:row-start-1">
+      <div className={styles.grid}>
+        <div className={styles.stack}>
+          <Card labelledBy="report-title">
+            <p className={styles.kicker}>{basis === "cycle" ? "Laporan siklus gaji" : "Laporan bulan kalender"} · {shortDate(report.period.start_date)} – {shortDate(report.period.end_date)}</p>
+            <h2 id="report-title" className={styles.reportTitle}>Laporan {report.period.label}</h2>
+            {lead.length > 0 && (
+              <p className={styles.reportLead} data-testid="report-lead">
+                {lead.map((sentence) => (
+                  <span key={sentence.key}>
+                    {sentence.text}{" "}
+                    {sentence.key === "unclassified" && (
+                      <button type="button" className={styles.linkButton} onClick={openClassify}>Lengkapi klasifikasi</button>
+                    )}
+                  </span>
+                ))}
+              </p>
+            )}
+            {note && <p className={styles.caption} style={{ marginTop: 10 }}>{note}</p>}
+          </Card>
+          {/* Something to fix comes right after the lead, on every width. */}
+          {issues && <DataQualityPanel report={report} onClassify={openClassify} />}
           <IncomeAnswer report={report} />
           <SavingsAnswer report={report} />
           <SpendingAnswer report={report} onClassify={openClassify} />
           <ReflectionAnswer report={report} />
         </div>
-        <div className="space-y-4 lg:col-span-4 lg:col-start-9">
-          <ComparisonPanel report={report} />
-          <BudgetPanel report={report} onEdit={() => setBudgetOpen(true)} />
-        </div>
+        <div className={styles.stack}>{side}</div>
       </div>
 
       <ClassificationDialog
@@ -196,6 +194,32 @@ function ReportView() {
       />
       <BudgetEditorDialog open={budgetOpen} onClose={() => setBudgetOpen(false)} />
     </div>
+  );
+}
+
+/** "Laporan sebelumnya": each period with whether it is complete, linking to its report (D11). */
+function PastReports({ periods, current, basis }: { periods: ReportPeriod[]; current: string | null; basis: ReportBasis }) {
+  if (periods.length < 2) return null;
+  return (
+    <Card labelledBy="past-reports-heading">
+      <CardHeader id="past-reports-heading" icon="file-text" title="Laporan sebelumnya" />
+      <div>
+        {periods.map((item) => (
+          <Link
+            key={item.start_date}
+            className={styles.reportRow}
+            href={`/laporan?basis=${basis}&start=${item.start_date}`}
+            aria-current={item.start_date === current ? "page" : undefined}
+          >
+            <span style={{ flex: 1 }}>
+              <b>{item.label}</b>
+              <span>{shortDate(item.start_date)} – {shortDate(item.end_date)}{item.has_reflection ? " · ada catatan" : ""}</span>
+            </span>
+            <Pill tone={item.complete ? "ok" : "neutral"}>{item.complete ? "Lengkap" : "Berjalan"}</Pill>
+          </Link>
+        ))}
+      </div>
+    </Card>
   );
 }
 
