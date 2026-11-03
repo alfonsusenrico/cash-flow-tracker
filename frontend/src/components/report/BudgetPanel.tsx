@@ -72,11 +72,11 @@ export function BudgetEditorDialog({ open, onClose }: { open: boolean; onClose: 
           save.mutate();
         }}
       >
-        <p className="text-sm text-[var(--text-secondary)]">
+        <p className="text-sm text-[var(--text-2)]">
           Batas pengeluaran per kategori setiap bulan. Kosongkan kategori yang tidak perlu dibatasi.
         </p>
         {isLoading && <p className="text-sm text-[var(--muted)]">Memuat kategori…</p>}
-        {isError && <p role="alert" className="text-sm text-[var(--danger-text)]">Kategori belum bisa dimuat.</p>}
+        {isError && <p role="alert" className="text-sm text-[var(--out-fg)]">Kategori belum bisa dimuat.</p>}
         <ul className="space-y-2">
           {categories.map((row) => (
             <li key={row.id} className="flex items-center justify-between gap-3">
@@ -90,13 +90,13 @@ export function BudgetEditorDialog({ open, onClose }: { open: boolean; onClose: 
                   value={values[row.id] ?? ""}
                   onChange={(event) => setValues((current) => ({ ...current, [row.id]: grouped(Number(digits(event.target.value)) || null) }))}
                   placeholder="Tanpa batas"
-                  className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] pl-9 pr-3 text-right text-sm tabular-nums text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                  className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] pl-9 pr-3 text-right text-sm tabular-nums text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
                 />
               </div>
             </li>
           ))}
         </ul>
-        {error && <p role="alert" className="text-sm text-[var(--danger-text)]">{error}</p>}
+        {error && <p role="alert" className="text-sm text-[var(--out-fg)]">{error}</p>}
         <div className="flex justify-end gap-2">
           <Button type="button" className="min-h-11" onClick={onClose}>Batal</Button>
           <Button type="submit" variant="primary" className="min-h-11" disabled={save.isPending || isLoading}>
@@ -114,7 +114,7 @@ export function BudgetPanel({ report, onEdit }: { report: MonthlyReport; onEdit:
   if (!budget) {
     return (
       <ReportPanel id="report-budget" title="Anggaran">
-        <p className="text-sm text-[var(--text-secondary)]">Belum ada anggaran. Anggaran tidak wajib; laporan tetap lengkap tanpanya.</p>
+        <p className="text-sm text-[var(--text-2)]">Belum ada anggaran. Anggaran tidak wajib; laporan tetap lengkap tanpanya.</p>
         <Button type="button" className="min-h-11" onClick={onEdit}>Atur anggaran</Button>
       </ReportPanel>
     );
@@ -129,7 +129,7 @@ export function BudgetPanel({ report, onEdit }: { report: MonthlyReport; onEdit:
         </p>
       )}
       {budget.categories.length > 0 && (
-        <ul className="divide-y divide-[var(--border)]">
+        <ul className="divide-y divide-[var(--line)]">
           {budget.categories.map((row) => (
             <li key={row.category_id} className="space-y-1 py-2">
               <div className="flex min-w-0 items-center justify-between gap-3 text-sm">
@@ -143,7 +143,7 @@ export function BudgetPanel({ report, onEdit }: { report: MonthlyReport; onEdit:
                   <span className="text-[var(--muted)]">&nbsp;/ {bal(row.budget)}</span>
                 </Link>
               </div>
-              <p className="text-xs text-[var(--text-secondary)]">
+              <p className="text-xs text-[var(--text-2)]">
                 {row.remaining >= 0 ? `Sisa ${bal(row.remaining)}` : `Lebih ${bal(-row.remaining)}`}
               </p>
             </li>
@@ -151,7 +151,7 @@ export function BudgetPanel({ report, onEdit }: { report: MonthlyReport; onEdit:
         </ul>
       )}
       {budget.period_basis === "cycle" && (
-        <p className="text-xs text-[var(--text-secondary)]">Anggaran bulanan dibandingkan apa adanya dengan satu siklus gaji.</p>
+        <p className="text-xs text-[var(--text-2)]">Anggaran bulanan dibandingkan apa adanya dengan satu siklus gaji.</p>
       )}
       <Button type="button" className="min-h-11" onClick={onEdit}>Ubah anggaran</Button>
     </ReportPanel>

@@ -96,7 +96,7 @@ export function DebtAllocationEditor({
   };
 
   return (
-    <fieldset className="min-w-0 space-y-2 rounded-xl border border-[var(--border)] p-3">
+    <fieldset className="min-w-0 space-y-2 rounded-xl border border-[var(--line)] p-3">
       <legend className="px-1 text-xs font-semibold text-[var(--text)]">Bayar tagihan / utang (opsional) <InfoHelp label="Pembagian pembayaran tagihan">Jumlah bayar mengikuti sisa tagihan. Pilih Ubah jumlah untuk pembayaran sebagian.</InfoHelp></legend>
       {rows.map((row, index) => {
         const selected = debts.find((debt) => debt.id === row.obligation_id);
@@ -111,7 +111,7 @@ export function DebtAllocationEditor({
             <div className="flex min-w-0 items-end gap-2">
               <div className="min-w-0 flex-1">
                 <label htmlFor={selectId} className="mb-1 block text-xs text-[var(--muted)]">Tagihan {index + 1}</label>
-                <select id={selectId} name={`${idPrefix}-obligation-${index}`} autoComplete="off" value={row.obligation_id} onChange={(event) => updateDebt(index, event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-sm text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]">
+                <select id={selectId} name={`${idPrefix}-obligation-${index}`} autoComplete="off" value={row.obligation_id} onChange={(event) => updateDebt(index, event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]">
                   <option value="">Pilih tagihan</option>
                   {choices.map((debt) => (
                     <option key={debt.id} value={debt.id}>{debt.name}{debt.is_archived ? " (tersimpan)" : ` · ${currency(debt.remaining_amount + (originalAmounts[debt.id] || 0))} tersedia`}</option>
@@ -122,12 +122,12 @@ export function DebtAllocationEditor({
               <button type="button" onClick={() => {
                 if (rows.length === 1) setEditingAmounts(false);
                 onChange(rows.filter((_, itemIndex) => itemIndex !== index));
-              }} className="min-h-11 shrink-0 rounded-xl px-3 text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]" aria-label={`Hapus tagihan ${index + 1}`}>Hapus</button>
+              }} className="min-h-11 shrink-0 rounded-xl px-3 text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]" aria-label={`Hapus tagihan ${index + 1}`}>Hapus</button>
             </div>
             {row.obligation_id && (editingAmounts ? (
               <div className="min-w-0">
                 <label htmlFor={`${selectId}-amount`} className="mb-1 block text-xs text-[var(--muted)]">Dibayar untuk tagihan {index + 1} (IDR)</label>
-                <input id={`${selectId}-amount`} name={`${idPrefix}-payment-${index}`} type="text" inputMode="numeric" autoComplete="off" value={row.amount} onChange={(event) => updateAmount(index, event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-sm tabular-nums text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]" />
+                <input id={`${selectId}-amount`} name={`${idPrefix}-payment-${index}`} type="text" inputMode="numeric" autoComplete="off" value={row.amount} onChange={(event) => updateAmount(index, event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm tabular-nums text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]" />
               </div>
             ) : (
               <p className="text-sm tabular-nums text-[var(--text)]">Dibayar {currency(Number(row.amount.replace(/\./g, "")) || 0)}</p>
@@ -135,20 +135,20 @@ export function DebtAllocationEditor({
           </div>
         );
       })}
-      {canAdd && <button type="button" onClick={addDebt} className="min-h-11 rounded-xl border border-[var(--border)] px-3 text-xs font-semibold text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]">+ Tambah tagihan</button>}
+      {canAdd && <button type="button" onClick={addDebt} className="min-h-11 rounded-xl border border-[var(--line)] px-3 text-xs font-semibold text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]">+ Tambah tagihan</button>}
       {rows.some((row) => row.obligation_id) && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] pt-2">
           <div className="text-xs tabular-nums text-[var(--muted)]" aria-live="polite">
             <p>Total bayar {currency(allocated)}</p>
             {allocated !== total && <p>Jumlah bayar belum sesuai nominal transaksi.</p>}
             {hasIncompleteAmount && <p>Isi jumlah bayar positif sebelum menyimpan.</p>}
           </div>
-          <button id={`${idPrefix}-edit-amounts`} type="button" onClick={() => setEditingAmounts(!editingAmounts)} className="min-h-11 rounded-xl px-3 text-xs font-semibold text-[var(--text)] hover:bg-[var(--surface-raised)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]" aria-expanded={editingAmounts}>
+          <button id={`${idPrefix}-edit-amounts`} type="button" onClick={() => setEditingAmounts(!editingAmounts)} className="min-h-11 rounded-xl px-3 text-xs font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]" aria-expanded={editingAmounts}>
             {editingAmounts ? "Selesai ubah jumlah" : "Ubah jumlah"}
           </button>
         </div>
       )}
-      {error && <p role="alert" className="text-xs text-rose-600">{error}</p>}
+      {error && <p role="alert" className="text-xs text-out-fg">{error}</p>}
     </fieldset>
   );
 }

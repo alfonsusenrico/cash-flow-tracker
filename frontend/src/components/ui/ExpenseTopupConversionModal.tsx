@@ -66,7 +66,7 @@ export function ExpenseTopupConversionModal({ expense, accounts, onClose, onConv
           {expense.account_name ? <> dari <span className="font-semibold">{expense.account_name}</span></> : null} dicatat sebagai top up ke produk yang dipilih. Saldo rekening sumber tidak berubah karena debit ini sudah tercatat.
         </p>
         {products.length === 0 ? (
-          <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-sm">
+          <p className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 text-sm">
             Belum ada produk reksadana yang dicatat berdasarkan nominal. Buka Rekening, pilih menu produk, lalu pilih &quot;Ubah ke pelacakan nominal&quot;.
           </p>
         ) : (
@@ -79,7 +79,7 @@ export function ExpenseTopupConversionModal({ expense, accounts, onClose, onConv
               onChange={(event) => setProductId(event.target.value)}
               disabled={busy}
               aria-invalid={Boolean(error) && !productId}
-              className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+              className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
             >
               <option value="">Pilih produk…</option>
               {products.map((product) => (
@@ -90,9 +90,9 @@ export function ExpenseTopupConversionModal({ expense, accounts, onClose, onConv
             </select>
           </div>
         )}
-        {error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] pt-3">
-          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-xl border border-[var(--border)] px-3 text-sm">Batal</button>
+        {error && <p role="alert" className="text-sm text-out-fg">{error}</p>}
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--line)] pt-3">
+          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-xl border border-[var(--line)] px-3 text-sm">Batal</button>
           <button type="submit" disabled={busy || products.length === 0} className="min-h-11 rounded-xl bg-[#1E201E] px-4 text-sm font-semibold text-white disabled:opacity-50">
             {busy ? "Menyimpan…" : "Jadikan top up"}
           </button>

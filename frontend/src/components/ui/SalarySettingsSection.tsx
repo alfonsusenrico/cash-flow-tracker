@@ -23,7 +23,7 @@ type Receipt = Income & { confirmation_method: string };
 type SalaryAction = { kind: "source" | "confirm" | "revoke" | "reject"; id: string } | { kind: "detect" };
 
 const PAGE_SIZE = 50;
-const quietButton = "min-h-11 text-[var(--text-secondary)]";
+const quietButton = "min-h-11 text-[var(--text-2)]";
 
 function describe(row: Income) {
   const date = new Date(row.date).toLocaleDateString("id-ID", { dateStyle: "medium" });
@@ -120,7 +120,7 @@ export function SalarySettingsSection() {
       {!pending && !failed && (
         <>
           <SettingsSubsection id="salary-source-title" title="Sumber gaji saat ini">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-raised)]/40 px-3 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface-2)]/40 px-3 py-2.5">
               {configured ? (
                 <p className="min-w-0 flex-1 break-words text-[var(--text)]">
                   <span className="font-semibold">{configured.value}</span>
@@ -129,7 +129,7 @@ export function SalarySettingsSection() {
                   </span>
                 </p>
               ) : (
-                <p className="min-w-0 flex-1 text-[var(--text-secondary)]">
+                <p className="min-w-0 flex-1 text-[var(--text-2)]">
                   Sumber gaji belum dipilih. Laporan memakai bulan kalender sampai ada gaji terkonfirmasi.
                 </p>
               )}
@@ -140,12 +140,12 @@ export function SalarySettingsSection() {
               )}
             </div>
 
-            <details open={!configured} className="group rounded-[var(--radius-md)] border border-[var(--border)]">
-              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 font-semibold text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)] [&::-webkit-details-marker]:hidden">
+            <details open={!configured} className="group rounded-[var(--radius-md)] border border-[var(--line)]">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 font-semibold text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] [&::-webkit-details-marker]:hidden">
                 {configured ? "Ganti sumber" : "Pilih sumber"}
                 <Icon name="chevron-down" className="h-4 w-4 text-[var(--muted)] transition-transform group-open:rotate-180" />
               </summary>
-              <div className="space-y-3 border-t border-[var(--border)] p-3">
+              <div className="space-y-3 border-t border-[var(--line)] p-3">
                 {eligible.length === 0 ? (
                   <p className="text-[var(--muted)]">Belum ada pemasukan tercatat yang bisa dipilih.</p>
                 ) : (
@@ -172,7 +172,7 @@ export function SalarySettingsSection() {
                     Lebih lama
                   </Button>
                 </div>
-                <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--border)] pt-3">
+                <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--line)] pt-3">
                   <Button
                     type="button"
                     size="sm"

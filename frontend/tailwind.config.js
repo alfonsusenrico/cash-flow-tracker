@@ -4,123 +4,58 @@ module.exports = {
   darkMode: "class",
   theme: {
     extend: {
+      // Workspace tokens only (redesign-money-and-settings D11). Semantic families take an opacity modifier
+      // through color-mix, so `bg-out-solid/10` tints with the themed token.
       colors: {
-        bg: "var(--bg)",
-        surface: "var(--surface)",
-        "surface-raised": "var(--surface-raised)",
-        border: "var(--border)",
-        "border-strong": "var(--border-strong)",
-        text: "var(--text)",
-        "text-secondary": "var(--text-secondary)",
-        muted: "var(--muted)",
-        income: {
-          DEFAULT: "var(--color-income)",
-          hover: "var(--color-income-hover)",
-          soft: "var(--color-income-soft)",
-          contrast: "var(--income-contrast)",
-          "hover-contrast": "var(--income-hover-contrast)",
-        },
-        expense: {
-          DEFAULT: "var(--color-expense)",
-          hover: "var(--color-expense-hover)",
-          soft: "var(--color-expense-soft)",
-        },
-        warning: {
-          DEFAULT: "var(--color-warning)",
-          soft: "var(--color-warning-soft)",
-        },
-        transfer: {
-          DEFAULT: "var(--color-transfer)",
-          contrast: "var(--transfer-contrast)",
-        },
-        investment: {
-          DEFAULT: "var(--color-investment)",
-          soft: "var(--color-investment-soft)",
-          contrast: "var(--investment-contrast)",
-        },
         canvas: "var(--canvas)",
         window: "var(--window)",
+        surface: "var(--surface)",
         "surface-2": "var(--surface-2)",
         "surface-3": "var(--surface-3)",
         line: "var(--line)",
         "line-strong": "var(--line-strong)",
+        text: "var(--text)",
+        "text-2": "var(--text-2)",
+        muted: "var(--muted)",
         ink: {
           DEFAULT: "var(--ink)",
+          hover: "var(--ink-hover)",
           fg: "var(--ink-fg)",
         },
-        sidebar: "var(--sidebar)",
-        "sidebar-hover": "var(--sidebar-hover)",
-        "sidebar-active": "var(--sidebar-active)",
-        "sidebar-text": "var(--sidebar-text)",
-        "sidebar-text-active": "var(--sidebar-text-active)",
-        primary: {
-          DEFAULT: "var(--primary)",
-          hover: "var(--primary-hover)",
-          soft: "var(--primary-soft)",
-          contrast: "var(--primary-contrast)",
+        "in": {
+          "fg": "color-mix(in srgb, var(--in-fg) calc(<alpha-value> * 100%), transparent)",
+          "bg": "color-mix(in srgb, var(--in-bg) calc(<alpha-value> * 100%), transparent)",
+          "solid": "color-mix(in srgb, var(--in-solid) calc(<alpha-value> * 100%), transparent)",
+          "solid-hover": "color-mix(in srgb, var(--in-solid-hover) calc(<alpha-value> * 100%), transparent)",
+          "solid-fg": "color-mix(in srgb, var(--in-solid-fg) calc(<alpha-value> * 100%), transparent)",
+          "solid-hover-fg": "color-mix(in srgb, var(--in-solid-hover-fg) calc(<alpha-value> * 100%), transparent)",
         },
-        emerald: {
-          50: "var(--color-income-soft)",
-          400: "var(--color-income)",
-          500: "var(--color-income)",
-          600: "var(--color-income-hover)",
-          700: "var(--color-income-hover)",
+        "out": {
+          "fg": "color-mix(in srgb, var(--out-fg) calc(<alpha-value> * 100%), transparent)",
+          "bg": "color-mix(in srgb, var(--out-bg) calc(<alpha-value> * 100%), transparent)",
+          "solid": "color-mix(in srgb, var(--out-solid) calc(<alpha-value> * 100%), transparent)",
+          "solid-hover": "color-mix(in srgb, var(--out-solid-hover) calc(<alpha-value> * 100%), transparent)",
         },
-        rose: {
-          50: "var(--color-expense-soft)",
-          400: "var(--color-expense)",
-          500: "var(--color-expense)",
-          600: "var(--color-expense-hover)",
-          700: "var(--color-expense-hover)",
+        "tr": {
+          "fg": "color-mix(in srgb, var(--tr-fg) calc(<alpha-value> * 100%), transparent)",
+          "bg": "color-mix(in srgb, var(--tr-bg) calc(<alpha-value> * 100%), transparent)",
+          "solid": "color-mix(in srgb, var(--tr-solid) calc(<alpha-value> * 100%), transparent)",
+          "solid-fg": "color-mix(in srgb, var(--tr-solid-fg) calc(<alpha-value> * 100%), transparent)",
         },
-      },
-      // Coral, emerald, amber, sky and violet (lavender) text use the darker text inks so they read at 4.5:1 on light surfaces;
-      // bg-, border-, ring- and shadow- utilities keep the vivid fills from `colors`.
-      textColor: {
-        income: {
-          DEFAULT: "var(--income-text)",
+        "inv": {
+          "fg": "color-mix(in srgb, var(--inv-fg) calc(<alpha-value> * 100%), transparent)",
+          "bg": "color-mix(in srgb, var(--inv-bg) calc(<alpha-value> * 100%), transparent)",
+          "solid": "color-mix(in srgb, var(--inv-solid) calc(<alpha-value> * 100%), transparent)",
+          "solid-fg": "color-mix(in srgb, var(--inv-solid-fg) calc(<alpha-value> * 100%), transparent)",
         },
-        emerald: {
-          400: "var(--income-text)",
-          500: "var(--income-text)",
-          600: "var(--income-text)",
-          700: "var(--income-text)",
+        "warn": {
+          "fg": "color-mix(in srgb, var(--warn-fg) calc(<alpha-value> * 100%), transparent)",
+          "bg": "color-mix(in srgb, var(--warn-bg) calc(<alpha-value> * 100%), transparent)",
+          "solid": "color-mix(in srgb, var(--warn-solid) calc(<alpha-value> * 100%), transparent)",
         },
-        amber: {
-          400: "var(--warning-text)",
-          500: "var(--warning-text)",
-          600: "var(--warning-text)",
-          700: "var(--warning-text)",
-        },
-        sky: {
-          400: "var(--transfer-text)",
-          500: "var(--transfer-text)",
-          600: "var(--transfer-text)",
-          700: "var(--transfer-text)",
-        },
-        transfer: {
-          DEFAULT: "var(--transfer-text)",
-        },
-        violet: {
-          400: "var(--investment-text)",
-          500: "var(--investment-text)",
-          600: "var(--investment-text)",
-          700: "var(--investment-text)",
-        },
-        investment: {
-          DEFAULT: "var(--investment-text)",
-        },
-        expense: {
-          DEFAULT: "var(--expense-text)",
-        },
-        primary: {
-          DEFAULT: "var(--primary-text)",
-        },
-        rose: {
-          400: "var(--expense-text)",
-          500: "var(--expense-text)",
-          600: "var(--expense-text)",
-          700: "var(--expense-text)",
+        "ok": {
+          "fg": "color-mix(in srgb, var(--ok-fg) calc(<alpha-value> * 100%), transparent)",
+          "bg": "color-mix(in srgb, var(--ok-bg) calc(<alpha-value> * 100%), transparent)",
         },
       },
       fontFamily: {

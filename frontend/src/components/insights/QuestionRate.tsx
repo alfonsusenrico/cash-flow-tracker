@@ -39,7 +39,7 @@ function Count({ label, value, whole }: { label: string; value: number; whole: n
     <div className="inline-flex items-baseline gap-1">
       <dt className="text-[var(--muted)]">{label}</dt>
       <dd className="font-semibold tabular-nums text-[var(--text)]">
-        {value} <span className="font-normal text-[var(--text-secondary)]">({share(value, whole)})</span>
+        {value} <span className="font-normal text-[var(--text-2)]">({share(value, whole)})</span>
       </dd>
     </div>
   );
@@ -53,22 +53,22 @@ export function QuestionRate() {
   });
   const weeks = data ? [...data.weeks].reverse() : [];
   return (
-    <section aria-labelledby="question-rate-title" className="cockpit-card space-y-3 border border-[var(--border)] p-4 text-xs shadow-xs sm:p-6">
+    <section aria-labelledby="question-rate-title" className="ws-card space-y-3 text-xs">
       <div>
         <h2 id="question-rate-title" className="text-base font-bold tracking-tight text-[var(--text)]">Seberapa sering ditanya</h2>
-        <p className="mt-0.5 text-[var(--text-secondary)]">
+        <p className="mt-0.5 text-[var(--text-2)]">
           Transaksi dari notifikasi dan ketikan per minggu: berapa yang ditanyakan, dan siapa yang mencatat sisanya.
         </p>
       </div>
-      {isError && <p className="text-[var(--text-secondary)]">Hitungan belum dapat dimuat.</p>}
-      {!isError && isLoading && <p className="text-[var(--text-secondary)]">Memuat…</p>}
+      {isError && <p className="text-[var(--text-2)]">Hitungan belum dapat dimuat.</p>}
+      {!isError && isLoading && <p className="text-[var(--text-2)]">Memuat…</p>}
       {data && !data.has_data && (
-        <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-[var(--text-secondary)]">
+        <p className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 text-[var(--text-2)]">
           Belum ada transaksi dari notifikasi atau ketikan dalam {QUESTION_RATE_WEEKS} minggu terakhir.
         </p>
       )}
       {data?.has_data && (
-        <ol className="divide-y divide-[var(--border)]">
+        <ol className="divide-y divide-[var(--line)]">
           {weeks.map((week) => (
             <li key={week.week_start} className="space-y-1.5 py-2.5">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -76,7 +76,7 @@ export function QuestionRate() {
                   {day(week.week_start)} – {day(week.week_end)}
                 </h3>
                 {week.in_progress && (
-                  <span className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-800 dark:text-amber-200">
+                  <span className="shrink-0 rounded-full border border-warn-solid/30 bg-warn-solid/10 px-2 py-0.5 font-semibold text-warn-fg">
                     berjalan
                   </span>
                 )}
@@ -90,8 +90,8 @@ export function QuestionRate() {
                 <p className="text-[var(--muted)]">Tidak ada transaksi tercatat.</p>
               ) : (
                 <>
-                  <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
-                    <div className="h-full rounded-full bg-[var(--text-secondary)]" style={{ width: share(week.asked, week.recorded) }} />
+                  <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-[var(--line)]">
+                    <div className="h-full rounded-full bg-[var(--text-2)]" style={{ width: share(week.asked, week.recorded) }} />
                   </div>
                   <dl className="flex flex-wrap gap-x-3 gap-y-1">
                     <Count label="Memori" value={week.by_memory} whole={week.recorded} />
@@ -103,7 +103,7 @@ export function QuestionRate() {
                 </>
               )}
               {(week.recorded > 0 || week.corrections > 0) && (
-                <p className="tabular-nums text-[var(--text-secondary)]">
+                <p className="tabular-nums text-[var(--text-2)]">
                   Koreksi: {week.corrections}
                   {week.habit_corrections > 0 && ` (${week.habit_corrections} dari kebiasaan)`}
                 </p>

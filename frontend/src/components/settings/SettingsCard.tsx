@@ -5,7 +5,7 @@ import { settingsSection, type SettingsSectionSlug } from "@/components/settings
 export const SETTINGS_FIELD_WIDTH = "w-full max-w-md";
 
 export const settingsControlClass =
-  "min-h-11 w-full rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)] disabled:opacity-50";
+  "min-h-11 w-full rounded-[var(--radius-md)] border border-[var(--line-strong)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] disabled:opacity-50";
 
 /**
  * Confirmed destructive action. `rose-700` maps to the expense hover token, which is light coral in dark
@@ -15,7 +15,7 @@ export const confirmDangerClass = "bg-[var(--danger-solid)] text-[var(--danger-c
 
 /** Quiet destructive text button; rose 700/300 keep 4.5:1 on both surfaces where the coral token does not. */
 export const quietDangerClass =
-  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-[var(--radius-md)] px-3 text-xs font-semibold text-rose-700 hover:bg-rose-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)] disabled:opacity-50 dark:text-rose-300";
+  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-[var(--radius-md)] px-3 text-xs font-semibold text-out-fg hover:bg-out-solid/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] disabled:opacity-50";
 
 interface SettingsCardProps {
   section: SettingsSectionSlug;
@@ -28,23 +28,23 @@ export function SettingsCard({ section, children, footer }: SettingsCardProps) {
   const { title, purpose } = settingsSection(section);
   const headingId = `settings-${section}-title`;
   return (
-    <section aria-labelledby={headingId} className="card-squircle text-sm">
-      <div className="space-y-5 p-4 sm:p-6">
+    <section aria-labelledby={headingId} className="ws-card text-sm">
+      <div className="space-y-5">
         <header className="space-y-1">
           <h2
             id={headingId}
             tabIndex={-1}
             data-settings-heading
-            className="text-base font-bold tracking-tight text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
+            className="text-base font-bold tracking-tight text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]"
           >
             {title}
           </h2>
-          <p className="text-[var(--text-secondary)]">{purpose}</p>
+          <p className="text-[var(--text-2)]">{purpose}</p>
         </header>
         {children}
       </div>
       {footer && (
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-4 py-4 sm:px-6">
+        <div className="-mx-[22px] -mb-5 mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-[var(--line)] px-[22px] py-4">
           {footer}
         </div>
       )}
@@ -65,10 +65,10 @@ interface SettingsSubsectionProps {
 /** A titled group inside a section card, separated from the previous group by a rule. */
 export function SettingsSubsection({ id, headingRef, title, description, action, children, className }: SettingsSubsectionProps) {
   return (
-    <section aria-labelledby={id} className={cn("space-y-3 border-t border-[var(--border)] pt-5 first:border-t-0 first:pt-0", className)}>
+    <section aria-labelledby={id} className={cn("space-y-3 border-t border-[var(--line)] pt-5 first:border-t-0 first:pt-0", className)}>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1 space-y-0.5">
-          <h3 ref={headingRef} id={id} tabIndex={-1} className="text-sm font-semibold text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]">
+          <h3 ref={headingRef} id={id} tabIndex={-1} className="text-sm font-semibold text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]">
             {title}
           </h3>
           {description && <p className="text-xs text-[var(--muted)]">{description}</p>}
@@ -103,7 +103,7 @@ export function SettingsField({ id, label, help, error, aside, className, childr
       </div>
       {children({ id, "aria-describedby": describedBy, "aria-invalid": error ? true : undefined })}
       {help && <p id={helpId} className="text-xs text-[var(--muted)]">{help}</p>}
-      {error && <p id={errorId} className="text-xs font-medium text-rose-700 dark:text-rose-300">{error}</p>}
+      {error && <p id={errorId} className="text-xs font-medium text-out-fg">{error}</p>}
     </div>
   );
 }
@@ -119,7 +119,7 @@ export function SettingsSaveStatus({ dirty, saved }: { dirty: boolean; saved: bo
 
 export function SettingsAlert({ children }: { children: React.ReactNode }) {
   return (
-    <p role="alert" className="rounded-[var(--radius-md)] border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-700 dark:text-rose-300">
+    <p role="alert" className="rounded-[var(--radius-md)] border border-out-solid/25 bg-out-solid/10 px-3 py-2 text-xs font-medium text-out-fg">
       {children}
     </p>
   );
@@ -128,7 +128,7 @@ export function SettingsAlert({ children }: { children: React.ReactNode }) {
 /** Bordered list of rows used for devices, mappings and sender names. */
 export function SettingsList({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <ul aria-label={label} className="divide-y divide-[var(--border)] rounded-[var(--radius-md)] border border-[var(--border)]">
+    <ul aria-label={label} className="divide-y divide-[var(--line)] rounded-[var(--radius-md)] border border-[var(--line)]">
       {children}
     </ul>
   );

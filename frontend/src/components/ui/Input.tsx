@@ -14,12 +14,12 @@ export function Input({ label, error, className, id, ...props }: InputProps) {
         id={inputId}
         {...props}
         className={cn(
-          "min-h-11 w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm bg-[var(--surface)] text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]",
-          error && "border-[var(--danger)]",
+          "min-h-11 w-full border border-[var(--line)] rounded-[var(--radius-md)] px-3 py-2 text-sm bg-[var(--surface)] text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]",
+          error && "border-[var(--out-solid)]",
           className
         )}
       />
-      {error && <p className="text-xs text-[var(--danger-text)]">{error}</p>}
+      {error && <p className="text-xs text-[var(--out-fg)]">{error}</p>}
     </div>
   );
 }
@@ -37,7 +37,7 @@ export function Select({ label, className, id, children, ...props }: SelectProps
         id={inputId}
         {...props}
         className={cn(
-          "min-h-11 w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm bg-[var(--surface)] text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]",
+          "min-h-11 w-full border border-[var(--line)] rounded-[var(--radius-md)] px-3 py-2 text-sm bg-[var(--surface)] text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]",
           className
         )}
       >

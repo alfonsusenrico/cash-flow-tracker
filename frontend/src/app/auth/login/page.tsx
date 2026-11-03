@@ -68,8 +68,8 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[var(--bg)] text-[var(--text)] px-4">
-      <div className="w-full max-w-sm rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm sm:p-8">
+    <main className="min-h-screen flex items-center justify-center bg-[var(--window)] text-[var(--text)] px-4">
+      <div className="w-full max-w-sm rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm sm:p-8">
         <h1 className="text-2xl font-bold mb-1 text-center tracking-tight">CashFlow</h1>
         <p className="text-center text-xs text-[var(--muted)] mb-6">
           {mode === "login" ? "Masuk ke akun Anda" : "Buat akun baru"}
@@ -85,7 +85,7 @@ export default function LoginPage() {
                 id="full_name"
                 name="full_name"
                 autoComplete="name"
-                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+                className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
               />
             </div>
           )}
@@ -99,7 +99,7 @@ export default function LoginPage() {
               autoComplete="username"
               required
               minLength={mode === "register" ? 6 : undefined}
-              className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+              className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
             />
           </div>
           <div>
@@ -114,7 +114,7 @@ export default function LoginPage() {
               required
               minLength={mode === "register" ? REGISTRATION_PASSWORD_MIN_LENGTH : undefined}
               aria-describedby={mode === "register" ? "password-help" : undefined}
-              className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+              className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
             />
             {mode === "register" && (
               <p id="password-help" className="mt-1 text-[11px] text-[var(--muted)]">
@@ -132,13 +132,13 @@ export default function LoginPage() {
                 name="invite_code"
                 autoComplete="off"
                 required
-                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+                className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
               />
             </div>
           )}
 
           {error && (
-            <p role="alert" className="text-xs font-medium text-expense">
+            <p role="alert" className="text-xs font-medium text-out-fg">
               {error}
             </p>
           )}
@@ -146,7 +146,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="min-h-11 w-full rounded-xl bg-[#1E201E] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#313631] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-50"
+            className="min-h-11 w-full rounded-xl bg-[#1E201E] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#313631] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)] disabled:opacity-50"
           >
             {loading ? "Memproses…" : mode === "login" ? "Masuk" : "Daftar Akun"}
           </button>
@@ -158,7 +158,7 @@ export default function LoginPage() {
               Belum punya akun?{" "}
               <button
                 onClick={() => { setMode("register"); setError(""); }}
-                className="min-h-11 font-semibold text-[var(--text)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                className="min-h-11 font-semibold text-[var(--text)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
               >
                 Daftar sekarang
               </button>
@@ -168,7 +168,7 @@ export default function LoginPage() {
               Sudah punya akun?{" "}
               <button
                 onClick={() => { setMode("login"); setError(""); }}
-                className="min-h-11 font-semibold text-[var(--text)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                className="min-h-11 font-semibold text-[var(--text)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
               >
                 Masuk di sini
               </button>

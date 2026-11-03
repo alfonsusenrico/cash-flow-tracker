@@ -14,7 +14,7 @@ export const COMPANION_MIN_ANDROID = "Android 8.0";
 
 const QR_SIZE = 160;
 const linkClass =
-  "font-semibold text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]";
+  "font-semibold text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]";
 
 function DownloadDetails() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -40,7 +40,7 @@ function DownloadDetails() {
 
   return (
     <div className="flex flex-wrap items-start gap-4 text-xs">
-      <div className="shrink-0 rounded-[var(--radius-md)] border border-[var(--border)] bg-white p-2">
+      <div className="shrink-0 rounded-[var(--radius-md)] border border-[var(--line)] bg-white p-2">
         <canvas
           ref={canvasRef}
           width={QR_SIZE}
@@ -50,10 +50,10 @@ function DownloadDetails() {
           className="block h-40 w-40"
         />
       </div>
-      <div className="min-w-0 flex-1 basis-56 space-y-2 text-[var(--text-secondary)]">
+      <div className="min-w-0 flex-1 basis-56 space-y-2 text-[var(--text-2)]">
         <p>Pindai dengan kamera ponsel untuk mengunduh, atau buka tautan ini di ponsel.</p>
         {qrFailed && (
-          <p role="alert" className="text-[var(--danger-text)]">
+          <p role="alert" className="text-[var(--out-fg)]">
             Kode QR gagal ditampilkan. Pakai tautan unduhan.
           </p>
         )}
@@ -92,15 +92,15 @@ export function CompanionDownloadSection() {
 /** Collapsed in the pairing dialog, so its QR cannot be mistaken for the pairing code. */
 export function CompanionDownloadDisclosure() {
   return (
-    <details className="group rounded-[var(--radius-md)] border border-[var(--border)]">
+    <details className="group rounded-[var(--radius-md)] border border-[var(--line)]">
       <summary
         id="companion-download-disclosure"
-        className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 font-semibold text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)] [&::-webkit-details-marker]:hidden"
+        className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 font-semibold text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] [&::-webkit-details-marker]:hidden"
       >
         Belum punya aplikasinya? Unduh aplikasi pendamping
         <Icon name="chevron-down" className="h-4 w-4 shrink-0 text-[var(--muted)] transition-transform group-open:rotate-180" />
       </summary>
-      <section aria-labelledby="companion-download-disclosure" className="border-t border-[var(--border)] p-3">
+      <section aria-labelledby="companion-download-disclosure" className="border-t border-[var(--line)] p-3">
         <DownloadDetails />
       </section>
     </details>

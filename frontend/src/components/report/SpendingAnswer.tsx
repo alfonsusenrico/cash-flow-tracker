@@ -47,7 +47,7 @@ function PillarList({ report, onClassify }: { report: MonthlyReport; onClassify:
                   <span className="inline-flex min-h-11 shrink-0 items-center text-sm tabular-nums text-[var(--muted)]">{bal(0)}</span>
                 )}
               </div>
-              <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
+              <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-[var(--line)]">
                 <div className="h-full rounded-full" style={{ width: `${Math.min(100, share)}%`, backgroundColor: info?.color }} />
               </div>
               {unclassified && item.amount > 0 && (
@@ -63,7 +63,7 @@ function PillarList({ report, onClassify }: { report: MonthlyReport; onClassify:
           );
         })}
       </ul>
-      <p className="text-xs text-[var(--text-secondary)]">
+      <p className="text-xs text-[var(--text-2)]">
         Persentase dari total uang keluar. Pengeluaran tanpa pilar tidak dihitung sebagai Kebutuhan.
       </p>
     </div>
@@ -80,7 +80,7 @@ function TopLists({ report }: { report: MonthlyReport }) {
         {spending.top_categories.length === 0 ? (
           <p className="text-sm text-[var(--muted)]">Belum ada pengeluaran.</p>
         ) : (
-          <ul className="divide-y divide-[var(--border)]">
+          <ul className="divide-y divide-[var(--line)]">
             {spending.top_categories.map((item) => (
               <AmountRow
                 key={item.category_id ?? "uncategorized"}
@@ -98,7 +98,7 @@ function TopLists({ report }: { report: MonthlyReport }) {
         {spending.top_merchants.length === 0 ? (
           <p className="text-sm text-[var(--muted)]">Belum ada nama tempat belanja tercatat.</p>
         ) : (
-          <ul className="divide-y divide-[var(--border)]">
+          <ul className="divide-y divide-[var(--line)]">
             {spending.top_merchants.map((item) => (
               <AmountRow
                 key={item.search_text}
@@ -127,7 +127,7 @@ function UnexpectedAndRecurring({ report }: { report: MonthlyReport }) {
           <p className="text-sm text-[var(--muted)]">Tidak ada pengeluaran tak terduga.</p>
         ) : (
           <>
-            <ul className="divide-y divide-[var(--border)]">
+            <ul className="divide-y divide-[var(--line)]">
               {unexpected.items.map((item) => (
                 <AmountRow
                   key={item.id}
@@ -155,7 +155,7 @@ function UnexpectedAndRecurring({ report }: { report: MonthlyReport }) {
         {recurring.charges.length === 0 ? (
           <p className="text-sm text-[var(--muted)]">Belum terlihat tagihan yang berulang pada periode ini.</p>
         ) : (
-          <ul className="divide-y divide-[var(--border)]">
+          <ul className="divide-y divide-[var(--line)]">
             {recurring.charges.map((charge) => (
               <AmountRow
                 key={charge.search_text}
@@ -177,10 +177,10 @@ function EssentialBrief({ report }: { report: MonthlyReport }) {
   const { bal } = useAppCtx();
   const essential = report.spending.essential;
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/40 p-3 text-sm">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)]/40 p-3 text-sm">
       <SubHeading>Biaya hidup pokok · saat ini</SubHeading>
       {essential.amount === null ? (
-        <p className="mt-1 text-[var(--text-secondary)]">Belum bisa dihitung. Butuh satu bulan lengkap atau anggaran Kebutuhan.</p>
+        <p className="mt-1 text-[var(--text-2)]">Belum bisa dihitung. Butuh satu bulan lengkap atau anggaran Kebutuhan.</p>
       ) : (
         <p className="mt-1 text-[var(--text)]">
           <span className="font-bold tabular-nums">{bal(essential.amount)}</span> per bulan
@@ -189,7 +189,7 @@ function EssentialBrief({ report }: { report: MonthlyReport }) {
               {" "}· dana darurat cukup untuk <span className="font-bold tabular-nums">{essential.coverage_months.toLocaleString("id-ID")}</span> bulan
             </>
           )}
-          {essential.limited_history && <span className="text-[var(--text-secondary)]"> (riwayat masih sedikit)</span>}
+          {essential.limited_history && <span className="text-[var(--text-2)]"> (riwayat masih sedikit)</span>}
         </p>
       )}
       <Link href="/insights" className={cn("mt-1 inline-flex min-h-11 items-center text-xs font-semibold", LINK_CLASS)}>
@@ -211,7 +211,7 @@ export function SpendingAnswer({ report, onClassify }: { report: MonthlyReport; 
         <>
           <AnswerAmount href={reportLedgerHref(period, { type: "expense" })} amount={bal(flow.outflow)} label="lihat semua uang keluar" />
           {flow.reimbursement_offset > 0 && (
-            <p className="text-xs text-[var(--text-secondary)]">
+            <p className="text-xs text-[var(--text-2)]">
               Sudah dikurangi ganti uang <span className="tabular-nums">{bal(flow.reimbursement_offset)}</span> dari{" "}
               <span className="tabular-nums">{bal(flow.gross_outflow)}</span>.
             </p>

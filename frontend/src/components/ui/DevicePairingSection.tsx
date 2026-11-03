@@ -33,7 +33,7 @@ function DeviceReadiness({ device, checkedAt }: { device: PairedDevice; checkedA
         Lapor terakhir {formatDate(health.reported_at, true)} · Aplikasi v{health.app_version}
       </p>
       {problems.length > 0 && (
-        <ul aria-label={`Masalah di ${device.name}`} className="list-disc space-y-0.5 pl-4 text-xs text-[var(--danger-text)]">
+        <ul aria-label={`Masalah di ${device.name}`} className="list-disc space-y-0.5 pl-4 text-xs text-[var(--out-fg)]">
           {problems.map((problem) => (
             <li key={problem}>{problem}</li>
           ))}
@@ -50,8 +50,8 @@ function ReadinessBadge({ device, checkedAt }: { device: PairedDevice; checkedAt
     <span
       className={
         ready
-          ? "rounded-full bg-[var(--color-income-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--income-text)]"
-          : "rounded-full bg-[var(--color-warning-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--text)]"
+          ? "rounded-full bg-[var(--in-bg)] px-2 py-0.5 text-[11px] font-bold text-[var(--in-fg)]"
+          : "rounded-full bg-[var(--warn-bg)] px-2 py-0.5 text-[11px] font-bold text-[var(--text)]"
       }
     >
       {ready ? "Siap" : "Perlu dicek"}

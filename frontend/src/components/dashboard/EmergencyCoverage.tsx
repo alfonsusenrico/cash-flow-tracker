@@ -51,10 +51,10 @@ export function coverageText(runway: EmergencyRunway): string {
 }
 
 export function coverageTone(status: EmergencyRunway["status"]): string {
-  if (status === "healthy") return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20";
-  if (status === "moderate") return "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20";
-  if (status === "critical") return "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20";
-  return "bg-[var(--surface-raised)] text-[var(--text-secondary)] border-[var(--border)]";
+  if (status === "healthy") return "bg-in-solid/10 text-in-fg border-in-solid/20";
+  if (status === "moderate") return "bg-warn-solid/10 text-warn-fg border-warn-solid/20";
+  if (status === "critical") return "bg-out-solid/10 text-out-fg border-out-solid/20";
+  return "bg-[var(--surface-2)] text-[var(--text-2)] border-[var(--line)]";
 }
 
 /** How the essential monthly cost was obtained, in one sentence. */
@@ -77,11 +77,11 @@ export function EmergencyCoverageBasis({ runway, bal }: Props) {
   const cost = runway.essential_cost;
   const periods = cost?.periods_used ?? [];
   return (
-    <section aria-labelledby="coverage-basis-title" className="card-squircle space-y-3 border border-[var(--border)] p-4 text-xs shadow-xs sm:p-5">
+    <section aria-labelledby="coverage-basis-title" className="ws-card space-y-3 text-xs">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 id="coverage-basis-title" className="text-sm font-bold text-[var(--text)]">Dasar Ketahanan Dana</h2>
-          <p className="mt-0.5 text-[var(--text-secondary)]">Saldo cadangan dibagi biaya hidup pokok bulanan.</p>
+          <p className="mt-0.5 text-[var(--text-2)]">Saldo cadangan dibagi biaya hidup pokok bulanan.</p>
         </div>
         <span className={`inline-flex items-center rounded-full border px-2.5 py-1 font-bold tabular-nums ${coverageTone(runway.status)}`}>
           {coverageText(runway)}
@@ -92,7 +92,7 @@ export function EmergencyCoverageBasis({ runway, bal }: Props) {
         <div className="min-w-0 space-y-0.5">
           <dt className="font-semibold text-[var(--muted)]">Saldo cadangan</dt>
           <dd className="text-base font-black tabular-nums text-[var(--text)]">{bal(runway.emergency_fund_balance)}</dd>
-          <dd className="text-[var(--text-secondary)]">
+          <dd className="text-[var(--text-2)]">
             {runway.balance_basis === "all_liquid"
               ? ALL_LIQUID_NOTICE
               : `Dari target dana darurat: ${(runway.emergency_goal_names ?? []).join(", ")}`}
@@ -103,26 +103,26 @@ export function EmergencyCoverageBasis({ runway, bal }: Props) {
           <dd className="text-base font-black tabular-nums text-[var(--text)]">
             {runway.monthly_primary_expense == null ? "Belum diketahui" : `${bal(runway.monthly_primary_expense)}/bln`}
           </dd>
-          <dd className="text-[var(--text-secondary)]">{essentialBasisText(cost)}</dd>
+          <dd className="text-[var(--text-2)]">{essentialBasisText(cost)}</dd>
           {cost?.limited_history && (
             <dd>
-              <span className="inline-flex rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-800 dark:text-amber-200">
+              <span className="inline-flex rounded-full border border-warn-solid/30 bg-warn-solid/10 px-2 py-0.5 font-semibold text-warn-fg">
                 Riwayat terbatas ({cost.period_count} periode)
               </span>
             </dd>
           )}
           {cost && cost.debt_minimum > 0 && (
-            <dd className="tabular-nums text-[var(--text-secondary)]">Termasuk cicilan minimum {bal(cost.debt_minimum)}</dd>
+            <dd className="tabular-nums text-[var(--text-2)]">Termasuk cicilan minimum {bal(cost.debt_minimum)}</dd>
           )}
         </div>
       </dl>
 
       {periods.length > 0 && (
-        <details className="border-t border-[var(--border)] pt-2">
+        <details className="border-t border-[var(--line)] pt-2">
           <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-[var(--text)]">
             Lihat {periods.length} periode yang dipakai
           </summary>
-          <p className="mb-2 text-[var(--text-secondary)]">
+          <p className="mb-2 text-[var(--text-2)]">
             Pengeluaran berpilar Kebutuhan dan yang belum diklasifikasi, dikurangi ganti uang. Pindah saldo, investasi,
             kategori di luar anggaran dan pembayaran cicilan tidak dihitung; cicilan masuk lewat nilai minimumnya.
           </p>
@@ -138,18 +138,18 @@ export function EmergencyCoverageBasis({ runway, bal }: Props) {
                     <Link
                       href={ledgerHref({ from: period.start, to: period.end, kakeibo: "need", type: "expense" })}
                       aria-label={`${bal(period.amount - unclassified)}, lihat transaksi kebutuhan ${period.label}`}
-                      className="inline-flex min-h-11 shrink-0 items-center font-bold tabular-nums text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                      className="inline-flex min-h-11 shrink-0 items-center font-bold tabular-nums text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
                     >
                       {bal(period.amount - unclassified)}
                     </Link>
                   </div>
                   {unclassified > 0 && (
-                    <div className="flex min-w-0 items-center justify-between gap-2 pl-3 text-[var(--text-secondary)]">
+                    <div className="flex min-w-0 items-center justify-between gap-2 pl-3 text-[var(--text-2)]">
                       <span className="min-w-0 truncate">+ belum diklasifikasi</span>
                       <Link
                         href={ledgerHref({ from: period.start, to: period.end, kakeibo: "unclassified", type: "expense" })}
                         aria-label={`${bal(unclassified)}, lihat transaksi belum diklasifikasi ${period.label}`}
-                        className="inline-flex min-h-11 shrink-0 items-center tabular-nums underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
+                        className="inline-flex min-h-11 shrink-0 items-center tabular-nums underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
                       >
                         {bal(unclassified)}
                       </Link>

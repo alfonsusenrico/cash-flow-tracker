@@ -400,7 +400,7 @@ export function useGoalDialogs() {
           }}
         >
           {goalError && (
-            <div role="alert" aria-live="assertive" className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-500">
+            <div role="alert" aria-live="assertive" className="rounded-xl border border-out-solid/20 bg-out-solid/10 p-3 text-out-fg">
               {goalError}
             </div>
           )}
@@ -415,7 +415,7 @@ export function useGoalDialogs() {
               value={goalName}
               onChange={(e) => setGoalName(e.target.value)}
               placeholder="Contoh: Dana Darurat, Laptop Baru"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
             />
           </div>
 
@@ -423,7 +423,7 @@ export function useGoalDialogs() {
             <div className="flex items-center justify-between mb-1">
               <label htmlFor="goal-target-amount" className="font-medium text-[var(--muted)]">Target Nominal</label>
               {currency === "USD" && parseNumberFromDots(goalTarget) > 0 && (
-                <span className="text-[11px] font-bold text-emerald-500 tabular">
+                <span className="text-[11px] font-bold text-in-fg tabular">
                   ≈ {bal(parseNumberFromDots(goalTarget))}
                 </span>
               )}
@@ -436,7 +436,7 @@ export function useGoalDialogs() {
               value={goalTarget}
               onChange={(e) => setGoalTarget(formatNumberWithDots(e.target.value))}
               placeholder="Contoh: 20.000.000"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] font-bold tabular"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] font-bold tabular"
             />
           </div>
 
@@ -448,7 +448,7 @@ export function useGoalDialogs() {
               <span className="font-medium text-[var(--muted)] block">Hubungkan rekening / kantong (opsional)</span>
               <span className="text-[11px] text-[var(--muted)] font-medium">{goalAccountIds.length} dipilih</span>
             </div>
-            <div className="space-y-1.5 max-h-52 overflow-y-auto rounded-xl border border-[var(--border)] p-2 bg-[var(--surface-raised)]/50">
+            <div className="space-y-1.5 max-h-52 overflow-y-auto rounded-xl border border-[var(--line)] p-2 bg-[var(--surface-2)]/50">
               {topAccounts.length === 0 ? (
                 <p className="text-[11px] text-[var(--muted)] p-2">Belum ada rekening aktif.</p>
               ) : (
@@ -512,8 +512,8 @@ export function useGoalDialogs() {
                         className={cn(
                           "flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors text-xs border",
                           isChecked
-                            ? "bg-emerald-500/10 border-emerald-500/30 text-[var(--text)]"
-                            : "hover:bg-[var(--surface-raised)] border-transparent text-[var(--text-secondary)]"
+                            ? "bg-in-solid/10 border-in-solid/30 text-[var(--text)]"
+                            : "hover:bg-[var(--surface-2)] border-transparent text-[var(--text-2)]"
                         )}
                       >
                         <div className="flex items-center gap-2.5">
@@ -521,13 +521,13 @@ export function useGoalDialogs() {
                             type="checkbox"
                             checked={isChecked}
                             onChange={(e) => handleParentToggle(e.target.checked)}
-                            className="rounded border-[var(--border)] text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                            className="rounded border-[var(--line)] text-in-fg focus:ring-in-solid h-4 w-4"
                           />
                           <div>
                             <div className="font-semibold text-[var(--text)] flex items-center gap-1.5">
                               <span>{acc.name}</span>
                               {hasChildren && (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium">
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-tr-solid/20 text-tr-fg font-medium">
                                   Akun Induk
                                 </span>
                               )}
@@ -551,8 +551,8 @@ export function useGoalDialogs() {
                               className={cn(
                                 "flex items-center justify-between p-2 pl-4 ml-4 rounded-lg cursor-pointer transition-colors text-xs border border-l-2",
                                 isChildChecked
-                                  ? "bg-emerald-500/10 border-emerald-500/30 text-[var(--text)]"
-                                  : "hover:bg-[var(--surface-raised)] border-transparent border-l-[var(--border)] text-[var(--text-secondary)]"
+                                  ? "bg-in-solid/10 border-in-solid/30 text-[var(--text)]"
+                                  : "hover:bg-[var(--surface-2)] border-transparent border-l-[var(--line)] text-[var(--text-2)]"
                               )}
                             >
                               <div className="flex items-center gap-2.5">
@@ -560,7 +560,7 @@ export function useGoalDialogs() {
                                   type="checkbox"
                                   checked={isChildChecked}
                                   onChange={(e) => handleChildToggle(child.id, e.target.checked)}
-                                  className="rounded border-[var(--border)] text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                                  className="rounded border-[var(--line)] text-in-fg focus:ring-in-solid h-4 w-4"
                                 />
                                 <div>
                                   <div className="font-medium text-[var(--text)] flex items-center gap-1">
@@ -570,7 +570,7 @@ export function useGoalDialogs() {
                                   <div className="text-[10px] text-[var(--muted)]">Kantong</div>
                                 </div>
                               </div>
-                              <span className="font-bold text-xs tabular text-emerald-500">
+                              <span className="font-bold text-xs tabular text-in-fg">
                                 {bal(child.balance)}
                               </span>
                             </label>
@@ -585,12 +585,12 @@ export function useGoalDialogs() {
 
           {/* If accounts linked: show live total banner. If unlinked: show manual starting balance input */}
           {goalAccountIds.length > 0 ? (
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 flex items-center justify-between">
+            <div className="rounded-xl border border-in-solid/30 bg-in-solid/10 p-3 flex items-center justify-between">
               <div>
-                <div className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">
+                <div className="text-[10px] uppercase font-bold text-in-fg">
                   Total Saldo Terhubung
                 </div>
-                <div className="text-base font-bold tabular text-emerald-600 dark:text-emerald-400">
+                <div className="text-base font-bold tabular text-in-fg">
                   {bal(calculateGoalLinkedBalance(goalAccountIds))}
                 </div>
               </div>
@@ -615,7 +615,7 @@ export function useGoalDialogs() {
               <div className="flex items-center justify-between mb-1">
                 <label htmlFor="goal-current-amount" className="font-medium text-[var(--muted)]">Progres awal (tanpa transaksi)</label>
                 {currency === "USD" && parseNumberFromDots(goalCurrent) > 0 && (
-                  <span className="text-[11px] font-bold text-emerald-500 tabular">
+                  <span className="text-[11px] font-bold text-in-fg tabular">
                     ≈ {bal(parseNumberFromDots(goalCurrent))}
                   </span>
                 )}
@@ -628,7 +628,7 @@ export function useGoalDialogs() {
                 value={goalCurrent}
                 onChange={(e) => setGoalCurrent(formatNumberWithDots(e.target.value))}
                 placeholder="0"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] font-bold tabular"
+                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] font-bold tabular"
               />
               <p className="mt-1 text-xs text-[var(--muted)]">Nilai ini hanya mencatat progres target; saldo rekening tidak berubah.</p>
             </div>
@@ -644,7 +644,7 @@ export function useGoalDialogs() {
               type="date"
               value={goalDate}
               onChange={(e) => setGoalDate(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
             />
           </div>
 
@@ -669,7 +669,7 @@ export function useGoalDialogs() {
           </div>
 
           {/* Dana Darurat Toggle */}
-          <div className="p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/60 space-y-1">
+          <div className="p-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)]/60 space-y-1">
             <label className="flex items-center gap-2.5 cursor-pointer select-none">
               <input
                 id="goal-emergency"
@@ -677,7 +677,7 @@ export function useGoalDialogs() {
                 type="checkbox"
                 checked={goalIsEmergency}
                 onChange={(e) => setGoalIsEmergency(e.target.checked)}
-                className="rounded border-[var(--border)] text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                className="rounded border-[var(--line)] text-in-fg focus:ring-in-solid h-4 w-4"
               />
               <span className="font-semibold text-xs text-[var(--text)] flex items-center gap-1.5">
                 <span>🛡️ Tandai sebagai Dana Darurat (Emergency Fund)</span>
@@ -692,7 +692,7 @@ export function useGoalDialogs() {
           </FormSection>
 
           {goalBackingChanged && goalBackingConfirmed && (
-            <p role="alert" aria-live="polite" className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-[11px] text-[var(--text)]">
+            <p role="alert" aria-live="polite" className="rounded-xl border border-warn-solid/25 bg-warn-solid/10 p-3 text-[11px] text-[var(--text)]">
               {goalAccountIds.length > 0
                 ? "Setelah disimpan, progres akan mengikuti saldo rekening terhubung; nominal progres manual tidak menjadi sumber perhitungan."
                 : "Setelah disimpan, progres kembali menjadi nilai manual dan tidak lagi mengikuti saldo rekening."}
@@ -704,7 +704,7 @@ export function useGoalDialogs() {
             <button
               type="button"
               onClick={() => setGoalModalOpen(false)}
-              className="flex-1 rounded-xl border border-[var(--border)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-raised)]"
+              className="flex-1 rounded-xl border border-[var(--line)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)]"
             >
               Batal
             </button>
@@ -737,7 +737,7 @@ export function useGoalDialogs() {
           }}
         >
           {obError && (
-            <div role="alert" aria-live="assertive" className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-500">
+            <div role="alert" aria-live="assertive" className="rounded-xl border border-out-solid/20 bg-out-solid/10 p-3 text-out-fg">
               {obError}
             </div>
           )}
@@ -757,7 +757,7 @@ export function useGoalDialogs() {
               value={obName}
               onChange={(e) => setObName(e.target.value)}
               placeholder="Contoh: Cicilan Motor, Kartu Kredit"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
             />
           </div>
 
@@ -772,7 +772,7 @@ export function useGoalDialogs() {
               value={obTotal}
               onChange={(e) => setObTotal(formatNumberWithDots(e.target.value))}
               placeholder="Contoh: 15.000.000"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] font-bold tabular"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] font-bold tabular"
             />
           </div>
 
@@ -789,16 +789,16 @@ export function useGoalDialogs() {
               aria-invalid={remainingExceedsTotal || undefined}
               aria-describedby={remainingExceedsTotal ? "obligation-remaining-error" : undefined}
               placeholder="Kosongkan jika sama dengan total"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] tabular"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular"
             />
             {remainingExceedsTotal && (
-              <p id="obligation-remaining-error" role="alert" className="mt-1 text-[11px] font-medium text-rose-600">
+              <p id="obligation-remaining-error" role="alert" className="mt-1 text-[11px] font-medium text-out-fg">
                 Sisa tagihan tidak boleh melebihi total tagihan.
               </p>
             )}
           </div>
           {obligationTotalValue > 0 && !remainingExceedsTotal && (
-            <div role="status" className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-xs text-[var(--text)]">
+            <div role="status" className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 text-xs text-[var(--text)]">
               Sudah dibayar: {bal(Math.max(0, obligationTotalValue - obligationRemainingValue))} · Sisa: {bal(obligationRemainingValue)}
             </div>
           )}
@@ -815,7 +815,7 @@ export function useGoalDialogs() {
               value={obMinPayment}
               onChange={(e) => setObMinPayment(formatNumberWithDots(e.target.value))}
               placeholder="Contoh: 1.000.000"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] tabular"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular"
             />
           </div>
 
@@ -828,7 +828,7 @@ export function useGoalDialogs() {
               type="date"
               value={obDueDate}
               onChange={(e) => setObDueDate(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
             />
           </div>
 
@@ -840,7 +840,7 @@ export function useGoalDialogs() {
               rows={2}
               value={obNotes}
               onChange={(event) => setObNotes(event.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
             />
           </div>
           </FormSection>
@@ -849,7 +849,7 @@ export function useGoalDialogs() {
             <button
               type="button"
               onClick={() => setObligationModalOpen(false)}
-              className="flex-1 rounded-xl border border-[var(--border)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-raised)]"
+              className="flex-1 rounded-xl border border-[var(--line)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)]"
             >
               Batal
             </button>
@@ -879,12 +879,12 @@ export function useGoalDialogs() {
             }}
           >
             {actionError && (
-              <div role="alert" aria-live="assertive" className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-500">
+              <div role="alert" aria-live="assertive" className="rounded-xl border border-out-solid/20 bg-out-solid/10 p-3 text-out-fg">
                 {actionError}
               </div>
             )}
 
-            <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3 leading-relaxed text-[var(--text-secondary)]">
+            <p className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 leading-relaxed text-[var(--text-2)]">
               Ini hanya memperbarui angka progres target. Tidak ada transaksi dan tidak ada saldo rekening yang berubah.
             </p>
 
@@ -892,7 +892,7 @@ export function useGoalDialogs() {
               <div className="flex items-center justify-between mb-1">
                 <label htmlFor="goal-progress-adjustment" className="font-medium text-[var(--muted)]">Tambahan Progres</label>
                 {currency === "USD" && parseNumberFromDots(actionAmount) > 0 && (
-                  <span className="text-[11px] font-bold text-emerald-500 tabular">
+                  <span className="text-[11px] font-bold text-in-fg tabular">
                     ≈ {bal(parseNumberFromDots(actionAmount))}
                   </span>
                 )}
@@ -905,7 +905,7 @@ export function useGoalDialogs() {
                 value={actionAmount}
                 onChange={(e) => setActionAmount(formatNumberWithDots(e.target.value))}
                 placeholder="Contoh: 500.000"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
+                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
               />
             </div>
 
@@ -913,14 +913,14 @@ export function useGoalDialogs() {
               <button
                 type="button"
                 onClick={() => setDepositGoal(null)}
-                className="flex-1 rounded-xl border border-[var(--border)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-raised)]"
+                className="flex-1 rounded-xl border border-[var(--line)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)]"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={depositGoalMutation.isPending}
-                className="flex-1 rounded-xl bg-emerald-600 py-2 text-xs font-semibold text-income-hover-contrast hover:bg-emerald-700 disabled:opacity-50"
+                className="flex-1 rounded-xl bg-in-solid py-2 text-xs font-semibold text-in-solid-hover-fg hover:bg-in-solid disabled:opacity-50"
               >
                 {depositGoalMutation.isPending ? "Menyimpan…" : "Simpan Progres"}
               </button>
@@ -949,7 +949,7 @@ export function useGoalDialogs() {
             ) : (
               <>
                 {paymentCandidates.match_state === "ambiguous" && (
-                  <p className="font-medium text-amber-700 dark:text-amber-300">
+                  <p className="font-medium text-warn-fg">
                     Beberapa transaksi bernominal sama dengan cicilan. Pilih yang benar.
                   </p>
                 )}
@@ -978,7 +978,7 @@ export function useGoalDialogs() {
               </>
             )}
           </section>
-          <h3 className="border-t border-[var(--border)] pt-3 text-xs font-semibold text-[var(--text)]">
+          <h3 className="border-t border-[var(--line)] pt-3 text-xs font-semibold text-[var(--text)]">
             Tidak tertangkap ponsel? Catat manual
           </h3>
           <form
@@ -989,7 +989,7 @@ export function useGoalDialogs() {
             }}
           >
             {actionError && (
-              <div role="alert" aria-live="assertive" className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-500">
+              <div role="alert" aria-live="assertive" className="rounded-xl border border-out-solid/20 bg-out-solid/10 p-3 text-out-fg">
                 {actionError}
               </div>
             )}
@@ -1001,7 +1001,7 @@ export function useGoalDialogs() {
                 name="account_id"
                 value={actionAccount}
                 onChange={(e) => setActionAccount(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]"
+                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
               >
                 <AccountSelectOptions accounts={accounts} formatBalance={bal} allowParentSelection={true} />
               </select>
@@ -1011,7 +1011,7 @@ export function useGoalDialogs() {
               <div className="flex items-center justify-between mb-1">
                 <label htmlFor="obligation-payment-amount" className="font-medium text-[var(--muted)]">Nominal Pembayaran</label>
                 {currency === "USD" && parseNumberFromDots(actionAmount) > 0 && (
-                  <span className="text-[11px] font-bold text-emerald-500 tabular">
+                  <span className="text-[11px] font-bold text-in-fg tabular">
                     ≈ {bal(parseNumberFromDots(actionAmount))}
                   </span>
                 )}
@@ -1024,7 +1024,7 @@ export function useGoalDialogs() {
                 value={actionAmount}
                 onChange={(e) => setActionAmount(formatNumberWithDots(e.target.value))}
                 placeholder="Contoh: 1.000.000"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
+                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
               />
             </div>
 
@@ -1032,7 +1032,7 @@ export function useGoalDialogs() {
               <button
                 type="button"
                 onClick={() => setPayObligation(null)}
-                className="flex-1 rounded-xl border border-[var(--border)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-raised)]"
+                className="flex-1 rounded-xl border border-[var(--line)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)]"
               >
                 Batal
               </button>

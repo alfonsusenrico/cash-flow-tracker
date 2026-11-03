@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 export const LINK_CLASS =
-  "rounded underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]";
+  "rounded underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)]";
 
 /** One of the four Kakeibo month-end questions: a numbered heading, its answer, then the evidence. */
 export function QuestionSection({
@@ -19,11 +19,11 @@ export function QuestionSection({
   children?: React.ReactNode;
 }) {
   return (
-    <section aria-labelledby={`${id}-title`} className="cockpit-card space-y-4 border border-[var(--border)] p-4 shadow-xs sm:p-6">
+    <section aria-labelledby={`${id}-title`} className="ws-card space-y-4">
       <div className="flex items-start gap-3">
         <span
           aria-hidden="true"
-          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--border-strong)] text-xs font-bold tabular-nums text-[var(--text)]"
+          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--line-strong)] text-xs font-bold tabular-nums text-[var(--text)]"
         >
           {number}
         </span>
@@ -43,7 +43,7 @@ export function QuestionSection({
 /** A side panel of the report (comparison, data quality, budget). */
 export function ReportPanel({ id, title, children, className }: { id: string; title: string; children: React.ReactNode; className?: string }) {
   return (
-    <section aria-labelledby={`${id}-title`} className={cn("cockpit-card space-y-3 border border-[var(--border)] p-4 shadow-xs sm:p-5", className)}>
+    <section aria-labelledby={`${id}-title`} className={cn("ws-card space-y-3", className)}>
       <h2 id={`${id}-title`} className="text-base font-bold tracking-tight text-[var(--text)]">{title}</h2>
       {children}
     </section>

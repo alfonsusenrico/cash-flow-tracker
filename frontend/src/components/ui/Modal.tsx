@@ -90,7 +90,7 @@ export function Modal({ open, onClose, title, children, wide, centered, hideClos
         tabIndex={-1}
         className={cn(
           "w-full overflow-y-auto bg-[var(--surface)] shadow-2xl",
-          centered ? "border border-[var(--border)]" : "border-t sm:border border-[var(--border)]",
+          centered ? "border border-[var(--line)]" : "border-t sm:border border-[var(--line)]",
           centered ? "rounded-[var(--radius-card,20px)] max-h-[calc(100dvh-32px)]" : "rounded-t-[28px] sm:rounded-[var(--radius-card,20px)] max-h-[90dvh] sm:max-h-[calc(100dvh-48px)]",
           centered
             ? "animate-in fade-in zoom-in-95 duration-150 motion-reduce:animate-none motion-reduce:transition-none"
@@ -105,7 +105,7 @@ export function Modal({ open, onClose, title, children, wide, centered, hideClos
           </div>
         )}
 
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-[var(--border)]">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-[var(--line)]">
           <h2 id={titleId} className="font-bold text-sm sm:text-base tracking-tight text-[var(--text)]">
             {title}
           </h2>
@@ -113,7 +113,7 @@ export function Modal({ open, onClose, title, children, wide, centered, hideClos
             <button
               onClick={onClose}
               type="button"
-              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-lg leading-none text-[var(--muted)] transition-colors hover:bg-[var(--surface-raised)] hover:text-[var(--text)] motion-reduce:transition-none"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-lg leading-none text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text)] motion-reduce:transition-none"
               aria-label="Tutup"
             >
               ✕

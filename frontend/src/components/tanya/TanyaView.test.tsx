@@ -182,7 +182,8 @@ describe("Tanya page", () => {
   it("falls back to the username, then to no name", () => {
     ctx.user = { id: "user-1", username: "raka" };
     const { unmount } = setup();
-    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(/, raka\.$/);
+    // The shared greeting rule capitalises a username, as Beranda does.
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(/, Raka\.$/);
     unmount();
     ctx.user = { id: "user-1" };
     setup();

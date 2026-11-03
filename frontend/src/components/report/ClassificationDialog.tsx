@@ -26,7 +26,7 @@ interface Gaps {
 }
 
 const SELECT_CLASS =
-  "min-h-11 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-sm text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]";
+  "min-h-11 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--ink)]";
 
 function PillarSelect({ id, label, value, onChange }: { id: string; label: string; value: KakeiboPillar | ""; onChange: (value: KakeiboPillar | "") => void }) {
   return (
@@ -106,12 +106,12 @@ export function ClassificationDialog({ open, onClose, scope }: { open: boolean; 
   return (
     <Modal open={open} onClose={onClose} title="Lengkapi klasifikasi" wide>
       <div className="space-y-5">
-        <p className="text-sm text-[var(--text-secondary)]">
+        <p className="text-sm text-[var(--text-2)]">
           Pengeluaran tanpa pilar tampil sebagai Belum diklasifikasi. Pilihan ini juga dipakai untuk mempelajari kebiasaan.
         </p>
         <p role="status" className="min-h-5 text-sm font-semibold text-[var(--text)]">{status}</p>
         {isLoading && <p className="text-sm text-[var(--muted)]">Memuat…</p>}
-        {isError && <p role="alert" className="text-sm text-[var(--danger-text)]">Daftar belum bisa dimuat.</p>}
+        {isError && <p role="alert" className="text-sm text-[var(--out-fg)]">Daftar belum bisa dimuat.</p>}
         {data && data.categories.length === 0 && data.transaction_count === 0 && (
           <p className="text-sm text-[var(--text)]">Semua pengeluaran sudah punya pilar.</p>
         )}
@@ -119,8 +119,8 @@ export function ClassificationDialog({ open, onClose, scope }: { open: boolean; 
         {data && data.categories.length > 0 && (
           <section aria-labelledby="classify-categories" className="space-y-2">
             <h3 id="classify-categories" className="text-sm font-bold text-[var(--text)]">Kategori tanpa pilar</h3>
-            <p className="text-xs text-[var(--text-secondary)]">Berlaku untuk transaksinya yang belum punya pilar sendiri.</p>
-            <ul className="divide-y divide-[var(--border)]">
+            <p className="text-xs text-[var(--text-2)]">Berlaku untuk transaksinya yang belum punya pilar sendiri.</p>
+            <ul className="divide-y divide-[var(--line)]">
               {data.categories.map((category) => {
                 const value = categoryPillars[category.id] ?? "";
                 return (
@@ -161,7 +161,7 @@ export function ClassificationDialog({ open, onClose, scope }: { open: boolean; 
               Transaksi belum diklasifikasi <span className="tabular-nums text-[var(--muted)]">({data?.transaction_count})</span>
             </h3>
             {data && data.transaction_count > rows.length && (
-              <p className="text-xs text-[var(--text-secondary)]">Menampilkan {rows.length} terbaru.</p>
+              <p className="text-xs text-[var(--text-2)]">Menampilkan {rows.length} terbaru.</p>
             )}
             <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--text)]">
               <input
@@ -172,7 +172,7 @@ export function ClassificationDialog({ open, onClose, scope }: { open: boolean; 
               />
               Pilih semua
             </label>
-            <ul className="max-h-72 divide-y divide-[var(--border)] overflow-y-auto rounded-xl border border-[var(--border)] px-3">
+            <ul className="max-h-72 divide-y divide-[var(--line)] overflow-y-auto rounded-xl border border-[var(--line)] px-3">
               {rows.map((row) => (
                 <li key={row.id}>
                   <label className="flex min-h-11 items-center gap-3 py-1.5 text-sm text-[var(--text)]">

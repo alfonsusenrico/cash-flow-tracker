@@ -488,7 +488,7 @@ export function QuickCaptureModal({
   return (
     <Modal open={open} onClose={onClose} title="Catat transaksi">
       <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-        <div className="grid grid-cols-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-1" role="group" aria-label="Jenis catatan">
+        <div className="grid grid-cols-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-1" role="group" aria-label="Jenis catatan">
           <button
             type="button"
             onClick={() => handleTypeChange("expense")}
@@ -536,7 +536,7 @@ export function QuickCaptureModal({
           </button>
         </div>
 
-        <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--surface)] p-4 focus-within:border-[var(--text)] focus-within:ring-2 focus-within:ring-[var(--primary)]/30">
+        <div className="rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] p-4 focus-within:border-[var(--text)] focus-within:ring-2 focus-within:ring-[var(--ink)]/30">
           <div className="flex items-baseline justify-between">
             <label htmlFor="quick-capture-amount" className="text-xs font-semibold text-[var(--muted)]">{hasSelectedDebt ? "Total bayar (IDR)" : "Nominal (IDR)"}</label>
             {parsedAmount > 0 && (
@@ -569,7 +569,7 @@ export function QuickCaptureModal({
             className="mt-1 w-full bg-transparent text-3xl font-bold tracking-tight text-[var(--text)] outline-none tabular placeholder:text-[var(--muted)]/50 sm:text-4xl"
           />
           {movementFieldErrors.amount && (
-            <p id="quick-capture-amount-error" className="mt-1 text-xs text-rose-600 dark:text-rose-400" role="alert">
+            <p id="quick-capture-amount-error" className="mt-1 text-xs text-out-fg" role="alert">
               {movementFieldErrors.amount}
             </p>
           )}
@@ -581,7 +581,7 @@ export function QuickCaptureModal({
                 key={inc}
                 type="button"
                 onClick={() => addFastAmount(inc)}
-                className="min-h-9 shrink-0 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-xs font-semibold tabular text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"
+                className="min-h-9 shrink-0 rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 text-xs font-semibold tabular text-[var(--muted)] hover:border-[var(--line-strong)] hover:text-[var(--text)]"
               >
                 +{inc >= 1_000_000 ? `${inc / 1_000_000}M` : `${inc / 1_000}k`}
               </button>
@@ -590,7 +590,7 @@ export function QuickCaptureModal({
               <button
                 type="button"
                 onClick={() => setAmountStr("")}
-                className="min-h-9 shrink-0 rounded-lg border border-[var(--border)] px-3 text-xs font-medium text-[var(--muted)] hover:text-[var(--text)]"
+                className="min-h-9 shrink-0 rounded-lg border border-[var(--line)] px-3 text-xs font-medium text-[var(--muted)] hover:text-[var(--text)]"
               >
                 Reset
               </button>
@@ -616,13 +616,13 @@ export function QuickCaptureModal({
                   setMovementSourceAccountId(event.target.value);
                   setMovementFieldErrors((current) => ({ ...current, sourceAccountId: undefined }));
                 }}
-                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:border-[var(--primary)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+                className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:border-[var(--ink)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
               >
                 <option value="">Pilih rekening</option>
                 <AccountSelectOptions accounts={activeAccounts} formatBalance={fmtMoney} allowParentSelection liquidOnly />
               </select>
               {movementFieldErrors.sourceAccountId && (
-                <p id="quick-capture-source-error" className="mt-1 text-xs text-rose-600 dark:text-rose-400" role="alert">
+                <p id="quick-capture-source-error" className="mt-1 text-xs text-out-fg" role="alert">
                   {movementFieldErrors.sourceAccountId}
                 </p>
               )}
@@ -642,7 +642,7 @@ export function QuickCaptureModal({
                   setMovementTargetAccountId(event.target.value);
                   setMovementFieldErrors((current) => ({ ...current, targetAccountId: undefined }));
                 }}
-                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:border-[var(--primary)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+                className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:border-[var(--ink)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
               >
                 <option value="">Pilih rekening</option>
                 <AccountSelectOptions
@@ -654,7 +654,7 @@ export function QuickCaptureModal({
                 />
               </select>
               {movementFieldErrors.targetAccountId && (
-                <p id="quick-capture-target-error" className="mt-1 text-xs text-rose-600 dark:text-rose-400" role="alert">
+                <p id="quick-capture-target-error" className="mt-1 text-xs text-out-fg" role="alert">
                   {movementFieldErrors.targetAccountId}
                 </p>
               )}
@@ -677,7 +677,7 @@ export function QuickCaptureModal({
                 name="account_id"
                 value={selectedAccount}
                 onChange={(event) => setSelectedAccount(event.target.value)}
-                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30 focus-visible:border-[var(--primary)]"
+                className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30 focus-visible:border-[var(--ink)]"
               >
                 <AccountSelectOptions accounts={activeAccounts} formatBalance={fmtMoney} allowParentSelection liquidOnly />
               </select>
@@ -693,7 +693,7 @@ export function QuickCaptureModal({
                 name="category_id"
                 value={selectedCategory || ""}
                 onChange={(event) => handleCategoryChange(event.target.value || null)}
-                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30 focus-visible:border-[var(--primary)]"
+                className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30 focus-visible:border-[var(--ink)]"
               >
                 <option value="">Pilih Kategori…</option>
                 {availableCategories.map((category: any) => (
@@ -719,7 +719,7 @@ export function QuickCaptureModal({
                     "min-h-11 rounded-xl border px-2 text-xs font-semibold transition-colors motion-reduce:transition-none",
                     kakeiboType === value
                       ? "border-[var(--text)] bg-[var(--text)] text-[var(--surface)]"
-                      : "border-[var(--border)] bg-[var(--surface-raised)] text-[var(--muted)] hover:text-[var(--text)]",
+                      : "border-[var(--line)] bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)]",
                   )}
                 >
                   {label}
@@ -740,7 +740,7 @@ export function QuickCaptureModal({
               value={offsetCategoryId}
               onChange={(event) => setOffsetCategoryId(event.target.value)}
               aria-describedby="quick-capture-offset-help"
-              className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30 focus-visible:border-[var(--primary)]"
+              className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30 focus-visible:border-[var(--ink)]"
             >
               <option value="">Belum dipilih</option>
               {offsetCategories.map((category: any) => (
@@ -772,10 +772,10 @@ export function QuickCaptureModal({
               setTxDate(event.target.value);
               setMovementFieldErrors((current) => ({ ...current, date: undefined }));
             }}
-            className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30 focus-visible:border-[var(--primary)]"
+            className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30 focus-visible:border-[var(--ink)]"
           />
           {movementFieldErrors.date && (
-            <p id="quick-capture-date-error" className="mt-1 text-xs text-rose-600 dark:text-rose-400" role="alert">
+            <p id="quick-capture-date-error" className="mt-1 text-xs text-out-fg" role="alert">
               {movementFieldErrors.date}
             </p>
           )}
@@ -804,7 +804,7 @@ export function QuickCaptureModal({
                     setDebtRows([]);
                   }
                 }}
-                className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+                className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
               >
                 <option value="">Tidak ada</option>
                 {availableGoals.map((g: any) => (
@@ -845,10 +845,10 @@ export function QuickCaptureModal({
               setNotes(event.target.value);
               setMovementFieldErrors((current) => ({ ...current, notes: undefined }));
             }}
-            className="min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
+            className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
           />
           {movementFieldErrors.notes && (
-            <p id="quick-capture-notes-error" className="mt-1 text-xs text-rose-600 dark:text-rose-400" role="alert">
+            <p id="quick-capture-notes-error" className="mt-1 text-xs text-out-fg" role="alert">
               {movementFieldErrors.notes}
             </p>
           )}
@@ -863,24 +863,24 @@ export function QuickCaptureModal({
             type="file"
             accept="image/jpeg,image/png,image/webp,application/pdf"
             onChange={(event) => setReceipt(event.target.files?.[0] ?? null)}
-            className="block min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text)] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--text)] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[var(--surface)]"
+            className="block min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text)] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--text)] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[var(--surface)]"
           />
           <p className="mt-1 text-[10px] text-[var(--muted)]">JPG, PNG, WebP, atau PDF. Transaksi tetap tersimpan jika unggahan gagal.</p>
         </div>}
         </FormSection>
 
         {err && (
-          <div role="alert" className="p-2.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-medium">
+          <div role="alert" className="p-2.5 rounded-2xl bg-out-solid/10 border border-out-solid/20 text-out-fg text-xs font-medium">
             {err}
           </div>
         )}
 
         {/* Modal Action Buttons */}
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--line)]">
           <button
             type="button"
             onClick={onClose}
-            className="btn-secondary pressable rounded-xl"
+            className="ws-btn rounded-xl"
           >
             Batal
           </button>
@@ -891,7 +891,7 @@ export function QuickCaptureModal({
             className={cn(
               "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold transition-colors motion-reduce:transition-none",
               isSuccess
-                ? "bg-[var(--primary)] text-[var(--primary-contrast)]"
+                ? "bg-[var(--ink)] text-[var(--ink-fg)]"
                 : "bg-[var(--text)] text-[var(--surface)] hover:opacity-90",
               "disabled:cursor-not-allowed disabled:opacity-40"
             )}

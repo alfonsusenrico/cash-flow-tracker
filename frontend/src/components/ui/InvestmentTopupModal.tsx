@@ -74,18 +74,18 @@ export function InvestmentTopupModal({ open, onClose, product, allAccounts, edit
     onError: (failure: Error) => setError(failure.message || "Top up gagal dicatat. Periksa saldo dan coba lagi."),
   });
   if (!product) return null;
-  const inputClass = "min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)]";
+  const inputClass = "min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]";
   const busy = mutation.isPending;
 
   return (
     <Modal open={open} onClose={() => { if (!busy) onClose(); }} title={editingTopup ? "Ubah Top up Investasi" : "Top up Investasi"}>
       <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); setError(""); mutation.mutate(false); }}>
-        <div className="rounded-xl border border-violet-500/25 bg-investment-soft p-3 text-investment">
+        <div className="rounded-xl border border-inv-solid/25 bg-inv-bg p-3 text-inv-fg">
           <p className="text-xs">Produk reksadana</p>
           <p className="break-words font-semibold">{product.name}</p>
           <p className="mt-1 text-xs">Catat jumlah yang dibayarkan. Nilai investasi menjadi estimasi hingga nilainya diperbarui dari Bibit.</p>
         </div>
-        {error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
+        {error && <p role="alert" className="text-sm text-out-fg">{error}</p>}
         <div>
           {editingTopup
             ? <p className="mb-1 text-xs font-medium">Dari rekening</p>
@@ -114,11 +114,11 @@ export function InvestmentTopupModal({ open, onClose, product, allAccounts, edit
             onSchedule({ sourceAccountId: sourceId, targetAccountId: product.id, amount: parseNumberFromDots(amount), productName: product.name });
           }}>Buat rencana bulanan (tidak mencatat)</button>
         )}
-        {!editingTopup && <p className="text-xs text-[var(--text-secondary)]">Catat setelah debit berhasil. Pastikan debit yang sama belum tercatat di buku kas.</p>}
-        {editingTopup && <p className="text-xs text-[var(--text-secondary)]">Koreksi nominal menyesuaikan modal dan estimasi nilai. Periksa kembali nilai aktual di Bibit setelah mengubahnya.</p>}
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] pt-3">
-          {editingTopup && <ConfirmActionButton label="Hapus top up" confirmation="Hapus top up? Modal dan estimasi nilai investasi ikut berkurang. Top up dari pengeluaran tercatat kembali menjadi pengeluaran biasa; top up lainnya mengembalikan saldo sumber." onConfirm={() => mutation.mutate(true)} disabled={busy} className="min-h-11 rounded-xl border border-rose-300 px-3 text-sm text-rose-700 dark:text-rose-300">Hapus</ConfirmActionButton>}
-          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-xl border border-[var(--border)] px-3 text-sm">Batal</button>
+        {!editingTopup && <p className="text-xs text-[var(--text-2)]">Catat setelah debit berhasil. Pastikan debit yang sama belum tercatat di buku kas.</p>}
+        {editingTopup && <p className="text-xs text-[var(--text-2)]">Koreksi nominal menyesuaikan modal dan estimasi nilai. Periksa kembali nilai aktual di Bibit setelah mengubahnya.</p>}
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--line)] pt-3">
+          {editingTopup && <ConfirmActionButton label="Hapus top up" confirmation="Hapus top up? Modal dan estimasi nilai investasi ikut berkurang. Top up dari pengeluaran tercatat kembali menjadi pengeluaran biasa; top up lainnya mengembalikan saldo sumber." onConfirm={() => mutation.mutate(true)} disabled={busy} className="min-h-11 rounded-xl border border-out-solid/40 px-3 text-sm text-out-fg">Hapus</ConfirmActionButton>}
+          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-xl border border-[var(--line)] px-3 text-sm">Batal</button>
           <button type="submit" disabled={busy} className="min-h-11 rounded-xl bg-[#1E201E] px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Menyimpan…" : editingTopup ? "Simpan perubahan" : "Catat top up"}</button>
         </div>
       </form>

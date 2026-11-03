@@ -17,18 +17,18 @@ import { cn } from "@/lib/utils";
 const STATE_STYLE: Record<ChecklistStepState, { icon: string; mark: string; badge: string }> = {
   ok: {
     icon: "check",
-    mark: "bg-[var(--color-income-soft)] text-[var(--income-text)]",
-    badge: "bg-[var(--color-income-soft)] text-[var(--income-text)]",
+    mark: "bg-[var(--in-bg)] text-[var(--in-fg)]",
+    badge: "bg-[var(--in-bg)] text-[var(--in-fg)]",
   },
   fail: {
     icon: "x",
-    mark: "bg-[var(--color-expense-soft)] text-[var(--danger-text)]",
-    badge: "bg-[var(--color-expense-soft)] text-[var(--danger-text)]",
+    mark: "bg-[var(--out-bg)] text-[var(--out-fg)]",
+    badge: "bg-[var(--out-bg)] text-[var(--out-fg)]",
   },
   wait: {
     icon: "smartphone",
-    mark: "bg-[var(--color-warning-soft)] text-[var(--text)]",
-    badge: "bg-[var(--color-warning-soft)] text-[var(--text)]",
+    mark: "bg-[var(--warn-bg)] text-[var(--text)]",
+    badge: "bg-[var(--warn-bg)] text-[var(--text)]",
   },
   todo: {
     icon: "minus-circle",
@@ -41,7 +41,7 @@ function Pulse() {
   return (
     <span
       aria-hidden="true"
-      className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--color-warning)] motion-safe:animate-pulse"
+      className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--warn-solid)] motion-safe:animate-pulse"
     />
   );
 }
@@ -72,16 +72,16 @@ export function DeviceHealthChecklist({ checklist, device }: DeviceHealthCheckli
   return (
     <section
       aria-labelledby="device-health-title"
-      className="space-y-2.5 rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--surface)] p-3.5"
+      className="space-y-2.5 rounded-[var(--radius-lg)] border border-[var(--line-strong)] bg-[var(--surface)] p-3.5"
     >
-      <h3 id="device-health-title" className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+      <h3 id="device-health-title" className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-2)]">
         Status HP
       </h3>
       <p className="flex items-center gap-2.5 text-sm font-bold text-[var(--text)]">
         {busy && <Pulse />}
         <span>{headline}</span>
       </p>
-      {detail && <p className="text-xs text-[var(--text-secondary)]">{detail}</p>}
+      {detail && <p className="text-xs text-[var(--text-2)]">{detail}</p>}
 
       <ul className="grid gap-1.5" aria-label="Langkah pengaturan HP">
         {checklist.steps.map((step) => {
@@ -92,7 +92,7 @@ export function DeviceHealthChecklist({ checklist, device }: DeviceHealthCheckli
             <li
               key={step.key}
               data-state={step.state}
-              className="rounded-[var(--radius-sm)] bg-[var(--bg)] px-2.5 py-2"
+              className="rounded-[var(--radius-sm)] bg-[var(--window)] px-2.5 py-2"
             >
               <div className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2.5">
                 <span aria-hidden="true" className={cn("grid h-7 w-7 place-items-center rounded-full", style.mark)}>
@@ -107,7 +107,7 @@ export function DeviceHealthChecklist({ checklist, device }: DeviceHealthCheckli
                 <p className="mt-1.5 pl-[38px] text-xs text-[var(--text)]">{checklist.selfTestProblem}</p>
               )}
               {showBattery && (
-                <p className="mt-1.5 rounded-[var(--radius-xs)] bg-[var(--color-warning-soft)] px-2.5 py-2 text-xs text-[var(--text)]">
+                <p className="mt-1.5 rounded-[var(--radius-xs)] bg-[var(--warn-bg)] px-2.5 py-2 text-xs text-[var(--text)]">
                   <span className="font-bold">Saran: </span>
                   {BATTERY_HINT}
                 </p>
@@ -118,7 +118,7 @@ export function DeviceHealthChecklist({ checklist, device }: DeviceHealthCheckli
       </ul>
 
       {checklist.stage === "failed" && (
-        <p className="rounded-[var(--radius-sm)] bg-[var(--color-expense-soft)] px-3 py-2.5 text-xs text-[var(--text)]">
+        <p className="rounded-[var(--radius-sm)] bg-[var(--out-bg)] px-3 py-2.5 text-xs text-[var(--text)]">
           {FIX_ON_PHONE}
         </p>
       )}
