@@ -230,34 +230,29 @@ def test_period_list_includes_the_partial_first_month(client, owners):
     assert client.get("/api/reports/monthly", params={"basis": "week"}).status_code == 422
 
 
-def test_comparison_flags_a_partial_previous_month_and_needs_three_periods_for_a_median(client, owners):
+def test_comparison_marks_a_partial_previous_month_and_has_no_baseline_yet(client, owners):
     owner, _ = owners
     seed_two_months(client, owner)
     comparison = report(client)["comparison"]
-    assert comparison["previous_partial"] is True
-    assert comparison["previous"]["previous_has_data"] is True
-    assert comparison["previous"]["previous"]["outflow"] == 100_000
-    assert comparison["median"] == {"available": False, "period_count": 0, "required": 3}
+    previous = comparison["previous"]
+    assert previous["partial"] is True and previous["tracking_from"] == month_start(-2).replace(day=15).isoformat()
+    assert previous["totals"]["spending"] == 100_000
+    # A partial previous month gets no verdict, and with no whole earlier month there is no baseline.
+    assert set(previous["change"].values()) == {None}
+    assert comparison["baseline"] is None
 
 
-def test_median_of_three_full_months_over_the_same_first_days(client, owners):
+def test_report_comparison_is_the_comparison_route(client, owners):
     owner, _ = owners
-    first = month_start(-4)
-    insert(owner, "groceries", 1, at(first))  # tracking starts on the first day of M4
-    for offset, amount in ((-4, 2_000_000), (-3, 9_000_000), (-2, 2_400_000), (-1, 2_600_000)):
-        insert(owner, "groceries", amount, at(month_start(offset).replace(day=10)))
-        insert(owner, "groceries", 777_000, at(month_end(month_start(offset)), 20))  # the last day falls outside D on long months
-    body = report(client)
-    median = body["comparison"]["median"]
-    lengths = [(month_end(month_start(offset)) - month_start(offset)).days + 1 for offset in (-4, -3, -2, -1)]
-    assert median["available"] is True and median["compared_days"] == min(lengths)
-    measured = sorted(
-        amount + (777_000 if (month_end(month_start(offset)) - month_start(offset)).days + 1 == min(lengths) else 0)
-        + (1 if offset == -4 else 0)
-        for offset, amount in ((-4, 2_000_000), (-3, 9_000_000), (-2, 2_400_000))
-    )
-    assert median["median"]["outflow"] == measured[1]
-    assert [item["label"] for item in median["periods"]] == [label(month_start(o)) for o in (-2, -3, -4)]
+    seed_two_months(client, owner)
+    from_report = report(client)["comparison"]
+    routed = client.get("/api/reports/monthly/comparison").json()["comparison"]
+
+    def without_clock(comparison):
+        # The running month ends at the request instant, which differs between the two calls.
+        return {**comparison, "history": [{**item, "end": None} for item in comparison["history"]]}
+
+    assert without_clock(routed) == without_clock(from_report)
 
 
 def test_data_quality_counts_duplicates_review_unclassified_and_empty_days(client, owners):
@@ -354,7 +349,7 @@ def test_salary_cycle_reports_only_closed_cycles(client, owners):
     # A cycle ends the instant before the next receipt, so both share that local day.
     assert body["period"]["end_date"] == third.date().isoformat()
     assert body["flow"]["outflow"] == 70_000 and body["income"]["total"] == 5_000_000
-    assert body["comparison"]["previous_period"]["start_date"] == first.date().isoformat()
+    assert body["comparison"]["previous"]["start_date"] == first.date().isoformat()
     assert client.get("/api/reports/monthly/latest").json()["basis"] == "cycle"
 
 

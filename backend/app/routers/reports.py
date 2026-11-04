@@ -13,6 +13,7 @@ from app.routers.accounts import get_accounts_with_balances, summarize_account_b
 from app.routers.dashboard import calculate_ketahanan_dana, get_kakeibo_breakdown
 from app.services.auth import get_current_user
 from app.services.essential_cost import DEFAULT_TARGET_MONTHS, estimate_essential_cost
+from app.services.monthly_comparison import build_comparison
 from app.services.monthly_report import (
     BASIS_PATTERN,
     ReportError,
@@ -22,6 +23,7 @@ from app.services.monthly_report import (
     latest_readiness,
     list_periods,
     local_start,
+    recurring_in_period,
     reflection_dates,
     resolve_period,
     save_reflection,
@@ -141,6 +143,34 @@ def get_monthly_report(
                 essential=_essential_now(cur, current_user), now=now,
             )
     return {"ok": True, "timezone": settings.tz, "empty": False, "cycle_available": listing["cycle_available"], **report}
+
+
+@router.get("/comparison")
+def get_monthly_comparison(
+    basis: str = Query(default="month", pattern=BASIS_PATTERN),
+    start_date: date | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """The whole-period comparison of one period, the same object as the report's `comparison`."""
+    now = datetime.now(timezone.utc)
+    user_id = current_user["id"]
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            listing = list_periods(cur, user_id, basis, now=now)
+            if listing["first_day"] is None:
+                return {"ok": True, "timezone": settings.tz, "basis": basis, "empty": True,
+                        "cycle_available": listing["cycle_available"]}
+            try:
+                period = resolve_period(listing, basis, start_date)
+            except ReportError as error:
+                raise report_error(error) from None
+            comparison = build_comparison(
+                cur, user_id, basis=basis, period=period, listing=listing, now=now,
+                kakeibo_breakdown=get_kakeibo_breakdown, recurring_in_period=recurring_in_period,
+            )
+    return {"ok": True, "timezone": settings.tz, "empty": False, "cycle_available": listing["cycle_available"],
+            "comparison": comparison}
 
 
 @router.put("/reflection")

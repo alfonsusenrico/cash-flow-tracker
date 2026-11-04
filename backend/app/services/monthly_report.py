@@ -1,7 +1,7 @@
 """Laporan Bulanan: one report per calendar month or closed salary cycle (add-monthly-report).
 
 The report composes the shared reporting contract: window figures, the Kakeibo breakdown, the category
-breakdown, the fair comparison, recurring charges and the essential cost. It adds no calculation rule of
+breakdown, the whole-period comparison, recurring charges and the essential cost. It adds no calculation rule of
 its own, so each figure equals the ledger summary for the same window (design D1).
 """
 
@@ -12,11 +12,10 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
-from app.services.essential_cost import median_rupiah
 from app.services.kakeibo import UNCLASSIFIED, pillar_bucket_sql
+from app.services.monthly_comparison import build_comparison
 from app.services.observed_insights import (
     merchant_spending,
-    period_comparison,
     recurring_charges,
     window_figures,
 )
@@ -34,14 +33,13 @@ from app.services.report_figures import (
     reportable_expense_sql,
     reportable_income_sql,
 )
-from app.services.report_windows import shift_month, utc_bounds
+from app.services.report_windows import shift_month
 
 BASES = ("month", "cycle")
 BASIS_PATTERN = "^(month|cycle)$"
 CLOSED_PERIOD_LIMIT = 24
 TOP_LIMIT = 5
 UNEXPECTED_ITEM_LIMIT = 10
-MEDIAN_PERIODS = 3
 SPENDING_PILLARS = ("need", "want", "culture", "unexpected", "saving", UNCLASSIFIED)
 FLOW_KEYS = ("inflow", "gross_outflow", "reimbursement_offset", "outflow", "net")
 
@@ -241,7 +239,7 @@ def _unexpected_items(cur, user_id: str, start: datetime, end: datetime) -> dict
     return {"count": int(cur.fetchone()["count"]), "items": items}
 
 
-def _recurring_in_period(cur, user_id: str, period: ObservedPeriod, *, now: datetime) -> dict[str, Any]:
+def recurring_in_period(cur, user_id: str, period: ObservedPeriod, *, now: datetime) -> dict[str, Any]:
     as_of = min(now, period.last_instant)
     detected = recurring_charges(cur, user_id, now=as_of)
     first, last = local_start(period), local_end(period)
@@ -255,36 +253,6 @@ def _recurring_in_period(cur, user_id: str, period: ObservedPeriod, *, now: date
         if first <= date.fromisoformat(charge["last_date"]) <= last
     ]
     return {"charges": charges, "monthly_equivalent_total": sum(item["monthly_equivalent"] for item in charges)}
-
-
-def _median(cur, user_id: str, period: ObservedPeriod, listing: dict[str, Any]) -> dict[str, Any]:
-    """The median of the three most recent full periods before this one, each over the same first days."""
-    first_day = listing["first_day"]
-    earlier = [
-        item for item in listing["periods"]
-        if item.complete and item.start < period.start and first_day is not None and local_start(item) >= first_day
-    ][:MEDIAN_PERIODS]
-    if len(earlier) < MEDIAN_PERIODS:
-        return {"available": False, "period_count": len(earlier), "required": MEDIAN_PERIODS}
-    lengths = [(local_end(item) - local_start(item)).days + 1 for item in [period, *earlier]]
-    compared_days = min(lengths)
-
-    def first_days(item: ObservedPeriod) -> dict[str, Any]:
-        start_day = local_start(item)
-        start, end = utc_bounds(start_day, start_day + timedelta(days=compared_days - 1))
-        return {**_figures(cur, user_id, start, min(end, item.last_instant)), "label": item.label,
-                "start": start.isoformat(), "end": min(end, item.last_instant).isoformat()}
-
-    measured = [first_days(item) for item in earlier]
-    return {
-        "available": True,
-        "period_count": len(earlier),
-        "required": MEDIAN_PERIODS,
-        "compared_days": compared_days,
-        "periods": [{"label": item["label"], "start": item["start"], "end": item["end"]} for item in measured],
-        "current": first_days(period),
-        "median": {key: median_rupiah([item[key] for item in measured]) for key in ("inflow", "outflow", "net")},
-    }
 
 
 def review_counts(cur, user_id: str, start: datetime | None = None, end: datetime | None = None) -> dict[str, int]:
@@ -403,9 +371,9 @@ def build_report(
         UNCLASSIFIED: kakeibo["unclassified_spent"],
     }
     previous = _previous_window(listing, period, basis, now=now)
-    comparison = period_comparison(
-        cur, user_id, current=(start, end, period.label),
-        previous=(previous.start, previous.last_instant, previous.label) if previous else None,
+    comparison = build_comparison(
+        cur, user_id, basis=basis, period=period, listing=listing, now=now,
+        kakeibo_breakdown=kakeibo_breakdown, recurring_in_period=recurring_in_period,
     )
     first_day = listing["first_day"]
     previous_reflection = None
@@ -438,15 +406,10 @@ def build_report(
                 {"name": item["name"], "search_text": item["search_text"], "amount": item["amount"]} for item in merchants[:TOP_LIMIT]
             ],
             "unexpected": {"amount": kakeibo["unexpected_spent"], **_unexpected_items(cur, user_id, start, end)},
-            "recurring": _recurring_in_period(cur, user_id, period, now=now),
+            "recurring": recurring_in_period(cur, user_id, period, now=now),
             "essential": essential,
         },
-        "comparison": {
-            "previous": comparison,
-            "previous_partial": bool(previous and first_day and first_day > local_start(previous) and first_day <= local_end(previous)),
-            "previous_period": describe_period(previous, basis, first_day) if previous else None,
-            "median": _median(cur, user_id, period, listing),
-        },
+        "comparison": comparison,
         "data_quality": _data_quality(cur, user_id, period, kakeibo, now=now),
         "budget": _budget(breakdown, figures["outflow"], overall_budget, basis),
         "reflection": load_reflection(cur, user_id, basis, local_start(period)),
