@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
+import { DisclosureSummary } from "@/components/ui/DisclosureSummary";
 import { ledgerHref } from "@/lib/ledgerFilters";
 import type { ExpensePlanDraft } from "@/types/recurring";
 
@@ -73,7 +74,7 @@ export function RecurringCharges({ bal, onCreatePlan }: { bal: Money; onCreatePl
       )}
       {charges.length > 0 && data && (
         <details>
-        <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-[var(--text)]">Rincian</summary>
+        <DisclosureSummary>Rincian</DisclosureSummary>
         <ul className="space-y-2">
           {charges.map((charge) => (
             <li key={charge.key} className="min-w-0 space-y-1.5 rounded-xl border border-[var(--line)] p-3">

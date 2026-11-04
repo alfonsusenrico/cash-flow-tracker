@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
+import { DisclosureSummary } from "@/components/ui/DisclosureSummary";
 
 export const QUESTION_RATE_WEEKS = 8;
 
@@ -73,7 +74,7 @@ export function QuestionRate() {
       )}
       {data?.has_data && (
         <details>
-        <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-[var(--text)]">Rincian per minggu</summary>
+        <DisclosureSummary>Rincian per minggu</DisclosureSummary>
         <ol className="divide-y divide-[var(--line)]">
           {weeks.map((week) => (
             <li key={week.week_start} className="space-y-1.5 py-2.5">

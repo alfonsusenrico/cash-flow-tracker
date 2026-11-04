@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAppCtx } from "@/components/layout/AppLayout";
+import { DisclosureSummary } from "@/components/ui/DisclosureSummary";
 import { type MonthlyReport, reportLedgerHref, shortDate } from "@/lib/monthlyReport";
 import { cn } from "@/lib/utils";
 import { AmountRow, LINK_CLASS, ReportPanel, SubHeading } from "./ReportParts";
@@ -126,9 +127,7 @@ export function SpendingDetailsCard({ report }: { report: MonthlyReport }) {
         </p>
       )}
       <details>
-        <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-[var(--text)]">
-          Tak terduga, tagihan berulang dan biaya hidup pokok
-        </summary>
+        <DisclosureSummary>Tak terduga, tagihan berulang dan biaya hidup pokok</DisclosureSummary>
         <div className="space-y-4 pt-2">
           <UnexpectedAndRecurring report={report} />
           <EssentialBrief report={report} />
