@@ -113,8 +113,8 @@ Expected Result: the prompt change is measured, and `none` stays unless the numb
 
 ## 8. Acceptance
 
-- [ ] 8.1 Present the change to the owner: the verification, the open decisions OD122–OD128, and the steps to add the Bank Jago / GoPay pattern in Pengaturan after the deploy. The owner accepts. Record their words and the date in proposal.md.
-- [ ] 8.2 After acceptance:
+- [x] 8.1 Present the change to the owner: the verification, the open decisions OD122–OD128, and the steps to add the Bank Jago / GoPay pattern in Pengaturan after the deploy. The owner accepts. Record their words and the date in proposal.md.
+- [x] 8.2 After acceptance:
   - archive with `openspec archive skip-redundant-notifications -y`;
   - write a real Purpose for any new main spec;
   - confirm `openspec validate --all --strict` exits 0;
