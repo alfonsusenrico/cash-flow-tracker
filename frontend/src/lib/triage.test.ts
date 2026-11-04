@@ -134,13 +134,13 @@ const seenTwice = (overrides: Partial<SeenTwiceItem> = {}): SeenTwiceItem => ({
 
 describe("Terlihat dua kali", () => {
   it("is an optional folder outside the badge, linked to the kept leg", () => {
-    const data = { ...queue(), seen_twice: [seenTwice(), seenTwice({ event_id: "ev-held", kind: "held", kept: null })] };
+    const data = { ...queue(), seen_twice: [seenTwice(), seenTwice({ event_id: "ev-gone", kept: null })] };
     const triage = buildTriage(data);
     expect(triage.counts.dua).toBe(2);
     expect(triage.counts.apa + triage.counts.jawab + triage.counts.pindah).toBe(triage.attention);
     expect(folderItems(triage, "semua").some((item) => item.kind === "seen_twice")).toBe(false);
     expect(triage.folders.dua.map((item) => [item.id, item.transactionIds])).toEqual([
-      ["d:ev-jago", ["tx-gopay"]], ["d:ev-held", []],
+      ["d:ev-jago", ["tx-gopay"]], ["d:ev-gone", []],
     ]);
     expect(resolveDeepLink(triage, "tx-gopay", "dua")).toEqual({ folder: "dua", itemId: "d:ev-jago", resolved: false });
     expect(folderFromParams("dua", null)).toBe("dua");
@@ -148,5 +148,27 @@ describe("Terlihat dua kali", () => {
 
   it("reads an older queue without the section", () => {
     expect(buildTriage(queue()).folders.dua).toEqual([]);
+  });
+});
+
+describe("Dilewati otomatis", () => {
+  const skipped = seenTwice({
+    event_id: "ev-skip", kind: "skipped",
+    pattern: { id: "pattern-1", redundant_label: "Bank Jago", direction: "income", kept_label: "GoPay" },
+  });
+
+  it("is its own optional folder, never counted as work", () => {
+    const triage = buildTriage({ ...queue(), skipped: [skipped] });
+    expect(triage.counts.lewat).toBe(1);
+    expect(triage.folders.lewat.map((item) => [item.id, item.folder, item.transactionIds])).toEqual([
+      ["l:ev-skip", "lewat", ["tx-gopay"]],
+    ]);
+    expect(folderItems(triage, "semua").some((item) => item.folder === "lewat")).toBe(false);
+    expect(triage.counts.apa + triage.counts.jawab + triage.counts.pindah).toBe(triage.attention);
+    expect(folderFromParams("lewat", null)).toBe("lewat");
+  });
+
+  it("reads an older queue without skipped reports", () => {
+    expect(buildTriage(queue()).folders.lewat).toEqual([]);
   });
 });

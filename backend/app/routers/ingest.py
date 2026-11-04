@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
-from app.services.auth import get_current_user
+from app.services.auth import get_current_user, get_session_user
 from app.services.kakeibo import Pillar
 
 router = APIRouter(tags=["Notification Ingestion"])
@@ -358,6 +358,48 @@ def delete_notification_alias(alias_id: UUID, current_user: dict = Depends(get_c
         conn.commit()
     if not deleted:
         raise HTTPException(status_code=404, detail="Alias not found")
+    return {"ok": True}
+
+
+class SkipPatternIn(BaseModel):
+    redundant_institution: str = Field(min_length=1, max_length=32)
+    direction: str = Field(min_length=1, max_length=16)
+    kept_institution: str = Field(min_length=1, max_length=32)
+
+
+@router.get("/skip-patterns")
+def list_skip_patterns(current_user: dict = Depends(get_session_user)):
+    """The owner's active skip patterns and the apps that may be chosen (skip-redundant-notifications D7)."""
+    from app.services.skip_patterns import list_patterns
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            listing = list_patterns(cur, current_user["id"])
+    return {"ok": True, **listing}
+
+
+@router.post("/skip-patterns", status_code=201)
+def create_skip_pattern(payload: SkipPatternIn, current_user: dict = Depends(get_session_user)):
+    """"Tambah pola": skip the first app's reports when the second app already reported the same money."""
+    from app.services.skip_patterns import create_pattern, public_pattern
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            pattern = create_pattern(cur, current_user["id"], payload.redundant_institution.strip().lower(),
+                                     payload.direction.strip().lower(), payload.kept_institution.strip().lower())
+        conn.commit()
+    return {"ok": True, "pattern": public_pattern(pattern)}
+
+
+@router.delete("/skip-patterns/{pattern_id}")
+def stop_skip_pattern(pattern_id: UUID, current_user: dict = Depends(get_session_user)):
+    """"Berhenti melewati": the pattern stops matching; earlier skips stay listed in Tinjau."""
+    from app.services.skip_patterns import stop_pattern
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            stop_pattern(cur, current_user["id"], str(pattern_id))
+        conn.commit()
     return {"ok": True}
 
 

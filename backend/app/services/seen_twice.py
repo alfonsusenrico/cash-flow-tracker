@@ -1,9 +1,10 @@
-"""Tinjau's "Terlihat dua kali": second observations of one money movement, and held possible ones.
+"""Tinjau's "Terlihat dua kali" and "Dilewati otomatis": second observations of one money movement.
 
-A second observation books nothing (recognise-one-arrival-seen-twice D1–D3); a held event is one the
-model called a second observation without the backend rule confirming it (D5, OD116). Both wait here
-for 30 days until the owner confirms them ("Benar, satu transaksi") or records them on their own
-("Catat terpisah", undoable). They count as automatic, never as needing attention (OD117).
+A second observation books nothing (recognise-one-arrival-seen-twice D1–D3). It waits under "Terlihat
+dua kali" for 30 days until the owner confirms it ("Benar, satu transaksi", which also learns a skip
+pattern) or records it on its own ("Catat terpisah", undoable). A report an owner's skip pattern skipped
+is already reviewed and is listed under "Dilewati otomatis" for 30 days, with the same "Catat terpisah"
+(skip-redundant-notifications D4, D5). Neither counts as needing attention (OD117, OD125).
 """
 
 from __future__ import annotations
@@ -21,14 +22,14 @@ from app.services.notification_resolution import INSTITUTION_LABELS
 SEEN_TWICE_DAYS = 30
 SEEN_TWICE_LIMIT = 200
 
-# An event Tinjau lists under "Terlihat dua kali"; `n` is notification_events.
-SEEN_TWICE_SQL = """(n.provenance_kind = 'duplicate_observation'
-    OR (n.processing_state = 'needs_review' AND n.error_code = 'possible_duplicate_observation'))"""
+# A second observation Tinjau can act on; `n` is notification_events. Waiting ones have no reviewed_at,
+# skipped ones carry the pattern that skipped them.
+SEEN_TWICE_SQL = "n.provenance_kind = 'duplicate_observation'"
 
 # The facts a "Catat terpisah" undo puts back; the event's result fields are restored by review undo.
 RESTORED_EVENT_FIELDS = (
     "processing_state", "provenance_kind", "error_code", "duplicate_of_transaction_id", "reviewed_at",
-    "interpretation",
+    "interpretation", "skip_pattern_id",
 )
 
 
@@ -88,21 +89,34 @@ def _kept_leg(cur, user_id: str, transaction_id: str | None) -> dict | None:
     }
 
 
-def _held_original(cur, user_id: str, event: dict) -> str | None:
-    """The transaction of the neighbour the model named for a held event."""
-    neighbour = (event.get("interpretation") or {}).get("same_money_as_event_id")
-    if not neighbour:
-        return None
+def _account_labels(cur, user_id: str) -> dict[str, str]:
     cur.execute(
-        """SELECT COALESCE(transaction_id, duplicate_of_transaction_id) AS transaction_id
-           FROM notification_events WHERE user_id = %s AND id = %s""",
-        (user_id, neighbour),
+        """SELECT a.id, a.name, p.name AS parent FROM accounts a
+           LEFT JOIN accounts p ON p.id = a.parent_id AND p.user_id = a.user_id WHERE a.user_id = %s""",
+        (user_id,),
     )
-    row = cur.fetchone()
-    return str(row["transaction_id"]) if row and row["transaction_id"] else None
+    return {str(row["id"]): f"{row['parent']} · {row['name']}" if row["parent"] else row["name"]
+            for row in cur.fetchall()}
+
+
+def _item(cur, user_id: str, event: dict, labels: dict[str, str]) -> dict[str, Any]:
+    from app.services.notification_processing import source_event
+
+    facts = collect_facts(source_event(event))
+    kept_id = str(event["duplicate_of_transaction_id"]) if event.get("duplicate_of_transaction_id") else None
+    account_id = (event.get("interpretation") or {}).get("account_id")
+    return {
+        "event_id": str(event["id"]), "kind": "skipped" if event.get("skip_pattern_id") else "duplicate",
+        "app": INSTITUTION_LABELS.get(facts.institution or "", event.get("app_label") or "Aplikasi"),
+        "type": facts.direction if facts.direction in {"expense", "income"} else None,
+        "amount": facts.amount, "date": event["post_time"].isoformat(),
+        "account_name": labels.get(str(account_id)) if account_id else None,
+        "kept": _kept_leg(cur, user_id, kept_id),
+    }
 
 
 def seen_twice_items(cur, user_id: str) -> list[dict[str, Any]]:
+    """Second observations still waiting for the owner, newest first."""
     cur.execute(
         f"""SELECT n.* FROM notification_events n
             WHERE n.user_id = %s AND {SEEN_TWICE_SQL} AND n.reviewed_at IS NULL AND n.post_time >= %s
@@ -110,31 +124,42 @@ def seen_twice_items(cur, user_id: str) -> list[dict[str, Any]]:
         (user_id, seen_twice_since(), SEEN_TWICE_LIMIT),
     )
     events = cur.fetchall()
+    labels = _account_labels(cur, user_id)
+    return [_item(cur, user_id, event, labels) for event in events]
+
+
+def skipped_items(cur, user_id: str) -> list[dict[str, Any]]:
+    """Reports an owner's skip pattern skipped in the last 30 days, newest first, with their pattern."""
+    from app.services.skip_patterns import institution_label
+
     cur.execute(
-        """SELECT a.id, a.name, p.name AS parent FROM accounts a
-           LEFT JOIN accounts p ON p.id = a.parent_id AND p.user_id = a.user_id WHERE a.user_id = %s""",
-        (user_id,),
+        f"""SELECT n.*, p.redundant_institution, p.direction AS pattern_direction, p.kept_institution
+            FROM notification_events n
+            JOIN notification_skip_patterns p ON p.id = n.skip_pattern_id AND p.user_id = n.user_id
+            WHERE n.user_id = %s AND {SEEN_TWICE_SQL} AND n.post_time >= %s
+            ORDER BY n.post_time DESC, n.id LIMIT %s""",
+        (user_id, seen_twice_since(), SEEN_TWICE_LIMIT),
     )
-    labels = {str(row["id"]): f"{row['parent']} · {row['name']}" if row["parent"] else row["name"]
-              for row in cur.fetchall()}
+    events = cur.fetchall()
+    labels = _account_labels(cur, user_id)
     items = []
     for event in events:
-        from app.services.notification_processing import source_event
-
-        facts = collect_facts(source_event(event))
-        duplicate = event["provenance_kind"] == "duplicate_observation"
-        kept_id = (str(event["duplicate_of_transaction_id"]) if event.get("duplicate_of_transaction_id")
-                   else None) if duplicate else _held_original(cur, user_id, event)
-        account_id = (event.get("interpretation") or {}).get("account_id")
-        items.append({
-            "event_id": str(event["id"]), "kind": "duplicate" if duplicate else "held",
-            "app": INSTITUTION_LABELS.get(facts.institution or "", event.get("app_label") or "Aplikasi"),
-            "type": facts.direction if facts.direction in {"expense", "income"} else None,
-            "amount": facts.amount, "date": event["post_time"].isoformat(),
-            "account_name": labels.get(str(account_id)) if account_id else None,
-            "kept": _kept_leg(cur, user_id, kept_id),
-        })
+        items.append({**_item(cur, user_id, event, labels), "pattern": {
+            "id": str(event["skip_pattern_id"]),
+            "redundant_label": institution_label(event["redundant_institution"]),
+            "direction": event["pattern_direction"],
+            "kept_label": institution_label(event["kept_institution"]),
+        }})
     return items
+
+
+def skipped_count(cur, user_id: str) -> int:
+    cur.execute(
+        f"""SELECT COUNT(*) AS count FROM notification_events n
+            WHERE n.user_id = %s AND {SEEN_TWICE_SQL} AND n.skip_pattern_id IS NOT NULL AND n.post_time >= %s""",
+        (user_id, seen_twice_since()),
+    )
+    return int(cur.fetchone()["count"])
 
 
 def _locked_item(cur, user_id: str, event_id: str) -> dict:
@@ -151,7 +176,10 @@ def _locked_item(cur, user_id: str, event_id: str) -> dict:
 
 
 def acknowledge(user_id: str, event_id: str) -> dict:
-    """"Benar, satu transaksi": the owner confirms one money movement; idempotent."""
+    """"Benar, satu transaksi": the owner confirms one money movement and the app learns to skip such
+    repeats from now on (D4); idempotent, and a repeat never adds a second pattern."""
+    from app.services.skip_patterns import learn_from_acknowledgement
+
     with db_conn() as conn:
         with conn.cursor() as cur:
             event = _locked_item(cur, user_id, event_id)
@@ -160,8 +188,9 @@ def acknowledge(user_id: str, event_id: str) -> dict:
                    WHERE user_id = %s AND id = %s""",
                 (user_id, str(event["id"])),
             )
+            pattern = learn_from_acknowledgement(cur, user_id, event)
         conn.commit()
-    return {"ok": True, "event_id": str(event_id)}
+    return {"ok": True, "event_id": str(event_id), "pattern": pattern}
 
 
 def record_separately(user_id: str, event_id: str) -> dict:
@@ -181,8 +210,7 @@ def record_separately(user_id: str, event_id: str) -> dict:
             recorder.capture([], event_ids=[str(event["id"])])
             before = json.loads(json.dumps({field: event.get(field) for field in RESTORED_EVENT_FIELDS}, default=str))
             facts = resolved_facts(cur, event, collect_facts(source_event(event)))
-            context = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit,
-                                   event_id=str(event["id"]))
+            context = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit)
             try:
                 if context["incomplete"]:
                     raise EvidenceError("incomplete_context")
@@ -202,8 +230,8 @@ def record_separately(user_id: str, event_id: str) -> dict:
                     "code": exc.code, "message": "Notifikasi ini tidak dapat dicatat terpisah.",
                 }) from None
             cur.execute(
-                """UPDATE notification_events SET duplicate_of_transaction_id = NULL, reviewed_at = NOW(),
-                       updated_at = NOW()
+                """UPDATE notification_events SET duplicate_of_transaction_id = NULL, skip_pattern_id = NULL,
+                       reviewed_at = NOW(), updated_at = NOW()
                    WHERE user_id = %s AND id = %s RETURNING transaction_id""",
                 (user_id, str(event["id"])),
             )
@@ -217,7 +245,7 @@ def record_separately(user_id: str, event_id: str) -> dict:
 
 
 def restore_seen_twice(cur, user_id: str, record: dict) -> None:
-    """Undo of "Catat terpisah": the event is a second observation (or a hold) again."""
+    """Undo of "Catat terpisah": the event is a second observation again, skipped when it was."""
     before = record["before"]
     kept = before.get("duplicate_of_transaction_id")
     if kept:
@@ -227,9 +255,10 @@ def restore_seen_twice(cur, user_id: str, record: dict) -> None:
     cur.execute(
         """UPDATE notification_events SET processing_state = %s, provenance_kind = %s, error_code = %s,
                transaction_id = NULL, duplicate_of_transaction_id = %s, reviewed_at = %s, interpretation = %s,
+               skip_pattern_id = (SELECT id FROM notification_skip_patterns WHERE user_id = %s AND id = %s),
                updated_at = NOW()
            WHERE user_id = %s AND id = %s""",
         (before["processing_state"], before["provenance_kind"], before["error_code"], kept, before["reviewed_at"],
          json.dumps(before["interpretation"]) if before.get("interpretation") is not None else None,
-         user_id, record["event_id"]),
+         user_id, before.get("skip_pattern_id"), user_id, record["event_id"]),
     )

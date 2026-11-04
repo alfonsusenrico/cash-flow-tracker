@@ -15,14 +15,17 @@ function renderAt(pathname: string) {
   );
 }
 
-const TITLES = ["HP & perangkat", "Kebiasaan", "Tampilan", "Profil", "Gaji & siklus", "Mata uang & anggaran", "Pemetaan notifikasi", "Nama pengirim"];
+const TITLES = [
+  "HP & perangkat", "Kebiasaan", "Tampilan", "Profil", "Gaji & siklus", "Mata uang & anggaran", "Pemetaan notifikasi",
+  "Notifikasi ganda", "Nama pengirim",
+];
 
 describe("settings section navigation", () => {
   beforeEach(() => {
     navigation.pathname = "/settings";
   });
 
-  it("lists the eight sections with the Akun group in both navigations and marks HP & perangkat current at /settings", async () => {
+  it("lists the nine sections with the Akun group in both navigations and marks HP & perangkat current at /settings", async () => {
     const { container } = renderAt("/settings");
     const wide = screen.getByRole("navigation", { name: "Bagian pengaturan" });
     // The phone index and the back link are hidden by the wide layout's styles; their markup is still checked.
@@ -30,8 +33,9 @@ describe("settings section navigation", () => {
     expect(within(wide).getAllByRole("link").map((link) => link.textContent)).toEqual(TITLES);
     expect(within(wide).getByRole("link", { name: "HP & perangkat" })).toHaveAttribute("aria-current", "page");
     expect(within(wide).getByRole("heading", { name: "Akun" })).toBeInTheDocument();
-    expect(within(wide).getByRole("list", { name: "Akun" }).querySelectorAll("a")).toHaveLength(5);
-    expect(within(narrow).getAllByRole("link", { hidden: true })).toHaveLength(8);
+    expect(within(wide).getByRole("list", { name: "Akun" }).querySelectorAll("a")).toHaveLength(6);
+    expect(within(narrow).getAllByRole("link", { hidden: true })).toHaveLength(9);
+    expect(within(narrow).getByRole("link", { name: /Notifikasi ganda/, hidden: true })).toHaveAttribute("href", "/settings/notifikasi-ganda");
     expect(within(narrow).getByRole("link", { name: /Nama pengirim/, hidden: true })).toHaveAttribute("href", "/settings/pengirim");
     expect(within(narrow).queryByRole("link", { current: "page", hidden: true })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Semua pengaturan", hidden: true })).not.toBeInTheDocument();
@@ -39,7 +43,7 @@ describe("settings section navigation", () => {
   });
 
   it("keeps old addresses and the two new sections working", () => {
-    for (const slug of ["profil", "gaji", "anggaran", "perangkat", "pemetaan", "pengirim", "kebiasaan", "tampilan"]) {
+    for (const slug of ["profil", "gaji", "anggaran", "perangkat", "pemetaan", "notifikasi-ganda", "pengirim", "kebiasaan", "tampilan"]) {
       const view = renderAt(`/settings/${slug}`);
       expect(within(screen.getByRole("navigation", { name: "Bagian pengaturan" })).getByRole("link", { current: "page" })).toHaveAttribute("href", `/settings/${slug}`);
       view.unmount();

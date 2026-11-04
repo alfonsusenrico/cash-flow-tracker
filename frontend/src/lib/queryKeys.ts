@@ -51,6 +51,7 @@ export const queryKeys = {
   classificationGaps: (from: string | null, to: string | null) => ["classification", "gaps", from ?? "", to ?? ""] as const,
   notificationAliases: ["notification-aliases"] as const,
   senderAliases: ["sender-aliases"] as const,
+  skipPatterns: ["skip-patterns"] as const,
   devices: ["devices"] as const,
   habits: {
     list: ["habits", "list"] as const,

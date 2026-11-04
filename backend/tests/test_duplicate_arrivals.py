@@ -107,6 +107,165 @@ def test_jago_first_keeps_the_named_gopay_leg(client, notification_owner):
     assert_one_movement_bca_to_gopay(owner, jago["event_id"])
 
 
+# --- skip-redundant-notifications 1.1: a pattern skips the redundant report ---------------------------
+
+
+def add_pattern(owner, redundant="jago", direction="income", kept="gopay", *, stopped=False, user_id=None):
+    """A skip pattern as the owner adds it in Pengaturan (synthetic owner)."""
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        row = conn.execute(
+            """INSERT INTO notification_skip_patterns (user_id, redundant_institution, direction, kept_institution,
+                   source, stopped_at)
+               VALUES (%s, %s, %s, %s, 'manual', CASE WHEN %s THEN NOW() ELSE NULL END) RETURNING id""",
+            (user_id or owner["user_id"], redundant, direction, kept, stopped),
+        ).fetchone()
+        conn.commit()
+    return str(row["id"])
+
+
+def assert_skipped(event_id, pattern_id):
+    stored = event_row(event_id)
+    assert stored["provenance_kind"] == "duplicate_observation" and stored["transaction_id"] is None
+    assert str(stored["skip_pattern_id"]) == pattern_id
+    assert stored["reviewed_at"] is not None
+
+
+def test_pattern_skips_the_jago_report_without_a_tinjau_item(client, notification_owner):
+    owner = notification_owner
+    pattern = add_pattern(owner)
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    send(client, MYBCA_DEBIT, MYBCA, 3.4)
+    assert_one_movement_bca_to_gopay(owner, jago["event_id"])
+    assert_skipped(jago["event_id"], pattern)
+    queue = client.get("/api/review/queue").json()
+    assert queue["seen_twice"] == [] and queue["counts"]["seen_twice"] == 0
+
+
+def test_pattern_skips_the_jago_report_that_arrived_first(client, notification_owner):
+    owner = notification_owner
+    pattern = add_pattern(owner)
+    jago = send(client, JAGO_CREDIT, JAGO, 0)
+    send(client, GOPAY_CREDIT, GOPAY, 1)
+    send(client, MYBCA_DEBIT, MYBCA, 3.4)
+    assert_one_movement_bca_to_gopay(owner, jago["event_id"])
+    assert_skipped(jago["event_id"], pattern)
+    assert client.get("/api/review/queue").json()["seen_twice"] == []
+
+
+def test_pattern_keeps_an_owner_edited_jago_leg_and_asks(client, notification_owner):
+    owner = notification_owner
+    add_pattern(owner)
+    jago = send(client, JAGO_CREDIT, JAGO, 0)
+    row = next(row for row in incomes(owner) if str(row["account_id"]) == owner["main"])
+    edited = client.patch(f"/api/transactions/{row['id']}", json={"notes": "Uang dari GoPay"})
+    assert edited.status_code == 200, edited.text
+    gopay = send(client, GOPAY_CREDIT, GOPAY, 1)
+    assert [str(item["id"]) for item in incomes(owner)] == [str(row["id"])]
+    stored = event_row(gopay["event_id"])
+    assert (stored["provenance_kind"], stored["skip_pattern_id"], stored["reviewed_at"]) == (
+        "duplicate_observation", None, None)
+    assert [item["event_id"] for item in client.get("/api/review/queue").json()["seen_twice"]] == [gopay["event_id"]]
+
+
+# --- skip-redundant-notifications 1.2: what a pattern never skips --------------------------------------
+
+
+def assert_not_skipped(event_id):
+    stored = event_row(event_id)
+    assert stored["skip_pattern_id"] is None and stored["reviewed_at"] is None
+
+
+def test_without_a_pattern_the_guard_still_holds_the_report(client, notification_owner):
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    assert event_row(jago["event_id"])["provenance_kind"] == "duplicate_observation"
+    assert_not_skipped(jago["event_id"])
+    assert [item["event_id"] for item in client.get("/api/review/queue").json()["seen_twice"]] == [jago["event_id"]]
+
+
+def test_jago_income_without_a_gopay_report_records(client, notification_owner):
+    owner = notification_owner
+    add_pattern(owner)
+    jago = send(client, JAGO_CREDIT, JAGO, 0)
+    assert event_row(jago["event_id"])["provenance_kind"] == "observed_leg"
+    assert_not_skipped(jago["event_id"])
+    assert [str(row["account_id"]) for row in incomes(owner)] == [owner["main"]]
+
+
+def test_pattern_skips_nothing_for_another_amount(client, notification_owner):
+    owner = notification_owner
+    add_pattern(owner)
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, "You've received Rp400.000 from GoPay.", JAGO, 0.13)
+    assert_not_skipped(jago["event_id"])
+    assert sorted(str(row["account_id"]) for row in incomes(owner)) == sorted([owner["gopay"], owner["main"]])
+
+
+def test_pattern_for_another_direction_skips_nothing(client, notification_owner):
+    owner = notification_owner
+    add_pattern(owner, direction="expense")
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    # The plain guard still holds it for the owner, but nothing is skipped.
+    assert event_row(jago["event_id"])["provenance_kind"] == "duplicate_observation"
+    assert_not_skipped(jago["event_id"])
+
+
+def test_pattern_skips_nothing_when_the_sender_is_not_the_kept_account(client, notification_owner):
+    owner = notification_owner
+    add_pattern(owner)
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, "You've received Rp500.000 from Rina Wulandari.", JAGO, 30)
+    assert_not_skipped(jago["event_id"])
+    assert sorted(str(row["account_id"]) for row in incomes(owner)) == sorted([owner["gopay"], owner["main"]])
+
+
+def test_pattern_skips_nothing_with_two_possible_kept_reports(client, notification_owner):
+    owner = notification_owner
+    add_pattern(owner)
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    send(client, GOPAY_CREDIT, GOPAY, 2)
+    jago = send(client, JAGO_CREDIT, JAGO, 3)
+    stored = event_row(jago["event_id"])
+    assert stored["provenance_kind"] == "observed_leg"
+    assert "ambiguous_movement" in stored["interpretation"]["review_reasons"]
+    assert_not_skipped(jago["event_id"])
+    assert len(incomes(owner)) == 3
+
+
+def test_stopped_pattern_skips_nothing(client, notification_owner):
+    owner = notification_owner
+    add_pattern(owner, stopped=True)
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    assert event_row(jago["event_id"])["provenance_kind"] == "duplicate_observation"
+    assert_not_skipped(jago["event_id"])
+
+
+def test_another_owners_pattern_skips_nothing(client, notification_owner):
+    from app.db.pool import db_conn
+
+    other = str(uuid4())
+    with db_conn() as conn:
+        conn.execute(
+            "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Lain', 'x', 'TEST')",
+            (other, f"other_{uuid4().hex}"),
+        )
+        conn.commit()
+    try:
+        add_pattern(notification_owner, user_id=other)
+        send(client, GOPAY_CREDIT, GOPAY, 0)
+        jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+        assert event_row(jago["event_id"])["provenance_kind"] == "duplicate_observation"
+        assert_not_skipped(jago["event_id"])
+    finally:
+        with db_conn() as conn:
+            conn.execute("DELETE FROM users WHERE id = %s", (other,))
+            conn.commit()
+
+
 # --- 1.2 Transfer answers and transfer memory ----------------------------------------------------------
 
 
@@ -411,25 +570,104 @@ def test_another_owner_cannot_act_on_the_item(client, notification_owner):
         assert response.status_code == 404 and response.json()["detail"]["code"] == "seen_twice_not_found"
 
 
-def test_held_proposal_is_listed_and_can_be_recorded(client, notification_owner):
+def test_acknowledging_learns_the_pattern_once(client, notification_owner):
+    owner = notification_owner
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    first = client.post(f"/api/review/seen-twice/{jago['event_id']}/acknowledge").json()
+    pattern = first["pattern"]
+    assert (pattern["redundant_institution"], pattern["direction"], pattern["kept_institution"],
+            pattern["source"], pattern["created"]) == ("jago", "income", "gopay", "confirmation", True)
+    again = client.post(f"/api/review/seen-twice/{jago['event_id']}/acknowledge").json()
+    assert (again["pattern"]["id"], again["pattern"]["created"]) == (pattern["id"], False)
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        count = conn.execute("SELECT COUNT(*) AS count FROM notification_skip_patterns WHERE user_id = %s",
+                             (owner["user_id"],)).fetchone()["count"]
+    assert count == 1
+    # The next repeat is skipped without a Tinjau item.
+    send(client, GOPAY_CREDIT, GOPAY, 600)
+    later = send(client, JAGO_CREDIT, JAGO, 600.2)
+    assert_skipped(later["event_id"], pattern["id"])
+    assert client.get("/api/review/queue").json()["seen_twice"] == []
+
+
+def test_acknowledging_a_duplicate_of_a_typed_row_learns_nothing(client, notification_owner):
     from app.db.pool import db_conn
 
     owner = notification_owner
-    jago = send(client, JAGO_CREDIT, JAGO, 0)
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 0.13)
     with db_conn() as conn:
-        # As the model left it (OD116): held, nothing booked.
-        conn.execute("DELETE FROM transactions WHERE user_id = %s", (owner["user_id"],))
-        conn.execute(
-            """UPDATE notification_events SET processing_state = 'needs_review', transaction_id = NULL,
-                   provenance_kind = NULL, error_code = 'possible_duplicate_observation' WHERE id = %s""",
-            (jago["event_id"],),
-        )
+        # As if the kept leg had been typed: no notification is linked to it.
+        conn.execute("UPDATE notification_events SET transaction_id = NULL WHERE user_id = %s AND package_name = %s",
+                     (owner["user_id"], GOPAY))
         conn.commit()
-    [item] = seen_twice_queue(client)["seen_twice"]
-    assert (item["kind"], item["kept"]) == ("held", None)
+    body = client.post(f"/api/review/seen-twice/{jago['event_id']}/acknowledge").json()
+    assert body["pattern"] is None
+
+
+def test_skipped_reports_are_listed_and_can_be_recorded_separately(client, notification_owner):
+    owner = notification_owner
+    pattern = add_pattern(owner)
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    send(client, MYBCA_DEBIT, MYBCA, 3.4)
+    queue = client.get("/api/review/queue").json()
+    [item] = queue["skipped"]
+    assert (item["event_id"], item["kind"], item["app"], item["amount"]) == (jago["event_id"], "skipped", "Bank Jago", 500000)
+    assert item["kept"]["movement"] == {"source": "BCA Harian", "target": "GoPay"}
+    assert item["pattern"] == {"id": pattern, "redundant_label": "Bank Jago", "direction": "income", "kept_label": "GoPay"}
+    assert queue["counts"]["skipped"] == 1 and queue["counts"]["seen_twice"] == 0
+    # Skipped reports are not work: the movement's legs need nothing, so nothing is counted.
+    summary = client.get("/api/review/summary").json()
+    assert (summary["attention"], summary["unreviewed"]) == (0, 0) == (queue["counts"]["attention"], queue["counts"]["unreviewed"])
     response = client.post(f"/api/review/seen-twice/{jago['event_id']}/record-separately")
     assert response.status_code == 200, response.text
-    assert [str(row["account_id"]) for row in incomes(owner)] == [owner["main"]]
+    body = response.json()
+    assert sorted(str(row["account_id"]) for row in incomes(owner)) == sorted([owner["gopay"], owner["main"]])
+    stored = event_row(jago["event_id"])
+    assert (stored["provenance_kind"], stored["skip_pattern_id"]) == ("observed_leg", None)
+    assert client.get("/api/review/queue").json()["skipped"] == []
+    undone = client.post("/api/review/undo", json={"undo_token": body["undo_token"]})
+    assert undone.status_code == 200, undone.text
+    assert [str(row["account_id"]) for row in incomes(owner)] == [owner["gopay"]]
+    assert_skipped(jago["event_id"], pattern)
+    assert [entry["event_id"] for entry in client.get("/api/review/queue").json()["skipped"]] == [jago["event_id"]]
+
+
+def test_another_owner_cannot_record_a_skipped_report(client, notification_owner):
+    from app.main import app
+    from app.services.auth import get_current_user
+
+    add_pattern(notification_owner)
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    app.dependency_overrides[get_current_user] = lambda: {"id": str(uuid4()), "name": "Lain", "currency": "IDR"}
+    response = client.post(f"/api/review/seen-twice/{jago['event_id']}/record-separately")
+    assert response.status_code == 404 and response.json()["detail"]["code"] == "seen_twice_not_found"
+    assert client.get("/api/review/queue").json()["skipped"] == []
+
+
+def test_deferred_pass_applies_a_pattern_once(client, notification_owner, monkeypatch):
+    from app.services import notification_application
+    from app.services.movement_pairing import ArrivalDecision, repair_unpaired_movements
+
+    owner = notification_owner
+    pattern = add_pattern(owner)
+    with monkeypatch.context() as patched:
+        # Legs recorded before the pattern could apply.
+        patched.setattr(notification_application, "same_arrival", lambda *args, **kwargs: ArrivalDecision())
+        jago = send(client, JAGO_CREDIT, JAGO, 0)
+        send(client, GOPAY_CREDIT, GOPAY, 1)
+    assert len(incomes(owner)) == 2
+    first = repair_unpaired_movements(now=START + timedelta(minutes=5))
+    assert first["duplicates"] == 1
+    assert [str(row["account_id"]) for row in incomes(owner)] == [owner["gopay"]]
+    assert_skipped(jago["event_id"], pattern)
+    again = repair_unpaired_movements(now=START + timedelta(minutes=6))
+    assert again["duplicates"] == 0 and len(incomes(owner)) == 1
+    assert balances(owner)[owner["main"]] == 1000000
 
 
 def test_movement_memory_learned_earlier_is_not_applied(client, notification_owner):

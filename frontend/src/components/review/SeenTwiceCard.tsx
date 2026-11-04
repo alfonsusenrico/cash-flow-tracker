@@ -20,33 +20,42 @@ function signed(item: SeenTwiceItem, bal: (amount: number) => string): string {
   return `${item.type === "income" ? "+" : item.type === "expense" ? "−" : ""}${bal(item.amount)}`;
 }
 
+function patternLine(item: SeenTwiceItem): string | null {
+  const { pattern } = item;
+  if (!pattern) return null;
+  const direction = pattern.direction === "income" ? "uang masuk" : "uang keluar";
+  return `${pattern.redundant_label}, ${direction} · dilewati bila ${pattern.kept_label} sudah melaporkan nominal yang sama`;
+}
+
 /**
- * A second app's report of money that is already recorded once, or a report the AI held as one
- * (recognise-one-arrival-seen-twice D3, D5): confirm it, or record it as its own transaction.
+ * A second app's report of money that is already recorded once (recognise-one-arrival-seen-twice D3):
+ * confirm it, or record it as its own transaction. A report an owner's pattern skipped is already
+ * settled and only offers "Catat terpisah" (skip-redundant-notifications D5).
  */
 export function SeenTwiceCard({ item, headingId, pending, onAcknowledge, onRecordSeparately }: SeenTwiceCardProps) {
   const { bal } = useAppCtx();
-  const duplicate = item.kind === "duplicate";
+  const skipped = item.kind === "skipped";
   const kept = item.kept;
   const recordSub = item.account_name ? `Transaksi lain; catat di ${item.account_name}` : "Transaksi lain; catat sendiri";
   const keptPlace = kept?.movement
     ? `${kept.movement.source ?? "?"} → ${kept.movement.target ?? "?"}`
     : kept?.account_name ?? null;
+  const pattern = patternLine(item);
   return (
     <>
       <ItemHead
         headingId={headingId}
-        kind={{ tone: duplicate ? "tr" : "warn", icon: "layers", text: duplicate ? "Terlihat dua kali" : "Mungkin terlihat dua kali" }}
-        title={duplicate ? `${item.app} melaporkan uang yang sudah tercatat` : `${item.app} mungkin melaporkan uang yang sudah tercatat`}
+        kind={{ tone: "tr", icon: "layers", text: skipped ? "Dilewati otomatis" : "Terlihat dua kali" }}
+        title={`${item.app} melaporkan uang yang sudah tercatat`}
         account={item.account_name}
         date={item.date}
         source="notification"
         amount={{ text: signed(item, bal), className: item.type === "income" ? "ws-amt-in" : "" }}
-        reasons={duplicate ? [] : ["possible_duplicate_observation"]}
+        reasons={[]}
       />
       <dl className="ws-tri-note grid gap-1.5 tabular sm:grid-cols-[auto_1fr] sm:gap-x-3" aria-label="Sudah tercatat">
-        <dt className="text-[var(--muted)]">{duplicate ? "Sudah tercatat sekali" : "Mungkin sama dengan"}</dt>
-        <dd className="min-w-0 font-semibold">{keptPlace ?? "Belum ada transaksi yang cocok"}</dd>
+        <dt className="text-[var(--muted)]">Sudah tercatat sekali</dt>
+        <dd className="min-w-0 font-semibold">{keptPlace ?? "Transaksi yang tercatat sudah dihapus"}</dd>
         {kept && (
           <>
             <dt className="text-[var(--muted)]">Waktu tercatat</dt>
@@ -56,32 +65,30 @@ export function SeenTwiceCard({ item, headingId, pending, onAcknowledge, onRecor
           </>
         )}
         <dt className="text-[var(--muted)]">Laporan ini</dt>
-        <dd className="min-w-0">{duplicate ? "Tidak dicatat lagi" : "Belum dicatat"}</dd>
-      </dl>
-      {/* A second report is confirmed first; a held one may be the only report, so recording it comes first. */}
-      <div role="group" aria-label="Keputusan" className="ws-choices">
-        {duplicate ? (
+        <dd className="min-w-0">{skipped ? "Dilewati, tidak dicatat" : "Tidak dicatat lagi"}</dd>
+        {pattern && (
           <>
-            <Choice n={1} primary disabled={pending} label="Benar, satu transaksi" sub="Laporan ini tidak dicatat"
+            <dt className="text-[var(--muted)]">Pola</dt>
+            <dd className="min-w-0">{pattern}</dd>
+          </>
+        )}
+      </dl>
+      <div role="group" aria-label="Keputusan" className="ws-choices">
+        {skipped ? (
+          <Choice n={1} disabled={pending} label="Catat terpisah" sub={recordSub}
+            onClick={() => void onRecordSeparately(item)} />
+        ) : (
+          <>
+            <Choice n={1} primary disabled={pending} label="Benar, satu transaksi" sub="Laporan serupa dilewati otomatis"
               onClick={() => void onAcknowledge(item)} />
             <Choice n={2} disabled={pending} label="Catat terpisah" sub={recordSub}
               onClick={() => void onRecordSeparately(item)} />
-          </>
-        ) : (
-          <>
-            <Choice n={1} primary disabled={pending} label="Catat transaksi ini"
-              sub={item.account_name ? `Catat di ${item.account_name}` : "Catat sebagai transaksi"}
-              onClick={() => void onRecordSeparately(item)} />
-            <Choice n={2} disabled={pending}
-              label={kept ? "Benar, satu transaksi" : "Abaikan laporan ini"}
-              sub={kept ? "Laporan ini tidak dicatat, yang sudah tercatat tetap" : "Tidak dicatat"}
-              onClick={() => void onAcknowledge(item)} />
           </>
         )}
       </div>
       {kept && (
         <div className="mt-4">
-          <Link href={transaksiHref(kept.transaction_id, "dua")} className="ws-btn ws-btn-sm">
+          <Link href={transaksiHref(kept.transaction_id, skipped ? "lewat" : "dua")} className="ws-btn ws-btn-sm">
             Buka yang sudah tercatat
           </Link>
         </div>

@@ -237,6 +237,10 @@ class ArrivalDecision:
 
     original: dict | None = None
     doubtful_ids: tuple[str, ...] = ()
+    # Set when an owner's skip pattern decided (skip-redundant-notifications D3): the skipped report is
+    # the new leg, or the recorded `original` when `replace_original` (the redundant app reported first).
+    skip_pattern_id: str | None = None
+    replace_original: bool = False
 
 
 def institution_of(package_name: str | None) -> str | None:
@@ -260,12 +264,13 @@ def same_arrival(cur, user_id: str, leg: dict, accounts: dict[str, dict]) -> Arr
     """The recorded observation of the same money as `leg`, reported by another institution's app.
 
     `leg` has `event_id`, `transaction_id` (None while not yet inserted), `type`, `amount`, `account_id`,
-    `post_time`, `institution` and `remote_account_id`. A match needs the same direction and amount, a
-    different account, another app, post times at most SAME_ARRIVAL_WINDOW_SECONDS apart, and both legs
-    naming each other's account (or its root). Mirrored legs further apart, inside the pairing window,
-    and a second possible original are doubts, never duplicates.
+    `post_time`, `institution` and `remote_account_id`. An owner's skip pattern decides first
+    (pattern_arrival). Otherwise a match needs the same direction and amount, a different account,
+    another app, post times at most SAME_ARRIVAL_WINDOW_SECONDS apart, and both legs naming each other's
+    account (or its root). Mirrored legs further apart, inside the pairing window, and a second possible
+    original are doubts, never duplicates.
     """
-    if not leg.get("institution") or not leg.get("remote_account_id"):
+    if not leg.get("institution"):
         return ArrivalDecision()
     window = timedelta(seconds=max(SAME_ARRIVAL_WINDOW_SECONDS, settings.notification_pairing_window_seconds))
     cur.execute(SAME_ARRIVAL_SQL, {
@@ -274,15 +279,65 @@ def same_arrival(cur, user_id: str, leg: dict, accounts: dict[str, dict]) -> Arr
         "type": leg["type"], "amount": int(leg["amount"]), "account_id": str(leg["account_id"]),
         "earliest": leg["post_time"] - window, "latest": leg["post_time"] + window,
     })
+    rows = cur.fetchall()
+    decided = pattern_arrival(cur, user_id, leg, accounts, rows)
+    if decided is not None:
+        return decided
+    if not leg.get("remote_account_id"):
+        return ArrivalDecision()
     mirrored = [
-        row for row in cur.fetchall()
+        row for row in rows
         if institution_of(row["package_name"]) not in {None, leg["institution"]} and names_each_other(accounts, leg, row)
     ]
-    close = [row for row in mirrored
-             if abs((row["post_time"] - leg["post_time"]).total_seconds()) <= SAME_ARRIVAL_WINDOW_SECONDS]
+    close = [row for row in mirrored if within_same_arrival(row, leg)]
     if len(close) == 1 and len(mirrored) == 1:
         return ArrivalDecision(original=close[0])
     return ArrivalDecision(doubtful_ids=tuple(str(row["id"]) for row in mirrored))
+
+
+def within_same_arrival(row: dict, leg: dict) -> bool:
+    return abs((row["post_time"] - leg["post_time"]).total_seconds()) <= SAME_ARRIVAL_WINDOW_SECONDS
+
+
+def pattern_arrival(cur, user_id: str, leg: dict, accounts: dict[str, dict], rows: list[dict]) -> ArrivalDecision | None:
+    """What an owner's active skip pattern decides for `leg`, or None when no pattern applies (D3).
+
+    The redundant app's report is skipped only when exactly one recorded report from the kept app
+    holds the same money: same direction and amount (`rows`), at most SAME_ARRIVAL_WINDOW_SECONDS apart,
+    another account, and the redundant report naming the kept report's account or its root (OD122).
+    The kept app's report always stays. When the redundant one was recorded first it is replaced, unless
+    the owner touched it; then the kept app's report waits as an ordinary duplicate (OD119).
+    """
+    from app.services.skip_patterns import matching_patterns
+
+    patterns = matching_patterns(cur, user_id, leg["institution"], leg["type"])
+    close = [row for row in rows if within_same_arrival(row, leg)]
+    leg_root = root_of(accounts, str(leg["account_id"]))
+    leg_remote_root = root_of(accounts, leg.get("remote_account_id"))
+    for pattern in patterns:
+        if pattern["redundant_institution"] == leg["institution"]:
+            matches = [
+                row for row in close
+                if institution_of(row["package_name"]) == pattern["kept_institution"]
+                and leg_remote_root is not None and leg_remote_root == root_of(accounts, str(row["account_id"]))
+            ]
+        else:
+            matches = [
+                row for row in close
+                if institution_of(row["package_name"]) == pattern["redundant_institution"]
+                and root_of(accounts, (row.get("interpretation") or {}).get("remote_account_id")) == leg_root
+            ]
+        if len(matches) > 1:
+            return ArrivalDecision(doubtful_ids=tuple(str(row["id"]) for row in matches))
+        if not matches:
+            continue
+        original = matches[0]
+        if pattern["redundant_institution"] == leg["institution"]:
+            return ArrivalDecision(original=original, skip_pattern_id=str(pattern["id"]))
+        if replaceable_leg(original):
+            return ArrivalDecision(original=original, skip_pattern_id=str(pattern["id"]), replace_original=True)
+        return ArrivalDecision(original=original)
+    return None
 
 
 def replaceable_leg(row: dict) -> bool:
@@ -300,16 +355,23 @@ def keeps_new_observation(new_basis: str | None, original: dict) -> bool:
 
 
 def mark_duplicate_observation(cur, user_id: str, event_id: str, kept_transaction_id: str,
-                               kept_key: str | None, kept_snapshot: dict | None, interpretation: dict | None) -> None:
-    """Record an event as a second observation of the kept leg: no transaction, the kept leg's result."""
+                               kept_key: str | None, kept_snapshot: dict | None, interpretation: dict | None,
+                               skip_pattern_id: str | None = None) -> None:
+    """Record an event as a second observation of the kept leg: no transaction, the kept leg's result.
+
+    With `skip_pattern_id` the owner's pattern skipped it, so it is already reviewed and never waits in
+    "Terlihat dua kali" (skip-redundant-notifications D3).
+    """
     cur.execute(
         """UPDATE notification_events SET processing_state = 'recorded', provenance_kind = 'duplicate_observation',
                transaction_id = NULL, duplicate_of_transaction_id = %s, movement_id = NULL, confirmed_role = NULL, result_key = %s, result_snapshot = %s,
                interpretation = COALESCE(%s::jsonb, interpretation), active_question = NULL, error_code = NULL,
-               reviewed_at = NULL, lease_token = NULL, lease_expires_at = NULL, updated_at = NOW()
+               skip_pattern_id = %s, reviewed_at = CASE WHEN %s::uuid IS NULL THEN NULL ELSE NOW() END,
+               lease_token = NULL, lease_expires_at = NULL, updated_at = NOW()
            WHERE user_id = %s AND id = %s""",
         (kept_transaction_id, kept_key, json.dumps(kept_snapshot) if kept_snapshot is not None else None,
-         json.dumps(interpretation) if interpretation is not None else None, user_id, event_id),
+         json.dumps(interpretation) if interpretation is not None else None, skip_pattern_id, skip_pattern_id,
+         user_id, event_id),
     )
 
 
@@ -353,11 +415,19 @@ def repair_duplicate_arrivals(cur, user_id: str, accounts: dict[str, dict], legs
             "institution": institution_of(current["package_name"]),
             "remote_account_id": (current["interpretation"] or {}).get("remote_account_id"),
         }
-        original = same_arrival(cur, user_id, leg, accounts).original
+        decision = same_arrival(cur, user_id, leg, accounts)
+        original = decision.original
         if not original or original["post_time"] > current["post_time"]:
             # Each pair is decided once, from its later observation.
             continue
-        if keeps_new_observation((current["interpretation"] or {}).get("account_basis"), original):
+        if decision.skip_pattern_id and decision.replace_original:
+            # The owner's pattern keeps this later report and skips the redundant earlier one.
+            dropped, kept = original, current
+        elif decision.skip_pattern_id and replaceable_leg(current):
+            dropped, kept = current, original
+        elif decision.skip_pattern_id:
+            continue
+        elif keeps_new_observation((current["interpretation"] or {}).get("account_basis"), original):
             dropped, kept = original, current
         elif replaceable_leg(current):
             dropped, kept = current, original
@@ -365,7 +435,8 @@ def repair_duplicate_arrivals(cur, user_id: str, accounts: dict[str, dict], legs
             continue
         drop_observation(cur, user_id, dropped)
         mark_duplicate_observation(cur, user_id, str(dropped["event_id"]), str(kept["id"]),
-                                   kept["result_key"], kept["result_snapshot"], None)
+                                   kept["result_key"], kept["result_snapshot"], None,
+                                   skip_pattern_id=decision.skip_pattern_id)
         gone.add(str(dropped["id"]))
         merged += 1
     return merged

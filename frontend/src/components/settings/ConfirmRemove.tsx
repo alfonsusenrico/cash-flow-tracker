@@ -12,10 +12,17 @@ interface ConfirmRemoveProps {
   disabled?: boolean;
   pending?: boolean;
   onConfirm: () => void;
+  /** The verb on the first button and in the question, for removals that are not deletions. */
+  verb?: string;
+  confirmLabel?: string;
+  pendingLabel?: string;
 }
 
 /** "Hapus" that asks once more in the same row; cancelling or Escape changes nothing and restores focus. */
-export function ConfirmRemove({ subject, triggerLabel, disabled = false, pending = false, onConfirm }: ConfirmRemoveProps) {
+export function ConfirmRemove({
+  subject, triggerLabel, disabled = false, pending = false, onConfirm,
+  verb = "Hapus", confirmLabel = "Ya, hapus", pendingLabel = "Menghapus…",
+}: ConfirmRemoveProps) {
   const [confirming, setConfirming] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
@@ -45,7 +52,7 @@ export function ConfirmRemove({ subject, triggerLabel, disabled = false, pending
         onClick={() => setConfirming(true)}
         className={quietDangerClass}
       >
-        Hapus
+        {verb}
       </button>
     );
   }
@@ -53,7 +60,7 @@ export function ConfirmRemove({ subject, triggerLabel, disabled = false, pending
   return (
     <div
       role="group"
-      aria-label={`Hapus ${subject}?`}
+      aria-label={`${verb} ${subject}?`}
       className="flex flex-wrap items-center justify-end gap-2"
       onKeyDown={(event) => {
         if (event.key === "Escape") {
@@ -62,7 +69,7 @@ export function ConfirmRemove({ subject, triggerLabel, disabled = false, pending
         }
       }}
     >
-      <span className="text-xs font-semibold text-[var(--text)]">Hapus {subject}?</span>
+      <span className="text-xs font-semibold text-[var(--text)]">{verb} {subject}?</span>
       <Button ref={cancel} type="button" variant="secondary" size="sm" className="min-h-11" onClick={stop}>
         Batal
       </Button>
@@ -75,7 +82,7 @@ export function ConfirmRemove({ subject, triggerLabel, disabled = false, pending
         }}
         className={`inline-flex min-h-11 items-center justify-center rounded-[var(--radius-md)] px-3 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] disabled:opacity-50 ${confirmDangerClass}`}
       >
-        {pending ? "Menghapus…" : "Ya, hapus"}
+        {pending ? pendingLabel : confirmLabel}
       </button>
     </div>
   );

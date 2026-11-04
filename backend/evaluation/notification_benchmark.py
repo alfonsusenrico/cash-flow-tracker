@@ -218,13 +218,9 @@ def score_case(case: SyntheticCase, interpretation, *, latency: float, error_cod
         and actual_record
     ) if expected_record else raw.get("outcome") == expected["outcome"]
     movement_correct = raw.get("candidate_transaction_id") == expected.get("candidate_transaction_id") and raw.get("outcome") == expected["outcome"]
-    expected_same = expected.get("same_money_as")
-    proposed_same = raw.get("same_money_as")
-    # Calling two different transfers the same money would swallow a real one: a safety failure.
-    false_same_money = bool(proposed_same and proposed_same != expected_same)
-    unsafe_write = false_same_money
+    unsafe_write = False
     if decision.get("outcome") == "record":
-        unsafe_write = unsafe_write or (
+        unsafe_write = (
             not expected_record or decision.get("amount") != expected["amount"]
             or any(decision.get(field) != expected.get(field) for field in refs)
             or decision.get("candidate_transaction_id") != expected.get("candidate_transaction_id")
@@ -246,8 +242,6 @@ def score_case(case: SyntheticCase, interpretation, *, latency: float, error_cod
         "proposed_movement": bool(raw.get("candidate_transaction_id") or raw.get("direction") == "internal_movement" and actual_record),
         "description_rubric_pass": description_quality,
         "sequence": bool(expected.get("sequence")),
-        "expected_same_money": bool(expected_same), "proposed_same_money": bool(proposed_same),
-        "same_money_correct": proposed_same == expected_same, "false_same_money": false_same_money,
         "synthetic_description": sanitize_text(description)[:160] if actual_record else None,
         "raw_proposal": raw or None,
         "trusted_decision": decision,
@@ -267,9 +261,6 @@ def summarize(rows: list[dict]) -> dict:
     movement_expected = [row for row in rows if row["expected_movement"]]
     movement_proposed = [row for row in rows if row["proposed_movement"]]
     safe = not any(row["unsafe_validated_write"] for row in rows)
-    sequence = [row for row in rows if row.get("sequence")]
-    same_expected = [row for row in sequence if row["expected_same_money"]]
-    same_proposed = [row for row in sequence if row["proposed_same_money"]]
     quality = bool(rows and positives and metrics["schema"] >= 98 and classification_accuracy >= 90)
     return {
         "offered": len(rows), "completed": sum(row["schema"] for row in rows),
@@ -282,12 +273,6 @@ def summarize(rows: list[dict]) -> dict:
         "record_recall_percent": 100 * mean(int(row["proposed_record"]) for row in positives) if positives else 0,
         "movement_precision_percent": 100 * mean(int(row["movement"]) for row in movement_proposed) if movement_proposed else 0,
         "movement_recall_percent": 100 * mean(int(row["movement"]) for row in movement_expected) if movement_expected else 0,
-        "same_money": {
-            "sequence_cases": len(sequence),
-            "precision_percent": 100 * mean(int(row["same_money_correct"]) for row in same_proposed) if same_proposed else None,
-            "recall_percent": 100 * mean(int(row["same_money_correct"]) for row in same_expected) if same_expected else None,
-            "false_same_money": sum(row["false_same_money"] for row in sequence),
-        },
         "latency_seconds": {"p50": percentile(0.5), "p95": percentile(0.95)},
         "token_usage": {
             name: sum((row.get("usage") or {}).get(name, 0) for row in rows)
