@@ -8,12 +8,12 @@ import type { AmbiguousItem, AwaitingItem, PurposeQuestionEntry, ReviewGroup, Re
  */
 
 export type NeededFolder = "apa" | "jawab" | "pindah";
-export type OptionalFolder = "saran" | "otomatis" | "dua";
+export type OptionalFolder = "saran" | "otomatis" | "dua" | "lewat";
 export type FolderKey = "semua" | NeededFolder | OptionalFolder;
 
 export const NEEDED_FOLDERS: readonly NeededFolder[] = ["apa", "jawab", "pindah"];
-export const OPTIONAL_FOLDERS: readonly OptionalFolder[] = ["otomatis", "saran", "dua"];
-export const FOLDER_PARAMS: readonly FolderKey[] = ["apa", "jawab", "pindah", "saran", "otomatis", "dua"];
+export const OPTIONAL_FOLDERS: readonly OptionalFolder[] = ["otomatis", "saran", "dua", "lewat"];
+export const FOLDER_PARAMS: readonly FolderKey[] = ["apa", "jawab", "pindah", "saran", "otomatis", "dua", "lewat"];
 
 export function isOptionalFolder(folder: FolderKey): folder is OptionalFolder {
   return (OPTIONAL_FOLDERS as readonly string[]).includes(folder);
@@ -27,6 +27,7 @@ export const FOLDER_LABELS: Record<FolderKey, string> = {
   saran: "Saran dari riwayat",
   otomatis: "Dicatat otomatis",
   dua: "Terlihat dua kali",
+  lewat: "Dilewati otomatis",
 };
 
 /**
@@ -44,7 +45,7 @@ export type TriageItem =
   | { kind: "awaiting"; id: string; folder: "pindah"; transactionIds: string[]; item: AwaitingItem }
   | { kind: "ambiguous"; id: string; folder: "pindah"; transactionIds: string[]; item: AmbiguousItem }
   | { kind: "suggestion"; id: string; folder: "saran"; transactionIds: string[]; group: SuggestionGroup }
-  | { kind: "seen_twice"; id: string; folder: "dua"; transactionIds: string[]; item: SeenTwiceItem };
+  | { kind: "seen_twice"; id: string; folder: "dua" | "lewat"; transactionIds: string[]; item: SeenTwiceItem };
 
 export interface Triage {
   folders: Record<NeededFolder | OptionalFolder, TriageItem[]>;
@@ -80,9 +81,13 @@ export function buildTriage(queue: ReviewQueue, suggestions?: SuggestionList | n
     kind: "seen_twice", id: `d:${item.event_id}`, folder: "dua",
     transactionIds: item.kept ? [item.kept.transaction_id] : [], item,
   }));
+  const lewat: TriageItem[] = (queue.skipped ?? []).map((item) => ({
+    kind: "seen_twice", id: `l:${item.event_id}`, folder: "lewat",
+    transactionIds: item.kept ? [item.kept.transaction_id] : [], item,
+  }));
   const neededGroups = jawab.map((item) => (item as Extract<TriageItem, { kind: "group" }>).group);
   return {
-    folders: { apa, jawab, pindah, saran, otomatis, dua },
+    folders: { apa, jawab, pindah, saran, otomatis, dua, lewat },
     counts: {
       apa: apa.length,
       jawab: neededGroups.reduce((sum, group) => sum + group.needs_review_count, 0),
@@ -90,6 +95,7 @@ export function buildTriage(queue: ReviewQueue, suggestions?: SuggestionList | n
       saran: suggestions?.pending ?? saran.reduce((sum, item) => sum + item.transactionIds.length, 0),
       otomatis: otomatis.reduce((sum, item) => sum + (item as Extract<TriageItem, { kind: "group" }>).group.auto_count, 0),
       dua: dua.length,
+      lewat: lewat.length,
     },
     autoInMixedGroups: neededGroups.reduce((sum, group) => sum + group.auto_count, 0),
     attention: queue.counts.attention,
@@ -151,7 +157,7 @@ export function resolveDeepLink(triage: Triage, transactionId: string | null, fo
     if (found) return { folder, itemId: found.id, resolved: false };
     return { folder: triage.folders[folder].length ? folder : "semua", itemId: null, resolved: transactionId !== null };
   }
-  for (const key of [...NEEDED_FOLDERS, "saran", "otomatis", "dua"] as const) {
+  for (const key of [...NEEDED_FOLDERS, "saran", "otomatis", "dua", "lewat"] as const) {
     const found = triage.folders[key].find(holds);
     if (found) return { folder: (NEEDED_FOLDERS as readonly string[]).includes(key) ? "semua" : key, itemId: found.id, resolved: false };
   }
@@ -176,9 +182,7 @@ export function itemTitle(item: TriageItem): string {
     case "ambiguous":
       return item.item.type === "expense" ? `Keluar dari ${item.item.account_name}` : `Masuk ke ${item.item.account_name}`;
     case "seen_twice":
-      return item.item.kind === "duplicate"
-        ? `${item.item.app}: laporan kedua`
-        : `${item.item.app}: mungkin laporan kedua`;
+      return item.item.kind === "skipped" ? `${item.item.app}: dilewati` : `${item.item.app}: laporan kedua`;
   }
 }
 

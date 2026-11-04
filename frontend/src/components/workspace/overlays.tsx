@@ -101,10 +101,12 @@ interface ToastMessage {
   id: number;
   text: string;
   onUndo?: () => void;
+  /** The button's label when it reverses something other than the last save; "Urungkan" otherwise. */
+  actionLabel?: string;
 }
 
 interface ToastContextValue {
-  showToast: (text: string, options?: { onUndo?: () => void }) => void;
+  showToast: (text: string, options?: { onUndo?: () => void; actionLabel?: string }) => void;
 }
 
 const ToastContext = createContext<ToastContextValue>({ showToast: () => {} });
@@ -117,9 +119,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const counter = useRef(0);
 
-  const showToast = useCallback((text: string, options?: { onUndo?: () => void }) => {
+  const showToast = useCallback((text: string, options?: { onUndo?: () => void; actionLabel?: string }) => {
     counter.current += 1;
-    setToast({ id: counter.current, text, onUndo: options?.onUndo });
+    setToast({ id: counter.current, text, onUndo: options?.onUndo, actionLabel: options?.actionLabel });
   }, []);
 
   const value = useMemo(() => ({ showToast }), [showToast]);
@@ -165,7 +167,7 @@ function Toast({ toast, onDone }: { toast: ToastMessage; onDone: () => void }) {
             onDone();
           }}
         >
-          Urungkan
+          {toast.actionLabel ?? "Urungkan"}
         </button>
       )}
     </div>

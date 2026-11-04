@@ -820,22 +820,66 @@ describe("Tinjau triage", () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/review/seen-twice/event-jago/acknowledge", {}));
   });
 
-  it("Terlihat dua kali: a held report with no match is recorded first", async () => {
+  it("Terlihat dua kali: Benar, satu transaksi learns the pattern, and Batalkan stops it", async () => {
     currentQueue = {
       ...queue(), counts: { ...queue().counts, attention: 0, unreviewed: 1, seen_twice: 1 },
       questions: [], awaiting: [], ambiguous: [], groups: [],
       seen_twice: [{
-        event_id: "event-held", kind: "held", app: "Bank Jago", type: "income", amount: 250_000,
-        date: "2026-10-31T13:39:18Z", account_name: "Bank Jago · Kantong Utama", kept: null,
+        event_id: "event-jago", kind: "duplicate", app: "Bank Jago", type: "income", amount: 500_000,
+        date: "2026-10-31T11:39:18Z", account_name: "Bank Jago · Kantong Utama",
+        kept: {
+          transaction_id: "tx-gopay", type: "income", amount: 500_000, date: "2026-10-31T11:39:18Z", account_name: "GoPay",
+          movement: { source: "BCA Harian", target: "GoPay" },
+        },
       }],
     };
+    vi.mocked(api.post).mockImplementation(async (path) => {
+      if (String(path).endsWith("/acknowledge")) {
+        return { ok: true, event_id: "event-jago", pattern: { id: "pattern-1", redundant_label: "Bank Jago", kept_label: "GoPay", created: true } };
+      }
+      return { ok: true, ...token("action") };
+    });
+    vi.mocked(api.del).mockResolvedValue({ ok: true });
     const { user } = renderPage();
     await screen.findByRole("heading", { name: "Semua sudah ditinjau" });
-    await user.click(row("Bank Jago: mungkin laporan kedua"));
+    await user.click(row("Bank Jago: laporan kedua"));
+    expect(within(pane()).getByText("Laporan serupa dilewati otomatis")).toBeInTheDocument();
+    await user.click(within(pane()).getByRole("button", { name: /Benar, satu transaksi/ }));
+    const toast = await screen.findByText("Laporan Bank Jago serupa akan dilewati otomatis.");
+    await user.click(within(toast.closest(".ws-toast") as HTMLElement).getByRole("button", { name: "Batalkan" }));
+    await waitFor(() => expect(api.del).toHaveBeenCalledWith("/ingest/skip-patterns/pattern-1"));
+    expect(await screen.findByText("Pola dibatalkan. Laporan Bank Jago serupa akan ditanyakan lagi.")).toBeInTheDocument();
+  });
+
+  it("Dilewati otomatis: a skipped report shows its pattern and can be recorded on its own", async () => {
+    currentQueue = {
+      ...queue(), counts: { ...queue().counts, attention: 0, unreviewed: 0, seen_twice: 0, skipped: 1 },
+      questions: [], awaiting: [], ambiguous: [], groups: [],
+      skipped: [{
+        event_id: "event-skip", kind: "skipped", app: "Bank Jago", type: "income", amount: 500_000,
+        date: "2026-11-01T11:39:18Z", account_name: "Bank Jago · Kantong Utama",
+        kept: {
+          transaction_id: "tx-gopay-2", type: "income", amount: 500_000, date: "2026-11-01T11:39:18Z", account_name: "GoPay",
+          movement: { source: "BCA Harian", target: "GoPay" },
+        },
+        pattern: { id: "pattern-1", redundant_label: "Bank Jago", direction: "income", kept_label: "GoPay" },
+      }],
+    };
+    const { user, container } = renderPage();
+    await screen.findByRole("heading", { name: "Semua sudah ditinjau" });
+    const fold = screen.getByText("Dilewati otomatis", { selector: "b" }).closest("details") as HTMLElement;
+    expect(within(fold).getByText("1")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Perlu ditinjau 0 transaksi" })).toBeInTheDocument();
+    await user.click(row("Bank Jago: dilewati"));
+    expect(itemHeading()).toHaveTextContent("Bank Jago melaporkan uang yang sudah tercatat");
+    expect(within(pane()).getByText("Dilewati, tidak dicatat")).toBeInTheDocument();
+    expect(within(pane()).getByText("Bank Jago, uang masuk · dilewati bila GoPay sudah melaporkan nominal yang sama")).toBeInTheDocument();
     const choices = within(within(pane()).getByRole("group", { name: "Keputusan" })).getAllByRole("button");
-    expect(choices.map((choice) => choice.querySelector(".ws-lbl")?.textContent)).toEqual(["Catat transaksi ini", "Abaikan laporan ini"]);
-    expect(choices[0]).toHaveAttribute("data-primary-choice", "");
-    expect(within(pane()).getByText("Belum ada transaksi yang cocok")).toBeInTheDocument();
+    expect(choices.map((choice) => choice.querySelector(".ws-lbl")?.textContent)).toEqual(["Catat terpisah"]);
+    expect((await axe(container)).violations).toHaveLength(0);
+    await user.click(choices[0]);
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/review/seen-twice/event-skip/record-separately", {}));
+    expect(status()).toMatch(/dicatat sebagai transaksi terpisah/);
   });
 
   it("Failure of a suggestion decision, and skipped rows reported truthfully", async () => {

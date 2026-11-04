@@ -134,7 +134,7 @@ Rejected: asking with a checkbox every time (OD124). The owner said "after first
   - "Jenis": "Uang masuk" or "Uang keluar";
   - "Aplikasi yang dipakai": a select, excluding the first choice;
   - "Simpan pola".
-- **Empty state:** "Belum ada pola. Pola ditambahkan saat Anda memilih "Benar, satu transaksi" di Tinjau, atau di sini."
+- **Empty state:** "Belum ada pola. Pola ditambahkan lewat "Benar, satu transaksi" di Tinjau, atau di sini." (impersonal, as `ui-copy-register` requires for Pengaturan)
 - **Endpoints** (session auth `get_current_user`, router `ingest.py` beside `/aliases`):
   - `GET /api/ingest/skip-patterns` returns `{patterns: [...], institutions: [{institution, label}]}`, with active patterns and per-pattern `skipped_count` and `last_skipped_at`.
   - `POST /api/ingest/skip-patterns` takes `{redundant_institution, direction, kept_institution}`:

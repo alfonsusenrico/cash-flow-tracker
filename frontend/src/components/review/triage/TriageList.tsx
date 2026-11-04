@@ -36,9 +36,9 @@ function itemLine(item: TriageItem): string {
     case "suggestion": return `Saran · ${item.group.category.name}`;
     case "seen_twice": {
       const kept = item.item.kept;
-      if (!kept) return "Belum dicatat";
-      const place = kept.movement ? `${kept.movement.source ?? "?"} → ${kept.movement.target ?? "?"}` : kept.account_name;
-      return `Sudah tercatat: ${place ?? "transaksi lain"}`;
+      const place = kept?.movement ? `${kept.movement.source ?? "?"} → ${kept.movement.target ?? "?"}` : kept?.account_name;
+      const recorded = `Sudah tercatat: ${place ?? "transaksi lain"}`;
+      return item.item.kind === "skipped" ? `Dilewati · ${recorded}` : recorded;
     }
   }
 }
@@ -136,6 +136,7 @@ export function TriageList({
   const automatic = triage.folders.otomatis;
   const suggestions = triage.folders.saran;
   const seenTwice = triage.folders.dua;
+  const skipped = triage.folders.lewat;
   return (
     <section ref={listRef} className="ws-card ws-tri-list" aria-labelledby="triage-list-heading">
       <div className="ws-tri-head">
@@ -199,6 +200,17 @@ export function TriageList({
           </summary>
           <p className="ws-caption">Satu transaksi dilaporkan dua aplikasi dan hanya dicatat sekali.</p>
           <TriageRows items={seenTwice} selectedId={selectedId} onOpen={onOpen} label={FOLDER_LABELS.dua} />
+        </details>
+      )}
+      {skipped.length > 0 && (
+        <details className="ws-tri-fold" open={foldOpen.lewat || folder === "lewat"} onToggle={(event) => onFold("lewat", event.currentTarget.open)}>
+          <summary>
+            <Icon name="chevron-right" />
+            <span><b>{FOLDER_LABELS.lewat}</b> <span className="ws-cnt">{triage.counts.lewat}</span></span>
+            <span className="ws-opt">30 hari terakhir</span>
+          </summary>
+          <p className="ws-caption">Laporan yang mengulang laporan aplikasi lain, sesuai pola di Pengaturan.</p>
+          <TriageRows items={skipped} selectedId={selectedId} onOpen={onOpen} label={FOLDER_LABELS.lewat} />
         </details>
       )}
 

@@ -37,6 +37,7 @@ import {
   type PurposeQuestionEntry,
   type ReviewItem,
   type ReviewQueue,
+  type LearnedSkipPattern,
   type SeenTwiceItem,
   type TopupProductChoice,
 } from "@/lib/review";
@@ -151,7 +152,7 @@ export function TriageInbox() {
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState("");
   const [failure, setFailure] = useState<Failure | null>(null);
-  const [foldOpen, setFoldOpen] = useState<Record<OptionalFolder, boolean>>({ otomatis: false, saran: false, dua: false });
+  const [foldOpen, setFoldOpen] = useState<Record<OptionalFolder, boolean>>({ otomatis: false, saran: false, dua: false, lewat: false });
   const [completionChoices, setCompletionChoices] = useState<Record<string, CompletionCandidate[]>>({});
 
   usePageShortcutGroup(PAGE_KEYS);
@@ -514,11 +515,33 @@ export function TriageInbox() {
     };
   };
 
-  const acknowledgeSeenTwice = (item: TriageItem) => (entry: SeenTwiceItem) =>
-    act(item, async () => {
-      await api.post(`/review/seen-twice/${entry.event_id}/acknowledge`, {});
+  // "Batalkan" on the learned-pattern toast stops the pattern; the acknowledged report stays settled.
+  const stopLearnedPattern = async (pattern: LearnedSkipPattern) => {
+    try {
+      await api.del(`/ingest/skip-patterns/${pattern.id}`);
+      await qc.invalidateQueries({ queryKey: queryKeys.skipPatterns });
+      showToast(`Pola dibatalkan. Laporan ${pattern.redundant_label} serupa akan ditanyakan lagi.`);
+    } catch (error) {
+      setFailure({ message: reviewErrorMessage(error) });
+    }
+  };
+
+  const acknowledgeSeenTwice = (item: TriageItem) => async (entry: SeenTwiceItem) => {
+    const learned: { pattern: LearnedSkipPattern | null } = { pattern: null };
+    const done = await act(item, async () => {
+      const response = await api.post<{ pattern: LearnedSkipPattern | null }>(`/review/seen-twice/${entry.event_id}/acknowledge`, {});
+      learned.pattern = response.pattern?.created ? response.pattern : null;
       return { message: "ditandai satu transaksi", batches: [] };
     });
+    const pattern = learned.pattern;
+    if (done && pattern) {
+      void qc.invalidateQueries({ queryKey: queryKeys.skipPatterns });
+      showToast(`Laporan ${pattern.redundant_label} serupa akan dilewati otomatis.`, {
+        actionLabel: "Batalkan", onUndo: () => void stopLearnedPattern(pattern),
+      });
+    }
+    return done;
+  };
 
   const recordSeenTwice = (item: TriageItem) => (entry: SeenTwiceItem) =>
     act(item, async () => {
@@ -767,7 +790,7 @@ function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T
 }
 
 function everyItemOf(triage: Triage): TriageItem[] {
-  return [...folderItems(triage, "semua"), ...triage.folders.otomatis, ...triage.folders.saran, ...triage.folders.dua];
+  return [...folderItems(triage, "semua"), ...triage.folders.otomatis, ...triage.folders.saran, ...triage.folders.dua, ...triage.folders.lewat];
 }
 
 function questionItem(entry: PurposeQuestionEntry): TriageItem {
