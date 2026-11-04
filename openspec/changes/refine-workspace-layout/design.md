@@ -287,3 +287,6 @@ Each figure keeps its explanation popover ("Rincian hitungan").
 | OD85 (resolved 2026-11-04: "approved, defaults ok") | Reorder on desktop | **Always-on handles and hover/focus buttons**; phones use the "Ubah urutan" mode |
 | OD86 (resolved 2026-11-04: "approved, defaults ok") | Platform gain total | **Server fields on the parent** (D8) |
 | OD87 (resolved 2026-11-04: "approved, defaults ok") | Period stepper on Beranda (in the preview) | **No stepper**; the period named as text (D5) |
+| OD96 (open, default applied 2026-11-04) | The hero label "Aman dipakai sampai gajian" uses the casual "gajian" in a figure label | **Keep the approved preview label**; the copy guard allows this one phrase |
+| OD97 (open, default applied 2026-11-04) | Source of "Tagihan 30 hari" | **Planned bills of the window, plus charges seen recurring that no plan covers, marked "perkiraan"**, as the preview's data did; the alternative is planned bills only |
+| OD98 (open, default applied 2026-11-04) | Transaksi KPIs: the preview shows Masuk, Pengeluaran, Ditabung & investasi and Aman dipakai; D6 names Masuk, Pengeluaran and Bersih | **D6's three figures, drawn as cards like the preview** |
