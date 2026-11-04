@@ -212,6 +212,165 @@ def find_counterpart(cur, user_id: str, leg: dict, *, gap_seconds: int, accounts
     return PairingDecision(counterpart=counterpart, fee=fee)
 
 
+# Two apps report one arrival within seconds (observed: 0.13 s); a minute's slack covers a slow companion.
+SAME_ARRIVAL_WINDOW_SECONDS = 120
+
+SAME_ARRIVAL_SQL = """
+    SELECT t.id, t.type, t.account_id, t.amount, t.date, t.review_status, t.classified_by, t.owner_edited_at,
+           n.id AS event_id, n.package_name, n.post_time, n.interpretation, n.result_key, n.result_snapshot
+    FROM notification_events n
+    JOIN transactions t ON t.id = n.transaction_id AND t.user_id = n.user_id
+    WHERE n.user_id = %(user_id)s AND n.processing_state = 'recorded' AND n.provenance_kind = 'observed_leg'
+      AND n.id <> %(event_id)s AND t.id <> %(transaction_id)s
+      AND t.movement_id IS NULL AND t.owner_split_at IS NULL AND t.fee_for_movement_id IS NULL
+      AND t.goal_id IS NULL AND t.obligation_id IS NULL AND t.recurring_rule_id IS NULL
+      AND t.type = %(type)s AND t.amount = %(amount)s AND t.account_id <> %(account_id)s
+      AND n.post_time BETWEEN %(earliest)s AND %(latest)s
+    ORDER BY n.post_time, n.id
+"""
+
+
+@dataclass(frozen=True)
+class ArrivalDecision:
+    """What the one-arrival guard found for a leg: the single other observation of the same money, or
+    near misses (mirrored legs beyond the guard window, or several originals) that only flag doubt."""
+
+    original: dict | None = None
+    doubtful_ids: tuple[str, ...] = ()
+
+
+def institution_of(package_name: str | None) -> str | None:
+    from app.services.notification_evidence import SUPPORTED_PACKAGES
+
+    return SUPPORTED_PACKAGES.get(str(package_name or "").strip().lower())
+
+
+def names_each_other(accounts: dict[str, dict], leg: dict, other: dict) -> bool:
+    """Each leg's remote account is the other leg's account or its root (design D1)."""
+    leg_remote = root_of(accounts, leg.get("remote_account_id"))
+    other_remote = root_of(accounts, (other.get("interpretation") or {}).get("remote_account_id"))
+    return bool(
+        leg_remote and other_remote
+        and leg_remote == root_of(accounts, str(other["account_id"]))
+        and other_remote == root_of(accounts, str(leg["account_id"]))
+    )
+
+
+def same_arrival(cur, user_id: str, leg: dict, accounts: dict[str, dict]) -> ArrivalDecision:
+    """The recorded observation of the same money as `leg`, reported by another institution's app.
+
+    `leg` has `event_id`, `transaction_id` (None while not yet inserted), `type`, `amount`, `account_id`,
+    `post_time`, `institution` and `remote_account_id`. A match needs the same direction and amount, a
+    different account, another app, post times at most SAME_ARRIVAL_WINDOW_SECONDS apart, and both legs
+    naming each other's account (or its root). Mirrored legs further apart, inside the pairing window,
+    and a second possible original are doubts, never duplicates.
+    """
+    if not leg.get("institution") or not leg.get("remote_account_id"):
+        return ArrivalDecision()
+    window = timedelta(seconds=max(SAME_ARRIVAL_WINDOW_SECONDS, settings.notification_pairing_window_seconds))
+    cur.execute(SAME_ARRIVAL_SQL, {
+        "user_id": user_id, "event_id": str(leg.get("event_id") or "00000000-0000-0000-0000-000000000000"),
+        "transaction_id": str(leg.get("transaction_id") or "00000000-0000-0000-0000-000000000000"),
+        "type": leg["type"], "amount": int(leg["amount"]), "account_id": str(leg["account_id"]),
+        "earliest": leg["post_time"] - window, "latest": leg["post_time"] + window,
+    })
+    mirrored = [
+        row for row in cur.fetchall()
+        if institution_of(row["package_name"]) not in {None, leg["institution"]} and names_each_other(accounts, leg, row)
+    ]
+    close = [row for row in mirrored
+             if abs((row["post_time"] - leg["post_time"]).total_seconds()) <= SAME_ARRIVAL_WINDOW_SECONDS]
+    if len(close) == 1 and len(mirrored) == 1:
+        return ArrivalDecision(original=close[0])
+    return ArrivalDecision(doubtful_ids=tuple(str(row["id"]) for row in mirrored))
+
+
+def replaceable_leg(row: dict) -> bool:
+    """An observation that only the pipeline has touched, so another observation may take its place (D2)."""
+    interpretation = row.get("interpretation") or {}
+    return (row["review_status"] in {"auto", "needs_review"} and row.get("owner_edited_at") is None
+            and row.get("classified_by") != "owner" and not interpretation.get("purpose_answer"))
+
+
+def keeps_new_observation(new_basis: str | None, original: dict) -> bool:
+    """Whether the new observation replaces the recorded one: only a named account over a default-pocket
+    fallback, and only while the recorded leg is untouched (D2, OD119)."""
+    original_basis = (original.get("interpretation") or {}).get("account_basis")
+    return new_basis == "named" and original_basis == "default_pocket" and replaceable_leg(original)
+
+
+def mark_duplicate_observation(cur, user_id: str, event_id: str, kept_transaction_id: str,
+                               kept_key: str | None, kept_snapshot: dict | None, interpretation: dict | None) -> None:
+    """Record an event as a second observation of the kept leg: no transaction, the kept leg's result."""
+    cur.execute(
+        """UPDATE notification_events SET processing_state = 'recorded', provenance_kind = 'duplicate_observation',
+               transaction_id = NULL, duplicate_of_transaction_id = %s, movement_id = NULL, confirmed_role = NULL, result_key = %s, result_snapshot = %s,
+               interpretation = COALESCE(%s::jsonb, interpretation), active_question = NULL, error_code = NULL,
+               reviewed_at = NULL, lease_token = NULL, lease_expires_at = NULL, updated_at = NOW()
+           WHERE user_id = %s AND id = %s""",
+        (kept_transaction_id, kept_key, json.dumps(kept_snapshot) if kept_snapshot is not None else None,
+         json.dumps(interpretation) if interpretation is not None else None, user_id, event_id),
+    )
+
+
+def refresh_duplicate_results(cur, user_id: str, transaction_ids: list[str], key: str, snapshot: dict) -> None:
+    """Second observations show what their kept leg became, e.g. one leg of a movement."""
+    cur.execute(
+        """UPDATE notification_events SET result_key = %s, result_snapshot = %s, updated_at = NOW()
+           WHERE user_id = %s AND provenance_kind = 'duplicate_observation'
+             AND duplicate_of_transaction_id = ANY(%s::uuid[])""",
+        (key, json.dumps(snapshot), user_id, [str(value) for value in transaction_ids]),
+    )
+
+
+def drop_observation(cur, user_id: str, original: dict) -> None:
+    """Remove a replaced observation's transaction with its balance effect, in the caller's transaction."""
+    from app.services.ledger_mutations import delete_transaction_rows
+
+    delete_transaction_rows(cur, user_id, str(original["id"]))
+
+
+def repair_duplicate_arrivals(cur, user_id: str, accounts: dict[str, dict], legs: list[dict]) -> int:
+    """Apply the one-arrival rule to legs recorded before it could (the deferred pass); idempotent."""
+    merged = 0
+    gone: set[str] = set()
+    for row in legs:
+        if not row.get("event_id") or str(row["id"]) in gone:
+            continue
+        cur.execute(
+            """SELECT n.id AS event_id, n.package_name, n.post_time, n.interpretation, n.result_key, n.result_snapshot,
+                      t.id, t.type, t.account_id, t.amount, t.review_status, t.classified_by, t.owner_edited_at
+               FROM notification_events n JOIN transactions t ON t.id = n.transaction_id AND t.user_id = n.user_id
+               WHERE n.user_id = %s AND n.id = %s AND n.provenance_kind = 'observed_leg' AND t.movement_id IS NULL""",
+            (user_id, row["event_id"]),
+        )
+        current = cur.fetchone()
+        if not current:
+            continue
+        leg = {
+            "event_id": str(current["event_id"]), "transaction_id": str(current["id"]), "type": current["type"],
+            "amount": current["amount"], "account_id": str(current["account_id"]), "post_time": current["post_time"],
+            "institution": institution_of(current["package_name"]),
+            "remote_account_id": (current["interpretation"] or {}).get("remote_account_id"),
+        }
+        original = same_arrival(cur, user_id, leg, accounts).original
+        if not original or original["post_time"] > current["post_time"]:
+            # Each pair is decided once, from its later observation.
+            continue
+        if keeps_new_observation((current["interpretation"] or {}).get("account_basis"), original):
+            dropped, kept = original, current
+        elif replaceable_leg(current):
+            dropped, kept = current, original
+        else:
+            continue
+        drop_observation(cur, user_id, dropped)
+        mark_duplicate_observation(cur, user_id, str(dropped["event_id"]), str(kept["id"]),
+                                   kept["result_key"], kept["result_snapshot"], None)
+        gone.add(str(dropped["id"]))
+        merged += 1
+    return merged
+
+
 def flag_ambiguous(cur, user_id: str, transaction_ids: list[str]) -> int:
     """Flag automatically classified legs for review with the reason ambiguous_movement; returns rows flagged.
 
@@ -347,6 +506,7 @@ def attach_events_to_movement(cur, user_id: str, movement_id: str, accounts: dic
         key=key, kind="internal_movement", description=legs["expense"]["notes"] or "Pindah saldo",
         amount=int(legs["expense"]["amount"]), source=account_label(source, listed), target=account_label(target, listed),
     )
+    refresh_duplicate_results(cur, user_id, [str(leg["id"]) for leg in legs.values()], key, snapshot)
     for event in events:
         role = "outbound" if str(event["transaction_id"]) == str(legs["expense"]["id"]) else "inbound"
         cur.execute(
@@ -369,6 +529,48 @@ def pair_legs(cur, user_id: str, leg: dict, counterpart: dict, fee: int, account
     return result
 
 
+def pair_answered_transfer(cur, user_id: str, transaction_id: str, recorder=None) -> bool:
+    """Link a row the owner just filed as Internal Movement with its unique counterpart, if any (D4).
+
+    `recorder` is the answer's undo record; it captures the counterpart before the link, so undoing the
+    answer also undoes the movement.
+    """
+    accounts = load_accounts(cur, user_id)
+    cur.execute(
+        CANDIDATE_SQL.format(filters="AND t.id = %(transaction_id)s"),
+        {"user_id": user_id, "direction": None, "exclude": [], "transaction_id": transaction_id, "limit": 1},
+    )
+    row = cur.fetchone()
+    if not row:
+        return False
+    leg = as_leg(row, accounts)
+    decision = find_counterpart(cur, user_id, leg, gap_seconds=settings.notification_pairing_window_seconds,
+                                accounts=accounts)
+    if not decision.counterpart:
+        return False
+    if recorder is not None:
+        recorder.capture([decision.counterpart["id"]])
+    pair_legs(cur, user_id, leg, decision.counterpart, decision.fee, accounts)
+    return True
+
+
+def await_counterpart(cur, user_id: str, transaction_id: str) -> None:
+    """Keep a one-sided transfer in Tinjau until its other side is linked."""
+    cur.execute(
+        "UPDATE transactions SET review_status = 'needs_review', updated_at = NOW() WHERE user_id = %s AND id = %s",
+        (user_id, transaction_id),
+    )
+    cur.execute(
+        """UPDATE notification_events
+           SET interpretation = jsonb_set(interpretation, '{review_reasons}',
+                   COALESCE(interpretation -> 'review_reasons', '[]'::jsonb) || '["awaiting_counterpart"]'::jsonb)
+           WHERE user_id = %s AND transaction_id = %s AND provenance_kind = 'observed_leg'
+             AND jsonb_typeof(interpretation) = 'object'
+             AND NOT (COALESCE(interpretation -> 'review_reasons', '[]'::jsonb) @> '["awaiting_counterpart"]'::jsonb)""",
+        (user_id, transaction_id),
+    )
+
+
 def recent_unpaired_legs(cur, user_id: str, since: datetime) -> list[dict]:
     cur.execute(
         CANDIDATE_SQL.format(filters="AND t.created_at >= %(since)s"),
@@ -378,14 +580,19 @@ def recent_unpaired_legs(cur, user_id: str, since: datetime) -> list[dict]:
 
 
 def repair_owner(user_id: str, since: datetime) -> dict[str, int]:
-    counts = {"paired": 0, "with_fee": 0, "ambiguous": 0, "skipped": 0}
+    counts = {"paired": 0, "with_fee": 0, "ambiguous": 0, "skipped": 0, "duplicates": 0}
     with db_conn() as conn:
         with conn.cursor() as cur:
             # The same per-owner lock as notification processing: one pairing decision at a time.
             cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{user_id}",))
             accounts = load_accounts(cur, user_id)
             linked: set[str] = set()
-            for row in recent_unpaired_legs(cur, user_id, since):
+            legs = recent_unpaired_legs(cur, user_id, since)
+            # A second app's report of the same money goes before pairing, so it can't make a pair ambiguous.
+            counts["duplicates"] = repair_duplicate_arrivals(cur, user_id, accounts, legs)
+            if counts["duplicates"]:
+                legs = recent_unpaired_legs(cur, user_id, since)
+            for row in legs:
                 if str(row["id"]) in linked:
                     continue
                 leg = as_leg(row, accounts)
@@ -409,7 +616,7 @@ def repair_owner(user_id: str, since: datetime) -> dict[str, int]:
 
 def repair_unpaired_movements(*, now: datetime | None = None) -> dict[str, int]:
     """Re-pair unpaired legs recorded within the lookback; idempotent and safe to run concurrently."""
-    totals = {"paired": 0, "with_fee": 0, "ambiguous": 0, "skipped": 0}
+    totals = {"paired": 0, "with_fee": 0, "ambiguous": 0, "skipped": 0, "duplicates": 0}
     if settings.movement_pairing_configuration_error:
         return totals
     since = (now or datetime.now(timezone.utc)) - timedelta(hours=settings.movement_repair_lookback_hours)

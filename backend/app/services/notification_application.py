@@ -17,13 +17,15 @@ from app.services.merchant_memory import (
 )
 from app.services.movement_linkage import SELF_TRANSFER_NOTES, movement_note
 from app.services.movement_pairing import (
-    COMPLETION_KEY_PREFIX, find_counterpart, flag_ambiguous, leg_evidence, link_pair, load_accounts,
+    COMPLETION_KEY_PREFIX, PairingDecision, drop_observation, find_counterpart, flag_ambiguous,
+    keeps_new_observation, leg_evidence, link_pair, load_accounts, mark_duplicate_observation,
+    refresh_duplicate_results, same_arrival,
 )
 from app.services.notification_context import CANDIDATE_LIMIT, discover_candidates, sanitize_text
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
 from app.services.notification_interpretation import Interpretation, validate_interpretation
 from app.services.notification_resolution import (
-    institution_parent, main_endpoint, movement_categories, observed_endpoint,
+    institution_parent, main_endpoint, movement_categories, observed_endpoint, observed_endpoint_with_basis,
     pocket_endpoint, root_account_id, transfer_signature,
 )
 from app.services.notification_sender import sender_gate
@@ -356,6 +358,19 @@ def apply_interpretation(
         merchant=proposal.merchant, review_reasons=review_reasons,
         offset_category_id=memory_hit["offset_category_id"] if memory_hit else None,
         memory_id=memory_hit["memory_id"] if memory_hit else None,
+        same_money_event_id=(context.get("_neighbour_ids") or {}).get(proposal.same_money_as)
+        if proposal.same_money_as else None,
+    )
+
+
+def hold_possible_duplicate(cur, event: dict, signature: dict, same_money_event_id: str) -> None:
+    """Book nothing for an event the model says repeats a neighbour the backend rule did not confirm (OD116)."""
+    cur.execute(
+        """UPDATE notification_events SET processing_state = 'needs_review', error_code = 'possible_duplicate_observation',
+               interpretation = %s, reviewed_at = NULL, lease_token = NULL, lease_expires_at = NULL, updated_at = NOW()
+           WHERE user_id = %s AND id = %s""",
+        (json.dumps({**signature, "same_money_as_event_id": same_money_event_id}), str(event["user_id"]),
+         str(event["id"])),
     )
 
 
@@ -363,12 +378,15 @@ def record_observed_leg(
     cur, event: dict, facts: NotificationFacts, context: dict, *, observed: dict,
     category_id: str | None, kakeibo: str | None, description: str, signature: dict, provenance: Provenance,
     merchant: str | None = None, review_reasons: list[str] | None = None,
-    offset_category_id: str | None = None, memory_id: str | None = None,
+    offset_category_id: str | None = None, memory_id: str | None = None, arrival_guard: bool = True,
+    same_money_event_id: str | None = None, pair_counterpart: bool = True,
 ) -> int:
     """Record one observed leg, linking it to a unique counterpart leg when evidence allows.
 
     Without a counterpart the leg is recorded alone and flagged needs_review for every doubt about its
-    classification; a merchant-less leg also gets a purpose question (design D1, D9).
+    classification; a merchant-less leg also gets a purpose question (design D1, D9). A second app's
+    report of a leg already recorded books nothing (recognise-one-arrival-seen-twice D1, D2), unless
+    `arrival_guard` is off because the owner asked to record it separately.
     """
     from app.services.notification_evidence import requires_source_pocket
     from app.services.notification_source_pocket import resolved_facts, source_pocket_gate
@@ -382,7 +400,8 @@ def record_observed_leg(
     accounts = context["accounts"]
     record_key = f"notification:{event_id}"
     account_id = str(observed["id"])
-    signature = {**signature, "category_id": category_id, "kakeibo": kakeibo}
+    signature = {**signature, "category_id": category_id, "kakeibo": kakeibo,
+                 "account_basis": signature.get("account_basis") or account_basis(facts, accounts, account_id)}
     if facts.parsed.rdn_deposit:
         signature["rdn_deposit"] = True
         signature["deposit_source"] = facts.institution
@@ -415,14 +434,43 @@ def record_observed_leg(
         save_recorded(cur, event, str(candidate["id"]), candidate["result_snapshot"], signature,
                       movement_id=str(candidate["movement_id"]), provenance="role_confirmation", role=role)
         return 0
+    arrival = None
+    replaced = None
+    if arrival_guard:
+        arrival = same_arrival(cur, user_id, {
+            "event_id": event_id, "transaction_id": None, "type": facts.direction, "amount": facts.amount,
+            "account_id": account_id, "post_time": facts.timestamp, "institution": facts.institution,
+            "remote_account_id": signature.get("remote_account_id"),
+        }, load_accounts(cur, user_id))
+        confirmed = bool(arrival.original) and str(arrival.original["event_id"]) == same_money_event_id
+        if same_money_event_id and not confirmed:
+            # The model proposes a second observation the rule can't confirm: hold it, book nothing.
+            hold_possible_duplicate(cur, event, signature, same_money_event_id)
+            return 0
+        if arrival.original and keeps_new_observation(signature["account_basis"], arrival.original):
+            # The recorded leg came from a default-pocket fallback and this one names its account (D2).
+            replaced = arrival.original
+            drop_observation(cur, user_id, replaced)
+        elif arrival.original:
+            original = arrival.original
+            mark_duplicate_observation(
+                cur, user_id, event_id, str(original["id"]), original["result_key"], original["result_snapshot"],
+                {**signature, **stored_key_fields(context.get("_classification_key")),
+                 "duplicate_of_event_id": str(original["event_id"]), "review_reasons": []},
+            )
+            return 0
     in_movement_category = category_id in movement_category_ids(context)
-    pairing = find_counterpart(cur, user_id, {
-        "id": None, "type": facts.direction, "account_id": account_id, "amount": facts.amount,
-        "date": facts.timestamp, "evidence": leg_evidence({
-            "event_id": event_id, "evidence": signature, "movement_category": in_movement_category,
-            "account_id": account_id, "type": facts.direction,
-        }, load_accounts(cur, user_id)),
-    }, gap_seconds=settings.notification_pairing_window_seconds)
+    if pair_counterpart:
+        pairing = find_counterpart(cur, user_id, {
+            "id": None, "type": facts.direction, "account_id": account_id, "amount": facts.amount,
+            "date": facts.timestamp, "evidence": leg_evidence({
+                "event_id": event_id, "evidence": signature, "movement_category": in_movement_category,
+                "account_id": account_id, "type": facts.direction,
+            }, load_accounts(cur, user_id)),
+        }, gap_seconds=settings.notification_pairing_window_seconds)
+    else:
+        # Recorded on its own at the owner's request; the owner links it in Tinjau if it is a movement.
+        pairing = PairingDecision()
     counterpart = pairing.counterpart
     held, sender_description = sender_gate(
         cur, event, facts, context, observed, signature, proven_movement=counterpart is not None,
@@ -437,7 +485,8 @@ def record_observed_leg(
     reasons = [] if counterpart else list(review_reasons or [])
     if not counterpart and category_id is None:
         reasons.append("uncertain_category")
-    if not counterpart and pairing.ambiguous:
+    doubtful_arrivals = list(arrival.doubtful_ids) if arrival and not counterpart else []
+    if not counterpart and (pairing.ambiguous or doubtful_arrivals):
         reasons.append("ambiguous_movement")
     if not counterpart and in_movement_category:
         reasons.append("awaiting_counterpart")
@@ -516,11 +565,12 @@ def record_observed_leg(
             )
         save_recorded(cur, event, tx_id, snapshot, signature, movement_id=result["movement_id"],
                       role="outbound" if facts.direction == "expense" else "inbound")
+        refresh_duplicate_results(cur, user_id, [str(counterpart["id"])], snapshot["record_key"], snapshot)
     else:
         save_recorded(cur, event, tx_id, snapshot, signature)
-        if pairing.ambiguous:
+        if pairing.ambiguous or doubtful_arrivals:
             cur.execute("UPDATE notification_events SET error_code = 'ambiguous_movement' WHERE id = %s", (event_id,))
-            flag_ambiguous(cur, user_id, list(pairing.ambiguous_ids))
+            flag_ambiguous(cur, user_id, [*pairing.ambiguous_ids, *doubtful_arrivals])
         if ask_purpose:
             from app.services.purpose_questions import attach_purpose_question
 
@@ -536,6 +586,9 @@ def record_observed_leg(
             # A debit the owner converted into the same product again and again becomes that top-up
             # (clarify-review-and-learn-topups D8); otherwise it keeps waiting with a suggestion.
             auto_record(cur, user_id, tx_id)
+    if replaced:
+        mark_duplicate_observation(cur, user_id, str(replaced["event_id"]), tx_id, snapshot["record_key"], snapshot,
+                                   None)
     if memory_id:
         count_memory_hit(cur, user_id, memory_id)
     if provenance.classified_by == "ai" and provenance.review_status == "auto" and not counterpart:
@@ -544,6 +597,15 @@ def record_observed_leg(
             "kakeibo_type": kakeibo if facts.direction == "expense" else None, "offset_category_id": None,
         })
     return 1
+
+
+def account_basis(facts: NotificationFacts, accounts: list[dict], account_id: str) -> str:
+    """How the leg's account was chosen; an account other than the notification's own endpoint is named."""
+    try:
+        endpoint, basis = observed_endpoint_with_basis(facts, accounts)
+    except EvidenceError:
+        return "named"
+    return basis if str(endpoint["id"]) == account_id else "named"
 
 
 def recordable_habit(
@@ -611,7 +673,7 @@ def confirm_existing_deposit(cur, event: dict, facts: NotificationFacts, account
 
 def apply_manual_resolution(
     cur, event: dict, facts: NotificationFacts, context: dict, *, direction: str, amount: int,
-    account_id: str, category_id: str, description: str, kakeibo: str | None,
+    account_id: str, category_id: str, description: str, kakeibo: str | None, arrival_guard: bool = True,
 ) -> int:
     """Record an owner-chosen interpretation of an unresolved event, then run the pairing pass."""
     accounts = context["accounts"]
@@ -634,7 +696,8 @@ def apply_manual_resolution(
     return record_observed_leg(
         cur, event, resolved_facts, context, observed=observed, category_id=category_id,
         kakeibo=kakeibo if direction == "expense" else None, description=description,
-        signature={**signature, "source": "manual"}, provenance=notification_provenance("manual", None),
+        signature={**signature, "source": "manual", "account_basis": "named"},
+        provenance=notification_provenance("manual", None), arrival_guard=arrival_guard,
     )
 
 

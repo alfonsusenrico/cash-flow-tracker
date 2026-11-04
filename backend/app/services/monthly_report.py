@@ -34,6 +34,7 @@ from app.services.report_figures import (
     reportable_income_sql,
 )
 from app.services.report_windows import shift_month
+from app.services.seen_twice import seen_twice_count
 
 BASES = ("month", "cycle")
 BASIS_PATTERN = "^(month|cycle)$"
@@ -262,7 +263,9 @@ def review_counts(cur, user_id: str, start: datetime | None = None, end: datetim
         params += [start, end]
     cur.execute(query, params)
     row = cur.fetchone()
-    return {"attention": int(row["attention"]), "unreviewed": int(row["unreviewed"])}
+    # Second observations wait in Tinjau as automatic items, never as needing attention (OD117).
+    return {"attention": int(row["attention"]),
+            "unreviewed": int(row["unreviewed"]) + seen_twice_count(cur, user_id, start, end)}
 
 
 def _data_quality(cur, user_id: str, period: ObservedPeriod, kakeibo: dict[str, Any], *, now: datetime) -> dict[str, Any]:

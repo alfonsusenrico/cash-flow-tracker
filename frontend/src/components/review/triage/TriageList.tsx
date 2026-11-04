@@ -4,7 +4,7 @@ import type { RefObject } from "react";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
 import { ChipGroup } from "@/components/workspace/primitives";
-import { FOLDER_LABELS, itemTitle, type FolderKey, type Triage, type TriageItem } from "@/lib/triage";
+import { FOLDER_LABELS, itemTitle, type FolderKey, type OptionalFolder, type Triage, type TriageItem } from "@/lib/triage";
 
 const WHEN = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 
@@ -13,6 +13,7 @@ function itemDate(item: TriageItem): string | null {
     case "question": return item.entry.transaction.date;
     case "group": return item.group.last_date;
     case "suggestion": return item.group.last_date;
+    case "seen_twice": return item.item.date;
     default: return item.item.date;
   }
 }
@@ -33,6 +34,12 @@ function itemLine(item: TriageItem): string {
     }
     case "ambiguous": return `${item.item.candidates.length} kemungkinan pasangan`;
     case "suggestion": return `Saran · ${item.group.category.name}`;
+    case "seen_twice": {
+      const kept = item.item.kept;
+      if (!kept) return "Belum dicatat";
+      const place = kept.movement ? `${kept.movement.source ?? "?"} → ${kept.movement.target ?? "?"}` : kept.account_name;
+      return `Sudah tercatat: ${place ?? "transaksi lain"}`;
+    }
   }
 }
 
@@ -41,6 +48,11 @@ function itemAmount(item: TriageItem, bal: (amount: number) => string): { text: 
     case "question": return { text: `−${bal(item.entry.transaction.amount)}`, className: "" };
     case "group":
     case "suggestion": return { text: `${item.group.type === "income" ? "+" : "−"}${bal(item.group.total)}`, className: item.group.type === "income" ? "ws-amt-in" : "" };
+    case "seen_twice": {
+      const { amount, type } = item.item;
+      if (amount === null) return { text: "?", className: "" };
+      return { text: `${type === "income" ? "+" : type === "expense" ? "−" : ""}${bal(amount)}`, className: type === "income" ? "ws-amt-in" : "" };
+    }
     default: return { text: `⇄ ${bal(item.item.amount)}`, className: "ws-amt-tr" };
   }
 }
@@ -50,6 +62,7 @@ function Avatar({ item }: { item: TriageItem }) {
     return <span className="ws-ava ws-tone-tr" aria-hidden="true"><Icon name="arrows-right-left" /></span>;
   }
   if (item.kind === "suggestion") return <span className="ws-ava ws-tone-neutral" aria-hidden="true"><Icon name="sparkles" /></span>;
+  if (item.kind === "seen_twice") return <span className="ws-ava ws-tone-tr" aria-hidden="true"><Icon name="layers" /></span>;
   if (item.kind === "group" && item.folder === "otomatis") return <span className="ws-ava ws-tone-ok" aria-hidden="true"><Icon name="check" /></span>;
   return <span className="ws-ava ws-tone-warn" aria-hidden="true">{item.kind === "question" ? "?" : "!"}</span>;
 }
@@ -101,8 +114,8 @@ export interface TriageListProps {
   selectedId: string | null;
   onFolder: (folder: FolderKey) => void;
   onOpen: (item: TriageItem) => void;
-  foldOpen: { otomatis: boolean; saran: boolean };
-  onFold: (key: "otomatis" | "saran", open: boolean) => void;
+  foldOpen: Record<OptionalFolder, boolean>;
+  onFold: (key: OptionalFolder, open: boolean) => void;
   onSearchSuggestions: () => void;
   searchOpen: boolean;
   listRef: RefObject<HTMLElement>;
@@ -122,6 +135,7 @@ export function TriageList({
   ];
   const automatic = triage.folders.otomatis;
   const suggestions = triage.folders.saran;
+  const seenTwice = triage.folders.dua;
   return (
     <section ref={listRef} className="ws-card ws-tri-list" aria-labelledby="triage-list-heading">
       <div className="ws-tri-head">
@@ -174,6 +188,17 @@ export function TriageList({
           </summary>
           <p className="ws-caption">Usulan untuk transaksi lama. Tidak dihitung sebagai yang perlu dijawab.</p>
           <TriageRows items={suggestions} selectedId={selectedId} onOpen={onOpen} label="Saran dari riwayat" />
+        </details>
+      )}
+      {seenTwice.length > 0 && (
+        <details className="ws-tri-fold" open={foldOpen.dua || folder === "dua"} onToggle={(event) => onFold("dua", event.currentTarget.open)}>
+          <summary>
+            <Icon name="chevron-right" />
+            <span><b>{FOLDER_LABELS.dua}</b> <span className="ws-cnt">{triage.counts.dua}</span></span>
+            <span className="ws-opt">opsional</span>
+          </summary>
+          <p className="ws-caption">Satu transaksi dilaporkan dua aplikasi dan hanya dicatat sekali.</p>
+          <TriageRows items={seenTwice} selectedId={selectedId} onOpen={onOpen} label={FOLDER_LABELS.dua} />
         </details>
       )}
 

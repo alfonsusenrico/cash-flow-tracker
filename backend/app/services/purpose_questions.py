@@ -15,9 +15,10 @@ from app.core.config import settings
 from app.db.pool import db_conn
 from app.services.habits import HabitDecision, guess_label
 from app.services.merchant_memory import (
-    insert_feedback, live_feedback_sql, is_masked, learn_from_owner, local_time_features, owner_identity, snapshot_rows,
-    transaction_event_key,
+    insert_feedback, live_feedback_sql, is_masked, is_movement_category, learn_from_owner, local_time_features,
+    owner_identity, snapshot_rows, transaction_event_key,
 )
+from app.services.movement_pairing import await_counterpart, pair_answered_transfer
 from app.services.notification_mapping import version_tuple
 from app.services.purpose_normalization import (
     PURPOSE_PROMPT_VERSION, InvalidNormalization, validate_normalization,
@@ -425,7 +426,12 @@ def apply_answer(event_id: str, user_id: str, answer: dict, normalized: dict | N
             key = transaction_event_key(cur, user_id, transaction_id)
             insert_feedback(cur, user_id, kind="purpose_answer", before=before, after=after,
                             key={**key, "event_id": event_id}, answer=answer)
-            if review_status == "reviewed":
+            if review_status == "reviewed" and is_movement_category(after.get("category_name")):
+                # A transfer answer names one side of a movement: link the other now, or keep asking (D4).
+                if not pair_answered_transfer(cur, user_id, transaction_id, recorder):
+                    await_counterpart(cur, user_id, transaction_id)
+                    review_status = "needs_review"
+            elif review_status == "reviewed":
                 learn_from_owner(cur, user_id, after, key)
             outcome = {
                 "question_id": question["question_id"], "reply_id": answer["reply_id"],

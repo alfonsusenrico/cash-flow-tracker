@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 
-FIXTURE_VERSION = "synthetic-notifications-3"
+FIXTURE_VERSION = "synthetic-notifications-4"
 
 
 def fixture_id(number: int) -> str:
@@ -39,7 +39,7 @@ BASE_CONTEXT = {
         "match_key": "merchant:kedai awan", "merchant": "Kedai Awan", "description": None,
         "category_id": fixture_id(102), "kakeibo": "want", "source": "owner",
     }],
-    "similar_history": [], "candidates": [],
+    "similar_history": [], "candidates": [], "neighbours": [], "neighbours_incomplete": False,
 }
 
 
@@ -148,5 +148,75 @@ def synthetic_cases() -> list[SyntheticCase]:
             expected={"facts_status": "candidate", "outcome": "record", "direction": "expense",
                       "amount": 500000, "account_id": fixture_id(5), "category_id": fixture_id(105), "kakeibo": None,
                       "candidate_transaction_id": fixture_id(200) if count == 1 and name != "movement-equal-unrelated" else None},
+        ))
+    cases.extend(arrival_sequence_cases())
+    return cases
+
+
+SEQUENCE_START = datetime.fromisoformat("2026-09-28T10:15:27+07:00")
+
+
+def neighbour(key: str, institution: str, direction: str, seconds: float, state: str,
+              account: int | None, in_movement: bool, amount: int = 500000) -> dict:
+    return {"id": key, "institution": institution, "direction": direction, "amount": amount,
+            "seconds_from_this": seconds, "state": state,
+            "account_id": fixture_id(account) if account else None, "in_movement": in_movement}
+
+
+def arrival_sequence_cases() -> list[SyntheticCase]:
+    """One top-up reported by three apps, then a pocket hop, each replayed with its neighbours.
+
+    GoPay reports the credit first, Jago reports the same money arriving 0.13 s later, myBCA reports the
+    debit 3.4 s later, and two and a half minutes later Jago moves the money on into its Tabungan pocket.
+    Only Jago's credit is a second observation; the last case is a different same-amount credit that
+    must never be called the same money.
+    """
+    context = deepcopy(BASE_CONTEXT)
+    context["accounts"].append({"id": fixture_id(11), "name": "Tabungan", "type": "bank", "parent_id": fixture_id(2),
+                                "is_savings": True})
+    for account in context["accounts"]:
+        if account["id"] == fixture_id(5):
+            account["learned_notification_names"] = [{"key": "jago|gopay tabungan", "name": "GoPay Tabungan",
+                                                      "institution": "jago", "confirmed_by": "owner"}]
+    steps = [
+        ("sequence-gopay-credit", "com.gojek.gopay", "Anda telah menerima Tabungan by Jago sebanyak Rp500.000.", 0,
+         [neighbour("n1", "jago", "income", 0.1, "queued", None, False),
+          neighbour("n2", "bca", "expense", 3.4, "queued", None, False)],
+         {"outcome": "record", "direction": "income", "account_id": fixture_id(5), "category_id": fixture_id(104),
+          "kakeibo": None, "same_money_as": None}),
+        ("sequence-jago-credit", "com.jago.digitalBanking",
+         "You've received Rp500.000 from GoPay. Need help? Contact Tanya Jago at 1500 746.", 0.13,
+         [neighbour("n1", "gopay", "income", -0.1, "recorded", 5, False),
+          neighbour("n2", "bca", "expense", 3.3, "queued", None, False)],
+         {"outcome": "record", "direction": "income", "account_id": fixture_id(3), "category_id": fixture_id(104),
+          "kakeibo": None, "same_money_as": "n1"}),
+        ("sequence-mybca-debit", "com.bca.mybca.omni.android", "You spent IDR 500,000.00 at Payment.", 3.4,
+         [neighbour("n1", "gopay", "income", -3.4, "recorded", 5, False),
+          neighbour("n2", "jago", "income", -3.3, "recorded", 5, False)],
+         {"outcome": "record", "direction": "expense", "account_id": fixture_id(1), "category_id": fixture_id(101),
+          "kakeibo": "need", "same_money_as": None}),
+        ("sequence-jago-hop", "com.jago.digitalBanking",
+         "You've moved Rp500.000 from GoPay Tabungan Pocket to your Tabungan Pocket.", 150,
+         [neighbour("n1", "gopay", "income", -150, "recorded", 5, True),
+          neighbour("n2", "jago", "income", -149.9, "recorded", 5, True),
+          neighbour("n3", "bca", "expense", -146.6, "recorded", 1, True)],
+         {"outcome": "record", "direction": "internal_movement", "source_account_id": fixture_id(5),
+          "target_account_id": fixture_id(11), "category_id": None, "kakeibo": None, "same_money_as": None}),
+        ("sequence-unrelated-credit", "com.gojek.gopay", "Anda telah menerima saldo sebesar Rp500.000.", 30,
+         [neighbour("n1", "jago", "income", -30, "recorded", 3, False)],
+         {"outcome": "record", "direction": "income", "account_id": fixture_id(5), "category_id": fixture_id(104),
+          "kakeibo": None, "same_money_as": None}),
+    ]
+    cases = []
+    for name, package, text, seconds, neighbours, expected in steps:
+        case_context = deepcopy(context)
+        case_context["neighbours"] = neighbours
+        cases.append(SyntheticCase(
+            name=name, partition="held_out",
+            event={"package_name": package, "body_text": text,
+                   "post_time": SEQUENCE_START + timedelta(seconds=seconds)},
+            context=case_context,
+            expected={"facts_status": "candidate", "amount": 500000, "candidate_transaction_id": None,
+                      "sequence": True, **expected},
         ))
     return cases

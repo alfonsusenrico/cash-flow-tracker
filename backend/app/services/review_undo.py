@@ -32,7 +32,7 @@ TOKEN_PATTERN = r"^[A-Za-z0-9_-]{43}$"
 KINDS = frozenset({
     "review_accept", "review_recategorise", "review_rename", "review_keep_separate",
     "movement_complete", "movement_merge", "topup_conversion", "topup_rejection",
-    "purpose_answer", "suggestion_accept", "suggestion_reject",
+    "purpose_answer", "suggestion_accept", "suggestion_reject", "seen_twice_separate",
 })
 
 # Every column whose change after the action makes an undo a conflict (D10, D12).
@@ -235,7 +235,8 @@ class ActionRecorder:
             written[key] = {"match_key": key, "before": before, "after_updated_at": jsonable(row["updated_at"])}
         return written
 
-    def finish(self, *, created_transaction_ids: list[str] = (), topup_id: str | None = None) -> dict:
+    def finish(self, *, created_transaction_ids: list[str] = (), topup_id: str | None = None,
+               extra: dict | None = None) -> dict:
         """Store the record and return `undo_token` and `expires_at`, or nulls when nothing changed."""
         cur, user_id = self.cur, self.user_id
         created = [str(value) for value in created_transaction_ids if value]
@@ -290,7 +291,7 @@ class ActionRecorder:
         snapshot = {
             "transactions": transactions, "created_transactions": created_images, "events": events,
             "memory": memory, "feedback_ids": feedback_ids, "topup_feedback_ids": topup_feedback_ids,
-            "topup": topup, "suggestions": suggestions,
+            "topup": topup, "suggestions": suggestions, **(extra or {}),
         }
         cur.execute(
             """INSERT INTO review_actions (user_id, token_hash, kind, transaction_ids, snapshot, created_at, expires_at)
@@ -549,6 +550,10 @@ def undo_action(user_id: str, token: str) -> dict:
                 cur.execute("DELETE FROM transactions WHERE user_id = %s AND id = ANY(%s::uuid[])", (user_id, created))
             restore_transactions(cur, user_id, snapshot)
             restore_events(cur, user_id, snapshot)
+            if snapshot.get("seen_twice"):
+                from app.services.seen_twice import restore_seen_twice
+
+                restore_seen_twice(cur, user_id, snapshot["seen_twice"])
             revert_feedback(cur, user_id, snapshot["feedback_ids"])
             for learned in snapshot["memory"].values():
                 restore_memory(cur, user_id, learned)

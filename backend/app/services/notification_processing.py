@@ -211,7 +211,8 @@ def accept_event(payload: dict, user_id: str) -> tuple[dict, bool, int]:
                     with conn.transaction():
                         cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{user_id}",))
                         facts = resolved_facts(cur, event, facts)
-                        context = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit)
+                        context = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit,
+                                               event_id=str(event["id"]))
                         if context["incomplete"]:
                             raise EvidenceError("incomplete_context")
                         if facts.institution == "stockbit" and facts.parsed.investment_action:
@@ -284,7 +285,8 @@ def read_context(event: dict) -> tuple:
                     return facts, {"source_confirmation_pending": True, "incomplete": False}
                 event = current or event
             facts = resolved_facts(cur, event, facts)
-            context = load_context(cur, str(event["user_id"]), facts, history_limit=settings.notification_ai_history_limit)
+            context = load_context(cur, str(event["user_id"]), facts, history_limit=settings.notification_ai_history_limit,
+                                   event_id=str(event["id"]))
             attach_sender_context(cur, event, facts, context)
     return facts, context
 
@@ -321,7 +323,8 @@ def apply_mapped_proposal(conn, cur, event: dict, facts, context: dict, proposal
     if decision["confidence"] >= settings.notification_mapping_auto_threshold:
         with conn.transaction():
             store_aliases(cur, user_id, decision["entries"], "ai")
-            refreshed = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit)
+            refreshed = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit,
+                                     event_id=str(event["id"]))
             if refreshed["facts"].get("mapping_error"):
                 raise EvidenceError("invalid_mapping_proposal")
             apply_interpretation(cur, event, facts, proposal, refreshed, source="ai")
@@ -350,7 +353,8 @@ def apply_claim(event: dict, proposal, provider_error: str | None = None) -> boo
                 conn.commit()
                 return True
             facts = resolved_facts(cur, owned, facts)
-            context = load_context(cur, str(owned["user_id"]), facts, history_limit=settings.notification_ai_history_limit)
+            context = load_context(cur, str(owned["user_id"]), facts, history_limit=settings.notification_ai_history_limit,
+                                   event_id=str(owned["id"]))
             if owned["processing_mode"] == "deterministic":
                 if facts.status != "candidate" or context["incomplete"]:
                     raise EvidenceError(facts.error_code or "incomplete_context")
@@ -491,7 +495,8 @@ def resolve_event(event_id: str, user_id: str, resolution: dict) -> dict:
                     "code": "amount_required",
                     "message": "Notifikasi tidak memuat satu nominal yang pasti; isi nominal secara manual.",
                 })
-            context = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit)
+            context = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit,
+                                   event_id=str(event["id"]))
             if context["incomplete"]:
                 raise HTTPException(status_code=409, detail={"code": "incomplete_context", "message": "Data akun terlalu besar untuk diproses."})
             description = resolution.get("notes") or sanitize_text(
