@@ -357,6 +357,19 @@ def apply_interpretation(
         merchant=proposal.merchant, review_reasons=review_reasons,
         offset_category_id=memory_hit["offset_category_id"] if memory_hit else None,
         memory_id=memory_hit["memory_id"] if memory_hit else None,
+        same_money_event_id=(context.get("_neighbour_ids") or {}).get(proposal.same_money_as)
+        if proposal.same_money_as else None,
+    )
+
+
+def hold_possible_duplicate(cur, event: dict, signature: dict, same_money_event_id: str) -> None:
+    """Book nothing for an event the model says repeats a neighbour the backend rule did not confirm (OD116)."""
+    cur.execute(
+        """UPDATE notification_events SET processing_state = 'needs_review', error_code = 'possible_duplicate_observation',
+               interpretation = %s, reviewed_at = NULL, lease_token = NULL, lease_expires_at = NULL, updated_at = NOW()
+           WHERE user_id = %s AND id = %s""",
+        (json.dumps({**signature, "same_money_as_event_id": same_money_event_id}), str(event["user_id"]),
+         str(event["id"])),
     )
 
 
@@ -365,6 +378,7 @@ def record_observed_leg(
     category_id: str | None, kakeibo: str | None, description: str, signature: dict, provenance: Provenance,
     merchant: str | None = None, review_reasons: list[str] | None = None,
     offset_category_id: str | None = None, memory_id: str | None = None, arrival_guard: bool = True,
+    same_money_event_id: str | None = None,
 ) -> int:
     """Record one observed leg, linking it to a unique counterpart leg when evidence allows.
 
@@ -427,6 +441,11 @@ def record_observed_leg(
             "account_id": account_id, "post_time": facts.timestamp, "institution": facts.institution,
             "remote_account_id": signature.get("remote_account_id"),
         }, load_accounts(cur, user_id))
+        confirmed = bool(arrival.original) and str(arrival.original["event_id"]) == same_money_event_id
+        if same_money_event_id and not confirmed:
+            # The model proposes a second observation the rule can't confirm: hold it, book nothing.
+            hold_possible_duplicate(cur, event, signature, same_money_event_id)
+            return 0
         if arrival.original and keeps_new_observation(signature["account_basis"], arrival.original):
             # The recorded leg came from a default-pocket fallback and this one names its account (D2).
             replaced = arrival.original

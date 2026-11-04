@@ -10,7 +10,7 @@ from app.services.kakeibo import Pillar
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
 
 
-PROMPT_VERSION = "notification-interpretation-10"
+PROMPT_VERSION = "notification-interpretation-11"
 PROMPT_PATH = Path(__file__).with_name("prompts") / "notification_interpretation.md"
 Kakeibo = Pillar
 
@@ -46,6 +46,9 @@ class Interpretation(BaseModel):
     confidence: float = Field(ge=0, le=1)
     review_reason: Literal["uncertain_facts", "uncertain_mapping", "ambiguous_movement", "none"]
     mappings: list[MappingProposal] = Field(default_factory=list, max_length=3)
+    # A neighbour's context-local id ("n1"…"n20") reporting the same money, or null. Only a proposal: the
+    # backend's one-arrival rule decides (recognise-one-arrival-seen-twice D5).
+    same_money_as: str | None = Field(default=None, pattern=r"^n(?:[1-9]|1[0-9]|20)$")
 
     @model_validator(mode="after")
     def check_record_shape(self, info: ValidationInfo):
@@ -120,6 +123,10 @@ def validate_interpretation(
         candidates = {str(candidate["id"]) for candidate in context.get("candidates", [])}
         if str(interpretation.candidate_transaction_id) not in candidates:
             raise EvidenceError("invalid_candidate_reference")
+    if interpretation.same_money_as is not None:
+        supplied = {neighbour["id"] for neighbour in context.get("neighbours", [])}
+        if context.get("neighbours_incomplete") or interpretation.same_money_as not in supplied:
+            raise EvidenceError("invalid_neighbour_reference")
 
 
 def system_prompt() -> str:
