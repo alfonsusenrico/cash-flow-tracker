@@ -47,6 +47,7 @@ export const queryKeys = {
     all: ["reports"] as const,
     monthly: (basis: string, startDate: string | null) => ["reports", "monthly", basis, startDate ?? "latest"] as const,
     periods: (basis: string) => ["reports", "periods", basis] as const,
+    comparison: (basis: string, startDate: string | null) => ["reports", "comparison", basis, startDate ?? "latest"] as const,
     latest: ["reports", "latest"] as const,
   },
   classificationGaps: (from: string | null, to: string | null) => ["classification", "gaps", from ?? "", to ?? ""] as const,

@@ -32,7 +32,6 @@ const ROOTS = ["components/workspace", "components/beranda", "components/review"
   "lib/capture.ts",
   // Analisis and Laporan (redesign-analysis-and-reports D13).
   "components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx",
-  "lib/reportLead.ts",
   // Rekening & Kantong, Target & Tagihan, Pengaturan, their modals and the sign-in page (redesign-money-and-settings D16).
   ...MONEY_ROOTS];
 
@@ -79,7 +78,7 @@ describe("copy register", () => {
   });
 
   it("writes Analisis and Laporan impersonally, without the formal Anda", () => {
-    const roots = ["components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx", "lib/reportLead.ts"];
+    const roots = ["components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx"];
     const analysis = roots.flatMap(sources).filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file));
     const formal = analysis.flatMap((file) => visibleLines(file)
       .filter(({ text }) => /\bAnda\b/.test(text))

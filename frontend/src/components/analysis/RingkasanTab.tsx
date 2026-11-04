@@ -3,45 +3,30 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { CashFlowHistory, PeriodComparison, RecurringCharges } from "@/components/insights/ObservedInsights";
+import { RecurringCharges } from "@/components/insights/ObservedInsights";
 import { QuestionRate } from "@/components/insights/QuestionRate";
 import { HabitsLearnedCard } from "@/components/analysis/HabitsLearnedCard";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import { ExplainableFigure, type ExplanationData } from "@/components/workspace/explain";
-import { Card, CardHeader, EmptyState, ErrorState, Kpi, KpiStrip, Pill, Skeleton } from "@/components/workspace/primitives";
+import { Card, CardHeader, ErrorState, Kpi, KpiStrip, Skeleton } from "@/components/workspace/primitives";
+import { Change, NoBaseline, Progress, baselineName } from "@/components/report/ComparisonParts";
+import reportStyles from "@/components/report/report.module.css";
+import { type ReportComparison, type ReportComparisonResponse, type ReportPeriodList, comparisonQuery, refHref } from "@/lib/monthlyReport";
 import { useWidthAtMost } from "@/hooks/useWidthAtMost";
 import { api } from "@/lib/api";
-import { KAKEIBO_BUCKETS as BUCKET_INFO } from "@/lib/kakeibo";
+import { kakeiboBucketInfo } from "@/lib/kakeibo";
 import { reportPeriodFilters } from "@/lib/ledgerFilters";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
 import type { ExpensePlanDraft } from "@/types/recurring";
 import { CategoryBudgetSection } from "./CategoryBudgetSection";
-import { rangeLabel, shortDay, todayIso } from "./format";
+import { shortDay, todayIso } from "./format";
 import styles from "./analysis.module.css";
-import {
-  KAKEIBO_BUCKETS,
-  type AnalyticsResponse,
-  type KakeiboBucket,
-  type PeriodBasis,
-  type PeriodComparisonResponse,
-  type ServerExplanation,
-} from "./types";
+import { type AnalyticsResponse, type PeriodBasis, type ServerExplanation } from "./types";
 
 type Money = (amount: number) => string;
 
-const BUCKET_COLORS: Record<KakeiboBucket, string> = {
-  need: "var(--k-need)",
-  want: "var(--k-want)",
-  culture: "var(--k-culture)",
-  unexpected: "var(--k-unexpected)",
-  saving: "var(--k-saving)",
-  unclassified: "var(--k-none)",
-};
 
-function bucketLabel(bucket: KakeiboBucket): string {
-  return BUCKET_INFO.find((info) => info.value === bucket)?.label ?? bucket;
-}
 
 function signedLine(amount: number, money: Money): string {
   return amount < 0 ? `−${money(-amount)}` : money(amount);
@@ -59,6 +44,39 @@ export function serverExplanation(title: string, rule: string, data: ServerExpla
   };
 }
 
+/**
+ * The report periods of the basis, newest first, and the one the stepper offset points at. Ringkasan
+ * compares whole periods with the report's rules (compare-whole-months D9): the viewed period while it
+ * runs, and the last completed period against its three-period average.
+ */
+function useComparisons(basis: PeriodBasis, offset: number) {
+  const reportBasis = basis === "cycle" ? "cycle" : "month";
+  const periods = useQuery<ReportPeriodList>({
+    queryKey: queryKeys.reports.periods(reportBasis),
+    queryFn: () => api.get(`/reports/monthly/periods?basis=${reportBasis}`),
+  });
+  const ordered = [...(periods.data?.periods ?? [])].sort((left, right) => right.start_date.localeCompare(left.start_date));
+  const viewed = ordered[-offset] ?? null;
+  const lastCompleted = viewed?.complete ? viewed : ordered.slice(-offset + 1).find((item) => item.complete) ?? null;
+  const fetchComparison = (start: string | null) => ({
+    queryKey: queryKeys.reports.comparison(reportBasis, start),
+    queryFn: () => api.get<ReportComparisonResponse>(comparisonQuery(reportBasis, start)),
+    enabled: Boolean(start),
+    retry: false,
+  });
+  const current = useQuery(fetchComparison(viewed?.start_date ?? null));
+  const completed = useQuery(fetchComparison(lastCompleted && lastCompleted !== viewed ? lastCompleted.start_date : null));
+  const pick = (data: ReportComparisonResponse | undefined) => (data && !data.empty ? data.comparison : null);
+  const viewedComparison = pick(current.data);
+  return {
+    loading: periods.isPending || (Boolean(viewed) && current.isPending),
+    failed: periods.isError || current.isError,
+    retry: () => { periods.refetch(); current.refetch(); },
+    viewed: viewedComparison,
+    completed: lastCompleted === viewed ? viewedComparison : pick(completed.data),
+  };
+}
+
 export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodBasis; offset: number; money: Money; onLabel: (label: string) => void }) {
   const [planDraft, setPlanDraft] = useState<ExpensePlanDraft | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -67,6 +85,7 @@ export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodB
     queryKey: queryKeys.dashboard.analytics(basis, offset),
     queryFn: () => api.get(`/dashboard/analytics?timeframe=${basis}&cycle_offset=${offset}`),
   });
+  const comparisons = useComparisons(basis, offset);
   const periodLabel = analytics.data?.timeframe_label;
   useEffect(() => {
     if (periodLabel) onLabel(periodLabel);
@@ -84,16 +103,17 @@ export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodB
     return <ErrorState message="Ringkasan periode ini belum bisa dimuat." onRetry={() => analytics.refetch()} />;
   }
   const data = analytics.data;
-  const comparison = data.comparison;
-  const keluarTotal = data.explanations?.keluar.total ?? (typeof data.kakeibo?.total_allocated === "number" ? data.kakeibo.total_allocated : null);
+  const viewed = comparisons.viewed;
+  const spending = viewed?.totals.spending ?? null;
+  // The explanation is shown only when its server lines add up to the figure shown (analysis-workspace).
+  const spendingExplanation = data.explanations?.belanja && spending !== null && data.explanations.belanja.total === spending ? data.explanations.belanja : null;
 
   const left = (
     <>
-      <KakeiboCard basis={basis} offset={offset} money={money} />
+      {viewed?.running && <ProgressCard comparison={viewed} money={money} />}
+      {comparisons.completed && <BaselineCard comparison={comparisons.completed} money={money} />}
+      {comparisons.failed && <ErrorState message="Perbandingan periode belum bisa dimuat." onRetry={comparisons.retry} />}
       <DailySpendCard days={data.daily_cadence ?? []} money={money} />
-      <CashFlowHistory basis={basis} bal={money} />
-      {/* The comparison's three figures and two change lists need the wide column (implementation note). */}
-      <PeriodComparison basis={basis} offset={offset} bal={money} />
     </>
   );
   const right = (
@@ -103,37 +123,26 @@ export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodB
       <HabitsLearnedCard />
     </>
   );
+  const unavailable = "Tidak tersedia";
 
   return (
     <div className={styles.stack}>
       <KpiStrip label="Arus kas tercatat">
-        <Kpi icon="arrow-down-left" label="Masuk" value={comparison ? money(comparison.total_inflow) : "Tidak tersedia"} />
+        <Kpi icon="arrow-down-left" label="Masuk" value={viewed ? money(viewed.totals.inflow) : unavailable} />
         <Kpi
           icon="arrow-up-right"
-          label="Keluar"
-          value={keluarTotal === null ? "Tidak tersedia" : data.explanations ? (
+          label="Pengeluaran"
+          value={spending === null ? unavailable : spendingExplanation ? (
             <ExplainableFigure
-              label="Keluar"
-              amountText={money(keluarTotal)}
-              explanation={serverExplanation("Keluar periode ini", "Semua yang keluar menurut pilar Kakeibo, termasuk yang ditabung atau diinvestasikan, dikurangi ganti uang. Sama dengan Keluar di Beranda.", data.explanations.keluar, money, "Total keluar")}
+              label="Pengeluaran"
+              amountText={money(spending)}
+              explanation={serverExplanation("Pengeluaran periode ini", "Pengeluaran tanpa tabungan, dikurangi ganti uang.", spendingExplanation, money, "Total pengeluaran")}
             />
-          ) : money(keluarTotal)}
-          caption="Termasuk yang ditabung"
-        />
-        <Kpi
-          icon="receipt"
-          label="Belanja"
-          value={!comparison ? "Tidak tersedia" : data.explanations ? (
-            <ExplainableFigure
-              label="Belanja"
-              amountText={money(comparison.total_outflow)}
-              explanation={serverExplanation("Belanja periode ini", "Pengeluaran yang dihitung belanja, dikurangi ganti uang. Sama dengan Belanja di Transaksi.", data.explanations.belanja, money, "Total belanja")}
-            />
-          ) : money(comparison.total_outflow)}
+          ) : money(spending)}
           caption="Tanpa tabungan"
         />
+        <Kpi icon="target" label="Ditabung & investasi" value={viewed ? money(viewed.totals.fresh_saving) : unavailable} />
       </KpiStrip>
-      <p className={styles.caption}>Keluar = Belanja ditambah yang ditabung atau diinvestasikan.</p>
       <div ref={gridRef} className={cn(styles.grid, oneColumn && styles.one)}>
         {oneColumn ? (
           <div className={styles.stack}>{left}{right}</div>
@@ -150,75 +159,77 @@ export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodB
   );
 }
 
-function changePill(bucket: KakeiboBucket, change: number, money: Money) {
-  if (change === 0) return <Pill tone="neutral">Sama</Pill>;
-  const up = change > 0;
-  // More saving and less spending are the directions the owner wants; the words say which way it went.
-  const good = bucket === "saving" ? up : !up;
-  return <Pill tone={good ? "ok" : "warn"}>{up ? "Naik" : "Turun"} {money(Math.abs(change))}</Pill>;
-}
-
-/** Kakeibo against the same elapsed days of the previous period, as amounts (D3, OD41). */
-export function KakeiboCard({ basis, offset, money }: { basis: PeriodBasis; offset: number; money: Money }) {
-  const query = useQuery<PeriodComparisonResponse>({
-    queryKey: queryKeys.dashboard.periodComparison(basis, offset),
-    queryFn: () => api.get(`/dashboard/period-comparison?timeframe=${basis}&cycle_offset=${offset}`),
-  });
-  const heading = <CardHeader id="kakeibo-compare-heading" icon="buckets" title="Kakeibo" caption={query.data ? windowsCaption(query.data) : undefined} />;
-  if (query.isPending) return <Card labelledBy="kakeibo-compare-heading">{heading}<Skeleton style={{ height: 180 }} /></Card>;
-  if (query.isError) return <Card labelledBy="kakeibo-compare-heading">{heading}<ErrorState message="Perbandingan Kakeibo belum bisa dimuat." onRetry={() => query.refetch()} /></Card>;
-  const kakeibo = query.data.kakeibo;
-  if (!kakeibo) {
-    return <Card labelledBy="kakeibo-compare-heading">{heading}<p className={styles.caption}>Data pembanding belum tersedia.</p></Card>;
-  }
-  const values = KAKEIBO_BUCKETS.flatMap((bucket) => [kakeibo.current[bucket], kakeibo.previous?.[bucket] ?? 0]);
-  const max = Math.max(1, ...values) * 1.08;
-  const everything = KAKEIBO_BUCKETS.every((bucket) => kakeibo.current[bucket] === 0 && !kakeibo.previous?.[bucket]);
+/** The running period's spending so far against the previous whole period, in total and per pillar, without a verdict (D4). */
+export function ProgressCard({ comparison, money }: { comparison: ReportComparison; money: Money }) {
+  const progress = comparison.progress;
+  if (!progress) return null;
   return (
-    <Card labelledBy="kakeibo-compare-heading">
-      {heading}
-      {everything ? (
-        <EmptyState icon="buckets" title="Belum ada pengeluaran">Kakeibo muncul setelah ada pengeluaran di periode ini.</EmptyState>
-      ) : (
-        <div>
-          {KAKEIBO_BUCKETS.map((bucket) => {
-            const current = kakeibo.current[bucket];
-            const previous = kakeibo.previous ? kakeibo.previous[bucket] : null;
-            if (bucket === "unclassified" && current === 0 && !previous) return null;
-            const name = bucketLabel(bucket);
-            const accessible = previous === null ? `${name}: ${money(current)}` : `${name}: ${money(current)}, periode lalu ${money(previous)}`;
-            return (
-              <div key={bucket} className={styles.cmp} style={{ ["--kc" as string]: BUCKET_COLORS[bucket] }}>
-                <div className={styles.cmpName}>
-                  <b>{name}</b>
-                  {previous !== null && <span>periode lalu {money(previous)}</span>}
-                </div>
-                <div className={styles.bench} role="img" aria-label={accessible}>
-                  <i style={{ width: `${(current / max) * 100}%` }} />
-                  {previous !== null && previous > 0 && <b style={{ left: `${(previous / max) * 100}%` }} />}
-                </div>
-                <div className={styles.cmpValue}>{money(current)}</div>
-                <div className={styles.cmpState}>
-                  {bucket === "unclassified" && current > 0 ? (
-                    <Link href="/laporan?lengkapi=1" className="ws-linkbtn">Perlu dipilih</Link>
-                  ) : previous !== null ? changePill(bucket, current - previous, money) : null}
-                </div>
-              </div>
-            );
-          })}
-          <p className={styles.caption} style={{ marginTop: 8 }}>
-            {kakeibo.previous ? "Garis tegak menandai jumlah pada hari yang sama periode lalu." : "Belum ada data periode lalu untuk dibandingkan."}
-          </p>
-        </div>
-      )}
+    <Card labelledBy="progress-heading">
+      <CardHeader
+        id="progress-heading"
+        icon="buckets"
+        title={`${comparison.period.label} sejauh ini`}
+        caption={progress.previous_label ? `Dibanding total ${progress.previous_label}, tanpa penilaian sampai periodenya selesai` : undefined}
+      />
+      <p style={{ margin: 0, fontWeight: 600, fontSize: 20 }} className="tabular-nums">{money(progress.spending)}</p>
+      <Progress share={progress.share} label={progress.previous_label} />
+      <ul className={reportStyles.facts} style={{ marginTop: 10 }}>
+        {progress.pillars.filter((pillar) => pillar.amount > 0 || (pillar.previous ?? 0) > 0).map((pillar) => {
+          const info = kakeiboBucketInfo(pillar.pillar);
+          const unclassified = pillar.pillar === "unclassified";
+          return (
+            <li key={pillar.pillar} className={reportStyles.listRow}>
+              <span>
+                <span aria-hidden="true" className={reportStyles.dot} style={{ background: info?.color }} />
+                {info?.label ?? pillar.pillar}
+                {unclassified && pillar.amount > 0 && <> · <Link href="/laporan?lengkapi=1" className="ws-linkbtn">Perlu dipilih</Link></>}
+              </span>
+              <span>
+                {money(pillar.amount)}
+                {pillar.share !== null && <span className={reportStyles.progressText}> · {pillar.share}%</span>}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </Card>
   );
 }
 
-function windowsCaption(data: PeriodComparisonResponse): string {
-  const current = rangeLabel(data.current.start_date, data.current.end_date);
-  if (!data.previous || !data.previous_has_data) return current;
-  return `${current} dibanding ${rangeLabel(data.previous.start_date, data.previous.end_date)}`;
+/** "{last completed} vs rata-rata 3 bulan": each pillar against its own average, as amounts (D9). */
+export function BaselineCard({ comparison, money }: { comparison: ReportComparison; money: Money }) {
+  const average = baselineName(comparison);
+  return (
+    <Card labelledBy="baseline-heading">
+      <CardHeader
+        id="baseline-heading"
+        icon="analysis"
+        title={average ? `${comparison.period.label} vs ${average}` : comparison.period.label}
+        caption={comparison.baseline ? comparison.baseline.labels.join(", ") : undefined}
+      />
+      {!comparison.baseline ? (
+        <NoBaseline basis={comparison.basis} />
+      ) : (
+        <ul className={reportStyles.facts}>
+          {comparison.pillars.map((pillar) => {
+            const info = kakeiboBucketInfo(pillar.pillar);
+            return (
+              <li key={pillar.pillar} className={reportStyles.listRow}>
+                <span>
+                  <span aria-hidden="true" className={reportStyles.dot} style={{ background: info?.color }} />
+                  <Link href={refHref(pillar.ref)} className={reportStyles.amountLink}>{info?.label ?? pillar.pillar}</Link>
+                  {pillar.baseline !== null && <span className={reportStyles.progressText}> · biasanya {money(pillar.baseline)}</span>}
+                </span>
+                <span>
+                  {money(pillar.amount)} <Change change={pillar.baseline_change} />
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
 }
 
 /** Belanja harian: one bar per day up to today, the peak in the accent, today outlined, and a table (D4). */

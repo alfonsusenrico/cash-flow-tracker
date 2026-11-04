@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
-import type { MonthlyReport } from "@/lib/monthlyReport";
+import type { MonthlyReport, ReportComparison } from "@/lib/monthlyReport";
 import LaporanPage from "./page";
 
 const navigation = vi.hoisted(() => ({ replace: vi.fn(), params: new URLSearchParams() }));
@@ -31,6 +31,55 @@ const previousPeriod = {
   start_date: "2026-09-01", end_date: "2026-09-30", days: 30, tracking_started_inside: true, first_recorded_date: "2026-09-15",
 };
 
+const ref = (extra: Record<string, unknown> = {}) => ({ from: START, to: END, ...extra });
+
+function makeComparison(overrides: Partial<ReportComparison> = {}): ReportComparison {
+  const septemberChange = { spending: 1_583_500, inflow: 40_000, fresh_saving: 0, difference: -1_543_500 };
+  return {
+    basis: "month",
+    period: { label: "Oktober 2026", start: START, end: END, start_date: "2026-10-01", end_date: "2026-10-31", complete: true, partial: false, tracking_from: null },
+    running: false,
+    totals: { spending: 4_802_000, inflow: 7_476_000, fresh_saving: 3_100_000, difference: 2_674_000 },
+    previous: {
+      label: "September 2026", start: previousPeriod.start, end: previousPeriod.end, start_date: "2026-09-01", end_date: "2026-09-30",
+      complete: true, partial: false, tracking_from: null,
+      totals: { spending: 3_218_500, inflow: 7_436_000, fresh_saving: 3_100_000, difference: 4_217_500 }, change: septemberChange,
+    },
+    baseline: {
+      period_count: 3, labels: ["Juli 2026", "Agustus 2026", "September 2026"],
+      totals: { spending: 3_579_500, inflow: 7_436_000, fresh_saving: 3_000_000, difference: 3_856_500 },
+      change: { spending: 1_222_500, inflow: 40_000, fresh_saving: 100_000, difference: -1_182_500 },
+    },
+    progress: null,
+    pillars: [
+      {
+        pillar: "need", amount: 3_375_500, share: 70, previous: 2_384_000, change: 991_500, baseline: 2_500_000, baseline_change: 875_500,
+        ref: ref({ kakeibo_type: "need" }),
+        categories: [
+          { category_id: "c-harian", name: "Belanja Harian", amount: 1_452_500, share: 30, previous: 980_000, change: 472_500, baseline: 1_133_333, baseline_change: 319_167, ref: ref({ category_id: "c-harian", kakeibo_type: "need" }) },
+          { category_id: "c-transport", name: "Transportasi", amount: 779_000, share: 16, previous: 620_000, change: 159_000, baseline: 700_000, baseline_change: 79_000, ref: ref({ category_id: "c-transport", kakeibo_type: "need" }) },
+        ],
+      },
+      {
+        pillar: "want", amount: 830_500, share: 17, previous: 468_500, change: 362_000, baseline: 600_000, baseline_change: 230_500,
+        ref: ref({ kakeibo_type: "want" }),
+        categories: [{ category_id: "c-hiburan", name: "Hiburan", amount: 830_500, share: 17, previous: 468_500, change: 362_000, baseline: 600_000, baseline_change: 230_500, ref: ref({ category_id: "c-hiburan", kakeibo_type: "want" }) }],
+      },
+    ],
+    facts: [
+      { kind: "category_above_average", label: "Belanja Harian di atas rata-rata 3 bulan", amount: 1_452_500, difference: 319_167, baseline: 1_133_333, ref: ref({ category_id: "c-harian" }) },
+      { kind: "top_merchant", label: "Tempat belanja terbesar: Pasar Swalayan Contoh", amount: 1_356_000, ref: ref({ q: "pasar swalayan contoh" }) },
+      { kind: "recurring", label: "3 tagihan dan langganan berulang", amount: 635_000, count: 3, ref: null },
+    ],
+    history: [
+      { label: "Juli 2026", start: "a", end: "a", complete: true, partial: false, viewed: false, spending: 3_810_000, pillars: { need: 3_000_000, want: 810_000, culture: 0, unexpected: 0, unclassified: 0 } },
+      { label: "Oktober 2026", start: START, end: END, complete: true, partial: false, viewed: true, spending: 4_802_000, pillars: { need: 3_375_500, want: 830_500, culture: 185_000, unexpected: 411_000, unclassified: 0 } },
+      { label: "November 2026", start: "b", end: "b", complete: false, partial: false, viewed: false, spending: 1_450_000, pillars: { need: 1_000_000, want: 450_000, culture: 0, unexpected: 0, unclassified: 0 } },
+    ],
+    ...overrides,
+  };
+}
+
 function makeReport(overrides: Partial<MonthlyReport> = {}): MonthlyReport {
   return {
     empty: false, basis: "month", cycle_available: false, period,
@@ -55,23 +104,14 @@ function makeReport(overrides: Partial<MonthlyReport> = {}): MonthlyReport {
       },
       essential: { amount: 2_300_000, method: "median_need_periods", limited_history: true, period_count: 1, coverage_months: 3.2, target_months: 6, status: "critical", balance_basis: "all_liquid" },
     },
-    comparison: {
-      previous: {
-        compared_days: 30, current_truncated: true,
-        current: { start: START, end: "2026-10-30T16:59:59+00:00", inflow: 5_250_000, outflow: 800_000, net: 4_450_000 },
-        previous: { start: previousPeriod.start, end: previousPeriod.end, inflow: 0, outflow: 100_000, net: -100_000 },
-        previous_label: "September 2026", previous_has_data: true, pillars: [],
-      },
-      previous_partial: true, previous_period: previousPeriod,
-      median: { available: false, period_count: 0, required: 3 },
-    },
+    comparison: makeComparison(),
     data_quality: {
       pending_review: 2, needs_attention: 1, unreviewed: 1, unclassified: { count: 2, amount: 150_000 },
       possible_duplicates: 2, days_without_records: { count: 2, dates: ["2026-10-13", "2026-10-14"] },
     },
     budget: null,
     reflection: null,
-    previous_reflection: { note: "Kurangi jajan kopi", start_date: "2026-09-01", end_date: "2026-09-30", updated_at: "2026-10-01T00:00:00Z", label: "September 2026" },
+    previous_reflection: null,
     ...overrides,
   };
 }
@@ -113,40 +153,87 @@ describe("Laporan Bulanan page", () => {
     vi.mocked(api.patch).mockResolvedValue({ ok: true });
   });
 
-  it("answers the four questions in order with drill-down links and no axe violations", async () => {
+  it("leads with whole-month figures, the pillar table and the facts, without a written lead", async () => {
     mockApi(makeReport());
     const { container } = renderPage();
     expect(await screen.findByRole("heading", { level: 2, name: "Laporan Oktober 2026" })).toBeInTheDocument();
-    // The written lead is neutral and built from the report's own figures (D12).
-    const lead = screen.getByTestId("report-lead");
-    expect(lead).toHaveTextContent("Oktober 2026: masuk Rp 5.250.000, belanja Rp 832.500.");
-    expect(lead).toHaveTextContent("2 transaksi belum diklasifikasi.");
-    expect(within(lead).getByRole("button", { name: "Lengkapi klasifikasi" })).toBeInTheDocument();
-    expect(lead.textContent).not.toMatch(/\b(kamu|aku|nggak|udah|Anda)\b/i);
-    const questions = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
-    const order = ["Berapa uang masuk?", "Berapa yang ditabung?", "Berapa yang dibelanjakan?", "Apa yang mau diperbaiki bulan depan?"]
-      .map((question) => questions.findIndex((text) => text?.includes(question)));
-    expect(order.every((index, i) => index >= 0 && (i === 0 || index > order[i - 1]))).toBe(true);
+    expect(screen.queryByTestId("report-lead")).not.toBeInTheDocument();
+    const kpis = screen.getByRole("region", { name: "Ringkasan Oktober 2026" });
+    expect(within(kpis).getByText("Rp 4.802.000")).toBeInTheDocument();
+    expect(kpis).toHaveTextContent("▲ Rp 1.583.500vs Sep");
+    expect(kpis).toHaveTextContent("▲ Rp 1.222.500vs rata-rata 3 bulan");
+    expect(kpis).toHaveTextContent("masuk dikurangi pengeluaran");
 
-    const unclassified = screen.getByRole("link", { name: "Rp 150.000, lihat transaksi Belum diklasifikasi" });
-    expect(unclassified.getAttribute("href")).toBe(`/ledger?kakeibo=unclassified&type=expense&from=${encodeURIComponent(START)}&to=${encodeURIComponent(END)}`);
-    expect(screen.getByRole("link", { name: "Rp 832.500, lihat semua uang keluar" }).getAttribute("href")).toContain("type=expense");
-    expect(screen.getByRole("link", { name: "Rp 250.000, lihat uang masuk Tanpa kategori" }).getAttribute("href")).toContain("category=uncategorized");
-    expect(screen.getByText(/surplus arus kas, bukan bukti uang sudah disisihkan/)).toBeInTheDocument();
-    expect(screen.getByText("Kurangi jajan kopi")).toBeInTheDocument();
-    expect(screen.getByText(/September 2026 baru tercatat sejak 15 Sep/)).toBeInTheDocument();
-    expect(screen.queryByText(/%.*(naik|turun)/)).not.toBeInTheDocument();
+    const table = screen.getByRole("table", { name: /Pengeluaran Oktober 2026 per pilar/ });
+    const rows = within(table).getAllByRole("row").map((row) => row.textContent ?? "");
+    const order = ["Kebutuhan", "Belanja Harian", "Transportasi", "Keinginan", "Hiburan"].map((name) => rows.findIndex((row) => row.startsWith(name)));
+    expect(order.every((index, i) => index > 0 && (i === 0 || index > order[i - 1]))).toBe(true);
+    const harian = within(table).getByRole("link", { name: "Rp 1.452.500, lihat transaksi Belanja Harian" });
+    expect(harian.getAttribute("href")).toContain("category=c-harian");
+    expect(harian.getAttribute("href")).toContain("kakeibo=need");
+
+    const facts = screen.getByRole("region", { name: "Yang bisa diperbaiki" });
+    expect(facts).toHaveTextContent("Belanja Harian di atas rata-rata 3 bulan+Rp 319.167");
+    expect(within(facts).getByRole("link", { name: "Lihat transaksi: Belanja Harian di atas rata-rata 3 bulan" }).getAttribute("href")).toContain("category=c-harian");
+    expect(facts).toHaveTextContent("Rp 635.000/bln");
+
+    const history = screen.getByRole("region", { name: "Pengeluaran per bulan" });
+    expect(history).toHaveTextContent("November 2026 (berjalan): Rp 1.450.000");
+    expect(history).toHaveTextContent("Bulan berjalan tidak dibandingkan sampai bulannya selesai.");
+    expect(screen.queryByRole("region", { name: "Apa yang mau diperbaiki bulan depan?" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/surplus arus kas/)).not.toBeInTheDocument();
     expect((await axe(container)).violations).toEqual([]);
   });
 
-  it("links every data-quality count to its fix", async () => {
+  it("shows only progress for the running month, with no arrow or verdict", async () => {
+    const running = makeComparison({
+      running: true,
+      period: { label: "November 2026", start: "s", end: "e", start_date: "2026-11-01", end_date: "2026-11-04", complete: false, partial: false, tracking_from: null },
+      totals: { spending: 1_450_000, inflow: 0, fresh_saving: 200_000, difference: -1_450_000 },
+      previous: { ...makeComparison().previous!, change: { spending: null, inflow: null, fresh_saving: null, difference: null } },
+      baseline: { ...makeComparison().baseline!, change: { spending: null, inflow: null, fresh_saving: null, difference: null } },
+      progress: { previous_label: "Oktober 2026", previous_spending: 4_802_000, spending: 1_450_000, share: 30, pillars: [{ pillar: "need", amount: 1_000_000, previous: 3_375_500, share: 30 }] },
+      pillars: makeComparison().pillars.map((pillar) => ({ ...pillar, change: null, baseline_change: null, categories: pillar.categories.map((item) => ({ ...item, change: null, baseline_change: null })) })),
+      facts: [{ kind: "top_merchant", label: "Tempat belanja terbesar: Pasar Swalayan Contoh", amount: 500_000, ref: ref({ q: "pasar" }) }],
+    });
+    mockApi(makeReport({ period: { ...period, label: "November 2026", complete: false, start_date: "2026-11-01" }, comparison: running }));
+    renderPage();
+    const kpis = await screen.findByRole("region", { name: "Ringkasan November 2026" });
+    expect(kpis).toHaveTextContent("Pengeluaran sejauh ini");
+    expect(kpis).toHaveTextContent("30% dari total Oktober 2026");
+    expect(screen.getByRole("region", { name: "Sejauh ini" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Yang bisa diperbaiki" })).not.toBeInTheDocument();
+    expect(screen.getByText(/November 2026 masih berjalan/)).toBeInTheDocument();
+    const main = document.body.textContent ?? "";
+    expect(main).not.toMatch(/[▲▼]/);
+    expect(main).not.toMatch(/\b(naik|turun)\b/i);
+  });
+
+  it("says belum lengkap against a partial month and when the average appears", async () => {
+    const base = makeComparison();
+    mockApi(makeReport({ comparison: { ...base, previous: { ...base.previous!, partial: true, tracking_from: "2026-09-15", change: { spending: null, inflow: null, fresh_saving: null, difference: null } }, baseline: null } }));
+    renderPage();
+    const kpis = await screen.findByRole("region", { name: "Ringkasan Oktober 2026" });
+    expect(kpis).toHaveTextContent("belum lengkap vs Sep");
+    expect(kpis).toHaveTextContent("Rata-rata muncul setelah 2 bulan lengkap");
+    expect(kpis.textContent).not.toMatch(/Rp 0\b/);
+  });
+
+  it("shows data quality as one line with its fixes", async () => {
     mockApi(makeReport());
     renderPage();
-    const box = await screen.findByRole("region", { name: "Kualitas data" });
-    expect(within(box).getByRole("link", { name: "Buka Tinjau" })).toHaveAttribute("href", "/review");
-    expect(within(box).getByRole("link", { name: "Periksa di Transaksi" }).getAttribute("href")).toContain("dup=1");
-    await userEvent.click(within(box).getByRole("button", { name: "Catat transaksi" }));
+    const line = (await screen.findByText(/Kualitas data:/)).closest("div")!;
+    expect(line).toHaveTextContent("2 menunggu di Tinjau · 2 belum diklasifikasi · 2 kemungkinan duplikat · 2 hari tanpa catatan");
+    expect(within(line).getByRole("link", { name: "Buka Tinjau" })).toHaveAttribute("href", "/review");
+    expect(within(line).getByRole("link", { name: "Periksa duplikat" }).getAttribute("href")).toContain("dup=1");
+    await userEvent.click(within(line).getByRole("button", { name: "Catat transaksi" }));
     expect(openQuickAdd).toHaveBeenCalledWith("expense");
+  });
+
+  it("says the data is complete in one green line when nothing is open", async () => {
+    mockApi(makeReport({ data_quality: { pending_review: 0, needs_attention: 0, unreviewed: 0, unclassified: { count: 0, amount: 0 }, possible_duplicates: 0, days_without_records: { count: 0, dates: [] } } }));
+    renderPage();
+    expect(await screen.findByText(/Data lengkap\./)).toBeInTheDocument();
   });
 
   it("hides budget figures until one exists and offers Atur anggaran", async () => {
@@ -176,8 +263,8 @@ describe("Laporan Bulanan page", () => {
   it("completes classification per category and for several rows at once", async () => {
     mockApi(makeReport());
     renderPage();
-    const box = await screen.findByRole("region", { name: "Kualitas data" });
-    await userEvent.click(within(box).getByRole("button", { name: "Lengkapi klasifikasi" }));
+    const line = (await screen.findByText(/Kualitas data:/)).closest("div")!;
+    await userEvent.click(within(line).getByRole("button", { name: "Lengkapi klasifikasi" }));
     const dialog = await screen.findByRole("dialog", { name: "Lengkapi klasifikasi" });
     await userEvent.selectOptions(await within(dialog).findByLabelText("Pilar untuk Lain-lain"), "need");
     await userEvent.click(within(dialog).getByRole("button", { name: "Simpan pilar Lain-lain" }));
@@ -190,14 +277,18 @@ describe("Laporan Bulanan page", () => {
     expect((await axe(dialog)).violations).toEqual([]);
   });
 
-  it("saves the reflection note for the period", async () => {
-    mockApi(makeReport());
+  it("hides the reflection without a note and shows a saved note read-only with Ubah", async () => {
+    mockApi(makeReport({ reflection: { note: "Masak di rumah", start_date: "2026-10-01", end_date: "2026-10-31", updated_at: "2026-11-01T00:00:00Z" } }));
     renderPage();
-    const field = await screen.findByLabelText("Catatan untuk Oktober 2026");
-    await userEvent.type(field, "Masak di rumah");
-    await userEvent.click(screen.getByRole("button", { name: "Simpan catatan" }));
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith("/reports/monthly/reflection", { basis: "month", start_date: "2026-10-01", note: "Masak di rumah" }));
-    expect(await screen.findByText("Catatan tersimpan.")).toBeInTheDocument();
+    const block = await screen.findByRole("region", { name: "Apa yang mau diperbaiki bulan depan?" });
+    expect(within(block).getByText("Masak di rumah")).toBeInTheDocument();
+    expect(within(block).queryByRole("textbox")).not.toBeInTheDocument();
+    await userEvent.click(within(block).getByRole("button", { name: "Ubah" }));
+    const field = within(block).getByLabelText("Catatan untuk Oktober 2026");
+    await userEvent.clear(field);
+    await userEvent.type(field, "Masak tiga kali seminggu");
+    await userEvent.click(within(block).getByRole("button", { name: "Simpan catatan" }));
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith("/reports/monthly/reflection", { basis: "month", start_date: "2026-10-01", note: "Masak tiga kali seminggu" }));
   });
 
   it("switches periods through the URL and keeps the cycle switch unavailable without salary cycles", async () => {

@@ -2,18 +2,14 @@
 
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { type MonthlyReport, categoryLedgerHref, reportLedgerHref } from "@/lib/monthlyReport";
-import { AmountRow, AnswerAmount, QuestionSection } from "./ReportParts";
+import { AmountRow, ReportPanel } from "./ReportParts";
 
-export function IncomeAnswer({ report }: { report: MonthlyReport }) {
+/** "Sumber uang masuk": income per category; the total is the Masuk KPI. */
+export function IncomeSourcesCard({ report }: { report: MonthlyReport }) {
   const { bal } = useAppCtx();
   const { period, income } = report;
   return (
-    <QuestionSection
-      id="report-income"
-      number={1}
-      question="Berapa uang masuk?"
-      answer={<AnswerAmount href={reportLedgerHref(period, { type: "income" })} amount={bal(income.total)} label="lihat semua uang masuk" />}
-    >
+    <ReportPanel id="report-income" title="Sumber uang masuk">
       {income.sources.length === 0 ? (
         <p className="text-sm text-[var(--muted)]">Belum ada uang masuk tercatat pada periode ini.</p>
       ) : (
@@ -30,21 +26,17 @@ export function IncomeAnswer({ report }: { report: MonthlyReport }) {
           ))}
         </ul>
       )}
-      <p className="text-xs text-[var(--text-2)]">Ganti uang dari teman dan pindah saldo antar rekening tidak dihitung sebagai uang masuk.</p>
-    </QuestionSection>
+      <p className="text-xs text-[var(--text-2)]">Ganti uang dan pindah saldo antar rekening tidak dihitung sebagai uang masuk.</p>
+    </ReportPanel>
   );
 }
 
-export function SavingsAnswer({ report }: { report: MonthlyReport }) {
+/** "Rincian tabungan": the two parts of Ditabung & investasi; the total is the KPI. */
+export function SavingsCard({ report }: { report: MonthlyReport }) {
   const { bal } = useAppCtx();
   const { period, savings } = report;
   return (
-    <QuestionSection
-      id="report-savings"
-      number={2}
-      question="Berapa yang ditabung?"
-      answer={<AnswerAmount href={null} amount={bal(savings.fresh_saving)} label="tabungan baru" />}
-    >
+    <ReportPanel id="report-savings" title="Rincian tabungan">
       <ul className="divide-y divide-[var(--line)]">
         <AmountRow
           label="Pengeluaran berpilar Tabungan"
@@ -58,16 +50,6 @@ export function SavingsAnswer({ report }: { report: MonthlyReport }) {
           amount={bal(savings.net_saving_transfers)}
         />
       </ul>
-      <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)]/40 p-3">
-        <p className="text-sm text-[var(--text)]">
-          Selisih uang masuk dan keluar:{" "}
-          <span className="font-bold tabular-nums">{bal(savings.surplus)}</span>
-        </p>
-        <p className="mt-1 text-xs text-[var(--text-2)]">
-          Selisih ini surplus arus kas, bukan bukti uang sudah disisihkan. Tabungan baru hanya dari pilar Tabungan dan
-          pindah saldo ke rekening tabungan atau investasi.
-        </p>
-      </div>
-    </QuestionSection>
+    </ReportPanel>
   );
 }

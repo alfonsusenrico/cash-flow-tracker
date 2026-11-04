@@ -52,13 +52,17 @@ export function QuestionRate() {
     queryFn: () => api.get(`/dashboard/question-rate?weeks=${QUESTION_RATE_WEEKS}`),
   });
   const weeks = data ? [...data.weeks].reverse() : [];
+  const thisWeek = weeks[0];
   return (
     <section aria-labelledby="question-rate-title" className="ws-card space-y-3 text-xs">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <h2 id="question-rate-title" className="text-base font-bold tracking-tight text-[var(--text)]">Seberapa sering ditanya</h2>
-        <p className="mt-0.5 text-[var(--text-2)]">
-          Transaksi dari notifikasi dan ketikan per minggu: berapa yang ditanyakan, dan siapa yang mencatat sisanya.
-        </p>
+        {thisWeek && thisWeek.recorded > 0 && (
+          <p className="shrink-0 text-right tabular-nums" data-testid="question-rate-headline">
+            <span className="text-sm font-black text-[var(--text)]">{share(thisWeek.asked, thisWeek.recorded)}</span>
+            <span className="text-[var(--muted)]"> minggu ini · {thisWeek.asked} dari {thisWeek.recorded}</span>
+          </p>
+        )}
       </div>
       {isError && <p className="text-[var(--text-2)]">Hitungan belum dapat dimuat.</p>}
       {!isError && isLoading && <p className="text-[var(--text-2)]">Memuat…</p>}
@@ -68,6 +72,8 @@ export function QuestionRate() {
         </p>
       )}
       {data?.has_data && (
+        <details>
+        <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-[var(--text)]">Rincian per minggu</summary>
         <ol className="divide-y divide-[var(--line)]">
           {weeks.map((week) => (
             <li key={week.week_start} className="space-y-1.5 py-2.5">
@@ -111,6 +117,7 @@ export function QuestionRate() {
             </li>
           ))}
         </ol>
+        </details>
       )}
     </section>
   );

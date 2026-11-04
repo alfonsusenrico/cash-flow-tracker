@@ -10,7 +10,8 @@ import { api } from "@/lib/api";
 import { KalenderTab, dayName, heatLevels } from "./calendar/KalenderTab";
 import { PetaAliranTab, nodeTotals } from "./flow/PetaAliranTab";
 import { buildFlowModel, layoutFlow, nextNode } from "./flow/sankey";
-import { DailySpendCard, KakeiboCard } from "./RingkasanTab";
+import type { ReportComparison } from "@/lib/monthlyReport";
+import { BaselineCard, DailySpendCard, ProgressCard } from "./RingkasanTab";
 import type { CalendarDay, CalendarResponse, FlowResponse } from "./types";
 import { analysisHref, parseTab } from "./url";
 
@@ -85,26 +86,62 @@ describe("Ringkasan cards", () => {
     expect(rows[3]).toHaveTextContent("hari ini, masih berjalan");
   });
 
-  it("compares Kakeibo as amounts and asks for a pillar where spending is unclassified", async () => {
-    vi.mocked(api.get).mockResolvedValue({
-      label: "November 2026", compared_days: 3,
-      current: { start: "", end: "", start_date: "2026-11-01", end_date: "2026-11-03", inflow: 0, outflow: 0, net: 0 },
-      previous: { start: "", end: "", start_date: "2026-10-01", end_date: "2026-10-03", inflow: 0, outflow: 0, net: 0 },
-      previous_label: "Oktober 2026", previous_has_data: true,
-      kakeibo: {
-        current: { need: 300_000, want: 50_000, culture: 0, unexpected: 0, saving: 400_000, unclassified: 25_000 },
-        previous: { need: 200_000, want: 80_000, culture: 0, unexpected: 0, saving: 100_000, unclassified: 0 },
+  const window = { from: "2026-10-31T17:00:00+00:00", to: "2026-11-04T05:00:00+00:00" };
+  const comparisonFixture = (overrides: Partial<ReportComparison>): ReportComparison => ({
+    basis: "month",
+    period: { label: "November 2026", start: window.from, end: window.to, start_date: "2026-11-01", end_date: "2026-11-04", complete: false, partial: false, tracking_from: null },
+    running: true,
+    totals: { spending: 375_000, inflow: 0, fresh_saving: 400_000, difference: -375_000 },
+    previous: null, baseline: null, progress: null, pillars: [], facts: [], history: [],
+    ...overrides,
+  });
+
+  it("shows the running period's progress per pillar without a verdict", async () => {
+    const comparison = comparisonFixture({
+      progress: {
+        previous_label: "Oktober 2026", previous_spending: 1_250_000, spending: 375_000, share: 30,
+        pillars: [
+          { pillar: "need", amount: 300_000, previous: 1_000_000, share: 30 },
+          { pillar: "want", amount: 50_000, previous: 250_000, share: 20 },
+          { pillar: "culture", amount: 0, previous: 0, share: null },
+          { pillar: "unexpected", amount: 0, previous: 0, share: null },
+          { pillar: "unclassified", amount: 25_000, previous: 0, share: null },
+        ],
       },
     });
-    const { container } = wrap(<KakeiboCard basis="month" offset={0} money={money} />);
-    expect(await screen.findByText("1–3 Nov dibanding 1–3 Okt")).toBeInTheDocument();
-    expect(screen.getByText("Naik Rp 100.000")).toBeInTheDocument();
-    expect(screen.getByText("Turun Rp 30.000")).toBeInTheDocument();
-    expect(screen.getByText("Naik Rp 300.000")).toBeInTheDocument();
+    const { container } = wrap(<ProgressCard comparison={comparison} money={money} />);
+    expect(screen.getByRole("heading", { name: "November 2026 sejauh ini" })).toBeInTheDocument();
+    expect(container).toHaveTextContent("30% dari total Oktober 2026");
+    expect(container).toHaveTextContent("Rp 300.000 · 30%");
     expect(screen.getByRole("link", { name: "Perlu dipilih" })).toHaveAttribute("href", "/laporan?lengkapi=1");
-    expect(screen.getByRole("img", { name: "Kebutuhan: Rp 300.000, periode lalu Rp 200.000" })).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/[▲▼]|Naik|Turun/);
+    expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  it("compares the last completed period with its average as amounts", async () => {
+    const comparison = comparisonFixture({
+      period: { label: "Oktober 2026", start: window.from, end: window.to, start_date: "2026-10-01", end_date: "2026-10-31", complete: true, partial: false, tracking_from: null },
+      running: false,
+      baseline: { period_count: 3, labels: ["Juli 2026", "Agustus 2026", "September 2026"], totals: { spending: 3_579_500, inflow: 0, fresh_saving: 0, difference: 0 }, change: { spending: 1_222_500, inflow: null, fresh_saving: null, difference: null } },
+      pillars: [
+        { pillar: "need", amount: 3_375_500, share: 70, previous: null, change: null, baseline: 2_500_000, baseline_change: 875_500, ref: { ...window, kakeibo_type: "need" }, categories: [] },
+        { pillar: "want", amount: 500_000, share: 10, previous: null, change: null, baseline: 600_000, baseline_change: -100_000, ref: { ...window, kakeibo_type: "want" }, categories: [] },
+      ],
+    });
+    const { container } = wrap(<BaselineCard comparison={comparison} money={money} />);
+    expect(screen.getByRole("heading", { name: "Oktober 2026 vs rata-rata 3 bulan" })).toBeInTheDocument();
+    expect(container).toHaveTextContent("biasanya Rp 2.500.000");
+    expect(container).toHaveTextContent("▲ +875.500");
+    expect(container).toHaveTextContent("▼ −100.000");
+    expect(screen.getByRole("link", { name: "Kebutuhan" }).getAttribute("href")).toContain("kakeibo=need");
     expect(container.textContent).not.toMatch(/%/);
     expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  it("says when the average appears instead of showing Rp 0", () => {
+    const { container } = wrap(<BaselineCard comparison={comparisonFixture({ running: false })} money={money} />);
+    expect(container).toHaveTextContent("Rata-rata muncul setelah 2 bulan lengkap");
+    expect(container.textContent).not.toMatch(/Rp 0\b/);
   });
 });
 

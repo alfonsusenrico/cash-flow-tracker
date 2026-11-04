@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import type { MonthlyReport, Reflection } from "@/lib/monthlyReport";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/Button";
-import { QuestionSection } from "./ReportParts";
+import { ReportPanel } from "./ReportParts";
 
 const MAX_LENGTH = 1000;
 
@@ -44,17 +44,31 @@ export function ReflectionAnswer({ report }: { report: MonthlyReport }) {
     },
     onError: (error: Error) => setStatus(error.message || "Catatan belum terhapus. Coba lagi."),
   });
+  const [editing, setEditing] = useState(false);
   const changed = note.trim() !== saved.trim();
   const previous = report.previous_reflection;
+  // Shown only when a note exists for this or the previous period (OD94); the API and data stay.
+  if (!report.reflection && !previous) return null;
 
   return (
-    <QuestionSection id="report-reflection" number={4} question="Apa yang mau diperbaiki bulan depan?">
+    <ReportPanel id="report-reflection" title="Apa yang mau diperbaiki bulan depan?">
       {previous && (
         <figure className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)]/40 p-3">
           <figcaption className="text-xs font-semibold text-[var(--muted)]">Catatan untuk {previous.label}</figcaption>
           <blockquote className="mt-1 whitespace-pre-line text-sm text-[var(--text)]">{previous.note}</blockquote>
         </figure>
       )}
+      {report.reflection && !editing && (
+        <figure className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)]/40 p-3">
+          <figcaption className="text-xs font-semibold text-[var(--muted)]">Catatan untuk {report.period.label}</figcaption>
+          <blockquote className="mt-1 whitespace-pre-line text-sm text-[var(--text)]">{report.reflection.note}</blockquote>
+        </figure>
+      )}
+      {!editing ? (
+        <Button type="button" className="min-h-11" onClick={() => setEditing(true)}>
+          {report.reflection ? "Ubah" : `Tulis catatan untuk ${report.period.label}`}
+        </Button>
+      ) : (
       <form
         className="space-y-2"
         onSubmit={(event) => {
@@ -90,6 +104,7 @@ export function ReflectionAnswer({ report }: { report: MonthlyReport }) {
           <p role="status" className="text-xs text-[var(--text-2)]">{status}</p>
         </div>
       </form>
-    </QuestionSection>
+      )}
+    </ReportPanel>
   );
 }
