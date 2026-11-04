@@ -128,7 +128,7 @@ describe("category management form", () => {
     expect(screen.queryByText("Tanpa Batas")).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Batas Anggaran" })).not.toBeInTheDocument();
     expect(screen.queryByText(/Atur batas/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Laporan Bulanan" })).toHaveAttribute("href", "/laporan?atur=anggaran");
+    expect(screen.getByRole("link", { name: "Atur anggaran" })).toHaveAttribute("href", "/laporan?atur=anggaran");
   });
 
   it("hides expense-only inputs for an income category", async () => {
@@ -349,6 +349,7 @@ describe("report drill-down", () => {
         explanations: {
           keluar: { total: 100_000, caveat: null, href: null, lines: [{ key: "want", label: "Keinginan", amount: 100_000, note: null, href: "/ledger?period=month&offset=-1&kakeibo=want" }] },
           belanja: { total: 100_000, caveat: null, href: null, lines: [{ key: "gross", label: "Belanja tercatat", amount: 100_000, note: null, href: null }] },
+          spending: { total: 100_000, caveat: null, href: null, lines: [{ key: "want", label: "Keinginan", amount: 100_000, note: null, href: "/ledger?period=month&offset=-1&kakeibo=want" }] },
         },
       };
       if (path === "/categories?include_archived=true") return { categories: [] };
@@ -363,6 +364,6 @@ describe("report drill-down", () => {
     expect(screen.getByRole("button", { name: "Bulan kalender" })).toHaveAttribute("aria-pressed", "true");
     await user.click(await screen.findByRole("button", { name: "Pengeluaran Rp 100.000: lihat rincian" }));
     const panel = await screen.findByRole("dialog", { name: /Pengeluaran periode ini/ });
-    expect(within(panel).getByText("Belanja tercatat")).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: /Keinginan/ })).toHaveAttribute("href", "/ledger?period=month&offset=-1&kakeibo=want");
   });
 });

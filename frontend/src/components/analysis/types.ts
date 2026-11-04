@@ -41,7 +41,7 @@ export interface AnalyticsResponse {
     reimbursement_offset?: number;
   };
   kakeibo?: { total_allocated: number } & Record<string, number | string>;
-  explanations?: { keluar: ServerExplanation; belanja: ServerExplanation };
+  explanations?: { keluar: ServerExplanation; belanja: ServerExplanation; spending?: ServerExplanation };
 }
 
 export interface CategoryVariance {

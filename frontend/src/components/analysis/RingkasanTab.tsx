@@ -11,6 +11,7 @@ import { ExplainableFigure, type ExplanationData } from "@/components/workspace/
 import { Card, CardHeader, ErrorState, Kpi, KpiStrip, Skeleton } from "@/components/workspace/primitives";
 import { Change, NoBaseline, Progress, baselineName } from "@/components/report/ComparisonParts";
 import reportStyles from "@/components/report/report.module.css";
+import { ReportLayout } from "@/components/report/ReportLayout";
 import { type ReportComparison, type ReportComparisonResponse, type ReportPeriodList, comparisonQuery, refHref } from "@/lib/monthlyReport";
 import { api } from "@/lib/api";
 import { kakeiboBucketInfo } from "@/lib/kakeibo";
@@ -103,10 +104,15 @@ export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodB
   const viewed = comparisons.viewed;
   const spending = viewed?.totals.spending ?? null;
   // The explanation is shown only when its server lines add up to the figure shown (analysis-workspace).
-  const spendingExplanation = data.explanations?.belanja && spending !== null && data.explanations.belanja.total === spending ? data.explanations.belanja : null;
+  const serverSpending = data.explanations?.spending;
+  const spendingExplanation = serverSpending && spending !== null && serverSpending.total === spending ? serverSpending : null;
 
   const progressCard = viewed?.running ? <ProgressCard comparison={viewed} money={money} /> : null;
   const baselineCard = comparisons.completed ? <BaselineCard comparison={comparisons.completed} money={money} /> : null;
+  const daily = <DailySpendCard days={data.daily_cadence ?? []} money={money} />;
+  const bills = <RecurringCharges bal={money} onCreatePlan={setPlanDraft} />;
+  const asked = <QuestionRate />;
+  const habits = <HabitsLearnedCard />;
   const unavailable = "Tidak tersedia";
 
   return (
@@ -120,7 +126,7 @@ export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodB
             <ExplainableFigure
               label="Pengeluaran"
               amountText={money(spending)}
-              explanation={serverExplanation("Pengeluaran periode ini", "Pengeluaran tanpa tabungan, dikurangi ganti uang.", spendingExplanation, money, "Total pengeluaran")}
+              explanation={serverExplanation("Pengeluaran periode ini", "Semua pilar Kakeibo kecuali Tabungan, dikurangi ganti uang. Sama dengan Pengeluaran di Beranda dan Transaksi.", spendingExplanation, money, "Total pengeluaran")}
             />
           ) : money(spending)}
           caption="Tanpa tabungan"
@@ -128,18 +134,13 @@ export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodB
         <Kpi icon="target" label="Ditabung & investasi" value={viewed ? money(viewed.totals.fresh_saving) : unavailable} />
       </KpiStrip>
       {comparisons.failed && <ErrorState message="Perbandingan periode belum bisa dimuat." onRetry={comparisons.retry} />}
-      {(progressCard || baselineCard) && (
-        <div className={progressCard && baselineCard ? reportStyles.pair : undefined}>
-          {progressCard}
-          {baselineCard}
-        </div>
-      )}
-      <DailySpendCard days={data.daily_cadence ?? []} money={money} />
-      <div className={reportStyles.trio}>
-        <RecurringCharges bal={money} onCreatePlan={setPlanDraft} />
-        <QuestionRate />
-        <HabitsLearnedCard />
-      </div>
+      {/* Running: progress and the chart left, the average and the compact cards right. Otherwise the average leads left. */}
+      <ReportLayout
+        wide={progressCard
+          ? [[progressCard, daily], [baselineCard, bills, asked, habits]]
+          : [[baselineCard, daily], [bills, asked, habits]]}
+        narrow={[progressCard, baselineCard, daily, bills, asked, habits]}
+      />
       <CategoryBudgetSection rawCategories={data.category_variance ?? []} reportPeriod={reportPeriodFilters(basis, offset)} bal={money} />
       <RecurringRulesModal open={planDraft !== null} onClose={() => setPlanDraft(null)} expenseDraft={planDraft} />
     </div>

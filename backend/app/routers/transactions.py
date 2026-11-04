@@ -160,6 +160,7 @@ def ledger_cash_flow(
         offsets = load_spending_offsets(cur, user_id, start, end)
         if offset_scope["category_id"] and offset_scope["pillar"]:
             offset = offsets.for_category_pillar(offset_scope["category_id"], offset_scope["pillar"])
+            saving_offset = offset if offset_scope["pillar"] == "saving" else 0
         elif offset_scope["category_id"]:
             offset = offsets.for_category(offset_scope["category_id"])
             # A category's rows are all saving or none; per-row pillar overrides leave the offset with spending.

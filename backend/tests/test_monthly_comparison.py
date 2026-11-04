@@ -265,3 +265,35 @@ def test_statement_count_does_not_grow_with_rows(client, owners):
             for i in range(rows):
                 insert(who, "groceries", 1_000 + i, at(month_start(offset).replace(day=1 + i % 27)), merchant=f"Toko {i % 9}")
     assert statements(owner["user_id"]) == statements(stranger["user_id"])
+
+
+def test_pengeluaran_is_one_figure_in_analytics_the_comparison_and_the_ledger(client, owners):
+    owner, _ = owners
+    start_tracking(owner, -2)
+    m1 = month_start(-1)
+    insert(owner, "groceries", 300_000, at(m1.replace(day=2)))
+    insert(owner, "dinner", 200_000, at(m1.replace(day=3)))
+    insert(owner, "dinner", 100_000, at(m1.replace(day=3), 14), pillar="need")
+    insert(owner, "reimbursement", 60_000, at(m1.replace(day=4)), tx_type="income", offset="dinner")
+    insert(owner, "saving", 40_000, at(m1.replace(day=7)))
+    insert(owner, "misc", 45_000, at(m1.replace(day=5)))
+    body = comparison(client, start_date=m1.isoformat())
+    analytics = client.get("/api/dashboard/analytics", params={"timeframe": "month", "cycle_offset": -1}).json()
+    spending = analytics["explanations"]["spending"]
+    assert spending["total"] == body["totals"]["spending"] == sum(line["amount"] for line in spending["lines"])
+    assert all(line["key"] != "saving" for line in spending["lines"])
+    window = {"from_date": body["period"]["start"], "to_date": body["period"]["end"], "limit": 1}
+    ledger = client.get("/api/transactions", params=window).json()["summary"]["period"]
+    assert ledger["spending"] == body["totals"]["spending"]
+
+
+def test_a_saving_category_and_pillar_filter_counts_as_saving(client, owners):
+    owner, _ = owners
+    start_tracking(owner, -2)
+    m1 = month_start(-1)
+    insert(owner, "saving", 90_000, at(m1.replace(day=3)))
+    insert(owner, "reimbursement", 30_000, at(m1.replace(day=4)), tx_type="income", offset="saving")
+    params = {"from_date": at(m1).isoformat(), "to_date": at(month_end(m1), 23, 59).isoformat(), "limit": 1,
+              "category_id": owner["saving"], "kakeibo_type": "saving"}
+    period = client.get("/api/transactions", params=params).json()["summary"]["period"]
+    assert (period["outflow"], period["saving"], period["spending"]) == (60_000, 60_000, 0)

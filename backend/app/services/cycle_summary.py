@@ -120,11 +120,11 @@ def _keluar(kakeibo: dict[str, Any], offsets, period: str) -> dict[str, Any]:
     return {"total": total, "lines": lines, "offsets_total": offsets.applied}
 
 
-def _spending_split(keluar: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+def spending_split(keluar: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     """Keluar split into Pengeluaran (every bucket but saving) and Ditabung & investasi (the saving bucket).
 
     The two add up to `keluar.total` exactly, so Beranda's segments and the Kakeibo card stay one identity
-    (refine-workspace-layout D4).
+    (refine-workspace-layout D4). Analisis uses the same split for its Pengeluaran explanation.
     """
     spending_lines = [line for line in keluar["lines"] if line["key"] != "saving"]
     saving_lines = [line for line in keluar["lines"] if line["key"] == "saving"]
@@ -376,7 +376,7 @@ def build_cycle_summary(
         net_worth = net_worth_breakdown(cur, user_id, accounts)
         comparison = _comparison(cur, user_id, kakeibo_breakdown, (start, end, window_label), previous)
 
-    spending, fresh_saving = _spending_split(keluar)
+    spending, fresh_saving = spending_split(keluar)
     scheduled_total = sum(line["amount"] for line in scheduled_lines)
     remaining_lines = [
         {"key": "masuk", "label": "Masuk", "amount": masuk["total"]},

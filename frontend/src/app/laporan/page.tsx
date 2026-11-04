@@ -1,8 +1,7 @@
 "use client";
 
-import { Fragment, Suspense, useEffect, useRef, useState } from "react";
-import { useWidthAtMost } from "@/hooks/useWidthAtMost";
-import { cn } from "@/lib/utils";
+import { Suspense, useEffect, useState } from "react";
+import { ReportLayout } from "@/components/report/ReportLayout";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -243,23 +242,6 @@ function ReportView() {
         scope={{ start: report.period.start, end: report.period.end }}
       />
       <BudgetEditorDialog open={budgetOpen} onClose={() => setBudgetOpen(false)} />
-    </div>
-  );
-}
-
-/**
- * Two columns on a wide workspace; below 900 px one column in reading order, the facts right after the
- * figures. Rendering the order (not CSS `order`) keeps the focus order equal to what is seen.
- */
-function ReportLayout({ wide, narrow }: { wide: [React.ReactNode[], React.ReactNode[]]; narrow: React.ReactNode[] }) {
-  const layoutRef = useRef<HTMLDivElement>(null);
-  const oneColumn = useWidthAtMost(layoutRef, 900);
-  const column = (cards: React.ReactNode[]) => (
-    <div className={reportStyles.column}>{cards.map((card, index) => <Fragment key={index}>{card}</Fragment>)}</div>
-  );
-  return (
-    <div ref={layoutRef} className={cn(reportStyles.layout, oneColumn && reportStyles.single)}>
-      {oneColumn ? column(narrow) : <>{column(wide[0])}{column(wide[1])}</>}
     </div>
   );
 }
