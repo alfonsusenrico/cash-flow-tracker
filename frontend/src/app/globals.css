@@ -676,7 +676,8 @@ dialog.ws-dialog::backdrop { background: var(--scrim); }
 .ws-act-list li:first-child .ws-act-row { border-top: 0; }
 .ws-act-row:hover { background: var(--surface-2); }
 .ws-act-row .ws-who-t { flex: 1; min-width: 0; }
-.ws-act-row .ws-who-t b { display: block; overflow: hidden; color: var(--text); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+/* Titles wrap to a second line before they are cut, so a route keeps both its sides (design, Risks). */
+.ws-act-row .ws-who-t b { display: -webkit-box; overflow: hidden; color: var(--text); font-weight: 600; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .ws-act-row .ws-who-t > span { display: block; overflow: hidden; color: var(--muted); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
 .ws-act-r { display: flex; flex: none; flex-direction: column; align-items: flex-end; gap: 2px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .ws-act-r > span:last-child { color: var(--muted); font-size: 12px; font-weight: 400; }
@@ -810,7 +811,7 @@ dialog.ws-more::backdrop { background: var(--scrim); }
 .ws-ph-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 0; border-top: 1px solid var(--line); color: var(--text); text-align: left; }
 .ws-ph-row:first-child { border-top: 0; }
 .ws-ph-row .ws-who-t { flex: 1; }
-.ws-ph-row b { display: block; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.ws-ph-row b { display: -webkit-box; overflow: hidden; font-weight: 600; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; }
 
 /* ======================================================================
  * Tinjau triage (redesign-review-triage D5): a list and one item side by side above 720px of main
@@ -989,6 +990,8 @@ dialog.ws-more::backdrop { background: var(--scrim); }
 .ws-tx-feed .ws-ph-list { padding: 2px 12px; }
 .ws-tx-feed-row { display: flex; align-items: center; gap: 10px; }
 .ws-tx-feed-row .ws-ph-row { min-height: 56px; scroll-margin: 120px 0 104px; }
+/* The phone feed has no direction column, so "Masuk dari …" and "Pasangan belum ditemukan" wrap rather than cut. */
+.ws-tx-feed-row .ws-who-t > span { white-space: normal; }
 .ws-tx-feed-row:first-child .ws-ph-row { border-top: 0; }
 .ws-tx-feed-row[data-selected] { background: var(--accent-soft); }
 .ws-tx-list:has(.ws-tx-feed) { padding: 14px 12px 16px; background: transparent; box-shadow: none; }
