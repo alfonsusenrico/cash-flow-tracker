@@ -49,6 +49,8 @@ No money figure changes value. Every figure that is renamed or split states exac
 
 **Plan approval, 2026-11-04.** After a summary of both refinement plans (`refine-workspace-layout` and `compare-whole-months`), the owner said "approved, defaults ok". OD80–OD87 take their recommended defaults (design.md, open decisions).
 
+**Acceptance, 2026-11-04.** After the combined summary of both refinement changes, with the comparison page, the deviations and OD96–OD98, the owner said "accepted, defaults ok". OD96–OD98 keep their applied defaults.
+
 ## What Changes
 
 - **Palette and type:**

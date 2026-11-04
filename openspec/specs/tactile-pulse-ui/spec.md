@@ -6,15 +6,15 @@ Define rapid daily transaction capture, spending awareness and shared financial 
 ## Requirements
 
 ### Requirement: 3-Screen Information Architecture
-The web application SHALL organize navigation into grouped workspaces shared by the desktop sidebar and the phone tab bar.
+The web application SHALL offer one short page list shared by the desktop sidebar and the phone tab bar, without group headings.
 
 #### Scenario: Required behavior and constraints
 - **WHEN** the application renders navigation for the current viewport
 - **THEN** the following required behavior and constraints hold:
 
-  The web application SHALL organize navigation into grouped workspaces:
-  1. Groups and pages, in this order: Harian (`Beranda` `/`, `Tinjau` `/review`, `Transaksi` `/ledger`), AI (`Tanya`, once it exists), Uang (`Rekening & Kantong` `/accounts`, `Target & Tagihan` `/goals`) and Laporan (`Analisis` `/insights`, `Laporan` `/laporan`), with `Pengaturan` (`/settings`) and `Bantuan` apart from the groups.
-  2. Above 760 px the groups SHALL appear in the sidebar of the workspace window (`executive-sidebar-layout`).
+  The web application SHALL offer one short page list:
+  1. Pages, in this order: `Beranda` `/`, `Tinjau` `/review`, `Transaksi` `/ledger`, `Analisis` `/insights`, `Laporan` `/laporan`, `Rekening & Kantong` `/accounts` and `Target & Tagihan` `/goals`, with `Pengaturan` (`/settings`) apart at the foot. There SHALL be no Tanya page and no separate Bantuan entry; help opens with `?` and from Pengaturan.
+  2. Above 760 px the list SHALL appear in the sidebar of the workspace window (`executive-sidebar-layout`).
   3. At 760 px and below a bottom tab bar SHALL offer Beranda, Tinjau, Catat (opens capture), Transaksi and Lainnya; Lainnya SHALL reach every other page.
 
 #### Scenario: Navigating between executive dashboard screens
@@ -43,16 +43,16 @@ The application SHALL provide a prominent capture entry: "+ Catat" in the worksp
 - **AND** when single-key shortcuts are off, pressing `N` does nothing
 
 ### Requirement: Anti-AI-Slop Visual Design Standard
-The design system SHALL follow the approved workspace design: calm warm neutrals, one lime action accent, semantic colours with fixed meanings and readable contrast in light and dark themes.
+The design system SHALL follow the approved workspace design: the pre-redesign cool neutrals, one coral action accent, semantic colours with fixed meanings and readable contrast in light and dark themes.
 
 #### Scenario: Required behavior and constraints
 - **WHEN** the application renders its financial interface
 - **THEN** the following required behavior and constraints hold:
 
   The design system SHALL follow the approved workspace design:
-  1. **Typography:** Geist for interface text and Geist Mono for code-like text, both self-hosted from the app's own origin as defined by `web-font-hosting`, with tabular figures (`font-variant-numeric: tabular-nums`) for money, percentages, counts, dates and times.
+  1. **Typography:** Plus Jakarta Sans for interface text and Geist Mono for code-like text, both self-hosted from the app's own origin as defined by `web-font-hosting`, with tabular figures (`font-variant-numeric: tabular-nums`) for money, percentages, counts, dates and times.
   2. **Surfaces and elevation:** pages sit on the canvas token inside the window token; cards use the surface token, the card radius and the card shadow token, never heavy outlines. Dividers inside cards use the hairline line token. Deeper shadows are reserved for floating layers: drawers, sheets, popovers, dialogs, menus, the toast and the phone tab bar. The `--shadow-xs` token stays the 1px raise of plain chips and buttons and stays lighter than `--shadow-sm` in both themes.
-  3. **Accents:** lime is the active-navigation and positive-action fill; the dark ink fill is the structural primary action ("+ Catat"). Income is green, expense coral, internal transfers ("Pindah Saldo") sky blue, investments (balances, products, top-ups) lavender and warnings amber, each with a soft fill and a text ink of the same hue. Every transfer element SHALL be sky and only transfer elements SHALL be sky; every investment element SHALL be lavender, never amber, sky, blue, indigo or purple; amber SHALL mean a warning. Information that is neither, such as notes and "Ditautkan otomatis", SHALL use the neutral tokens. Text in these hues on a surface or soft fill SHALL measure at least 4.5:1 and meaningful icons at least 3:1 in both themes; text on a solid fill (lime, green, lavender, ink, destructive) SHALL use that fill's contrast ink at 4.5:1 or better. An icon tile that repeats its control's label SHALL be hidden from assistive technology, and a tile icon that conveys meaning SHALL measure at least 3:1 against its tile.
+  3. **Accents:** coral is the active-navigation and primary-action fill, including "+ Catat", and the same coral marks expenses, as in the pre-redesign app. Income is green, internal transfers ("Pindah Saldo") sky blue, investments (balances, products, top-ups) lavender and warnings amber, each with a soft fill and a text ink of the same hue. Every transfer element SHALL be sky and only transfer elements SHALL be sky; every investment element SHALL be lavender, never amber, sky, blue, indigo or purple; amber SHALL mean a warning. Information that is neither, such as notes and "Ditautkan otomatis", SHALL use the neutral tokens. Text in these hues on a surface or soft fill SHALL measure at least 4.5:1 and meaningful icons at least 3:1 in both themes; text on a solid fill (coral, green, lavender, ink, destructive) SHALL use that fill's contrast ink at 4.5:1 or better. An icon tile that repeats its control's label SHALL be hidden from assistive technology, and a tile icon that conveys meaning SHALL measure at least 3:1 against its tile.
   4. **Kakeibo pillars:** each of the five pillars ("Kebutuhan", "Keinginan", "Budaya", "Tak Terduga", "Tabungan") SHALL have its own hue, at least 25 degrees from the transfer, investment, income and expense hues (fills and text inks) and at least 40 degrees from every other pillar, in the light and the dark theme. "Belum diklasifikasi" SHALL stay a neutral grey shown with a dashed marker. A pillar colour SHALL measure at least 4.5:1 as text against the surfaces and its soft fill, and at least 3:1 as a chart mark against its track, in both themes. Pillar colours SHALL come only from the pillar tokens, and every pillar mark SHALL sit beside a label that names the pillar.
   5. **Prohibitions:** The UI SHALL NOT contain harsh box outlines, rainbow gradients, blurry purple glow drop-shadows, 0–100 health meters, decorative empty KPI cards or unformatted text blocks.
 
@@ -61,8 +61,8 @@ The design system SHALL follow the approved workspace design: calm warm neutrals
 - **THEN** text satisfies WCAG AA contrast against the window, surface and soft fills, and cards stand out from the window through tonal contrast and their shadow token
 
 #### Scenario: Light theme lime and coral text contrast
-- **WHEN** the light theme is active and a page shows lime text such as "Kelola →" or "Lihat Semua →", or coral text such as an expense amount, the "Uang Keluar" badge or "+ Tambah Tagihan"
-- **THEN** the text measures at least 4.5:1 against the surface it sits on, it still reads as lime or coral, and the lime navigation pill, chart peak and coral fills keep their fill colour
+- **WHEN** the light theme is active and a page shows coral text such as "Buka Tinjau", "Semua transaksi", an expense amount or "+ Tambah Tagihan"
+- **THEN** the text uses the coral text ink and measures at least 4.5:1 against the surface it sits on, it still reads as coral, and the coral navigation pill and coral fills keep their fill colour
 
 #### Scenario: Plain cards carry a subtle raise
 - **WHEN** a card renders in the light or the dark theme
@@ -77,7 +77,7 @@ The design system SHALL follow the approved workspace design: calm warm neutrals
 - **THEN** the text measures at least 4.5:1 against that background, it still reads as amber, and the amber fills keep their colour
 
 #### Scenario: Text on the strong emerald fill
-- **WHEN** Target & Tagihan shows "Tambah target", "Buat target pertama" or "Simpan progres" on the lime positive-action fill, in the light or the dark theme
+- **WHEN** Target & Tagihan shows "Tambah target", "Buat target pertama" or "Simpan progres" on the coral primary fill, in the light or the dark theme
 - **THEN** the text uses the fill's contrast ink and measures at least 4.5:1 against the fill, and the fill keeps its colour
 
 #### Scenario: Decorative icon tiles
