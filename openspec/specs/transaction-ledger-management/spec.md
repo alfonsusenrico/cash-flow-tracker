@@ -51,7 +51,7 @@ The application SHALL provide a dedicated `/ledger` screen showing recorded cash
 - **THEN** the ledger SHALL say "Tidak ditemukan", name the search text if any, and offer "Hapus filter"
 
 ### Requirement: Transaction Detail & Inline Editing
-The application SHALL let users open any transaction row in a detail drawer (a side column on a wide window, an overlay on a narrower one, a bottom sheet on a phone) that shows the row's provenance and supports editing, a type switch, confirming and deleting.
+The application SHALL let users open any transaction row in a detail drawer (a centered modal dialog above 760 px, a bottom sheet at 760 px and below) that shows the row's provenance and supports editing, a type switch, confirming and deleting. The drawer SHALL NOT open as a side column or a side overlay, and SHALL NOT narrow the page behind it.
 
 #### Scenario: Required behavior and constraints
 - **WHEN** an owner opens transaction details or edits a ledger payment
@@ -66,6 +66,7 @@ The application SHALL let users open any transaction row in a detail drawer (a s
   6. Deleting the transaction with confirmation, cleanly reversing its balance impact on accounts, goals, or obligations.
   7. Showing where the row came from ("Dari HP", "Lewat Catat", "Dicatat manual" and the other sources), who classified it ("AI", "Kebiasaan", "Pengguna", "Aturan"), and the original notification or typed text when the row has one.
   8. Opening the existing movement or top-up edit dialog for a movement or top-up row.
+  9. Titling a movement row with its route in the direction the money moved, with the same "Dari" and "Ke" accounts as the route; an unlinked leg's side is taken from its type and its missing side is shown as "?".
 
   The Quick Capture and ledger edit forms SHALL let a user select multiple active debts for an expense. Selecting a new debt SHALL default its payment amount to that debt's outstanding balance and SHALL update the transaction total to the sum of selected payments. The default view SHALL show each amount without requiring a separate input. An explicit amount-edit action SHALL allow partial payments per debt and SHALL update the total as amounts change. The form SHALL prevent submission when a selected amount is not positive, exceeds the available debt balance, or does not match the transaction total. Reopening a saved payment SHALL show its recorded amounts rather than replacing them with current debt balances. The same behavior and feedback SHALL be available in desktop drawers and mobile sheets. A single-debt selection MAY keep the existing API field for compatibility.
 
@@ -113,6 +114,16 @@ The application SHALL let users open any transaction row in a detail drawer (a s
 - **WHEN** the owner opens a row at 390 px width
 - **THEN** the drawer SHALL be a bottom sheet with focus inside it, and the browser's back SHALL close it and return focus to the row
 
+#### Scenario: Detail opens centered on a wide window
+- **WHEN** the owner opens a row at 1440 px or 1024 px width
+- **THEN** the detail SHALL open as a centered dialog over a dimmed page, with focus inside it and the edit form at its full width, and no side column SHALL appear
+- **AND** Esc, the close button or a click on the dimmed page SHALL close it and return focus to the row
+
+#### Scenario: Inbound leg titled in its direction
+- **GIVEN** an inbound leg on Jago · Main Pocket linked to an outbound leg on Jago · Dana Darurat
+- **WHEN** the owner opens the inbound leg from Rekening detail of Main Pocket
+- **THEN** the title SHALL read "Jago · Dana Darurat → Jago · Main Pocket", "Dari" SHALL be Jago · Dana Darurat and "Ke" Jago · Main Pocket
+
 ### Requirement: Recurring Rule Origin Tracking in Ledger
 The ledger and transaction models SHALL retain originating rule identifiers and visible origin indicators for historical recurring and payroll transactions.
 
@@ -148,8 +159,9 @@ The application SHALL persist and present each bilateral internal movement as on
   The application SHALL persist and present each bilateral internal movement as one logical operation backed by two durably linked ledger records:
   1. Both records SHALL share an immutable movement identifier assigned by the server.
   2. In the default "Semua Rekening" view, durably linked records SHALL render as one consolidated row regardless of their timestamp difference.
-  3. The row SHALL display a neutral `↔️ PINDAH SALDO` badge, the source account in the `Rekening` column and the destination account in the `Target / Tagihan` column (or the format `Sumber → Tujuan`), and the amount in neutral tabular typography without misleading `+` or `-` prefixes, reflecting zero net cash flow change.
-  4. In account-filtered views, the movement SHALL display direction relative to the selected account.
+  3. The row SHALL display a neutral `↔️ PINDAH SALDO` badge, its route as `Sumber → Tujuan` in the direction the money moved, and the amount in neutral tabular typography without misleading `+` or `-` prefixes, reflecting zero net cash flow change. A pocket SHALL be named with its parent account, as `Jago · Main Pocket`; an account without a parent SHALL be named alone.
+  4. In account-filtered views, the movement SHALL display its full route and its direction relative to the selected account, as "Masuk dari" or "Keluar ke" the other account. A leg shown without its partner SHALL take its route from its own movement role and the partner's account, never reversed.
+  4a. A movement leg without a partner, such as an unlinked row filed as Internal Movement, SHALL show its own account on the side its type implies (target for an income, source for an expense), "?" for the other side and the label "Pasangan belum ditemukan". The missing side SHALL NOT be guessed from another row.
   5. Creating, editing, or deleting the logical movement SHALL atomically create, update, or delete both records through a server-owned movement operation.
   6. In the all-accounts ledger, two unlinked rows identified as internal movements SHALL render as one inferred row when they have opposite directions, equal positive amounts, different accounts, timestamps less than 30 seconds apart, and exactly one mutually eligible partner in the loaded ledger page. This match SHALL be display-only and SHALL NOT assign a movement identifier or enable atomic pair edit/delete.
   7. A linked movement SHALL never be matched heuristically with an unlinked row, and ambiguous or incomplete legacy rows SHALL remain separate.
@@ -220,6 +232,24 @@ The application SHALL persist and present each bilateral internal movement as on
 #### Scenario: Deleting a consolidated internal movement
 - **WHEN** the user confirms deletion of a linked movement
 - **THEN** the server removes both roles atomically and restores both affected balances
+
+#### Scenario: Route names the parent account
+- **WHEN** the all-accounts ledger shows a linked movement from the Jago pocket Main Pocket to the BCA pocket ATM
+- **THEN** the row SHALL read "Jago · Main Pocket → BCA · ATM"
+
+#### Scenario: Inbound leg in an account-filtered list
+- **GIVEN** a movement of Rp 400.000 from Jago · Dana Darurat to Jago · Main Pocket
+- **WHEN** the ledger is filtered to Main Pocket
+- **THEN** the row SHALL read "Jago · Dana Darurat → Jago · Main Pocket" with "Masuk dari Jago · Dana Darurat", and SHALL NOT read "Jago · Main Pocket → Jago · Dana Darurat"
+
+#### Scenario: Unlinked movement income
+- **GIVEN** an unlinked income of Rp 500.000 on Jago · Main Pocket filed as Internal Movement
+- **WHEN** the ledger or Rekening detail lists it
+- **THEN** the row SHALL read "? → Jago · Main Pocket" with "Pasangan belum ditemukan"
+
+#### Scenario: Transaction rows carry parent names
+- **WHEN** the client requests `GET /api/transactions` or a transaction's detail
+- **THEN** each row SHALL include `account_parent_name` and `transfer_target_account_parent_name`, `null` for an account without a parent or a leg without a partner, and every existing field SHALL keep its value
 
 ### Requirement: Complete Canonical Transaction Capture
 The application SHALL provide one canonical transaction-capture form that supports income and expense type, positive amount, active account, type-compatible category, transaction-level Kakeibo classification, timestamp, notes, mutually compatible goal or obligation context, and optional receipt attachment. Selecting a category SHALL default the transaction classification from category metadata unless the user explicitly changes it.

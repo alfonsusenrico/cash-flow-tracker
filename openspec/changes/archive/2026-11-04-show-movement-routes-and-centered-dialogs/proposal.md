@@ -33,6 +33,8 @@ The owner can see these results:
 
 **Plan approval, 2026-11-04.** After a summary of both plans (`show-movement-routes-and-centered-dialogs` and `recognise-one-arrival-seen-twice`), the owner said "approved, defaults ok". OD112–OD115 take their recommended defaults (design.md, open decisions).
 
+**Acceptance, 2026-11-04.** After the summary of both changes with their verification, the owner said "accept, do as your recommend". OD112–OD115 keep their applied defaults.
+
 ## What Changes
 
 - **API, transaction rows.** `GET /api/transactions`, the transaction detail and the rows Beranda and Rekening read SHALL carry `account_parent_name` and `transfer_target_account_parent_name`, read in the same query and with no extra round trip. This is additive, so existing fields keep their meaning.

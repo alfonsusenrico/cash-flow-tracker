@@ -77,7 +77,7 @@ Expected Result: the change is proven locally.
 
 ## 6. Acceptance
 
-- [ ] 6.1 Present to the owner:
+- [x] 6.1 Present to the owner:
   - verification.md;
   - the compare page;
   - OD112–OD115 with their applied defaults.
