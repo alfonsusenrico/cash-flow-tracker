@@ -107,7 +107,12 @@ def local_time_features(moment: datetime | None) -> tuple[int | None, int | None
 
 
 def load_memory(cur, user_id: str, match_key: str | None) -> list[dict]:
-    """Usable memory entries, exact key first; entries with an inactive category are left out."""
+    """Usable memory entries, exact key first; entries with an inactive category are left out.
+
+    Entries in Internal Movement are left out too: they were learned before transfers stopped teaching
+    memory, and applying one would file the next report of that wording as a transfer
+    (recognise-one-arrival-seen-twice D4, OD121). The rows stay; nothing here deletes owner data.
+    """
     cur.execute(
         """SELECT m.id, m.match_key, m.key_kind, m.display_merchant, m.notes, m.category_id,
                   m.kakeibo_type, m.source, m.hit_count, m.account_id, c.kind AS category_kind,
@@ -117,11 +122,11 @@ def load_memory(cur, user_id: str, match_key: str | None) -> list[dict]:
            FROM merchant_memory m
            JOIN categories c ON c.id = m.category_id AND c.user_id = m.user_id AND c.is_archived = FALSE
            LEFT JOIN categories oc ON oc.id = m.offset_category_id AND oc.user_id = m.user_id
-           WHERE m.user_id = %s
+           WHERE m.user_id = %s AND c.name <> %s
            ORDER BY (m.match_key = %s) DESC, (m.source = 'owner') DESC, m.hit_count DESC,
                     m.last_used_at DESC NULLS LAST, m.updated_at DESC, m.id
            LIMIT %s""",
-        (user_id, match_key or "", MEMORY_CONTEXT_LIMIT),
+        (user_id, MOVEMENT_CATEGORY_NAME, match_key or "", MEMORY_CONTEXT_LIMIT),
     )
     return cur.fetchall()
 

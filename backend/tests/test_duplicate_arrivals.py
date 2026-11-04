@@ -430,3 +430,22 @@ def test_held_proposal_is_listed_and_can_be_recorded(client, notification_owner)
     response = client.post(f"/api/review/seen-twice/{jago['event_id']}/record-separately")
     assert response.status_code == 200, response.text
     assert [str(row["account_id"]) for row in incomes(owner)] == [owner["main"]]
+
+
+def test_movement_memory_learned_earlier_is_not_applied(client, notification_owner):
+    from app.db.pool import db_conn
+    from app.services.merchant_memory import load_memory
+
+    owner = notification_owner
+    with db_conn() as conn:
+        conn.execute(
+            """INSERT INTO merchant_memory (user_id, match_key, key_kind, display_merchant, category_id, source)
+               VALUES (%s, 'merchant:gopay', 'merchant', 'GoPay', %s, 'owner'),
+                      (%s, 'signature:jago|income|unknown', 'signature', NULL, %s, 'owner')""",
+            (owner["user_id"], owner["internal_out"], owner["user_id"], owner["internal_in"]),
+        )
+        conn.commit()
+        assert load_memory(conn.cursor(), owner["user_id"], "signature:jago|income|unknown") == []
+    jago = send(client, JAGO_CREDIT, JAGO, 0, version="1.8.0")
+    row = next(row for row in incomes(owner) if str(row["account_id"]) == owner["main"])
+    assert row["category"] != "Internal Movement" and "question" in jago
