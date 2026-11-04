@@ -213,3 +213,25 @@
 .billList li > span > span { color: var(--muted); font-size: 12px; }
 .billList b { font-weight: 600; font-variant-numeric: tabular-nums; }
 @container main (max-width: 900px) { .trio { grid-template-columns: minmax(0, 1fr); } }
+
+/* "Cocokkan saldo" (manual-balance-check D7) */
+.checkForm { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.checkForm > :first-child { flex: 1 1 240px; min-width: 0; }
+.checkResult { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.checkUp { color: var(--in-fg); }
+.checkDown { color: var(--out-fg); }
+.checkNote { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); color: var(--text-2); font-size: 13px; }
+.checkExplain { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+.checkExplain > b { font-size: 13.5px; }
+.checkCauses { margin: 0; padding: 0; list-style: none; }
+.checkCauses li { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 2px; border-top: 1px solid var(--line); }
+.checkCauses li:first-child { border-top: 0; }
+.checkCauseText { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.checkCauseText b { font-size: 14px; font-weight: 650; }
+.checkCauseText small { overflow-wrap: anywhere; color: var(--muted); font-size: 12.5px; }
+.checkCauseEnd { display: flex; flex: none; flex-direction: column; align-items: flex-end; gap: 2px; }
+.checkLink { display: inline-flex; align-items: center; min-height: 24px; color: var(--accent-fg); font-size: 12.5px; font-weight: 650; text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 480px) {
+  .checkCauses li { flex-wrap: wrap; align-items: flex-start; }
+  .checkCauseEnd { flex-direction: row; align-items: center; justify-content: space-between; width: 100%; }
+}

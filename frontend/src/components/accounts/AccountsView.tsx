@@ -22,6 +22,7 @@ import { RowAmount, movementDirection, rowKind, rowTitle, rowWhen } from "@/comp
 import type { ActivityRow } from "@/components/beranda/types";
 import { AccountLinks } from "./AccountLinks";
 import { useAccountDialogs } from "./AccountDialogs";
+import { BalanceCheckDialog, canCheckBalance } from "./BalanceCheckDialog";
 import type { AccountItem, AccountsResponse, NetWorthResponse } from "./types";
 import styles from "./money.module.css";
 
@@ -767,6 +768,10 @@ function AccountDetail({
   dialogs: ReturnType<typeof useAccountDialogs>;
   onClose: () => void;
 }) {
+  // "Cocokkan saldo" belongs to the account on screen; another account starts without it.
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+  const checking = Boolean(account && checkingId === account.id);
+  const setChecking = (open: boolean) => setCheckingId(open && account ? account.id : null);
   const recentQuery = useQuery<{ transactions: ActivityRow[] }>({
     queryKey: ["transactions", "account", account?.id],
     queryFn: () => api.get(`/transactions?account_id=${account!.id}&limit=${RECENT_LIMIT}`),
@@ -774,6 +779,7 @@ function AccountDetail({
   });
   if (!account) return null;
   const pockets = account.children ?? [];
+  const checkable = canCheckBalance(account);
   const holding = isHolding(account);
   const position = isPosition(account);
   const amountTracked = amountProducts.has(account.id);
@@ -861,6 +867,7 @@ function AccountDetail({
               Tambah kantong
             </button>
           ) : null}
+          {checkable && <button type="button" className="ws-btn" onClick={() => setChecking(true)}>Cocokkan saldo</button>}
           {canReconcile && <button type="button" className="ws-btn" onClick={() => dialogs.openReconciliation(account)}>Sesuaikan Saldo</button>}
           {position && <button type="button" className="ws-btn" onClick={() => dialogs.openValuation(account)}>Perbarui nilai</button>}
           {canSwitchToAmountTracking(account) && <button type="button" className="ws-btn" onClick={() => dialogs.openAmountSwitch(account)}>Ubah ke pelacakan nominal</button>}
@@ -875,6 +882,14 @@ function AccountDetail({
           </ConfirmActionButton>
         </div>
       </div>
+      {checking && (
+        <BalanceCheckDialog
+          account={account}
+          money={money}
+          onClose={() => setChecking(false)}
+          onAdjust={(actual, onReconciled) => dialogs.openReconciliation(account, { actual, onReconciled })}
+        />
+      )}
     </Modal>
   );
 }
