@@ -420,7 +420,7 @@ Three equal cards (Ketahanan Dana, Utang and the bills), then the goals at full 
 - **Ketahanan Dana** comes first on a phone: how many months the emergency fund covers, from the server's runway, or "Belum dapat dihitung" when the essential monthly cost is unknown.
 - **Target tabungan**: one row per goal with its status in words ("Tercapai", "Perlu Rp X/bulan", "Tanpa tanggal"), progress and where the progress comes from. A goal's drawer offers "Tambah progres" only for goals without linked accounts (it records progress, not a transaction), "Ubah target" and "Arsipkan target".
 - **Utang**: paid against total, the remaining amount and the minimum payment. The drawer links an existing payment or records one, edits and archives. Paid-off debts move to the archive list.
-- **Tagihan sampai gaji berikutnya**: the planned payments due before the next salary, the same lines and total as Beranda's Terjadwal (or the next 30 days when the salary date cannot be estimated). "Kelola rencana" opens the plans.
+- **Tagihan sampai gaji berikutnya**: the count, the total and the next three bills before the next salary (or the next 30 days when the salary date cannot be estimated). Planned payments are the same lines as Beranda's Terjadwal. Charges that recurred with a steady amount but have no plan yet are added from today and marked "perkiraan". "Kelola" opens the plans.
 
 ## 9. Assets
 
