@@ -11,6 +11,7 @@ import { KalenderTab, dayName, heatLevels } from "./calendar/KalenderTab";
 import { PetaAliranTab, nodeTotals } from "./flow/PetaAliranTab";
 import { buildFlowModel, layoutFlow, nextNode } from "./flow/sankey";
 import type { ReportComparison } from "@/lib/monthlyReport";
+import { groupCategories } from "./CategoryBudgetSection";
 import { BaselineCard, DailySpendCard, ProgressCard } from "./RingkasanTab";
 import type { CalendarDay, CalendarResponse, FlowResponse } from "./types";
 import { analysisHref, parseTab } from "./url";
@@ -136,6 +137,19 @@ describe("Ringkasan cards", () => {
     expect(screen.getByRole("link", { name: "Kebutuhan" }).getAttribute("href")).toContain("kakeibo=need");
     expect(container.textContent).not.toMatch(/%/);
     expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  it("groups categories by pillar in Kakeibo order, sorted by amount, without Rp 0 rows", () => {
+    const rows = [
+      { id: "a", name: "Hiburan", kakeibo_type: "want", spent: 80_000 },
+      { id: "b", name: "Transportasi", kakeibo_type: "need", spent: 50_000 },
+      { id: "c", name: "Belanja Harian", kakeibo_type: "need", spent: 120_000 },
+      { id: "d", name: "Buku", kakeibo_type: "culture", spent: 0 },
+      { id: null, name: "Tanpa kategori", kakeibo_type: null, spent: 21_701, is_uncategorized: true },
+    ];
+    const listed = groupCategories(rows, false).map((entry) => (entry.kind === "group" ? `# ${entry.label} (${entry.count})` : entry.cat.name));
+    expect(listed).toEqual(["# Kebutuhan (2)", "Belanja Harian", "Transportasi", "# Keinginan (1)", "Hiburan", "# Belum diklasifikasi (1)", "Tanpa kategori"]);
+    expect(groupCategories(rows, true).some((entry) => entry.kind === "row" && entry.cat.name === "Buku")).toBe(true);
   });
 
   it("says when the average appears instead of showing Rp 0", () => {
