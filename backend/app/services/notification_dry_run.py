@@ -29,8 +29,7 @@ def context_for(user_id: str, event: dict):
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("SET TRANSACTION READ ONLY")
-            return facts, load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit,
-                                       event_id=str(event["id"]) if event.get("id") else None)
+            return facts, load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit)
 
 
 def compact_proposal(proposal, context: dict, resolved: dict) -> dict:

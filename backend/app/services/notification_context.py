@@ -1,18 +1,15 @@
 from __future__ import annotations
 
 import json
-import logging
 import re
 from datetime import timedelta
 from typing import Any
-
-import psycopg
 
 from app.services.habits import evaluate_habit
 from app.services.merchant_memory import (
     classification_key, institution_packages, load_memory, merchant_match_key, owner_memory_hit,
 )
-from app.services.notification_evidence import MONEY_PATTERN, NotificationFacts, collect_facts
+from app.services.notification_evidence import MONEY_PATTERN, NotificationFacts
 from app.services.notification_resolution import (
     alias_key, endpoint_context, is_external_counterparty, names_owner, owner_aliases, redact_owner_names,
 )
@@ -21,11 +18,8 @@ from app.services.notification_resolution import (
 ACCOUNT_LIMIT = 200
 CATEGORY_LIMIT = 200
 CANDIDATE_LIMIT = 50
-NEIGHBOUR_LIMIT = 20
 # Upper bound of the serialised model input, shared with the provider.
 CONTEXT_BYTE_LIMIT = 60000
-
-logger = logging.getLogger(__name__)
 
 
 def sanitize_text(value: str | None, identity: str | list[str] | None = None) -> str:
@@ -51,9 +45,7 @@ def sanitize_text(value: str | None, identity: str | list[str] | None = None) ->
     return text
 
 
-def load_context(
-    cur, user_id: str, facts: NotificationFacts, *, history_limit: int = 20, event_id: str | None = None,
-) -> dict:
+def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: int = 20) -> dict:
     history_limit = max(0, min(50, history_limit))
     cur.execute("SELECT name, name_aliases FROM users WHERE id = %s", (user_id,))
     profile = cur.fetchone() or {}
@@ -147,13 +139,7 @@ def load_context(
         },
         "candidates": sanitized_candidates, "incomplete": incomplete,
     }
-    neighbours, neighbour_ids, neighbours_incomplete = neighbour_context(cur, user_id, facts, event_id)
-    context["neighbours"] = neighbours
-    context["neighbours_incomplete"] = neighbours_incomplete
     fit_context_budget(context)
-    # Context-local neighbour ids map back to events only inside the backend.
-    context["_neighbour_ids"] = {key: value for key, value in neighbour_ids.items()
-                                 if any(item["id"] == key for item in context["neighbours"])}
     # Internal fields stay out of the model input (the provider drops underscore-prefixed keys).
     context["_classification_key"] = key
     context["_owner_memory_hit"] = owner_memory_hit(memory, key, facts.direction)
@@ -205,88 +191,10 @@ def context_size(context: dict) -> int:
 
 
 def fit_context_budget(context: dict) -> None:
-    """Drop the least similar history, then the farthest neighbours, then the last memory entries,
-    until the input fits. Dropped neighbours make the time context incomplete."""
-    for field in ("similar_history", "neighbours", "memory"):
-        while context.get(field) and context_size(context) > CONTEXT_BYTE_LIMIT:
-            if field == "neighbours":
-                farthest = max(context[field], key=lambda item: abs(item["seconds_from_this"]))
-                context[field].remove(farthest)
-                context["neighbours_incomplete"] = True
-            else:
-                context[field].pop()
-
-
-NEIGHBOUR_SQL = """
-    SELECT n.*, t.type AS leg_type, t.amount AS leg_amount, t.account_id AS leg_account_id,
-           t.movement_id AS leg_movement_id
-    FROM notification_events n
-    LEFT JOIN transactions t ON t.user_id = n.user_id
-         AND t.id = COALESCE(n.transaction_id, n.duplicate_of_transaction_id)
-    WHERE n.user_id = %(user_id)s AND n.id <> %(event_id)s
-      AND n.post_time BETWEEN %(earliest)s AND %(latest)s
-      AND n.processing_state IN ('queued', 'processing', 'recorded', 'needs_review', 'needs_confirmation')
-      AND n.is_financial IS DISTINCT FROM FALSE
-    ORDER BY abs(extract(epoch FROM n.post_time - %(moment)s)), n.post_time, n.id
-    LIMIT %(limit)s
-"""
-NEIGHBOUR_STATES = {"queued": "queued", "processing": "queued", "recorded": "recorded",
-                    "needs_review": "needs_review", "needs_confirmation": "needs_review"}
-
-
-def neighbour_context(
-    cur, user_id: str, facts: NotificationFacts, event_id: str | None,
-) -> tuple[list[dict], dict[str, str], bool]:
-    """The owner's other notifications near this one in time, nearest first (design D5).
-
-    Each neighbour carries a context-local id, the institution, direction and amount, the signed seconds
-    from this notification, its state, its account when recorded and whether it is part of a movement.
-    Never another notification's text: merchants and masked names of other events stay out of this
-    prompt. Returns (neighbours, id map, incomplete); a failed query or overflow is incomplete, not fatal.
-    """
-    from app.core.config import settings
-    from app.services.notification_processing import source_event
-
-    if not event_id or facts.timestamp is None:
-        return [], {}, True
-    window = timedelta(seconds=settings.notification_neighbour_window_seconds)
-    try:
-        with cur.connection.transaction():
-            cur.execute(NEIGHBOUR_SQL, {
-                "user_id": user_id, "event_id": event_id, "moment": facts.timestamp,
-                "earliest": facts.timestamp - window, "latest": facts.timestamp + window,
-                "limit": NEIGHBOUR_LIMIT + 1,
-            })
-            rows = cur.fetchall()
-    except psycopg.Error as exc:
-        logger.warning("Notification neighbours unavailable: %s", type(exc).__name__)
-        return [], {}, True
-    neighbours, ids = [], {}
-    for index, row in enumerate(rows[:NEIGHBOUR_LIMIT], start=1):
-        recorded = row["processing_state"] == "recorded" and row.get("leg_account_id") is not None
-        if recorded:
-            direction = "internal_movement" if row.get("provenance_kind") == "complete_movement" else row["leg_type"]
-            amount = int(row["leg_amount"])
-        else:
-            observed = collect_facts(source_event(row))
-            direction, amount = observed.direction, observed.amount
-        key = f"n{index}"
-        ids[key] = str(row["id"])
-        neighbours.append({
-            "id": key, "institution": institution_label(row["package_name"]), "direction": direction,
-            "amount": amount, "seconds_from_this": round((row["post_time"] - facts.timestamp).total_seconds(), 1),
-            "state": NEIGHBOUR_STATES[row["processing_state"]],
-            "account_id": str(row["leg_account_id"]) if recorded else None,
-            "in_movement": bool(row.get("leg_movement_id")),
-        })
-    neighbours.sort(key=lambda item: item["seconds_from_this"])
-    return neighbours, ids, len(rows) > NEIGHBOUR_LIMIT
-
-
-def institution_label(package_name: str | None) -> str | None:
-    from app.services.notification_evidence import SUPPORTED_PACKAGES
-
-    return SUPPORTED_PACKAGES.get(str(package_name or "").strip().lower())
+    """Drop the least similar history, then the last memory entries, until the input fits."""
+    for field in ("similar_history", "memory"):
+        while context[field] and context_size(context) > CONTEXT_BYTE_LIMIT:
+            context[field].pop()
 
 
 def discover_candidates(

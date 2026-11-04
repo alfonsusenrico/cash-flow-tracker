@@ -49,16 +49,16 @@ def test_unknown_pocket_is_an_explicit_mapping_error_in_model_context():
     assert model_context["facts"]["mapping_error"] == "uncertain_pocket_mapping"
 
 
-def test_arrival_sequence_is_versioned_and_names_one_second_observation():
+def test_arrival_sequence_is_versioned_and_read_one_notification_at_a_time():
     from evaluation.notification_cases import FIXTURE_VERSION
 
     sequence = [case for case in synthetic_cases() if case.expected.get("sequence")]
-    assert FIXTURE_VERSION == "synthetic-notifications-4"
+    assert FIXTURE_VERSION == "synthetic-notifications-5"
     assert [case.name for case in sequence] == [
         "sequence-gopay-credit", "sequence-jago-credit", "sequence-mybca-debit", "sequence-jago-hop",
         "sequence-unrelated-credit",
     ]
-    assert [case.expected["same_money_as"] for case in sequence] == [None, "n1", None, None, None]
+    # The model sees no other notifications; the backend decides whether a report repeats another.
     for case in sequence:
-        assert all(set(item) == {"id", "institution", "direction", "amount", "seconds_from_this", "state",
-                                 "account_id", "in_movement"} for item in case.context["neighbours"])
+        assert "neighbours" not in case.context and "same_money_as" not in case.expected
+    assert all(case.expected["outcome"] == "record" for case in sequence)

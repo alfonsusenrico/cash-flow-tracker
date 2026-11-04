@@ -1461,7 +1461,7 @@ def test_ai_unexpected_pillar_is_recorded(client, notification_owner, monkeypatc
         ).fetchone()
     assert row["kakeibo_type"] == "unexpected"
     assert row["processing_state"] == "recorded"
-    assert row["prompt_version"] == PROMPT_VERSION == "notification-interpretation-11"
+    assert row["prompt_version"] == PROMPT_VERSION == "notification-interpretation-12"
 
 
 def test_startup_reclassifies_only_unlinked_noise_reviews(client, notification_owner):

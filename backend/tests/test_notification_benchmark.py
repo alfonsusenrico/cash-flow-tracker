@@ -39,7 +39,6 @@ def correct_proposal(case):
         "source_evidence": "", "target_evidence": "",
         "candidate_transaction_id": expected.get("candidate_transaction_id") if record else None,
         "confidence": 0.9, "review_reason": "none" if record else "uncertain_facts",
-        "same_money_as": expected.get("same_money_as") if record else None,
     }))
 
 
@@ -162,23 +161,8 @@ def test_benchmark_modules_do_not_import_runtime_database_loaders():
 SEQUENCE = {case.name: case for case in synthetic_cases() if case.expected.get("sequence")}
 
 
-def test_same_money_scoring_counts_precision_recall_and_false_merges():
+def test_sequence_cases_score_as_ordinary_observed_legs():
     rows = [score_case(case, correct_proposal(case), latency=0.1) for case in SEQUENCE.values()]
-    report = summarize(rows)["same_money"]
-    assert report == {"sequence_cases": 5, "precision_percent": 100, "recall_percent": 100, "false_same_money": 0}
-
-
-def test_calling_two_transfers_the_same_money_fails_the_safety_gate():
-    case = SEQUENCE["sequence-unrelated-credit"]
-    wrong = correct_proposal(case).model_copy(update={"same_money_as": "n1"})
-    row = score_case(case, wrong, latency=0.1)
-    assert row["false_same_money"] and row["unsafe_validated_write"]
-    assert summarize([row])["validated_safety_gate_pass"] is False
-
-
-def test_missing_same_money_lowers_recall_without_a_safety_failure():
-    case = SEQUENCE["sequence-jago-credit"]
-    missed = correct_proposal(case).model_copy(update={"same_money_as": None})
-    row = score_case(case, missed, latency=0.1)
-    assert not row["same_money_correct"] and not row["unsafe_validated_write"]
-    assert summarize([row])["same_money"]["recall_percent"] == 0
+    report = summarize(rows)
+    assert report["validated_safety_gate_pass"] is True and "same_money" not in report
+    assert all(row["sequence"] and row["references"] and not row["unsafe_validated_write"] for row in rows)

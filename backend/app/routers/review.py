@@ -25,7 +25,7 @@ from app.services.movement_pairing import CANDIDATE_LIMIT, load_candidates
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, normalize_merchant
 from app.services.purpose_questions import list_open_questions
 from app.services.review_undo import TOKEN_PATTERN, ActionRecorder, undo_action
-from app.services.seen_twice import acknowledge, record_separately, seen_twice_items
+from app.services.seen_twice import acknowledge, record_separately, seen_twice_items, skipped_items
 from app.services.topup_learning import reject_suggestion, topup_suggestion
 
 router = APIRouter(prefix="/review", tags=["Review"])
@@ -225,6 +225,7 @@ def review_queue(current_user: dict = Depends(get_current_user)):
                     grouped.append(row)
             totals = review_counts(cur, user_id)
             seen_twice = seen_twice_items(cur, user_id)
+            skipped = skipped_items(cur, user_id)
     groups = build_groups(grouped)
     return {
         "ok": True,
@@ -240,12 +241,15 @@ def review_queue(current_user: dict = Depends(get_current_user)):
             "awaiting": len(awaiting),
             "ambiguous": len(ambiguous),
             "seen_twice": len(seen_twice),
+            # Reports the owner's skip patterns skipped: shown for undo, never counted as work (OD125).
+            "skipped": len(skipped),
         },
         "questions": questions,
         "groups": groups,
         "awaiting": awaiting,
         "ambiguous": ambiguous,
         "seen_twice": seen_twice,
+        "skipped": skipped,
     }
 
 
@@ -469,7 +473,8 @@ def undo_review_action(payload: UndoRequest, current_user: dict = Depends(get_cu
 
 @router.post("/seen-twice/{event_id}/acknowledge")
 def acknowledge_seen_twice(event_id: UUID, current_user: dict = Depends(get_current_user)):
-    """"Benar, satu transaksi": the second observation stays without a transaction of its own."""
+    """"Benar, satu transaksi": the second observation stays without a transaction of its own, and its
+    app's repeats of the kept app are skipped from now on (skip-redundant-notifications D4)."""
     return acknowledge(current_user["id"], str(event_id))
 
 
