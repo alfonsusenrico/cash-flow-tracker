@@ -20,6 +20,7 @@ import type { ReviewQueue } from "@/lib/review";
 import { usePathname, useSearchParams } from "next/navigation";
 import { RowAmount, movementDirection, rowKind, rowTitle, rowWhen } from "@/components/beranda/activity";
 import type { ActivityRow } from "@/components/beranda/types";
+import { AccountLinks } from "./AccountLinks";
 import { useAccountDialogs } from "./AccountDialogs";
 import { BalanceCheckDialog, canCheckBalance } from "./BalanceCheckDialog";
 import type { AccountItem, AccountsResponse, NetWorthResponse } from "./types";
@@ -819,6 +820,7 @@ function AccountDetail({
             {account.default_funding_account_name && (<><dt>Rekening dana</dt><dd>{account.default_funding_account_name}</dd></>)}
           </dl>
         )}
+        <AccountLinks accountId={account.id} accountName={account.name} />
         {pockets.length > 0 && (
           <section aria-labelledby={`detail-pockets-${account.id}`}>
             <h3 id={`detail-pockets-${account.id}`} className={styles.detailHeading}>{holding ? "Produk" : "Kantong"}</h3>

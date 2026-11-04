@@ -1,5 +1,5 @@
 export type SettingsSectionSlug =
-  | "perangkat" | "kebiasaan" | "tampilan" | "profil" | "gaji" | "anggaran" | "pemetaan" | "notifikasi-ganda" | "pengirim";
+  | "perangkat" | "kebiasaan" | "tampilan" | "profil" | "gaji" | "anggaran" | "pemetaan" | "pengirim";
 
 export interface SettingsSectionEntry {
   slug: SettingsSectionSlug;
@@ -12,8 +12,7 @@ export interface SettingsSectionEntry {
 
 export const SETTINGS_HOME = "/settings";
 
-// Order and grouping approved as OD53 (redesign-money-and-settings D6); "Notifikasi ganda" follows
-// "Pemetaan notifikasi" (skip-redundant-notifications D7).
+// Order and grouping approved as OD53 (redesign-money-and-settings D6).
 export const SETTINGS_SECTIONS: SettingsSectionEntry[] = [
   { slug: "perangkat", href: "/settings/perangkat", title: "HP & perangkat", purpose: "Status HP, ponsel yang mengirim notifikasi bank dan kunci API cadangan." },
   { slug: "kebiasaan", href: "/settings/kebiasaan", title: "Kebiasaan", purpose: "Kebiasaan dan top up yang sudah dipelajari dari jawaban di Tinjau." },
@@ -28,13 +27,6 @@ export const SETTINGS_SECTIONS: SettingsSectionEntry[] = [
     group: "Akun",
   },
   { slug: "pemetaan", href: "/settings/pemetaan", title: "Pemetaan notifikasi", purpose: "Nama rekening di notifikasi yang dipetakan ke rekening.", group: "Akun" },
-  {
-    slug: "notifikasi-ganda",
-    href: "/settings/notifikasi-ganda",
-    title: "Notifikasi ganda",
-    purpose: "Laporan dari aplikasi yang mengulang laporan aplikasi lain, dilewati otomatis.",
-    group: "Akun",
-  },
   { slug: "pengirim", href: "/settings/pengirim", title: "Nama pengirim", purpose: "Nama pengirim transfer yang sudah dikonfirmasi.", group: "Akun" },
 ];
 

@@ -820,7 +820,7 @@ describe("Tinjau triage", () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/review/seen-twice/event-jago/acknowledge", {}));
   });
 
-  it("Terlihat dua kali: Benar, satu transaksi learns the pattern, and Batalkan stops it", async () => {
+  it("Terlihat dua kali: Benar, satu transaksi links the account, and Batalkan stops the link", async () => {
     currentQueue = {
       ...queue(), counts: { ...queue().counts, attention: 0, unreviewed: 1, seen_twice: 1 },
       questions: [], awaiting: [], ambiguous: [], groups: [],
@@ -835,7 +835,7 @@ describe("Tinjau triage", () => {
     };
     vi.mocked(api.post).mockImplementation(async (path) => {
       if (String(path).endsWith("/acknowledge")) {
-        return { ok: true, event_id: "event-jago", pattern: { id: "pattern-1", redundant_label: "Bank Jago", kept_label: "GoPay", created: true } };
+        return { ok: true, event_id: "event-jago", link: { id: "link-1", account_id: "acc-gopay", account_label: "GoPay", institution_label: "Bank Jago", created: true } };
       }
       return { ok: true, ...token("action") };
     });
@@ -843,15 +843,16 @@ describe("Tinjau triage", () => {
     const { user } = renderPage();
     await screen.findByRole("heading", { name: "Semua sudah ditinjau" });
     await user.click(row("Bank Jago: laporan kedua"));
-    expect(within(pane()).getByText("Laporan serupa dilewati otomatis")).toBeInTheDocument();
+    expect(within(pane()).getByText("GoPay juga terlihat di Bank Jago")).toBeInTheDocument();
+    expect(within(pane()).getByText("Rekening ditautkan; laporan serupa dilewati otomatis")).toBeInTheDocument();
     await user.click(within(pane()).getByRole("button", { name: /Benar, satu transaksi/ }));
-    const toast = await screen.findByText("Laporan Bank Jago serupa akan dilewati otomatis.");
+    const toast = await screen.findByText("GoPay juga dilaporkan Bank Jago. Laporan serupa dilewati otomatis.");
     await user.click(within(toast.closest(".ws-toast") as HTMLElement).getByRole("button", { name: "Batalkan" }));
-    await waitFor(() => expect(api.del).toHaveBeenCalledWith("/ingest/skip-patterns/pattern-1"));
-    expect(await screen.findByText("Pola dibatalkan. Laporan Bank Jago serupa akan ditanyakan lagi.")).toBeInTheDocument();
+    await waitFor(() => expect(api.del).toHaveBeenCalledWith("/ingest/account-links/link-1"));
+    expect(await screen.findByText("Tautan dibatalkan. Laporan Bank Jago serupa akan ditanyakan lagi.")).toBeInTheDocument();
   });
 
-  it("Dilewati otomatis: a skipped report shows its pattern and can be recorded on its own", async () => {
+  it("Dilewati otomatis: a skipped report shows its account link and can be recorded on its own", async () => {
     currentQueue = {
       ...queue(), counts: { ...queue().counts, attention: 0, unreviewed: 0, seen_twice: 0, skipped: 1 },
       questions: [], awaiting: [], ambiguous: [], groups: [],
@@ -862,7 +863,7 @@ describe("Tinjau triage", () => {
           transaction_id: "tx-gopay-2", type: "income", amount: 500_000, date: "2026-11-01T11:39:18Z", account_name: "GoPay",
           movement: { source: "BCA Harian", target: "GoPay" },
         },
-        pattern: { id: "pattern-1", redundant_label: "Bank Jago", direction: "income", kept_label: "GoPay" },
+        link: { id: "link-1", account_label: "GoPay", institution_label: "Bank Jago" },
       }],
     };
     const { user, container } = renderPage();
@@ -873,7 +874,7 @@ describe("Tinjau triage", () => {
     await user.click(row("Bank Jago: dilewati"));
     expect(itemHeading()).toHaveTextContent("Bank Jago melaporkan uang yang sudah tercatat");
     expect(within(pane()).getByText("Dilewati, tidak dicatat")).toBeInTheDocument();
-    expect(within(pane()).getByText("Bank Jago, uang masuk · dilewati bila GoPay sudah melaporkan nominal yang sama")).toBeInTheDocument();
+    expect(within(pane()).getByText("GoPay juga dilaporkan Bank Jago")).toBeInTheDocument();
     const choices = within(within(pane()).getByRole("group", { name: "Keputusan" })).getAllByRole("button");
     expect(choices.map((choice) => choice.querySelector(".ws-lbl")?.textContent)).toEqual(["Catat terpisah"]);
     expect((await axe(container)).violations).toHaveLength(0);
