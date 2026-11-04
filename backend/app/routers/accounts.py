@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from app.db.pool import db_conn
 from app.services.account_colours import default_account_color
 from app.services.auth import get_current_user
+from app.services.balance_check import check_balance, record_match
 from app.services.ledger_mutations import get_locked_ledger_balance, lock_owned_accounts
 from app.services.investment_topups import convert_product_to_amount, initialize_amount_tracking
 from app.services.provenance import system_provenance
@@ -59,6 +60,10 @@ class AccountReorder(BaseModel):
 class AccountReconcile(BaseModel):
     actual_balance: int = Field(ge=0)
     notes: str | None = Field(default=None, max_length=500)
+
+
+class BalanceCheckRequest(BaseModel):
+    actual_balance: int = Field(ge=0, le=10**15)
 
 
 class AccountValuationUpdate(BaseModel):
@@ -860,6 +865,34 @@ def reconcile_account(
         ),
         "account": updated_account,
     }
+
+
+@router.post("/{account_id}/balance-check")
+def check_account_balance(
+    account_id: UUID,
+    payload: BalanceCheckRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Cocokkan saldo: compare a typed balance with the recorded one and list likely causes (read-only)."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            result = check_balance(cur, current_user["id"], str(account_id), payload.actual_balance)
+    return {"ok": True, **result}
+
+
+@router.post("/{account_id}/balance-matches")
+def record_account_balance_match(
+    account_id: UUID,
+    payload: BalanceCheckRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Saldo cocok: remember that the bank app showed exactly the recorded balance."""
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            match = record_match(cur, current_user["id"], str(account_id), payload.actual_balance)
+        conn.commit()
+    return {"ok": True, **match}
 
 
 @router.delete("/{account_id}")
