@@ -63,46 +63,12 @@ A detected charge that already matches an active plan SHALL be marked "sudah ada
 - **WHEN** the owner confirms "Jadikan rencana" for a monthly charge
 - **THEN** a non-posting monthly plan SHALL be created, no transaction SHALL be added, and the charge SHALL then be marked as having a plan
 
-### Requirement: Beranda insight uses the fair comparison
-The Beranda insight, on desktop and phone, SHALL be built from the fair period comparison for the Beranda period: the current salary cycle, or the current calendar month when no cycle is confirmed. It SHALL name the compared days, state the outflow change and the largest category changes as amounts, and SHALL NOT show a percentage or a savings verdict. Below 3 compared days, or without previous data, it SHALL say so.
-
-#### Scenario: Day one of a salary cycle
-- **GIVEN** a salary cycle that started today and a previous cycle with Rp 4.000.000 of spending
-- **WHEN** the owner opens Beranda
-- **THEN** the insight SHALL say that only 1 day has passed and that the comparison appears after 3 days, and SHALL show no decrease, percentage or "HEMAT" badge
-
-#### Scenario: Enough elapsed days
-- **GIVEN** no confirmed salary cycle, the 10th day of the current month with Rp 1.200.000 spent, and Rp 1.000.000 spent in the first 10 days of the previous month
-- **WHEN** the owner opens Beranda
-- **THEN** the insight SHALL say that outflow over the first 10 days is Rp 200.000 higher than the previous month over the same days, and SHALL list the largest category increases and decreases with their amounts
-
-#### Scenario: Previous period without transactions
-- **WHEN** the previous period has no recorded transactions
-- **THEN** the insight SHALL say that there is no previous data to compare with and SHALL show only the current outflow to date, which SHALL equal the comparison's `current_to_date` outflow for the same period and SHALL be called spending ("belanja"), not "Keluar", because Beranda "Keluar" also holds savings moves and top-ups
-
-#### Scenario: Spending and Keluar differ by saving
-- **GIVEN** Rp 3.164.500 Beranda "Keluar" of which Rp 800.000 is net fresh saving through movements
-- **WHEN** the insight names the period's spending
-- **THEN** it SHALL use the comparison outflow, SHALL NOT call that figure "Keluar", and the two figures SHALL not be presented as the same number
-
-#### Scenario: Comparison unavailable
-- **WHEN** the comparison request fails
-- **THEN** the insight SHALL say that the comparison could not be loaded and SHALL show no figures
-
 ### Requirement: Period outflow to date
 The comparison SHALL also report the selected period's inflow, outflow and net from its start to now as `current_to_date`, never shortened, covering the same window and using the same reportable-flow rules as the dashboard overview for that period.
 
 #### Scenario: Outflow to date matches the overview
 - **WHEN** the comparison is requested for the current salary cycle or calendar month
 - **THEN** `current_to_date` SHALL run from the period's first local day to today and its outflow SHALL equal the dashboard overview's `total_outflow` for the same period
-
-### Requirement: Beranda spending so far
-Any figure the Beranda insight card calls spending so far ("sejauh ini") SHALL be the period's outflow to date, not the shortened comparison figure.
-
-#### Scenario: Spending so far after a shortened comparison
-- **GIVEN** 31 October after a 30-day September without transactions, no spending on 1–30 October and Rp 3.600.000 spent today
-- **WHEN** the owner opens Beranda with the calendar-month basis
-- **THEN** the card SHALL say "Uang keluar sejauh ini Rp 3.600.000", not the compared Rp 0
 
 ### Requirement: Kakeibo Comparison Block
 The period comparison SHALL also report a `kakeibo` block with the six Kakeibo buckets for the current and the previous compared windows, in which saving includes net fresh saving through linked movements, computed by the same rule as the dashboard's Kakeibo breakdown.

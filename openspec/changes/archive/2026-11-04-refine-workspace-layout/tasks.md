@@ -156,7 +156,7 @@ Expected Result: the change is proven locally on data shaped like the owner's ac
 
 ## 6. Acceptance
 
-- [ ] 6.1 Present to the owner:
+- [x] 6.1 Present to the owner:
   - verification.md;
   - the comparison page against the approved preview;
   - the deviations;
