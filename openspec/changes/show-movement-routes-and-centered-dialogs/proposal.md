@@ -64,7 +64,7 @@ Waiting for the owner's approval in the session.
 - `transaction-ledger-management`: "Transaction Detail & Inline Editing" (dialog instead of side column) and "Consolidated Internal Movement Ledger Representation" (route labels, parent names, one-sided marker, filtered views).
 - `executive-sidebar-layout`: "Fluid Full-Width Workbench Layout" (no right-hand drawer column).
 - `beranda-cycle-summary`: "Recent Activity on Beranda" (the route with parent names, and the detail opens as a dialog).
-- `money-flow-map`: "Peta Aliran Map and Keyboard" (the node and link drawer opens as a centered dialog).
+- `money-flow-map`: ADDED "Peta Aliran Details Open Centered".
 
 `ui-copy-register` needs no delta, because "Masuk dari" and "Keluar ke" are row direction text, which "Spending Terms" already allows.
 

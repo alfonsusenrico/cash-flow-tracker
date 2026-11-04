@@ -1,12 +1,12 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
-### Requirement: Peta Aliran Map and Keyboard
-Peta Aliran SHALL draw the flow as a Sankey whose links are distinguished by pattern as well as colour. Its nodes SHALL be focusable buttons with accessible names that give the amounts in and out. The arrow keys SHALL move between nodes within and across columns, and Enter SHALL open the node's drawer, shown as a centered dialog above 760 px and a bottom sheet at 760 px and below. Esc SHALL close the drawer with focus restored. The drawer SHALL list a link's rows, and each row SHALL open the shared transaction drawer. The map SHALL keep its full width while a drawer is open.
+### Requirement: Peta Aliran Details Open Centered
+The node and link drawers of Peta Aliran SHALL open as a centered dialog above 760 px and as a bottom sheet at 760 px and below. The map SHALL keep its full width while one is open.
 
-#### Scenario: Keyboard node walk
-- **WHEN** the owner tabs into the map, presses the Right arrow and then Enter
-- **THEN** focus SHALL move to a node in the next column, and its drawer SHALL open with its links
+#### Scenario: Link detail on a wide window
+- **WHEN** the owner opens the link from "Bank Utama" to Kebutuhan at 1440 px
+- **THEN** its rows SHALL be listed in a centered dialog over the dimmed page, the map behind it SHALL keep its width, and Esc SHALL close the dialog and return focus to the link
 
-#### Scenario: Link rows in the drawer
-- **WHEN** the owner opens the link from "Bank Utama" to Kebutuhan
-- **THEN** the drawer SHALL list its rows 50 at a time, with their total equal to the link's amount
+#### Scenario: Node detail on a phone
+- **WHEN** the owner opens a node at 390 px
+- **THEN** its detail SHALL be a bottom sheet with focus inside it
