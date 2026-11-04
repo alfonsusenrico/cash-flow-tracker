@@ -39,7 +39,7 @@ For a new observed leg `L` and a recorded, unlinked observed leg `O`, the pair m
 **What a match does:** the leg that is not on `X` is the second report. It becomes a `duplicate_observation` of the on-`X` leg, with `reporting_link_id` and `reviewed_at` set. It books nothing and asks nothing. When both legs are on `X`, the earlier recorded leg is kept.
 
 **Safeguards:**
-- **Possible transfer:** when the second report has a recorded, unlinked opposite-direction leg of the same amount on `X` within the pairing window, the pair is a doubt. Both stay recorded, and the new leg is flagged `ambiguous_movement`.
+- **Possible transfer:** when a recorded, unlinked opposite-direction leg of the same amount sits on `X` within the pairing window, the pair is not skipped. The new leg is recorded, and the normal pairing decides, so a real transfer pairs.
 - **Absorb once:** a kept leg that already absorbed a second report from institution `I` is not a candidate for another report from `I`.
 - **Uniqueness:** two or more candidates are a doubt.
 - **Late reports:** a candidate further than the window but inside `notification_pairing_window_seconds` is a doubt. It is never skipped.

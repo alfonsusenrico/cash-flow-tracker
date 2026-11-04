@@ -26,7 +26,7 @@ An owner's active account link (account X, institution I) SHALL make a new obser
 #### Scenario: Possible transfer
 - **GIVEN** the link, a GoPay income of Rp 500.000 on Gopay and a GoPay expense of Rp 500.000 on Gopay recorded within the pairing window
 - **WHEN** a Jago income of Rp 500.000 with remote Gopay arrives
-- **THEN** nothing SHALL be skipped, and the Jago leg SHALL be recorded and flagged `needs_review` with `ambiguous_movement`
+- **THEN** nothing SHALL be skipped, and the Jago leg SHALL be recorded and decided by the normal pairing rules, so a real GoPay → Jago transfer pairs as one movement
 
 #### Scenario: Two top-ups of the same amount
 - **GIVEN** the link and two GoPay incomes of Rp 500.000 on Gopay 2 minutes apart, the first already holding Jago's skipped report
