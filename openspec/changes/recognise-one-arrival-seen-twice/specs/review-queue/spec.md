@@ -8,3 +8,8 @@
 - **WHEN** the queue is requested
 - **THEN** `seen_twice` SHALL list it with the GoPay leg as the kept leg, `counts.unreviewed` SHALL include it and `counts.attention` SHALL NOT
 - **AND** "Benar, satu transaksi" SHALL acknowledge it and remove it from the queue, and "Catat terpisah" SHALL record the event as its own leg with an undo token
+
+#### Scenario: Held report without a match
+- **GIVEN** an event held with `possible_duplicate_observation` whose proposed neighbour has no recorded leg
+- **WHEN** the owner opens it in "Terlihat dua kali"
+- **THEN** the first choice SHALL record it as its own transaction, and the other SHALL dismiss it without recording

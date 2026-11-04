@@ -86,13 +86,13 @@ Rejected: always keeping the first. In the incident's reverse order this would k
 
 ### D3. Duplicate observation and Tinjau
 
-- A `duplicate_observation` event has `processing_state = 'recorded'` and `provenance_kind = 'duplicate_observation'`, and points at the kept leg through `transaction_id`. `discover_candidates` and the pairing candidates exclude it. Its compact result is the kept leg's result, so the companion shows one transaction.
+- A `duplicate_observation` event has `processing_state = 'recorded'` and `provenance_kind = 'duplicate_observation'`, and points at the kept leg through `duplicate_of_transaction_id`. Its `transaction_id` stays null, because match keys, habits, feedback and reports read "the first event of a transaction" and must keep reading the kept leg's own event. `discover_candidates` and the pairing candidates exclude it. Its compact result is the kept leg's result, refreshed when the kept leg joins a movement, so the companion shows one transaction.
 - `GET /api/review/queue` returns `seen_twice`:
   - duplicate observations and `possible_duplicate_observation` holds from the last 30 days with `reviewed_at IS NULL`;
   - each item gives the app label, amount, post time and the kept leg's route.
 - **Actions:**
   - `POST /api/review/seen-twice/{event_id}/acknowledge` sets `reviewed_at`.
-  - "Catat terpisah" uses the existing manual-resolution path (`apply_manual_resolution`) on that event: it records the leg as observed and returns an undo token.
+  - `POST /api/review/seen-twice/{event_id}/record-separately` ("Catat terpisah") records the event as its own observed leg with the guard off and without pairing, then returns an undo token (review action kind `seen_twice_separate`). Undo removes the leg and makes the event a second observation again.
   - For a hold (D5), the path is the same.
 
 ### D4. Transfer answers
@@ -128,7 +128,11 @@ The chain to a follow-up hop (GoPay Tabungan → Jago Tabungan two minutes later
 
 ### D6. Migration
 
-`V45__duplicate_observation_review.sql` adds `notification_events.reviewed_at TIMESTAMPTZ NULL`, plus a partial index on `(user_id, post_time) WHERE provenance_kind = 'duplicate_observation' AND reviewed_at IS NULL`.
+`V45__duplicate_observation_review.sql` adds:
+- `notification_events.reviewed_at TIMESTAMPTZ NULL`, with a partial index on `(user_id, post_time) WHERE provenance_kind = 'duplicate_observation' AND reviewed_at IS NULL`;
+- `notification_events.duplicate_of_transaction_id UUID NULL REFERENCES transactions(id) ON DELETE SET NULL`, with a partial index;
+- the review action kind `seen_twice_separate` in `review_actions_kind_check`.
+
 - It is additive. An older release ignores the column.
 - Rollback leaves the column unused.
 
@@ -178,3 +182,15 @@ It prints dates, account labels, amounts and ids, and no notification text. It i
 - **OD118: guard window.** *Default: 120 s.* The alternative is the role-confirmation window of 30 s.
 - **OD119: earlier leg edited by the owner.** *Default:* the new event becomes the duplicate, even if its account was named. The alternative is holding both for the owner.
 - **OD120: neighbour window.** *Default:* ±300 s, 20 entries. The alternative is ±900 s, the pairing window.
+- **OD121: memory learned from transfers before this change.** No app path deletes a memory entry, and production holds owner entries such as `signature:bca|expense|payment` and `merchant:gopay` in Internal Movement. *Default:* memory entries in Internal Movement are left out when memory is loaded, so they are neither applied nor shown to the model; the rows stay. The alternative is a migration that deletes them, which changes owner data and needs the owner's go-ahead.
+
+## Implementation notes (2026-11-04)
+
+Deviations from the plan above, each kept because the plan's version was unsafe or incomplete:
+- **Duplicate pointer (D3, D6).** A separate `duplicate_of_transaction_id` column instead of `transaction_id`, so no query that reads one event per transaction changes meaning.
+- **Near misses (D1).** The guard reads mirrored legs within the pairing window. A single mirror within 120 s is a duplicate; a mirror further away, or several, flags `ambiguous_movement`. This is what the "Outside the window" scenario needs.
+- **Forbidden neighbour (D5).** `same_money_as` may name only a `recorded` neighbour. A queued neighbour may still be this money's first report, and holding the first report would leave the money unbooked. Such a proposal is `invalid_neighbour_reference`, and the guard decides.
+- **"Catat terpisah" (D3).** Recorded without pairing, so its undo never has to unlink a counterpart it did not capture. The owner links it in Tinjau if it is a movement.
+- **Held items in Tinjau.** A held report may be the only report, so its first choice is "Catat transaksi ini"; "Benar, satu transaksi" becomes "Abaikan laporan ini" when no recorded leg matches.
+- **Detector (D7).** A fourth list: model memory for a wording whose leg is now in a movement, such as `merchant:tabungan by jago` in Pendapatan Lain.
+- **The 2026-11-04 04:57:09 UTC update of `d032e50b`.** No other row, event, feedback or review action of the owner changed in that second, and the deferred pass could not reach the row (outside its 48 h lookback, classified by the owner). The paths that set `updated_at` without `owner_edited_at` are "Tandai sudah dicek" and a save that changes no classification field in the transaction detail. The likely cause is the owner opening the row there before deleting it. It cannot be proven: the row is deleted and no audit log exists.

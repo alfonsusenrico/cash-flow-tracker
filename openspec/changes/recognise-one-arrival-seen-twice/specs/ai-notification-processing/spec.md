@@ -64,7 +64,7 @@ The model output SHALL include `same_money_as`, either null or the context-local
 - **THEN** the event SHALL be held `needs_review` with `possible_duplicate_observation`, no transaction SHALL be created, and the owner SHALL be able to record it from Tinjau
 
 #### Scenario: Unknown or forbidden id
-- **WHEN** `same_money_as` is not a supplied neighbour id, or neighbours were incomplete
+- **WHEN** `same_money_as` is not a supplied neighbour id, names a neighbour that is not recorded yet, or neighbours were incomplete
 - **THEN** the proposal SHALL be rejected as `invalid_neighbour_reference`, like `invalid_candidate_reference`, and the event SHALL follow the existing path for a rejected model answer
 
 #### Scenario: Model unavailable
