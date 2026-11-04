@@ -19,7 +19,7 @@ export function HabitsLearnedCard() {
         title="Kebiasaan dihafal"
         count={query.data ? ready.length : undefined}
         countLabel={`${ready.length} kebiasaan siap`}
-        action={<Link href="/settings/kebiasaan" className="ws-linkbtn">Lihat semua</Link>}
+        action={<Link href="/settings/kebiasaan" className="ws-linkbtn" style={{ display: "inline-flex", alignItems: "center", minHeight: 24 }}>Lihat semua</Link>}
       />
       {query.isLoading ? (
         <Skeleton style={{ height: 80 }} />
