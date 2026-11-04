@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
+import { TestSessionBanner } from "@/components/settings/TestSessionBanner";
 import { QuickCaptureModal } from "@/components/ui/QuickCaptureModal";
 import { api, ApiError } from "@/lib/api";
 import { setCurrencyConfig, fmtMoney as globalFmtMoney, convertAmount as globalConvertAmount } from "@/lib/utils";
@@ -366,6 +367,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 <SideNav />
                 <main id="main" tabIndex={-1} className="ws-main">
                   <TopBar />
+                  <TestSessionBanner enabled={signedIn} />
                   {children}
                 </main>
               </div>

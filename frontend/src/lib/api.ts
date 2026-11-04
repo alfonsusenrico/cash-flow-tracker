@@ -207,6 +207,70 @@ export async function deleteSenderAlias(id: string): Promise<{ ok: boolean }> {
   return api.del<{ ok: boolean }>(`/ingest/sender-aliases/${id}`);
 }
 
+/** A capture-only "Sesi uji" window (notification-test-session D1); `ended_at` is set once it is over. */
+export interface TestSession {
+  id: string;
+  status: "open" | "ended";
+  started_at: string;
+  planned_end_at: string;
+  ended_at: string | null;
+  event_count: number;
+  labelled_count: number;
+}
+
+/** One notification captured during a session, read by the deterministic parser (D6). */
+export interface TestSessionEvent {
+  event_id: string;
+  test_case: string | null;
+  label_notes: string | null;
+  post_time: string;
+  received_at: string;
+  gap_seconds: number;
+  package_name: string;
+  app_label: string;
+  direction: "income" | "expense" | null;
+  amount: number | null;
+  parse_status: string;
+  preview: string;
+}
+
+export const TEST_SESSIONS_PATH = "/ingest/test-sessions";
+
+export async function getTestSessions(): Promise<{ ok: boolean; sessions: TestSession[] }> {
+  return api.get(TEST_SESSIONS_PATH);
+}
+
+export async function getCurrentTestSession(): Promise<{ ok: boolean; session: TestSession | null }> {
+  return api.get(`${TEST_SESSIONS_PATH}/current`);
+}
+
+export async function startTestSession(durationMinutes: number): Promise<{ ok: boolean; session: TestSession }> {
+  return api.post(TEST_SESSIONS_PATH, { duration_minutes: durationMinutes });
+}
+
+export async function endTestSession(id: string): Promise<{ ok: boolean; session: TestSession }> {
+  return api.post(`${TEST_SESSIONS_PATH}/${id}/end`);
+}
+
+export async function getTestSessionEvents(id: string): Promise<{ ok: boolean; events: TestSessionEvent[] }> {
+  return api.get(`${TEST_SESSIONS_PATH}/${id}/events`);
+}
+
+export async function labelTestSessionEvent(
+  id: string, eventId: string, label: { test_case?: string; label_notes?: string },
+): Promise<{ ok: boolean; event: TestSessionEvent }> {
+  return api.patch(`${TEST_SESSIONS_PATH}/${id}/events/${eventId}`, label);
+}
+
+export async function deleteTestSession(id: string): Promise<{ ok: boolean }> {
+  return api.del(`${TEST_SESSIONS_PATH}/${id}`);
+}
+
+/** The CSV download address; the browser sends the session cookie with the link. */
+export function testSessionCsvUrl(id: string): string {
+  return `${BASE}${TEST_SESSIONS_PATH}/${id}/export.csv`;
+}
+
 /** "This account is also reported by that app" (reconcile-linked-account-reports D1), learned in Tinjau. */
 export interface AccountLink {
   id: string;

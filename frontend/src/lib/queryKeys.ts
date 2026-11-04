@@ -52,6 +52,12 @@ export const queryKeys = {
   notificationAliases: ["notification-aliases"] as const,
   senderAliases: ["sender-aliases"] as const,
   accountLinks: (accountId?: string) => ["account-links", accountId ?? "all"] as const,
+  testSessions: {
+    all: ["test-sessions"] as const,
+    list: ["test-sessions", "list"] as const,
+    current: ["test-sessions", "current"] as const,
+    events: (id: string) => ["test-sessions", "events", id] as const,
+  },
   devices: ["devices"] as const,
   habits: {
     list: ["habits", "list"] as const,

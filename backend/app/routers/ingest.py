@@ -384,6 +384,106 @@ def stop_account_link(link_id: UUID, current_user: dict = Depends(get_session_us
     return {"ok": True}
 
 
+class TestSessionStart(BaseModel):
+    duration_minutes: int = Field(..., ge=15, le=360)
+
+
+class TestSessionLabel(BaseModel):
+    test_case: str | None = Field(default=None, max_length=8)
+    label_notes: str | None = Field(default=None, max_length=400)
+
+
+@router.get("/test-sessions")
+def list_test_sessions(current_user: dict = Depends(get_session_user)):
+    """The owner's Sesi uji sessions, newest first, with their capture counts (notification-test-session D5)."""
+    from app.services.test_sessions import list_sessions
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            return {"ok": True, "sessions": list_sessions(cur, current_user["id"])}
+
+
+@router.get("/test-sessions/current")
+def current_test_session(current_user: dict = Depends(get_session_user)):
+    """The running session for the banner, or null."""
+    from app.services.test_sessions import current_session
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            return {"ok": True, "session": current_session(cur, current_user["id"])}
+
+
+@router.post("/test-sessions")
+def start_test_session(payload: TestSessionStart, current_user: dict = Depends(get_session_user)):
+    from app.services.test_sessions import start_session
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            session = start_session(cur, current_user["id"], payload.duration_minutes)
+        conn.commit()
+    return {"ok": True, "session": session}
+
+
+@router.post("/test-sessions/{session_id}/end")
+def end_test_session(session_id: UUID, current_user: dict = Depends(get_session_user)):
+    from app.services.test_sessions import end_session
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            session = end_session(cur, current_user["id"], str(session_id))
+        conn.commit()
+    return {"ok": True, "session": session}
+
+
+@router.get("/test-sessions/{session_id}/events")
+def test_session_events(session_id: UUID, current_user: dict = Depends(get_session_user)):
+    from app.services.test_sessions import session_events
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION READ ONLY")
+            return {"ok": True, "events": session_events(cur, current_user["id"], str(session_id))}
+
+
+@router.patch("/test-sessions/{session_id}/events/{event_id}")
+def label_test_session_event(
+    session_id: UUID, event_id: UUID, payload: TestSessionLabel, current_user: dict = Depends(get_session_user),
+):
+    from app.services.test_sessions import label_event
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            event = label_event(cur, current_user["id"], str(session_id), str(event_id), payload.model_dump(exclude_unset=True))
+        conn.commit()
+    return {"ok": True, "event": event}
+
+
+@router.get("/test-sessions/{session_id}/export.csv")
+def export_test_session(session_id: UUID, current_user: dict = Depends(get_session_user)):
+    from fastapi.responses import Response
+    from app.services.test_sessions import export_csv
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION READ ONLY")
+            body = export_csv(cur, current_user["id"], str(session_id))
+    return Response(
+        content=body, media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="sesi-uji-{session_id}.csv"', "Cache-Control": "no-store"},
+    )
+
+
+@router.delete("/test-sessions/{session_id}")
+def delete_test_session(session_id: UUID, current_user: dict = Depends(get_session_user)):
+    from app.services.test_sessions import delete_session_data
+
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            delete_session_data(cur, current_user["id"], str(session_id))
+        conn.commit()
+    return {"ok": True}
+
+
 @router.get("/notifications")
 def list_ingested_notifications(
     package_name: str | None = None,
