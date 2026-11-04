@@ -37,28 +37,28 @@ Analisis SHALL offer a Siklus gaji / Bulan kalender toggle and the top-bar perio
 - **THEN** the flow SHALL show that cycle and replay SHALL cover all of its days
 
 ### Requirement: Ringkasan Figures and Names
-Ringkasan SHALL show Masuk, Keluar and Belanja as explainable figures. Keluar SHALL equal the Kakeibo total that Beranda shows as Keluar for the same period. Belanja SHALL equal the ledger summary's spending that Transaksi shows as Belanja. The explanations SHALL list only server lines whose total equals the figure, and the client SHALL compute no money value.
+Ringkasan SHALL show Masuk, Pengeluaran and Ditabung & investasi as explainable figures. Pengeluaran SHALL equal the ledger summary's `spending` that Transaksi and Beranda show, and Ditabung & investasi the Kakeibo saving bucket. The explanations SHALL list only server lines whose total equals the figure, and the client SHALL compute no money value.
 
 #### Scenario: Keluar equals Beranda
 - **GIVEN** the current cycle with Rp 1.834.000 of spending and Rp 500.000 of net fresh saving
 - **WHEN** Ringkasan and Beranda are shown
-- **THEN** both SHALL show the same Keluar, and Ringkasan's Belanja SHALL equal Transaksi's Belanja for the cycle
+- **THEN** Ringkasan and Beranda SHALL show the same Pengeluaran Rp 1.834.000 and the same Ditabung & investasi Rp 500.000, and Ringkasan's Pengeluaran SHALL equal Transaksi's for the cycle
 
 #### Scenario: Explanation of Belanja
-- **WHEN** the owner opens the explanation of Belanja in a period with a Rp 40.000 reimbursement
-- **THEN** it SHALL list gross spending and the applied reimbursement and end with the Belanja figure
+- **WHEN** the owner opens the explanation of Pengeluaran in a period with a Rp 40.000 reimbursement
+- **THEN** it SHALL list gross spending, the applied reimbursement and any saving-pillar expense moved to Ditabung & investasi, and end with the Pengeluaran figure
 
 #### Scenario: Older API without explanations
 - **WHEN** the analytics response has no `explanations`
 - **THEN** the figures SHALL show their values without an explanation trigger, and no figure SHALL be shown as Rp 0 in place of a missing value
 
 ### Requirement: Ringkasan Kakeibo Comparison
-Ringkasan SHALL compare the Kakeibo buckets with the previous period over the same elapsed days, using buckets in which saving includes net fresh saving. Each bucket SHALL show its current amount, a marker at the previous amount and the change as an amount, never as a percentage.
+Ringkasan SHALL show the running period's Pengeluaran so far against the previous whole period's total, in total and per pillar, as a share without a verdict, then the last completed period against its three-period average (`monthly-report`) with each pillar's change as an amount, never a percentage. It SHALL NOT compare the same elapsed days.
 
 #### Scenario: Kakeibo against the same day
-- **GIVEN** day 9 of the cycle and day 9 of the previous cycle
-- **WHEN** Ringkasan shows the Kakeibo card
-- **THEN** each of the six buckets SHALL show the current amount, a marker at the previous amount and "Naik Rp X" or "Turun Rp X", and the six current amounts SHALL add up to Keluar
+- **GIVEN** day 9 of the cycle and a completed previous cycle
+- **WHEN** Ringkasan shows the progress card
+- **THEN** each pillar SHALL show its amount so far and its share of the previous cycle's pillar total without "Naik" or "Turun", no marker at the same day SHALL be drawn, and the amounts SHALL add up to Pengeluaran so far
 
 #### Scenario: Unclassified spending
 - **WHEN** the period has spending without a pillar
@@ -72,7 +72,7 @@ Ringkasan SHALL show one spending bar per local day of the period up to today, w
 - **THEN** the highest day SHALL be labelled with its date and amount, today SHALL be marked as still running, later days SHALL be absent, and the same values SHALL be available as a table
 
 ### Requirement: Ringkasan Supporting Cards
-Ringkasan SHALL show the detected bills and subscriptions, "Seberapa sering ditanya", the net cash flow history and the comparison's increases and decreases. Its last card SHALL be "Kategori & anggaran" with the category and budget management and unchanged behaviour. The weekday heatmap SHALL NOT be shown.
+Ringkasan SHALL show compact cards for the detected bills and subscriptions, "Seberapa sering ditanya" and "Kebiasaan dihafal", each with its headline figure first and details behind "Rincian", without method paragraphs. Its last card SHALL be "Kategori & anggaran" with unchanged behaviour. The weekday heatmap and the same-day increases and decreases SHALL NOT be shown.
 
 #### Scenario: Category budget editing stays
 - **WHEN** the owner edits a category's budget in "Kategori & anggaran"
@@ -81,6 +81,10 @@ Ringkasan SHALL show the detected bills and subscriptions, "Seberapa sering dita
 #### Scenario: No weekday heatmap
 - **WHEN** Ringkasan is shown
 - **THEN** no weekday heatmap card SHALL be rendered, and the analytics response SHALL still include `day_of_week_heatmap`
+
+#### Scenario: Headline first
+- **WHEN** Ringkasan shows "Tagihan & langganan terdeteksi" with three detected charges
+- **THEN** the card SHALL show "3" and their monthly total first, and the charge list SHALL appear only after "Rincian" is opened
 
 ### Requirement: Analisis Layout and Accessibility
 At a main column of 900 CSS pixels or less, the Ringkasan cards SHALL form one column whose DOM order follows the visual order. At 760 CSS pixels or less, the page SHALL use the phone composition. Each tab SHALL show loading, empty and error states inside its panel. The page SHALL meet WCAG 2.2 AA in the light and the dark theme at 1440, 1280, 1024, 768 and 390 CSS pixels, at 200% and 400% zoom, and with reduced motion. Every label SHALL follow the neutral register of `ui-copy-register`.

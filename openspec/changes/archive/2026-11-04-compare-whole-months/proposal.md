@@ -45,6 +45,8 @@ A running month shows only its progress against the previous month's total, such
 
 **Plan approval, 2026-11-04.** After a summary of both refinement plans (`refine-workspace-layout` and `compare-whole-months`), the owner said "approved, defaults ok". OD88–OD95 take their recommended defaults (design.md, open decisions).
 
+**Acceptance, 2026-11-04.** After the combined summary of both refinement changes, with the report screenshots, the deviations and the open decisions, the owner said "accepted, defaults ok". Every open decision keeps its applied default.
+
 ## What Changes
 
 - **Comparison logic:**

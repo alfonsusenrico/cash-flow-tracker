@@ -126,7 +126,7 @@ Expected Result: the change is proven locally on data shaped like the owner's ac
 
 ## 6. Acceptance
 
-- [ ] 6.1 Present to the owner: verification.md, the comparison page, the deviations and OD88–OD95. The owner looks at the result and accepts it. Record the acceptance with the owner's words and the date in proposal.md. Evidence: the quote.
+- [x] 6.1 Present to the owner: verification.md, the comparison page, the deviations and OD88–OD95. The owner looks at the result and accepts it. Record the acceptance with the owner's words and the date in proposal.md. Evidence: the quote.
 
 ## Workflow follow-up
 
