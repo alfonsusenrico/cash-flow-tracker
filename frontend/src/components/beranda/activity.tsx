@@ -41,11 +41,6 @@ export function jakartaDay(value: Date | string): string {
   return JAKARTA_DAY.format(typeof value === "string" ? new Date(value) : value);
 }
 
-export function rowTime(row: ActivityRow, today: string): string {
-  const time = JAKARTA_TIME.format(new Date(row.date));
-  return jakartaDay(row.date) === today ? time : `kemarin ${time}`;
-}
-
 /** Status cell: waiting rows say so instead of a pillar; movements are not counted. */
 export function rowStatus(row: ActivityRow): { text: string; bucket: string; color?: string } {
   const kind = rowKind(row);
@@ -98,31 +93,30 @@ export function RowAmount({ row, bal }: { row: ActivityRow; bal: (amount: number
   return <span>−{bal(row.amount)}</span>;
 }
 
-function StatusCell({ row }: { row: ActivityRow }) {
-  const status = rowStatus(row);
-  return (
-    <span className="ws-kk" data-bucket={status.bucket} style={status.color ? ({ "--kc": status.color } as React.CSSProperties) : undefined}>
-      {status.text}
-    </span>
-  );
-}
+const SHORT_DAY = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
 
-function rowSubtitle(row: ActivityRow, today: string): string {
+/** Where the money went or came from: account and category, or what the movement or top-up was. */
+function rowSubtitle(row: ActivityRow): string {
   const kind = rowKind(row);
-  const where = kind === "movement" ? "Pindah saldo" : kind === "topup" ? row.notes || row.account_name : row.account_name;
-  return `${where} · ${rowTime(row, today)}`;
+  if (isWaiting(row)) return `${row.account_name} · menunggu jawaban`;
+  if (kind === "movement") return row.notes ? `Pindah saldo · ${row.notes}` : "Pindah saldo";
+  if (kind === "topup") return row.notes || row.account_name;
+  return [row.account_name, row.category_name].filter(Boolean).join(" · ");
 }
 
-/** Desktop "Aktivitas terbaru": today's and yesterday's rows, newest first, with the detail on select. */
+/** Day and time on the right of a row, e.g. "3 Nov · 21.04". */
+function rowWhen(row: ActivityRow): string {
+  return `${SHORT_DAY.format(new Date(row.date))} · ${JAKARTA_TIME.format(new Date(row.date))}`;
+}
+
+/** "Aktivitas terbaru": today's and yesterday's rows, newest first, with the detail on select. */
 export function ActivityCard({
   rows,
-  today,
   bal,
   onSelect,
   error,
 }: {
   rows: ActivityRow[] | null;
-  today: string;
   bal: (amount: number) => string;
   onSelect: (row: ActivityRow) => void;
   error: boolean;
@@ -131,13 +125,12 @@ export function ActivityCard({
     <Card labelledBy="beranda-activity">
       <CardHeader
         id="beranda-activity"
-        icon="receipt"
         title="Aktivitas terbaru"
         count={rows?.length}
         countLabel={rows ? `${rows.length} transaksi` : undefined}
         extra={<span className="text-[13.5px] font-normal text-[var(--muted)]">hari ini dan kemarin</span>}
         action={
-          <Link href="/ledger" className="ws-btn">
+          <Link href="/ledger" className="ws-linkbtn ws-accent-link">
             Semua transaksi
           </Link>
         }
@@ -145,83 +138,25 @@ export function ActivityCard({
       {error && <p className="ws-caption mt-3">Aktivitas belum bisa dimuat.</p>}
       {rows && rows.length === 0 && <p className="ws-caption mt-3">Belum ada transaksi hari ini dan kemarin.</p>}
       {rows && rows.length > 0 && (
-        <table className="ws-tbl">
-          <caption className="sr-only">Transaksi hari ini dan kemarin</caption>
-          <thead>
-            <tr>
-              <th scope="col">Transaksi</th>
-              <th scope="col" className="ws-hide-narrow">
-                Kategori
-              </th>
-              <th scope="col" className="ws-hide-narrow">
-                Dicatat
-              </th>
-              <th scope="col" className="r">
-                Jumlah
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <td>
-                  <div className="ws-who">
-                    <RowAvatar row={row} />
-                    <div className="ws-who-t">
-                      <button type="button" className="ws-rowbtn" onClick={() => onSelect(row)}>
-                        {rowTitle(row)}
-                      </button>
-                      <span>{rowSubtitle(row, today)}</span>
-                    </div>
-                  </div>
-                </td>
-                <td className="ws-hide-narrow">
-                  <StatusCell row={row} />
-                </td>
-                <td className="ws-hide-narrow">
-                  <span className="ws-prov">{provenanceText(row) ?? "—"}</span>
-                </td>
-                <td className="r">
+        // The whole row opens the transaction (owner preference, refine-workspace-layout).
+        <ul className="ws-act-list">
+          {rows.map((row) => (
+            <li key={row.id}>
+              <button type="button" className="ws-act-row" onClick={() => onSelect(row)}>
+                <RowAvatar row={row} />
+                <span className="ws-who-t">
+                  <b>{rowTitle(row)}</b>
+                  <span>{rowSubtitle(row)}</span>
+                </span>
+                <span className="ws-act-r">
                   <RowAmount row={row} bal={bal} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <span>{rowWhen(row)}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </Card>
-  );
-}
-
-/** Phone "Hari ini": today's rows as a tappable list. */
-export function TodayList({
-  rows,
-  today,
-  bal,
-  onSelect,
-}: {
-  rows: ActivityRow[];
-  today: string;
-  bal: (amount: number) => string;
-  onSelect: (row: ActivityRow) => void;
-}) {
-  if (!rows.length) return <p className="ws-caption px-1">Belum ada transaksi hari ini.</p>;
-  return (
-    <ul className="ws-ph-list">
-      {rows.map((row) => (
-        <li key={row.id}>
-          <button type="button" className="ws-ph-row" onClick={() => onSelect(row)}>
-            <RowAvatar row={row} />
-            <span className="ws-who-t">
-              <b>{rowTitle(row)}</b>
-              <span>
-                {rowTime(row, today)} · {rowStatus(row).text}
-              </span>
-            </span>
-            <RowAmount row={row} bal={bal} />
-          </button>
-        </li>
-      ))}
-    </ul>
   );
 }

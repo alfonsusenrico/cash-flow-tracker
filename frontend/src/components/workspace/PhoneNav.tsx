@@ -7,12 +7,10 @@ import { Icon } from "@/components/ui/Icon";
 import { sameRouteClick } from "@/lib/urlState";
 import { useWorkspace } from "./context";
 import { syncDialog, useEscapeLayer, useFocusTrap } from "./layers";
-import { NAV_GROUPS, PHONE_TAB_HREFS, REVIEW_HREF, SETTINGS_LINK, badgeWords, isActivePath } from "./navigation";
-
-const TAB_LINKS = NAV_GROUPS.flatMap((group) => group.links);
+import { MORE_HREFS, NAV_LINKS, PHONE_TAB_HREFS, REVIEW_HREF, SETTINGS_LINK, badgeWords, isActivePath } from "./navigation";
 
 function tabLink(href: string) {
-  return TAB_LINKS.find((link) => link.href === href)!;
+  return NAV_LINKS.find((link) => link.href === href)!;
 }
 
 /** Bottom tab bar at 760px and below: Beranda, Tinjau, Catat, Transaksi and Lainnya. */
@@ -83,13 +81,13 @@ export function PhoneTabBar() {
   );
 }
 
-/** Every page outside the tab bar, plus notifications, Bantuan and Keluar. Modal: focus stays inside. */
+/** Every page outside the tab bar, plus notifications and Keluar; help lives in Pengaturan (D3). Modal: focus stays inside. */
 export function MoreSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const pathname = usePathname();
-  const { reportBadge, notifications, openHelp, logout } = useWorkspace();
-  const links = [...TAB_LINKS.filter((link) => !PHONE_TAB_HREFS.includes(link.href as never)), SETTINGS_LINK];
+  const { reportBadge, notifications, logout } = useWorkspace();
+  const links = [...MORE_HREFS.map(tabLink), SETTINGS_LINK];
 
   useEffect(() => {
     syncDialog(ref.current, open);
@@ -160,17 +158,6 @@ export function MoreSheet({ open, onClose }: { open: boolean; onClose: () => voi
             </section>
           )}
           <div className="mt-2 border-t border-[var(--line)] pt-2">
-            <button
-              type="button"
-              className="ws-menu-item"
-              onClick={() => {
-                onClose();
-                openHelp();
-              }}
-            >
-              <Icon name="help-circle" className="h-5 w-5" />
-              Bantuan
-            </button>
             <button type="button" className="ws-menu-item" onClick={logout}>
               <Icon name="logout" className="h-5 w-5" />
               Keluar

@@ -8,6 +8,12 @@ const nextConfig = {
         destination: "/",
         permanent: false,
       },
+      // Tanya is retired (refine-workspace-layout D10); old links and bookmarks land on Beranda.
+      {
+        source: "/tanya",
+        destination: "/",
+        permanent: true,
+      },
     ];
   },
   async rewrites() {

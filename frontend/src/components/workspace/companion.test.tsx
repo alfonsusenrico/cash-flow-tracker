@@ -3,9 +3,8 @@ import { render, screen } from "@testing-library/react";
 import { axe } from "vitest-axe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDevices, type DeviceHealth, type PairedDevice } from "@/lib/api";
-import { CompanionStatus, companionState } from "./SideNav";
+import { CompanionStatus, companionState } from "./CompanionStatus";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
 vi.mock("@/lib/api", () => ({ getDevices: vi.fn() }));
 
 const NOW = new Date("2026-11-02T03:00:00Z"); // 10:00 in Asia/Jakarta
@@ -76,7 +75,7 @@ describe("companionState", () => {
 
   it("has no phone when only a manual key exists", () => {
     expect(companionState([device({ created_via: "manual" })], NOW).tone).toBe("none");
-    expect(companionState([], NOW)).toEqual({ tone: "none", title: "Belum ada HP terhubung", detail: "Sambungkan HP di Pengaturan" });
+    expect(companionState([], NOW)).toEqual({ tone: "none", title: "Belum ada HP terhubung", detail: "Sambungkan HP dengan kode di bawah ini" });
   });
 });
 
@@ -92,17 +91,16 @@ function show() {
 describe("CompanionStatus", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("shows a ready phone with its last contact as text, name and tooltip", async () => {
+  it("shows a ready phone with its last contact as text in Pengaturan", async () => {
     const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
     vi.mocked(getDevices).mockResolvedValue({
       ok: true,
       devices: [device({ health: health({ reported_at: minutesAgo(2), last_capture_at: minutesAgo(5) }) })],
     });
     const { container } = show();
-    const link = await screen.findByRole("link", { name: /^HP terhubung, Terakhir menangkap \d{2}\.\d{2}$/ });
-    expect(link).toHaveAttribute("href", "/settings/perangkat");
-    expect(link.querySelector(".ws-tip")).toHaveTextContent(link.getAttribute("aria-label")!);
-    expect(link).toHaveTextContent("HP terhubung");
+    expect(await screen.findByText("HP terhubung")).toBeInTheDocument();
+    expect(container).toHaveTextContent(/Terakhir menangkap \d{2}\.\d{2}/);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
@@ -111,17 +109,16 @@ describe("CompanionStatus", () => {
       ok: true,
       devices: [device({ health: health({ reported_at: new Date().toISOString(), ready: false, listener_connected: false }) })],
     });
-    show();
-    expect(
-      await screen.findByRole("link", { name: "HP perlu dicek, Aplikasi tidak berjalan di latar belakang." }),
-    ).toHaveTextContent("Aplikasi tidak berjalan di latar belakang.");
+    const { container } = show();
+    expect(await screen.findByText("HP perlu dicek")).toBeInTheDocument();
+    expect(container).toHaveTextContent("Aplikasi tidak berjalan di latar belakang.");
   });
 
-  it("links to the device settings when no phone is paired", async () => {
+  it("points to the pairing below when no phone is paired", async () => {
     vi.mocked(getDevices).mockResolvedValue({ ok: true, devices: [] });
-    show();
-    const link = await screen.findByRole("link", { name: "Belum ada HP terhubung, Sambungkan HP di Pengaturan" });
-    expect(link).toHaveAttribute("href", "/settings/perangkat");
+    const { container } = show();
+    expect(await screen.findByText("Belum ada HP terhubung")).toBeInTheDocument();
+    expect(container).toHaveTextContent("Sambungkan HP dengan kode di bawah ini");
   });
 
   it("renders nothing when the request fails", async () => {
@@ -130,6 +127,5 @@ describe("CompanionStatus", () => {
     await vi.waitFor(() => expect(getDevices).toHaveBeenCalled());
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(container).toBeEmptyDOMElement();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

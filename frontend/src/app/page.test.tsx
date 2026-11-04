@@ -46,6 +46,17 @@ function previewSummary(): CycleSummary {
         { key: "unclassified", label: "Belum diklasifikasi", amount: 0, note: null, href: "/ledger?period=cycle&kakeibo=unclassified" },
       ],
     },
+    spending: { amount: 2_364_500, lines: [
+      { key: "need", label: "Kebutuhan", amount: 1_420_000, note: null, href: "/ledger?period=cycle&kakeibo=need" },
+      { key: "want", label: "Keinginan", amount: 610_000, note: null, href: "/ledger?period=cycle&kakeibo=want" },
+      { key: "culture", label: "Budaya", amount: 245_000, note: null, href: "/ledger?period=cycle&kakeibo=culture" },
+      { key: "unexpected", label: "Tak Terduga", amount: 89_500, note: null, href: "/ledger?period=cycle&kakeibo=unexpected" },
+      { key: "unclassified", label: "Belum diklasifikasi", amount: 0, note: null, href: "/ledger?period=cycle&kakeibo=unclassified" },
+    ] },
+    fresh_saving: { amount: 800_000, lines: [
+      { key: "saving", label: "Tabungan", amount: 800_000, note: "Termasuk uang yang dipindah ke kantong tabungan atau diinvestasikan",
+        href: "/ledger?period=cycle&kakeibo=saving" },
+    ] },
     masuk: { total: 9_800_000, lines: [
       { key: "gaji", label: "Gaji", amount: 9_500_000, href: "/ledger?period=cycle&type=income&category=gaji" },
       { key: "refund", label: "Refund", amount: 300_000, href: "/ledger?period=cycle&type=income&category=refund" },
@@ -123,11 +134,6 @@ const recent = [
     date: "2026-11-02T00:45:00Z", kakeibo_type: "want", review_status: "auto", source: "notification", classified_by: "habit" },
 ];
 
-const comparison = {
-  compared_days: 9, previous_label: "Siklus 25 Sep – 24 Okt", previous_has_data: true, current_to_date: { outflow: 2_364_500 },
-  categories: { increases: [{ name: "Belanja Campur", change: 312_000 }], decreases: [{ name: "Kopi & Jajan", change: -88_000 }] },
-};
-
 let summary: CycleSummary | Error = previewSummary();
 let reviewQueue: typeof queue = queue;
 
@@ -139,7 +145,6 @@ function mockApi() {
     }
     if (path.startsWith("/dashboard/overview")) return { kpis: { runway_status: "unknown", coverage_months: null, runway_months: null,
       runway_days: null, emergency_fund_balance: 0, monthly_primary_expense: null, essential_cost: { method: "unknown" } } };
-    if (path.startsWith("/dashboard/period-comparison")) return comparison;
     if (path === "/review/queue") return reviewQueue;
     if (path === "/recurring") return { rules: [plan] };
     if (path === "/recurring/pending") return { rules: [], recent_auto_links: [] };
@@ -162,14 +167,12 @@ function renderBeranda() {
   );
 }
 
-/** The desktop composition; the phone one is rendered next to it and hidden by CSS. */
-const desk = () => document.querySelector(".ws-only-desk") as HTMLElement;
-const phone = () => document.querySelector(".ws-only-phone") as HTMLElement;
-const findLede = async () => (await screen.findByText((_, element) => element?.classList.contains("ws-lede") ?? false)) as HTMLElement;
-const lede = async () => {
+const kpis = async () => {
   renderBeranda();
-  return findLede();
+  return (await screen.findByRole("region", { name: "Ringkasan siklus ini" })) as HTMLElement;
 };
+const region = (name: string | RegExp) => screen.getByRole("region", { name });
+const figureNames = (scope: HTMLElement) => within(scope).getAllByRole("button").map((button) => button.getAttribute("aria-label"));
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -181,113 +184,75 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-describe("Beranda summary sentences", () => {
-  it("contains exactly the three explainable amounts and no other amount", async () => {
-    const text = await lede();
-    const figures = within(text).getAllByRole("button");
-    expect(figures.map((figure) => figure.getAttribute("aria-label"))).toEqual([
-      "Keluar siklus ini Rp 3.164.500: lihat rincian",
-      "Aman dipakai hari ini Rp 214.000: lihat rincian",
-      "Menunggu jawaban Rp 581.000: lihat rincian",
+describe("Beranda KPI cards", () => {
+  it("leads with the period's safe amount, then Masuk, Pengeluaran, Ditabung and Kekayaan bersih, each a server field", async () => {
+    const strip = await kpis();
+    expect(figureNames(strip)).toEqual([
+      "Aman dipakai sampai gajian Rp 4.922.000: lihat rincian",
+      "Masuk siklus ini Rp 9.800.000: lihat rincian",
+      "Pengeluaran siklus ini Rp 2.364.500: lihat rincian",
+      "Ditabung & investasi Rp 800.000: lihat rincian",
+      "Kekayaan bersih Rp 46.330.000: lihat rincian",
     ]);
-    const outside = figures.reduce((rest, figure) => rest.replace(figure.textContent ?? "", ""), text.textContent ?? "");
-    expect(outside).not.toMatch(/Rp/);
-    expect(text).toHaveTextContent("4 hal nunggu jawabanmu (Rp 581.000).");
-    expect(text).toHaveTextContent("Hari ke-9 siklus gajimu.");
+    expect(strip).toHaveTextContent("23 hari lagi · gaji ± 25 Nov");
+    expect(strip).toHaveTextContent("sejak gaji 25 Okt");
+    // No per-day figure, no same-date comparison and no percentage.
+    expect(strip).not.toHaveTextContent("Rp 214.000");
+    expect(document.body).not.toHaveTextContent(/hari pertama|\/hari/);
+    expect(strip.textContent).not.toMatch(/%/);
   });
 
-  it("explains Keluar with the six buckets, the saving note and links filtered by pillar", async () => {
-    const user = userEvent.setup();
-    await user.click(within(await lede()).getByRole("button", { name: /^Keluar siklus ini/ }));
-    const dialog = await screen.findByRole("dialog", { name: "Keluar siklus ini" });
-    const rows = within(dialog).getAllByRole("row");
-    expect(rows).toHaveLength(7);
-    expect(rows[6]).toHaveTextContent("Total keluarRp 3.164.500");
-    expect(dialog).toHaveTextContent("Termasuk uang yang dipindah ke kantong tabungan atau diinvestasikan");
-    expect(dialog).toHaveTextContent("Pindah saldo antar rekening sendiri tidak dihitung keluar.");
-    expect(within(dialog).getByRole("link", { name: "Keinginan" })).toHaveAttribute("href", "/ledger?period=cycle&kakeibo=want");
-    expect(document.activeElement).toBe(within(dialog).getByRole("heading", { name: "Keluar siklus ini" }));
+  it("shows no written summary and no insight banner", async () => {
+    await kpis();
+    expect(document.querySelector(".ws-lede")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Wawasan periode ini" })).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/siklus gajimu|nunggu jawabanmu/);
   });
 
-  it("explains the safe figure line by line, ending with the figure and the basis of the salary date", async () => {
+  it("explains the safe amount as Masuk minus Pengeluaran, Ditabung and Terjadwal", async () => {
     const user = userEvent.setup();
-    await user.click(within(await lede()).getByRole("button", { name: /^Aman dipakai/ }));
-    const dialog = await screen.findByRole("dialog", { name: "Aman dipakai hari ini" });
+    await user.click(within(await kpis()).getByRole("button", { name: /^Aman dipakai sampai gajian/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Aman dipakai sampai gajian" });
     const cells = within(dialog).getAllByRole("row").map((row) => row.textContent);
-    expect(cells[0]).toBe("Masuk+Rp 9.800.000");
-    expect(cells[1]).toBe("Keluar−Rp 3.164.500");
-    expect(cells).toContain("Tagihan: Cicilan Laptopjatuh tempo 5 Nov−Rp 600.000");
-    expect(cells).toContain("Setoran target: Liburan LombokRp 600.000 per bulan, sudah masuk Rp 0−Rp 600.000");
-    expect(cells).toContain("SisaRp 4.922.000");
-    expect(cells.some((cell) => cell?.startsWith("÷ 23 hari (2 Nov – 24 Nov)"))).toBe(true);
-    expect(cells.at(-1)).toBe("Aman hari iniRp 214.000");
-    expect(dialog).toHaveTextContent("Gaji berikutnya diperkirakan 25 November, dari gaji yang dikonfirmasi tanggal 25 Agu, 25 Sep, 25 Okt.");
+    expect(cells).toEqual([
+      "Masuk+Rp 9.800.000", "Pengeluaran−Rp 2.364.500", "Ditabung & investasi−Rp 800.000", "Terjadwal−Rp 1.713.500", "SisaRp 4.922.000",
+    ]);
   });
 
-  it("explains what is waiting and what is already inside Keluar", async () => {
+  it("explains Pengeluaran with the five spending buckets and no saving", async () => {
     const user = userEvent.setup();
-    await user.click(within(await lede()).getByRole("button", { name: /^Menunggu jawaban/ }));
-    const dialog = await screen.findByRole("dialog", { name: "Menunggu jawaban" });
-    expect(dialog).toHaveTextContent("Belum dikenali · sudah di Keluar sebagai Belum diklasifikasi");
-    expect(dialog).toHaveTextContent("Pindah saldo belum lengkap · belum masuk Keluar");
-    expect(dialog).toHaveTextContent("Rp 357.000 sudah ikut dihitung di Keluar, Rp 224.000 belum.");
-    expect(within(dialog).getByRole("link", { name: /Jawab di Tinjau/ })).toHaveAttribute("href", "/review");
+    await user.click(within(await kpis()).getByRole("button", { name: /^Pengeluaran siklus ini/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Pengeluaran siklus ini" });
+    const rows = within(dialog).getAllByRole("row");
+    expect(rows).toHaveLength(6);
+    expect(rows[5]).toHaveTextContent("Total pengeluaranRp 2.364.500");
+    expect(dialog).not.toHaveTextContent("Tabungan");
+    expect(within(dialog).getByRole("link", { name: "Keinginan" })).toHaveAttribute("href", "/ledger?period=cycle&kakeibo=want");
   });
 
-  it("says everything is settled, without an amount, when nothing waits", async () => {
-    summary = { ...previewSummary(), waiting: { count: 0, total: 0, in_keluar: 0, not_in_keluar: 0, lines: [] } };
-    const text = await lede();
-    expect(text).toHaveTextContent("Semua transaksi udah beres, nggak ada yang nunggu jawaban.");
-    expect(within(text).getAllByRole("button")).toHaveLength(2);
-  });
-
-  it("says why the safe figure is missing when the salary date is irregular, and still explains it", async () => {
+  it("says the next salary date is unknown, still with the period amount", async () => {
     const base = previewSummary();
     summary = { ...base,
       expected_salary: { ...base.expected_salary, status: "unknown", date: null, basis: null, reason: "irregular_receipts" },
-      safe_to_spend: { status: "unavailable", reason: "no_expected_salary", detail: "irregular_receipts", per_day: null, days_left: null, rounding: 1000, over_by: null },
-      scheduled: { ...base.scheduled, window_basis: "next_30_days", window_end: "2026-12-02" } };
-    const user = userEvent.setup();
-    const text = await lede();
-    expect(text).toHaveTextContent("Angka aman per hari belum bisa aku hitung: tanggal gaji belum jelas.");
-    expect(text).not.toHaveTextContent("Rp 214.000");
-    await user.click(within(text).getByRole("button", { name: "Aman dipakai hari ini belum tersedia: lihat rincian" }));
-    const dialog = await screen.findByRole("dialog", { name: "Aman dipakai hari ini" });
-    expect(dialog).toHaveTextContent("tanggal tiga gaji terakhir tidak teratur");
-    expect(dialog).toHaveTextContent("SisaRp 4.922.000");
-    expect(within(dialog).queryByText("Aman hari ini")).not.toBeInTheDocument();
-    expect(within(desk()).getByText("Belum bisa dihitung")).toBeInTheDocument();
+      safe_to_spend: { status: "unavailable", reason: "no_expected_salary", detail: "irregular_receipts", per_day: null, days_left: null, rounding: 1000, over_by: null } };
+    const strip = await kpis();
+    expect(strip).toHaveTextContent("Tanggal gaji berikutnya belum diketahui");
+    expect(within(strip).getByRole("button", { name: /^Aman dipakai sampai gajian Rp 4\.922\.000/ })).toBeInTheDocument();
   });
 
-  it("says the salary is late without using a zero or negative day count", async () => {
+  it("shows Rp 0 and by how much the period is over, never a negative safe amount", async () => {
     const base = previewSummary();
-    summary = { ...base,
-      expected_salary: { ...base.expected_salary, status: "overdue", date: "2026-11-01" },
-      safe_to_spend: { status: "unavailable", reason: "salary_overdue", detail: null, per_day: null, days_left: null, rounding: 1000, over_by: null } };
-    const text = await lede();
-    expect(text).toHaveTextContent("belum bisa aku hitung: gaji baru belum tercatat.");
-    expect(desk()).not.toHaveTextContent(/0 hari lagi/);
-  });
-
-  it("shows no negative daily amount when the period is over, and explains by how much", async () => {
-    const base = previewSummary();
-    summary = { ...base, remaining: { ...base.remaining, total: -300_000 },
-      safe_to_spend: { ...base.safe_to_spend, per_day: 0, days_left: 10, over_by: 300_000 } };
-    const user = userEvent.setup();
-    const text = await lede();
-    expect(text).toHaveTextContent("Hari ini belum ada yang aman dipakai");
-    expect(desk()).toHaveTextContent("Siklus ini sudah lebih Rp 300.000 dari uang masuk.");
-    await user.click(within(text).getByRole("button", { name: /^Aman dipakai/ }));
-    expect(await screen.findByRole("dialog", { name: "Aman dipakai hari ini" })).toHaveTextContent("sudah lebih Rp 300.000 dari uang masuk");
+    summary = { ...base, remaining: { ...base.remaining, total: -300_000 }, safe_to_spend: { ...base.safe_to_spend, per_day: 0, over_by: 300_000 } };
+    const strip = await kpis();
+    expect(strip).toHaveTextContent("lebih Rp 300.000 dari uang masuk");
+    expect(strip).not.toHaveTextContent("−Rp 300.000");
+    expect(region(/^Uang siklus ini/)).toHaveTextContent("Siklus ini sudah lebih Rp 300.000 dari uang masuk.");
   });
 });
 
 describe("Beranda period and header", () => {
-  it("names the cycle day and start date", () => {
-    expect(headerFor(previewSummary(), NOW)).toEqual({
-      title: "Senin, 2 November",
-      subtitle: "Siklus gaji hari ke-9 · sejak 25 Okt · gaji berikutnya ± 25 Nov",
-    });
+  it("names the cycle start and day", () => {
+    expect(headerFor(previewSummary(), NOW)).toEqual({ title: "Senin, 2 November", subtitle: "Siklus sejak 25 Okt · hari ke-9" });
   });
 
   it("falls back to the calendar month without a cycle and links to the salary settings", async () => {
@@ -297,86 +262,71 @@ describe("Beranda period and header", () => {
       safe_to_spend: { ...base.safe_to_spend, status: "unavailable", reason: "no_cycle", per_day: null, days_left: null } };
     summary = month;
     expect(headerFor(month, NOW).subtitle).toBe("November · siklus gaji belum tersedia");
-    const text = await lede();
-    expect(text).toHaveTextContent("Hari ke-2 bulan November. Bulan ini kamu keluar");
-    expect(within(desk()).getByRole("link", { name: "Atur gaji di Pengaturan" })).toHaveAttribute("href", "/settings/gaji");
+    renderBeranda();
+    expect(await screen.findByRole("region", { name: "Ringkasan bulan ini" })).toHaveTextContent("sejak 1 November");
+    expect(screen.getByRole("link", { name: "Atur gaji di Pengaturan" })).toHaveAttribute("href", "/settings/gaji");
   });
 });
 
-describe("Beranda KPI strip and cards", () => {
-  it("shows four figures, signed-amount chips and no percentage", async () => {
-    await lede();
-    const strip = within(desk()).getByRole("region", { name: "Ringkasan siklus ini" });
-    expect(strip).toHaveTextContent("Rp 214.000");
-    expect(strip).toHaveTextContent("23 hari lagi sampai gaji berikutnya");
-    expect(strip).toHaveTextContent("+Rp 154.500");
-    expect(strip).toHaveTextContent("+Rp 300.000");
-    expect(strip).toHaveTextContent("Rp 46.330.000");
-    expect(strip.textContent).not.toMatch(/%/);
-  });
-
-  it("omits the chips before three compared days", async () => {
-    const base = previewSummary();
-    summary = { ...base, comparison: { ...base.comparison, status: "too_short", compared_days: 2,
-      keluar: { current: 1, previous: null, change: null }, masuk: { current: 1, previous: null, change: null }, belanja: { current: 1, previous: null, change: null } } };
-    await lede();
-    const strip = within(desk()).getByRole("region", { name: "Ringkasan siklus ini" });
-    expect(strip).not.toHaveTextContent("+Rp");
-    expect(strip).toHaveTextContent("perbandingan muncul setelah 3 hari");
-    expect(within(desk()).getByRole("region", { name: "Wawasan periode ini" })).toHaveTextContent("Perbandingan dengan periode lalu muncul setelah 3 hari.");
-  });
-
-  it("splits Uang siklus ini into three labelled amounts that add up to Masuk, with the bar hidden", async () => {
-    await lede();
-    const card = within(desk()).getByRole("region", { name: "Uang siklus ini" });
+describe("Beranda cards", () => {
+  it("splits Uang siklus ini into four amounts that add up to Masuk, with one formula line", async () => {
+    await kpis();
+    const card = region(/^Uang siklus ini/);
     const list = within(card).getByRole("list", { name: "Pembagian uang siklus ini" });
-    expect(within(list).getAllByRole("listitem").map((item) => item.querySelector(".ws-legend-v")?.textContent)).toEqual([
-      "Rp 3.164.500", "Rp 1.713.500", "Rp 4.922.000",
+    expect(within(list).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "PengeluaranRp 2.364.500", "Ditabung & investasiRp 800.000", "TerjadwalRp 1.713.500", "Aman dipakaiRp 4.922.000",
     ]);
     expect(card.querySelector(".ws-moneybar")).toHaveAttribute("aria-hidden", "true");
-    expect(card).toHaveTextContent("3 tagihan + 2 target");
+    expect(card).toHaveTextContent("Aman dipakai = masuk − pengeluaran − ditabung − terjadwal.");
+    expect(card).toHaveTextContent("dari Rp 9.800.000 masuk");
   });
 
-  it("lists Kakeibo's six buckets with the total equal to Keluar and ledger links", async () => {
-    await lede();
-    const card = within(desk()).getByRole("region", { name: "Kakeibo siklus ini" });
-    const items = within(card).getAllByRole("listitem");
-    expect(items).toHaveLength(6);
-    expect(items[5]).toHaveTextContent("Belum diklasifikasiRp 00%");
+  it("lists Kakeibo's spending buckets under the Pengeluaran total and Tabungan apart", async () => {
+    await kpis();
+    const card = region(/^Kakeibo siklus ini/);
+    const [spending, saving] = within(card).getAllByRole("list");
+    expect(within(spending).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "KebutuhanRp 1.420.000", "KeinginanRp 610.000", "BudayaRp 245.000", "Tak TerdugaRp 89.500", "Belum diklasifikasiRp 0",
+    ]);
+    expect(saving).toHaveAccessibleName("Ditabung");
+    expect(saving).toHaveTextContent("TabunganRp 800.000");
+    expect(within(card).getByRole("button", { name: "Pengeluaran siklus ini Rp 2.364.500: lihat rincian" })).toBeInTheDocument();
     expect(within(card).getByRole("link", { name: "Belum diklasifikasi" })).toHaveAttribute("href", "/ledger?period=cycle&kakeibo=unclassified");
-    expect(within(card).getByRole("button", { name: "Keluar siklus ini Rp 3.164.500: lihat rincian" })).toBeInTheDocument();
   });
 
   it("keeps an unknown Ketahanan Dana unknown, without a sentinel", async () => {
-    await lede();
-    const card = within(desk()).getByRole("region", { name: "Ketahanan Dana" });
+    await kpis();
+    const card = region("Ketahanan Dana");
     await waitFor(() => expect(card).toHaveTextContent("Belum bisa dihitung"));
     expect(card.textContent).not.toMatch(/\d+ bulan|999/);
   });
 
-  it("words the insight as belanja with amounts and no percentage", async () => {
-    await lede();
-    const insight = within(desk()).getByRole("region", { name: "Wawasan periode ini" });
-    await waitFor(() => expect(insight).toHaveTextContent("Naik paling besar: Belanja Campur +Rp 312.000."));
-    expect(insight).toHaveTextContent("Belanja 9 hari pertama Rp 45.500 lebih hemat dari periode lalu di hari yang sama.");
-    expect(insight.textContent).not.toMatch(/%|Keluar/);
+  it("shows the months of Ketahanan Dana in large type with the fund and its target", async () => {
+    const base = vi.mocked(api.get).getMockImplementation()!;
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.startsWith("/dashboard/overview")) return { kpis: { runway_status: "ok", coverage_months: 6.1, runway_months: 6.1, runway_days: 183,
+        emergency_fund_balance: 20_412_400, monthly_primary_expense: 3_346_000, target_amount: 19_963_800, coverage_pct: 100, essential_cost: { method: "median" } } };
+      return base(path);
+    });
+    await kpis();
+    const card = region("Ketahanan Dana");
+    await waitFor(() => expect(card).toHaveTextContent("6,1 bulan biaya pokok"));
+    expect(card).toHaveTextContent("Rp 20.412.400 dana darurat");
+    expect(card).toHaveTextContent("target Rp 19.963.800");
   });
 });
 
 describe("Perlu tindakan", () => {
-  it("follows Uang siklus ini when the grid is one column, and leads the side column otherwise", async () => {
-    const region = (name: string | RegExp) => within(desk()).getByRole("region", { name });
+  it("comes first when the grid is one column, and leads the side column otherwise", async () => {
     const precedes = (first: HTMLElement, second: HTMLElement) =>
       Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
-    const todoFollowsMoney = () => {
-      const money = region("Uang siklus ini");
-      const todo = region(/Perlu tindakan/);
-      const activity = region(/Aktivitas terbaru/);
-      return precedes(money, todo) && precedes(todo, activity);
+    const phoneOrder = () => {
+      const order = [region(/Perlu tindakan/), region(/^Uang siklus ini/), region(/Aktivitas terbaru/), region(/^Kakeibo siklus ini/), region("Ketahanan Dana")];
+      return order.every((card, index) => index === 0 || precedes(order[index - 1], card));
     };
 
-    await lede();
-    expect(todoFollowsMoney()).toBe(false);
+    await kpis();
+    expect(phoneOrder()).toBe(false);
     expect(precedes(region(/Aktivitas terbaru/), region(/Perlu tindakan/))).toBe(true);
     cleanup();
 
@@ -391,21 +341,21 @@ describe("Perlu tindakan", () => {
     }
     vi.stubGlobal("ResizeObserver", FixedWidthObserver);
     try {
-      await lede();
-      await waitFor(() => expect(todoFollowsMoney()).toBe(true));
+      await kpis();
+      await waitFor(() => expect(phoneOrder()).toBe(true));
       cleanup();
 
       width = 901;
-      await lede();
-      expect(todoFollowsMoney()).toBe(false);
+      await kpis();
+      expect(phoneOrder()).toBe(false);
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  it("lists the question first and the plan last, each opening its place", async () => {
-    await lede();
-    const card = within(desk()).getByRole("region", { name: /Perlu tindakan/ });
+  it("lists the question first and the plan last, with the waiting amount beside the title", async () => {
+    await kpis();
+    const card = region(/Perlu tindakan/);
     await waitFor(() => expect(within(card).getAllByRole("listitem")).toHaveLength(4));
     const items = within(card).getAllByRole("listitem");
     expect(items[0]).toHaveTextContent("Belum dikenali: QRIS 0812-xxxx Rp 45.000");
@@ -414,40 +364,41 @@ describe("Perlu tindakan", () => {
     expect(items[3]).toHaveTextContent("Streamio Rp 65.000 besok");
     expect(within(items[0]).getByRole("link", { name: "Jawab: QRIS 0812-xxxx" })).toHaveAttribute("href", "/review?item=qris#review-questions");
     expect(within(card).getByRole("link", { name: "Buka Tinjau" })).toHaveAttribute("href", "/review");
+    expect(card).toHaveTextContent("Rp 581.000 menunggu jawaban");
     expect(within(card).getByRole("heading", { name: /Perlu tindakan.*4 perlu ditinjau/ })).toBeInTheDocument();
   });
 
   it("says Tinjau is settled and offers the automatic rows of today", async () => {
     reviewQueue = { ...queue, counts: { ...queue.counts, attention: 0 }, questions: [], groups: [], awaiting: [] };
-    await lede();
-    const card = within(desk()).getByRole("region", { name: /Perlu tindakan/ });
+    await kpis();
+    const card = region(/Perlu tindakan/);
     await waitFor(() => expect(card).toHaveTextContent("Semua sudah ditinjau"));
     await waitFor(() => expect(card).toHaveTextContent("2 dicatat otomatis hari ini."));
-    expect(within(card).getByRole("link", { name: "cek kalau mau" })).toHaveAttribute("href", "/ledger?review=auto");
   });
 });
 
 describe("Beranda recent activity", () => {
-  it("names a top-up once in lavender, a movement once in sky, and a waiting row as waiting", async () => {
-    await lede();
-    const card = within(desk()).getByRole("region", { name: /Aktivitas terbaru/ });
-    await waitFor(() => expect(within(card).getAllByRole("row")).toHaveLength(5));
-    const topup = within(card).getByRole("button", { name: "Top up Investasi" }).closest("tr")!;
+  it("names a top-up once in lavender, a movement once in sky, and a waiting row as waiting, each a whole-row button", async () => {
+    await kpis();
+    const card = region(/Aktivitas terbaru/);
+    await waitFor(() => expect(within(card).getAllByRole("listitem")).toHaveLength(4));
+    const topup = within(card).getByRole("button", { name: /^Top up Investasi/ });
     expect(topup.querySelector(".ws-amt-inv")).toHaveTextContent("Rp 250.000");
     expect(topup.querySelector(".ws-ava")).toHaveClass("ws-tone-inv");
-    const movement = within(card).getByRole("button", { name: "Bank Utama → Dompet Digital" }).closest("tr")!;
+    const movement = within(card).getByRole("button", { name: /^Bank Utama → Dompet Digital/ });
     expect(movement.querySelector(".ws-amt-tr")).toHaveTextContent("Rp 500.000");
-    expect(movement).toHaveTextContent("Tidak dihitung");
-    const waiting = within(card).getByRole("button", { name: "QRIS 0812-xxxx" }).closest("tr")!;
-    expect(waiting).toHaveTextContent("Menunggu jawaban");
+    expect(movement).toHaveTextContent("Pindah saldo");
+    const waiting = within(card).getByRole("button", { name: /^QRIS 0812-xxxx/ });
+    expect(waiting).toHaveTextContent("Dompet Digital · menunggu jawaban");
     expect(waiting).toHaveTextContent("−Rp 45.000");
+    expect(waiting).toHaveTextContent("2 Nov · 16.05");
   });
 
   it("opens the shared transaction drawer for a row", async () => {
     const user = userEvent.setup();
-    await lede();
-    const card = within(desk()).getByRole("region", { name: /Aktivitas terbaru/ });
-    const opener = await within(card).findByRole("button", { name: "Kopi Pagi" });
+    await kpis();
+    const card = region(/Aktivitas terbaru/);
+    const opener = await within(card).findByRole("button", { name: /^Kopi Pagi/ });
     await user.click(opener);
     const drawer = await screen.findByRole("dialog", { name: /^Kopi Pagi/ });
     expect(await within(drawer).findByText("Diklasifikasikan")).toBeInTheDocument();
@@ -460,30 +411,16 @@ describe("Beranda recent activity", () => {
 
   it("says a row deleted elsewhere is gone", async () => {
     const user = userEvent.setup();
-    await lede();
+    await kpis();
     const base = vi.mocked(api.get).getMockImplementation()!;
     const { ApiError } = await import("@/lib/api");
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === "/transactions/kopi") throw new ApiError(404, "Transaction not found");
       return base(path);
     });
-    const card = within(desk()).getByRole("region", { name: /Aktivitas terbaru/ });
-    await user.click(await within(card).findByRole("button", { name: "Kopi Pagi" }));
+    const card = region(/Aktivitas terbaru/);
+    await user.click(await within(card).findByRole("button", { name: /^Kopi Pagi/ }));
     expect(await screen.findByText(/Transaksi ini sudah tidak ada/)).toBeInTheDocument();
-  });
-});
-
-describe("Beranda on phones", () => {
-  it("shows the same figures as the desktop layout, safe-to-spend first", async () => {
-    await lede();
-    const hero = within(phone()).getByRole("region", { name: "Aman dipakai hari ini" });
-    expect(phone().querySelector("section")).toBe(hero);
-    const name = (scope: HTMLElement, label: RegExp) => within(scope).getAllByRole("button", { name: label })[0].getAttribute("aria-label");
-    for (const label of [/^Aman dipakai hari ini/, /^Keluar siklus ini/, /^Masuk siklus ini/, /^Menunggu jawaban/, /^Sisa aman/]) {
-      expect(name(phone(), label)).toBe(name(desk(), label));
-    }
-    const headings = within(phone()).getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
-    expect(headings).toEqual(["Aman dipakai hari ini", "Perlu tindakan", "Siklus ini", "Hari ini"]);
   });
 });
 
@@ -491,33 +428,28 @@ describe("Beranda loading and failure", () => {
   it("shows placeholders of the final layout while loading", async () => {
     vi.mocked(api.get).mockImplementation(() => new Promise(() => {}));
     renderBeranda();
-    expect(desk().querySelector('[aria-busy="true"]')).toBeInTheDocument();
+    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   });
 
   it("says the figures could not be loaded, offers a retry, shows no Rp 0, and keeps the other cards", async () => {
     summary = new Error("boom");
     const user = userEvent.setup();
     renderBeranda();
-    const alert = await within(desk()).findByRole("alert");
+    const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Angka Beranda belum dapat dimuat.");
-    expect(desk()).not.toHaveTextContent("Rp 0");
-    expect(within(desk()).queryByRole("region", { name: /Ringkasan/ })).not.toBeInTheDocument();
-    expect(within(desk()).getByRole("region", { name: /Perlu tindakan/ })).toBeInTheDocument();
-    expect(within(desk()).getByRole("region", { name: /Aktivitas terbaru/ })).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("Rp 0");
+    expect(screen.queryByRole("region", { name: /Ringkasan/ })).not.toBeInTheDocument();
+    expect(region(/Perlu tindakan/)).toBeInTheDocument();
+    expect(region(/Aktivitas terbaru/)).toBeInTheDocument();
     summary = previewSummary();
     await user.click(within(alert).getByRole("button", { name: "Coba lagi" }));
-    expect(await findLede()).toHaveTextContent("Rp 3.164.500");
+    expect(await screen.findByRole("region", { name: "Ringkasan siklus ini" })).toHaveTextContent("Rp 2.364.500");
   });
 
   it("has no axe violations in the normal state", async () => {
-    // Without the stylesheet both compositions would be visible; the browser shows one per width.
-    const style = document.createElement("style");
-    style.textContent = ".ws-only-phone { display: none; }";
-    document.head.appendChild(style);
     const { container } = renderBeranda();
-    await findLede();
-    await waitFor(() => expect(within(desk()).getAllByRole("listitem").length).toBeGreaterThan(5));
+    await screen.findByRole("region", { name: "Ringkasan siklus ini" });
+    await waitFor(() => expect(within(region(/Aktivitas terbaru/)).getAllByRole("listitem").length).toBe(4));
     expect((await axe(container)).violations).toHaveLength(0);
-    style.remove();
   });
 });

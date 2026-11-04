@@ -13,9 +13,9 @@ export const SETTINGS_HOME = "/settings";
 
 // Order and grouping approved as OD53 (redesign-money-and-settings D6).
 export const SETTINGS_SECTIONS: SettingsSectionEntry[] = [
-  { slug: "perangkat", href: "/settings/perangkat", title: "HP & perangkat", purpose: "Ponsel yang mengirim notifikasi bank dan kunci API cadangan." },
+  { slug: "perangkat", href: "/settings/perangkat", title: "HP & perangkat", purpose: "Status HP, ponsel yang mengirim notifikasi bank dan kunci API cadangan." },
   { slug: "kebiasaan", href: "/settings/kebiasaan", title: "Kebiasaan", purpose: "Kebiasaan dan top up yang sudah dipelajari dari jawaban di Tinjau." },
-  { slug: "tampilan", href: "/settings/tampilan", title: "Tampilan", purpose: "Tema, pintasan keyboard dan sembunyikan saldo." },
+  { slug: "tampilan", href: "/settings/tampilan", title: "Tampilan", purpose: "Tema, pintasan keyboard, sembunyikan saldo dan bantuan." },
   { slug: "profil", href: "/settings/profil", title: "Profil", purpose: "Nama tampilan dan nama di notifikasi bank.", group: "Akun" },
   { slug: "gaji", href: "/settings/gaji", title: "Gaji & siklus", purpose: "Sumber gaji yang memulai setiap siklus laporan.", group: "Akun" },
   {

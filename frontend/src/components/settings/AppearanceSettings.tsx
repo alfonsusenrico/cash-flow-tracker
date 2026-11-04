@@ -9,7 +9,7 @@ import styles from "@/components/accounts/money.module.css";
 
 /** Tampilan (D9): the same theme, shortcut and hidden-balance state the account menu and help dialog use. */
 export function AppearanceSettings() {
-  const { themeChoice, setThemeChoice } = useWorkspace();
+  const { themeChoice, setThemeChoice, openHelp } = useWorkspace();
   const { singleKeysEnabled, setSingleKeysEnabled } = useShortcuts();
   const { hideBalances, setHideBalances } = useAppCtx();
   return (
@@ -38,6 +38,16 @@ export function AppearanceSettings() {
         checked={hideBalances}
         onChange={setHideBalances}
       />
+      {/* Help moved here from the sidebar and Lainnya (refine-workspace-layout D3, OD84); ? opens it everywhere. */}
+      <div className={styles.switchRow}>
+        <div>
+          <b id="setting-help-label">Bantuan &amp; pintasan</b>
+          <span id="setting-help-caption">Cara memakai aplikasi dan daftar tombol pintas. Tekan ? di halaman mana pun.</span>
+        </div>
+        <button type="button" className="ws-btn" aria-describedby="setting-help-caption" onClick={openHelp}>
+          Buka bantuan
+        </button>
+      </div>
     </SettingsCard>
   );
 }

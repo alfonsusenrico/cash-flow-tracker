@@ -123,7 +123,7 @@ export function GoalsView() {
                   <Pill tone={status.tone}>{status.text}</Pill>
                 </div>
                 <div className={styles.progress} aria-hidden="true">
-                  <i style={{ width: `${percent}%`, background: goal.color || "var(--lime)" }} />
+                  <i style={{ width: `${percent}%`, background: goal.color || "var(--in-solid)" }} />
                 </div>
                 <div className={styles.goalMeta}>
                   <span>{bal(goal.current_amount)} dari {bal(goal.target_amount)} · {percent}%</span>

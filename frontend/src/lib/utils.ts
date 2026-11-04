@@ -244,7 +244,7 @@ export function parseUnits(val: string | number | null | undefined): number {
 }
 
 /** The signed-in owner's username, capitalised for the greeting; none while the profile loads. */
-/** How the app greets the owner everywhere (Beranda, Tanya): the first word of the display name, else the capitalised username. */
+/** How the app greets the owner everywhere: the first word of the display name, else the capitalised username. */
 export function greetingName(user?: { name?: string | null; username?: string | null } | null): string | null {
   const name = user?.name?.trim().split(/\s+/)[0];
   if (name) return name;

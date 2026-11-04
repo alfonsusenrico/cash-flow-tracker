@@ -10,12 +10,8 @@ import { describe, expect, it } from "vitest";
 const SLANG = /\b(saranku|buat baru|buat diterima|buat mulai|nggak|ngga|gak|udah|beres|nangkep|ketangkep|nyambung|nyambungin|bikin|aja|banget|dimatiin|kamu|aku|nunggu|gajian|lagi bikin|cuma|nebak|dobel|ketemu|benerin|lanjutin|nuntun|tunjukin|ngecek)\b|\b\w+-mu\b/i;
 
 const CONVERSATION = [
-  // Beranda's written summary sentence (option F narrative).
-  "siklus gajimu{who}. Sejak gajian{keluar.total ? \" kamu keluar \" : \" \"}",
-  "Bulan ini{keluar.total ? \" kamu keluar \" : \" \"}",
-  "belum bisa aku hitung",
-  "hal nunggu jawabanmu (",
-  "Semua transaksi udah beres, nggak ada yang nunggu jawaban.",
+  // Beranda's hero figure as the owner approved it in the preview (refine-workspace-layout D5, OD96).
+  "Aman dipakai sampai gajian",
   // The connect-phone guide's prose.
   "HP-mu siap! Mulai sekarang transaksi tercatat sendiri.",
   "Tenang, aplikasi di HP-mu bakal nunjukin cara benerinnya.",
@@ -33,9 +29,7 @@ const ROOTS = ["components/workspace", "components/beranda", "components/review"
   "components/ui/DeviceHealthChecklist.tsx", "components/ui/DevicePairingDialog.tsx", "components/ui/DevicePairingSection.tsx",
   "app/ledger/page.tsx", "app/review/page.tsx", "app/page.tsx", "lib/deviceHealth.ts", "lib/reviewUndo.ts", "lib/triage.ts",
   "lib/provenance.ts", "lib/ledgerFilters.ts", "lib/historySuggestions.ts",
-  // Tanya: every source except lib/tanya/replies.ts, the assistant's own words, and lib/tanya/intents.ts,
-  // whose patterns match what owners type ("nunggu", "aja") and are never shown.
-  "components/tanya", "app/tanya", "lib/tanya/resolve.ts", "lib/tanya/thread.ts", "lib/tanya/types.ts", "lib/capture.ts",
+  "lib/capture.ts",
   // Analisis and Laporan (redesign-analysis-and-reports D13).
   "components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx",
   "lib/reportLead.ts",

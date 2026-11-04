@@ -230,7 +230,7 @@ export function Skeleton({ className, style }: { className?: string; style?: Rea
 export function EmptyState({ icon = "check", title, children, action }: { icon?: IconName; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
     <div className="ws-empty">
-      <div className="ws-tile" aria-hidden="true" style={{ background: "var(--lime)", color: "var(--lime-ink)" }}>
+      <div className="ws-tile" aria-hidden="true" style={{ background: "var(--in-solid)", color: "var(--in-solid-fg)" }}>
         <Icon name={icon} />
       </div>
       <h2>{title}</h2>

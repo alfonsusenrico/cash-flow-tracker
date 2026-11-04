@@ -2,60 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useCallback, useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { THEME_CHOICES } from "@/lib/theme";
 import { useWorkspace } from "./context";
-import { useEscapeLayer, useOutsidePress } from "./layers";
-import { LEDGER_HREF, SETTINGS_LINK, pageMeta } from "./navigation";
+import { AccountMenu } from "./AccountMenu";
+import { Disclosure } from "./Disclosure";
+import { LEDGER_HREF, pageMeta } from "./navigation";
 import { useShortcut } from "./shortcuts";
-
-/** A button with a popover panel; Esc or a press outside closes it and Esc returns focus to the button. */
-function Disclosure({
-  label,
-  buttonClassName,
-  buttonContent,
-  panelLabel,
-  children,
-}: {
-  label: string;
-  buttonClassName: string;
-  buttonContent: ReactNode;
-  panelLabel: string;
-  children: (close: () => void) => ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const anchor = useRef<HTMLDivElement>(null);
-  const button = useRef<HTMLButtonElement>(null);
-  const panelId = useId();
-  const close = useCallback(() => setOpen(false), []);
-  const closeAndReturn = useCallback(() => {
-    setOpen(false);
-    button.current?.focus();
-  }, []);
-  useEscapeLayer(open, closeAndReturn);
-  useOutsidePress([anchor], open, close);
-  return (
-    <div className="ws-pop-anchor" ref={anchor}>
-      <button
-        ref={button}
-        type="button"
-        className={buttonClassName}
-        aria-label={label}
-        aria-expanded={open}
-        aria-controls={open ? panelId : undefined}
-        onClick={() => setOpen((value) => !value)}
-      >
-        {buttonContent}
-      </button>
-      {open && (
-        <div id={panelId} className="ws-menu" role="region" aria-label={panelLabel}>
-          {children(close)}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /** The id of Transaksi's own search field, which ⌘K focuses while Transaksi is open (D12). */
 export const LEDGER_SEARCH_ID = "ledger-search";
@@ -175,47 +129,6 @@ function NotificationsMenu() {
   );
 }
 
-function AccountMenu() {
-  const { username, hideBalances, toggleHideBalances, logout } = useWorkspace();
-  const initials = (username ?? "?").slice(0, 1);
-  return (
-    <Disclosure
-      label={`Akun ${username ?? ""}`.trim()}
-      buttonClassName="ws-avatar"
-      buttonContent={<span aria-hidden="true">{initials}</span>}
-      panelLabel="Akun"
-    >
-      {(close) => (
-        <>
-          <div className="ws-menu-h">
-            Masuk sebagai <strong className="font-medium text-[var(--text)]">{username}</strong>
-          </div>
-          <button
-            type="button"
-            className="ws-menu-item"
-            onClick={() => {
-              toggleHideBalances();
-              close();
-            }}
-          >
-            <Icon name={hideBalances ? "eye" : "eye-off"} className="h-4 w-4" />
-            {hideBalances ? "Tampilkan saldo" : "Sembunyikan saldo"}
-          </button>
-          <Link href={SETTINGS_LINK.href} className="ws-menu-item" onClick={close}>
-            <Icon name="sliders" className="h-4 w-4" />
-            Pengaturan
-          </Link>
-          <div className="ws-menu-sep" />
-          <button type="button" className="ws-menu-item" onClick={logout}>
-            <Icon name="logout" className="h-4 w-4" />
-            Keluar
-          </button>
-        </>
-      )}
-    </Disclosure>
-  );
-}
-
 export function TopBar() {
   const pathname = usePathname();
   const { header, openCapture, setControlsSlot } = useWorkspace();
@@ -231,11 +144,14 @@ export function TopBar() {
         <SearchBox />
         <ThemeMenu />
         <NotificationsMenu />
-        <button type="button" className="ws-btn ws-btn-ink ws-desk-only" onClick={openCapture} aria-keyshortcuts="N">
+        <button type="button" className="ws-btn ws-btn-accent ws-desk-only" onClick={openCapture} aria-keyshortcuts="N">
           <Icon name="plus" className="h-4 w-4" />
           Catat
         </button>
-        <AccountMenu />
+        {/* On wider screens the account card sits in the sidebar foot (refine-workspace-layout D3). */}
+        <div className="ws-only-phone">
+          <AccountMenu variant="avatar" />
+        </div>
       </div>
     </header>
   );
