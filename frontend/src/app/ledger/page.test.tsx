@@ -93,7 +93,7 @@ function mockApi() {
     }
     const detail = /^\/transactions\/([^/?]+)$/.exec(path);
     if (detail) {
-      const found = ROWS.find((item) => item.id === detail[1]);
+      const found = [...ROWS, ...pages.flat()].find((item) => item.id === detail[1]);
       if (!found) throw new ApiError(404, "Transaction not found");
       return { transaction: { ...found, waiting: found.review_status === "needs_review", origin: null } };
     }
@@ -400,5 +400,61 @@ describe("Transaksi keys", () => {
     await user.click(search);
     await user.keyboard("j");
     expect(search).toHaveValue("j");
+  });
+});
+
+describe("Movement routes", () => {
+  // Synthetic: BCA's ATM pocket sends to Gopay, Gopay sends on to Jago's Tabungan, and Jago's Main Pocket has an
+  // income filed as a movement that nobody paired.
+  const sent = row("00000000-0000-4000-8000-0000000000e1", "2026-11-04", "01:39", {
+    merchant: null, notes: "Pindah saldo ke Gopay", type: "expense", category_name: "Internal Movement", kakeibo_type: null,
+    account_id: "00000000-0000-4000-8000-0000000000a1", account_name: "ATM", account_parent_name: "BCA", movement_id: "mv-a", movement_role: "outbound",
+    partner_id: "00000000-0000-4000-8000-0000000000e2", transfer_target_account_name: "Gopay", transfer_target_account_parent_name: null,
+  });
+  const received = row("00000000-0000-4000-8000-0000000000e3", "2026-11-04", "01:41", {
+    merchant: null, notes: "Dari GoPay", type: "income", category_name: "Internal Movement", kakeibo_type: null,
+    account_id: "00000000-0000-4000-8000-0000000000a2", account_name: "Tabungan", account_parent_name: "Jago", movement_id: "mv-b", movement_role: "inbound",
+    partner_id: "00000000-0000-4000-8000-0000000000e4", transfer_target_account_name: "Gopay", transfer_target_account_parent_name: null,
+  });
+  const unpaired = row("00000000-0000-4000-8000-0000000000e5", "2026-11-04", "01:50", {
+    merchant: null, notes: "Pindah uang dari BCA", type: "income", category_name: "Internal Movement", kakeibo_type: null,
+    account_id: "00000000-0000-4000-8000-0000000000a3", account_name: "Main Pocket", account_parent_name: "Jago", amount: 120_000,
+  });
+
+  beforeEach(() => {
+    withTotals = false;
+  });
+
+  it("titles every movement from where the money left to where it arrived, with the bank", async () => {
+    pages = [[sent, received, unpaired]];
+    renderPage();
+    expect(await screen.findByRole("button", { name: "BCA · ATM → Gopay" })).toBeInTheDocument();
+    // The inbound leg reads from its partner; it used to read "Tabungan → Gopay".
+    expect(screen.getByRole("button", { name: "Gopay → Jago · Tabungan" })).toBeInTheDocument();
+    const lone = screen.getByRole("button", { name: "? → Jago · Main Pocket" });
+    expect(lone.closest("tr")).toHaveTextContent("Pasangan belum ditemukan · Pindah uang dari BCA");
+  });
+
+  it("says Masuk dari or Keluar ke in a list filtered to one account", async () => {
+    pages = [[received]];
+    const first = renderPage("/ledger?period=cycle&account=00000000-0000-4000-8000-0000000000a2");
+    const title = await screen.findByRole("button", { name: "Gopay → Jago · Tabungan" });
+    expect(title.closest("tr")).toHaveTextContent("Masuk dari Gopay · Dari GoPay");
+    first.unmount();
+
+    pages = [[sent]];
+    width = 390;
+    renderPage("/ledger?period=cycle&account=00000000-0000-4000-8000-0000000000a1");
+    const feedRow = await screen.findByText("BCA · ATM → Gopay");
+    expect(feedRow.closest("button")).toHaveTextContent("Keluar ke Gopay");
+  });
+
+  it("gives the detail the same Dari and Ke, with the missing side named", async () => {
+    pages = [[unpaired]];
+    renderPage(`/ledger?period=cycle&edit=${unpaired.id}`);
+    const detail = await screen.findByRole("dialog", { name: /^\? → Jago · Main Pocket/ });
+    const facts = within(detail).getByText("Dari").closest("dl") as HTMLElement;
+    expect(within(facts).getByText("Dari").nextElementSibling).toHaveTextContent("Pasangan belum ditemukan");
+    expect(within(facts).getByText("Ke").nextElementSibling).toHaveTextContent("Jago · Main Pocket");
   });
 });

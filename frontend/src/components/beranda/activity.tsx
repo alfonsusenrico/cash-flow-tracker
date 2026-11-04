@@ -24,12 +24,63 @@ export function isWaiting(row: ActivityRow): boolean {
   return row.review_status === "needs_review";
 }
 
+/** "Bank · Pocket" for a pocket, the account's own name otherwise; null when the side is unknown. */
+export function accountLabel(name: string | null | undefined, parent: string | null | undefined): string | null {
+  if (!name) return null;
+  return parent ? `${parent} · ${name}` : name;
+}
+
+export interface MovementRoute {
+  source: string | null;
+  target: string | null;
+}
+
+/**
+ * Where a movement's money came from and where it went (design D2). A merged row is always its outbound
+ * leg; a linked leg follows its role; a leg nobody paired takes its side from its type, the other side unknown.
+ */
+export function movementRoute(row: ActivityRow): MovementRoute {
+  const own = accountLabel(row.account_name, row.account_parent_name);
+  if (row.is_consolidated_transfer || row.is_inferred_transfer) {
+    return { source: own, target: accountLabel(row.target_account_name, row.target_account_parent_name) };
+  }
+  const partner = accountLabel(row.transfer_target_account_name, row.transfer_target_account_parent_name);
+  return ownLegIsTarget(row) ? { source: partner, target: own } : { source: own, target: partner };
+}
+
+/** Whether the row's own account received the money: an inbound leg, or an unpaired income. */
+function ownLegIsTarget(row: ActivityRow): boolean {
+  if (row.is_consolidated_transfer || row.is_inferred_transfer) return false;
+  return row.movement_role ? row.movement_role === "inbound" : row.type === "income";
+}
+
+/** The label of a movement whose other leg is not known yet (OD114). */
+export const UNPAIRED_LABEL = "Pasangan belum ditemukan";
+
+export function routeIncomplete(row: ActivityRow): boolean {
+  if (rowKind(row) !== "movement") return false;
+  const route = movementRoute(row);
+  return !route.source || !route.target;
+}
+
+/**
+ * A movement seen from the account a list is filtered to (design D3): "Masuk dari …" when the money came in,
+ * "Keluar ke …" when it left. Merged rows only exist in unfiltered lists, so the row's own leg is the viewed one.
+ */
+export function movementDirection(row: ActivityRow): string {
+  const route = movementRoute(row);
+  const ownIsTarget = ownLegIsTarget(row);
+  const other = ownIsTarget ? route.source : route.target;
+  if (!other) return UNPAIRED_LABEL;
+  return ownIsTarget ? `Masuk dari ${other}` : `Keluar ke ${other}`;
+}
+
 export function rowTitle(row: ActivityRow): string {
   const kind = rowKind(row);
   if (kind === "topup") return "Top up Investasi";
   if (kind === "movement") {
-    const target = row.target_account_name ?? row.transfer_target_account_name;
-    return target ? `${row.account_name} → ${target}` : row.account_name;
+    const route = movementRoute(row);
+    return `${route.source ?? "?"} → ${route.target ?? "?"}`;
   }
   return row.merchant || row.notes || row.category_name || "Tanpa keterangan";
 }
@@ -99,7 +150,9 @@ const SHORT_DAY = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "sho
 function rowSubtitle(row: ActivityRow): string {
   const kind = rowKind(row);
   if (isWaiting(row)) return `${row.account_name} · menunggu jawaban`;
-  if (kind === "movement") return row.notes ? `Pindah saldo · ${row.notes}` : "Pindah saldo";
+  if (kind === "movement") {
+    return ["Pindah saldo", routeIncomplete(row) ? UNPAIRED_LABEL : row.notes].filter(Boolean).join(" · ");
+  }
   if (kind === "topup") return row.notes || row.account_name;
   // A pocket named like its category ("Transportasi · Transportasi") is said once.
   return [...new Set([row.account_name, row.category_name].filter(Boolean))].join(" · ");

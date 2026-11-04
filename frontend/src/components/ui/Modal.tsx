@@ -1,6 +1,7 @@
 "use client";
 import { useId, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { lockPageScroll } from "@/components/workspace/layers";
 import { cn } from "@/lib/utils";
 
 interface ModalProps {
@@ -66,11 +67,10 @@ export function Modal({ open, onClose, title, subtitle, leading, children, wide,
         first.focus();
       }
     };
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const releaseScroll = lockPageScroll();
     document.addEventListener("keydown", handler);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      releaseScroll();
       document.removeEventListener("keydown", handler);
       previouslyFocused?.focus();
     };

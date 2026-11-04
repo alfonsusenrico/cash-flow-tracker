@@ -59,7 +59,7 @@ function show() {
 describe("ExplainableFigure", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    document.body.style.overflow = "";
+    document.documentElement.style.overflow = "";
   });
 
   it("is a button that keeps the figure as text and names it with lihat rincian", () => {
@@ -79,7 +79,7 @@ describe("ExplainableFigure", () => {
     expect(dialog).toHaveAttribute("aria-modal", "false");
     expect(within(dialog).getByRole("heading", { name: "Aman dipakai hari ini" })).toHaveFocus();
     expect(safe).toHaveAttribute("aria-expanded", "true");
-    expect(document.body.style.overflow).toBe("");
+    expect(document.documentElement.style.overflow).toBe("");
   });
 
   it("opens with Space too", async () => {
@@ -174,7 +174,7 @@ describe("ExplainableFigure", () => {
     const dialog = screen.getByRole("dialog", { name: "Aman dipakai hari ini" });
     expect(dialog).toHaveAttribute("data-mode", "sheet");
     expect(dialog).toHaveAttribute("aria-modal", "true");
-    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.documentElement.style.overflow).toBe("hidden");
     expect(within(dialog).getByRole("heading", { name: "Aman dipakai hari ini" })).toHaveFocus();
 
     await user.tab();
@@ -185,7 +185,7 @@ describe("ExplainableFigure", () => {
 
     await user.click(screen.getByRole("button", { name: "Tutup penjelasan" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(document.body.style.overflow).toBe("");
+    expect(document.documentElement.style.overflow).toBe("");
     expect(safe).toHaveFocus();
   });
 

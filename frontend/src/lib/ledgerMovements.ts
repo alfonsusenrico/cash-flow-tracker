@@ -2,6 +2,8 @@ export interface LedgerMovementRow {
   id: string;
   account_id: string;
   account_name: string;
+  /** The bank of a pocket; null for an account without a parent. */
+  account_parent_name?: string | null;
   category_name: string | null;
   type: "expense" | "income";
   amount: number;
@@ -14,8 +16,11 @@ export interface LedgerMovementRow {
   partner_id?: string | null;
   transfer_target_account_id?: string | null;
   transfer_target_account_name?: string | null;
+  /** The partner leg's bank when its account is a pocket. */
+  transfer_target_account_parent_name?: string | null;
   target_account_id?: string;
   target_account_name?: string;
+  target_account_parent_name?: string | null;
   is_consolidated_transfer?: boolean;
   is_inferred_transfer?: boolean;
 }
@@ -63,6 +68,7 @@ export function consolidateLedgerMovements<T extends LedgerMovementRow>(
           is_consolidated_transfer: true,
           target_account_id: row.transfer_target_account_id ?? partner?.account_id,
           target_account_name: row.transfer_target_account_name ?? partner?.account_name,
+          target_account_parent_name: row.transfer_target_account_name ? row.transfer_target_account_parent_name ?? null : partner?.account_parent_name ?? null,
         });
       } else {
         result.push(row);
@@ -87,6 +93,7 @@ export function consolidateLedgerMovements<T extends LedgerMovementRow>(
       is_inferred_transfer: true,
       target_account_id: incoming.account_id,
       target_account_name: incoming.account_name,
+      target_account_parent_name: incoming.account_parent_name ?? null,
     });
   }
 

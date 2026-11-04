@@ -113,7 +113,7 @@ Beranda SHALL list what needs the owner first: open questions, awaiting or ambig
 - **THEN** the card SHALL say "Semua sudah ditinjau" and SHALL show the count of rows recorded automatically today with an optional link to check them
 
 ### Requirement: Recent Activity on Beranda
-Beranda SHALL list up to eight transactions from today and yesterday, newest first, with merchant or movement, account, time, Kakeibo bucket or status, provenance and amount in its semantic colour, and a link to all transactions. Selecting a row SHALL open the shared transaction drawer of Transaksi for that row, with the same detail and actions.
+Beranda SHALL list up to eight transactions from today and yesterday, newest first, with merchant or movement, account, time, Kakeibo bucket or status, provenance and amount in its semantic colour, and a link to all transactions. A movement row SHALL show its route in the direction the money moved, naming a pocket with its parent account. Selecting a row SHALL open the shared transaction drawer of Transaksi for that row, with the same detail and actions, as a centered dialog above 760 px.
 
 #### Scenario: Waiting row in the list
 - **WHEN** a row with an open question is listed
@@ -122,6 +122,7 @@ Beranda SHALL list up to eight transactions from today and yesterday, newest fir
 #### Scenario: Movement row
 - **WHEN** a "Pindah Saldo" between two of the owner's accounts is listed
 - **THEN** it SHALL appear once as "source → target" with a sky amount, and SHALL say "Tidak dihitung" instead of a pillar
+- **AND** a pocket SHALL be named with its parent, for example "Jago · Main Pocket → BCA · ATM"
 
 #### Scenario: Row opens the transaction drawer
 - **WHEN** the owner selects "Kedai Awan Rp 30.000" in "Aktivitas terbaru"

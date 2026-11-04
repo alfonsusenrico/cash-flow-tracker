@@ -277,7 +277,8 @@ function LedgerPageContent() {
     const closed = lastEdit.current;
     lastEdit.current = editId;
     if (!closed || editId || returnTo) return;
-    // The side drawer narrows the list, so closing it can swap the feed back to the table a frame later.
+    // The row can be re-rendered while the detail is open (a refetch, or a swap between feed and table), so
+    // focus is placed again once the list has settled.
     const timer = window.setTimeout(() => document.querySelector<HTMLElement>(`[data-tx-row="${closed}"]`)?.focus(), RESIZE_SETTLE_MS);
     return () => window.clearTimeout(timer);
   }, [editId, returnTo]);
@@ -394,7 +395,7 @@ function LedgerPageContent() {
     updateFilters({ ...DEFAULT_LEDGER_FILTERS, period: filters.period, offset: filters.offset });
   };
 
-  const listProps = { groups, bal, openRow, selection, loadMore, openId: editId };
+  const listProps = { groups, bal, openRow, selection, loadMore, openId: editId, accountView: filters.account !== "all" };
   const offset = figures?.reimbursement_offset ?? 0;
 
   return (

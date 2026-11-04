@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAppCtx } from "@/components/layout/AppLayout";
-import { rowKind, rowStatus, rowTitle } from "@/components/beranda/activity";
+import { UNPAIRED_LABEL, movementRoute, rowKind, rowStatus, rowTitle } from "@/components/beranda/activity";
 import { Icon } from "@/components/ui/Icon";
 import { Drawer, useToast } from "@/components/workspace/overlays";
 import { ErrorState, Pill, Skeleton, type Tone } from "@/components/workspace/primitives";
@@ -38,17 +38,15 @@ function checkable(row: LedgerRowDetail): boolean {
   return !row.waiting && row.review_status === "auto";
 }
 
-function counterpartName(row: LedgerRowDetail): string | null {
-  return row.transfer_target_account_name ?? row.target_account_name ?? null;
-}
-
 function deleteEffects(row: LedgerRowDetail, bal: (amount: number) => string): string[] {
   const kind = rowKind(row);
   if (kind === "topup") {
     return [`Nilai produk berkurang ${bal(row.amount)}.`, "Debit yang pernah diubah menjadi top up ini kembali menjadi pengeluaran."];
   }
   if (kind === "movement" && row.movement_id) {
-    return [`Saldo ${row.account_name}${counterpartName(row) ? ` dan ${counterpartName(row)}` : ""} kembali seperti sebelum pindah saldo.`];
+    const route = movementRoute(row);
+    const sides = [route.source, route.target].filter(Boolean).join(" dan ");
+    return [`Saldo ${sides || row.account_name} kembali seperti sebelum pindah saldo.`];
   }
   const effects = [row.type === "expense"
     ? `Saldo ${row.account_name} bertambah kembali ${bal(row.amount)}.`
@@ -145,6 +143,7 @@ export function TransactionDrawer({
 
   const open = Boolean(transactionId);
   const kind = row ? rowKind(row) : null;
+  const route = row && (kind === "movement" || kind === "topup") ? movementRoute(row) : null;
   const status = row ? rowStatus(row) : null;
   const title = row ? rowTitle(row) : missing ? "Transaksi tidak ditemukan" : "Detail transaksi";
   const subtitle = row ? `${WHEN.format(new Date(row.date))} · ${row.account_name}` : undefined;
@@ -194,9 +193,9 @@ export function TransactionDrawer({
               {(kind === "movement" || kind === "topup") && (
                 <>
                   <dt>Dari</dt>
-                  <dd>{row.movement_role === "inbound" ? counterpartName(row) ?? "—" : row.account_name}</dd>
+                  <dd>{route?.source ?? UNPAIRED_LABEL}</dd>
                   <dt>Ke</dt>
-                  <dd>{row.movement_role === "inbound" ? row.account_name : counterpartName(row) ?? "Pasangan belum ditemukan"}</dd>
+                  <dd>{route?.target ?? UNPAIRED_LABEL}</dd>
                 </>
               )}
               {kind === "expense" && (

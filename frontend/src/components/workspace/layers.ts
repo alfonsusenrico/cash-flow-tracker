@@ -64,6 +64,10 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean
     const handler = (event: KeyboardEvent) => {
       const container = ref.current;
       if (event.key !== "Tab" || !container) return;
+      // A dialog opened from inside this layer is portalled after it; only the topmost owns Tab.
+      const modals = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+      const top = modals[modals.length - 1];
+      if (top && top !== container && !container.contains(top)) return;
       const items = focusableIn(container);
       if (!items.length) {
         event.preventDefault();
@@ -86,20 +90,29 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean
   }, [ref, active]);
 }
 
-/** Locks page scrolling behind a sheet. */
+/**
+ * Stops the page scrolling behind a dialog or sheet; returns the release. The root element is locked, not
+ * the body: with `overflow-x: clip` on the root, a hidden body becomes its own clipping box, so the page
+ * still scrolls and the sticky sidebar loses its place.
+ */
+export function lockPageScroll(): () => void {
+  const root = document.documentElement;
+  const previous = root.style.overflow;
+  root.style.overflow = "hidden";
+  return () => {
+    root.style.overflow = previous;
+  };
+}
+
+/** Locks page scrolling behind a sheet or dialog while active. */
 export function useScrollLock(active: boolean) {
   useEffect(() => {
     if (!active) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
+    return lockPageScroll();
   }, [active]);
 }
 
 export const PHONE_QUERY = "(max-width: 760px)";
-export const RAIL_QUERY = "(min-width: 761px) and (max-width: 1180px)";
 
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);

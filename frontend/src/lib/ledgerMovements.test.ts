@@ -83,4 +83,18 @@ describe("ledger movement display", () => {
       { id: "out", is_consolidated_transfer: true, target_account_name: "Target" },
     ]);
   });
+
+  it("carries the target's bank onto the merged row", () => {
+    const linkedOut: LedgerMovementRow = {
+      ...outbound, account_parent_name: "BCA", movement_id: "mv", movement_role: "outbound", partner_id: "in",
+      transfer_target_account_name: "Tabungan", transfer_target_account_parent_name: "Jago",
+    };
+    const linkedIn: LedgerMovementRow = { ...inbound, account_parent_name: "Jago", movement_id: "mv", movement_role: "inbound", partner_id: "out" };
+    expect(consolidateLedgerMovements([linkedIn, linkedOut], true)).toEqual([
+      expect.objectContaining({ id: "out", target_account_name: "Tabungan", target_account_parent_name: "Jago" }),
+    ]);
+
+    const inferred = consolidateLedgerMovements([{ ...inbound, account_parent_name: "Jago" }, outbound], true);
+    expect(inferred[0]).toMatchObject({ is_inferred_transfer: true, target_account_parent_name: "Jago" });
+  });
 });

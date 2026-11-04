@@ -409,6 +409,46 @@ describe("Beranda recent activity", () => {
     expect(opener).toHaveFocus();
   });
 
+  it("titles movements in the direction the money moved, with each pocket's bank", async () => {
+    const base = vi.mocked(api.get).getMockImplementation()!;
+    const movement = { type: "expense", amount: 300_000, notes: "", category_name: "Internal Movement", review_status: "reviewed", date: "2026-11-02T01:00:00Z" };
+    const rows = [
+      { ...movement, id: "pair-out", account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago", movement_id: "p1",
+        movement_role: "outbound", partner_id: "pair-in", transfer_target_account_name: "ATM", transfer_target_account_parent_name: "BCA" },
+      { ...movement, id: "pair-in", type: "income", account_id: "atm", account_name: "ATM", account_parent_name: "BCA", movement_id: "p1",
+        movement_role: "inbound", partner_id: "pair-out", transfer_target_account_name: "Main Pocket", transfer_target_account_parent_name: "Jago" },
+      // The sending leg is outside Beranda's window, so only the receiving leg is listed.
+      { ...movement, id: "lone-in", type: "income", amount: 500_000, account_id: "tab", account_name: "Tabungan", account_parent_name: "Jago",
+        movement_id: "p2", movement_role: "inbound", partner_id: "elsewhere", transfer_target_account_name: "Gopay", transfer_target_account_parent_name: null,
+        date: "2026-11-02T01:30:00Z" },
+      { ...movement, id: "unpaired", type: "income", amount: 120_000, account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago",
+        notes: "Pindah uang dari BCA", date: "2026-11-02T02:00:00Z" },
+    ];
+    vi.mocked(api.get).mockImplementation(async (path: string) => (path.startsWith("/transactions?") ? { transactions: rows } : base(path)));
+    await kpis();
+    const card = region(/Aktivitas terbaru/);
+    await waitFor(() => expect(within(card).getAllByRole("listitem")).toHaveLength(3));
+    expect(within(card).getByRole("button", { name: /^Jago · Main Pocket → BCA · ATM/ })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: /^Gopay → Jago · Tabungan/ })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: /^\? → Jago · Main Pocket/ })).toHaveTextContent("Pindah saldo · Pasangan belum ditemukan");
+  });
+
+  it("opens Rencana jatuh tempo as a centered dialog, not a side panel", async () => {
+    const base = vi.mocked(api.get).getMockImplementation()!;
+    const linked = { rule_id: "plan-auto", scheduled_for: "2026-11-01", linked_at: "2026-11-01T03:00:00Z", name: "Streaming Contoh",
+      amount: 65_000, type: "expense", transaction_id: "kopi", transaction_date: "2026-11-01T02:00:00Z", account_name: "Dompet Digital" };
+    vi.mocked(api.get).mockImplementation(async (path: string) => (
+      path === "/recurring/pending" ? { rules: [], recent_auto_links: [linked] } : base(path)
+    ));
+    const user = userEvent.setup();
+    await kpis();
+    await user.click(await within(region(/Perlu tindakan/)).findByRole("button", { name: "Cek" }));
+    const dialog = await screen.findByRole("dialog", { name: /^Rencana jatuh tempo/ });
+    expect(dialog).toHaveAttribute("data-mode", "dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(document.querySelector(".ws-drawer-slot")).not.toBeInTheDocument();
+  });
+
   it("says a row deleted elsewhere is gone", async () => {
     const user = userEvent.setup();
     await kpis();
