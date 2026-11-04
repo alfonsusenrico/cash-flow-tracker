@@ -1,5 +1,5 @@
 export type SettingsSectionSlug =
-  | "perangkat" | "kebiasaan" | "tampilan" | "profil" | "gaji" | "anggaran" | "pemetaan" | "pengirim";
+  | "perangkat" | "kebiasaan" | "tampilan" | "profil" | "gaji" | "anggaran" | "pemetaan" | "pengirim" | "sesi-uji";
 
 export interface SettingsSectionEntry {
   slug: SettingsSectionSlug;
@@ -28,6 +28,13 @@ export const SETTINGS_SECTIONS: SettingsSectionEntry[] = [
   },
   { slug: "pemetaan", href: "/settings/pemetaan", title: "Pemetaan notifikasi", purpose: "Nama rekening di notifikasi yang dipetakan ke rekening.", group: "Akun" },
   { slug: "pengirim", href: "/settings/pengirim", title: "Nama pengirim", purpose: "Nama pengirim transfer yang sudah dikonfirmasi.", group: "Akun" },
+  {
+    slug: "sesi-uji",
+    href: "/settings/sesi-uji",
+    title: "Sesi uji",
+    purpose: "Notifikasi selama sesi disimpan untuk pengujian tanpa dicatat ke transaksi.",
+    group: "Akun",
+  },
 ];
 
 export function settingsSection(slug: SettingsSectionSlug): SettingsSectionEntry {

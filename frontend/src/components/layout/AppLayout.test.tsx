@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, createMovement } from "@/lib/api";
@@ -28,9 +28,12 @@ function renderLayout(children: React.ReactNode = <MovementTrigger />) {
   );
 }
 
+let currentSession: { id: string; status: "open" | "ended"; planned_end_at: string } | null = null;
+
 describe("global movement entry point", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currentSession = null;
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
       value: vi.fn().mockReturnValue({ matches: false }),
@@ -58,6 +61,7 @@ describe("global movement entry point", () => {
       if (path === "/review/summary") return { ok: true, attention: 4, unreviewed: 3 };
       if (path === "/reports/monthly/latest") return { ready: false, period: null, url: null };
       if (path === "/recurring") return { rules: [] };
+      if (path === "/ingest/test-sessions/current") return { ok: true, session: currentSession };
       throw new Error(`Unexpected GET ${path}`);
     });
     vi.mocked(createMovement).mockResolvedValue({
@@ -98,6 +102,25 @@ describe("global movement entry point", () => {
     // Sidebar and tab bar both name the badge in words (CSS shows one of them per width).
     expect(await screen.findAllByRole("link", { name: "Tinjau, 4 perlu ditinjau" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /Buka menu/ })).not.toBeInTheDocument();
+  });
+
+  it("shows the Sesi uji banner on every page while a session runs, and ends it from there", async () => {
+    const user = userEvent.setup();
+    currentSession = { id: "sesi-1", status: "open", planned_end_at: "2026-11-04T11:30:00Z" };
+    vi.mocked(api.post).mockResolvedValue({ ok: true });
+    renderLayout();
+    const banner = await screen.findByRole("region", { name: "Sesi uji" });
+    expect(banner).toHaveTextContent("Sesi uji berjalan sampai 18.30 · notifikasi disimpan tanpa dicatat");
+    expect(within(banner).getByRole("link", { name: "Lihat sesi" })).toHaveAttribute("href", "/settings/sesi-uji");
+    await user.click(within(banner).getByRole("button", { name: "Akhiri sesi" }));
+    expect(api.post).toHaveBeenCalledWith("/ingest/test-sessions/sesi-1/end");
+  });
+
+  it("shows no Sesi uji banner without a running session", async () => {
+    renderLayout();
+    await screen.findByRole("link", { name: "Langsung ke konten" });
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith("/ingest/test-sessions/current"));
+    expect(screen.queryByRole("region", { name: "Sesi uji" })).not.toBeInTheDocument();
   });
 
   it("remembers the collapsed sidebar", async () => {
