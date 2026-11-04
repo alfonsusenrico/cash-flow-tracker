@@ -253,3 +253,84 @@ def test_deferred_pass_applies_the_rule_once(client, notification_owner, monkeyp
     again = repair_unpaired_movements(now=START + timedelta(minutes=6))
     assert again["duplicates"] == 0 and len(incomes(owner)) == 1
     assert balances(owner)[owner["main"]] == 1000000
+
+
+# --- 3.1–3.2 Transfer answers pair at once; links retire the model's memory ------------------------------
+
+
+def typed_movement_leg(owner, account_key, tx_type, amount, moment):
+    """A one-sided transfer typed by the owner (a capture), which no notification pairing linked."""
+    from app.db.pool import db_conn
+    category = owner["internal_out" if tx_type == "expense" else "internal_in"]
+    tx_id = str(uuid4())
+    with db_conn() as conn:
+        conn.execute(
+            """INSERT INTO transactions (id, user_id, account_id, category_id, type, amount, notes, date, source,
+                   review_status, classified_by)
+               VALUES (%s, %s, %s, %s, %s, %s, 'Pindah saldo', %s, 'manual', 'reviewed', 'owner')""",
+            (tx_id, owner["user_id"], owner[account_key], category, tx_type, amount, moment),
+        )
+        conn.commit()
+    return tx_id
+
+
+def test_transfer_answer_links_the_only_counterpart_and_undo_unlinks(client, notification_owner):
+    owner = notification_owner
+    movement_history(owner)
+    jago = send(client, JAGO_CREDIT, JAGO, 30, version="1.8.0")
+    bca_leg = typed_movement_leg(owner, "bca", "expense", 500000, START)
+    choice = movement_suggestion(jago["question"], owner)
+    response = answer(client, jago["event_id"], jago["question"], choice["id"])
+    assert response.status_code == 200, response.text
+    rows = {row["type"]: row for row in legs(owner)}
+    assert str(rows["expense"]["id"]) == bca_leg
+    assert rows["expense"]["movement_id"] is not None and rows["expense"]["movement_id"] == rows["income"]["movement_id"]
+    undone = client.post("/api/review/undo", json={"undo_token": response.json()["undo_token"]})
+    assert undone.status_code == 200, undone.text
+    assert all(row["movement_id"] is None for row in legs(owner))
+
+
+def ai_memory(owner, match_key, category_key):
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        conn.execute(
+            """INSERT INTO merchant_memory (user_id, match_key, key_kind, display_merchant, notes, category_id, source)
+               VALUES (%s, %s, 'merchant', 'Tabungan by Jago', 'Tabungan by Jago', %s, %s)""",
+            (owner["user_id"], match_key, owner[category_key], "ai" if category_key == "income" else "owner"),
+        )
+        conn.commit()
+
+
+def test_linking_a_leg_retires_the_model_memory_only(client, notification_owner):
+    owner = notification_owner
+    ai_memory(owner, "merchant:tabungan by jago", "income")
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    send(client, MYBCA_DEBIT, MYBCA, 3.4)
+    assert legs(owner)[0]["movement_id"] is not None
+    assert "merchant:tabungan by jago" not in memory_rows(owner)
+
+
+def test_owner_memory_survives_a_link(client, notification_owner):
+    owner = notification_owner
+    ai_memory(owner, "merchant:tabungan by jago", "expense")
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    send(client, MYBCA_DEBIT, MYBCA, 3.4)
+    assert memory_rows(owner)["merchant:tabungan by jago"]["source"] == "owner"
+
+
+def test_owner_merge_retires_the_model_memory(client, notification_owner, monkeypatch):
+    from app.services import notification_application
+    from app.services.movement_pairing import PairingDecision
+
+    owner = notification_owner
+    ai_memory(owner, "merchant:tabungan by jago", "income")
+    with monkeypatch.context() as patched:
+        patched.setattr(notification_application, "find_counterpart", lambda *args, **kwargs: PairingDecision())
+        send(client, GOPAY_CREDIT, GOPAY, 0)
+        send(client, MYBCA_DEBIT, MYBCA, 3.4)
+    rows = {row["type"]: row for row in legs(owner)}
+    merged = client.post("/api/movements/merge", json={
+        "expense_transaction_id": str(rows["expense"]["id"]), "income_transaction_id": str(rows["income"]["id"]),
+    })
+    assert merged.status_code == 200, merged.text
+    assert "merchant:tabungan by jago" not in memory_rows(owner)

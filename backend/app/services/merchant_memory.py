@@ -19,6 +19,7 @@ PLACEHOLDER_COUNTERPARTIES = frozenset({
     "bca payment", "bca", "qris merchant", "debit", "bank jago", "bank jago payment", "transaksi bank",
 })
 MATCH_KEY_MAX_LENGTH = 220
+MOVEMENT_CATEGORY_NAME = "Internal Movement"
 SIGNATURE_MAX_LENGTH = 200
 MEMORY_CONTEXT_LIMIT = 30
 FEEDBACK_FIELDS: tuple[str, ...] = (
@@ -320,9 +321,19 @@ def live_feedback_sql(alias: str) -> str:
     )
 
 
+def is_movement_category(name: str | None) -> bool:
+    return name == MOVEMENT_CATEGORY_NAME
+
+
 def learn_from_owner(cur, user_id: str, after: dict, key: dict) -> None:
-    """Upsert owner memory for a plain expense or income with a category (design D4)."""
-    if after["type"] not in {"expense", "income"} or after.get("movement_id") or not after.get("category_id"):
+    """Upsert owner memory for a plain expense or income with a category (design D4).
+
+    A row filed as Internal Movement is one side of a transfer, not a classification to repeat: the
+    next notification with the same wording may be a different transfer or a second report of one
+    (recognise-one-arrival-seen-twice D4).
+    """
+    if (after["type"] not in {"expense", "income"} or after.get("movement_id") or not after.get("category_id")
+            or is_movement_category(after.get("category_name"))):
         return
     values = {
         "merchant": after.get("merchant"), "notes": after.get("notes"), "category_id": str(after["category_id"]),
@@ -366,6 +377,31 @@ def record_owner_corrections(
             close_purpose_question(cur, user_id, transaction_id)
         written += 1
     return written
+
+
+def retire_automatic_memory(cur, user_id: str, transaction_ids: list[str]) -> int:
+    """Delete the model's memory for legs that became a movement; owner entries stay (design D4).
+
+    A model guess such as "Tabungan by Jago is Pendapatan Lain" was learned while the leg looked like
+    income. Once the leg is a movement that guess is wrong for the next report of the same wording.
+    """
+    keys: set[str] = set()
+    for transaction_id in transaction_ids:
+        if match_key := transaction_event_key(cur, user_id, str(transaction_id)).get("match_key"):
+            keys.add(match_key)
+    cur.execute("SELECT merchant FROM transactions WHERE user_id = %s AND id = ANY(%s::uuid[])",
+                (user_id, [str(value) for value in transaction_ids]))
+    keys.update(key for row in cur.fetchall() if (key := merchant_match_key(row["merchant"])))
+    if not keys:
+        return 0
+    cur.execute(
+        """DELETE FROM merchant_memory m
+           WHERE m.user_id = %s AND m.match_key = ANY(%s) AND m.source = 'ai'
+             AND NOT EXISTS (SELECT 1 FROM categories c WHERE c.id = m.category_id AND c.name = %s)
+           RETURNING m.match_key""",
+        (user_id, sorted(keys), MOVEMENT_CATEGORY_NAME),
+    )
+    return len(cur.fetchall())
 
 
 def learn_from_model(cur, user_id: str, key: dict | None, values: dict) -> None:

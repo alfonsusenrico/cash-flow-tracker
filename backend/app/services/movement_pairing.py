@@ -529,6 +529,48 @@ def pair_legs(cur, user_id: str, leg: dict, counterpart: dict, fee: int, account
     return result
 
 
+def pair_answered_transfer(cur, user_id: str, transaction_id: str, recorder=None) -> bool:
+    """Link a row the owner just filed as Internal Movement with its unique counterpart, if any (D4).
+
+    `recorder` is the answer's undo record; it captures the counterpart before the link, so undoing the
+    answer also undoes the movement.
+    """
+    accounts = load_accounts(cur, user_id)
+    cur.execute(
+        CANDIDATE_SQL.format(filters="AND t.id = %(transaction_id)s"),
+        {"user_id": user_id, "direction": None, "exclude": [], "transaction_id": transaction_id, "limit": 1},
+    )
+    row = cur.fetchone()
+    if not row:
+        return False
+    leg = as_leg(row, accounts)
+    decision = find_counterpart(cur, user_id, leg, gap_seconds=settings.notification_pairing_window_seconds,
+                                accounts=accounts)
+    if not decision.counterpart:
+        return False
+    if recorder is not None:
+        recorder.capture([decision.counterpart["id"]])
+    pair_legs(cur, user_id, leg, decision.counterpart, decision.fee, accounts)
+    return True
+
+
+def await_counterpart(cur, user_id: str, transaction_id: str) -> None:
+    """Keep a one-sided transfer in Tinjau until its other side is linked."""
+    cur.execute(
+        "UPDATE transactions SET review_status = 'needs_review', updated_at = NOW() WHERE user_id = %s AND id = %s",
+        (user_id, transaction_id),
+    )
+    cur.execute(
+        """UPDATE notification_events
+           SET interpretation = jsonb_set(interpretation, '{review_reasons}',
+                   COALESCE(interpretation -> 'review_reasons', '[]'::jsonb) || '["awaiting_counterpart"]'::jsonb)
+           WHERE user_id = %s AND transaction_id = %s AND provenance_kind = 'observed_leg'
+             AND jsonb_typeof(interpretation) = 'object'
+             AND NOT (COALESCE(interpretation -> 'review_reasons', '[]'::jsonb) @> '["awaiting_counterpart"]'::jsonb)""",
+        (user_id, transaction_id),
+    )
+
+
 def recent_unpaired_legs(cur, user_id: str, since: datetime) -> list[dict]:
     cur.execute(
         CANDIDATE_SQL.format(filters="AND t.created_at >= %(since)s"),
