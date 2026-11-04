@@ -18,67 +18,51 @@ Beranda SHALL describe the current open salary cycle when the owner has one, and
 - **WHEN** the owner opens Beranda
 - **THEN** the header SHALL name November and say that the salary cycle is not available yet, every figure SHALL cover 1 November to now, and Beranda SHALL link to the salary settings
 
-### Requirement: Three-Number Summary
-Beranda SHALL open with a short written summary that contains exactly three explainable numbers: the period's keluar, the safe-to-spend figure for today and the amount waiting for an answer. Each number SHALL open its explanation. A sentence whose figure is unavailable or zero SHALL say so in words instead of showing Rp 0.
-
-#### Scenario: Normal day
-- **GIVEN** keluar Rp 3.164.500, a safe-to-spend figure of Rp 214.000 and 4 rows waiting worth Rp 581.000
-- **WHEN** the owner opens Beranda at 1440 px
-- **THEN** the summary SHALL contain these three amounts as underlined controls and no other amount, and activating each SHALL open the explanation of that figure
-
-#### Scenario: Nothing waiting
-- **WHEN** no row waits for an answer
-- **THEN** the third sentence SHALL say that every transaction is settled and SHALL contain no amount
-
-#### Scenario: Safe-to-spend unavailable
-- **WHEN** the safe-to-spend figure is unavailable
-- **THEN** the second sentence SHALL say why in words (for example that the next salary date is not known yet), SHALL show no daily amount and SHALL still offer an explanation
-
 ### Requirement: Keluar Figure
-Beranda "Keluar" SHALL be the period's Kakeibo total: the five pillars including net fresh saving, plus "Belum diklasifikasi", net of applied reimbursements. Savings transfers and investment top-ups therefore count inside it, as on Analisis. Its explanation SHALL list each bucket with its amount and link each to the ledger filtered by period and pillar.
+The cycle summary's `keluar` SHALL stay the period's Kakeibo total, net of applied reimbursements. Beranda SHALL show it split: "Pengeluaran" (`spending`, need, want, culture, unexpected and unclassified) and "Ditabung & investasi" (`fresh_saving`, the saving bucket with net fresh saving). Each explanation SHALL list its buckets with amounts and ledger links, and "Keluar" SHALL NOT be a figure label.
 
 #### Scenario: Saving counts in Keluar
 - **GIVEN** in the cycle Rp 1.420.000 need, Rp 610.000 want, Rp 245.000 culture, Rp 89.500 unexpected, Rp 800.000 net fresh saving and Rp 0 unclassified
-- **WHEN** the owner opens the "Keluar" explanation
-- **THEN** the six lines SHALL add up to Rp 3.164.500, the saving line SHALL say that it is moved to pockets or invested, and the total SHALL equal the Analisis Kakeibo total for the same period
+- **WHEN** the owner opens the explanations of "Pengeluaran" and "Ditabung & investasi"
+- **THEN** Pengeluaran SHALL be Rp 2.364.500 in five lines, Ditabung & investasi Rp 800.000 saying that it is moved to pockets or invested, and the two SHALL add up to the Kakeibo total Rp 3.164.500 that Analisis shows for the same period
 
 #### Scenario: Internal movement is not Keluar
 - **WHEN** the owner moves Rp 500.000 from a bank to an e-wallet that is neither a goal account nor an investment
-- **THEN** "Keluar" SHALL NOT change, and its explanation SHALL say that moves between the owner's own accounts are not counted
+- **THEN** neither "Pengeluaran" nor "Ditabung & investasi" SHALL change, and the Pengeluaran explanation SHALL say that moves between the owner's own accounts are not counted
 
 ### Requirement: Waiting-for-Answer Figure
-The third number SHALL be the total amount of rows that count towards the Tinjau attention badge in the period. Its explanation SHALL list them by Tinjau section and SHALL state, per line, whether the amount is already inside "Keluar" and under which bucket. Waiting rows SHALL stay recorded and counted exactly as the ledger counts them.
+"Perlu tindakan" SHALL show, beside its count, the total amount of rows that count towards the Tinjau attention badge in the period. Its explanation SHALL list them by Tinjau section and SHALL state, per line, whether the amount is already inside "Pengeluaran" or "Ditabung & investasi" and under which bucket. Waiting rows SHALL stay recorded and counted exactly as the ledger counts them.
 
 #### Scenario: Question row is already counted
 - **GIVEN** a merchant-less Rp 45.000 payment with an open "Apa ini?" question and a one-sided Rp 112.000 transfer leg awaiting its counterpart
 - **WHEN** the owner opens the explanation of the waiting figure
-- **THEN** it SHALL show Rp 157.000 in two lines, SHALL say that Rp 45.000 is already inside "Keluar" as "Belum diklasifikasi" and that Rp 112.000 is not inside "Keluar" yet, and SHALL link to Tinjau
+- **THEN** it SHALL show Rp 157.000 in two lines, SHALL say that Rp 45.000 is already inside "Pengeluaran" as "Belum diklasifikasi" and that Rp 112.000 is not counted yet, and SHALL link to Tinjau
 
 #### Scenario: Answering changes the bucket, not the total
 - **WHEN** the owner answers the Rp 45.000 question as "Makan & minum" (need)
-- **THEN** "Keluar" SHALL stay the same, "Belum diklasifikasi" SHALL fall by Rp 45.000, need SHALL rise by Rp 45.000 and the waiting figure SHALL fall by Rp 45.000
+- **THEN** "Pengeluaran" SHALL stay the same, "Belum diklasifikasi" SHALL fall by Rp 45.000, need SHALL rise by Rp 45.000 and the waiting figure SHALL fall by Rp 45.000
 
 ### Requirement: Safe-to-Spend Today
-"Aman dipakai hari ini" SHALL be available only in an open salary cycle with an expected next salary date after today (`salary-cycles`). It SHALL be the remaining amount (masuk less keluar less scheduled) divided by the days from today up to the day before the expected date, floored to Rp 1.000 and never below zero. Otherwise it SHALL be unavailable with a reason.
+Beranda's hero figure SHALL be "Aman dipakai sampai gajian": the remaining amount for the whole period (masuk less keluar less scheduled), never a per-day or per-week amount. In an open cycle with an expected next salary date after today it SHALL show the days left and that date. The API's `per_day` SHALL stay as defined for other consumers, unavailable with a reason otherwise.
 
 #### Scenario: Available
 - **GIVEN** masuk Rp 9.800.000, keluar Rp 3.164.500, scheduled Rp 1.713.500, today 2 November and an expected salary date of 25 November
 - **WHEN** the owner opens the safe-to-spend explanation
-- **THEN** it SHALL show the remaining Rp 4.922.000, the 23 days from 2 to 24 November, the result Rp 214.000 per day after rounding down to Rp 1.000, and the basis of the expected date
+- **THEN** the hero SHALL read Rp 4.922.000 with "23 hari lagi · gaji ± 25 Nov", its explanation SHALL list masuk, Pengeluaran, Ditabung & investasi and Terjadwal, and no per-day amount SHALL be shown
 
 #### Scenario: Next salary date unknown
 - **GIVEN** an open cycle whose confirmed receipts do not form a regular pattern
 - **WHEN** the owner opens Beranda
-- **THEN** no daily amount SHALL be shown, the remaining amount SHALL still be shown with its lines, and the explanation SHALL say that a daily figure needs a regular salary date
+- **THEN** the hero SHALL still show the remaining amount with its lines and SHALL say "Tanggal gaji berikutnya belum diketahui" instead of a day count
 
 #### Scenario: Salary is late
 - **GIVEN** the expected salary date was yesterday and no new receipt is confirmed
 - **WHEN** the owner opens Beranda
-- **THEN** the daily figure SHALL be unavailable with the reason that the salary has not been recorded yet, and no negative or zero day count SHALL be used
+- **THEN** the hero SHALL show the remaining amount and say that the salary has not been recorded yet, and no negative or zero day count SHALL be used
 
 #### Scenario: Spent more than the remaining amount
 - **WHEN** keluar plus scheduled exceeds masuk by Rp 300.000 with 10 days left
-- **THEN** the daily figure SHALL be Rp 0 and its explanation SHALL say that the cycle is Rp 300.000 over, without a negative daily amount
+- **THEN** the hero SHALL say that the period is Rp 300.000 over instead of showing a negative safe amount
 
 ### Requirement: Scheduled Amount
 "Terjadwal" SHALL be the unpaid occurrences of the owner's active non-income plans that are due or overdue up to the day before the expected salary date, plus the unfunded part of the current period's goal set-asides. Paid, linked or skipped occurrences SHALL NOT count, and a set-aside already moved into the goal's accounts this period SHALL NOT count again.
@@ -98,18 +82,18 @@ The third number SHALL be the total amount of rows that count towards the Tinjau
 - **THEN** "Terjadwal" SHALL cover the next 30 days, and its explanation SHALL name that window
 
 ### Requirement: Uang Siklus Ini Card
-Beranda SHALL show "Uang siklus ini": masuk for the period and a segmented bar of "Sudah dipakai" (keluar), "Terjadwal" and "Aman dipakai" (remaining). Each segment SHALL carry its amount as text with a label beside it, every amount SHALL be explainable, and the bar SHALL NOT be the only carrier of the values.
+Beranda SHALL show "Uang siklus ini": masuk for the period and a segmented bar of "Pengeluaran", "Ditabung & investasi", "Terjadwal" and "Aman dipakai" (remaining). Each segment SHALL carry its amount as text with a label beside it, every amount SHALL be explainable, and the bar SHALL NOT be the only carrier of the values.
 
 #### Scenario: Segments add up
 - **WHEN** the card shows masuk Rp 9.800.000
-- **THEN** the three labelled amounts SHALL add up to Rp 9.800.000, or the card SHALL say by how much the period is over when they exceed it
+- **THEN** the four labelled amounts SHALL add up to Rp 9.800.000, or the card SHALL say by how much the period is over when they exceed it
 
 #### Scenario: Screen reader
 - **WHEN** a screen reader reaches the card
 - **THEN** it SHALL read each segment's name and amount as text, and the decorative bar SHALL be hidden from it
 
 ### Requirement: Kerjakan Dulu
-Beranda SHALL list what needs the owner first: open questions, awaiting or ambiguous transfers, groups that need an answer, and plan occurrences that are due or due within two days. Each item SHALL name the merchant or plan, amount and time and offer one action. A due plan SHALL keep its link, skip and record actions. When the Beranda cards form one column, "Perlu tindakan" SHALL come directly after "Uang siklus ini", before recent activity, in both the visual and the reading and focus order.
+Beranda SHALL list what needs the owner first: open questions, awaiting or ambiguous transfers, groups that need an answer, and plan occurrences that are due or due within two days. Each item SHALL name the merchant or plan, amount and time and offer one action. A due plan SHALL keep its link, skip and record actions. When the Beranda cards form one column, "Perlu tindakan" SHALL come directly after the KPI cards, before "Uang siklus ini", in both the visual and the reading and focus order.
 
 #### Scenario: Items and order
 - **GIVEN** one open question, two awaiting transfer legs, one group that needs an answer and a plan due tomorrow
@@ -118,7 +102,7 @@ Beranda SHALL list what needs the owner first: open questions, awaiting or ambig
 
 #### Scenario: One-column Beranda
 - **WHEN** the Beranda main column is 900 px wide or narrower above the phone layout
-- **THEN** "Perlu tindakan" SHALL follow "Uang siklus ini" directly and come before "Aktivitas terbaru", and keyboard focus SHALL reach it in that order
+- **THEN** "Perlu tindakan" SHALL follow the KPI cards directly and come before "Uang siklus ini", and keyboard focus SHALL reach it in that order
 
 #### Scenario: Recording a due plan
 - **WHEN** the owner chooses to record a due plan from "Perlu tindakan"
@@ -150,7 +134,7 @@ Beranda SHALL list up to eight transactions from today and yesterday, newest fir
 - **THEN** the drawer SHALL say "Transaksi ini sudah tidak ada" and Beranda's list SHALL refresh
 
 ### Requirement: Kakeibo and Ketahanan Dana Cards
-Beranda SHALL show the period's Kakeibo split with the total equal to "Keluar", all six buckets with amount and share, each linked to the ledger, and Ketahanan Dana with months covered, the emergency balance and the target from the emergency-coverage contract. An unknown coverage SHALL stay unknown.
+Beranda SHALL show the period's Kakeibo split: "Pengeluaran" as its total over the five spending buckets, then "Tabungan" apart, each with amount, linked to the ledger. Ketahanan Dana SHALL be a full card with months covered, the emergency balance and the target from the emergency-coverage contract. An unknown coverage SHALL stay unknown.
 
 #### Scenario: Unknown essential cost
 - **WHEN** the essential monthly cost is unknown
@@ -168,11 +152,11 @@ Beranda SHALL show placeholders of the final layout while loading, and when the 
 - **THEN** the summary, KPI strip and "Uang siklus ini" SHALL show the failure message and "Coba lagi", SHALL show no Rp 0, and cards with their own data SHALL still render
 
 ### Requirement: Cycle Summary API
-`GET /api/dashboard/cycle-summary` SHALL return, for the authenticated owner only, the Beranda period, keluar, masuk, waiting, scheduled, remaining, safe-to-spend and net-worth figures as integer rupiah, each with explanation lines that add up to it, plus status and reason codes for unavailable figures. It SHALL accept session or Bearer authentication.
+`GET /api/dashboard/cycle-summary` SHALL return, for the authenticated owner only, the Beranda period, keluar, spending, fresh saving, masuk, waiting, scheduled, remaining, safe-to-spend and net-worth figures as integer rupiah, each with explanation lines that add up to it, plus status and reason codes for unavailable figures. It SHALL accept session or Bearer authentication.
 
 #### Scenario: Lines add up
 - **WHEN** the summary is returned
-- **THEN** for every figure that has lines, the lines SHALL add up exactly to the figure, and `remaining` SHALL equal `masuk - keluar - scheduled`
+- **THEN** for every figure that has lines, the lines SHALL add up exactly to the figure, `spending + fresh_saving` SHALL equal `keluar`, and `remaining` SHALL equal `masuk - keluar - scheduled`
 
 #### Scenario: Unavailable figure
 - **WHEN** the expected salary date is unknown
@@ -186,3 +170,22 @@ Beranda SHALL show placeholders of the final layout while loading, and when the 
 #### Scenario: Unauthenticated
 - **WHEN** the request has no valid session or Bearer key
 - **THEN** the API SHALL respond 401 and return no figures
+
+### Requirement: Beranda KPI Cards
+Beranda SHALL open with KPI cards instead of a written summary: "Aman dipakai sampai gajian" as the largest figure, then Masuk, Pengeluaran, Ditabung & investasi and Kekayaan bersih. Each card SHALL carry a short label, the figure in large bold tabular type and at most one muted line, and each figure SHALL open its explanation. No card SHALL compare with the same day of an earlier period.
+
+#### Scenario: Cards on a desktop
+- **WHEN** the owner opens Beranda at 1440 px
+- **THEN** five KPI cards SHALL be shown in that order above the other cards, the safe amount SHALL be the largest figure, and no sentence-style summary SHALL be shown
+
+#### Scenario: No same-date comparison
+- **WHEN** the previous period had less spending in its first days
+- **THEN** no card SHALL show a chip such as "vs 6 hari pertama periode lalu"
+
+#### Scenario: Figure unavailable
+- **WHEN** the net worth cannot be computed
+- **THEN** its card SHALL say so in words and SHALL show no Rp 0
+
+#### Scenario: Phone order
+- **WHEN** Beranda is shown at 390 px
+- **THEN** the safe amount SHALL come first, the other four figures SHALL follow as a two-by-two grid, and "Perlu tindakan" SHALL come next

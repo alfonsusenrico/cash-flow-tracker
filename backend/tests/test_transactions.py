@@ -307,7 +307,7 @@ def test_list_transactions_summary_cycle_and_cumulative():
             "cumulative_inflow": 12000000,
             "cumulative_outflow": 5500000,
             "cycle_inflow": 7436000,
-            "cycle_outflow": 1250000,
+            "cycle_outflow": 1250000, "cumulative_saving": 0, "cycle_saving": 0,
         }
         # 2. Select page fetch & allocations
         cur.fetchall.side_effect = [
@@ -344,13 +344,15 @@ def test_list_transactions_summary_cycle_and_cumulative():
         assert "cycle_outflow" in summary_query
         assert "Internal Movement" in summary_query
         assert "is_excluded_from_budget" in summary_query
-        # Ensure parameter order matches SQL placeholders: 4 date bounds first, followed by where_clause params
+        # Ensure parameter order matches SQL placeholders: 6 date bounds first (cycle inflow, outflow and saving), then where_clause params
         assert summary_query.count("%s") == len(summary_params)
         assert isinstance(summary_params[0], datetime)
         assert isinstance(summary_params[1], datetime)
         assert isinstance(summary_params[2], datetime)
         assert isinstance(summary_params[3], datetime)
-        assert summary_params[4] == mock_user["id"]
+        assert isinstance(summary_params[4], datetime)
+        assert isinstance(summary_params[5], datetime)
+        assert summary_params[6] == mock_user["id"]
 
 
 def test_list_transactions_summary_with_filters_and_custom_payday():
@@ -375,7 +377,7 @@ def test_list_transactions_summary_with_filters_and_custom_payday():
             "cumulative_inflow": 2000000,
             "cumulative_outflow": 500000,
             "cycle_inflow": 1000000,
-            "cycle_outflow": 250000,
+            "cycle_outflow": 250000, "cumulative_saving": 0, "cycle_saving": 0,
         }
         cur.fetchall.side_effect = [
             [{"id": filter_account_id}],  # accounts query for matching account IDs
@@ -404,10 +406,12 @@ def test_list_transactions_summary_with_filters_and_custom_payday():
         assert "t.account_id IN" in summary_query
         assert "t.category_id = %s" in summary_query
         assert "t.notes ILIKE" in summary_query
-        # Ensure parameter order matches SQL placeholders: 4 date bounds first, followed by where_clause params
+        # Ensure parameter order matches SQL placeholders: 6 date bounds first (cycle inflow, outflow and saving), then where_clause params
         assert summary_query.count("%s") == len(summary_params)
         assert isinstance(summary_params[0], datetime)
         assert isinstance(summary_params[1], datetime)
         assert isinstance(summary_params[2], datetime)
         assert isinstance(summary_params[3], datetime)
-        assert summary_params[4] == mock_user["id"]
+        assert isinstance(summary_params[4], datetime)
+        assert isinstance(summary_params[5], datetime)
+        assert summary_params[6] == mock_user["id"]

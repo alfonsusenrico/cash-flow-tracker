@@ -73,6 +73,10 @@ export interface CycleSummary {
     reason: ExpectedReason | null;
   };
   keluar: { total: number; offsets_total: number; lines: (SummaryLine & { key: KakeiboBucket })[] };
+  /** Pengeluaran: Keluar without the saving bucket (refine-workspace-layout D4). */
+  spending: { amount: number; lines: (SummaryLine & { key: KakeiboBucket })[] };
+  /** Ditabung & investasi: the saving bucket of Keluar. `spending + fresh_saving = keluar`. */
+  fresh_saving: { amount: number; lines: (SummaryLine & { key: KakeiboBucket })[] };
   masuk: { total: number; lines: SummaryLine[] };
   waiting: { count: number; total: number; in_keluar: number; not_in_keluar: number; lines: WaitingLine[] };
   scheduled: {

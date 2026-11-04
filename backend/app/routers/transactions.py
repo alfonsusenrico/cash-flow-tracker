@@ -142,25 +142,37 @@ def earlier_bound(bound: datetime, other: datetime | None) -> datetime:
 
 
 def ledger_cash_flow(
-    cur, user_id: str, inflow: int, gross_outflow: int,
+    cur, user_id: str, inflow: int, gross_outflow: int, gross_saving: int,
     start: datetime | None, end: datetime | None, offset_scope: dict[str, str | None] | None,
 ) -> dict[str, int]:
     """Ledger summary figures; outflow is net of reimbursements the way report figures are.
 
     `offset_scope` is None when other filters make the rows differ from any report figure; the
     outflow then stays gross and the offset is reported as 0.
+
+    Outflow is split into `spending` (Pengeluaran) and `saving` (saving-pillar expenses), which add up
+    to it exactly (refine-workspace-layout D4).
     """
     offset = 0
+    saving_offset = 0
     start, end = aware(start) if start else EARLIEST, aware(end) if end else LATEST
     if offset_scope is not None and start <= end:
         offsets = load_spending_offsets(cur, user_id, start, end)
         if offset_scope["category_id"]:
             offset = offsets.for_category(offset_scope["category_id"])
+            # A category's rows are all saving or none; per-row pillar overrides leave the offset with spending.
+            saving_offset = offset if gross_saving == gross_outflow else 0
         elif offset_scope["pillar"]:
             offset = offsets.for_pillar(offset_scope["pillar"])
+            saving_offset = offset if offset_scope["pillar"] == "saving" else 0
         else:
             offset = offsets.applied
-    return cash_flow_totals(inflow, gross_outflow, offset)
+            saving_offset = offsets.for_pillar("saving")
+    totals = cash_flow_totals(inflow, gross_outflow, offset)
+    saving = min(max(0, gross_saving - saving_offset), totals["outflow"])
+    spending = totals["outflow"] - saving
+    # `spending_net` is Transaksi's "Bersih": money in less Pengeluaran, so saving is not counted as spent.
+    return {**totals, "spending": spending, "saving": saving, "spending_net": inflow - spending}
 
 
 PROVENANCE_SELECT = """
@@ -364,14 +376,18 @@ def list_transactions(
                     COALESCE(SUM(CASE WHEN {reportable_income_sql()} AND t.date >= %s AND t.date <= %s
                         THEN t.amount ELSE 0 END), 0) AS cycle_inflow,
                     COALESCE(SUM(CASE WHEN {reportable_expense_sql()} AND t.date >= %s AND t.date <= %s
-                        THEN t.amount ELSE 0 END), 0) AS cycle_outflow
+                        THEN t.amount ELSE 0 END), 0) AS cycle_outflow,
+                    COALESCE(SUM(CASE WHEN {reportable_expense_sql()} AND {effective_pillar_sql()} = 'saving'
+                        THEN t.amount ELSE 0 END), 0) AS cumulative_saving,
+                    COALESCE(SUM(CASE WHEN {reportable_expense_sql()} AND {effective_pillar_sql()} = 'saving'
+                        AND t.date >= %s AND t.date <= %s THEN t.amount ELSE 0 END), 0) AS cycle_saving
                 FROM transactions t
                 LEFT JOIN categories c ON c.id = t.category_id
                 LEFT JOIN goals g ON g.id = t.goal_id
                 LEFT JOIN obligations o ON o.id = t.obligation_id
                 WHERE {where_clause}
             """
-            cur.execute(summary_query, [cycle_start, cycle_end, cycle_start, cycle_end] + params)
+            cur.execute(summary_query, [cycle_start, cycle_end, cycle_start, cycle_end, cycle_start, cycle_end] + params)
             agg = cur.fetchone()
             total = agg["total"]
             # Offsets apply where the filtered rows are exactly what a report figure covers.
@@ -381,11 +397,12 @@ def list_transactions(
                 offset_scope = {"category_id": str(category_id) if category_id else None, "pillar": kakeibo_type}
             cumulative = ledger_cash_flow(
                 cur, user_id, int(agg["cumulative_inflow"] or 0), int(agg["cumulative_outflow"] or 0),
-                from_date, to_date, offset_scope,
+                int(agg["cumulative_saving"] or 0), from_date, to_date, offset_scope,
             )
             cycle = ledger_cash_flow(
                 cur, user_id, int(agg["cycle_inflow"] or 0), int(agg["cycle_outflow"] or 0),
-                later_bound(cycle_start, from_date), earlier_bound(cycle_end, to_date), offset_scope,
+                int(agg["cycle_saving"] or 0), later_bound(cycle_start, from_date), earlier_bound(cycle_end, to_date),
+                offset_scope,
             )
 
             # Select page
@@ -527,7 +544,7 @@ def load_daily_totals(cur, where_clause: str, params: list[Any], days: list[date
     """Figures for each local day the page touches, over every row of that day that matches the filters.
 
     Inflow and outflow use the summary's gross rules, so over all pages they add up to the summary's
-    inflow and gross outflow. A movement counts once (its legs share the movement id), and waiting rows
+    inflow and gross outflow; `spending` is the outflow without saving-pillar expenses. A movement counts once (its legs share the movement id), and waiting rows
     are counted like any row and also reported on their own.
     """
     if not days:
@@ -538,6 +555,7 @@ def load_daily_totals(cur, where_clause: str, params: list[Any], days: list[date
         WITH matching AS (
             SELECT t.id, t.amount, t.movement_id, (t.date AT TIME ZONE %s)::date AS day,
                    {reportable_income_sql()} AS is_inflow, {reportable_expense_sql()} AS is_outflow,
+                   {reportable_expense_sql()} AND {effective_pillar_sql()} IS DISTINCT FROM 'saving' AS is_spending,
                    {waiting_row_sql("t")} AS is_waiting
             {LIST_FROM_SQL}
             WHERE {where_clause} AND t.date >= %s AND t.date < %s
@@ -548,6 +566,7 @@ def load_daily_totals(cur, where_clause: str, params: list[Any], days: list[date
         SELECT m.day, COUNT(*) AS count,
                COALESCE(SUM(m.amount) FILTER (WHERE m.is_inflow), 0) AS inflow,
                COALESCE(SUM(m.amount) FILTER (WHERE m.is_outflow), 0) AS outflow,
+               COALESCE(SUM(m.amount) FILTER (WHERE m.is_spending), 0) AS spending,
                COALESCE((SELECT SUM(mv.amount) FROM movements mv WHERE mv.day = m.day), 0) AS movements,
                COUNT(*) FILTER (WHERE m.is_waiting) AS waiting_count,
                COALESCE(SUM(m.amount) FILTER (WHERE m.is_waiting), 0) AS waiting_amount
@@ -564,6 +583,7 @@ def load_daily_totals(cur, where_clause: str, params: list[Any], days: list[date
             "count": int(row["count"]),
             "inflow": int(row["inflow"]),
             "outflow": int(row["outflow"]),
+            "spending": int(row["spending"]),
             "movements": int(row["movements"]),
             "waiting_count": int(row["waiting_count"]),
             "waiting_amount": int(row["waiting_amount"]),

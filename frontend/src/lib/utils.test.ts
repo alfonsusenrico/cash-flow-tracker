@@ -20,7 +20,7 @@ describe("greeting name", () => {
 });
 
 describe("greetingName", () => {
-  it("greets with the display name, as Tanya and Beranda both do", () => {
+  it("greets with the display name", () => {
     expect(greetingName({ name: "Raka", username: "beranda_contoh" })).toBe("Raka");
     expect(greetingName({ name: "Raka Contoh", username: "beranda_contoh" })).toBe("Raka");
   });

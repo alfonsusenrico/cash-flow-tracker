@@ -147,11 +147,11 @@ Snapshots let you record net worth over time.
 
 ### Navigation
 
-Every page opens inside one workspace window. On a computer the sidebar groups the pages: Harian (Beranda, Tinjau, Transaksi), AI (Tanya), Uang (Rekening & Kantong, Target & Tagihan) and Laporan (Analisis, Laporan). Tinjau shows how many rows wait for your answer, and Laporan shows a badge while a new monthly report is fresh. The foot of the sidebar shows whether your phone is ready, plus Bantuan and Pengaturan. Between 761 and 1180 px wide the sidebar is an icon rail; above that you can collapse it yourself.
+On a computer the sidebar lists seven pages: Beranda, Tinjau, Transaksi, Analisis, Laporan, Rekening & Kantong and Target & Tagihan. Tinjau shows how many rows wait for your answer, and Laporan shows a badge while a new monthly report is fresh. The foot of the sidebar holds Pengaturan and your account card (name and username), which opens the account menu. Whether your phone is ready is shown in Pengaturan · HP & perangkat, and help in Pengaturan · Tampilan ("Bantuan & pintasan", or press `?` anywhere). Between 761 and 1180 px wide the sidebar is an icon rail; above that you can collapse it yourself. The old `/tanya` address opens Beranda.
 
-The top bar holds the page title, search (⌘K or Ctrl+K; Enter opens Transaksi with your text), the theme (Terang, Gelap or Ikuti sistem), notifications, "+ Catat" and your account menu (Sembunyikan saldo, Pengaturan, Keluar). Transaksi and Analisis show their period stepper in the top bar too.
+The top bar holds the page title, search (⌘K or Ctrl+K; Enter opens Transaksi with your text), the theme (Terang, Gelap or Ikuti sistem), notifications and "+ Catat"; on a phone it also holds the account menu (Sembunyikan saldo, Pengaturan, Keluar). Transaksi and Analisis show their period stepper in the top bar too.
 
-On a phone a tab bar at the bottom offers Beranda, Tinjau, Catat, Transaksi and Lainnya; Lainnya lists every other page (Tanya first), the notifications, Bantuan and Keluar.
+On a phone a tab bar at the bottom offers Beranda, Tinjau, Catat, Transaksi and Lainnya; Lainnya lists Rekening & Kantong, Target & Tagihan, Analisis, Laporan and Pengaturan, then the notifications and Keluar.
 
 Keyboard: N opens Catat, ? opens the shortcut help, Esc closes the open menu, explanation or dialog. The single-key shortcuts (N, ? and the keys of Tinjau) can be switched off in the help.
 
@@ -163,17 +163,16 @@ Beranda describes the current salary cycle, or the current calendar month while 
 
 ### What You See
 
-- Three sentences with three numbers: how much went out since payday, how much is safe to spend today, and how much is still waiting for your answer. Every underlined number opens "Rincian hitungan", which lists the lines that make it up and links to the matching transactions.
-- Four figures: Aman dipakai hari ini, Keluar, Masuk and Kekayaan bersih. Keluar and Masuk compare with the same number of days of the previous period, as an amount.
-- Uang siklus ini: what you received, split into what is used, what is scheduled (unpaid plans and goal set-asides) and what is safe to use until payday.
-- Perlu tindakan: open questions, transfers waiting for their other side, groups that need an answer and plans due within two days.
-- Aktivitas terbaru (on phones: Hari ini), Kakeibo, Ketahanan Dana and one comparison with the previous period.
+- Five KPI cards: **Aman dipakai sampai gajian** (the largest), Masuk, Pengeluaran, Ditabung & investasi and Kekayaan bersih. Every underlined figure opens "Rincian hitungan", which lists the lines that make it up and links to the matching transactions.
+- Uang siklus ini: what you received, split into Pengeluaran, Ditabung & investasi, Terjadwal (unpaid plans and goal set-asides) and Aman dipakai, which add up to Masuk.
+- Perlu tindakan: open questions, transfers waiting for their other side, groups that need an answer and plans due within two days, with the amount still waiting for an answer.
+- Aktivitas terbaru (every row opens its detail), Kakeibo with the Pengeluaran total and Tabungan apart, and Ketahanan Dana.
 
 ### How the numbers are counted
 
-- Keluar is the Kakeibo total: needs, wants, culture, unexpected, money moved into savings or invested, and spending without a pillar yet. Moves between your own ordinary accounts are not counted.
+- Pengeluaran is spending without savings: needs, wants, culture, unexpected and spending without a pillar yet. Ditabung & investasi is the saving pillar plus money moved into savings or invested. Together they are the Kakeibo total. Moves between your own ordinary accounts are not counted.
 - Rows waiting in Tinjau stay recorded and counted. Answering moves the amount to the right pillar.
-- Aman dipakai hari ini divides what is left by the days until the next salary date. It appears only when your last three confirmed salaries came at regular dates (26 to 35 days apart, within three days of the same day of the month). Otherwise Beranda shows the remaining amount and says why there is no daily figure. It never divides by a guessed date.
+- Aman dipakai sampai gajian is what is left for the whole period: Masuk less Pengeluaran, Ditabung & investasi and Terjadwal. The days left and the expected salary date are written under it when your last three confirmed salaries came at regular dates; otherwise it says the next salary date is not known yet. There is no per-day figure.
 
 ### When to Use It
 
@@ -187,20 +186,9 @@ Tinjau is an inbox: the list on the left, one item large on the right. On a phon
 
 - Folders: Semua, Belum dikenali (payments without a shop name), Perlu jawaban (groups the app is unsure about, one answer for every row of the same shop) and Pindah saldo belum lengkap (transfers whose other side is missing). Their counts add up to the number on the Tinjau badge.
 - Optional, folded below the list: Dicatat otomatis (rows the rules or the AI recorded; checking them is optional) and Saran dari riwayat (proposals for older rows; nothing changes until you accept). "Cari saran dari riwayat" starts a new proposal run after showing its estimate.
-- One press answers: a numbered choice, "Terima", "Iya, top up …", an account for a transfer, or "Bukan pindah saldo, ini pengeluaran". Tinjau saves it, says what happened and moves to the next item. When nothing is left it shows "Semua sudah ditinjau" with this cycle's Keluar, Aman dipakai hari ini and Belum diklasifikasi.
+- One press answers: a numbered choice, "Terima", "Iya, top up …", an account for a transfer, or "Bukan pindah saldo, ini pengeluaran". Tinjau saves it, says what happened and moves to the next item. When nothing is left it shows "Semua sudah ditinjau" with this cycle's Pengeluaran, Aman dipakai sampai gajian and Belum diklasifikasi.
 - Urungkan: the message after each answer offers "Urungkan", and Z does the same later, for 10 minutes. It puts the answer back exactly, including what the app learned. If the row changed since (for example you edited it in Transaksi), Tinjau says it cannot undo and links to the row.
 - Keys, while focus is in Tinjau: J and K move, Enter opens, E accepts the highlighted suggestion, T opens "Ini top up investasi", 1–9 pick a numbered choice, Z undoes and ? lists them. They are ignored while you type and can be switched off in the help ("Pintasan satu tombol").
-
-## Tanya
-
-Route: `/tanya`
-
-Tanya is a conversation about your own money. Type a question or a transaction in the box at the bottom; Enter sends and Shift+Enter starts a new line.
-
-- Questions it answers, in Indonesian or English: the summary of this cycle ("ringkasan siklus ini", "aman hari ini"), what waits in Tinjau ("menunggu jawaban"), bills and goal set-asides ("tagihan", "tagihan minggu ini" for the next 7 days), the Kakeibo split ("kakeibo", "ke mana uangku") and the latest monthly report ("laporan terbaru"). Each answer is a card with the server's own figures, stamped "Per hh.mm"; "Perbarui" fetches them again. Items waiting in Tinjau link to the exact item.
-- Recording: a sentence with one amount, such as "parkir 5rb jam 2", is recorded at once through the same path as the phone's text capture. The card that follows shows what was recorded, "Urungkan" for the first seconds and "Ubah" to open the transaction. If the app needs one more detail (for example the account), it asks in the conversation; the row is recorded once you answer.
-- It never guesses. A question is never recorded, even when it holds a number ("berapa keluar 2 hari ini?"). A sentence without an amount gets a request for the amount. Anything it does not understand gets a short list of questions it can answer. No AI model writes the answers; the figures come from the same calculations as Beranda, Tinjau and Target & Tagihan.
-- The conversation lives only in this browser tab. It is gone after a reload, after signing out and when another account signs in, and "Hapus percakapan" empties it at once. Nothing you type in Tanya is stored as a conversation.
 
 ## Analisis
 
@@ -226,11 +214,11 @@ Transactions is the cash ledger. This is the most important operational page bec
 
 ### What You Can Do
 
-- Switch tabs: Semua, Keluar, Masuk, Pindah saldo and Investasi, each with its row count.
+- One toolbar row: tabs (Semua, Pengeluaran, Masuk, Pindah saldo and Investasi, each with its row count), search, "Filter" (period mode, the quick chips Menunggu jawaban, Belum dicek, Dari HP and Lewat Catat, account, category, pillar and status; the button shows how many are active) and "⋯" (Gabungkan dua transaksi, Rutin). Active filters appear as removable chips under the row.
 - Narrow with one chip: Menunggu jawaban (the rows behind the Tinjau badge), Belum dicek (recorded automatically), Dari HP or Lewat Catat. "Filter" adds account, category, Kakeibo pillar and status; each active filter shows as a chip you can remove.
-- Read the period's Masuk, Belanja and Bersih. Belanja leaves out what you saved; on Beranda, Keluar is Belanja plus what you saved. A reimbursement appears as "sudah dikurangi penggantian".
-- Read rows grouped by day. Each day heading shows that day's Belanja, Masuk, Pindah saldo and how many rows are "menunggu jawaban", counted over the whole day even when part of it is not loaded yet ("2 lagi di hari ini · Muat lagi"). "Muat 50 lagi" adds older rows.
-- Open a row: a panel on a wide screen, a sheet on a phone. It shows the amount, where the row came from and who classified it, and the original notification or typed text. From there: "Ubah" (including switching between Keluar and Masuk, "Pindah saldo" to pick its pair in the list, and "Top up Investasi"), "Tandai sudah dicek" with "Urungkan", and "Hapus", which first says what the delete changes and cannot be undone. A row waiting in Tinjau shows "Jawab di Tinjau".
+- Read the period's Masuk, Pengeluaran and Bersih (Masuk less Pengeluaran). Pengeluaran leaves out what you saved, the same figure as on Beranda. A reimbursement appears as "sudah dikurangi penggantian".
+- Read rows grouped by day. Each day heading shows that day's Pengeluaran, Masuk, Pindah saldo and how many rows are "menunggu jawaban", counted over the whole day even when part of it is not loaded yet ("2 lagi di hari ini · Muat lagi"). "Muat 50 lagi" adds older rows.
+- Open a row: a panel on a wide screen, a sheet on a phone. It shows the amount, where the row came from and who classified it, and the original notification or typed text. From there: "Ubah" (including switching between Pengeluaran and Masuk, "Pindah saldo" to pick its pair in the list, and "Top up Investasi"), "Tandai sudah dicek" with "Urungkan", and "Hapus", which first says what the delete changes and cannot be undone. A row waiting in Tinjau shows "Jawab di Tinjau".
 - "Gabungkan" picks one outgoing and one incoming row of the same amount and makes them one Pindah saldo.
 - Keys while focus is in the list: J and K move, Enter opens, Z undoes the last "Tandai sudah dicek" or top up, and ⌘K focuses the search.
 
@@ -255,26 +243,26 @@ Enter transactions regularly. If the ledger is incomplete, almost every other sc
 
 ## 3. Rekening & Kantong
 
-Route: `/accounts` (`?tampil=siap|investasi` shows one table, `?akun=<id>` opens an account's drawer)
+Route: `/accounts` (`?akun=<id>` opens an account's detail)
 
-Rekening & Kantong lists where the money is. The summary card comes first on a phone and beside the tables on a computer.
+Rekening & Kantong lists where the money is, as cards like the old app.
 
 ### What You See
 
-- **Uang siap pakai**: a table of bank, e-wallet and cash accounts with their balances. Pockets ("kantong") are indented rows under their account and can be folded. A row says when an account needs reconciliation ("Perlu rekonsiliasi") and how many unfinished movements it has; the movements are completed in Tinjau.
-- **Investasi**: products grouped by platform, with how each is tracked ("Dicatat per nominal", lots × price, or units) and its value.
-- **Total aset**: the server's liquid and investment totals, a bar of the two, and Kekayaan bersih with its lines. Kekayaan bersih is the same figure as on Beranda: a negative balance that waits for reconciliation and every active debt are subtracted on their own lines, and pockets are counted once.
+- **KPI cards**: Total aset, Siap pakai, Investasi with its gain or loss, and Kekayaan bersih. Kekayaan bersih is the same figure as on Beranda: a negative balance that waits for reconciliation and every active debt are subtracted (see its "Rincian hitungan"), and pockets are counted once.
+- **Komposisi aset**: each account's share of the assets, without debt.
+- **Account cards**: each account with its colour badge, kind, balance and its pockets or products inside. A card says when an account needs reconciliation ("Perlu rekonsiliasi") and how many unfinished movements it has; the movements are completed in Tinjau. Investment products show their value with the gain or loss (▲/▼, amount and %), or "Modal belum dicatat"; a platform shows its total gain.
 
 ### What You Can Do
 
-- Open a row to see its details and actions in a drawer (a bottom sheet on a phone): add a pocket, top up or buy and sell a product, update a value ("Perbarui nilai"), switch a product to amount tracking, reconcile ("Sesuaikan Saldo"), edit and archive (after a confirmation).
-- "Ubah urutan" lists accounts and pockets with drag handles and move buttons; the order is saved at once. "Selesai" leaves the mode.
+- Press a card or a pocket row to see its details and actions in a centered dialog (a bottom sheet on a phone): add a pocket, top up or buy and sell a product, update a value ("Perbarui nilai"), switch a product to amount tracking, reconcile ("Sesuaikan Saldo"), edit and archive (after a confirmation). The "+" on a card adds a pocket.
+- Drag a card or a pocket by its ⠿ handle, or use the ▲▼ buttons that appear on hover or keyboard focus; the order is saved at once and announced. On a phone, "Ubah urutan" switches to move buttons; "Selesai" leaves the mode.
 - "Perbarui harga" refreshes market prices, "Rencana" manages planned payments and "Tambah rekening" opens the account form.
 
 ### How It Connects to Other Menus
 
 - Transactions require accounts.
-- Beranda and Tanya show the same Kekayaan bersih.
+- Beranda shows the same Kekayaan bersih.
 - Ketahanan Dana moved to Target & Tagihan.
 
 ## 4. Buckets
@@ -425,12 +413,14 @@ Lower priority numbers run first inside the same type.
 
 ## 8. Target & Tagihan
 
-Route: `/goals` (`?target=<id>` or `?utang=<id>` opens a drawer)
+Route: `/goals` (`?target=<id>` or `?utang=<id>` opens a detail dialog)
+
+Three equal cards (Ketahanan Dana, Utang and the bills), then the goals at full width.
 
 - **Ketahanan Dana** comes first on a phone: how many months the emergency fund covers, from the server's runway, or "Belum dapat dihitung" when the essential monthly cost is unknown.
 - **Target tabungan**: one row per goal with its status in words ("Tercapai", "Perlu Rp X/bulan", "Tanpa tanggal"), progress and where the progress comes from. A goal's drawer offers "Tambah progres" only for goals without linked accounts (it records progress, not a transaction), "Ubah target" and "Arsipkan target".
 - **Utang**: paid against total, the remaining amount and the minimum payment. The drawer links an existing payment or records one, edits and archives. Paid-off debts move to the archive list.
-- **Tagihan sampai gaji berikutnya**: the planned payments due before the next salary, the same lines and total as Beranda's Terjadwal (or the next 30 days when the salary date cannot be estimated). "Kelola rencana" opens the plans.
+- **Tagihan sampai gaji berikutnya**: the count, the total and the next three bills before the next salary (or the next 30 days when the salary date cannot be estimated). Planned payments are the same lines as Beranda's Terjadwal. Charges that recurred with a steady amount but have no plan yet are added from today and marked "perkiraan". "Kelola" opens the plans.
 
 ## 9. Assets
 
@@ -527,9 +517,9 @@ This section documents the fields users see when creating or editing data. "Requ
 
 Route: `/settings` (each section has its own address; wide screens open HP & perangkat)
 
-- **HP & perangkat**: paired phones, the pairing code, device health and the manual API key.
+- **HP & perangkat**: whether the phone is ready and when it last captured a notification, paired phones, the pairing code, device health and the manual API key.
 - **Kebiasaan** (`/settings/kebiasaan`): the habits and investment top-ups learned from answers in Tinjau, read only. Each row says whether it is recorded automatically ("Dicatat otomatis"), still learning ("Masih belajar · 2 dari 3") or asked because answers differ. The automatic-recording switches are server settings and are shown as facts.
-- **Tampilan** (`/settings/tampilan`): theme, single-key shortcuts and "Sembunyikan saldo", the same settings as the account menu and the help dialog.
+- **Tampilan** (`/settings/tampilan`): theme, single-key shortcuts, "Sembunyikan saldo" and "Bantuan & pintasan" (the help dialog, also on `?`).
 - **Akun**: Profil, Gaji & siklus, Mata uang & anggaran, Pemetaan notifikasi and Nama pengirim. Every section saves its own fields.
 
 ## Settings Fields

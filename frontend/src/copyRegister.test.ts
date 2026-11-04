@@ -10,12 +10,8 @@ import { describe, expect, it } from "vitest";
 const SLANG = /\b(saranku|buat baru|buat diterima|buat mulai|nggak|ngga|gak|udah|beres|nangkep|ketangkep|nyambung|nyambungin|bikin|aja|banget|dimatiin|kamu|aku|nunggu|gajian|lagi bikin|cuma|nebak|dobel|ketemu|benerin|lanjutin|nuntun|tunjukin|ngecek)\b|\b\w+-mu\b/i;
 
 const CONVERSATION = [
-  // Beranda's written summary sentence (option F narrative).
-  "siklus gajimu{who}. Sejak gajian{keluar.total ? \" kamu keluar \" : \" \"}",
-  "Bulan ini{keluar.total ? \" kamu keluar \" : \" \"}",
-  "belum bisa aku hitung",
-  "hal nunggu jawabanmu (",
-  "Semua transaksi udah beres, nggak ada yang nunggu jawaban.",
+  // Beranda's hero figure as the owner approved it in the preview (refine-workspace-layout D5, OD96).
+  "Aman dipakai sampai gajian",
   // The connect-phone guide's prose.
   "HP-mu siap! Mulai sekarang transaksi tercatat sendiri.",
   "Tenang, aplikasi di HP-mu bakal nunjukin cara benerinnya.",
@@ -33,9 +29,7 @@ const ROOTS = ["components/workspace", "components/beranda", "components/review"
   "components/ui/DeviceHealthChecklist.tsx", "components/ui/DevicePairingDialog.tsx", "components/ui/DevicePairingSection.tsx",
   "app/ledger/page.tsx", "app/review/page.tsx", "app/page.tsx", "lib/deviceHealth.ts", "lib/reviewUndo.ts", "lib/triage.ts",
   "lib/provenance.ts", "lib/ledgerFilters.ts", "lib/historySuggestions.ts",
-  // Tanya: every source except lib/tanya/replies.ts, the assistant's own words, and lib/tanya/intents.ts,
-  // whose patterns match what owners type ("nunggu", "aja") and are never shown.
-  "components/tanya", "app/tanya", "lib/tanya/resolve.ts", "lib/tanya/thread.ts", "lib/tanya/types.ts", "lib/capture.ts",
+  "lib/capture.ts",
   // Analisis and Laporan (redesign-analysis-and-reports D13).
   "components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx",
   "lib/reportLead.ts",
@@ -68,6 +62,20 @@ describe("copy register", () => {
   it("keeps slang out of every label-type string outside the assistant's conversation", () => {
     expect(files.length).toBeGreaterThan(20);
     expect(offenders(files)).toEqual([]);
+  });
+
+  // Spending Terms (refine-workspace-layout D4): "Pengeluaran" and "Ditabung & investasi" name the figures on the
+  // pages this change owns; "Keluar" and "Belanja" are no longer figure labels there. Analisis and Laporan follow
+  // in compare-whole-months. "Keluar" as sign-out and "Uang keluar" in row text are not figure labels.
+  it("names spending figures Pengeluaran, never Keluar or Belanja, on Beranda, Transaksi, Tinjau and the money pages", () => {
+    const roots = ["components/beranda", "components/transactions", "components/review", "components/capture", "components/accounts",
+      "components/goals", "app/ledger/page.tsx", "app/page.tsx"];
+    const owned = roots.flatMap(sources).filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file));
+    const figureLabel = /(label|title|text)(=|: )["`](Keluar|Belanja)\b|<dt>(Keluar|Belanja)\b|>(Keluar|Belanja)<\/button|"(Keluar|Belanja) siklus/;
+    const found = owned.flatMap((file) => visibleLines(file)
+      .filter(({ text }) => figureLabel.test(text))
+      .map(({ line, text }) => `${path.relative(__dirname, file)}:${line}: ${text.trim()}`));
+    expect(found).toEqual([]);
   });
 
   it("writes Analisis and Laporan impersonally, without the formal Anda", () => {

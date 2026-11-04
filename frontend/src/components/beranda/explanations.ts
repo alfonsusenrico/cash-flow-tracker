@@ -49,35 +49,35 @@ const SECTION_LABELS: Record<WaitingSection, string> = {
   groups: "Perlu jawaban",
 };
 
-export function comparisonNote(summary: CycleSummary): string | null {
-  const { comparison } = summary;
-  if (comparison.status === "too_short") return "Perbandingan dengan periode lalu muncul setelah 3 hari.";
-  if (comparison.status === "no_previous") return "Belum ada data periode lalu untuk dibandingkan.";
-  return null;
-}
-
-export function keluarExplanation(summary: CycleSummary, money: Money): ExplanationData {
-  const notes = ["Pindah saldo antar rekening sendiri tidak dihitung keluar."];
+export function spendingExplanation(summary: CycleSummary, money: Money): ExplanationData {
+  const notes = ["Pindah saldo antar rekening sendiri dan uang yang ditabung atau diinvestasikan tidak dihitung pengeluaran."];
   if (summary.keluar.offsets_total > 0) notes.push(`Sudah dikurangi ganti uang ${money(summary.keluar.offsets_total)}.`);
   if (summary.waiting.in_keluar > 0) {
     notes.push(`${money(summary.waiting.in_keluar)} dari yang menunggu jawaban sudah termasuk di sini. Jawabannya hanya memindahkan pilarnya.`);
   }
-  const comparison = comparisonNote(summary);
-  if (comparison) notes.push(comparison);
   return {
-    title: `Keluar ${periodWord(summary)}`,
-    rule: "Semua yang keluar di periode ini menurut pilar Kakeibo, termasuk yang ditabung atau diinvestasikan, dikurangi ganti uang.",
-    lines: summary.keluar.lines.map((line) => lineOf(line, money)),
-    total: { label: "Total keluar", amount: money(summary.keluar.total) },
+    title: `Pengeluaran ${periodWord(summary)}`,
+    rule: "Semua pengeluaran periode ini menurut pilar Kakeibo, tanpa yang ditabung, dikurangi ganti uang.",
+    lines: summary.spending.lines.map((line) => lineOf(line, money)),
+    total: { label: "Total pengeluaran", amount: money(summary.spending.amount) },
     notes,
-    link: { href: `${ledgerPeriod(summary)}&type=expense`, label: "Lihat transaksi keluar" },
+    link: { href: `${ledgerPeriod(summary)}&type=expense`, label: "Lihat pengeluaran" },
+  };
+}
+
+export function savingExplanation(summary: CycleSummary, money: Money): ExplanationData {
+  return {
+    title: "Ditabung & investasi",
+    rule: "Pengeluaran berpilar Tabungan ditambah uang bersih yang dipindah ke kantong tabungan atau diinvestasikan.",
+    lines: summary.fresh_saving.lines.map((line) => lineOf(line, money)),
+    total: { label: "Total ditabung", amount: money(summary.fresh_saving.amount) },
+    notes: [`Bersama pengeluaran ${money(summary.spending.amount)}, totalnya ${money(summary.keluar.total)}.`],
+    link: { href: `${ledgerPeriod(summary)}&kakeibo=saving`, label: "Lihat yang ditabung" },
   };
 }
 
 export function masukExplanation(summary: CycleSummary, money: Money): ExplanationData {
   const notes = ["Pindah saldo antar rekening sendiri dan uang pengganti tidak dihitung masuk."];
-  const comparison = comparisonNote(summary);
-  if (comparison) notes.push(comparison);
   return {
     title: `Masuk ${periodWord(summary)}`,
     rule: "Uang yang masuk di periode ini, per kategori.",
@@ -211,12 +211,12 @@ export function waitingExplanation(summary: CycleSummary, money: Money): Explana
     lines: waiting.lines.map((line) => ({
       label: line.label,
       note: `${SECTION_LABELS[line.section]} · ${
-        line.in_keluar ? `sudah di Keluar sebagai ${kakeiboBucketInfo(line.in_keluar_as)?.label ?? "Belum diklasifikasi"}` : "belum masuk Keluar"
+        line.in_keluar ? `sudah dihitung sebagai ${kakeiboBucketInfo(line.in_keluar_as)?.label ?? "Belum diklasifikasi"}` : "belum masuk Keluar"
       }`,
       amount: money(line.amount),
     })),
     total: { label: "Total", amount: money(waiting.total) },
-    notes: [`${money(waiting.in_keluar)} sudah ikut dihitung di Keluar, ${money(waiting.not_in_keluar)} belum.`],
+    notes: [`${money(waiting.in_keluar)} sudah ikut dihitung di angka periode ini, ${money(waiting.not_in_keluar)} belum.`],
     link: { href: "/review", label: "Jawab di Tinjau" },
   };
 }
@@ -232,16 +232,21 @@ export function scheduledExplanation(summary: CycleSummary, money: Money): Expla
     rule: "Tagihan yang belum dibayar dan setoran target yang belum masuk, sebelum gaji berikutnya.",
     lines: scheduledDetailLines(summary, money).map((line) => ({ ...line, amount: line.amount.replace("−", "") })),
     total: { label: "Total terjadwal", amount: money(scheduled.total) },
-    notes: [window, "Rencana adalah pengingat, bukan pembayaran. Setelah pembayarannya ditautkan, angkanya pindah ke Keluar."],
+    notes: [window, "Rencana adalah pengingat, bukan pembayaran. Setelah pembayarannya ditautkan, angkanya pindah ke Pengeluaran."],
     link: { href: "/goals", label: "Buka Target & Tagihan" },
   };
 }
 
 export function remainingExplanation(summary: CycleSummary, money: Money): ExplanationData {
   return {
-    title: "Sisa aman sampai gaji berikutnya",
-    rule: "Masuk dikurangi yang sudah dipakai dan yang terjadwal.",
-    lines: summary.remaining.lines.map((line) => ({ label: line.label, amount: signed(line.amount, money) })),
+    title: "Aman dipakai sampai gajian",
+    rule: "Masuk dikurangi pengeluaran, yang ditabung dan yang terjadwal, untuk seluruh periode sampai gaji berikutnya.",
+    lines: [
+      { label: "Masuk", amount: signed(summary.masuk.total, money) },
+      { label: "Pengeluaran", amount: signed(-summary.spending.amount, money) },
+      { label: "Ditabung & investasi", amount: signed(-summary.fresh_saving.amount, money) },
+      { label: "Terjadwal", amount: signed(-summary.scheduled.total, money) },
+    ],
     total: { label: "Sisa", amount: balance(summary.remaining.total, money) },
     notes: [waitingNote(summary, money)],
   };

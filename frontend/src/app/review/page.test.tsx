@@ -748,8 +748,8 @@ describe("Tinjau triage", () => {
     const { container, user } = renderPage();
     expect(await screen.findByRole("heading", { name: "Semua sudah ditinjau" })).toBeInTheDocument();
     const facts = await screen.findByLabelText("Siklus ini");
-    expect(facts).toHaveTextContent("Keluar siklus iniRp 3.521.500");
-    expect(facts).toHaveTextContent("Aman dipakai hari iniRp 145.000");
+    expect(facts).toHaveTextContent("Pengeluaran siklus iniRp 3.521.500");
+    expect(facts).toHaveTextContent("Aman dipakai sampai gajianRp 5.000.000");
     expect(facts).toHaveTextContent("Belum diklasifikasiRp 357.000");
     expect(screen.getByRole("link", { name: "Kembali ke Beranda" })).toHaveAttribute("href", "/");
     expect((await axe(container)).violations).toHaveLength(0);

@@ -13,54 +13,29 @@ export interface NavLink {
   badge?: NavBadge;
 }
 
-export interface NavGroup {
-  label: string;
-  links: NavLink[];
-}
-
 export const REVIEW_HREF = "/review";
 export const LEDGER_HREF = "/ledger";
-export const TANYA_HREF = "/tanya";
 /** What the Transaksi entry opens: this cycle (OD20). Plain `/ledger` and every other link keep all time. */
 export const LEDGER_NAV_HREF = "/ledger?period=cycle";
 
-/**
- * One source for the sidebar, the phone tab bar and the "Lainnya" sheet. Tanya has no tab-bar slot, so the
- * phone reaches it through "Lainnya" (add-tanya-conversation OD65).
- */
-export const NAV_GROUPS: NavGroup[] = [
-  {
-    label: "Harian",
-    links: [
-      { href: "/", label: "Beranda", icon: "home" },
-      { href: REVIEW_HREF, label: "Tinjau", icon: "inbox", badge: "review" },
-      { href: LEDGER_NAV_HREF, label: "Transaksi", icon: "receipt" },
-    ],
-  },
-  {
-    label: "AI",
-    links: [{ href: TANYA_HREF, label: "Tanya", icon: "message-circle" }],
-  },
-  {
-    label: "Uang",
-    links: [
-      { href: "/accounts", label: "Rekening & Kantong", icon: "wallet" },
-      { href: "/goals", label: "Target & Tagihan", icon: "target" },
-    ],
-  },
-  {
-    label: "Laporan",
-    links: [
-      { href: "/insights", label: "Analisis", icon: "analysis" },
-      { href: "/laporan", label: "Laporan", icon: "file-text", badge: "report" },
-    ],
-  },
+/** One flat list for the sidebar, the rail and the phone tab bar, in the old app's order (refine-workspace-layout D3). */
+export const NAV_LINKS: NavLink[] = [
+  { href: "/", label: "Beranda", icon: "home" },
+  { href: REVIEW_HREF, label: "Tinjau", icon: "inbox", badge: "review" },
+  { href: LEDGER_NAV_HREF, label: "Transaksi", icon: "receipt" },
+  { href: "/insights", label: "Analisis", icon: "analysis" },
+  { href: "/laporan", label: "Laporan", icon: "file-text", badge: "report" },
+  { href: "/accounts", label: "Rekening & Kantong", icon: "wallet" },
+  { href: "/goals", label: "Target & Tagihan", icon: "target" },
 ];
 
 export const SETTINGS_LINK: NavLink = { href: SETTINGS_HOME, label: "Pengaturan", icon: "sliders" };
 
 /** Pages on the phone tab bar; every other page sits in "Lainnya". */
 export const PHONE_TAB_HREFS = ["/", REVIEW_HREF, LEDGER_NAV_HREF] as const;
+
+/** The "Lainnya" sheet: money pages first, then the reports, then Pengaturan (D3). */
+export const MORE_HREFS = ["/accounts", "/goals", "/insights", "/laporan"] as const;
 
 export function isActivePath(pathname: string, href: string): boolean {
   href = href.split("?")[0];
@@ -81,7 +56,6 @@ interface PageMeta {
 }
 
 const PAGE_META: [string, PageMeta][] = [
-  ["/tanya", { title: "Tanya", subtitle: "Catat transaksi atau tanyakan ringkasan keuangan" }],
   ["/review", { title: "Tinjau", subtitle: "Yang perlu dijawab dan yang dicatat otomatis" }],
   ["/ledger", { title: "Transaksi", subtitle: "Semua uang masuk, keluar, dan pindah saldo" }],
   ["/accounts", { title: "Rekening & Kantong", subtitle: "Bank, e-wallet, tunai, kantong, dan investasi" }],

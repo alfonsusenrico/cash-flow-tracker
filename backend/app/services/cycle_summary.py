@@ -120,6 +120,21 @@ def _keluar(kakeibo: dict[str, Any], offsets, period: str) -> dict[str, Any]:
     return {"total": total, "lines": lines, "offsets_total": offsets.applied}
 
 
+def _spending_split(keluar: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Keluar split into Pengeluaran (every bucket but saving) and Ditabung & investasi (the saving bucket).
+
+    The two add up to `keluar.total` exactly, so Beranda's segments and the Kakeibo card stay one identity
+    (refine-workspace-layout D4).
+    """
+    spending_lines = [line for line in keluar["lines"] if line["key"] != "saving"]
+    saving_lines = [line for line in keluar["lines"] if line["key"] == "saving"]
+    spending = {"amount": sum(line["amount"] for line in spending_lines), "lines": spending_lines}
+    fresh_saving = {"amount": sum(line["amount"] for line in saving_lines), "lines": saving_lines}
+    if spending["amount"] + fresh_saving["amount"] != keluar["total"]:
+        raise RuntimeError("Pengeluaran and saving do not add up to Keluar")
+    return spending, fresh_saving
+
+
 def _months_left(start: date, target: date) -> int:
     return max(1, (target.year - start.year) * 12 + (target.month - start.month))
 
@@ -361,6 +376,7 @@ def build_cycle_summary(
         net_worth = net_worth_breakdown(cur, user_id, accounts)
         comparison = _comparison(cur, user_id, kakeibo_breakdown, (start, end, window_label), previous)
 
+    spending, fresh_saving = _spending_split(keluar)
     scheduled_total = sum(line["amount"] for line in scheduled_lines)
     remaining_lines = [
         {"key": "masuk", "label": "Masuk", "amount": masuk["total"]},
@@ -393,6 +409,8 @@ def build_cycle_summary(
             "reason": expected.reason,
         },
         "keluar": keluar,
+        "spending": spending,
+        "fresh_saving": fresh_saving,
         "masuk": masuk,
         "waiting": waiting,
         "scheduled": {

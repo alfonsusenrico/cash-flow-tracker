@@ -160,7 +160,7 @@ export function TransactionEditForm({
       <fieldset>
         <legend className={LABEL}>Jenis</legend>
         <div className="ws-seg ws-tx-kind">
-          <button type="button" aria-pressed={kind === "expense"} onClick={() => switchKind("expense")}>Keluar</button>
+          <button type="button" aria-pressed={kind === "expense"} onClick={() => switchKind("expense")}>Pengeluaran</button>
           <button type="button" aria-pressed={kind === "income"} onClick={() => switchKind("income")}>Masuk</button>
           <button type="button" aria-pressed={false} onClick={onPickPair}>Pindah saldo</button>
           {convertible && (

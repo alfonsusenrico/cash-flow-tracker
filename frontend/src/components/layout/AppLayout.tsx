@@ -311,6 +311,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
   const workspace: WorkspaceValue = {
     username: user?.username ?? null,
+    displayName: user?.name ?? null,
     reviewAttention: reviewSummary?.attention ?? null,
     reportBadge: Boolean(report),
     notifications,

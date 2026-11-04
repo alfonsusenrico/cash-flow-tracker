@@ -7,11 +7,11 @@ import { PRODUCT_NAME } from "@/components/workspace/navigation";
 import { THEME_SCRIPT } from "@/lib/theme";
 
 // Self-hosted (OFL-1.1, Latin subset) so builds never depend on fetching Google Fonts.
-const geist = localFont({
-  src: "./fonts/Geist-latin-variable.woff2",
-  variable: "--font-geist",
+const jakarta = localFont({
+  src: "./fonts/PlusJakartaSans-latin-variable.woff2",
+  variable: "--font-jakarta",
   display: "swap",
-  weight: "100 900",
+  weight: "200 800",
 });
 
 const geistMono = localFont({
@@ -36,12 +36,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id" className={`${geist.variable} ${geistMono.variable}`} suppressHydrationWarning>
+    <html lang="id" className={`${jakarta.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <head>
         {/* Applies the stored theme before the first paint (CSP allows inline scripts: 'unsafe-inline'). */}
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className={`${geist.className} antialiased`}>
+      <body className={`${jakarta.className} antialiased`}>
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

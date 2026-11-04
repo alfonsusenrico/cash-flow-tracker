@@ -59,8 +59,8 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-geist)", "Geist", "ui-sans-serif", "system-ui", "-apple-system", "sans-serif"],
-        display: ["var(--font-geist)", "Geist", "ui-sans-serif", "system-ui", "-apple-system", "sans-serif"],
+        sans: ["var(--font-jakarta)", "Plus Jakarta Sans", "ui-sans-serif", "system-ui", "-apple-system", "sans-serif"],
+        display: ["var(--font-jakarta)", "Plus Jakarta Sans", "ui-sans-serif", "system-ui", "-apple-system", "sans-serif"],
         mono: ["var(--font-geist-mono)", "Geist Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       borderRadius: {

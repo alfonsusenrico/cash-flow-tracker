@@ -18,6 +18,8 @@ export interface PageHeader {
 
 export interface WorkspaceValue {
   username: string | null;
+  /** The account's own name; null until set (Pengaturan · Profil). */
+  displayName: string | null;
   reviewAttention: number | null;
   reportBadge: boolean;
   notifications: WorkspaceNotification[];

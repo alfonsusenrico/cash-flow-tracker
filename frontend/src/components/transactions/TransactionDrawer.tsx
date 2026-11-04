@@ -27,7 +27,7 @@ type RecordUndo = (text: string, label: string, response: UndoFields | null | un
 const WHEN = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 
 const KIND_PILL: { [key: string]: { tone: Tone; text: string } } = {
-  expense: { tone: "out", text: "Keluar" },
+  expense: { tone: "out", text: "Pengeluaran" },
   income: { tone: "in", text: "Masuk" },
   movement: { tone: "tr", text: "Pindah saldo" },
   topup: { tone: "inv", text: "Top up Investasi" },

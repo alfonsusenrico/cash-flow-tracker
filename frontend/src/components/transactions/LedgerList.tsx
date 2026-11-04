@@ -10,7 +10,7 @@ const TIME = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digi
 const HOLD_MS = 600;
 
 const KIND_PILL: { [key: string]: { tone: Tone; text: string } } = {
-  expense: { tone: "out", text: "Keluar" },
+  expense: { tone: "out", text: "Pengeluaran" },
   income: { tone: "in", text: "Masuk" },
   movement: { tone: "tr", text: "Pindah saldo" },
   topup: { tone: "inv", text: "Top up Investasi" },
@@ -48,7 +48,7 @@ function DayTotals({ group, bal }: { group: DayGroup<LedgerRow>; bal: (amount: n
   const totals = group.totals;
   if (!totals) return null;
   const parts: React.ReactNode[] = [];
-  if (totals.outflow) parts.push(<span key="out">Belanja <b>{bal(totals.outflow)}</b></span>);
+  if (totals.spending) parts.push(<span key="out">Pengeluaran <b>{bal(totals.spending)}</b></span>);
   if (totals.inflow) parts.push(<span key="in">Masuk <b className="ws-amt-in">{bal(totals.inflow)}</b></span>);
   if (totals.movements) parts.push(<span key="mv">Pindah saldo <b>{bal(totals.movements)}</b></span>);
   if (totals.waiting_count) parts.push(<span key="wait" className="ws-tx-waiting">{totals.waiting_count} menunggu jawaban</span>);

@@ -13,11 +13,12 @@ import type { LedgerRow } from "@/components/transactions/types";
 import { useRefreshTransactionViews, useTransactionUndo } from "@/components/transactions/useTransactionUndo";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { Icon } from "@/components/ui/Icon";
-import { Modal } from "@/components/ui/Modal";
 import { PeriodStepper } from "@/components/ui/PeriodStepper";
+import { Modal } from "@/components/ui/Modal";
 import { TopBarControls } from "@/components/workspace/context";
+import { Disclosure } from "@/components/workspace/Disclosure";
 import { Drawer, useToast } from "@/components/workspace/overlays";
-import { EmptyState, ErrorState, Kpi, KpiStrip, Segmented, Skeleton } from "@/components/workspace/primitives";
+import { EmptyState, ErrorState, KpiCard, Segmented, Skeleton } from "@/components/workspace/primitives";
 import { useShortcut, usePageShortcutGroup, type PageShortcutGroup } from "@/components/workspace/shortcuts";
 import { LEDGER_SEARCH_ID } from "@/components/workspace/TopBar";
 import { useWidthAtMost } from "@/hooks/useWidthAtMost";
@@ -56,6 +57,11 @@ interface CashFlowMetrics {
   inflow: number;
   outflow: number;
   net: number;
+  /** Pengeluaran and the saving-pillar part of the outflow; `spending + saving = outflow`. Absent on an older API. */
+  spending?: number;
+  saving?: number;
+  /** Masuk less Pengeluaran: Transaksi's "Bersih". */
+  spending_net?: number;
   gross_outflow?: number;
   reimbursement_offset?: number;
 }
@@ -78,7 +84,7 @@ interface LedgerPage {
 
 const TABS: { value: LedgerTypeFilter; label: string; count: keyof NonNullable<LedgerPage["type_counts"]> }[] = [
   { value: "all", label: "Semua", count: "all" },
-  { value: "expense", label: "Keluar", count: "expense" },
+  { value: "expense", label: "Pengeluaran", count: "expense" },
   { value: "income", label: "Masuk", count: "income" },
   { value: "movement", label: "Pindah saldo", count: "movement" },
   { value: "investment", label: "Investasi", count: "investment" },
@@ -164,7 +170,6 @@ function LedgerPageContent() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  const [filterOpen, setFilterOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [plansOpen, setPlansOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
@@ -361,6 +366,7 @@ function LedgerPageContent() {
   const accounts = useQuery<{ accounts: any[] }>({ queryKey: queryKeys.accounts, queryFn: () => api.get("/accounts") }).data?.accounts ?? [];
   const categories = useQuery<{ categories: any[] }>({ queryKey: queryKeys.categories, queryFn: () => api.get("/categories") }).data?.categories ?? [];
   const chip = chipOf(filters);
+  const activeChip = chip === "none" ? null : LEDGER_CHIPS.find((option) => option.value === chip) ?? null;
   const removable = ([
     filters.account !== "all" ? { key: "account", label: `Rekening: ${accountName(filters.account)}`, clear: { account: "all" } } : null,
     filters.category !== "all" ? { key: "category", label: filters.category === UNCATEGORIZED ? "Tanpa kategori" : `Kategori: ${categoryName(filters.category)}`, clear: { category: "all" } } : null,
@@ -369,6 +375,7 @@ function LedgerPageContent() {
     hasDateRange(filters) ? { key: "range", label: `Rentang: ${rangeText(filters.from, filters.to)}`, clear: { from: null, to: null } } : null,
     filters.dup ? { key: "dup", label: "Kemungkinan duplikat", clear: { dup: false } } : null,
   ] as (RemovableFilter | null)[]).filter((item): item is RemovableFilter => Boolean(item));
+  const activeFilterCount = removable.length + (activeChip ? 1 : 0);
 
   function accountName(id: string) {
     return accounts.flatMap((account) => [account, ...(account.children ?? [])]).find((account) => account.id === id)?.name ?? "…";
@@ -405,77 +412,155 @@ function LedgerPageContent() {
 
       <DuePlansNotice onOpen={() => setPlansOpen(true)} />
 
-      <div className="ws-tx-toolbar">
-        <div className="ws-seg ws-tx-tabs" role="group" aria-label="Jenis transaksi">
-          {TABS.map((tab) => (
-            <button key={tab.value} type="button" aria-pressed={filters.type === tab.value} onClick={() => updateFilters({ type: tab.value })}>
-              {tab.label}
-              {counts && <span className="ws-cnt tabular-nums">{counts[tab.count]}</span>}
-            </button>
-          ))}
-        </div>
-        <label className="ws-search ws-tx-search">
-          <span className="sr-only">Cari transaksi</span>
-          <Icon name="search" className="h-4 w-4 shrink-0" />
-          <input
-            id={LEDGER_SEARCH_ID}
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Cari catatan, merchant, kategori"
-            autoComplete="off"
-          />
-        </label>
-        <div className="ws-tx-tools">
-          <Segmented label="Periode" options={PERIOD_OPTIONS} value={filters.period} onChange={(period) => updateFilters({ period, offset: 0 })} />
-          <button type="button" className="ws-btn" onClick={() => setFilterOpen(true)} aria-haspopup="dialog">
-            <Icon name="sliders" className="h-4 w-4" />
-            Filter
-          </button>
-          <button type="button" className="ws-btn" onClick={() => (selecting ? stopSelection() : startSelection(null))} aria-pressed={selecting}>
-            <Icon name="repeat" className="h-4 w-4" />
-            Gabungkan
-          </button>
-          <button type="button" className="ws-btn" onClick={() => setRecurringOpen(true)}>
-            <Icon name="calendar" className="h-4 w-4" />
-            Rutin
-          </button>
-        </div>
-      </div>
-
-      <div className="ws-chips ws-tx-chips" role="group" aria-label="Saring transaksi">
-        {LEDGER_CHIPS.map((option) => (
-          <button key={option.value} type="button" className="ws-chip" aria-pressed={chip === option.value} onClick={() => updateFilters(withChip(filters, option.value))}>
-            {option.label}
-          </button>
-        ))}
-        {removable.map((item) => (
-          <span key={item.key} className="ws-chip ws-tx-chip-static">
-            {item.label}
-            <button type="button" className="ws-tx-chip-x" aria-label={`Hapus filter ${item.label}`} onClick={() => updateFilters(item.clear)}>
-              <Icon name="x" className="h-3.5 w-3.5" />
-            </button>
-          </span>
-        ))}
-      </div>
-
       {figures ? (
-        <KpiStrip label={periodScoped ? `Total ${periodLabel(first?.summary?.period)}` : "Total semua waktu"}>
-          <Kpi icon="arrow-down-left" label="Masuk" value={<span className="ws-amt-in tabular-nums">{bal(figures.inflow)}</span>} />
-          <Kpi
-            icon="arrow-up-right"
-            label="Belanja"
-            value={<span className="tabular-nums">{bal(figures.outflow)}</span>}
-            caption={offset > 0 ? `sudah dikurangi penggantian ${bal(offset)}` : undefined}
+        // Three cards as on Beranda and Rekening (refine-workspace-layout D6, preview).
+        <section className="ws-kcards ws-kcards-3" aria-label={periodScoped ? `Total ${periodLabel(first?.summary?.period)}` : "Total semua waktu"}>
+          <KpiCard tone="in" label="Masuk" value={bal(figures.inflow)} caption="" />
+          <KpiCard
+            tone="out"
+            label="Pengeluaran"
+            valueIsWords={figures.spending === undefined}
+            value={figures.spending === undefined ? "Belum tersedia" : bal(figures.spending)}
+            caption={offset > 0 ? `sudah dikurangi penggantian ${bal(offset)}` : (figures.saving ?? 0) > 0 ? `tanpa ${bal(figures.saving!)} yang ditabung` : ""}
           />
-          <Kpi icon="arrows-right-left" label="Bersih" value={<span className="tabular-nums">{bal(figures.net)}</span>} />
-        </KpiStrip>
+          <KpiCard
+            tone="net"
+            label="Bersih"
+            valueIsWords={figures.spending_net === undefined}
+            value={figures.spending_net === undefined ? "Belum tersedia" : bal(figures.spending_net)}
+            caption="masuk − pengeluaran"
+          />
+        </section>
       ) : list.isLoading ? (
         <Skeleton className="h-24" />
       ) : null}
-      <p className="ws-caption">Pindah saldo antar rekening tidak dihitung masuk atau belanja. Di Beranda, Keluar adalah Belanja ditambah yang ditabung.</p>
 
       <section ref={listRegionRef} className="ws-card ws-tx-list" aria-labelledby="tx-list-title">
+        <div className="ws-tx-toolbar">
+          <div className="ws-seg ws-tx-tabs" role="group" aria-label="Jenis transaksi">
+            {TABS.map((tab) => (
+              <button key={tab.value} type="button" aria-pressed={filters.type === tab.value} onClick={() => updateFilters({ type: tab.value })}>
+                {tab.label}
+                {counts && <span className="ws-cnt tabular-nums">{counts[tab.count]}</span>}
+              </button>
+            ))}
+          </div>
+          <label className="ws-search ws-tx-search">
+            <span className="sr-only">Cari transaksi</span>
+            <Icon name="search" className="h-4 w-4 shrink-0" />
+            <input
+              id={LEDGER_SEARCH_ID}
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Cari catatan, merchant, kategori"
+              autoComplete="off"
+            />
+          </label>
+          <FilterPopover
+            activeCount={activeFilterCount}
+            period={<Segmented label="Periode" options={PERIOD_OPTIONS} value={filters.period} onChange={(period) => updateFilters({ period, offset: 0 })} />}
+          >
+            <div className="ws-chips" role="group" aria-label="Saring transaksi">
+              {LEDGER_CHIPS.map((option) => (
+                <button key={option.value} type="button" className="ws-chip" aria-pressed={chip === option.value} onClick={() => updateFilters(withChip(filters, option.value))}>
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <label className="ws-field">
+              Rekening
+              <select value={filters.account} onChange={(event) => updateFilters({ account: event.target.value })}>
+                <option value="all">Semua rekening</option>
+                <AccountSelectOptions accounts={accounts} allowParentSelection={true} />
+              </select>
+            </label>
+            <label className="ws-field">
+              Kategori
+              <select value={filters.category} onChange={(event) => updateFilters({ category: event.target.value })}>
+                <option value="all">Semua kategori</option>
+                <option value={UNCATEGORIZED}>Tanpa kategori</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>{category.name} ({category.kind === "income" ? "Masuk" : "Pengeluaran"})</option>
+                ))}
+              </select>
+            </label>
+            <label className="ws-field">
+              Pilar Kakeibo
+              <select value={filters.kakeibo} onChange={(event) => updateFilters({ kakeibo: event.target.value as LedgerFilters["kakeibo"] })}>
+                <option value="all">Semua pilar</option>
+                {KAKEIBO_BUCKETS.map((pillar) => <option key={pillar.value} value={pillar.value}>{pillar.label}</option>)}
+              </select>
+            </label>
+            <label className="ws-field">
+              Status
+              <select value={filters.review} onChange={(event) => updateFilters({ review: event.target.value as LedgerReviewFilter })}>
+                {REVIEW_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            <button type="button" className="ws-btn w-full" onClick={() => updateFilters({ account: "all", category: "all", kakeibo: "all", review: "all", waiting: false, source: "all" })}>
+              Atur ulang filter
+            </button>
+          </FilterPopover>
+          <Disclosure
+            label="Tindakan lain"
+            buttonClassName="ws-btn ws-tx-more"
+            buttonContent={<Icon name="more-horizontal" className="h-4 w-4" />}
+            panelLabel="Tindakan lain"
+          >
+            {(close) => (
+              <>
+                <button
+                  type="button"
+                  className="ws-menu-item"
+                  aria-pressed={selecting}
+                  onClick={() => {
+                    close();
+                    if (selecting) stopSelection();
+                    else startSelection(null);
+                  }}
+                >
+                  <Icon name="repeat" className="h-4 w-4" />
+                  {selecting ? "Batal gabungkan" : "Gabungkan dua transaksi"}
+                </button>
+                <button
+                  type="button"
+                  className="ws-menu-item"
+                  onClick={() => {
+                    close();
+                    setRecurringOpen(true);
+                  }}
+                >
+                  <Icon name="calendar" className="h-4 w-4" />
+                  Rutin
+                </button>
+              </>
+            )}
+          </Disclosure>
+        </div>
+
+        {(activeChip || removable.length > 0) && (
+          <div className="ws-chips ws-tx-chips" role="group" aria-label="Filter aktif">
+            {activeChip && (
+              <span className="ws-chip ws-tx-chip-static">
+                {activeChip.label}
+                <button type="button" className="ws-tx-chip-x" aria-label={`Hapus filter ${activeChip.label}`} onClick={() => updateFilters(withChip(filters, activeChip.value))}>
+                  <Icon name="x" className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            )}
+            {removable.map((item) => (
+              <span key={item.key} className="ws-chip ws-tx-chip-static">
+                {item.label}
+                <button type="button" className="ws-tx-chip-x" aria-label={`Hapus filter ${item.label}`} onClick={() => updateFilters(item.clear)}>
+                  <Icon name="x" className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+
         <h2 id="tx-list-title" ref={listHeadingRef} tabIndex={-1} className="ws-tx-list-h">
           Daftar transaksi
           {first && <span className="ws-caption"> · {first.total} transaksi</span>}
@@ -548,44 +633,39 @@ function LedgerPageContent() {
 
       <RecurringRulesModal open={recurringOpen} onClose={() => setRecurringOpen(false)} />
 
-      <Modal open={filterOpen} onClose={() => setFilterOpen(false)} title="Filter transaksi">
-        <div className="space-y-4 pt-1 text-sm">
-          <label className="ws-field">
-            Rekening
-            <select value={filters.account} onChange={(event) => updateFilters({ account: event.target.value })}>
-              <option value="all">Semua rekening</option>
-              <AccountSelectOptions accounts={accounts} allowParentSelection={true} />
-            </select>
-          </label>
-          <label className="ws-field">
-            Kategori
-            <select value={filters.category} onChange={(event) => updateFilters({ category: event.target.value })}>
-              <option value="all">Semua kategori</option>
-              <option value={UNCATEGORIZED}>Tanpa kategori</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>{category.name} ({category.kind === "income" ? "Masuk" : "Keluar"})</option>
-              ))}
-            </select>
-          </label>
-          <label className="ws-field">
-            Pilar Kakeibo
-            <select value={filters.kakeibo} onChange={(event) => updateFilters({ kakeibo: event.target.value as LedgerFilters["kakeibo"] })}>
-              <option value="all">Semua pilar</option>
-              {KAKEIBO_BUCKETS.map((pillar) => <option key={pillar.value} value={pillar.value}>{pillar.label}</option>)}
-            </select>
-          </label>
-          <label className="ws-field">
-            Status
-            <select value={filters.review} onChange={(event) => updateFilters({ review: event.target.value as LedgerReviewFilter })}>
-              {REVIEW_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <div className="flex gap-2 pt-2">
-            <button type="button" className="ws-btn flex-1" onClick={() => updateFilters({ account: "all", category: "all", kakeibo: "all", review: "all" })}>Atur ulang</button>
-            <button type="button" className="ws-btn ws-btn-ink flex-1" onClick={() => setFilterOpen(false)}>Selesai</button>
-          </div>
-        </div>
-      </Modal>
     </div>
+  );
+}
+
+/** "Filter": period mode, the chips and the selects in one popover, so the toolbar stays one row (D6). */
+function FilterPopover({ activeCount, period, children }: { activeCount: number; period: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Disclosure
+      label={activeCount ? `Filter, ${activeCount} aktif` : "Filter"}
+      buttonClassName="ws-btn"
+      buttonContent={
+        <>
+          <Icon name="sliders" className="h-4 w-4" />
+          Filter
+          {activeCount > 0 && (
+            <span className="ws-cnt" aria-hidden="true">
+              {activeCount}
+            </span>
+          )}
+        </>
+      }
+      panelLabel="Filter transaksi"
+      panelClassName="ws-tx-filter"
+    >
+      {() => (
+        <div className="space-y-3 text-sm">
+          <div>
+            <div className="ws-menu-h">Periode</div>
+            {period}
+          </div>
+          {children}
+        </div>
+      )}
+    </Disclosure>
   );
 }

@@ -156,11 +156,14 @@ export function TodoCard({
   items,
   autoToday,
   error,
+  waitingAmount = null,
 }: {
   attention: number;
   items: TodoItem[];
   autoToday: number;
   error: boolean;
+  /** The money waiting for an answer, already formatted; shown beside the title (refine-workspace-layout D5). */
+  waitingAmount?: string | null;
 }) {
   return (
     <Card labelledBy="beranda-todo">
@@ -169,9 +172,10 @@ export function TodoCard({
         title="Perlu tindakan"
         count={attention || undefined}
         countLabel={`${attention} perlu ditinjau`}
+        extra={waitingAmount ? <span className="text-[13px] font-normal text-[var(--muted)]">{waitingAmount} menunggu jawaban</span> : undefined}
         action={
           attention ? (
-            <Link href="/review" className="ws-btn ws-btn-sm">
+            <Link href="/review" className="ws-linkbtn ws-accent-link">
               Buka Tinjau
             </Link>
           ) : undefined

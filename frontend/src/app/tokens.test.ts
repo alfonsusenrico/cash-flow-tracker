@@ -79,13 +79,13 @@ function contrast(first: Rgb, second: Rgb): number {
 const SURFACES = ["--surface", "--window", "--surface-2"];
 const textPairs: [string, string[]][] = [
   ["--text", [...SURFACES, "--surface-3", "--canvas"]],
-  ["--text-2", [...SURFACES, "--surface-3"]],
+  ["--text-2", [...SURFACES, "--surface-3", "--nav-bg", "--nav-hover"]],
   // Also the inactive labels of the phone tab bar, which sits on --surface.
-  ["--muted", [...SURFACES, "--surface-3"]],
+  ["--muted", [...SURFACES, "--surface-3", "--nav-bg", "--nav-hover"]],
   ["--ink-fg", ["--ink", "--ink-hover"]],
   ["--tile-fg", ["--tile"]],
-  ["--lime-ink", ["--lime", "--lime-hover"]],
-  ["--lime-text", [...SURFACES, "--lime-soft"]],
+  ["--accent-ink", ["--accent", "--accent-hover"]],
+  ["--accent-fg", [...SURFACES, "--accent-soft"]],
   ["--in-fg", [...SURFACES, "--in-bg"]],
   ["--out-fg", [...SURFACES, "--out-bg"]],
   ["--tr-fg", [...SURFACES, "--tr-bg"]],
@@ -131,7 +131,7 @@ function findings(pattern: RegExp, sources: string[] = sourceFiles): string[] {
 const markPairs: [string, string[]][] = [
   ["--focus", SURFACES],
   ["--ok-dot", ["--surface", "--window"]],
-  ["--lime-text", ["--lime-soft"]],
+  ["--accent-fg", ["--accent-soft"]],
 ];
 
 const PILLARS = ["need", "want", "culture", "unexpected", "saving"] as const;
@@ -161,6 +161,26 @@ const tailwindTheme = resolveConfig(createRequire(import.meta.url)("../../tailwi
 >;
 
 describe("design tokens", () => {
+  // The pre-redesign "Coral Terminal" values (commit 6cc6704) on the semantic names (refine-workspace-layout D1).
+  it.each([
+    [":root", {
+      "--window": "#E8ECEF", "--surface": "#FFFFFF", "--surface-3": "#D8DFE5", "--text": "#0A0D14", "--text-2": "#343E4E", "--muted": "#4E5D70",
+      "--accent": "#FF334B", "--accent-hover": "#F02A42", "--accent-soft": "#FFE8EC", "--accent-ink": "#0A0D14", "--in-solid": "#059669",
+      "--in-fg": "#056548", "--out-solid": "#FF334B", "--out-fg": "#B8142D", "--warn-solid": "#F59E0B", "--tr-solid": "#0EA5E9",
+      "--inv-solid": "#8B5CF6", "--k-need": "#2448C4", "--k-want": "#A21C7E", "--k-culture": "#56640F", "--k-unexpected": "#9E440D",
+      "--k-saving": "#296B38", "--k-none": "#475569",
+    }],
+    [".dark", {
+      "--window": "#050608", "--surface": "#0E1118", "--surface-3": "#181E2A", "--text": "#F8FAFC", "--text-2": "#94A3B8", "--muted": "#8B9AAF",
+      "--accent": "#FF4757", "--accent-hover": "#FF6675", "--accent-ink": "#0A0D14", "--in-solid": "#10B981", "--in-fg": "#10B981",
+      "--out-solid": "#FF4757", "--warn-solid": "#FBBF24", "--tr-solid": "#38BDF8", "--inv-solid": "#A78BFA", "--k-need": "#8099F5",
+      "--k-want": "#E879C6", "--k-culture": "#B5C350", "--k-unexpected": "#F0915A", "--k-saving": "#7AC68A", "--k-none": "#94A3B8",
+    }],
+  ] as const)("paints %s with the pre-redesign palette", (selector, values) => {
+    const theme = themes[selector];
+    for (const [name, value] of Object.entries(values)) expect(theme[name], name).toBe(value);
+  });
+
   it("defines every custom property the stylesheets and components use", () => {
     const runtimeFontVariables = [...layout.matchAll(/variable: "(--[\w-]+)"/g)].map((match) => match[1]);
     const defined = new Set([...declaredIn(tokens), ...declaredIn(globals), ...runtimeFontVariables]);
@@ -309,15 +329,20 @@ describe("design tokens", () => {
       }
     });
 
-    it("uses blue only for transfers: no info blue and no other blue token", () => {
+    it("uses blue only for transfers and the need pillar: no info blue and no other blue token", () => {
+      // Chroma rather than HSL saturation: the cool slate neutrals of the palette are near-black or
+      // near-white greys whose HSL saturation is high although they read as grey.
       const blue = Object.entries(theme)
         .filter(([, value]) => /^#[0-9A-Fa-f]{6}$/.test(value))
         .filter(([, value]) => {
-          const { hue, saturation } = hueOf(hex(value));
-          return saturation > 0.3 && hue >= 190 && hue <= 245;
+          const colour = hex(value);
+          const chroma = (Math.max(...colour) - Math.min(...colour)) / 255;
+          const { hue } = hueOf(colour);
+          return chroma > 0.2 && hue >= 190 && hue <= 245;
         })
         .map(([name]) => name);
-      expect(blue.filter((name) => !name.startsWith("--tr-"))).toEqual([]);
+      // The need pillar keeps the old app's fjord blue (refine-workspace-layout D1), 25 degrees or more from the transfer sky.
+      expect(blue.filter((name) => !name.startsWith("--tr-") && !name.startsWith("--k-need"))).toEqual([]);
       expect(Object.keys(theme).filter((name) => name.startsWith("--info"))).toEqual([]);
     });
 

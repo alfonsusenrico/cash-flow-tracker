@@ -59,6 +59,7 @@ function stubMatchMedia() {
 function workspaceValue(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue {
   return {
     username: "enrico",
+    displayName: null,
     reviewAttention: 3,
     reportBadge: true,
     notifications: [
@@ -122,30 +123,15 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("SideNav", () => {
-  it("lists Harian, AI, Uang and Laporan in order with their links", async () => {
+  it("lists the seven pages in the old order without group headings", async () => {
     const { container } = renderShell(<SideNav />);
     const nav = screen.getByRole("navigation", { name: "Halaman" });
-    const groups = within(nav).getAllByRole("group");
-    expect(groups.map((group) => group.getAttribute("aria-labelledby") && document.getElementById(group.getAttribute("aria-labelledby")!)?.textContent)).toEqual([
-      "Harian",
-      "AI",
-      "Uang",
-      "Laporan",
+    expect(within(nav).queryAllByRole("group")).toHaveLength(0);
+    expect(within(nav).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      "/", "/review", "/ledger?period=cycle", "/insights", "/laporan", "/accounts", "/goals",
     ]);
-    const hrefs = groups.map((group) => within(group).getAllByRole("link").map((link) => link.getAttribute("href")));
-    expect(hrefs).toEqual([["/", "/review", "/ledger?period=cycle"], ["/tanya"], ["/accounts", "/goals"], ["/insights", "/laporan"]]);
-    expect(within(groups[1]).getByRole("link", { name: "Tanya" })).toBeInTheDocument();
-    expect(within(groups[2]).getByRole("link", { name: "Rekening & Kantong" })).toBeInTheDocument();
-    expect(within(groups[2]).getByRole("link", { name: "Target & Tagihan" })).toBeInTheDocument();
-    expect(within(groups[3]).getByRole("link", { name: "Analisis" })).toBeInTheDocument();
-    await screen.findByRole("link", { name: /Belum ada HP terhubung/ });
+    expect(within(nav).queryByRole("link", { name: /Tanya/ })).not.toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
-  });
-
-  it("marks Tanya active on its page", () => {
-    navigation.pathname = "/tanya";
-    renderShell(<SideNav />);
-    expect(screen.getByRole("link", { name: "Tanya" })).toHaveAttribute("aria-current", "page");
   });
 
   it("marks only the active link with aria-current", () => {
@@ -192,9 +178,8 @@ describe("SideNav", () => {
 
   it("gives every rail item an accessible name and a tooltip with its label", async () => {
     const { container } = renderShell(<SideNav />, { collapsed: true });
-    await screen.findByRole("link", { name: /Belum ada HP terhubung/ });
-    const items = Array.from(container.querySelectorAll<HTMLElement>(".ws-nav-item, .ws-companion"));
-    expect(items).toHaveLength(11);
+    const items = Array.from(container.querySelectorAll<HTMLElement>(".ws-nav-item"));
+    expect(items).toHaveLength(8);
     for (const item of items) {
       const name = item.getAttribute("aria-label");
       const tip = item.querySelector(".ws-tip");
@@ -202,24 +187,21 @@ describe("SideNav", () => {
       expect(tip).toHaveAttribute("aria-hidden", "true");
       expect(name!.startsWith(tip!.textContent!)).toBe(true);
     }
-    expect(screen.getByRole("button", { name: "Bantuan dan pintasan keyboard" }).querySelector(".ws-tip")).toHaveTextContent("Bantuan");
   });
 
-  it("opens help from Bantuan and has no capture, avatar or theme control", async () => {
-    const { user, value } = renderShell(<SideNav />);
-    await user.click(screen.getByRole("button", { name: "Bantuan dan pintasan keyboard" }));
-    expect(value.openHelp).toHaveBeenCalledOnce();
+  it("holds Pengaturan and the account card in its foot, with no phone status, Bantuan or capture", async () => {
+    const { user, value } = renderShell(<SideNav />, { displayName: "Raka Contoh" });
     const aside = screen.getByRole("complementary", { name: "Navigasi samping" });
-    expect(within(aside).queryByRole("button", { name: /Catat|Tema|Akun/ })).not.toBeInTheDocument();
-  });
-
-  it("hides the companion status when the device request fails", async () => {
-    vi.mocked(getDevices).mockRejectedValue(new Error("offline"));
-    const { container } = renderShell(<SideNav />);
-    await waitFor(() => expect(getDevices).toHaveBeenCalled());
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(container.querySelector(".ws-companion")).toBeNull();
-    expect(screen.getByRole("link", { name: "Pengaturan" })).toBeInTheDocument();
+    expect(within(aside).getByRole("link", { name: "Pengaturan" })).toHaveAttribute("href", "/settings");
+    expect(within(aside).queryByText(/HP terhubung|Belum ada HP/)).not.toBeInTheDocument();
+    expect(within(aside).queryByRole("button", { name: /Bantuan|Catat|Tema/ })).not.toBeInTheDocument();
+    const card = within(aside).getByRole("button", { name: "Akun Raka Contoh" });
+    expect(card).toHaveTextContent("RCRaka Contohenrico");
+    await user.click(card);
+    const menu = screen.getByRole("region", { name: "Akun" });
+    expect(menu).toHaveTextContent("Masuk sebagai enrico");
+    await user.click(within(menu).getByRole("button", { name: "Keluar" }));
+    expect(value.logout).toHaveBeenCalledOnce();
   });
 });
 
@@ -375,7 +357,7 @@ describe("PhoneTabBar and MoreSheet", () => {
     expect(screen.getByRole("button", { name: "Lainnya" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("opens Lainnya as a dialog listing every other page, Bantuan and Keluar", async () => {
+  it("opens Lainnya as a dialog listing the money pages, the reports, Pengaturan and Keluar", async () => {
     const { user, value } = renderShell(<PhoneTabBar />);
     const more = screen.getByRole("button", { name: "Lainnya" });
     await user.click(more);
@@ -383,7 +365,6 @@ describe("PhoneTabBar and MoreSheet", () => {
     const sheet = screen.getByRole("dialog", { name: "Lainnya" });
     const pages = within(sheet).getByRole("navigation", { name: "Halaman lain" });
     expect(within(pages).getAllByRole("link").map((link) => link.textContent)).toEqual([
-      "Tanya",
       "Rekening & Kantong",
       "Target & Tagihan",
       "Analisis",
@@ -391,9 +372,8 @@ describe("PhoneTabBar and MoreSheet", () => {
       "Pengaturan",
     ]);
     expect(within(pages).getByRole("link", { name: "Laporan, laporan baru siap" })).toHaveAttribute("href", "/laporan");
-    expect(within(pages).getByRole("link", { name: "Tanya" })).toHaveAttribute("href", "/tanya");
     expect(within(sheet).getByRole("region", { name: "Notifikasi" })).toBeInTheDocument();
-    expect(within(sheet).getByRole("button", { name: "Bantuan" })).toBeInTheDocument();
+    expect(within(sheet).queryByRole("button", { name: "Bantuan" })).not.toBeInTheDocument();
     await user.click(within(sheet).getByRole("button", { name: "Keluar" }));
     expect(value.logout).toHaveBeenCalledOnce();
   });
@@ -431,15 +411,6 @@ describe("PhoneTabBar and MoreSheet", () => {
     await user.click(screen.getByRole("button", { name: "Tutup Lainnya" }));
     expect(sheet).not.toHaveAttribute("open");
     expect(more).toHaveFocus();
-  });
-
-  it("closes the sheet before opening help from Bantuan", async () => {
-    const { user, value } = renderShell(<PhoneTabBar />);
-    await user.click(screen.getByRole("button", { name: "Lainnya" }));
-    const sheet = screen.getByRole("dialog", { name: "Lainnya" });
-    await user.click(within(sheet).getByRole("button", { name: "Bantuan" }));
-    expect(value.openHelp).toHaveBeenCalledOnce();
-    expect(sheet).not.toHaveAttribute("open");
   });
 });
 
@@ -525,7 +496,8 @@ describe("AppLayout wiring", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const { user } = showLayout();
-      await user.click(await screen.findByRole("button", { name: "Akun enrico" }));
+      // The sidebar card and the phone avatar both render here; CSS shows one of them per width.
+      await user.click((await screen.findAllByRole("button", { name: "Akun enrico" }))[0]);
       await user.click(screen.getByRole("button", { name: "Keluar" }));
       await waitFor(() => expect(api.post).toHaveBeenCalledWith("/auth/logout"));
     } finally {

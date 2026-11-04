@@ -230,7 +230,7 @@ export function Skeleton({ className, style }: { className?: string; style?: Rea
 export function EmptyState({ icon = "check", title, children, action }: { icon?: IconName; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
     <div className="ws-empty">
-      <div className="ws-tile" aria-hidden="true" style={{ background: "var(--lime)", color: "var(--lime-ink)" }}>
+      <div className="ws-tile" aria-hidden="true" style={{ background: "var(--in-solid)", color: "var(--in-solid-fg)" }}>
         <Icon name={icon} />
       </div>
       <h2>{title}</h2>
@@ -250,6 +250,34 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
           Coba lagi
         </button>
       )}
+    </div>
+  );
+}
+
+/** A KPI card: small label with a colour dot, a large figure and one muted line (refine-workspace-layout D5). */
+export function KpiCard({
+  label,
+  tone,
+  hero,
+  value,
+  valueIsWords,
+  caption,
+}: {
+  label: string;
+  tone: "in" | "out" | "save" | "net" | "safe" | "inv" | "neutral";
+  hero?: boolean;
+  value: ReactNode;
+  valueIsWords?: boolean;
+  caption: ReactNode;
+}) {
+  return (
+    <div className="ws-kcard" data-hero={hero || undefined} data-tone={tone}>
+      <div className="ws-kcard-l">
+        {!hero && <span className="ws-kcard-dot" aria-hidden="true" />}
+        {label}
+      </div>
+      <div className={valueIsWords ? "ws-kcard-v is-words" : "ws-kcard-v"}>{value}</div>
+      <div className="ws-kcard-c">{caption}</div>
     </div>
   );
 }
