@@ -102,7 +102,7 @@ def test_split_day_carries_the_whole_day_on_each_page(client, ledger):
     first, second = listing(client, f"{window}&limit=2&offset=0"), listing(client, f"{window}&limit=2&offset=2")
     assert [len(first["transactions"]), len(second["transactions"])] == [2, 1]
     assert first["daily_totals"] == second["daily_totals"] == [
-        {"date": "2026-10-20", "count": 3, "inflow": 0, "outflow": 87_000, "movements": 0, "waiting_count": 0, "waiting_amount": 0},
+        {"date": "2026-10-20", "count": 3, "inflow": 0, "outflow": 87_000, "spending": 87_000, "movements": 0, "waiting_count": 0, "waiting_amount": 0},
     ]
 
 
@@ -126,7 +126,7 @@ def test_local_day_boundary(client, owner):
 def test_waiting_row_is_counted_in_its_day(client, ledger):
     page = listing(client, "from_date=2026-10-22T00:00:00%2B07:00&include=daily_totals&limit=50")
     (day,) = page["daily_totals"]
-    assert day == {"date": "2026-10-22", "count": 1, "inflow": 0, "outflow": 60_000, "movements": 0,
+    assert day == {"date": "2026-10-22", "count": 1, "inflow": 0, "outflow": 60_000, "spending": 60_000, "movements": 0,
                    "waiting_count": 1, "waiting_amount": 60_000}
 
 
@@ -162,7 +162,7 @@ def test_only_the_owners_rows(client, ledger, notification_owner):
             theirs = listing(client, "include=daily_totals,type_counts&waiting=true&limit=50")
         finally:
             app.dependency_overrides[get_current_user] = identity
-        assert theirs["daily_totals"] == [{"date": "2026-10-20", "count": 1, "inflow": 0, "outflow": 99_000, "movements": 0,
+        assert theirs["daily_totals"] == [{"date": "2026-10-20", "count": 1, "inflow": 0, "outflow": 99_000, "spending": 99_000, "movements": 0,
                                            "waiting_count": 1, "waiting_amount": 99_000}]
     finally:
         with db() as conn:

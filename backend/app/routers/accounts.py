@@ -233,6 +233,14 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
                 if total_child_cost > 0:
                     a["capital_gain_pct"] = round((parent_gain / total_child_cost) * 100, 2)
 
+            # A platform's own total (refine-workspace-layout D8): only when every product has a known cost
+            # basis, so a partial sum is never shown as the platform's gain.
+            products = [c for c in a["children"] if c.get("type") == "investment" or c.get("instrument_type")]
+            if products:
+                known = all(c.get("cost_basis") is not None for c in products)
+                a["group_cost_basis"] = sum(c["cost_basis"] for c in products) if known else None
+                a["group_capital_gain"] = sum(c["balance"] - c["cost_basis"] for c in products) if known else None
+
     return raw_accounts
 
 
