@@ -1,5 +1,5 @@
 import type { SuggestionGroup, SuggestionList } from "@/lib/historySuggestions";
-import type { AmbiguousItem, AwaitingItem, PurposeQuestionEntry, ReviewGroup, ReviewQueue } from "@/lib/review";
+import type { AmbiguousItem, AwaitingItem, PurposeQuestionEntry, ReviewGroup, ReviewQueue, SeenTwiceItem } from "@/lib/review";
 
 /**
  * Tinjau's folders and items, derived from the existing queue and suggestion responses
@@ -8,11 +8,16 @@ import type { AmbiguousItem, AwaitingItem, PurposeQuestionEntry, ReviewGroup, Re
  */
 
 export type NeededFolder = "apa" | "jawab" | "pindah";
-export type OptionalFolder = "saran" | "otomatis";
+export type OptionalFolder = "saran" | "otomatis" | "dua";
 export type FolderKey = "semua" | NeededFolder | OptionalFolder;
 
 export const NEEDED_FOLDERS: readonly NeededFolder[] = ["apa", "jawab", "pindah"];
-export const FOLDER_PARAMS: readonly FolderKey[] = ["apa", "jawab", "pindah", "saran", "otomatis"];
+export const OPTIONAL_FOLDERS: readonly OptionalFolder[] = ["otomatis", "saran", "dua"];
+export const FOLDER_PARAMS: readonly FolderKey[] = ["apa", "jawab", "pindah", "saran", "otomatis", "dua"];
+
+export function isOptionalFolder(folder: FolderKey): folder is OptionalFolder {
+  return (OPTIONAL_FOLDERS as readonly string[]).includes(folder);
+}
 
 export const FOLDER_LABELS: Record<FolderKey, string> = {
   semua: "Semua",
@@ -21,6 +26,7 @@ export const FOLDER_LABELS: Record<FolderKey, string> = {
   pindah: "Pindah saldo belum lengkap",
   saran: "Saran dari riwayat",
   otomatis: "Dicatat otomatis",
+  dua: "Terlihat dua kali",
 };
 
 /**
@@ -37,7 +43,8 @@ export type TriageItem =
   | { kind: "group"; id: string; folder: "jawab" | "otomatis"; transactionIds: string[]; group: ReviewGroup }
   | { kind: "awaiting"; id: string; folder: "pindah"; transactionIds: string[]; item: AwaitingItem }
   | { kind: "ambiguous"; id: string; folder: "pindah"; transactionIds: string[]; item: AmbiguousItem }
-  | { kind: "suggestion"; id: string; folder: "saran"; transactionIds: string[]; group: SuggestionGroup };
+  | { kind: "suggestion"; id: string; folder: "saran"; transactionIds: string[]; group: SuggestionGroup }
+  | { kind: "seen_twice"; id: string; folder: "dua"; transactionIds: string[]; item: SeenTwiceItem };
 
 export interface Triage {
   folders: Record<NeededFolder | OptionalFolder, TriageItem[]>;
@@ -69,15 +76,20 @@ export function buildTriage(queue: ReviewQueue, suggestions?: SuggestionList | n
     kind: "suggestion", id: `s:${group.key}`, folder: "saran",
     transactionIds: group.suggestions.map((item) => item.transaction_id), group,
   }));
+  const dua: TriageItem[] = (queue.seen_twice ?? []).map((item) => ({
+    kind: "seen_twice", id: `d:${item.event_id}`, folder: "dua",
+    transactionIds: item.kept ? [item.kept.transaction_id] : [], item,
+  }));
   const neededGroups = jawab.map((item) => (item as Extract<TriageItem, { kind: "group" }>).group);
   return {
-    folders: { apa, jawab, pindah, saran, otomatis },
+    folders: { apa, jawab, pindah, saran, otomatis, dua },
     counts: {
       apa: apa.length,
       jawab: neededGroups.reduce((sum, group) => sum + group.needs_review_count, 0),
       pindah: pindah.length,
       saran: suggestions?.pending ?? saran.reduce((sum, item) => sum + item.transactionIds.length, 0),
       otomatis: otomatis.reduce((sum, item) => sum + (item as Extract<TriageItem, { kind: "group" }>).group.auto_count, 0),
+      dua: dua.length,
     },
     autoInMixedGroups: neededGroups.reduce((sum, group) => sum + group.auto_count, 0),
     attention: queue.counts.attention,
@@ -139,7 +151,7 @@ export function resolveDeepLink(triage: Triage, transactionId: string | null, fo
     if (found) return { folder, itemId: found.id, resolved: false };
     return { folder: triage.folders[folder].length ? folder : "semua", itemId: null, resolved: transactionId !== null };
   }
-  for (const key of [...NEEDED_FOLDERS, "saran", "otomatis"] as const) {
+  for (const key of [...NEEDED_FOLDERS, "saran", "otomatis", "dua"] as const) {
     const found = triage.folders[key].find(holds);
     if (found) return { folder: (NEEDED_FOLDERS as readonly string[]).includes(key) ? "semua" : key, itemId: found.id, resolved: false };
   }
@@ -163,6 +175,10 @@ export function itemTitle(item: TriageItem): string {
       return item.item.type === "expense" ? `Keluar dari ${item.item.account_name}` : `Masuk ke ${item.item.account_name}`;
     case "ambiguous":
       return item.item.type === "expense" ? `Keluar dari ${item.item.account_name}` : `Masuk ke ${item.item.account_name}`;
+    case "seen_twice":
+      return item.item.kind === "duplicate"
+        ? `${item.item.app}: laporan kedua`
+        : `${item.item.app}: mungkin laporan kedua`;
   }
 }
 

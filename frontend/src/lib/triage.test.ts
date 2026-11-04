@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SuggestionList } from "@/lib/historySuggestions";
-import type { ReviewGroup, ReviewItem, ReviewQueue } from "@/lib/review";
+import type { ReviewGroup, ReviewItem, ReviewQueue, SeenTwiceItem } from "@/lib/review";
 import {
   buildTriage,
   folderFromParams,
@@ -119,5 +119,34 @@ describe("deep links", () => {
     expect(folderFromParams("bogus", null)).toBeNull();
     expect(triageSearch("pindah", folderItems(triage, "pindah")[0])).toBe("?item=tx-send&folder=pindah");
     expect(triageSearch("semua", null)).toBe("");
+  });
+});
+
+const seenTwice = (overrides: Partial<SeenTwiceItem> = {}): SeenTwiceItem => ({
+  event_id: "ev-jago", kind: "duplicate", app: "Bank Jago", type: "income", amount: 500_000,
+  date: "2026-10-31T11:39:18Z", account_name: "Bank Jago · Kantong Utama",
+  kept: {
+    transaction_id: "tx-gopay", type: "income", amount: 500_000, date: "2026-10-31T11:39:18Z", account_name: "GoPay",
+    movement: { source: "BCA Harian", target: "GoPay" },
+  },
+  ...overrides,
+});
+
+describe("Terlihat dua kali", () => {
+  it("is an optional folder outside the badge, linked to the kept leg", () => {
+    const data = { ...queue(), seen_twice: [seenTwice(), seenTwice({ event_id: "ev-held", kind: "held", kept: null })] };
+    const triage = buildTriage(data);
+    expect(triage.counts.dua).toBe(2);
+    expect(triage.counts.apa + triage.counts.jawab + triage.counts.pindah).toBe(triage.attention);
+    expect(folderItems(triage, "semua").some((item) => item.kind === "seen_twice")).toBe(false);
+    expect(triage.folders.dua.map((item) => [item.id, item.transactionIds])).toEqual([
+      ["d:ev-jago", ["tx-gopay"]], ["d:ev-held", []],
+    ]);
+    expect(resolveDeepLink(triage, "tx-gopay", "dua")).toEqual({ folder: "dua", itemId: "d:ev-jago", resolved: false });
+    expect(folderFromParams("dua", null)).toBe("dua");
+  });
+
+  it("reads an older queue without the section", () => {
+    expect(buildTriage(queue()).folders.dua).toEqual([]);
   });
 });

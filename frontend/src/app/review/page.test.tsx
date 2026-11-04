@@ -785,6 +785,41 @@ describe("Tinjau triage", () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/review/suggestions/accept", { suggestion_ids: ["sg-a", "sg-b", "sg-c"] }));
   });
 
+  it("Terlihat dua kali: confirm one transaction, or record it on its own with Urungkan", async () => {
+    currentQueue = {
+      ...queue(), counts: { ...queue().counts, attention: 0, unreviewed: 1, seen_twice: 1 },
+      questions: [], awaiting: [], ambiguous: [], groups: [],
+      seen_twice: [{
+        event_id: "event-jago", kind: "duplicate", app: "Bank Jago", type: "income", amount: 500_000,
+        date: "2026-10-31T11:39:18Z", account_name: "Bank Jago · Kantong Utama",
+        kept: {
+          transaction_id: "tx-gopay", type: "income", amount: 500_000, date: "2026-10-31T11:39:18Z", account_name: "GoPay",
+          movement: { source: "BCA Harian", target: "GoPay" },
+        },
+      }],
+    };
+    const { user, container } = renderPage();
+    expect(await screen.findByRole("heading", { name: "Semua sudah ditinjau" })).toBeInTheDocument();
+    const fold = screen.getByText("Terlihat dua kali", { selector: "b" }).closest("details") as HTMLElement;
+    expect(within(fold).getByText("opsional")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Perlu ditinjau 0 transaksi" })).toBeInTheDocument();
+    await user.click(row("Bank Jago: laporan kedua"));
+    expect(itemHeading()).toHaveTextContent("Bank Jago melaporkan uang yang sudah tercatat");
+    expect(within(pane()).getByText("BCA Harian → GoPay")).toBeInTheDocument();
+    expect(within(pane()).getByText("Tidak dicatat lagi")).toBeInTheDocument();
+    expect((await axe(container)).violations).toHaveLength(0);
+
+    await user.click(within(pane()).getByRole("button", { name: /Catat terpisah/ }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/review/seen-twice/event-jago/record-separately", {}));
+    expect(status()).toMatch(/dicatat sebagai transaksi terpisah/);
+    await user.click(within(screen.getAllByRole("status").find((node) => within(node).queryByRole("button", { name: "Urungkan" }))!).getByRole("button", { name: "Urungkan" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/review/undo", { undo_token: "action".padEnd(43, "x") }));
+
+    await user.click(row("Bank Jago: laporan kedua"));
+    await user.click(within(pane()).getByRole("button", { name: /Benar, satu transaksi/ }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/review/seen-twice/event-jago/acknowledge", {}));
+  });
+
   it("Failure of a suggestion decision, and skipped rows reported truthfully", async () => {
     currentQueue = { ...queue(), counts: { ...queue().counts, attention: 0 }, questions: [], awaiting: [], ambiguous: [], groups: [] };
     currentSuggestions = suggestionList();

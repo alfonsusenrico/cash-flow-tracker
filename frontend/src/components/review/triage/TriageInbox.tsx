@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { AmbiguousMovementCard, AwaitingMovementCard, type TopupOptions } from "@/components/review/MovementReviewCards";
 import { HistorySuggestionsSection } from "@/components/review/HistorySuggestionsSection";
+import { SeenTwiceCard } from "@/components/review/SeenTwiceCard";
 import { PurposeQuestionCard, type PurposeAnswerBody } from "@/components/review/PurposeQuestionCard";
 import { ReviewGroupCard, type CategoryOption, type GroupActionRequest } from "@/components/review/ReviewGroupCard";
 import { SuggestionGroupCard, type SuggestionDecisionRequest } from "@/components/review/SuggestionGroupCard";
@@ -36,6 +37,7 @@ import {
   type PurposeQuestionEntry,
   type ReviewItem,
   type ReviewQueue,
+  type SeenTwiceItem,
   type TopupProductChoice,
 } from "@/lib/review";
 import {
@@ -55,6 +57,7 @@ import {
   folderFromParams,
   transaksiHref,
   folderItems,
+  isOptionalFolder,
   itemFolderLabel,
   itemTitle,
   itemTransactionId,
@@ -63,6 +66,7 @@ import {
   resolveDeepLink,
   triageSearch,
   type FolderKey,
+  type OptionalFolder,
   type Triage,
   type TriageItem,
 } from "@/lib/triage";
@@ -147,7 +151,7 @@ export function TriageInbox() {
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState("");
   const [failure, setFailure] = useState<Failure | null>(null);
-  const [foldOpen, setFoldOpen] = useState({ otomatis: false, saran: false });
+  const [foldOpen, setFoldOpen] = useState<Record<OptionalFolder, boolean>>({ otomatis: false, saran: false, dua: false });
   const [completionChoices, setCompletionChoices] = useState<Record<string, CompletionCandidate[]>>({});
 
   usePageShortcutGroup(PAGE_KEYS);
@@ -171,7 +175,7 @@ export function TriageInbox() {
 
   const items = useMemo(() => (triage ? folderItems(triage, folder) : []), [triage, folder]);
   const everyItem = useMemo(
-    () => (triage ? [...folderItems(triage, "semua"), ...triage.folders.otomatis, ...triage.folders.saran] : []),
+    () => (triage ? everyItemOf(triage) : []),
     [triage],
   );
   const selected = selectedId === RUN_PANEL_ID ? null : everyItem.find((item) => item.id === selectedId) ?? null;
@@ -205,7 +209,7 @@ export function TriageInbox() {
     const target = link.itemId ?? folderItems(triage, link.folder)[0]?.id ?? null;
     setFolder(link.folder);
     setSelectedId(target);
-    if (link.folder === "otomatis" || link.folder === "saran") setFoldOpen((open) => ({ ...open, [link.folder]: true }));
+    if (isOptionalFolder(link.folder)) setFoldOpen((open) => ({ ...open, [link.folder]: true }));
     if (link.resolved) setNotice("Item yang dibuka sudah selesai.");
     const item = everyItemOf(triage).find((entry) => entry.id === target) ?? null;
     writeUrl(link.folder, link.itemId ? item : null, false);
@@ -255,9 +259,9 @@ export function TriageInbox() {
     setNotice("");
     setFailure(null);
     setSelectedId(item.id);
-    if (item.folder === "otomatis" || item.folder === "saran") setFolder(item.folder);
-    else if (folder === "otomatis" || folder === "saran") setFolder("semua");
-    const nextFolder = item.folder === "otomatis" || item.folder === "saran" ? item.folder : folder === "otomatis" || folder === "saran" ? "semua" : folder;
+    if (isOptionalFolder(item.folder)) setFolder(item.folder);
+    else if (isOptionalFolder(folder)) setFolder("semua");
+    const nextFolder = isOptionalFolder(item.folder) ? item.folder : isOptionalFolder(folder) ? "semua" : folder;
     if (onePane) {
       setPane("item");
       pushedItem.current = true;
@@ -320,7 +324,7 @@ export function TriageInbox() {
   const undo = useRef<() => Promise<void>>(async () => {});
 
   const act = useCallback(async (item: TriageItem, work: () => Promise<ActionOutcome>): Promise<boolean> => {
-    const before = (item.folder === "otomatis" || item.folder === "saran" ? folderItems(triage!, item.folder) : items).map((entry) => entry.id);
+    const before = (isOptionalFolder(item.folder) ? folderItems(triage!, item.folder) : items).map((entry) => entry.id);
     setPending(true);
     setFailure(null);
     setNotice("");
@@ -354,7 +358,7 @@ export function TriageInbox() {
       showToast(`Tersimpan: ${outcome.message}`, entry ? { onUndo: () => void undo.current() } : undefined);
       return true;
     }
-    let nextFolder: FolderKey = item.folder === "otomatis" || item.folder === "saran" ? item.folder : folder;
+    let nextFolder: FolderKey = isOptionalFolder(item.folder) ? item.folder : folder;
     let remaining = folderItems(fresh, nextFolder);
     let nextId = remaining.some((entry) => entry.id === item.id) ? item.id : nextAfter(before, item.id, new Set(remaining.map((entry) => entry.id)));
     if (!nextId && nextFolder !== "semua") {
@@ -398,7 +402,7 @@ export function TriageInbox() {
       if (link.itemId) {
         setFolder(link.folder);
         setSelectedId(link.itemId);
-        if (link.folder === "otomatis" || link.folder === "saran") setFoldOpen((open) => ({ ...open, [link.folder]: true }));
+        if (isOptionalFolder(link.folder)) setFoldOpen((open) => ({ ...open, [link.folder]: true }));
         writeUrl(link.folder, everyItemOf(fresh).find((item) => item.id === link.itemId) ?? null, false);
         if (onePane) setPane("item");
       }
@@ -509,6 +513,18 @@ export function TriageInbox() {
       }),
     };
   };
+
+  const acknowledgeSeenTwice = (item: TriageItem) => (entry: SeenTwiceItem) =>
+    act(item, async () => {
+      await api.post(`/review/seen-twice/${entry.event_id}/acknowledge`, {});
+      return { message: "ditandai satu transaksi", batches: [] };
+    });
+
+  const recordSeenTwice = (item: TriageItem) => (entry: SeenTwiceItem) =>
+    act(item, async () => {
+      const response = await api.post<UndoFields>(`/review/seen-twice/${entry.event_id}/record-separately`, {});
+      return { message: "dicatat sebagai transaksi terpisah", batches: [batchOf(response, 1)] };
+    });
 
   const decide = (item: TriageItem) => (request: SuggestionDecisionRequest) =>
     act(item, async () => {
@@ -624,6 +640,16 @@ export function TriageInbox() {
         );
       case "suggestion":
         return <SuggestionGroupCard key={selected.id} group={selected.group} onDecide={decide(selected)} {...headingProps} />;
+      case "seen_twice":
+        return (
+          <SeenTwiceCard
+            key={selected.id}
+            item={selected.item}
+            onAcknowledge={acknowledgeSeenTwice(selected)}
+            onRecordSeparately={recordSeenTwice(selected)}
+            {...headingProps}
+          />
+        );
     }
   };
 
@@ -741,7 +767,7 @@ function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T
 }
 
 function everyItemOf(triage: Triage): TriageItem[] {
-  return [...folderItems(triage, "semua"), ...triage.folders.otomatis, ...triage.folders.saran];
+  return [...folderItems(triage, "semua"), ...triage.folders.otomatis, ...triage.folders.saran, ...triage.folders.dua];
 }
 
 function questionItem(entry: PurposeQuestionEntry): TriageItem {

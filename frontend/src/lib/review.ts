@@ -123,11 +123,36 @@ export interface ReviewQueue {
     groups: number;
     awaiting: number;
     ambiguous: number;
+    seen_twice?: number;
   };
   questions: PurposeQuestionEntry[];
   groups: ReviewGroup[];
   awaiting: AwaitingItem[];
   ambiguous: AmbiguousItem[];
+  /** Second reports of one money movement, and held possible ones (recognise-one-arrival-seen-twice D3). */
+  seen_twice?: SeenTwiceItem[];
+}
+
+/** The leg a second report repeats; `movement` is its route when the leg is part of a movement. */
+export interface SeenTwiceKeptLeg {
+  transaction_id: string;
+  type: "expense" | "income";
+  amount: number;
+  date: string | null;
+  account_name: string | null;
+  movement: { source: string | null; target: string | null } | null;
+}
+
+export interface SeenTwiceItem {
+  event_id: string;
+  /** "duplicate": nothing was booked for it; "held": the AI thought so, the backend could not confirm. */
+  kind: "duplicate" | "held";
+  app: string;
+  type: "expense" | "income" | null;
+  amount: number | null;
+  date: string;
+  account_name: string | null;
+  kept: SeenTwiceKeptLeg | null;
 }
 
 export interface ReviewSummary {
@@ -144,6 +169,7 @@ const REASON_LABELS: Record<string, string> = {
   ambiguous_movement: "Pasangan pindah saldo belum pasti",
   purpose_question: "Menunggu jawaban: belum dikenali",
   awaiting_counterpart: "Menunggu rekening pasangan",
+  possible_duplicate_observation: "Mungkin laporan kedua dari uang yang sama",
 };
 
 /** Indonesian label of a review reason; an unknown code is shown as sent rather than guessed. */
@@ -186,6 +212,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   unknown_suggestion: "Pilihan ini sudah tidak tersedia. Muat ulang daftar.",
   invalid_suggestion: "Kategori pilihan ini sudah tidak aktif. Jawab dengan teks atau ubah di buku kas.",
   invalid_purpose_answer: "Jawaban harus 1–200 karakter tanpa karakter khusus.",
+  seen_twice_not_found: "Item ini sudah diselesaikan. Daftar dimuat ulang.",
 };
 
 /** An existing row on the chosen account that may already be the missing leg of a transfer. */
