@@ -154,3 +154,11 @@ V49, additive only:
 | OD153 | Retention | Kept until the owner deletes them with "Hapus data sesi". They are excluded from every normal view. |
 | OD154 | AI in the report | No. The report uses the deterministic parse only. The AI runs only in the agent's local replay with `--ai`, after the owner's go-ahead for its cost. |
 | OD155 | Session membership | By `post_time` (D2) |
+
+## Deviations during implementation
+
+- **Base (task 0.1):** the branch merges `feat/linked-account-reports`, `feat/manual-balance-check` and then `main` (1320060) with ordinary merges, instead of rebasing. The branch was already shared with the plan commits, and the merges keep its history intact. V49 follows V48 on `main`.
+- **"Hapus data sesi" keeps the window (D6):** the session's notifications are deleted and the session row stays, marked `data_deleted_at` (a V49 column). A notification posted during that window and uploaded later is answered `ignored`/`test_session` and is not stored, so a late upload neither books nor leaves hidden data behind. Deleting the session row outright, as D6 first said, would have made such a late upload book.
+- **Label limits:** `test_case` is up to 8 characters and `label_notes` up to 400, as in D5. An empty value clears the field.
+- **Replay ids:** the replay gives every copied row a new id and rewrites the references, so it can share a database with the exported owner (the tests do) and copies fail loudly instead of being skipped.
+- **Inspection endpoint:** `GET /api/ingest/notifications` (raw event inspection, used by no web page) lists session events like any other, as `ignored` with `error_code = 'test_session'`. Ledger, Tinjau, reports, questions, habits, memory and the balance check never see them.

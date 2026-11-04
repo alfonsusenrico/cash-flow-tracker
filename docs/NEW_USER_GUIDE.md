@@ -525,7 +525,12 @@ Route: `/settings` (each section has its own address; wide screens open HP & per
 - **HP & perangkat**: whether the phone is ready and when it last captured a notification, paired phones, the pairing code, device health and the manual API key.
 - **Kebiasaan** (`/settings/kebiasaan`): the habits and investment top-ups learned from answers in Tinjau, read only. Each row says whether it is recorded automatically ("Dicatat otomatis"), still learning ("Masih belajar · 2 dari 3") or asked because answers differ. The automatic-recording switches are server settings and are shown as facts.
 - **Tampilan** (`/settings/tampilan`): theme, single-key shortcuts, "Sembunyikan saldo" and "Bantuan & pintasan" (the help dialog, also on `?`).
-- **Akun**: Profil, Gaji & siklus, Mata uang & anggaran, Pemetaan notifikasi and Nama pengirim. Every section saves its own fields.
+- **Akun**: Profil, Gaji & siklus, Mata uang & anggaran, Pemetaan notifikasi, Nama pengirim and Sesi uji. Every section saves its own fields.
+- **Sesi uji** (`/settings/sesi-uji`): a capture-only test session for trying notification flows with real small amounts.
+  - **Running a session:** "Mulai sesi" starts one for 15 minutes to 6 hours (2 hours by default). While it runs, a banner shows on every page, with "Lihat sesi" and "Akhiri sesi".
+  - **What gets captured:** every notification posted inside the session's window is stored, and nothing is recorded, paired, asked or learned. The phone shows such notifications as "Diabaikan". A notification posted before "Mulai sesi" is recorded as usual. One posted during the session but uploaded later stays capture-only.
+  - **The report:** lists each notification with its app, direction, amount, post time and how long it took to arrive. You can give each one a case number and a note. "Unduh CSV" downloads the report.
+  - **Deleting:** "Hapus data" removes the session's notifications after a confirmation. The session's time window stays, so a late upload from it is still never recorded.
 
 ## Settings Fields
 
