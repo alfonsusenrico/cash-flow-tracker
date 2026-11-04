@@ -158,7 +158,10 @@ def ledger_cash_flow(
     start, end = aware(start) if start else EARLIEST, aware(end) if end else LATEST
     if offset_scope is not None and start <= end:
         offsets = load_spending_offsets(cur, user_id, start, end)
-        if offset_scope["category_id"]:
+        if offset_scope["category_id"] and offset_scope["pillar"]:
+            offset = offsets.for_category_pillar(offset_scope["category_id"], offset_scope["pillar"])
+            saving_offset = offset if offset_scope["pillar"] == "saving" else 0
+        elif offset_scope["category_id"]:
             offset = offsets.for_category(offset_scope["category_id"])
             # A category's rows are all saving or none; per-row pillar overrides leave the offset with spending.
             saving_offset = offset if gross_saving == gross_outflow else 0
@@ -393,7 +396,7 @@ def list_transactions(
             # Offsets apply where the filtered rows are exactly what a report figure covers.
             offset_scope = None
             if not any((account_id, goal_id, obligation_id, source, review_status, q, uncategorized, possible_duplicates, waiting)) \
-                    and type in (None, "expense") and not (category_id and kakeibo_type):
+                    and type in (None, "expense"):
                 offset_scope = {"category_id": str(category_id) if category_id else None, "pillar": kakeibo_type}
             cumulative = ledger_cash_flow(
                 cur, user_id, int(agg["cumulative_inflow"] or 0), int(agg["cumulative_outflow"] or 0),

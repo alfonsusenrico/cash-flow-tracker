@@ -34,38 +34,110 @@ export interface FlowFigures {
   net: number;
 }
 
-export interface ComparisonWindow {
-  start: string;
-  end: string;
+export type SpendingBucket = Exclude<KakeiboBucket, "saving">;
+
+export interface ComparisonTotals {
+  spending: number;
   inflow: number;
-  outflow: number;
-  net: number;
+  fresh_saving: number;
+  /** Masuk − Pengeluaran. */
+  difference: number;
 }
 
-export interface ReportComparison {
-  previous: {
-    compared_days: number;
-    current_truncated: boolean;
-    current: ComparisonWindow;
-    previous: ComparisonWindow | null;
-    previous_label: string | null;
-    previous_has_data: boolean;
-    pillars: { pillar: KakeiboBucket; current: number; previous: number | null; change: number | null }[];
-  };
-  previous_partial: boolean;
-  previous_period: ReportPeriod | null;
-  median:
-    | { available: false; period_count: number; required: number }
-    | {
-        available: true;
-        period_count: number;
-        required: number;
-        compared_days: number;
-        periods: { label: string; start: string; end: string }[];
-        current: ComparisonWindow & { label: string };
-        median: { inflow: number; outflow: number; net: number };
-      };
+/** A change is `null` where no verdict is given: a running period, or a partial previous period. */
+export type ComparisonChange = { [K in keyof ComparisonTotals]: number | null };
+
+export interface ComparisonPeriodInfo {
+  label: string;
+  start: string;
+  end: string;
+  start_date: string;
+  end_date: string;
+  complete: boolean;
+  partial: boolean;
+  tracking_from: string | null;
 }
+
+/** A ledger window plus its filters, exactly what the figure next to it adds up from. */
+export interface ComparisonRef {
+  from: string;
+  to: string;
+  category_id?: string;
+  uncategorized?: boolean;
+  kakeibo_type?: KakeiboBucket;
+  q?: string;
+}
+
+export interface ComparisonCategory {
+  category_id: string | null;
+  name: string;
+  amount: number;
+  share: number | null;
+  previous: number | null;
+  change: number | null;
+  baseline: number | null;
+  baseline_change: number | null;
+  ref: ComparisonRef;
+}
+
+export interface ComparisonPillar {
+  pillar: SpendingBucket;
+  amount: number;
+  share: number | null;
+  previous: number | null;
+  change: number | null;
+  baseline: number | null;
+  baseline_change: number | null;
+  ref: ComparisonRef;
+  categories: ComparisonCategory[];
+}
+
+export interface ComparisonFact {
+  kind: "category_above_average" | "category_new" | "want_share" | "top_merchant" | "recurring" | "unexpected";
+  label: string;
+  amount: number;
+  difference?: number;
+  baseline?: number;
+  share?: number;
+  previous_share?: number;
+  count?: number;
+  ref: ComparisonRef | null;
+}
+
+export interface ComparisonHistoryItem {
+  label: string;
+  start: string;
+  end: string;
+  complete: boolean;
+  partial: boolean;
+  viewed: boolean;
+  spending: number;
+  pillars: Record<SpendingBucket, number>;
+}
+
+/** The whole-period comparison (compare-whole-months D7), the same object as `GET /reports/monthly/comparison`. */
+export interface ReportComparison {
+  basis: ReportBasis;
+  period: ComparisonPeriodInfo;
+  running: boolean;
+  totals: ComparisonTotals;
+  previous: (ComparisonPeriodInfo & { totals: ComparisonTotals; change: ComparisonChange }) | null;
+  baseline: { period_count: number; labels: string[]; totals: ComparisonTotals; change: ComparisonChange } | null;
+  progress: {
+    previous_label: string | null;
+    previous_spending: number | null;
+    spending: number;
+    share: number | null;
+    pillars: { pillar: SpendingBucket; amount: number; previous: number | null; share: number | null }[];
+  } | null;
+  pillars: ComparisonPillar[];
+  facts: ComparisonFact[];
+  history: ComparisonHistoryItem[];
+}
+
+export type ReportComparisonResponse =
+  | { empty: false; cycle_available: boolean; comparison: ReportComparison }
+  | { empty: true; cycle_available: boolean };
 
 export interface RecurringCharge {
   merchant: string;
@@ -144,10 +216,24 @@ export interface MonthlyReport {
 
 export type MonthlyReportResponse = MonthlyReport | { empty: true; basis: ReportBasis; cycle_available: boolean };
 
-export function reportQuery(basis: ReportBasis, startDate: string | null): string {
+export function reportQuery(basis: ReportBasis, startDate: string | null, path = "/reports/monthly"): string {
   const params = new URLSearchParams({ basis });
   if (startDate) params.set("start_date", startDate);
-  return `/reports/monthly?${params.toString()}`;
+  return `${path}?${params.toString()}`;
+}
+
+export function comparisonQuery(basis: ReportBasis, startDate: string | null): string {
+  return reportQuery(basis, startDate, "/reports/monthly/comparison");
+}
+
+/** The ledger link of a comparison figure: its own window and filters. */
+export function refHref(ref: ComparisonRef): string {
+  const filters: Partial<LedgerFilters> = { from: ref.from, to: ref.to, type: "expense" };
+  if (ref.uncategorized) filters.category = UNCATEGORIZED;
+  else if (ref.category_id) filters.category = ref.category_id;
+  if (ref.kakeibo_type) filters.kakeibo = ref.kakeibo_type;
+  if (ref.q) filters.q = ref.q;
+  return ledgerHref(filters);
 }
 
 /** The ledger rows behind a report figure: the period's exact window plus the figure's own filters. */

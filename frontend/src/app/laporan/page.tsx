@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { ReportLayout } from "@/components/report/ReportLayout";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -8,16 +9,25 @@ import styles from "@/components/analysis/analysis.module.css";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { PeriodStepper } from "@/components/ui/PeriodStepper";
 import { TopBarControls } from "@/components/workspace/context";
-import { Card, CardHeader, EmptyState, ErrorState, Pill, Segmented, Skeleton } from "@/components/workspace/primitives";
-import { reportLead } from "@/lib/reportLead";
+import { Card, CardHeader, EmptyState, ErrorState, Kpi, KpiStrip, Pill, Segmented, Skeleton } from "@/components/workspace/primitives";
 import { replaceSearch } from "@/lib/urlState";
 import { BudgetEditorDialog, BudgetPanel } from "@/components/report/BudgetPanel";
 import { ClassificationDialog } from "@/components/report/ClassificationDialog";
-import { ComparisonPanel } from "@/components/report/ComparisonPanel";
-import { DataQualityPanel, dataQualityIssues } from "@/components/report/DataQualityPanel";
-import { IncomeAnswer, SavingsAnswer } from "@/components/report/IncomeSavingsAnswers";
+import {
+  ChangeLine,
+  ImprovementFacts,
+  MonthlyHistory,
+  NoBaseline,
+  PillarTable,
+  Progress,
+  baselineName,
+  previousShort,
+} from "@/components/report/ComparisonParts";
+import { DataQualityLine } from "@/components/report/DataQualityPanel";
+import { IncomeSourcesCard, SavingsCard } from "@/components/report/IncomeSavingsAnswers";
 import { ReflectionAnswer } from "@/components/report/ReflectionAnswer";
-import { SpendingAnswer } from "@/components/report/SpendingAnswer";
+import { SpendingDetailsCard, TopMerchantsCard } from "@/components/report/SpendingAnswer";
+import reportStyles from "@/components/report/report.module.css";
 import { api } from "@/lib/api";
 import {
   type MonthlyReport,
@@ -36,13 +46,71 @@ const BASIS_OPTIONS: { value: ReportBasis; label: string }[] = [
   { value: "cycle", label: "Siklus gaji" },
 ];
 
+/** The running or partial period, said once above the figures. */
 function periodNote(report: MonthlyReport): string | null {
   const { period } = report;
-  if (!period.complete) return `Periode ini masih berjalan sampai hari ini. Laporan lengkapnya siap setelah ${period.label} selesai.`;
+  const previous = report.comparison.previous;
+  if (!period.complete) {
+    const against = previous && !previous.partial ? ` Angka ini kemajuan terhadap total ${previous.label}, belum perbandingan.` : "";
+    return `${period.label} masih berjalan.${against}`;
+  }
   if (period.tracking_started_inside && period.first_recorded_date) {
     return `Pencatatan baru dimulai ${shortDate(period.first_recorded_date)}, jadi periode ini belum lengkap.`;
   }
   return null;
+}
+
+function ReportKpis({ report, money }: { report: MonthlyReport; money: (amount: number) => string }) {
+  const comparison = report.comparison;
+  const { totals, previous, baseline, progress } = comparison;
+  const against = previousShort(comparison);
+  const average = baselineName(comparison);
+  if (comparison.running) {
+    return (
+      <KpiStrip label={`Ringkasan ${report.period.label}`}>
+        <Kpi
+          icon="arrow-up-right"
+          label="Pengeluaran sejauh ini"
+          value={money(totals.spending)}
+          caption={<Progress share={progress?.share ?? null} label={progress?.previous_label ?? null} />}
+        />
+        <Kpi icon="arrow-down-left" label="Masuk" value={money(totals.inflow)} />
+        <Kpi icon="target" label="Ditabung & investasi" value={money(totals.fresh_saving)} />
+      </KpiStrip>
+    );
+  }
+  return (
+    <KpiStrip label={`Ringkasan ${report.period.label}`}>
+      <Kpi
+        icon="arrow-up-right"
+        label="Pengeluaran"
+        value={money(totals.spending)}
+        caption={
+          <span className={reportStyles.kpiChips}>
+            {previous && against && <ChangeLine change={previous.change.spending} against={against} money={money} partial={previous.partial} />}
+            {baseline && average ? <ChangeLine change={baseline.change.spending} against={average} money={money} /> : <NoBaseline basis={report.basis} />}
+          </span>
+        }
+      />
+      <Kpi
+        icon="arrow-down-left"
+        label="Masuk"
+        value={money(totals.inflow)}
+        caption={previous && against ? (
+          <span className={reportStyles.kpiChips}>
+            <ChangeLine change={previous.change.inflow} against={against} money={money} kind="income" partial={previous.partial} />
+          </span>
+        ) : undefined}
+      />
+      <Kpi
+        icon="target"
+        label="Ditabung & investasi"
+        value={money(totals.fresh_saving)}
+        caption={totals.inflow > 0 ? `${Math.round((totals.fresh_saving / totals.inflow) * 100)}% dari uang masuk` : undefined}
+      />
+      <Kpi icon="layers" label="Selisih" value={money(totals.difference)} caption="masuk dikurangi pengeluaran" />
+    </KpiStrip>
+  );
 }
 
 function ReportView() {
@@ -101,7 +169,8 @@ function ReportView() {
             label={report?.period.label ?? "Memuat…"}
             offset={-position}
             minOffset={-(ordered.length - 1)}
-            onChange={(offset) => navigate({ start: offset === 0 ? null : ordered[-offset]?.start_date ?? null })}
+            // Without `start` the API opens the latest closed period, so the running one needs its date.
+            onChange={(offset) => navigate({ start: offset === 0 && ordered[0]?.complete ? null : ordered[-offset]?.start_date ?? null })}
           />
         )}
       </div>
@@ -142,50 +211,30 @@ function ReportView() {
   }
 
   const note = periodNote(report);
-  const issues = dataQualityIssues(report) > 0;
   const openClassify = () => setClassifyOpen(true);
-  const lead = reportLead(report, bal);
-
-  const side = (
-    <>
-      <ComparisonPanel report={report} />
-      {!issues && <DataQualityPanel report={report} onClassify={openClassify} />}
-      <BudgetPanel report={report} onEdit={() => setBudgetOpen(true)} />
-      <PastReports periods={ordered} current={shownStart} basis={basis} />
-    </>
-  );
+  const comparison = report.comparison;
+  const pillars = <PillarTable comparison={comparison} money={bal} />;
+  const facts = <ImprovementFacts comparison={comparison} money={bal} />;
+  const history = <MonthlyHistory comparison={comparison} money={bal} basis={basis} />;
+  const merchants = <TopMerchantsCard report={report} />;
+  const savingsCard = <SavingsCard report={report} />;
+  const details = <SpendingDetailsCard report={report} />;
+  const incomeCard = <IncomeSourcesCard report={report} />;
+  const budget = <BudgetPanel report={report} onEdit={() => setBudgetOpen(true)} />;
+  const reflection = <ReflectionAnswer report={report} />;
+  const past = <PastReports periods={ordered} current={shownStart} basis={basis} />;
 
   return (
     <div className={styles.root}>
       {controls}
-      <div className={styles.grid}>
-        <div className={styles.stack}>
-          <Card labelledBy="report-title">
-            <p className={styles.kicker}>{basis === "cycle" ? "Laporan siklus gaji" : "Laporan bulan kalender"} · {shortDate(report.period.start_date)} – {shortDate(report.period.end_date)}</p>
-            <h2 id="report-title" className={styles.reportTitle}>Laporan {report.period.label}</h2>
-            {lead.length > 0 && (
-              <p className={styles.reportLead} data-testid="report-lead">
-                {lead.map((sentence) => (
-                  <span key={sentence.key}>
-                    {sentence.text}{" "}
-                    {sentence.key === "unclassified" && (
-                      <button type="button" className={styles.linkButton} onClick={openClassify}>Lengkapi klasifikasi</button>
-                    )}
-                  </span>
-                ))}
-              </p>
-            )}
-            {note && <p className={styles.caption} style={{ marginTop: 10 }}>{note}</p>}
-          </Card>
-          {/* Something to fix comes right after the lead, on every width. */}
-          {issues && <DataQualityPanel report={report} onClassify={openClassify} />}
-          <IncomeAnswer report={report} />
-          <SavingsAnswer report={report} />
-          <SpendingAnswer report={report} onClassify={openClassify} />
-          <ReflectionAnswer report={report} />
-        </div>
-        <div className={styles.stack}>{side}</div>
-      </div>
+      <h2 className={reportStyles.srOnly} id="report-title">Laporan {report.period.label}</h2>
+      {note ? <p className={reportStyles.notice} data-tone="info">{note}</p> : null}
+      <DataQualityLine report={report} onClassify={openClassify} />
+      <ReportKpis report={report} money={bal} />
+      <ReportLayout
+        wide={[[pillars, merchants, savingsCard, details, budget], [facts, history, incomeCard, reflection, past]]}
+        narrow={[facts, pillars, history, merchants, savingsCard, details, incomeCard, budget, reflection, past]}
+      />
 
       <ClassificationDialog
         open={classifyOpen}

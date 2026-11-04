@@ -10,7 +10,7 @@ from app.db.pool import db_conn
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.services.auth import get_current_user
 from app.services.calendar import build_calendar
-from app.services.cycle_summary import KELUAR_BUCKETS, build_cycle_summary, net_worth_breakdown, rupiah
+from app.services.cycle_summary import KELUAR_BUCKETS, build_cycle_summary, net_worth_breakdown, rupiah, spending_split
 from app.services.essential_cost import DEFAULT_TARGET_MONTHS, EssentialCost, coverage, estimate_essential_cost
 from app.services.kakeibo import UNCLASSIFIED, pillar_bucket_sql
 from app.services.money_flow import FlowKeyError, build_flow, clamp_through, flow_rows, load_flow_context
@@ -924,11 +924,20 @@ def analytics_explanations(
         })
     if sum(line["amount"] for line in belanja_lines) != flow["outflow"]:
         raise RuntimeError("Belanja lines do not add up to their total")
+    keluar = {
+        "total": keluar_total,
+        "lines": keluar_lines,
+        "caveat": "Pindah saldo antar rekening sendiri tidak dihitung keluar.",
+        "href": analytics_ledger_href(timeframe, cycle_offset, type="expense"),
+    }
+    # Pengeluaran is Keluar without the saving bucket, split by the rule Beranda uses (compare-whole-months).
+    spending, _fresh_saving = spending_split(keluar)
     return {
-        "keluar": {
-            "total": keluar_total,
-            "lines": keluar_lines,
-            "caveat": "Pindah saldo antar rekening sendiri tidak dihitung keluar.",
+        "keluar": keluar,
+        "spending": {
+            "total": spending["amount"],
+            "lines": spending["lines"],
+            "caveat": "Pengeluaran tidak termasuk yang ditabung atau diinvestasikan.",
             "href": analytics_ledger_href(timeframe, cycle_offset, type="expense"),
         },
         "belanja": {

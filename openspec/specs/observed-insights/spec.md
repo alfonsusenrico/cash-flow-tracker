@@ -6,7 +6,7 @@ Give the owner observed, actionable insights on Analisis instead of averages and
 ## Requirements
 
 ### Requirement: Fair period comparison
-The system SHALL compare the selected salary cycle or calendar month with the previous one over the same elapsed time from each period's start, shortening both windows to the previous period's length when it is shorter. It SHALL report inflow, outflow and net, spending per Kakeibo pillar with unclassified spending as a sixth `unclassified` entry, and the top three category and merchant increases and decreases with amounts, and SHALL NOT present a percentage change.
+`GET /api/dashboard/period-comparison` SHALL compare a period with the previous one over the same elapsed time, shortened to the shorter period, reporting inflow, outflow, net, six pillar entries and the top three category and merchant changes as amounts, never percentages. It SHALL stay for API consumers, deprecated, and the web SHALL NOT present it.
 
 #### Scenario: Same elapsed days
 - **GIVEN** the current month observed through its 10th day, previous-month spending of Rp 100.000 on the 5th and Rp 900.000 on the 20th
@@ -15,11 +15,11 @@ The system SHALL compare the selected salary cycle or calendar month with the pr
 
 #### Scenario: Previous period without data
 - **WHEN** the previous window has no recorded transactions
-- **THEN** the response SHALL state `previous_has_data: false`, changes SHALL be `null`, and the interface SHALL say that the previous period has no data
+- **THEN** the response SHALL state `previous_has_data: false` and changes SHALL be `null`
 
 #### Scenario: Drill-down from a change
-- **WHEN** the owner selects a category or merchant change
-- **THEN** the ledger SHALL open filtered to the current comparison window and that category or merchant
+- **WHEN** an API consumer follows a returned category or merchant change
+- **THEN** its window and key SHALL select exactly the ledger rows of the current comparison window for that category or merchant
 
 #### Scenario: Spending so far includes days a shortened comparison leaves out
 - **GIVEN** 31 October with Rp 1.400.000 spent today and Rp 200.000 on 5 October, after a 30-day September
@@ -29,6 +29,10 @@ The system SHALL compare the selected salary cycle or calendar month with the pr
 #### Scenario: Unclassified spending in the comparison
 - **WHEN** both windows hold spending without a pillar
 - **THEN** the pillar list SHALL include `unclassified` with its current, previous and change amounts, and the six entries SHALL add up to each window's outflow
+
+#### Scenario: Not shown by the web
+- **WHEN** the owner opens Beranda, Analisis or Laporan
+- **THEN** no request to `/api/dashboard/period-comparison` SHALL be made and no same-day comparison SHALL be shown
 
 ### Requirement: Net cash flow history
 The system SHALL list observed inflow, outflow net of reimbursements and net cash flow for the last six completed periods and the current period, using the same period rule as the essential cost, and SHALL label the current period as in progress ("berjalan"). Calendar months SHALL be used when the owner selects the calendar-month basis.

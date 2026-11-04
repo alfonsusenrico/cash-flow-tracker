@@ -128,7 +128,7 @@ describe("category management form", () => {
     expect(screen.queryByText("Tanpa Batas")).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Batas Anggaran" })).not.toBeInTheDocument();
     expect(screen.queryByText(/Atur batas/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Laporan Bulanan" })).toHaveAttribute("href", "/laporan?atur=anggaran");
+    expect(screen.getByRole("link", { name: "Atur anggaran" })).toHaveAttribute("href", "/laporan?atur=anggaran");
   });
 
   it("hides expense-only inputs for an income category", async () => {
@@ -183,39 +183,31 @@ describe("category management form", () => {
 const FROM = "2026-10-01T00:00:00+07:00";
 const TO = "2026-10-10T18:00:00+07:00";
 
-const comparisonData = (previousHasData = true) => ({
-  label: "Oktober 2026", compared_days: 10, current_truncated: false,
-  current: { start: FROM, end: TO, start_date: "2026-10-01", end_date: "2026-10-10", inflow: 5_000_000, outflow: 290_000, net: 4_710_000 },
-  previous: { start: "2026-09-01T00:00:00+07:00", end: "2026-09-10T18:00:00+07:00", start_date: "2026-09-01", end_date: "2026-09-10",
-    inflow: previousHasData ? 5_000_000 : 0, outflow: previousHasData ? 100_000 : 0, net: previousHasData ? 4_900_000 : 0 },
-  previous_label: "September 2026", previous_has_data: previousHasData,
-  pillars: ["need", "want", "culture", "unexpected", "saving"].map((pillar) => ({
-    pillar, current: pillar === "need" ? 250_000 : pillar === "want" ? 40_000 : 0,
-    previous: previousHasData ? (pillar === "need" ? 100_000 : 0) : null,
-    change: previousHasData ? (pillar === "need" ? 150_000 : pillar === "want" ? 40_000 : 0) : null,
-  })),
-  categories: {
-    increases: previousHasData ? [{ key: "category-1", id: "category-1", name: "Belanja Contoh", current: 250_000, previous: 100_000, change: 150_000 }] : [],
-    decreases: [],
-  },
-  merchants: {
-    increases: previousHasData ? [{ key: "pasar contoh", id: null, name: "Pasar Contoh 12", search_text: "Pasar Contoh", current: 250_000, previous: 100_000, change: 150_000 }] : [],
-    decreases: [],
-  },
-});
-
-const historyData = {
-  cycle_status: "not_configured",
+const reportPeriods = {
+  basis: "month", cycle_available: false,
   periods: [
-    ...["April", "Mei", "Juni", "Juli", "Agustus", "September"].map((month, index) => ({
-      kind: "month", label: `${month} 2026`, start: `2026-0${index + 4}-01T00:00:00+07:00`, end: `2026-0${index + 4}-28T23:59:59+07:00`,
-      start_date: `2026-0${index + 4}-01`, end_date: `2026-0${index + 4}-28`, in_progress: false,
-      inflow: 5_000_000, outflow: 3_000_000 + index, net: 2_000_000 - index,
-    })),
-    { kind: "month", label: "Oktober 2026", start: FROM, end: TO, start_date: "2026-10-01", end_date: "2026-10-10",
-      in_progress: true, inflow: 0, outflow: 290_000, net: -290_000 },
+    { kind: "month", basis: "month", label: "Oktober 2026", start: FROM, end: TO, start_date: "2026-10-01", end_date: "2026-10-10", days: 10, complete: false, tracking_started_inside: false, first_recorded_date: null, url: "" },
+    { kind: "month", basis: "month", label: "September 2026", start: "2026-09-01T00:00:00+07:00", end: "2026-09-30T23:59:59+07:00", start_date: "2026-09-01", end_date: "2026-09-30", days: 30, complete: true, tracking_started_inside: false, first_recorded_date: null, url: "" },
   ],
 };
+
+const septemberComparison = (withBaseline = true) => ({
+  empty: false, cycle_available: false,
+  comparison: {
+    basis: "month",
+    period: { label: "September 2026", start: "2026-09-01T00:00:00+07:00", end: "2026-09-30T23:59:59+07:00", start_date: "2026-09-01", end_date: "2026-09-30", complete: true, partial: false, tracking_from: null },
+    running: false,
+    totals: { spending: 100_000, inflow: 5_000_000, fresh_saving: 0, difference: 4_900_000 },
+    previous: null,
+    baseline: withBaseline ? { period_count: 3, labels: ["Juni 2026", "Juli 2026", "Agustus 2026"], totals: { spending: 80_000, inflow: 5_000_000, fresh_saving: 0, difference: 4_920_000 }, change: { spending: 20_000, inflow: 0, fresh_saving: 0, difference: -20_000 } } : null,
+    progress: null,
+    pillars: [{
+      pillar: "want", amount: 100_000, share: 100, previous: null, change: null, baseline: 80_000, baseline_change: withBaseline ? 20_000 : null,
+      ref: { from: "2026-09-01T00:00:00+07:00", to: "2026-09-30T23:59:59+07:00", kakeibo_type: "want" }, categories: [],
+    }],
+    facts: [], history: [],
+  },
+});
 
 const chargesData = {
   window: { start: "2026-04-01T00:00:00+07:00", end: TO, start_date: "2026-04-01", end_date: "2026-10-10", months: 6 },
@@ -236,20 +228,21 @@ const chargesData = {
   ],
 };
 
-function insightResponse(path: string, previousHasData = true) {
-  if (path.startsWith("/dashboard/period-comparison?")) return comparisonData(previousHasData);
-  if (path.startsWith("/dashboard/cash-flow-history?")) return historyData;
+function insightResponse(path: string, withBaseline = true) {
+  if (path.startsWith("/dashboard/period-comparison?")) throw new Error("Analisis must not ask for the same-day comparison");
+  if (path.startsWith("/reports/monthly/periods?")) return reportPeriods;
+  if (path.startsWith("/reports/monthly/comparison?")) return septemberComparison(withBaseline);
   if (path === "/dashboard/recurring-charges") return chargesData;
   if (path === "/dashboard/question-rate?weeks=8") return { weeks: [], has_data: false };
   return null;
 }
 
 describe("observed insights", () => {
-  function mockInsights(previousHasData = true) {
+  function mockInsights(withBaseline = true) {
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path.startsWith("/dashboard/analytics?")) return { timeframe: "month", timeframe_label: "Oktober 2026", category_variance: [] };
       if (path === "/categories?include_archived=true") return { categories: [] };
-      const insight = insightResponse(path, previousHasData);
+      const insight = insightResponse(path, withBaseline);
       if (insight) return insight;
       throw new Error(`Unexpected GET ${path}`);
     });
@@ -257,37 +250,23 @@ describe("observed insights", () => {
 
   beforeEach(() => vi.clearAllMocks());
 
-  it("compares the same elapsed days and links each change to its exact window", async () => {
+  it("compares the last completed month with its average, never the same elapsed days", async () => {
     mockInsights();
     const { container } = renderAnalytics();
-    expect(await screen.findByText(/sama-sama 10 hari pertama/)).toBeInTheDocument();
-    expect(api.get).toHaveBeenCalledWith("/dashboard/period-comparison?timeframe=month&cycle_offset=-1");
-    const window = `from=${encodeURIComponent(FROM)}&to=${encodeURIComponent(TO)}`;
-    expect(screen.getByRole("link", { name: "Belanja Contoh" })).toHaveAttribute("href", `/ledger?category=category-1&type=expense&${window}`);
-    expect(screen.getByRole("link", { name: "Pasar Contoh 12" })).toHaveAttribute("href", `/ledger?type=expense&${window}&q=Pasar+Contoh`);
-    const need = screen.getAllByRole("link", { name: "Kebutuhan" }).find((link) => link.getAttribute("href")?.includes("from="));
-    expect(need).toHaveAttribute("href", `/ledger?kakeibo=need&type=expense&${window}`);
-    expect(within(screen.getByRole("region", { name: "Periode ini vs periode lalu" })).queryByText(/%/)).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "September 2026 vs rata-rata 3 bulan" })).toBeInTheDocument();
+    expect(api.get).toHaveBeenCalledWith("/reports/monthly/comparison?basis=month&start_date=2026-09-01");
+    expect(vi.mocked(api.get).mock.calls.some(([path]) => String(path).includes("period-comparison"))).toBe(false);
+    const want = screen.getByRole("link", { name: "Keinginan" });
+    expect(want.getAttribute("href")).toContain("kakeibo=want");
+    expect(screen.queryByText(/hari pertama/)).not.toBeInTheDocument();
     expect(await screen.findByRole("region", { name: "Seberapa sering ditanya" })).toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
-  it("says so when the previous period has no data", async () => {
+  it("says when the average appears while too few whole months exist", async () => {
     mockInsights(false);
     renderAnalytics();
-    expect(await screen.findByText(/Periode lalu belum punya transaksi tercatat/)).toBeInTheDocument();
-    expect(screen.queryByText("Kategori yang berubah")).not.toBeInTheDocument();
-  });
-
-  it("lists cash flow per period with the current one in progress", async () => {
-    mockInsights();
-    renderAnalytics();
-    const history = await screen.findByRole("region", { name: "Arus kas per periode" });
-    expect(within(history).getAllByRole("listitem")).toHaveLength(7);
-    expect(within(history).getByText("berjalan")).toBeInTheDocument();
-    expect(within(history).getByRole("link", { name: "Oktober 2026" })).toHaveAttribute(
-      "href", `/ledger?from=${encodeURIComponent(FROM)}&to=${encodeURIComponent(TO)}`,
-    );
+    expect(await screen.findByText("Rata-rata muncul setelah 2 bulan lengkap")).toBeInTheDocument();
   });
 
   it("marks charges with a plan and turns another into a plan only after confirmation", async () => {
@@ -335,11 +314,13 @@ describe("report drill-down", () => {
         comparison: { total_inflow: 5_000_000, total_outflow: 300_000, net_cashflow: 4_700_000 },
       };
       if (path === "/categories?include_archived=true") return { categories: [] };
+      const insight = insightResponse(path);
+      if (insight) return insight;
       throw new Error(`Unexpected GET ${path}`);
     });
     renderAnalytics();
     expect(await screen.findByRole("region", { name: "Arus kas tercatat" })).toBeInTheDocument();
-    expect(screen.getByText("Rp 5.000.000")).toBeInTheDocument();
+    expect(await screen.findByText("Rp 5.000.000")).toBeInTheDocument();
     expect(screen.queryByText(/Rata-rata 7 Hari|Rata-rata 30 Hari|Proyeksi Akhir Siklus/)).not.toBeInTheDocument();
   });
 
@@ -359,7 +340,7 @@ describe("report drill-down", () => {
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
-  it("switches the report basis and explains Keluar from the server's lines", async () => {
+  it("switches the report basis and explains Pengeluaran from the server's lines", async () => {
     vi.mocked(api.get).mockImplementation(async (path) => {
       if (path.startsWith("/dashboard/analytics?")) return {
         timeframe_label: "September 2026", category_variance: [],
@@ -368,6 +349,7 @@ describe("report drill-down", () => {
         explanations: {
           keluar: { total: 100_000, caveat: null, href: null, lines: [{ key: "want", label: "Keinginan", amount: 100_000, note: null, href: "/ledger?period=month&offset=-1&kakeibo=want" }] },
           belanja: { total: 100_000, caveat: null, href: null, lines: [{ key: "gross", label: "Belanja tercatat", amount: 100_000, note: null, href: null }] },
+          spending: { total: 100_000, caveat: null, href: null, lines: [{ key: "want", label: "Keinginan", amount: 100_000, note: null, href: "/ledger?period=month&offset=-1&kakeibo=want" }] },
         },
       };
       if (path === "/categories?include_archived=true") return { categories: [] };
@@ -380,8 +362,8 @@ describe("report drill-down", () => {
     await user.click(await screen.findByRole("button", { name: "Siklus gaji" }));
     expect(setTimeframe).toHaveBeenCalledWith("cycle");
     expect(screen.getByRole("button", { name: "Bulan kalender" })).toHaveAttribute("aria-pressed", "true");
-    await user.click(screen.getByRole("button", { name: "Keluar Rp 100.000: lihat rincian" }));
-    const panel = await screen.findByRole("dialog", { name: /Keluar periode ini/ });
+    await user.click(await screen.findByRole("button", { name: "Pengeluaran Rp 100.000: lihat rincian" }));
+    const panel = await screen.findByRole("dialog", { name: /Pengeluaran periode ini/ });
     expect(within(panel).getByRole("link", { name: /Keinginan/ })).toHaveAttribute("href", "/ledger?period=month&offset=-1&kakeibo=want");
   });
 });

@@ -41,7 +41,7 @@ export interface AnalyticsResponse {
     reimbursement_offset?: number;
   };
   kakeibo?: { total_allocated: number } & Record<string, number | string>;
-  explanations?: { keluar: ServerExplanation; belanja: ServerExplanation };
+  explanations?: { keluar: ServerExplanation; belanja: ServerExplanation; spending?: ServerExplanation };
 }
 
 export interface CategoryVariance {
@@ -71,15 +71,6 @@ export interface ComparisonWindow {
   net: number;
 }
 
-export interface PeriodComparisonResponse {
-  label: string;
-  compared_days: number;
-  current: ComparisonWindow;
-  previous: ComparisonWindow | null;
-  previous_label: string | null;
-  previous_has_data: boolean;
-  kakeibo?: { current: Record<KakeiboBucket, number>; previous: Record<KakeiboBucket, number> | null };
-}
 
 export interface CalendarPlan {
   rule_id: string;

@@ -35,12 +35,18 @@ class SpendingOffsets:
     applied: int = 0
     excess: int = 0
     unallocated: int = 0
+    # The same apportionment, kept per (category id, pillar bucket), so a category's rows in one pillar
+    # get exactly the share `applied_by_pillar` counted for them.
+    applied_by_category_pillar: dict[tuple[str, str], int] = field(default_factory=dict)
 
     def for_category(self, category_id: Any) -> int:
         return self.applied_by_category.get(str(category_id), 0)
 
     def for_pillar(self, pillar: str) -> int:
         return self.applied_by_pillar.get(pillar, 0)
+
+    def for_category_pillar(self, category_id: Any, pillar: str) -> int:
+        return self.applied_by_category_pillar.get((str(category_id), pillar), 0)
 
     @property
     def living(self) -> int:
@@ -96,6 +102,7 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
     )
     by_category: dict[str, int] = {}
     by_pillar: dict[str, int] = {}
+    by_category_pillar: dict[tuple[str, str], int] = {}
     applied = excess = unallocated = 0
     for row in cur.fetchall():
         reimbursed = int(row["reimbursed"] or 0)
@@ -111,7 +118,8 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
         pillar_spending = {pillar: int(amount) for pillar, amount in row["pillar_spending"].items()}
         for pillar, share in apportion(category_applied, pillar_spending).items():
             by_pillar[pillar] = by_pillar.get(pillar, 0) + share
-    return SpendingOffsets(by_category, by_pillar, applied, excess, unallocated)
+            by_category_pillar[(str(row["offset_category_id"]), pillar)] = share
+    return SpendingOffsets(by_category, by_pillar, applied, excess, unallocated, by_category_pillar)
 
 
 def category_offsets_spending(cur, user_id: str, category_id: str | None) -> bool:

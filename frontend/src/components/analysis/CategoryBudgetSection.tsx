@@ -16,6 +16,32 @@ import { ledgerHref, UNCATEGORIZED } from "@/lib/ledgerFilters";
 import type { LedgerFilters } from "@/lib/ledgerFilters";
 import type { CategoryVariance } from "./types";
 
+// The rows keep the loose typing the list rendering already uses for budget and variance fields.
+type CategoryRow = any;
+type ListEntry = { kind: "group"; pillar: string; label: string; color: string; count: number } | { kind: "row"; cat: CategoryRow };
+
+const GROUP_ORDER = ["need", "want", "culture", "unexpected", "saving", "unclassified"] as const;
+
+/**
+ * Spending categories grouped by their Kakeibo pillar in the fixed Kakeibo order, each group sorted by
+ * amount. Categories without spending in the period are left out unless `withZero`, so the list stays a
+ * sorted breakdown of the period; no money is added up here.
+ */
+export function groupCategories(categories: CategoryRow[], withZero: boolean): ListEntry[] {
+  const shown = categories.filter((cat) => withZero || (cat.spent ?? 0) > 0);
+  const entries: ListEntry[] = [];
+  for (const pillar of GROUP_ORDER) {
+    const rows = shown
+      .filter((cat) => (pillarOrUnclassified(cat.kakeibo_type) || "unclassified") === pillar)
+      .sort((left, right) => (right.spent ?? 0) - (left.spent ?? 0) || String(left.name).localeCompare(String(right.name)));
+    if (rows.length === 0) continue;
+    const info = pillar === "unclassified" ? null : kakeiboPillarInfo(pillar);
+    entries.push({ kind: "group", pillar, label: info?.label ?? "Belum diklasifikasi", color: info?.color ?? "var(--k-none)", count: rows.length });
+    for (const cat of rows) entries.push({ kind: "row", cat });
+  }
+  return entries;
+}
+
 const CATEGORY_ICONS = [
   { id: "tag", label: "Label" },
   { id: "utensils", label: "Makanan" },
@@ -182,11 +208,14 @@ export function CategoryBudgetSection({
 
   // Expense categories only.
   const categories = rawCategories.filter((c: any) => c.kind !== "income");
-  const totalSpentInCategories = categories.reduce((acc: number, c: any) => acc + c.spent, 0);
   const totalBudgeted = categories.reduce((acc: number, c: any) => acc + (c.budget || 0), 0);
   const overBudgetCount = categories.filter((c: any) => c.status === "over_budget").length;
   // Budgets are optional: without any, the table shows spending only (custom-category-management).
   const anyBudget = categories.some((c: any) => (c.budget ?? 0) > 0);
+  const [showZero, setShowZero] = useState(false);
+  // A budgeted category stays listed at Rp 0, so its limit and remaining budget are still visible.
+  const zeroCount = categories.filter((c: any) => (c.spent ?? 0) <= 0 && !((c.budget ?? 0) > 0)).length;
+  const listed = groupCategories(categories.filter((c: any) => showZero || (c.spent ?? 0) > 0 || (c.budget ?? 0) > 0), true);
 
   return (
     <section className="ws-card space-y-6" aria-labelledby="category-budget-heading">
@@ -209,23 +238,15 @@ export function CategoryBudgetSection({
                   {anyBudget ? (
                     "Pengeluaran periode ini dibanding batas anggaran pengeluaran"
                   ) : (
-                    <>
-                      Pengeluaran periode ini per kategori. Anggaran bisa diatur kapan saja dari{" "}
-                      <Link href="/laporan?atur=anggaran" className="font-semibold underline underline-offset-2">Laporan Bulanan</Link>.
-                    </>
+                    <Link href="/laporan?atur=anggaran" className="font-semibold underline underline-offset-2">Atur anggaran</Link>
                   )}
                 </p>
               </div>
 
               <div className="flex items-center gap-3 self-start sm:self-auto">
                 <div className="hidden sm:flex items-center gap-2 text-xs text-[var(--muted)] tabular font-medium">
-                  <span>Total Keluar: {bal(totalSpentInCategories)}</span>
-                  {totalBudgeted > 0 && (
-                    <>
-                      <span>•</span>
-                      <span>Total Anggaran: {bal(totalBudgeted)}</span>
-                    </>
-                  )}
+                  {/* The period's Pengeluaran is the server figure in the KPI row; only the budget total is shown here. */}
+                  {totalBudgeted > 0 && <span>Total Anggaran: {bal(totalBudgeted)}</span>}
                 </div>
                 <button
                   type="button"
@@ -262,7 +283,18 @@ export function CategoryBudgetSection({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--line)]">
-                      {categories.map((cat: any) => {
+                      {listed.map((entry) => {
+                        if (entry.kind === "group") {
+                          return (
+                            <tr key={`group-${entry.pillar}`} className="bg-[var(--surface-2)]/60">
+                              <th scope="rowgroup" colSpan={anyBudget ? 6 : 3} className="py-2 pl-2 text-left text-[11px] font-bold uppercase tracking-wide text-[var(--text-2)]">
+                                <span aria-hidden="true" className="mr-2 inline-block h-2 w-2 rounded-full align-middle" style={{ backgroundColor: entry.color }} />
+                                {entry.label} <span className="font-medium normal-case text-[var(--muted)]">· {entry.count} kategori</span>
+                              </th>
+                            </tr>
+                          );
+                        }
+                        const cat = entry.cat;
                         const hasBudget = cat.budget && cat.budget > 0;
                         const isOver = cat.status === "over_budget";
                         const isWarning = cat.status === "warning";
@@ -274,7 +306,7 @@ export function CategoryBudgetSection({
                             key={cat.id ?? "uncategorized"}
                             className="hover:bg-[var(--surface-2)]/50 transition-colors"
                           >
-                            <td className="py-3.5 pr-4">
+                            <td className="py-2 pr-4">
                               <div className="flex items-center gap-2.5">
                                 <div
                                   className="h-7 w-7 rounded-lg flex items-center justify-center text-xs text-white shrink-0 shadow-2xs"
@@ -315,7 +347,7 @@ export function CategoryBudgetSection({
                               </div>
                             </td>
 
-                            <td className="py-3.5 text-right font-bold tabular text-[var(--text)]">
+                            <td className="py-2 text-right font-bold tabular text-[var(--text)]">
                               {drill ? (
                                 <Link
                                   href={drill}
@@ -329,7 +361,7 @@ export function CategoryBudgetSection({
 
                             {anyBudget && (
                             <>
-                            <td className="py-3.5 text-right text-[var(--muted)] tabular">
+                            <td className="py-2 text-right text-[var(--muted)] tabular">
                               {managed ? (
                               <button
                                 type="button"
@@ -348,7 +380,7 @@ export function CategoryBudgetSection({
                               )}
                             </td>
 
-                            <td className="py-3.5 text-right tabular">
+                            <td className="py-2 text-right tabular">
                               {hasBudget ? (
                                 <span
                                   className={cn(
@@ -365,7 +397,7 @@ export function CategoryBudgetSection({
                               )}
                             </td>
 
-                            <td className="py-3.5 text-right">
+                            <td className="py-2 text-right">
                               <span
                                 className={cn(
                                   "px-2 py-0.5 rounded-full text-[10px] font-bold tabular",
@@ -391,7 +423,7 @@ export function CategoryBudgetSection({
                             </>
                             )}
 
-                            <td className="py-3.5 text-right">
+                            <td className="py-2 text-right">
                               {managed && (
                               <div className="flex items-center justify-end gap-1">
                                 <button
@@ -424,7 +456,16 @@ export function CategoryBudgetSection({
 
                 {/* 2. Mobile Native Progress Cards (< lg) */}
                 <div className="lg:hidden space-y-3">
-                  {categories.map((cat: any) => {
+                  {listed.map((entry) => {
+                    if (entry.kind === "group") {
+                      return (
+                        <h4 key={`mobile-group-${entry.pillar}`} className="flex items-center gap-2 pt-1 text-[11px] font-bold uppercase tracking-wide text-[var(--text-2)]">
+                          <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                          {entry.label} <span className="font-medium normal-case text-[var(--muted)]">· {entry.count} kategori</span>
+                        </h4>
+                      );
+                    }
+                    const cat = entry.cat;
                     const hasBudget = cat.budget && cat.budget > 0;
                     const isOver = cat.status === "over_budget";
                     const isWarning = cat.status === "warning";
@@ -434,7 +475,7 @@ export function CategoryBudgetSection({
                     return (
                       <div
                         key={`mobile-cat-${cat.id ?? "uncategorized"}`}
-                        className="p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/60 transition-colors space-y-2.5"
+                        className={cn("rounded-2xl border border-[var(--line)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/60 transition-colors", anyBudget ? "p-3.5 space-y-2.5" : "px-3 py-2")}
                       >
                         {/* Row 1: Icon + Name + Terpakai */}
                         <div className="flex items-center justify-between gap-2">
@@ -469,8 +510,30 @@ export function CategoryBudgetSection({
                                 {bal(cat.spent)}
                               </span>
                             )}
-                            <div className="text-[9px] text-[var(--muted)] font-medium">Terpakai</div>
+                            {anyBudget && <div className="text-[9px] text-[var(--muted)] font-medium">Terpakai</div>}
                           </div>
+                          {/* Without budgets the row stays one line: the actions sit beside the amount. */}
+                          {!anyBudget && managed && (
+                            <div className="flex shrink-0 items-center gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => openEditCategory(cat)}
+                                aria-label={`Ubah kategori ${cat.name}`}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
+                              >
+                                <Icon name="edit" className="h-3.5 w-3.5" />
+                              </button>
+                              <ConfirmActionButton
+                                label={`Arsipkan kategori ${cat.name}`}
+                                confirmation={`Yakin ingin mengarsipkan kategori "${cat.name}"?`}
+                                onConfirm={() => deleteCategoryMutation.mutate(cat.id)}
+                                disabled={deleteCategoryMutation.isPending}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-out-solid/10 hover:text-out-fg disabled:opacity-50"
+                              >
+                                <Icon name="trash" className="h-3.5 w-3.5" />
+                              </ConfirmActionButton>
+                            </div>
+                          )}
                         </div>
 
                         {/* Row 2: 6px Smooth Progress Bar (if budget set) */}
@@ -539,8 +602,8 @@ export function CategoryBudgetSection({
 
                         )}
 
-                        {/* Row 4: Subtle Touch Actions */}
-                        {managed && (
+                        {/* Row 4: Subtle Touch Actions, once budgets are used */}
+                        {anyBudget && managed && (
                         <div className="border-t border-[var(--line)]/50 pt-2 flex items-center justify-between gap-2">
                           <button
                             type="button"
@@ -566,6 +629,16 @@ export function CategoryBudgetSection({
                     );
                   })}
                 </div>
+                {zeroCount > 0 && (
+                  <button
+                    type="button"
+                    aria-expanded={showZero}
+                    onClick={() => setShowZero((value) => !value)}
+                    className="inline-flex min-h-10 items-center text-xs font-semibold text-[var(--text)] underline underline-offset-2"
+                  >
+                    {showZero ? "Sembunyikan kategori tanpa pengeluaran" : `Tampilkan ${zeroCount} kategori tanpa pengeluaran`}
+                  </button>
+                )}
               </>
             )}
           </div>

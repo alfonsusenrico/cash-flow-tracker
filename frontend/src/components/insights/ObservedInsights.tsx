@@ -4,67 +4,17 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
-import { cn } from "@/lib/utils";
-import { KAKEIBO_BUCKETS, type KakeiboBucket } from "@/lib/kakeibo";
-import { ledgerHref, UNCATEGORIZED } from "@/lib/ledgerFilters";
+import { DisclosureSummary } from "@/components/ui/DisclosureSummary";
+import { ledgerHref } from "@/lib/ledgerFilters";
 import type { ExpensePlanDraft } from "@/types/recurring";
 
 type Money = (amount: number) => string;
 export type InsightBasis = "cycle" | "month";
 
-interface PeriodWindow {
-  start: string;
-  end: string;
-  start_date: string;
-  end_date: string;
-  inflow: number;
-  outflow: number;
-  net: number;
-}
 
-interface Change {
-  key: string;
-  id: string | null;
-  name: string;
-  search_text?: string | null;
-  is_uncategorized?: boolean;
-  current: number;
-  previous: number;
-  change: number;
-}
 
-interface Changes {
-  increases: Change[];
-  decreases: Change[];
-}
 
-export interface PeriodComparisonData {
-  label: string;
-  compared_days: number;
-  current_truncated: boolean;
-  current: PeriodWindow;
-  /** The whole period so far; differs from `current` when the comparison is shortened. */
-  current_to_date: PeriodWindow;
-  previous: PeriodWindow | null;
-  previous_label: string | null;
-  previous_has_data: boolean;
-  pillars: { pillar: KakeiboBucket; current: number; previous: number | null; change: number | null }[];
-  categories: Changes;
-  merchants: Changes;
-}
 
-export interface CashFlowPeriod {
-  kind: "cycle" | "month";
-  label: string;
-  start: string;
-  end: string;
-  start_date: string;
-  end_date: string;
-  in_progress: boolean;
-  inflow: number;
-  outflow: number;
-  net: number;
-}
 
 export interface RecurringCharge {
   key: string;
@@ -95,219 +45,8 @@ function day(isoDate: string): string {
   return new Date(`${isoDate}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
 }
 
-function range(span: { start_date: string; end_date: string }): string {
-  return span.start_date === span.end_date ? day(span.start_date) : `${day(span.start_date)} – ${day(span.end_date)}`;
-}
 
-function signed(bal: Money, amount: number): string {
-  if (amount === 0) return bal(0);
-  return `${amount > 0 ? "+" : "−"}${bal(Math.abs(amount))}`;
-}
 
-const PILLAR_LABEL = Object.fromEntries(KAKEIBO_BUCKETS.map((item) => [item.value, item.label])) as Record<KakeiboBucket, string>;
-
-function ChangeList({ title, items, href, bal, empty }: {
-  title: string;
-  items: Change[];
-  href: (item: Change) => string;
-  bal: Money;
-  empty: string;
-}) {
-  return (
-    <div className="min-w-0 space-y-1">
-      <h4 className="font-semibold text-[var(--text-2)]">{title}</h4>
-      {items.length === 0 ? (
-        <p className="text-[var(--muted)]">{empty}</p>
-      ) : (
-        <ul className="space-y-1">
-          {items.map((item) => (
-            <li key={item.key} className="flex min-w-0 items-baseline justify-between gap-2">
-              <Link
-                href={href(item)}
-                className="inline-block min-h-6 min-w-0 truncate leading-6 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
-              >
-                {item.name}
-              </Link>
-              <span className="shrink-0 text-right tabular-nums">
-                <span className={cn("font-bold", item.change > 0 ? "text-out-fg" : "text-in-fg")}>
-                  {signed(bal, item.change)}
-                </span>
-                <span className="block text-[11px] text-[var(--muted)]">{bal(item.previous)} → {bal(item.current)}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-/** The selected period against the previous one, both over the same elapsed time. */
-export function PeriodComparison({ basis, offset, bal }: { basis: InsightBasis; offset: number; bal: Money }) {
-  const { data, isLoading, isError } = useQuery<PeriodComparisonData>({
-    queryKey: queryKeys.dashboard.periodComparison(basis, offset),
-    queryFn: () => api.get(`/dashboard/period-comparison?timeframe=${basis}&cycle_offset=${offset}`),
-  });
-  const current = data?.current;
-  const previous = data?.previous_has_data ? data.previous : null;
-  const scope = current ? { from: current.start, to: current.end } : {};
-  return (
-    <section aria-labelledby="comparison-title" className="ws-card space-y-4 text-xs">
-      <div>
-        <h2 id="comparison-title" className="text-base font-bold tracking-tight text-[var(--text)]">Periode ini vs periode lalu</h2>
-        {data && current ? (
-          <p className="mt-0.5 text-[var(--text-2)]">
-            {data.label} ({range(current)})
-            {data.previous ? ` dibanding ${data.previous_label ?? "periode lalu"} (${range(data.previous)})` : ""}, sama-sama{" "}
-            {data.compared_days} hari pertama.
-          </p>
-        ) : (
-          <p className="mt-0.5 text-[var(--text-2)]">{isError ? "Perbandingan belum dapat dimuat." : isLoading ? "Memuat…" : ""}</p>
-        )}
-      </div>
-      {data && current && (
-        <>
-          {data.current_truncated && (
-            <p className="text-[var(--text-2)]">Periode lalu lebih pendek, jadi periode ini juga dipotong agar adil.</p>
-          )}
-          {!data.previous_has_data && (
-            <p className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 text-[var(--text-2)]">
-              Periode lalu belum punya transaksi tercatat, jadi belum ada pembanding. Angka di bawah hanya periode ini.
-            </p>
-          )}
-          <dl className="grid grid-cols-3 gap-2">
-            {([
-              ["Uang masuk", current.inflow, previous?.inflow, false],
-              ["Uang keluar", current.outflow, previous?.outflow, true],
-              ["Selisih bersih", current.net, previous?.net, false],
-            ] as const).map(([label, now, before, spending]) => (
-              <div key={label} className="min-w-0 rounded-xl border border-[var(--line)] p-2.5 sm:p-3">
-                <dt className="font-semibold text-[var(--muted)]">{label}</dt>
-                <dd className="truncate text-sm font-black tabular-nums text-[var(--text)] sm:text-base">{bal(now)}</dd>
-                {before != null && (
-                  <dd className="truncate text-[11px] tabular-nums text-[var(--text-2)]">
-                    Lalu {bal(before)} ·{" "}
-                    <span className={cn(now - before !== 0 && ((now - before > 0) === spending ? "text-out-fg" : "text-in-fg"))}>
-                      {signed(bal, now - before)}
-                    </span>
-                  </dd>
-                )}
-              </div>
-            ))}
-          </dl>
-
-          <div className="space-y-1.5">
-            <h3 className="font-bold text-[var(--text)]">Per pilar Kakeibo</h3>
-            <ul className="divide-y divide-[var(--line)]">
-              {/* "Belum diklasifikasi" is listed only when it holds spending in either window. */}
-              {data.pillars.filter((item) => item.pillar !== "unclassified" || item.current > 0 || (item.previous ?? 0) > 0).map((item) => (
-                <li key={item.pillar} className="flex min-w-0 items-baseline justify-between gap-2 py-1.5">
-                  <Link
-                    href={ledgerHref({ ...scope, type: "expense", kakeibo: item.pillar })}
-                    className="inline-block min-h-6 min-w-0 truncate leading-6 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
-                  >
-                    {PILLAR_LABEL[item.pillar]}
-                  </Link>
-                  <span className="shrink-0 text-right tabular-nums">
-                    <span className="font-bold">{bal(item.current)}</span>
-                    {item.change != null && item.previous != null && (
-                      <span className="block text-[11px] text-[var(--muted)]">
-                        lalu {bal(item.previous)} · {signed(bal, item.change)}
-                      </span>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {data.previous_has_data && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <h3 className="font-bold text-[var(--text)]">Kategori yang berubah</h3>
-                <ChangeList
-                  title="Naik" items={data.categories.increases} bal={bal} empty="Tidak ada kenaikan."
-                  href={(item) => ledgerHref({ ...scope, type: "expense", category: item.is_uncategorized ? UNCATEGORIZED : item.id ?? "all" })}
-                />
-                <ChangeList
-                  title="Turun" items={data.categories.decreases} bal={bal} empty="Tidak ada penurunan."
-                  href={(item) => ledgerHref({ ...scope, type: "expense", category: item.is_uncategorized ? UNCATEGORIZED : item.id ?? "all" })}
-                />
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-bold text-[var(--text)]">Toko yang berubah</h3>
-                <ChangeList
-                  title="Naik" items={data.merchants.increases} bal={bal} empty="Tidak ada kenaikan."
-                  href={(item) => ledgerHref({ ...scope, type: "expense", q: item.search_text ?? item.name })}
-                />
-                <ChangeList
-                  title="Turun" items={data.merchants.decreases} bal={bal} empty="Tidak ada penurunan."
-                  href={(item) => ledgerHref({ ...scope, type: "expense", q: item.search_text ?? item.name })}
-                />
-                <p className="text-[11px] text-[var(--muted)]">Per toko memakai nilai kotor; ganti uang dihitung per kategori.</p>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </section>
-  );
-}
-
-/** Observed inflow, outflow and net per period; the current period is labelled as in progress. */
-export function CashFlowHistory({ basis, bal }: { basis: InsightBasis; bal: Money }) {
-  const { data, isLoading, isError } = useQuery<{ periods: CashFlowPeriod[]; cycle_status: string }>({
-    queryKey: queryKeys.dashboard.cashFlowHistory(basis),
-    queryFn: () => api.get(`/dashboard/cash-flow-history?timeframe=${basis}`),
-  });
-  const periods = data?.periods ?? [];
-  return (
-    <section aria-labelledby="history-title" className="ws-card space-y-3 text-xs">
-      <div>
-        <h2 id="history-title" className="text-base font-bold tracking-tight text-[var(--text)]">Arus kas per periode</h2>
-        <p className="mt-0.5 text-[var(--text-2)]">
-          Hanya yang tercatat: hingga 6 periode lengkap dan periode berjalan. Uang keluar sudah dikurangi ganti uang.
-        </p>
-      </div>
-      {isError && <p className="text-[var(--text-2)]">Riwayat belum dapat dimuat.</p>}
-      {!isError && !isLoading && periods.length === 0 && (
-        <p className="text-[var(--text-2)]">Belum ada transaksi tercatat.</p>
-      )}
-      {periods.length > 0 && (
-        <ol className="divide-y divide-[var(--line)]">
-          {[...periods].reverse().map((period) => (
-            <li key={period.start} className="space-y-1 py-2">
-              <div className="flex min-w-0 items-center gap-2">
-                <Link
-                  href={ledgerHref({ from: period.start, to: period.end })}
-                  className="inline-block min-h-6 min-w-0 truncate font-semibold leading-6 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
-                >
-                  {period.label}
-                </Link>
-                {period.in_progress && (
-                  <span className="shrink-0 rounded-full border border-warn-solid/30 bg-warn-solid/10 px-2 py-0.5 font-semibold text-warn-fg">
-                    berjalan
-                  </span>
-                )}
-                <span className="ml-auto shrink-0 text-[11px] text-[var(--muted)]">{range(period)}</span>
-              </div>
-              <dl className="grid grid-cols-3 gap-2 tabular-nums">
-                <div className="min-w-0"><dt className="text-[var(--muted)]">Masuk</dt><dd className="truncate font-semibold">{bal(period.inflow)}</dd></div>
-                <div className="min-w-0"><dt className="text-[var(--muted)]">Keluar</dt><dd className="truncate font-semibold">{bal(period.outflow)}</dd></div>
-                <div className="min-w-0">
-                  <dt className="text-[var(--muted)]">Bersih</dt>
-                  <dd className={cn("truncate font-bold", period.net >= 0 ? "text-in-fg" : "text-out-fg")}>
-                    {signed(bal, period.net)}
-                  </dd>
-                </div>
-              </dl>
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
-  );
-}
 
 const CADENCE_LABEL: Record<RecurringCharge["cadence"], string> = { monthly: "Bulanan", weekly: "Mingguan" };
 
@@ -321,17 +60,11 @@ export function RecurringCharges({ bal, onCreatePlan }: { bal: Money; onCreatePl
   return (
     <section aria-labelledby="recurring-title" className="ws-card space-y-3 text-xs">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h2 id="recurring-title" className="text-base font-bold tracking-tight text-[var(--text)]">Tagihan & langganan terdeteksi</h2>
-          <p className="mt-0.5 text-[var(--text-2)]">
-            Dari 6 bulan terakhir: muncul minimal 3 kali, berjarak mingguan (6–8 hari) atau bulanan (25–35 hari), dengan
-            nominal yang stabil (variasi ≤ 15%).
-          </p>
-        </div>
+        <h2 id="recurring-title" className="text-base font-bold tracking-tight text-[var(--text)]">Tagihan & langganan terdeteksi</h2>
         {data && charges.length > 0 && (
-          <p className="shrink-0 text-right tabular-nums">
-            <span className="block text-[var(--muted)]">Setara per bulan</span>
-            <span className="text-sm font-black text-[var(--text)]">{bal(data.monthly_equivalent_total)}</span>
+          <p className="shrink-0 text-right tabular-nums" data-testid="recurring-headline">
+            <span className="text-sm font-black text-[var(--text)]">{charges.length}</span>
+            <span className="text-[var(--muted)]"> · {bal(data.monthly_equivalent_total)}/bln</span>
           </p>
         )}
       </div>
@@ -340,6 +73,8 @@ export function RecurringCharges({ bal, onCreatePlan }: { bal: Money; onCreatePl
         <p className="text-[var(--text-2)]">Belum ada tagihan atau langganan yang berulang dengan pola tetap.</p>
       )}
       {charges.length > 0 && data && (
+        <details>
+        <DisclosureSummary>Rincian</DisclosureSummary>
         <ul className="space-y-2">
           {charges.map((charge) => (
             <li key={charge.key} className="min-w-0 space-y-1.5 rounded-xl border border-[var(--line)] p-3">
@@ -384,6 +119,7 @@ export function RecurringCharges({ bal, onCreatePlan }: { bal: Money; onCreatePl
             </li>
           ))}
         </ul>
+        </details>
       )}
     </section>
   );
