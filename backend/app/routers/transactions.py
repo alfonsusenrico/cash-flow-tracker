@@ -414,6 +414,7 @@ def list_transactions(
                     t.id,
                     t.account_id,
                     sa.name AS account_name,
+                    sa_parent.name AS account_parent_name,
                     t.category_id,
                     c.name AS category_name,
                     c.icon AS category_icon,
@@ -442,6 +443,7 @@ def list_transactions(
                     partner.id AS partner_id,
                     partner.account_id AS movement_target_account_id,
                     partner_account.name AS movement_target_account_name,
+                    partner_parent.name AS movement_target_account_parent_name,
                     t.created_at,
                     (t.date AT TIME ZONE %s)::date AS local_date,
                     {PROVENANCE_SELECT}
@@ -453,6 +455,8 @@ def list_transactions(
                    AND partner.user_id = t.user_id
                    AND partner.id != t.id
                 LEFT JOIN accounts partner_account ON partner_account.id = partner.account_id
+                LEFT JOIN accounts sa_parent ON sa_parent.id = sa.parent_id
+                LEFT JOIN accounts partner_parent ON partner_parent.id = partner_account.parent_id
                 {FEE_LINK_JOINS}
                 LEFT JOIN investment_topups topup ON topup.id = t.movement_id AND topup.user_id = t.user_id
                 LEFT JOIN categories c ON c.id = t.category_id
@@ -500,6 +504,7 @@ def list_transactions(
                 "id": str(r["id"]),
                 "account_id": str(r["account_id"]),
                 "account_name": r["account_name"],
+                "account_parent_name": r.get("account_parent_name"),
                 "category_id": str(r["category_id"]) if r["category_id"] else None,
                 "category_name": r["category_name"],
                 "category_icon": r["category_icon"],
@@ -522,6 +527,7 @@ def list_transactions(
                 "partner_id": str(r["partner_id"]) if r.get("partner_id") else None,
                 "transfer_target_account_id": str(r["movement_target_account_id"]) if r.get("movement_target_account_id") else None,
                 "transfer_target_account_name": r.get("movement_target_account_name"),
+                "transfer_target_account_parent_name": r.get("movement_target_account_parent_name"),
                 "amount": r["amount"],
                 "notes": r["notes"],
                 "date": r["date"].isoformat() if r["date"] else None,
@@ -1026,7 +1032,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             cur.execute(
                 f"""
                 SELECT
-                    t.id, t.account_id, sa.name AS account_name,
+                    t.id, t.account_id, sa.name AS account_name, sa_parent.name AS account_parent_name,
                     t.category_id, c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
                     t.goal_id, g.name AS goal_name,
                     t.obligation_id, o.name AS obligation_name,
@@ -1037,6 +1043,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                     partner.id AS partner_id,
                     partner.account_id AS movement_target_account_id,
                     partner_account.name AS movement_target_account_name,
+                    partner_parent.name AS movement_target_account_parent_name,
                     t.created_at,
                     (t.date AT TIME ZONE %s)::date AS local_date,
                     {waiting_row_sql("t")} AS waiting,
@@ -1048,6 +1055,8 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                     ON partner.movement_id = t.movement_id
                    AND partner.id != t.id
                 LEFT JOIN accounts partner_account ON partner_account.id = partner.account_id
+                LEFT JOIN accounts sa_parent ON sa_parent.id = sa.parent_id
+                LEFT JOIN accounts partner_parent ON partner_parent.id = partner_account.parent_id
                 LEFT JOIN investment_topups topup ON topup.id = t.movement_id AND topup.user_id = t.user_id
                 LEFT JOIN categories c ON c.id = t.category_id
                 LEFT JOIN goals g ON g.id = t.goal_id
@@ -1068,6 +1077,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             "id": str(r["id"]),
             "account_id": str(r["account_id"]),
             "account_name": r["account_name"],
+            "account_parent_name": r.get("account_parent_name"),
             "category_id": str(r["category_id"]) if r["category_id"] else None,
             "category_name": r["category_name"],
             "category_icon": r["category_icon"],
@@ -1087,6 +1097,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             "partner_id": str(r["partner_id"]) if r.get("partner_id") else None,
             "transfer_target_account_id": str(r["movement_target_account_id"]) if r.get("movement_target_account_id") else None,
             "transfer_target_account_name": r.get("movement_target_account_name"),
+            "transfer_target_account_parent_name": r.get("movement_target_account_parent_name"),
             "amount": r["amount"],
             "notes": r["notes"],
             "date": r["date"].isoformat() if r["date"] else None,
