@@ -184,6 +184,16 @@ def test_late_report_within_five_minutes_is_skipped(client, notification_owner):
     assert balances(owner)[owner["main"]] == 1000000
 
 
+def test_late_report_after_the_kept_leg_paired_is_skipped(client, notification_owner):
+    owner = notification_owner
+    link = add_link(owner)
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    send(client, MYBCA_DEBIT, MYBCA, 3.4)
+    jago = send(client, JAGO_CREDIT, JAGO, 200)
+    assert_one_movement_bca_to_gopay(owner, jago["event_id"])
+    assert_skipped(jago["event_id"], link)
+
+
 def test_report_beyond_the_window_is_a_doubt(client, notification_owner):
     owner = notification_owner
     add_link(owner)
