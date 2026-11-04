@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { groupByDay, localDay, uniqueRows, type DailyTotal } from "./ledgerDays";
 
-const total = (date: string, count: number): DailyTotal => ({ date, count, inflow: 0, outflow: 1000 * count, movements: 0, waiting_count: 0, waiting_amount: 0 });
+const total = (date: string, count: number): DailyTotal => ({ date, count, inflow: 0, outflow: 1000 * count, spending: 1000 * count, movements: 0, waiting_count: 0, waiting_amount: 0 });
 
 describe("Transaksi day groups", () => {
   it("groups by the server's local day and never sums rows on the client", () => {

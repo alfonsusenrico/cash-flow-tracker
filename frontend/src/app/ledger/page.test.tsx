@@ -64,13 +64,13 @@ const TOPUP = row("00000000-0000-4000-8000-00000000000d", "2026-11-01", "10:31",
 });
 const ROWS = [KEDAI, QRIS, BAKSO, TOPUP];
 const TOTALS = {
-  "2026-11-02": { date: "2026-11-02", count: 2, inflow: 0, outflow: 75_000, movements: 0, waiting_count: 1, waiting_amount: 45_000 },
-  "2026-11-01": { date: "2026-11-01", count: 2, inflow: 0, outflow: 45_000, movements: 150_000, waiting_count: 0, waiting_amount: 0 },
+  "2026-11-02": { date: "2026-11-02", count: 2, inflow: 0, outflow: 75_000, spending: 75_000, movements: 0, waiting_count: 1, waiting_amount: 45_000 },
+  "2026-11-01": { date: "2026-11-01", count: 2, inflow: 0, outflow: 45_000, spending: 45_000, movements: 150_000, waiting_count: 0, waiting_amount: 0 },
 };
 const SUMMARY = {
-  cycle: { inflow: 9_800_000, outflow: 110_000, net: 9_690_000 },
-  cumulative: { inflow: 9_800_000, outflow: 120_000, net: 9_680_000 },
-  period: { inflow: 9_800_000, outflow: 110_000, net: 9_690_000, gross_outflow: 120_000, reimbursement_offset: 10_000, basis: "cycle", label: "Siklus sejak 25 Okt", start: "2026-10-25T01:02:00Z", end: "2026-11-24T16:59:59Z" },
+  cycle: { inflow: 9_800_000, outflow: 110_000, net: 9_690_000, spending: 110_000, saving: 0, spending_net: 9_690_000 },
+  cumulative: { inflow: 9_800_000, outflow: 120_000, net: 9_680_000, spending: 120_000, saving: 0, spending_net: 9_680_000 },
+  period: { inflow: 9_800_000, outflow: 110_000, net: 9_690_000, spending: 90_000, saving: 20_000, spending_net: 9_710_000, gross_outflow: 120_000, reimbursement_offset: 10_000, basis: "cycle", label: "Siklus sejak 25 Okt", start: "2026-10-25T01:02:00Z", end: "2026-11-24T16:59:59Z" },
 };
 
 let pages: Row[][];
@@ -166,7 +166,7 @@ describe("Transaksi list", () => {
     const table = await screen.findByRole("table", { name: /dikelompokkan per hari/ });
     const headings = within(table).getAllByRole("rowheader").map((cell) => cell.textContent ?? "");
     expect(headings[0]).toMatch(/^Senin, 2 November/);
-    expect(headings[0]).toContain("Belanja Rp 75.000");
+    expect(headings[0]).toContain("Pengeluaran Rp 75.000");
     expect(headings[0]).toContain("1 menunggu jawaban");
     expect(headings[1]).toContain("Pindah saldo Rp 150.000");
     expect(table.querySelectorAll("tbody")).toHaveLength(2);
@@ -202,11 +202,13 @@ describe("Transaksi list", () => {
     for (const heading of within(table).getAllByRole("rowheader")) expect(heading.textContent).not.toMatch(/Belanja|Rp/);
   });
 
-  it("shows Masuk, Belanja and Bersih with the reimbursement line", async () => {
+  it("shows Masuk, Pengeluaran without saving and Bersih from the server, with the reimbursement line", async () => {
     renderPage();
     const strip = await screen.findByRole("region", { name: "Total Siklus sejak 25 Okt" });
-    expect(strip).toHaveTextContent("BelanjaRp 110.000");
+    expect(strip).toHaveTextContent("PengeluaranRp 90.000");
     expect(strip).toHaveTextContent("sudah dikurangi penggantian Rp 10.000");
+    expect(strip).toHaveTextContent("BersihRp 9.710.000");
+    expect(strip).not.toHaveTextContent("Belanja");
   });
 
   it("says nothing was found and offers to clear the filters", async () => {
@@ -245,20 +247,59 @@ describe("Transaksi filters in the URL", () => {
     expect(here()).toBe("/ledger");
     await user.click(within(screen.getByRole("group", { name: "Jenis transaksi" })).getByRole("button", { name: /^Pindah saldo/ }));
     expect(here()).toBe("/ledger?type=movement");
-    await user.click(screen.getByRole("button", { name: "Menunggu jawaban" }));
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+    const panel = screen.getByRole("region", { name: "Filter transaksi" });
+    await user.click(within(panel).getByRole("button", { name: "Menunggu jawaban" }));
     expect(here()).toBe("/ledger?type=movement&waiting=1");
     await waitFor(() => expect(listCalls().at(-1)).toContain("waiting=true"));
-    await user.click(screen.getByRole("button", { name: "Belum dicek" }));
+    await user.click(within(panel).getByRole("button", { name: "Belum dicek" }));
     expect(here()).toBe("/ledger?type=movement&review=auto");
-    await user.click(screen.getByRole("button", { name: "Belum dicek" }));
+    await user.click(within(panel).getByRole("button", { name: "Belum dicek" }));
     expect(here()).toBe("/ledger?type=movement");
     expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it("keeps the toolbar to one row: tabs, search, Filter and a menu with Gabungkan and Rutin", async () => {
+    const { user } = renderPage("/ledger?period=cycle");
+    await screen.findByRole("table");
+    expect(within(screen.getByRole("group", { name: "Jenis transaksi" })).getAllByRole("button").map((tab) => tab.textContent?.replace(/\d+$/, ""))).toEqual([
+      "Semua", "Pengeluaran", "Masuk", "Pindah saldo", "Investasi",
+    ]);
+    // The chips, the period mode and the selects live in the popover, not in the toolbar.
+    expect(screen.queryByRole("button", { name: "Menunggu jawaban" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Siklus gaji" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Tindakan lain" }));
+    const menu = screen.getByRole("region", { name: "Tindakan lain" });
+    expect(within(menu).getByRole("button", { name: "Gabungkan dua transaksi" })).toBeInTheDocument();
+    expect(within(menu).getByRole("button", { name: "Rutin" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Tindakan lain" })).toHaveFocus();
+  });
+
+  it("reaches every filter in the popover, counts the active ones and shows them as removable chips", async () => {
+    const { user } = renderPage("/ledger?period=cycle&waiting=1&kakeibo=want");
+    await screen.findByRole("table");
+    const trigger = screen.getByRole("button", { name: "Filter, 2 aktif" });
+    const active = screen.getByRole("group", { name: "Filter aktif" });
+    expect(within(active).getByRole("button", { name: "Hapus filter Menunggu jawaban" })).toBeInTheDocument();
+    expect(within(active).getByRole("button", { name: "Hapus filter Pilar: Keinginan" })).toBeInTheDocument();
+    await user.click(trigger);
+    const panel = screen.getByRole("region", { name: "Filter transaksi" });
+    for (const name of ["Siklus gaji", "Bulan kalender", "Semua waktu", "Menunggu jawaban", "Belum dicek", "Dari HP", "Lewat Catat"]) {
+      expect(within(panel).getByRole("button", { name })).toBeInTheDocument();
+    }
+    for (const name of ["Rekening", "Kategori", "Pilar Kakeibo", "Status"]) expect(within(panel).getByRole("combobox", { name })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveFocus();
+    await user.click(within(active).getByRole("button", { name: "Hapus filter Pilar: Keinginan" }));
+    expect(here()).toBe("/ledger?period=cycle&waiting=1");
   });
 
   it("switches the period in the URL and shares it with Analisis", async () => {
     const { user } = renderPage("/ledger?period=cycle");
     await screen.findByRole("table");
-    await user.click(screen.getByRole("button", { name: "Bulan kalender" }));
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+    await user.click(within(screen.getByRole("region", { name: "Filter transaksi" })).getByRole("button", { name: "Bulan kalender" }));
     expect(here()).toBe("/ledger?period=month");
     expect(app.setTimeframe).toHaveBeenCalledWith("month");
   });

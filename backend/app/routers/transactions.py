@@ -170,7 +170,9 @@ def ledger_cash_flow(
             saving_offset = offsets.for_pillar("saving")
     totals = cash_flow_totals(inflow, gross_outflow, offset)
     saving = min(max(0, gross_saving - saving_offset), totals["outflow"])
-    return {**totals, "spending": totals["outflow"] - saving, "saving": saving}
+    spending = totals["outflow"] - saving
+    # `spending_net` is Transaksi's "Bersih": money in less Pengeluaran, so saving is not counted as spent.
+    return {**totals, "spending": spending, "saving": saving, "spending_net": inflow - spending}
 
 
 PROVENANCE_SELECT = """

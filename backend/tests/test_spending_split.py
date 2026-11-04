@@ -91,6 +91,7 @@ def test_ledger_outflow_splits_into_spending_and_saving(owner):
     assert period["outflow"] == 260_000
     assert period["spending"] + period["saving"] == period["outflow"]
     assert (period["spending"], period["saving"]) == (110_000, 150_000)
+    assert period["spending_net"] == period["inflow"] - period["spending"] == -110_000
     # Existing fields keep their values.
     assert period["inflow"] == 0 and period["gross_outflow"] == 260_000 and period["net"] == -260_000
 

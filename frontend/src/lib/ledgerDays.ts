@@ -10,6 +10,8 @@ export interface DailyTotal {
   count: number;
   inflow: number;
   outflow: number;
+  /** The outflow without saving-pillar expenses: Pengeluaran (refine-workspace-layout D4). */
+  spending: number;
   movements: number;
   waiting_count: number;
   waiting_amount: number;
