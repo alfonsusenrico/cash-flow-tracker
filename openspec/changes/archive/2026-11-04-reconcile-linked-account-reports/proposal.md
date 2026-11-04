@@ -24,6 +24,8 @@ The owner's direction on 2026-11-04, after the research note:
 
 The open decisions OD129–OD134 take their recommended defaults (design.md). The agent lists them at acceptance.
 
+**Acceptance, 2026-11-04.** After the summary with its verification, OD129–OD134 and the phone test cases, the owner said "accepted, defaults ok". This change merges first (V47), before `manual-balance-check` (V48).
+
 ## What Changes
 
 - **Account links:** a new table `account_report_links` (account, linked institution, source, `stopped_at`), per owner. Links come only from the owner's answer: no presets, and no statistics shared across users.

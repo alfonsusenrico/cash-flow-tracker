@@ -49,5 +49,5 @@ Expected Result: the owner answers once in Tinjau and sees and stops links on th
 
 ## 5. Acceptance
 
-- [ ] 5.1 Present to the owner: the verification, OD129–OD134, and the phone test cases. Record their acceptance in proposal.md.
-- [ ] 5.2 After acceptance: archive, push, and report the PR link.
+- [x] 5.1 Present to the owner: the verification, OD129–OD134, and the phone test cases. Record their acceptance in proposal.md.
+- [x] 5.2 After acceptance: archive, push, and report the PR link.
