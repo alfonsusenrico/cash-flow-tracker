@@ -15,6 +15,8 @@ Nothing runs on a schedule, and nothing reminds the owner.
 
 **Owner direction, 2026-11-04.** The owner said "6. I think audit should be done by user manually through the web-ui anytime not scheduled" and later "do the complete implementation". That is taken as approval of this change. Every open decision (OD140–OD146 in design.md) takes its recommended default, and the defaults are listed for the owner at acceptance.
 
+**Acceptance, 2026-11-04.** After the summary with its verification and the defaults OD140–OD146, the owner said "accepted, defaults ok". This change must merge after `reconcile-linked-account-reports` (V47).
+
 ## What Changes
 
 - **Check endpoint:** `POST /api/accounts/{id}/balance-check` is read-only. It compares a typed balance with the recorded one and returns deterministic cause candidates and, when found, the set that explains the difference exactly.

@@ -17,7 +17,7 @@ Expected Result: the owner can check any liquid account from Rekening & Kantong.
 ## 3. Verification and delivery
 
 - [x] 3.1 Backend pytest full. Frontend `npm ci`, type-check, lint, tests and build. Unchanged writes against `main`. `openspec validate --all --strict` and `git diff --check`. Evidence: verification.md.
-- [ ] 3.2 After the owner accepts:
+- [x] 3.2 After the owner accepts:
   - archive the change;
   - push;
   - merge only after the V47 change (proposal, Impact);
