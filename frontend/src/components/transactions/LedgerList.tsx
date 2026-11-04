@@ -1,7 +1,9 @@
 "use client";
 
 import { useRef, type PointerEvent as ReactPointerEvent } from "react";
-import { RowAmount, RowAvatar, provenanceText, rowKind, rowStatus, rowTitle } from "@/components/beranda/activity";
+import {
+  RowAmount, RowAvatar, UNPAIRED_LABEL, movementDirection, provenanceText, routeIncomplete, rowKind, rowStatus, rowTitle,
+} from "@/components/beranda/activity";
 import { Pill, type Tone } from "@/components/workspace/primitives";
 import { dayName, previousDay, todayLocal, type DayGroup } from "@/lib/ledgerDays";
 import type { LedgerRow } from "./types";
@@ -32,8 +34,10 @@ interface ListProps {
   openRow: (row: LedgerRow) => void;
   selection: ListSelection;
   loadMore: (() => void) | null;
-  /** Which row's drawer is open, to mark it in the list. */
+  /** Which row's detail is open, to mark it in the list. */
   openId: string | null;
+  /** The list is filtered to one account, so a movement says whether its money came in or left (design D3). */
+  accountView: boolean;
 }
 
 function dayLabel(day: string): string {
@@ -65,11 +69,24 @@ function DayTotals({ group, bal }: { group: DayGroup<LedgerRow>; bal: (amount: n
   );
 }
 
-function subLine(row: LedgerRow): string {
+function subLine(row: LedgerRow, accountView: boolean): string {
   const kind = rowKind(row);
-  const where = kind === "movement" || kind === "topup" ? (row.notes || row.account_name) : row.account_name;
   const checked = row.review_status === "auto" ? " · belum dicek" : "";
+  if (kind === "movement") {
+    const side = accountView ? movementDirection(row) : routeIncomplete(row) ? UNPAIRED_LABEL : null;
+    return `${[side, row.notes].filter(Boolean).join(" · ") || "Pindah saldo"}${checked}`;
+  }
+  const where = kind === "topup" ? (row.notes || row.account_name) : row.account_name;
   return `${where}${checked}`;
+}
+
+/** The phone row's second line: the movement's direction or missing partner where the table has a column. */
+function feedStatus(row: LedgerRow, accountView: boolean): string {
+  if (rowKind(row) === "movement") {
+    if (accountView) return movementDirection(row);
+    if (routeIncomplete(row)) return UNPAIRED_LABEL;
+  }
+  return rowStatus(row).text;
 }
 
 function SelectBox({ row, selection }: { row: LedgerRow; selection: ListSelection }) {
@@ -146,7 +163,7 @@ function MoreOfDay({ group, loadMore, colSpan }: { group: DayGroup<LedgerRow>; l
 }
 
 /** Desktop and wide tablet: one table, one `tbody` per day whose first row is the day heading (D1). */
-export function LedgerTable({ groups, bal, openRow, selection, loadMore, openId }: ListProps) {
+export function LedgerTable({ groups, bal, openRow, selection, loadMore, openId, accountView }: ListProps) {
   return (
     <table className="ws-tbl ws-tx-tbl">
       <caption className="sr-only">Transaksi, dikelompokkan per hari, terbaru di atas</caption>
@@ -191,7 +208,7 @@ export function LedgerTable({ groups, bal, openRow, selection, loadMore, openId 
                       <button type="button" className="ws-rowbtn" data-tx-row={row.id} onClick={() => (selection.active ? !selection.disabled(row) && selection.toggle(row) : openRow(row))}>
                         {rowTitle(row)}
                       </button>
-                      <span>{subLine(row)}</span>
+                      <span>{subLine(row, accountView)}</span>
                     </div>
                   </div>
                 </td>
@@ -221,7 +238,7 @@ export function LedgerTable({ groups, bal, openRow, selection, loadMore, openId 
 }
 
 /** Phone: a purpose-built feed with a sticky heading per day and rows of at least 56 px (D1). */
-export function LedgerFeed({ groups, bal, openRow, selection, loadMore, openId }: ListProps) {
+export function LedgerFeed({ groups, bal, openRow, selection, loadMore, openId, accountView }: ListProps) {
   const hold = useHold(selection);
   return (
     <div className="ws-tx-feed">
@@ -254,7 +271,7 @@ export function LedgerFeed({ groups, bal, openRow, selection, loadMore, openId }
                   <span className="ws-who-t">
                     <b>{rowTitle(row)}</b>
                     <span>
-                      {TIME.format(new Date(row.date))} · {rowStatus(row).text}
+                      {TIME.format(new Date(row.date))} · {feedStatus(row, accountView)}
                     </span>
                   </span>
                   <RowAmount row={row} bal={bal} />

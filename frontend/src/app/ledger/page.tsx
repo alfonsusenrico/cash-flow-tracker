@@ -394,7 +394,7 @@ function LedgerPageContent() {
     updateFilters({ ...DEFAULT_LEDGER_FILTERS, period: filters.period, offset: filters.offset });
   };
 
-  const listProps = { groups, bal, openRow, selection, loadMore, openId: editId };
+  const listProps = { groups, bal, openRow, selection, loadMore, openId: editId, accountView: filters.account !== "all" };
   const offset = figures?.reimbursement_offset ?? 0;
 
   return (

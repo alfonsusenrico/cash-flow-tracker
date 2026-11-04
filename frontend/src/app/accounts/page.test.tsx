@@ -176,6 +176,34 @@ describe("account and pocket forms", () => {
     expect(within(detail).getByRole("button", { name: "Arsipkan rekening BCA" })).toHaveTextContent("Arsipkan");
   });
 
+  it("says where each movement in the detail came from or went to, with the bank", async () => {
+    const tab = { id: "tab", parent_id: "jago", name: "Tabungan", type: "bank", initial_balance: 0, balance: 650_000, is_archived: false, children: [] };
+    const jago = { id: "jago", name: "Jago", type: "bank", initial_balance: 0, balance: 650_000, is_archived: false, children: [tab] };
+    const leg = { category_name: "Internal Movement", notes: null, account_id: "tab", account_name: "Tabungan", account_parent_name: "Jago" };
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { ok: true, accounts: [jago], total_balance: 650_000 };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      if (path.startsWith("/transactions?account_id=tab")) {
+        return { ok: true, transactions: [
+          { ...leg, id: "in", type: "income", amount: 500_000, date: "2026-11-03T18:41:00.000Z", movement_id: "m1", movement_role: "inbound",
+            transfer_target_account_name: "Gopay", transfer_target_account_parent_name: null },
+          { ...leg, id: "out", type: "expense", amount: 150_000, date: "2026-11-03T14:10:00.000Z", movement_id: "m2", movement_role: "outbound",
+            transfer_target_account_name: "Tabungan Rumah", transfer_target_account_parent_name: "BCA" },
+        ] };
+      }
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
+    });
+    const user = userEvent.setup();
+    renderAccounts();
+    const detail = await openDrawer(user, "Tabungan, kantong di Jago", "Tabungan");
+    const recent = within(detail).getByRole("region", { name: "Transaksi terakhir" });
+    const rows = await within(recent).findAllByRole("listitem");
+    expect(rows[0]).toHaveTextContent("Gopay → Jago · Tabungan");
+    expect(rows[0]).toHaveTextContent("Masuk dari Gopay");
+    expect(rows[1]).toHaveTextContent("Jago · Tabungan → BCA · Tabungan Rumah");
+    expect(rows[1]).toHaveTextContent("Keluar ke BCA · Tabungan Rumah");
+  });
+
   it("offers the same add-pocket primary action on a liquid account without pockets", async () => {
     const liquid = { id: "cash-a", name: "Cash A", type: "cash", initial_balance: 1000, balance: 1000, is_archived: false, children: [] };
     vi.mocked(api.get).mockImplementation(async (path) => {

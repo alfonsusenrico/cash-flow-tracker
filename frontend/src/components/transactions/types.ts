@@ -6,6 +6,8 @@ export interface LedgerRow extends FeeLinkFields {
   id: string;
   account_id: string;
   account_name: string;
+  /** The bank of a pocket; null for an account without a parent. */
+  account_parent_name?: string | null;
   category_id: string | null;
   category_name: string | null;
   category_icon?: string | null;
@@ -29,6 +31,7 @@ export interface LedgerRow extends FeeLinkFields {
   partner_id?: string | null;
   is_consolidated_transfer?: boolean;
   target_account_name?: string;
+  target_account_parent_name?: string | null;
   target_account_id?: string;
   movement_id?: string | null;
   investment_topup_id?: string | null;
@@ -36,6 +39,8 @@ export interface LedgerRow extends FeeLinkFields {
   movement_role?: "outbound" | "inbound" | null;
   transfer_target_account_id?: string | null;
   transfer_target_account_name?: string | null;
+  /** The partner leg's bank when its account is a pocket. */
+  transfer_target_account_parent_name?: string | null;
   is_inferred_transfer?: boolean;
   source?: string;
   merchant?: string | null;

@@ -1,7 +1,5 @@
 # Tasks
 
-This plan waits for the owner's approval (proposal.md, "Approval").
-
 Evidence for every task goes into `verification.md`.
 
 **Data:** synthetic only. Use the 2026-11-04 preview seed shaped like the owner's account, extended with:
@@ -15,7 +13,7 @@ Evidence for every task goes into `verification.md`.
 
 ## 1. Baseline
 
-- [ ] 1.1 Record the baseline on `main`:
+- [x] 1.1 Record the baseline on `main`:
   - the backend suite;
   - Vitest, type-check, lint and build;
   - first-load JS of `/`, `/ledger`, `/insights` and `/accounts`;
@@ -27,19 +25,19 @@ Expected Result: the defects are reproduced and the starting point is measured.
 
 ## 2. Server: parent names
 
-- [ ] 2.1 Add `account_parent_name` and `transfer_target_account_parent_name` to the list and detail queries in `backend/app/routers/transactions.py` (D1). Evidence: a database test that asserts both fields for:
+- [x] 2.1 Add `account_parent_name` and `transfer_target_account_parent_name` to the list and detail queries in `backend/app/routers/transactions.py` (D1). Evidence: a database test that asserts both fields for:
   - a pocket;
   - an account without a parent;
   - a linked leg;
   - an unlinked leg.
-- [ ] 2.2 Prove the change is additive. Evidence: the seeded ledger's list and detail responses equal the baseline after removing the two new fields.
+- [x] 2.2 Prove the change is additive. Evidence: the seeded ledger's list and detail responses equal the baseline after removing the two new fields.
 
 Expected Result: rows name their parents with nothing else changed.
 
 ## 3. Client: one route rule
 
-- [ ] 3.1 Add `movementRoute` and use it in `rowTitle` (D2). Carry parent names through `consolidateLedgerMovements`. Evidence: Vitest over the five row shapes, with and without parents. The inbound case fails before the change.
-- [ ] 3.2 Use the route in:
+- [x] 3.1 Add `movementRoute` and use it in `rowTitle` (D2). Carry parent names through `consolidateLedgerMovements`. Evidence: Vitest over the five row shapes, with and without parents. The inbound case fails before the change.
+- [x] 3.2 Use the route in:
   - the Transaksi subline and filtered-view direction (D3);
   - Beranda "Aktivitas terbaru";
   - Rekening detail's recent rows;

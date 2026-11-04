@@ -18,7 +18,7 @@ import { useWidthAtMost } from "@/hooks/useWidthAtMost";
 import { canSwitchToAmountTracking, listAmountInvestmentProducts } from "@/lib/investmentTopups";
 import type { ReviewQueue } from "@/lib/review";
 import { usePathname, useSearchParams } from "next/navigation";
-import { RowAmount, rowTitle, rowWhen } from "@/components/beranda/activity";
+import { RowAmount, movementDirection, rowKind, rowTitle, rowWhen } from "@/components/beranda/activity";
 import type { ActivityRow } from "@/components/beranda/types";
 import { useAccountDialogs } from "./AccountDialogs";
 import type { AccountItem, AccountsResponse, NetWorthResponse } from "./types";
@@ -837,7 +837,7 @@ function AccountDetail({
                 <li key={row.id}>
                   <span className={styles.detailTx}>
                     <span>{rowTitle(row)}</span>
-                    <small>{rowWhen(row)}</small>
+                    <small>{rowKind(row) === "movement" ? `${rowWhen(row)} · ${movementDirection(row)}` : rowWhen(row)}</small>
                   </span>
                   <RowAmount row={row} bal={money} />
                 </li>

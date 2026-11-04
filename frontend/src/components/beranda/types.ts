@@ -122,6 +122,8 @@ export interface ActivityRow {
   id: string;
   account_id: string;
   account_name: string;
+  /** The bank of a pocket; null for an account without a parent. */
+  account_parent_name?: string | null;
   category_name: string | null;
   type: "expense" | "income";
   amount: number;
@@ -139,8 +141,11 @@ export interface ActivityRow {
   partner_id?: string | null;
   transfer_target_account_id?: string | null;
   transfer_target_account_name?: string | null;
+  /** The partner leg's bank when its account is a pocket. */
+  transfer_target_account_parent_name?: string | null;
   target_account_id?: string;
   target_account_name?: string;
+  target_account_parent_name?: string | null;
   is_consolidated_transfer?: boolean;
   is_inferred_transfer?: boolean;
   is_excluded_from_budget?: boolean;
