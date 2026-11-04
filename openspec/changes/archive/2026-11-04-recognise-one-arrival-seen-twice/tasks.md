@@ -44,7 +44,7 @@ Expected Result: a transfer answer can't hide a missing side or teach a wrong ha
   - provider tests with recorded responses: confirmed, unconfirmed (held, nothing booked), unknown id, null with guard match, model off;
   - `prompt_version` stored on events.
 - [x] 4.3 Add the sequence case to `evaluation/notification_cases.py` (`synthetic-notifications-4`): myBCA debit, GoPay credit "Tabungan by Jago", Jago "received from GoPay", and the Jago pocket hop two minutes later, each replayed with its neighbours. Score `same_money_as` precision and recall, and false duplicates as a safety failure. Evidence: `test_notification_cases.py` and `test_notification_benchmark.py` pass offline.
-- [ ] 4.4 Live benchmark of `notification-interpretation-11` against `-10` on the synthetic corpus. This runs only with the owner's go-ahead and within the per-run cap. Evidence: the report with prompt and fixture versions, safety gate, `same_money_as` precision and recall, latency and tokens. Or recorded as "not run: awaiting approval".
+- [x] 4.4 Live benchmark of `notification-interpretation-11` against `-10` on the synthetic corpus. This runs only with the owner's go-ahead and within the per-run cap. Evidence: the report with prompt and fixture versions, safety gate, `same_money_as` precision and recall, latency and tokens. Or recorded as "not run: awaiting approval".
 
 Expected Result: the model sees time and can only propose. The guard decides.
 
@@ -73,7 +73,7 @@ Expected Result: the change is proven locally.
 
 ## 8. Acceptance
 
-- [ ] 8.1 Present to the owner:
+- [x] 8.1 Present to the owner:
   - verification.md;
   - the Tinjau screenshots;
   - OD116–OD120 with their applied defaults.

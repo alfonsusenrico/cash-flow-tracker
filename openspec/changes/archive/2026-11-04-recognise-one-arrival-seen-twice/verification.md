@@ -122,12 +122,26 @@ On the incident seed after the browser actions:
 
 With OD121 the four owner entries are no longer applied or shown to the model. `merchant:tabungan by jago` stays a model hint until the next linked report of that wording retires it. No app path deletes a memory entry.
 
+## 5a. Live benchmark (task 4.4)
+
+The owner approved the paid run on 2026-11-04 ("paid real-AI test is fine"), naming `gpt-6-luna` and asking for the most efficient reasoning level, starting from `low`. Production calls OpenAI directly (no gateway variable is set) with `gpt-6-luna` at `none`.
+
+- **Runs:** `--live --model gpt-6-luna --reasoning-efforts low none --repeats 3 --partition all --max-estimated-usd 1.25`. `-11` ran at `80a4947` on `synthetic-notifications-4`, and `-10` ran at `0a342a9` on `synthetic-notifications-3`. Both trees were clean.
+- **Cost:** the reported usage is $0.39 at the benchmark's conservative constants ($0.20 input and $1.20 output per million tokens). At gpt-6-luna's listed $0.10 and $0.50 it is about $0.18 for all four configurations.
+
+| Prompt, effort | Composite | Safety gate | Record recall | Movement P / R | Classification | Invalid output | p50 latency | Output tokens |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `-10`, low | 82.7 | pass | 88.5% | 100% / 50.0% | 64.5% | 7 of 93 | 4.9 s | 31 329 |
+| `-10`, none (production) | 78.3 | pass | 88.5% | 85.7% / 50.0% | 46.2% | 6 of 93 | 2.3 s | 14 257 |
+| `-11`, low | 80.7 | pass | 84.3% | 100% / 66.7% | 64.8% | 13 of 108 | 4.1 s | 34 539 |
+| `-11`, none | 81.9 | pass | 90.2% | 83.3% / 55.6% | 55.6% | 10 of 108 | 2.2 s | 16 604 |
+
+- **`same_money_as`:** 15 sequence requests per level. Recall is 0% at both levels with 0 false proposals. The one positive case, the Jago credit, was recorded as an ordinary income in all 6 requests, with confidence 0.98–0.99 and `same_money_as` null. The model does not use the neighbour context for this decision yet. The deterministic guard (task 2.x and its regression tests) is what holds the duplicate. The model part is recorded as follow-up work: rework the instruction and examples, then measure again on the held-out sequence.
+- **Quality gate:** it fails in every configuration, including the production `-10`/`none`. This is unchanged from before this change.
+- **Effort:** `none` stays. On `-11` it scores higher than `low` (81.9 against 80.7) at about half the output tokens and half the p50 latency. `-11`/`none` improves on production `-10`/`none` in composite, record recall, movement recall and classification. Movement precision is 2.4 points lower, and there are more invalid outputs (10 against 6), within three-repeat noise. The code permits only `none` and `low`.
+
 ## 6. Not run or not verified
 
-- **4.4 live benchmark of `-11` against `-10`:** not run, awaiting the owner's approval.
-  - Command: `cd backend && .venv/bin/python -m evaluation.notification_benchmark --live --reasoning-efforts low --repeats 3 --partition all --max-estimated-usd 0.70`.
-  - Run it once on this branch and once at `0a342a9` for `-10`.
-  - Upper-bound estimate: $0.60 per prompt version (36 model cases × 3), $1.20 for both. The default cap of $0.25 refuses it.
 - **The companion app:** a held event's result arrives as `needs_review` with `possible_duplicate_observation`. The Android companion shows its generic needs-review state; its wording was not checked.
 - A screen reader and a real phone were not used.
 

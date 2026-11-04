@@ -47,6 +47,8 @@ The owner can see these results:
 
 **Plan approval, 2026-11-04.** After a summary of both plans (`show-movement-routes-and-centered-dialogs` and `recognise-one-arrival-seen-twice`), the owner said "approved, defaults ok". OD116–OD120 take their recommended defaults (design.md, open decisions).
 
+**Acceptance, 2026-11-04.** After the summary of both changes with their verification, the owner said "accept, do as your recommend" and approved the paid benchmark. OD116–OD121 keep their applied defaults. The model does not yet use `same_money_as` (verification.md, live benchmark), so the deterministic guard carries the protection, and the prompt work is follow-up.
+
 ## What Changes
 
 - **Deterministic guard: "same arrival".** Before pairing, a new observed leg SHALL be compared with recorded observed legs from the same owner with all of these properties (design D1):
