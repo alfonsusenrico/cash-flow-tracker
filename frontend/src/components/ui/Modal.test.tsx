@@ -31,7 +31,7 @@ describe("Modal", () => {
     );
     expect(await screen.findByRole("dialog", { name: "Pindah saldo" })).toBeVisible();
     expect(await screen.findByLabelText("Nominal")).toHaveFocus();
-    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.documentElement.style.overflow).toBe("hidden");
     await user.tab({ shift: true });
     expect(screen.getByRole("button", { name: "Tutup" })).toHaveFocus();
     await user.tab({ shift: true });
@@ -42,7 +42,7 @@ describe("Modal", () => {
 
     rerender(<button>Open movement</button>);
     expect(screen.getByRole("button", { name: "Open movement" })).toHaveFocus();
-    expect(document.body.style.overflow).toBe("");
+    expect(document.documentElement.style.overflow).toBe("");
     expect(container).toBeTruthy();
     vi.unstubAllGlobals();
   });

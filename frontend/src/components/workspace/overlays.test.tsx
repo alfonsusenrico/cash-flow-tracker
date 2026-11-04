@@ -55,7 +55,7 @@ async function openDrawer(user: ReturnType<typeof userEvent.setup>) {
 describe("Drawer", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    document.body.style.overflow = "";
+    document.documentElement.style.overflow = "";
   });
 
   it.each(["desk", "tablet"] as const)("opens as a centered modal dialog at %s width, never in a side column", async (width) => {
@@ -70,7 +70,7 @@ describe("Drawer", () => {
     expect(container).not.toContainElement(drawer);
     expect(document.body.querySelector(".ws-sheet-scrim")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Warung Bu Sri/ })).toHaveFocus();
-    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.documentElement.style.overflow).toBe("hidden");
     expect((await axe(document.body)).violations).toHaveLength(0);
 
     screen.getByRole("button", { name: "Hapus" }).focus();
@@ -82,7 +82,7 @@ describe("Drawer", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
-    expect(document.body.style.overflow).toBe("");
+    expect(document.documentElement.style.overflow).toBe("");
   });
 
   it("closes from the scrim and from the close button, returning focus each time", async () => {
@@ -131,7 +131,7 @@ describe("Drawer", () => {
     expect(drawer).toHaveAttribute("data-mode", "sheet");
     expect(drawer).toHaveAttribute("aria-modal", "true");
     expect(screen.getByRole("heading", { name: /Warung Bu Sri/ })).toHaveFocus();
-    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.documentElement.style.overflow).toBe("hidden");
     expect((await axe(document.body)).violations).toHaveLength(0);
 
     await user.tab();
@@ -148,18 +148,18 @@ describe("Drawer", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
-    expect(document.body.style.overflow).toBe("");
+    expect(document.documentElement.style.overflow).toBe("");
   });
 
   it("restores the earlier body overflow after it closes", async () => {
     stubWidth("phone");
-    document.body.style.overflow = "clip";
+    document.documentElement.style.overflow = "clip";
     const user = userEvent.setup();
     render(<DrawerHarness />);
     await openDrawer(user);
-    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.documentElement.style.overflow).toBe("hidden");
     await user.click(screen.getByRole("button", { name: "Tutup detail" }));
-    expect(document.body.style.overflow).toBe("clip");
+    expect(document.documentElement.style.overflow).toBe("clip");
   });
 
   it("keeps focus inside when it mounts already open", async () => {
