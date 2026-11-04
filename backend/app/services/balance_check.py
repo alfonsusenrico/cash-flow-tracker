@@ -194,7 +194,8 @@ REPORT_CANDIDATES_SQL = """
     WHERE n.user_id = %(user_id)s AND n.post_time >= %(since)s AND n.transaction_id IS NULL
       AND n.is_financial IS DISTINCT FROM FALSE
       AND (
-          (n.provenance_kind = 'duplicate_observation' AND (n.reviewed_at IS NULL OR n.skip_pattern_id IS NOT NULL))
+          (n.provenance_kind = 'duplicate_observation'
+           AND (n.reviewed_at IS NULL OR n.reporting_link_id IS NOT NULL OR n.skip_pattern_id IS NOT NULL))
           OR (n.provenance_kind IS DISTINCT FROM 'duplicate_observation'
               AND n.processing_state = ANY(%(states)s))
       )
@@ -205,7 +206,9 @@ REPORT_CANDIDATES_SQL = """
 
 def _report_kind(event: dict[str, Any]) -> str:
     if event.get("provenance_kind") == "duplicate_observation":
-        return "skipped" if event.get("skip_pattern_id") else "held"
+        # A linked account skips a second report; older skips came from retired skip patterns.
+        skipped = event.get("reporting_link_id") or event.get("skip_pattern_id")
+        return "skipped" if skipped else "held"
     return "pending" if event.get("processing_state") in PENDING_STATES else "unrecorded"
 
 

@@ -57,3 +57,10 @@ Account: Jago · Main Pocket, recorded Rp 7.088.299.
 - A screen reader.
 - A real phone.
 - A real browser click on "Saldo cocok" and "Sesuaikan saldo". Both are covered by Vitest with the API mocked, and by the backend tests.
+
+## Integration with `reconcile-linked-account-reports`, before merge
+
+After acceptance, `feat/linked-account-reports` was merged into this branch, because it must deploy first (V47 before V48).
+- **The fix:** that change marks a skipped second report with `reporting_link_id`. Skip patterns are retired. The check now treats `reporting_link_id` as "skipped", as it does the older `skip_pattern_id`. Without this, a report skipped by a linked account would have been left out of the causes.
+- **Test:** `test_a_report_skipped_by_a_linked_account_counts_as_skipped` fails without the fix and passes with it.
+- **Checks on the merged tree (V48 on a fresh database):** backend 1810 passed. Frontend type-check and lint exit 0, Vitest 75 files with 675 passed, and the build compiled.

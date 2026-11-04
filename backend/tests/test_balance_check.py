@@ -168,6 +168,26 @@ def test_held_and_skipped_reports_explain_a_missing_amount(client, owner):
     assert (cause["kind"], cause["effect"], cause["link"]) == ("held", 120_000, {"kind": "review", "folder": "dua"})
 
 
+def test_a_report_skipped_by_a_linked_account_counts_as_skipped(client, owner):
+    with _db() as conn:
+        link_id = conn.execute(
+            "INSERT INTO account_report_links (user_id, account_id, institution, source) VALUES (%s, %s, 'jago', 'confirmation') RETURNING id",
+            (owner["user_id"], owner["main"]),
+        ).fetchone()["id"]
+        conn.commit()
+    skipped = add_report(owner, "com.jago.digitalBanking", "You've received Rp120.000 from GoPay.",
+                         when=NOW - timedelta(hours=2), account="main", direction="income",
+                         processing_state="recorded", provenance_kind="duplicate_observation",
+                         result_key="s1", result_snapshot=json.dumps({}), reviewed_at=NOW - timedelta(hours=2),
+                         reporting_link_id=str(link_id))
+
+    result = check(client, owner, "main", 520_000)
+
+    assert result["explanation"] == [f"ev:{skipped}"]
+    cause = result["candidates"][0]
+    assert (cause["kind"], cause["effect"], cause["link"]) == ("skipped", 120_000, {"kind": "review", "folder": "lewat"})
+
+
 def test_unexplained_difference_lists_causes_without_an_explanation(client, owner):
     add_row(owner, "standalone", 75_000, category="movement_out")
     add_report(owner, "com.bca.mybca.omni.android", "You spent IDR 30,000.00 at Payment.",
