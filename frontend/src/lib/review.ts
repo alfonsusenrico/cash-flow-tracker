@@ -124,7 +124,7 @@ export interface ReviewQueue {
     awaiting: number;
     ambiguous: number;
     seen_twice?: number;
-    /** Reports the owner's skip patterns skipped; never counted as work. */
+    /** Reports the owner's account links skipped; never counted as work. */
     skipped?: number;
   };
   questions: PurposeQuestionEntry[];
@@ -133,7 +133,7 @@ export interface ReviewQueue {
   ambiguous: AmbiguousItem[];
   /** Second reports of one money movement still waiting (recognise-one-arrival-seen-twice D3). */
   seen_twice?: SeenTwiceItem[];
-  /** Reports skipped by an owner's pattern in the last 30 days (skip-redundant-notifications D5). */
+  /** Reports skipped by an owner's account link in the last 30 days (reconcile-linked-account-reports D6). */
   skipped?: SeenTwiceItem[];
 }
 
@@ -147,17 +147,16 @@ export interface SeenTwiceKeptLeg {
   movement: { source: string | null; target: string | null } | null;
 }
 
-/** The owner's skip pattern that skipped a report. */
-export interface SkippedByPattern {
+/** The owner's account link that skipped a report: the account, also reported by another app. */
+export interface SkippedByLink {
   id: string;
-  redundant_label: string;
-  direction: "expense" | "income";
-  kept_label: string;
+  account_label: string | null;
+  institution_label: string;
 }
 
 export interface SeenTwiceItem {
   event_id: string;
-  /** "duplicate": nothing was booked for it and it waits; "skipped": an owner's pattern skipped it. */
+  /** "duplicate": nothing was booked for it and it waits; "skipped": an owner's account link skipped it. */
   kind: "duplicate" | "skipped";
   app: string;
   type: "expense" | "income" | null;
@@ -165,14 +164,15 @@ export interface SeenTwiceItem {
   date: string;
   account_name: string | null;
   kept: SeenTwiceKeptLeg | null;
-  pattern?: SkippedByPattern;
+  link?: SkippedByLink;
 }
 
-/** The pattern "Benar, satu transaksi" learned; `created` is false when it already existed. */
-export interface LearnedSkipPattern {
+/** The account link "Benar, satu transaksi" learned; `created` is false when it already existed. */
+export interface LearnedAccountLink {
   id: string;
-  redundant_label: string;
-  kept_label: string;
+  account_id: string;
+  account_label: string | null;
+  institution_label: string;
   created: boolean;
 }
 
