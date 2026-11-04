@@ -433,6 +433,22 @@ describe("Beranda recent activity", () => {
     expect(within(card).getByRole("button", { name: /^\? → Jago · Main Pocket/ })).toHaveTextContent("Pindah saldo · Pasangan belum ditemukan");
   });
 
+  it("opens Rencana jatuh tempo as a centered dialog, not a side panel", async () => {
+    const base = vi.mocked(api.get).getMockImplementation()!;
+    const linked = { rule_id: "plan-auto", scheduled_for: "2026-11-01", linked_at: "2026-11-01T03:00:00Z", name: "Streaming Contoh",
+      amount: 65_000, type: "expense", transaction_id: "kopi", transaction_date: "2026-11-01T02:00:00Z", account_name: "Dompet Digital" };
+    vi.mocked(api.get).mockImplementation(async (path: string) => (
+      path === "/recurring/pending" ? { rules: [], recent_auto_links: [linked] } : base(path)
+    ));
+    const user = userEvent.setup();
+    await kpis();
+    await user.click(await within(region(/Perlu tindakan/)).findByRole("button", { name: "Cek" }));
+    const dialog = await screen.findByRole("dialog", { name: /^Rencana jatuh tempo/ });
+    expect(dialog).toHaveAttribute("data-mode", "dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(document.querySelector(".ws-drawer-slot")).not.toBeInTheDocument();
+  });
+
   it("says a row deleted elsewhere is gone", async () => {
     const user = userEvent.setup();
     await kpis();

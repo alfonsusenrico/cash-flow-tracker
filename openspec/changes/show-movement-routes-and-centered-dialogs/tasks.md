@@ -49,29 +49,29 @@ Expected Result: every movement reads in the direction the money moved, with its
 
 ## 4. Client: centered dialogs
 
-- [ ] 4.1 Turn `Drawer` into `dialog` and `sheet` modes, and remove the drawer slot from `AppLayout` and `globals.css` (D4). Evidence: Vitest for dialog mode (focus inside, Esc, scrim click, close button, focus return, topmost-only keyboard with a stacked dialog) and sheet mode unchanged.
-- [ ] 4.2 Check every caller:
+- [x] 4.1 Turn `Drawer` into `dialog` and `sheet` modes, and remove the drawer slot from `AppLayout` and `globals.css` (D4). Evidence: Vitest for dialog mode (focus inside, Esc, scrim click, close button, focus return, topmost-only keyboard with a stacked dialog) and sheet mode unchanged.
+- [x] 4.2 Check every caller:
   - the transaction detail from Transaksi, Beranda, Kalender and Peta Aliran;
   - "Rencana jatuh tempo" on Beranda and Transaksi;
   - the Peta Aliran node and link details.
 
   Evidence: existing tests pass, plus a browser check of each that finds no side column, a centered dialog, and form fields at full width.
-- [ ] 4.3 Remove dead code: `DrawerSlotContext`, `ws-drawer-slot`, `data-drawer` and the overlay CSS. Evidence: `rg` finds no remaining references, and lint passes.
+- [x] 4.3 Remove dead code: `DrawerSlotContext`, `ws-drawer-slot`, `data-drawer` and the overlay CSS. Evidence: `rg` finds no remaining references, and lint passes.
 
 Expected Result: no right-side panel anywhere, and forms have room.
 
 ## 5. Verification
 
-- [ ] 5.1 Run the full suites as CI does: backend pytest; frontend `npm ci`, type-check, lint, Vitest and build. Evidence: counts with 0 failures, at the tested revision.
-- [ ] 5.2 Browser matrix:
+- [x] 5.1 Run the full suites as CI does: backend pytest; frontend `npm ci`, type-check, lint, Vitest and build. Evidence: counts with 0 failures, at the tested revision.
+- [x] 5.2 Browser matrix:
   - Transaksi (all and filtered), Beranda, Rekening detail, Peta Aliran, Kalender and the dialogs;
   - at 1440, 1280, 1024, 768 and 390 px, light and dark;
   - the checks: axe serious or critical, overflow, console errors, targets under 24 px, keyboard (Tab order, Esc, focus return) and reduced motion.
 
   Evidence: the results table with 0 serious findings.
-- [ ] 5.3 Compare screenshot pairs against the baseline for each surface in 1.1. Evidence: a compare page, read by the agent, showing routes with parents and centered dialogs.
-- [ ] 5.4 Unchanged writes: edit, delete, type switch, movement edit and "Rencana jatuh tempo" actions from the dialog send the same requests as on `main`. Evidence: request bodies compared.
-- [ ] 5.5 Check JS per route against the baseline (limit +5 kB), then `openspec validate --all --strict`, `git diff --check` and the clean-up proof. Evidence: outputs.
+- [x] 5.3 Compare screenshot pairs against the baseline for each surface in 1.1. Evidence: a compare page, read by the agent, showing routes with parents and centered dialogs.
+- [x] 5.4 Unchanged writes: edit, delete, type switch, movement edit and "Rencana jatuh tempo" actions from the dialog send the same requests as on `main`. Evidence: request bodies compared.
+- [x] 5.5 Check JS per route against the baseline (limit +5 kB), then `openspec validate --all --strict`, `git diff --check` and the clean-up proof. Evidence: outputs.
 
 Expected Result: the change is proven locally.
 
