@@ -18,7 +18,7 @@ The agreed answer is a capture-only test session. Notifications are stored as ra
 
 ## Approval
 
-**Planning request, 2026-11-04.** The owner said "ok plan Sesi uji, case list is fine", after the agent's proposal: capture-only instead of switching anything off, the four-step session flow, and the 15-case list. Implementation waits for the owner's approval of this plan.
+**Planning request, 2026-11-04.** The owner said "ok plan Sesi uji, case list is fine", after the agent's proposal: capture-only instead of switching anything off, the four-step session flow, and the 15-case list. **Plan approval, 2026-11-04.** After a summary of the plan, the owner said "Sesi uji approved". OD150–OD155 take their recommended defaults (design.md).
 
 **Merge order:** this change ships after `reconcile-linked-account-reports` (V47) and `manual-balance-check` (V48), and uses V49. Before archiving, it is rebased on `main` with both merged, and its `currency-conversion-and-settings` delta is refreshed against the main spec.
 
