@@ -224,25 +224,32 @@ def broker_funding_account(accounts: list[dict]) -> dict:
 
 
 def observed_endpoint(facts: NotificationFacts, accounts: list[dict], proposal: Interpretation | None = None) -> dict:
+    return observed_endpoint_with_basis(facts, accounts)[0]
+
+
+def observed_endpoint_with_basis(facts: NotificationFacts, accounts: list[dict]) -> tuple[dict, str]:
+    """The observed account and how it was chosen: "named" by the notification or the owner, or
+    "default_pocket" when the notification names no pocket of an account that has pockets."""
     if requires_source_pocket(facts):
         selected = next((row for row in accounts if str(row["id"]) == facts.confirmed_source_account_id), None)
         if not selected:
             raise EvidenceError("source_pocket_confirmation_required")
-        return selected
+        return selected, "named"
     if facts.institution == "bca" and "RDN" in {facts.parsed.source_pocket, facts.parsed.target_pocket}:
-        return rdn_account(accounts)
+        return rdn_account(accounts), "named"
     if facts.institution == "stockbit" and facts.parsed.rdn_deposit:
-        return broker_funding_account(accounts)
+        return broker_funding_account(accounts), "named"
     parent = institution_parent(accounts, facts.institution)
     named = facts.parsed.source_pocket if facts.direction == "expense" else facts.parsed.target_pocket
     if named:
-        return pocket_endpoint(named, parent, accounts, institution=facts.institution)
+        return pocket_endpoint(named, parent, accounts, institution=facts.institution), "named"
     if facts.institution == "jago":
         role_words = r"using|from|menggunakan|dari" if facts.direction == "expense" else r"in|into|ke|di"
         pocket = re.search(r"\b(?:" + role_words + r")(?:\s+your)?\s+(.+?)\s+(?:Pocket|Kantong)\b", facts.text, re.I)
         if pocket:
-            return pocket_endpoint(pocket.group(1), parent, accounts, institution=facts.institution)
-    return main_endpoint(parent, accounts)
+            return pocket_endpoint(pocket.group(1), parent, accounts, institution=facts.institution), "named"
+    endpoint = main_endpoint(parent, accounts)
+    return endpoint, "default_pocket" if str(endpoint["id"]) != str(parent["id"]) else "named"
 
 
 def movement_categories(context: dict) -> tuple[str, str]:

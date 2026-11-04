@@ -82,7 +82,8 @@ def assert_one_movement_bca_to_gopay(owner, jago_event_id):
     duplicate = event_row(jago_event_id)
     assert duplicate["processing_state"] == "recorded"
     assert duplicate["provenance_kind"] == "duplicate_observation"
-    assert str(duplicate["transaction_id"]) == str(rows[1]["id"])
+    assert duplicate["transaction_id"] is None
+    assert str(duplicate["duplicate_of_transaction_id"]) == str(rows[1]["id"])
     money = balances(owner)
     assert (money[owner["bca"]], money[owner["gopay"]], money[owner["main"]]) == (500000, 1500000, 1000000)
 
@@ -165,3 +166,90 @@ def test_transfer_answer_teaches_no_memory(client, notification_owner):
             (owner["user_id"], jago["event_id"]),
         ).fetchall()]
     assert kinds == ["purpose_answer"]
+
+
+# --- 2.1–2.3 The guard's limits, the deferred pass and the companion result -----------------------------
+
+
+def incomes(owner):
+    return [row for row in legs(owner) if row["type"] == "income"]
+
+
+def test_real_transfers_that_do_not_name_each_other_both_book(client, notification_owner):
+    owner = notification_owner
+    send(client, "Anda telah menerima saldo sebesar Rp500.000.", GOPAY, 0)
+    send(client, "You've received Rp500.000 from Rina Wulandari.", JAGO, 30)
+    assert sorted(str(row["account_id"]) for row in incomes(owner)) == sorted([owner["gopay"], owner["main"]])
+
+
+def test_same_app_twice_is_not_a_second_observation(client, notification_owner):
+    owner = notification_owner
+    first = send(client, GOPAY_CREDIT, GOPAY, 0)
+    second = send(client, GOPAY_CREDIT, GOPAY, 5)
+    assert len(incomes(owner)) == 2
+    assert {event_row(item["event_id"])["provenance_kind"] for item in (first, second)} == {"observed_leg"}
+
+
+def test_mirror_outside_the_window_books_and_is_flagged(client, notification_owner):
+    owner = notification_owner
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 121)
+    stored = event_row(jago["event_id"])
+    assert stored["provenance_kind"] == "observed_leg"
+    assert "ambiguous_movement" in stored["interpretation"]["review_reasons"]
+    row = next(row for row in incomes(owner) if str(row["account_id"]) == owner["main"])
+    assert row["review_status"] == "needs_review"
+
+
+def test_two_possible_originals_flag_instead_of_merging(client, notification_owner):
+    owner = notification_owner
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    send(client, GOPAY_CREDIT, GOPAY, 2)
+    jago = send(client, JAGO_CREDIT, JAGO, 3)
+    stored = event_row(jago["event_id"])
+    assert stored["provenance_kind"] == "observed_leg"
+    assert "ambiguous_movement" in stored["interpretation"]["review_reasons"]
+    assert len(incomes(owner)) == 3
+
+
+def test_owner_edited_earlier_leg_is_never_removed(client, notification_owner):
+    owner = notification_owner
+    jago = send(client, JAGO_CREDIT, JAGO, 0)
+    row = next(row for row in incomes(owner) if str(row["account_id"]) == owner["main"])
+    edited = client.patch(f"/api/transactions/{row['id']}", json={"notes": "Uang dari GoPay"})
+    assert edited.status_code == 200, edited.text
+    gopay = send(client, GOPAY_CREDIT, GOPAY, 1)
+    assert [str(item["id"]) for item in incomes(owner)] == [str(row["id"])]
+    assert event_row(jago["event_id"])["provenance_kind"] == "observed_leg"
+    assert event_row(gopay["event_id"])["provenance_kind"] == "duplicate_observation"
+    assert str(event_row(gopay["event_id"])["duplicate_of_transaction_id"]) == str(row["id"])
+
+
+def test_companion_result_of_a_duplicate_is_the_kept_leg(client, notification_owner):
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    assert jago["status"] == "recorded" and jago["target"] == "GoPay" and "question" not in jago
+    send(client, MYBCA_DEBIT, MYBCA, 3.4)
+    result = client.get(f"/api/ingest/notifications/{jago['event_id']}/result").json()["result"]
+    assert result["type"] == "internal_movement"
+    assert (result["source"], result["target"]) == ("BCA Harian", "GoPay")
+
+
+def test_deferred_pass_applies_the_rule_once(client, notification_owner, monkeypatch):
+    from app.services import notification_application
+    from app.services.movement_pairing import ArrivalDecision, repair_unpaired_movements
+
+    owner = notification_owner
+    with monkeypatch.context() as patched:
+        # Legs recorded before the rule existed.
+        patched.setattr(notification_application, "same_arrival", lambda *args, **kwargs: ArrivalDecision())
+        send(client, GOPAY_CREDIT, GOPAY, 0)
+        jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    assert len(incomes(owner)) == 2
+    first = repair_unpaired_movements(now=START + timedelta(minutes=5))
+    assert first["duplicates"] == 1
+    assert [str(row["account_id"]) for row in incomes(owner)] == [owner["gopay"]]
+    assert event_row(jago["event_id"])["provenance_kind"] == "duplicate_observation"
+    again = repair_unpaired_movements(now=START + timedelta(minutes=6))
+    assert again["duplicates"] == 0 and len(incomes(owner)) == 1
+    assert balances(owner)[owner["main"]] == 1000000
