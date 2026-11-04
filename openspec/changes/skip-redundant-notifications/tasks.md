@@ -95,7 +95,7 @@ Expected Result: the owner can add the known pattern by hand and see every skip.
   - `notification_benchmark.py` drops the `same_money` metric.
 
   Evidence: the offline benchmark and `test_notification_benchmark.py` and `test_notification_cases.py` pass.
-- [ ] 6.2 Live benchmark: `-12` on this branch against `-11` at `62285dd`, `gpt-6-luna`, `none` and `low`, three repeats, about $0.10. It runs only with the owner's go-ahead (OD127) and with the key the owner provides. Evidence: the report with prompt and fixture versions, safety gate, composite, latency and tokens in verification.md, or "not run" with the reason.
+- [x] 6.2 Live benchmark: `-12` on this branch against `-11` at `62285dd`, `gpt-6-luna`, `none` and `low`, three repeats, about $0.10. It runs only with the owner's go-ahead (OD127) and with the key the owner provides. Evidence: the report with prompt and fixture versions, safety gate, composite, latency and tokens in verification.md, or "not run" with the reason.
 
 Expected Result: the prompt change is measured, and `none` stays unless the numbers say otherwise.
 

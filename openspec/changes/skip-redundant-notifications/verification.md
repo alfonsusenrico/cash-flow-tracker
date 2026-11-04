@@ -145,18 +145,25 @@
   - the corpus is `synthetic-notifications-5`, and its five sequence cases carry no neighbours and expect plain observed legs;
   - the benchmark drops `same_money`, and its unsafe-write rule is again identical to `-10`'s;
   - `test_notification_cases.py` and `test_notification_benchmark.py`: 105 passed.
-- **6.2, the live benchmark:** not run. It needs `OPENAI_API_KEY`, which only the owner can supply.
-  - The worktree `cash-flow-tracker-bench-main` is ready at `62285dd` (`-11`).
-  - Upper-bound estimates at the benchmark's constants ($0.20 / $1.20 per million tokens) are below.
+- **6.2, the live benchmark:** run on 2026-11-04 with the owner's key, which the owner copied into the two worktrees and which was deleted right after the runs.
+  - **Runs:** `--live --model gpt-6-luna --reasoning-efforts none --repeats 3 --partition all --max-estimated-usd 0.65`. `-12` ran at `2968f33` on `synthetic-notifications-5`, and `-11` ran at `62285dd` on `synthetic-notifications-4`. Both trees were clean. `low` was not run: the 2026-11-04 run of `-11` showed `none` scoring higher at half the cost, and production uses `none`.
+  - **Cost:** $0.18 at the benchmark's constants, about $0.09 at gpt-6-luna's listed $0.10 / $0.50 per million tokens.
 
-  | Prompt, efforts | Upper bound |
-  | --- | --- |
-  | `-12`, `none` | $0.57 |
-  | `-12`, `none` and `low` | $1.14 |
-  | `-11`, `none` | $0.60 |
-  | `-11`, `none` and `low` | $1.20 |
+  | Prompt | Composite | Safety gate | Unsafe writes | Record recall | Movement P / R | Classification | Schema | Invalid output | p50 | Input / output tokens |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | `-11` | 74.4 | pass | 0 | 79.4% | 81.0% / 63.0% | 57.4% | 80.6% | 21 of 108 | 2.27 s | 379 977 / 16 182 |
+  | `-12` | 87.0 | pass | 0 | 96.1% | 100% / 55.6% | 57.4% | 98.1% | 2 of 108 | 2.24 s | 348 345 / 15 484 |
 
-  - The four configurations of 2026-11-04 cost $0.39 at those constants, about $0.18 at gpt-6-luna's listed $0.10 / $0.50, so `none` only for both prompts is expected to cost about $0.05.
+  - **Result:** `-12` is better than `-11`:
+    - composite +12.6;
+    - invalid outputs fall from 21 to 2;
+    - record recall +16.7;
+    - movement precision reaches 100%;
+    - input tokens fall 8%.
+
+    Movement recall is 7.4 points lower, which the deterministic pairing and guard cover. The quality gate fails for both, as it does for every prompt measured so far.
+  - **Variance:** `-11` scored 81.9 with 10 invalid outputs in the earlier run of the same configuration, so three-repeat runs vary by several points. `-12` is ahead in both comparisons.
+  - **Sequence cases:** all five record as plain observed legs on `-12`. The myBCA debit failed with invalid output in all three `-11` requests.
 
 ## 7. Verification (tasks 7.1, 7.2)
 
