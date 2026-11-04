@@ -205,11 +205,11 @@ Returns:
 
 | # | Decision | Default |
 | --- | --- | --- |
-| OD88 | "Yang bisa diperbaiki" on the running month | **Facts-only "Sejauh ini"**: top merchant, recurring bills seen and unexpected spending, without baseline facts or verdicts |
-| OD89 | Baseline with fewer than 3 usable periods | **Show the average of 2, labelled "rata-rata 2 bulan"**; none with 1 or 0 |
-| OD90 | Partial previous month | **Shown with "tercatat sejak {date}" and "belum lengkap" instead of ▲/▼**; partial months never enter the baseline |
-| OD91 | "Above average" threshold | **At least Rp 50.000 and 10% above the baseline, top three**; a new category from Rp 100.000 |
-| OD92 | `GET /api/dashboard/period-comparison` | **Keep unchanged and unused by the web**; remove in a later change |
-| OD93 | History chart length | **Last four completed periods plus the running one** |
-| OD94 | Reflection block | **Hidden unless a note exists for this or the previous period**, then read-only with "Ubah" |
-| OD95 | Direction colours | **D11**: spending up red ▲, down green ▼; income and saving the opposite |
+| OD88 (resolved 2026-11-04: "approved, defaults ok") | "Yang bisa diperbaiki" on the running month | **Facts-only "Sejauh ini"**: top merchant, recurring bills seen and unexpected spending, without baseline facts or verdicts |
+| OD89 (resolved 2026-11-04: "approved, defaults ok") | Baseline with fewer than 3 usable periods | **Show the average of 2, labelled "rata-rata 2 bulan"**; none with 1 or 0 |
+| OD90 (resolved 2026-11-04: "approved, defaults ok") | Partial previous month | **Shown with "tercatat sejak {date}" and "belum lengkap" instead of ▲/▼**; partial months never enter the baseline |
+| OD91 (resolved 2026-11-04: "approved, defaults ok") | "Above average" threshold | **At least Rp 50.000 and 10% above the baseline, top three**; a new category from Rp 100.000 |
+| OD92 (resolved 2026-11-04: "approved, defaults ok") | `GET /api/dashboard/period-comparison` | **Keep unchanged and unused by the web**; remove in a later change |
+| OD93 (resolved 2026-11-04: "approved, defaults ok") | History chart length | **Last four completed periods plus the running one** |
+| OD94 (resolved 2026-11-04: "approved, defaults ok") | Reflection block | **Hidden unless a note exists for this or the previous period**, then read-only with "Ubah" |
+| OD95 (resolved 2026-11-04: "approved, defaults ok") | Direction colours | **D11**: spending up red ▲, down green ▼; income and saving the opposite |

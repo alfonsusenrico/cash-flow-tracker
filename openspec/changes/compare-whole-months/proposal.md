@@ -43,7 +43,7 @@ A running month shows only its progress against the previous month's total, such
    - WCAG 2.2 AA verification.
 5. **One question is still open:** OD88, whether the running month gets a facts-only "Yang bisa diperbaiki". It has a recommended default in design.md.
 
-This plan is pending the owner's approval. No implementation starts before it.
+**Plan approval, 2026-11-04.** After a summary of both refinement plans (`refine-workspace-layout` and `compare-whole-months`), the owner said "approved, defaults ok". OD88–OD95 take their recommended defaults (design.md, open decisions).
 
 ## What Changes
 
