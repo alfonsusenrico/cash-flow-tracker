@@ -208,7 +208,6 @@ export function CategoryBudgetSection({
 
   // Expense categories only.
   const categories = rawCategories.filter((c: any) => c.kind !== "income");
-  const totalSpentInCategories = categories.reduce((acc: number, c: any) => acc + c.spent, 0);
   const totalBudgeted = categories.reduce((acc: number, c: any) => acc + (c.budget || 0), 0);
   const overBudgetCount = categories.filter((c: any) => c.status === "over_budget").length;
   // Budgets are optional: without any, the table shows spending only (custom-category-management).
@@ -246,13 +245,8 @@ export function CategoryBudgetSection({
 
               <div className="flex items-center gap-3 self-start sm:self-auto">
                 <div className="hidden sm:flex items-center gap-2 text-xs text-[var(--muted)] tabular font-medium">
-                  <span>Total Keluar: {bal(totalSpentInCategories)}</span>
-                  {totalBudgeted > 0 && (
-                    <>
-                      <span>•</span>
-                      <span>Total Anggaran: {bal(totalBudgeted)}</span>
-                    </>
-                  )}
+                  {/* The period's Pengeluaran is the server figure in the KPI row; only the budget total is shown here. */}
+                  {totalBudgeted > 0 && <span>Total Anggaran: {bal(totalBudgeted)}</span>}
                 </div>
                 <button
                   type="button"
@@ -312,7 +306,7 @@ export function CategoryBudgetSection({
                             key={cat.id ?? "uncategorized"}
                             className="hover:bg-[var(--surface-2)]/50 transition-colors"
                           >
-                            <td className="py-2.5 pr-4">
+                            <td className="py-2 pr-4">
                               <div className="flex items-center gap-2.5">
                                 <div
                                   className="h-7 w-7 rounded-lg flex items-center justify-center text-xs text-white shrink-0 shadow-2xs"
@@ -353,7 +347,7 @@ export function CategoryBudgetSection({
                               </div>
                             </td>
 
-                            <td className="py-3.5 text-right font-bold tabular text-[var(--text)]">
+                            <td className="py-2 text-right font-bold tabular text-[var(--text)]">
                               {drill ? (
                                 <Link
                                   href={drill}
@@ -367,7 +361,7 @@ export function CategoryBudgetSection({
 
                             {anyBudget && (
                             <>
-                            <td className="py-3.5 text-right text-[var(--muted)] tabular">
+                            <td className="py-2 text-right text-[var(--muted)] tabular">
                               {managed ? (
                               <button
                                 type="button"
@@ -386,7 +380,7 @@ export function CategoryBudgetSection({
                               )}
                             </td>
 
-                            <td className="py-3.5 text-right tabular">
+                            <td className="py-2 text-right tabular">
                               {hasBudget ? (
                                 <span
                                   className={cn(
@@ -403,7 +397,7 @@ export function CategoryBudgetSection({
                               )}
                             </td>
 
-                            <td className="py-3.5 text-right">
+                            <td className="py-2 text-right">
                               <span
                                 className={cn(
                                   "px-2 py-0.5 rounded-full text-[10px] font-bold tabular",
@@ -429,7 +423,7 @@ export function CategoryBudgetSection({
                             </>
                             )}
 
-                            <td className="py-3.5 text-right">
+                            <td className="py-2 text-right">
                               {managed && (
                               <div className="flex items-center justify-end gap-1">
                                 <button
@@ -481,7 +475,7 @@ export function CategoryBudgetSection({
                     return (
                       <div
                         key={`mobile-cat-${cat.id ?? "uncategorized"}`}
-                        className="p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/60 transition-colors space-y-2.5"
+                        className={cn("rounded-2xl border border-[var(--line)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/60 transition-colors", anyBudget ? "p-3.5 space-y-2.5" : "px-3 py-2")}
                       >
                         {/* Row 1: Icon + Name + Terpakai */}
                         <div className="flex items-center justify-between gap-2">
@@ -516,8 +510,30 @@ export function CategoryBudgetSection({
                                 {bal(cat.spent)}
                               </span>
                             )}
-                            <div className="text-[9px] text-[var(--muted)] font-medium">Terpakai</div>
+                            {anyBudget && <div className="text-[9px] text-[var(--muted)] font-medium">Terpakai</div>}
                           </div>
+                          {/* Without budgets the row stays one line: the actions sit beside the amount. */}
+                          {!anyBudget && managed && (
+                            <div className="flex shrink-0 items-center gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => openEditCategory(cat)}
+                                aria-label={`Ubah kategori ${cat.name}`}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
+                              >
+                                <Icon name="edit" className="h-3.5 w-3.5" />
+                              </button>
+                              <ConfirmActionButton
+                                label={`Arsipkan kategori ${cat.name}`}
+                                confirmation={`Yakin ingin mengarsipkan kategori "${cat.name}"?`}
+                                onConfirm={() => deleteCategoryMutation.mutate(cat.id)}
+                                disabled={deleteCategoryMutation.isPending}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-out-solid/10 hover:text-out-fg disabled:opacity-50"
+                              >
+                                <Icon name="trash" className="h-3.5 w-3.5" />
+                              </ConfirmActionButton>
+                            </div>
+                          )}
                         </div>
 
                         {/* Row 2: 6px Smooth Progress Bar (if budget set) */}
@@ -586,8 +602,8 @@ export function CategoryBudgetSection({
 
                         )}
 
-                        {/* Row 4: Subtle Touch Actions */}
-                        {managed && (
+                        {/* Row 4: Subtle Touch Actions, once budgets are used */}
+                        {anyBudget && managed && (
                         <div className="border-t border-[var(--line)]/50 pt-2 flex items-center justify-between gap-2">
                           <button
                             type="button"
