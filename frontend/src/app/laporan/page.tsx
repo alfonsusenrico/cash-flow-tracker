@@ -232,7 +232,7 @@ function ReportView() {
       <DataQualityLine report={report} onClassify={openClassify} />
       <ReportKpis report={report} money={bal} />
       <ReportLayout
-        wide={[[pillars, merchants, savingsCard, details], [facts, history, incomeCard, budget, reflection, past]]}
+        wide={[[pillars, merchants, savingsCard, details, budget], [facts, history, incomeCard, reflection, past]]}
         narrow={[facts, pillars, history, merchants, savingsCard, details, incomeCard, budget, reflection, past]}
       />
 
