@@ -187,6 +187,17 @@ Returns:
 7. **Full matrix and zoom** on `/laporan` and `/insights?tab=ringkasan`, with axe serious 0, overflow 0 and console 0.
 8. **Clean-up evidence:** `ps`, `lsof` and `docker ps`.
 
+## Implementation notes
+
+- **Per-period figures** are computed with the existing rule functions (window figures, the Kakeibo breakdown, and one grouped query per period for pillar and category), not one window query: the statement count is constant in rows and grows only with the at most six periods involved, and no rule is rewritten (risk "rule drift"). The speed gates hold.
+- **Category rows** are grouped by effective pillar and category, so a category whose rows carry two pillars appears under both, each net of that pair's reimbursement share.
+- **Category facts** carry `amount` (the period's amount, equal to the ledger) and `difference` (the amount above the average, shown on the page).
+- **The recurring fact** has no ledger reference, because a monthly-equivalent total is not a ledger sum; it links to the detected bills on Ringkasan.
+- **The report reuses** its own recurring charges and shops in the comparison.
+- **Laporan's stepper** sends the running month's date: without `start` the API opens the latest closed period, so the running month was unreachable.
+- **Below 900 px** Laporan renders one column in reading order (the facts right after the figures), so the focus order matches what is seen.
+- **Ringkasan** puts the progress and average cards side by side and the three compact cards in one row; `PeriodComparison`, `CashFlowHistory` and the same-day Kakeibo card are removed with their types.
+
 ## Compatibility, migration and rollback
 
 - **The report's `comparison` object changes shape.** Its only consumer is the web, and both ship together.
@@ -213,3 +224,5 @@ Returns:
 | OD93 (resolved 2026-11-04: "approved, defaults ok") | History chart length | **Last four completed periods plus the running one** |
 | OD94 (resolved 2026-11-04: "approved, defaults ok") | Reflection block | **Hidden unless a note exists for this or the previous period**, then read-only with "Ubah" |
 | OD95 (resolved 2026-11-04: "approved, defaults ok") | Direction colours | **D11**: spending up red ▲, down green ▼; income and saving the opposite |
+| OD110 (open, conservative default applied) | Ledger summary for a filter of both category and pillar | **Net of that pair's reimbursement share**, as the other report-shaped filters are; it was gross. Needed so every pillar and category row of the report equals its ledger link |
+| OD111 (open, conservative default applied) | Link of the recurring-bills fact | **Detected bills on Ringkasan**, because the monthly equivalent is not a ledger sum |

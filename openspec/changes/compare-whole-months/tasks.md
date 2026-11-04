@@ -12,12 +12,12 @@ Evidence for every task goes into `verification.md`.
 
 ## 1. Rebase and baseline
 
-- [ ] 1.1 Rebase `feat/whole-month-comparisons` onto `main` after `refine-workspace-layout` merges:
+- [ ] 1.1 (pending: `refine-workspace-layout` not merged on 2026-11-04) Rebase `feat/whole-month-comparisons` onto `main` after `refine-workspace-layout` merges:
   - refresh every MODIFIED block from the main specs, keeping every scenario name;
   - confirm that the ledger's `spending` field and the "Spending Terms" requirement exist.
 
   Evidence: `openspec validate compare-whole-months --strict` passes.
-- [ ] 1.2 Record the baseline:
+- [x] 1.2 Record the baseline:
   - the backend suite;
   - Vitest, type-check, lint and build;
   - the medians of 20 calls of `GET /api/reports/monthly` for a completed and a running month on the preview seed;
@@ -30,7 +30,7 @@ Expected Result: a measured starting point on the merged layout.
 
 ## 2. Backend
 
-- [ ] 2.1 Add `services/monthly_comparison.py` (D1–D7): grouped queries over one window, totals, previous, baseline, progress, pillars with categories, facts and history. Tests (gate 2):
+- [x] 2.1 Add `services/monthly_comparison.py` (D1–D7): grouped queries over one window, totals, previous, baseline, progress, pillars with categories, facts and history. Tests (gate 2):
   - Oktober's baseline is the mean of Jul–Sep, and Oktober is never in its own baseline;
   - 2 usable periods give "rata-rata 2 bulan"; 1 or 0 give no baseline;
   - a partial previous period gives `partial: true` and no change;
@@ -41,8 +41,8 @@ Expected Result: a measured starting point on the merged layout.
   - rounding half up.
 
   Evidence: pytest node ids and counts.
-- [ ] 2.2 Ledger equality (gate 1): for every history, previous and baseline period, Pengeluaran, Masuk and every pillar and category amount equal the `GET /api/transactions` summaries of the same window and filters. Run on the preview seed and the phase seeds. Evidence: pytest counts.
-- [ ] 2.3 Facts (gate 3, D6):
+- [x] 2.2 Ledger equality (gate 1): for every history, previous and baseline period, Pengeluaran, Masuk and every pillar and category amount equal the `GET /api/transactions` summaries of the same window and filters. Run on the preview seed and the phase seeds. Evidence: pytest counts.
+- [x] 2.3 Facts (gate 3, D6):
   - each fact's amount equals its reference's ledger summary;
   - the threshold edge at Rp 49.999 and Rp 50.000;
   - a new category from Rp 100.000;
@@ -50,7 +50,7 @@ Expected Result: a measured starting point on the merged layout.
   - at most seven facts.
 
   Evidence: pytest counts.
-- [ ] 2.4 Add the route `GET /api/reports/monthly/comparison`, and use the same object as `comparison` in `GET /api/reports/monthly`. Remove `_median` and the report's call to `period_comparison`. Tests:
+- [x] 2.4 Add the route `GET /api/reports/monthly/comparison`, and use the same object as `comparison` in `GET /api/reports/monthly`. Remove `_median` and the report's call to `period_comparison`. Tests:
   - 401;
   - 404 `period_not_found`;
   - 409 `cycle_unavailable`;
@@ -59,14 +59,14 @@ Expected Result: a measured starting point on the merged layout.
   - `/dashboard/period-comparison` unchanged (snapshot).
 
   Evidence: pytest counts.
-- [ ] 2.5 Speed (gate 5): the comparison median is under 150 ms on the preview seed with 6 months, the statement count is equal for 1 and 200 rows per period, and `/reports/monthly` is within +10% of 1.2. Evidence: the table.
-- [ ] 2.6 Full backend suite. Evidence: pass, fail and skip counts tied to the commit.
+- [x] 2.5 Speed (gate 5): the comparison median is under 150 ms on the preview seed with 6 months, the statement count is equal for 1 and 200 rows per period, and `/reports/monthly` is within +10% of 1.2. Evidence: the table.
+- [x] 2.6 Full backend suite. Evidence: pass, fail and skip counts tied to the commit.
 
 Expected Result: whole-period figures that equal the ledger, with no same-day rule left in the report.
 
 ## 3. Laporan
 
-- [ ] 3.1 Build the page from D8:
+- [x] 3.1 Build the page from D8:
   - "Kualitas data" line;
   - KPI cards with previous and baseline chips, or progress on a running month;
   - the pillar and category table;
@@ -91,7 +91,7 @@ Expected Result: Laporan answers "how did this month go against my usual months"
 
 ## 4. Analisis Ringkasan
 
-- [ ] 4.1 Build Ringkasan from D9:
+- [x] 4.1 Build Ringkasan from D9:
   - KPI row;
   - running progress in total and per pillar;
   - "{last completed} vs rata-rata 3 bulan";
@@ -102,25 +102,25 @@ Expected Result: Laporan answers "how did this month go against my usual months"
   - no request to `/dashboard/period-comparison`.
 
   Tests: figure equality with Beranda and Transaksi, no same-day text, the "Rincian" disclosure, axe. Evidence: Vitest counts.
-- [ ] 4.2 Docs: `docs/NEW_USER_GUIDE.md` (Laporan and Analisis) and AGENTS.md (the whole-period rule). Evidence: the diff.
+- [x] 4.2 Docs: `docs/NEW_USER_GUIDE.md` (Laporan and Analisis) and AGENTS.md (the whole-period rule). Evidence: the diff.
 
 Expected Result: Analisis shows progress for the running period and a fair baseline for the last completed one.
 
 ## 5. Verification
 
-- [ ] 5.1 Frontend `npm ci`, type-check, lint (0 warnings), `npm test` (0 unhandled errors) and build. Gate: `/laporan` and `/insights` JS at most +8 kB gzip. Evidence: counts tied to the commit.
-- [ ] 5.2 Preview match (gate 6): Laporan (Oktober, and November running) and Ringkasan at 1440 dark, 1440 light and 390 dark on the preview seed, beside the approved preview images. Each difference is fixed or recorded with its reason. Evidence: a local comparison page and the deviation list.
-- [ ] 5.3 Full matrix on `/laporan` and `/insights?tab=ringkasan`, plus 200% and 400% zoom (gate 7). Evidence: counts per cell.
-- [ ] 5.4 Real-UI checks:
+- [x] 5.1 Frontend `npm ci`, type-check, lint (0 warnings), `npm test` (0 unhandled errors) and build. Gate: `/laporan` and `/insights` JS at most +8 kB gzip. Evidence: counts tied to the commit.
+- [x] 5.2 Preview match (gate 6): Laporan (Oktober, and November running) and Ringkasan at 1440 dark, 1440 light and 390 dark on the preview seed, beside the approved preview images. Each difference is fixed or recorded with its reason. Evidence: a local comparison page and the deviation list.
+- [x] 5.3 Full matrix on `/laporan` and `/insights?tab=ringkasan`, plus 200% and 400% zoom (gate 7). Evidence: counts per cell.
+- [x] 5.4 Real-UI checks:
   - Oktober's KPI and baseline figures equal the API;
   - a fact's link opens a ledger whose summary equals the fact;
   - stepping to November shows progress only;
   - switching the basis to Siklus gaji recomputes.
 
   Evidence: the values read from the UI.
-- [ ] 5.5 Regression of the other routes against a `main` build. Evidence: screenshot pairs.
-- [ ] 5.6 `openspec validate --all --strict` exits 0 before and after an archive rehearsal, and `git diff --check` is clean. Evidence: the output.
-- [ ] 5.7 Clean-up evidence (gate 8). Evidence: the output.
+- [x] 5.5 Regression of the other routes against a `main` build. Evidence: screenshot pairs.
+- [x] 5.6 `openspec validate --all --strict` exits 0 before and after an archive rehearsal, and `git diff --check` is clean. Evidence: the output.
+- [x] 5.7 Clean-up evidence (gate 8). Evidence: the output.
 
 Expected Result: the change is proven locally on data shaped like the owner's account.
 
