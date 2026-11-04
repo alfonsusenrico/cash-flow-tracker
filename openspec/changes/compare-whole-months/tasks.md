@@ -12,7 +12,7 @@ Evidence for every task goes into `verification.md`.
 
 ## 1. Rebase and baseline
 
-- [ ] 1.1 (pending: `refine-workspace-layout` not merged on 2026-11-04) Rebase `feat/whole-month-comparisons` onto `main` after `refine-workspace-layout` merges:
+- [x] 1.1 Rebase (done on `feat/whole-month-comparisons-integrated` from `refine-workspace-layout` at `7559f74`, before its merge) `feat/whole-month-comparisons` onto `main` after `refine-workspace-layout` merges:
   - refresh every MODIFIED block from the main specs, keeping every scenario name;
   - confirm that the ledger's `spending` field and the "Spending Terms" requirement exist.
 

@@ -4,7 +4,7 @@ Each entry names the commit or working-tree state it was measured on. Data is sy
 
 ## 1. Rebase and baseline (tasks 1.1–1.2)
 
-- **Rebase onto the merged `refine-workspace-layout`: pending.** On 2026-11-04 `origin/main` is still `2f66187`; the layout change has not merged. The branch is built on `2f66187`, and the integration points are listed under "Not verified".
+- **Integrated onto `refine-workspace-layout`** (pushed, CI green, not merged yet, at `7559f74`): the local branch `feat/whole-month-comparisons-integrated` starts there and replays all eleven commits of this change without conflicts. The pushed `feat/whole-month-comparisons` is left as it was. MODIFIED blocks were checked against the main specs as the layout change leaves them: archiving `refine-workspace-layout` and then this change on a scratch copy applies both, every original scenario name of the eight MODIFIED requirements is kept, and `openspec validate --all --strict` passes before (81) and after (79). The layout change touches none of these requirements; it removes two other `observed-insights` requirements.
 - **Baseline at `2f66187`** (a detached build of main in the scratchpad, on the same database and seed):
   - `GET /api/reports/monthly`, median of 20: Oktober 20.3 ms, November 17.6 ms.
   - First-load JS: `/laporan` 240.0 kB gzip, `/insights` 249.1 kB gzip (CSS 20.2 kB).
@@ -70,14 +70,32 @@ Each entry names the commit or working-tree state it was measured on. Data is sy
 - **OpenSpec and diff:** `openspec validate --all --strict` 80 passed; after an archive rehearsal on a scratch copy 79 passed with no placeholder Purpose; `git diff --check` clean.
 - **Clean-up evidence** (2026-11-04, after the runs): every process this change started (API 8262, web 3263, proxy 3262, main API 8264, main web 3265, main proxy 3266, headless Brave 9562) was stopped by PID; the container `cft-months-pg` and the scratch main checkout are removed. `lsof` shows 55562, 8262, 8264, 3262, 3263, 3265, 3266 and 9562 free; `docker ps -a` lists no `cft-months` container. The only matching processes left (8252, 3252, 3253) belong to the parallel `refine-workspace-layout` work and were not touched.
 
+## Integration with `refine-workspace-layout` (on `feat/whole-month-comparisons-integrated`)
+
+- **Ringkasan's Pengeluaran explanation** now comes from `explanations.spending` on `GET /api/dashboard/analytics`: Keluar's lines without the saving bucket, by the same `spending_split` Beranda uses. The explanation is shown when its total equals the comparison's figure.
+- **Beranda** no longer calls `/dashboard/period-comparison`; the layout change removed its same-day chips and banner. No web page calls it now, so the unused `periodComparison` and `cashFlowHistory` query keys are removed. The endpoint stays for API consumers (OD92).
+- **Ledger filter of category and pillar:** with the layout change's spending split, such a filter now also gives the saving share when the pillar is `saving` (`test_a_saving_category_and_pillar_filter_counts_as_saving`).
+- **Ringkasan layout:** while a period runs, progress and the daily chart sit left, the average card and the three compact cards right; otherwise the average card leads left. Below 900 px one column in reading order.
+- **Kategori & anggaran:**
+  - categories are grouped by pillar in Kakeibo order and sorted by amount;
+  - Rp 0 rows are behind "Tampilkan N kategori tanpa pengeluaran", and a budgeted category stays listed;
+  - the client-summed "Total Keluar" and the tip sentence are gone;
+  - rows are tighter, and on a phone one line each when no budget is set.
+  Test: `groups categories by pillar in Kakeibo order, sorted by amount, without Rp 0 rows`.
+- **Money identities** (seeded owner, integrated build, `/private/tmp/claude-501/-Users-enrico-enrico-project-enrico-cash-flow-tracker/148d8a0e-cf25-4ec5-9de4-a0f135ad4203/scratchpad/web-months/logs/identities.json`):
+  - this cycle's Pengeluaran Rp 2.956.751 is the same on Beranda (`cycle-summary.spending`), the comparison, the ledger summary `spending` and `analytics.explanations.spending`; Ditabung & investasi Rp 3.100.000 is the same on Beranda and the comparison;
+  - Oktober Rp 4.513.000 and November Rp 1.797.751 equal the ledger `spending` and the sum of the pillar ledgers, every category row equals its ledger link, and Masuk equals the ledger inflow.
+  Backend test: `test_pengeluaran_is_one_figure_in_analytics_the_comparison_and_the_ledger`.
+- **Checks at `c051185`:**
+  - backend 1735 passed, 0 failed, 0 skipped (Flyway V44, PostgreSQL 16);
+  - frontend `npm ci` 0, type-check 0, lint 0, `npm test` 72 files and 637 tests with 0 unhandled errors, build 0.
+  The test counts are the layout branch's suite plus this change.
+- **Screens** (`/private/tmp/claude-501/-Users-enrico-enrico-project-enrico-cash-flow-tracker/148d8a0e-cf25-4ec5-9de4-a0f135ad4203/scratchpad/web-months/shots/integrated/`): Laporan Oktober, Laporan November, Analisis Ringkasan and Beranda at 1440 light, 1440 dark and 390 dark: 12 cells, axe serious or critical 0, horizontal overflow 0, console errors 0, controls under 24 px 0. All read; the category list was tightened after the first read.
+
 ## Not verified
 
-- **The rebase onto `refine-workspace-layout` (task 1.1)**, and with it:
-  - Ringkasan's Pengeluaran explanation, shown only when the analytics `belanja` explanation equals the comparison's figure; the layout change's `spending` field and spending explanation finish it;
-  - Beranda's same-day chips and insight banner, which still call `/dashboard/period-comparison` until the layout change removes them;
-  - the MODIFIED spec blocks, to be refreshed from the merged main specs.
-- **Ringkasan on a salary-cycle basis** picks the viewed period from the report's cycles (confirmed salary receipts); where Analisis's own cycle window differs, the comparison cards follow the report's cycles.
 - Screen readers, a real phone and touch.
 - Production.
+- On a salary-cycle basis Ringkasan follows the report's confirmed-receipt cycles; where Analisis's own cycle window differs, the explanation is hidden because the totals differ.
 
 ## Acceptance

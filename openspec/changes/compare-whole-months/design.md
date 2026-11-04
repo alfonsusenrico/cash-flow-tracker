@@ -196,7 +196,9 @@ Returns:
 - **The report reuses** its own recurring charges and shops in the comparison.
 - **Laporan's stepper** sends the running month's date: without `start` the API opens the latest closed period, so the running month was unreachable.
 - **Below 900 px** Laporan renders one column in reading order (the facts right after the figures), so the focus order matches what is seen.
-- **Ringkasan** puts the progress and average cards side by side and the three compact cards in one row; `PeriodComparison`, `CashFlowHistory` and the same-day Kakeibo card are removed with their types.
+- **Ringkasan** places the running progress and the daily chart left and the average card with the compact cards right, in reading order on one column below 900 px; `PeriodComparison`, `CashFlowHistory` and the same-day Kakeibo card are removed with their types.
+- **Pengeluaran's explanation** on Ringkasan is the analytics `explanations.spending`, Keluar without the saving bucket by the layout change's `spending_split`.
+- **Kategori & anggaran** groups categories by pillar in Kakeibo order, sorts them by amount and folds Rp 0 rows (a budgeted category stays). Group headers carry no client-summed amount.
 
 ## Compatibility, migration and rollback
 
