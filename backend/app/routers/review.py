@@ -25,6 +25,7 @@ from app.services.movement_pairing import CANDIDATE_LIMIT, load_candidates
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, normalize_merchant
 from app.services.purpose_questions import list_open_questions
 from app.services.review_undo import TOKEN_PATTERN, ActionRecorder, undo_action
+from app.services.seen_twice import acknowledge, record_separately, seen_twice_items
 from app.services.topup_learning import reject_suggestion, topup_suggestion
 
 router = APIRouter(prefix="/review", tags=["Review"])
@@ -223,6 +224,7 @@ def review_queue(current_user: dict = Depends(get_current_user)):
                 else:
                     grouped.append(row)
             totals = review_counts(cur, user_id)
+            seen_twice = seen_twice_items(cur, user_id)
     groups = build_groups(grouped)
     return {
         "ok": True,
@@ -237,11 +239,13 @@ def review_queue(current_user: dict = Depends(get_current_user)):
             "groups": len(groups),
             "awaiting": len(awaiting),
             "ambiguous": len(ambiguous),
+            "seen_twice": len(seen_twice),
         },
         "questions": questions,
         "groups": groups,
         "awaiting": awaiting,
         "ambiguous": ambiguous,
+        "seen_twice": seen_twice,
     }
 
 
@@ -461,3 +465,15 @@ class UndoRequest(BaseModel):
 def undo_review_action(payload: UndoRequest, current_user: dict = Depends(get_current_user)):
     """Restore the state before one review action of the last ten minutes (redesign-review-triage D9)."""
     return undo_action(current_user["id"], payload.undo_token)
+
+
+@router.post("/seen-twice/{event_id}/acknowledge")
+def acknowledge_seen_twice(event_id: UUID, current_user: dict = Depends(get_current_user)):
+    """"Benar, satu transaksi": the second observation stays without a transaction of its own."""
+    return acknowledge(current_user["id"], str(event_id))
+
+
+@router.post("/seen-twice/{event_id}/record-separately")
+def record_seen_twice_separately(event_id: UUID, current_user: dict = Depends(get_current_user)):
+    """"Catat terpisah": record the observation as its own transaction; undoable for ten minutes."""
+    return record_separately(current_user["id"], str(event_id))

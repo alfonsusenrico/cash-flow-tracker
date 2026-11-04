@@ -334,3 +334,99 @@ def test_owner_merge_retires_the_model_memory(client, notification_owner, monkey
     })
     assert merged.status_code == 200, merged.text
     assert "merchant:tabungan by jago" not in memory_rows(owner)
+
+
+# --- 5.2 Tinjau "Terlihat dua kali" ---------------------------------------------------------------------
+
+
+def seen_twice_queue(client):
+    response = client.get("/api/review/queue")
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_seen_twice_lists_the_duplicate_and_counts_as_automatic(client, notification_owner):
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    send(client, MYBCA_DEBIT, MYBCA, 3.4)
+    queue = seen_twice_queue(client)
+    [item] = queue["seen_twice"]
+    assert (item["event_id"], item["kind"], item["app"], item["type"], item["amount"]) == (
+        jago["event_id"], "duplicate", "Bank Jago", "income", 500000)
+    assert item["account_name"] == "Bank Jago · Kantong Utama"
+    assert item["kept"]["account_name"] == "GoPay"
+    assert item["kept"]["movement"] == {"source": "BCA Harian", "target": "GoPay"}
+    assert queue["counts"]["seen_twice"] == 1
+    summary = client.get("/api/review/summary").json()
+    assert summary["unreviewed"] == queue["counts"]["unreviewed"] >= 1
+    assert summary["attention"] == queue["counts"]["attention"]
+    # The movement's legs need nothing, so the duplicate is the only automatic item and no attention.
+    assert (summary["attention"], summary["unreviewed"]) == (0, 1)
+
+
+def test_acknowledging_removes_the_item_and_books_nothing(client, notification_owner):
+    owner = notification_owner
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    response = client.post(f"/api/review/seen-twice/{jago['event_id']}/acknowledge")
+    assert response.status_code == 200, response.text
+    assert seen_twice_queue(client)["seen_twice"] == []
+    assert client.post(f"/api/review/seen-twice/{jago['event_id']}/acknowledge").status_code == 200
+    assert [str(row["account_id"]) for row in incomes(owner)] == [owner["gopay"]]
+
+
+def test_record_separately_books_its_own_leg_and_undo_restores_the_duplicate(client, notification_owner):
+    owner = notification_owner
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    response = client.post(f"/api/review/seen-twice/{jago['event_id']}/record-separately")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["transaction_id"] and body["undo_token"]
+    assert sorted(str(row["account_id"]) for row in incomes(owner)) == sorted([owner["gopay"], owner["main"]])
+    stored = event_row(jago["event_id"])
+    assert (stored["provenance_kind"], str(stored["transaction_id"])) == ("observed_leg", body["transaction_id"])
+    assert stored["duplicate_of_transaction_id"] is None
+    assert seen_twice_queue(client)["seen_twice"] == []
+    undone = client.post("/api/review/undo", json={"undo_token": body["undo_token"]})
+    assert undone.status_code == 200, undone.text
+    assert undone.json()["removed_transaction_ids"] == [body["transaction_id"]]
+    assert [str(row["account_id"]) for row in incomes(owner)] == [owner["gopay"]]
+    restored = event_row(jago["event_id"])
+    assert (restored["provenance_kind"], restored["transaction_id"], restored["reviewed_at"]) == (
+        "duplicate_observation", None, None)
+    assert str(restored["duplicate_of_transaction_id"]) == str(incomes(owner)[0]["id"])
+    assert [item["event_id"] for item in seen_twice_queue(client)["seen_twice"]] == [jago["event_id"]]
+
+
+def test_another_owner_cannot_act_on_the_item(client, notification_owner):
+    from app.main import app
+    from app.services.auth import get_current_user
+
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    app.dependency_overrides[get_current_user] = lambda: {"id": str(uuid4()), "name": "Lain", "currency": "IDR"}
+    for action in ("acknowledge", "record-separately"):
+        response = client.post(f"/api/review/seen-twice/{jago['event_id']}/{action}")
+        assert response.status_code == 404 and response.json()["detail"]["code"] == "seen_twice_not_found"
+
+
+def test_held_proposal_is_listed_and_can_be_recorded(client, notification_owner):
+    from app.db.pool import db_conn
+
+    owner = notification_owner
+    jago = send(client, JAGO_CREDIT, JAGO, 0)
+    with db_conn() as conn:
+        # As the model left it (OD116): held, nothing booked.
+        conn.execute("DELETE FROM transactions WHERE user_id = %s", (owner["user_id"],))
+        conn.execute(
+            """UPDATE notification_events SET processing_state = 'needs_review', transaction_id = NULL,
+                   provenance_kind = NULL, error_code = 'possible_duplicate_observation' WHERE id = %s""",
+            (jago["event_id"],),
+        )
+        conn.commit()
+    [item] = seen_twice_queue(client)["seen_twice"]
+    assert (item["kind"], item["kept"]) == ("held", None)
+    response = client.post(f"/api/review/seen-twice/{jago['event_id']}/record-separately")
+    assert response.status_code == 200, response.text
+    assert [str(row["account_id"]) for row in incomes(owner)] == [owner["main"]]

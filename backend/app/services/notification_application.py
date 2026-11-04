@@ -17,8 +17,9 @@ from app.services.merchant_memory import (
 )
 from app.services.movement_linkage import SELF_TRANSFER_NOTES, movement_note
 from app.services.movement_pairing import (
-    COMPLETION_KEY_PREFIX, drop_observation, find_counterpart, flag_ambiguous, keeps_new_observation, leg_evidence,
-    link_pair, load_accounts, mark_duplicate_observation, refresh_duplicate_results, same_arrival,
+    COMPLETION_KEY_PREFIX, PairingDecision, drop_observation, find_counterpart, flag_ambiguous,
+    keeps_new_observation, leg_evidence, link_pair, load_accounts, mark_duplicate_observation,
+    refresh_duplicate_results, same_arrival,
 )
 from app.services.notification_context import CANDIDATE_LIMIT, discover_candidates, sanitize_text
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
@@ -378,7 +379,7 @@ def record_observed_leg(
     category_id: str | None, kakeibo: str | None, description: str, signature: dict, provenance: Provenance,
     merchant: str | None = None, review_reasons: list[str] | None = None,
     offset_category_id: str | None = None, memory_id: str | None = None, arrival_guard: bool = True,
-    same_money_event_id: str | None = None,
+    same_money_event_id: str | None = None, pair_counterpart: bool = True,
 ) -> int:
     """Record one observed leg, linking it to a unique counterpart leg when evidence allows.
 
@@ -459,13 +460,17 @@ def record_observed_leg(
             )
             return 0
     in_movement_category = category_id in movement_category_ids(context)
-    pairing = find_counterpart(cur, user_id, {
-        "id": None, "type": facts.direction, "account_id": account_id, "amount": facts.amount,
-        "date": facts.timestamp, "evidence": leg_evidence({
-            "event_id": event_id, "evidence": signature, "movement_category": in_movement_category,
-            "account_id": account_id, "type": facts.direction,
-        }, load_accounts(cur, user_id)),
-    }, gap_seconds=settings.notification_pairing_window_seconds)
+    if pair_counterpart:
+        pairing = find_counterpart(cur, user_id, {
+            "id": None, "type": facts.direction, "account_id": account_id, "amount": facts.amount,
+            "date": facts.timestamp, "evidence": leg_evidence({
+                "event_id": event_id, "evidence": signature, "movement_category": in_movement_category,
+                "account_id": account_id, "type": facts.direction,
+            }, load_accounts(cur, user_id)),
+        }, gap_seconds=settings.notification_pairing_window_seconds)
+    else:
+        # Recorded on its own at the owner's request; the owner links it in Tinjau if it is a movement.
+        pairing = PairingDecision()
     counterpart = pairing.counterpart
     held, sender_description = sender_gate(
         cur, event, facts, context, observed, signature, proven_movement=counterpart is not None,
