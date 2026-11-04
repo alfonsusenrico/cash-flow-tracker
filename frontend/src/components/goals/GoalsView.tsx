@@ -11,9 +11,10 @@ import { replaceSearch } from "@/lib/urlState";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
 import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
-import { coverageText, essentialBasisText, ALL_LIQUID_NOTICE } from "@/components/dashboard/EmergencyCoverage";
+import { ALL_LIQUID_NOTICE } from "@/components/dashboard/EmergencyCoverage";
 import { Card, CardHeader, ErrorState, Pill, Skeleton, type Tone } from "@/components/workspace/primitives";
-import { Drawer } from "@/components/workspace/overlays";
+import { Modal } from "@/components/ui/Modal";
+import { TopBarControls } from "@/components/workspace/context";
 import type { CycleSummary, PlanLine } from "@/components/beranda/types";
 import type { NetWorthResponse } from "@/components/accounts/types";
 import styles from "@/components/accounts/money.module.css";
@@ -65,9 +66,10 @@ export function GoalsView() {
   const active = dialogs.obligations.filter((debt) => !debt.is_archived && debt.remaining_amount > 0);
   const archived = dialogs.obligations.filter((debt) => debt.is_archived || debt.remaining_amount <= 0);
 
+  // The page's actions sit in the top bar beside the title (refine-workspace-layout D11).
   const toolbar = (
+    <TopBarControls>
     <div className={styles.toolbar}>
-      <span className={styles.grow} />
       <button type="button" className="ws-btn" onClick={() => setPlansOpen(true)}>
         <Icon name="calendar" className="h-4 w-4" />
         Rencana
@@ -81,6 +83,7 @@ export function GoalsView() {
         Tambah target
       </button>
     </div>
+    </TopBarControls>
   );
 
   if (dialogs.loading) {
@@ -104,8 +107,7 @@ export function GoalsView() {
 
   const goalsCard = (
     <Card labelledBy="goals-list">
-      <CardHeader id="goals-list" icon="target" title="Target tabungan" count={dialogs.goals.length} countLabel={`${dialogs.goals.length} target`}
-        caption="Setoran target yang bertanggal sudah dihitung dalam Terjadwal di Beranda." />
+      <CardHeader id="goals-list" icon="target" title="Target tabungan" count={dialogs.goals.length} countLabel={`${dialogs.goals.length} target`} />
       {dialogs.goals.length === 0 ? (
         <div className={styles.emptyBlock}>
           <p className="ws-caption">Belum ada target tabungan.</p>
@@ -170,7 +172,6 @@ export function GoalsView() {
           })}
         </ul>
       )}
-      <p className="ws-caption">Utang yang lunas otomatis pindah ke arsip. Jika pembayarannya dibatalkan, utang aktif kembali.</p>
       {archived.length > 0 && (
         <div className={styles.archived}>
           <button type="button" className="ws-linkbtn" aria-expanded={archivedOpen} onClick={() => setArchivedOpen((value) => !value)}>
@@ -191,16 +192,13 @@ export function GoalsView() {
   return (
     <div className={styles.root}>
       {toolbar}
-      <div className={styles.grid}>
-        <div className={cn(styles.stack, styles.summaryFirst)}>
-          {runwayCard}
-          {debtsCard}
-        </div>
-        <div className={styles.stack}>
-          {goalsCard}
-          {billsCard}
-        </div>
+      {/* Three equal cards, then the goals at full width; on phones Ketahanan Dana comes first (D11). */}
+      <div className={styles.trio}>
+        {runwayCard}
+        {debtsCard}
+        {billsCard}
       </div>
+      {goalsCard}
       <GoalDrawer goal={selectedGoal} money={bal} dialogs={dialogs} onClose={() => open("target", null)} />
       <DebtDrawer debt={selectedDebt} money={bal} dialogs={dialogs} onClose={() => open("utang", null)} />
       {plansOpen && <RecurringRulesModal open onClose={() => setPlansOpen(false)} />}
@@ -216,7 +214,7 @@ function BillsCard({ query, money, onPlans }: { query: { data?: CycleSummary; is
   return (
     <Card labelledBy="goals-bills">
       <CardHeader id="goals-bills" icon="repeat" title={title} count={data ? plans.length : undefined} countLabel={`${plans.length} tagihan`}
-        action={<button type="button" className="ws-btn ws-btn-sm" onClick={onPlans}>Kelola rencana</button>} />
+        action={<button type="button" className="ws-linkbtn ws-accent-link" onClick={onPlans}>Kelola</button>} />
       {query.isLoading ? (
         <Skeleton style={{ height: 120 }} />
       ) : query.isError || !data ? (
@@ -224,22 +222,21 @@ function BillsCard({ query, money, onPlans }: { query: { data?: CycleSummary; is
       ) : plans.length === 0 ? (
         <p className="ws-caption">Tidak ada tagihan sampai {data.scheduled.window_basis === "next_30_days" ? "30 hari ke depan" : "gaji berikutnya"}.</p>
       ) : (
-        <table className={cn("ws-tbl", styles.table)}>
-          <caption className="sr-only">{title}</caption>
-          <thead><tr><th scope="col">Tagihan</th><th scope="col">Jatuh tempo</th><th scope="col" className="r">Jumlah</th></tr></thead>
-          <tbody>
-            {plans.map((line) => (
-              <tr key={`${line.rule_id}-${line.due_date}`}>
-                <td>{line.label}</td>
-                <td>{shortDate(line.due_date)}{line.overdue ? " · terlewat" : ""}</td>
-                <td className={cn("r", styles.amount)}>{money(line.amount)}</td>
-              </tr>
+        <>
+          <div className="ws-dana-big"><b>{money(data.scheduled.plans_total ?? 0)}</b> total</div>
+          <ul className={styles.billList} aria-label="Tagihan berikutnya">
+            {plans.slice(0, 3).map((line) => (
+              <li key={`${line.rule_id}-${line.due_date}`}>
+                <span>
+                  <b>{line.label}</b>
+                  <span>{shortDate(line.due_date)}{line.overdue ? " · terlewat" : ""}</span>
+                </span>
+                <b>{money(line.amount)}</b>
+              </li>
             ))}
-          </tbody>
-          <tfoot>
-            <tr><th scope="row" colSpan={2}>Total</th><td className={cn("r", styles.amount)}>{money(data.scheduled.plans_total ?? 0)}</td></tr>
-          </tfoot>
-        </table>
+          </ul>
+          {plans.length > 3 && <p className="ws-caption">dan {plans.length - 3} tagihan lain</p>}
+        </>
       )}
     </Card>
   );
@@ -251,17 +248,16 @@ function RunwayCard({ query, money }: { query: { data?: NetWorthResponse; isLoad
   const known = runway != null && months != null && runway.runway_days != null;
   return (
     <Card labelledBy="goals-runway">
-      <h2 id="goals-runway" className={styles.plainTitle}>Ketahanan Dana</h2>
+      <CardHeader id="goals-runway" icon="shield" title="Ketahanan Dana" />
       {query.isLoading ? (
         <Skeleton style={{ height: 120 }} />
       ) : query.isError || !runway ? (
         <ErrorState message="Ketahanan Dana belum dapat dihitung." onRetry={() => query.refetch()} />
       ) : (
         <>
-          <div className="ws-bigline">
-            <span>{known ? `${months!.toLocaleString("id-ID")} bulan` : "Belum dapat dihitung"}</span>
+          <div className="ws-dana-big">
+            {known ? <><b>{months!.toLocaleString("id-ID", { maximumFractionDigits: 1 })}</b> bulan biaya pokok</> : <b className="!text-lg">Belum dapat dihitung</b>}
           </div>
-          <p className="ws-caption">{known ? `${coverageText(runway)} jika pemasukan berhenti.` : "Biaya pokok bulanan belum dapat diperkirakan dari riwayat."}</p>
           {known && (
             <div className={styles.runway} aria-hidden="true">
               {Array.from({ length: 6 }, (_, index) => (
@@ -272,8 +268,12 @@ function RunwayCard({ query, money }: { query: { data?: NetWorthResponse; isLoad
           <dl className={styles.facts}>
             <dt>Dana yang dihitung</dt>
             <dd>{money(runway.emergency_fund_balance ?? 0)}</dd>
+            {runway.monthly_primary_expense != null && (<><dt>Biaya pokok per bulan</dt><dd>{money(runway.monthly_primary_expense)}</dd></>)}
+            {known && (<><dt>Bertahan</dt><dd>{runway.runway_days!.toLocaleString("id-ID")} hari</dd></>)}
+            {runway.target_months != null && (<><dt>Target</dt><dd>{runway.target_months} bulan</dd></>)}
           </dl>
-          <p className="ws-caption">{runway.balance_basis === "all_liquid" ? ALL_LIQUID_NOTICE : essentialBasisText(runway.essential_cost)}</p>
+          {!known && <p className="ws-caption">Biaya pokok bulanan belum dapat diperkirakan dari riwayat.</p>}
+          {runway.balance_basis === "all_liquid" && <p className="ws-caption">{ALL_LIQUID_NOTICE}</p>}
         </>
       )}
     </Card>
@@ -284,8 +284,9 @@ function GoalDrawer({ goal, money, dialogs, onClose }: { goal: GoalItem | null; 
   if (!goal) return null;
   const standalone = !goal.linked_accounts?.length;
   return (
-    <Drawer open onClose={onClose} title={goal.name} subtitle="Target tabungan">
+    <Modal open onClose={onClose} title={goal.name}>
       <div className={styles.drawerBody}>
+        <p className="ws-caption">Target tabungan</p>
         <div className={styles.drawerBalance}><span className="ws-caption">Terkumpul</span><b>{money(goal.current_amount)}</b></div>
         <dl className={styles.drawerFacts}>
           <dt>Target</dt><dd>{money(goal.target_amount)}</dd>
@@ -310,15 +311,16 @@ function GoalDrawer({ goal, money, dialogs, onClose }: { goal: GoalItem | null; 
           </ConfirmActionButton>
         </div>
       </div>
-    </Drawer>
+    </Modal>
   );
 }
 
 function DebtDrawer({ debt, money, dialogs, onClose }: { debt: ObligationItem | null; money: (value: number) => string; dialogs: ReturnType<typeof useGoalDialogs>; onClose: () => void }) {
   if (!debt) return null;
   return (
-    <Drawer open onClose={onClose} title={debt.name} subtitle="Utang">
+    <Modal open onClose={onClose} title={debt.name}>
       <div className={styles.drawerBody}>
+        <p className="ws-caption">Utang</p>
         <div className={styles.drawerBalance}><span className="ws-caption">Sisa</span><b>{money(debt.remaining_amount)}</b></div>
         <dl className={styles.drawerFacts}>
           <dt>Total</dt><dd>{money(debt.total_amount)}</dd>
@@ -340,6 +342,6 @@ function DebtDrawer({ debt, money, dialogs, onClose }: { debt: ObligationItem | 
           </ConfirmActionButton>
         </div>
       </div>
-    </Drawer>
+    </Modal>
   );
 }

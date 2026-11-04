@@ -111,7 +111,7 @@ describe("goal backing forms", () => {
 
     const linked = await openDrawer(user, "Dana Darurat");
     expect(within(linked).queryByRole("button", { name: "Tambah progres" })).not.toBeInTheDocument();
-    await user.click(within(linked).getByRole("button", { name: "Tutup detail" }));
+    await user.click(within(linked).getByRole("button", { name: "Tutup" }));
     const standalone = await openDrawer(user, "Laptop");
     expect(within(standalone).getByText("Progres manual tidak membuat transaksi di rekening.")).toBeInTheDocument();
     await user.click(within(standalone).getByRole("button", { name: "Tambah progres" }));
@@ -241,10 +241,11 @@ describe("goal backing forms", () => {
     expect(await screen.findByText("Tercapai")).toBeInTheDocument();
     expect(screen.getByText("Tanpa tanggal")).toBeInTheDocument();
     expect(screen.getByText("Perlu Rp 750.000/bulan")).toBeInTheDocument();
-    const bills = await screen.findByRole("table", { name: "Tagihan sampai gaji berikutnya" });
-    expect(within(bills).getAllByRole("row")).toHaveLength(4);
-    expect(within(bills).queryByText("Liburan")).not.toBeInTheDocument();
-    expect(within(bills).getByRole("row", { name: /Total/ })).toHaveTextContent("Rp 395.000");
+    const card = await screen.findByRole("region", { name: /^Tagihan sampai gaji berikutnya/ });
+    const bills = within(card).getByRole("list", { name: "Tagihan berikutnya" });
+    expect(within(bills).getAllByRole("listitem")).toHaveLength(2);
+    expect(card).not.toHaveTextContent("Liburan");
+    expect(card).toHaveTextContent("Rp 395.000 total");
     expect(await screen.findByText("Belum dapat dihitung")).toBeInTheDocument();
     expect(screen.queryByText(/^0 bulan/)).not.toBeInTheDocument();
     const user = userEvent.setup();

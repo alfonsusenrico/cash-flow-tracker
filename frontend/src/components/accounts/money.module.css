@@ -181,3 +181,14 @@
 .compName::before { content: ""; flex: none; width: 9px; height: 9px; border-radius: 3px; background: var(--ac); }
 .compPct { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .compLegend b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Target & Tagihan (refine-workspace-layout D11): three equal cards, then the goals at full width. */
+.trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 16px; }
+.trio > * { min-width: 0; }
+.billList { margin: 10px 0 0; padding: 0; list-style: none; }
+.billList li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.billList li:first-child { border-top: 0; }
+.billList li > span { display: flex; flex-direction: column; min-width: 0; }
+.billList li > span > span { color: var(--muted); font-size: 12px; }
+.billList b { font-weight: 600; font-variant-numeric: tabular-nums; }
+@container main (max-width: 900px) { .trio { grid-template-columns: minmax(0, 1fr); } }
