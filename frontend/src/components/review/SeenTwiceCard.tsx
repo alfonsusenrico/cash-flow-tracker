@@ -28,6 +28,7 @@ export function SeenTwiceCard({ item, headingId, pending, onAcknowledge, onRecor
   const { bal } = useAppCtx();
   const duplicate = item.kind === "duplicate";
   const kept = item.kept;
+  const recordSub = item.account_name ? `Transaksi lain; catat di ${item.account_name}` : "Transaksi lain; catat sendiri";
   const keptPlace = kept?.movement
     ? `${kept.movement.source ?? "?"} → ${kept.movement.target ?? "?"}`
     : kept?.account_name ?? null;
@@ -43,36 +44,40 @@ export function SeenTwiceCard({ item, headingId, pending, onAcknowledge, onRecor
         amount={{ text: signed(item, bal), className: item.type === "income" ? "ws-amt-in" : "" }}
         reasons={duplicate ? [] : ["possible_duplicate_observation"]}
       />
-      <dl className="ws-facts tabular" aria-label="Sudah tercatat">
-        <dt>{duplicate ? "Sudah tercatat sekali" : "Mungkin sama dengan"}</dt>
-        <dd>{keptPlace ?? "Belum ada transaksi yang cocok"}</dd>
+      <dl className="ws-tri-note grid gap-1.5 tabular sm:grid-cols-[auto_1fr] sm:gap-x-3" aria-label="Sudah tercatat">
+        <dt className="text-[var(--muted)]">{duplicate ? "Sudah tercatat sekali" : "Mungkin sama dengan"}</dt>
+        <dd className="min-w-0 font-semibold">{keptPlace ?? "Belum ada transaksi yang cocok"}</dd>
         {kept && (
           <>
-            <dt>Waktu tercatat</dt>
-            <dd>{longWhen(kept.date) ?? "Tanpa waktu"}</dd>
-            <dt>Nominal tercatat</dt>
-            <dd>{bal(kept.amount)}</dd>
+            <dt className="text-[var(--muted)]">Waktu tercatat</dt>
+            <dd className="min-w-0">{longWhen(kept.date) ?? "Tanpa waktu"}</dd>
+            <dt className="text-[var(--muted)]">Nominal tercatat</dt>
+            <dd className="min-w-0">{bal(kept.amount)}</dd>
           </>
         )}
-        <dt>Laporan ini</dt>
-        <dd>{duplicate ? "Tidak dicatat lagi" : "Belum dicatat"}</dd>
+        <dt className="text-[var(--muted)]">Laporan ini</dt>
+        <dd className="min-w-0">{duplicate ? "Tidak dicatat lagi" : "Belum dicatat"}</dd>
       </dl>
+      {/* A second report is confirmed first; a held one may be the only report, so recording it comes first. */}
       <div role="group" aria-label="Keputusan" className="ws-choices">
-        <Choice
-          n={1}
-          primary
-          disabled={pending}
-          label="Benar, satu transaksi"
-          sub={duplicate ? "Laporan ini tidak dicatat" : "Laporan ini tidak dicatat, yang sudah tercatat tetap"}
-          onClick={() => void onAcknowledge(item)}
-        />
-        <Choice
-          n={2}
-          disabled={pending}
-          label="Catat terpisah"
-          sub={item.account_name ? `Transaksi lain; catat di ${item.account_name}` : "Transaksi lain; catat sendiri"}
-          onClick={() => void onRecordSeparately(item)}
-        />
+        {duplicate ? (
+          <>
+            <Choice n={1} primary disabled={pending} label="Benar, satu transaksi" sub="Laporan ini tidak dicatat"
+              onClick={() => void onAcknowledge(item)} />
+            <Choice n={2} disabled={pending} label="Catat terpisah" sub={recordSub}
+              onClick={() => void onRecordSeparately(item)} />
+          </>
+        ) : (
+          <>
+            <Choice n={1} primary disabled={pending} label="Catat transaksi ini"
+              sub={item.account_name ? `Catat di ${item.account_name}` : "Catat sebagai transaksi"}
+              onClick={() => void onRecordSeparately(item)} />
+            <Choice n={2} disabled={pending}
+              label={kept ? "Benar, satu transaksi" : "Abaikan laporan ini"}
+              sub={kept ? "Laporan ini tidak dicatat, yang sudah tercatat tetap" : "Tidak dicatat"}
+              onClick={() => void onAcknowledge(item)} />
+          </>
+        )}
       </div>
       {kept && (
         <div className="mt-4">

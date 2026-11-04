@@ -820,6 +820,24 @@ describe("Tinjau triage", () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/review/seen-twice/event-jago/acknowledge", {}));
   });
 
+  it("Terlihat dua kali: a held report with no match is recorded first", async () => {
+    currentQueue = {
+      ...queue(), counts: { ...queue().counts, attention: 0, unreviewed: 1, seen_twice: 1 },
+      questions: [], awaiting: [], ambiguous: [], groups: [],
+      seen_twice: [{
+        event_id: "event-held", kind: "held", app: "Bank Jago", type: "income", amount: 250_000,
+        date: "2026-10-31T13:39:18Z", account_name: "Bank Jago · Kantong Utama", kept: null,
+      }],
+    };
+    const { user } = renderPage();
+    await screen.findByRole("heading", { name: "Semua sudah ditinjau" });
+    await user.click(row("Bank Jago: mungkin laporan kedua"));
+    const choices = within(within(pane()).getByRole("group", { name: "Keputusan" })).getAllByRole("button");
+    expect(choices.map((choice) => choice.querySelector(".ws-lbl")?.textContent)).toEqual(["Catat transaksi ini", "Abaikan laporan ini"]);
+    expect(choices[0]).toHaveAttribute("data-primary-choice", "");
+    expect(within(pane()).getByText("Belum ada transaksi yang cocok")).toBeInTheDocument();
+  });
+
   it("Failure of a suggestion decision, and skipped rows reported truthfully", async () => {
     currentQueue = { ...queue(), counts: { ...queue().counts, attention: 0 }, questions: [], awaiting: [], ambiguous: [], groups: [] };
     currentSuggestions = suggestionList();
