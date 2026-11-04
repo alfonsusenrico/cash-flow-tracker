@@ -430,22 +430,22 @@ def record_observed_leg(
             "remote_account_id": signature.get("remote_account_id"),
         }, load_accounts(cur, user_id))
         if arrival.original and arrival.replace_original:
-            # The owner's pattern keeps this report and skips the redundant one recorded first.
+            # The owner's account link keeps this report and skips the second report recorded first.
             replaced = arrival.original
             drop_observation(cur, user_id, replaced)
-        elif arrival.original and not arrival.skip_pattern_id and keeps_new_observation(
+        elif arrival.original and not arrival.reporting_link_id and keeps_new_observation(
                 signature["account_basis"], arrival.original):
             # The recorded leg came from a default-pocket fallback and this one names its account (D2).
             replaced = arrival.original
             drop_observation(cur, user_id, replaced)
         elif arrival.original:
-            # A second observation; with a skip pattern it is skipped, otherwise it waits in Tinjau.
+            # A second observation; with an account link it is skipped, otherwise it waits in Tinjau.
             original = arrival.original
             mark_duplicate_observation(
                 cur, user_id, event_id, str(original["id"]), original["result_key"], original["result_snapshot"],
                 {**signature, **stored_key_fields(context.get("_classification_key")),
                  "duplicate_of_event_id": str(original["event_id"]), "review_reasons": []},
-                skip_pattern_id=arrival.skip_pattern_id,
+                reporting_link_id=arrival.reporting_link_id,
             )
             return 0
     in_movement_category = category_id in movement_category_ids(context)
@@ -577,7 +577,7 @@ def record_observed_leg(
             auto_record(cur, user_id, tx_id)
     if replaced:
         mark_duplicate_observation(cur, user_id, str(replaced["event_id"]), tx_id, snapshot["record_key"], snapshot,
-                                   None, skip_pattern_id=arrival.skip_pattern_id if arrival else None)
+                                   None, reporting_link_id=arrival.reporting_link_id if arrival else None)
     if memory_id:
         count_memory_hit(cur, user_id, memory_id)
     if provenance.classified_by == "ai" and provenance.review_status == "auto" and not counterpart:

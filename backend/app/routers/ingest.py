@@ -361,44 +361,25 @@ def delete_notification_alias(alias_id: UUID, current_user: dict = Depends(get_c
     return {"ok": True}
 
 
-class SkipPatternIn(BaseModel):
-    redundant_institution: str = Field(min_length=1, max_length=32)
-    direction: str = Field(min_length=1, max_length=16)
-    kept_institution: str = Field(min_length=1, max_length=32)
-
-
-@router.get("/skip-patterns")
-def list_skip_patterns(current_user: dict = Depends(get_session_user)):
-    """The owner's active skip patterns and the apps that may be chosen (skip-redundant-notifications D7)."""
-    from app.services.skip_patterns import list_patterns
+@router.get("/account-links")
+def list_account_links(account_id: UUID | None = None, current_user: dict = Depends(get_session_user)):
+    """The owner's active account links, optionally for one account (reconcile-linked-account-reports D6)."""
+    from app.services.account_links import list_links
 
     with db_conn() as conn:
         with conn.cursor() as cur:
-            listing = list_patterns(cur, current_user["id"])
-    return {"ok": True, **listing}
+            links = list_links(cur, current_user["id"], str(account_id) if account_id else None)
+    return {"ok": True, "links": links}
 
 
-@router.post("/skip-patterns", status_code=201)
-def create_skip_pattern(payload: SkipPatternIn, current_user: dict = Depends(get_session_user)):
-    """"Tambah pola": skip the first app's reports when the second app already reported the same money."""
-    from app.services.skip_patterns import create_pattern, public_pattern
-
-    with db_conn() as conn:
-        with conn.cursor() as cur:
-            pattern = create_pattern(cur, current_user["id"], payload.redundant_institution.strip().lower(),
-                                     payload.direction.strip().lower(), payload.kept_institution.strip().lower())
-        conn.commit()
-    return {"ok": True, "pattern": public_pattern(pattern)}
-
-
-@router.delete("/skip-patterns/{pattern_id}")
-def stop_skip_pattern(pattern_id: UUID, current_user: dict = Depends(get_session_user)):
-    """"Berhenti melewati": the pattern stops matching; earlier skips stay listed in Tinjau."""
-    from app.services.skip_patterns import stop_pattern
+@router.delete("/account-links/{link_id}")
+def stop_account_link(link_id: UUID, current_user: dict = Depends(get_session_user)):
+    """"Lepaskan": the link stops matching; reports it skipped earlier stay listed in Tinjau."""
+    from app.services.account_links import stop_link
 
     with db_conn() as conn:
         with conn.cursor() as cur:
-            stop_pattern(cur, current_user["id"], str(pattern_id))
+            stop_link(cur, current_user["id"], str(link_id))
         conn.commit()
     return {"ok": True}
 

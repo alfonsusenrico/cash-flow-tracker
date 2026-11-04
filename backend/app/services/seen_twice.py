@@ -1,10 +1,10 @@
 """Tinjau's "Terlihat dua kali" and "Dilewati otomatis": second observations of one money movement.
 
 A second observation books nothing (recognise-one-arrival-seen-twice D1–D3). It waits under "Terlihat
-dua kali" for 30 days until the owner confirms it ("Benar, satu transaksi", which also learns a skip
-pattern) or records it on its own ("Catat terpisah", undoable). A report an owner's skip pattern skipped
-is already reviewed and is listed under "Dilewati otomatis" for 30 days, with the same "Catat terpisah"
-(skip-redundant-notifications D4, D5). Neither counts as needing attention (OD117, OD125).
+dua kali" for 30 days until the owner confirms it ("Benar, satu transaksi", which also links the account
+to the other app) or records it on its own ("Catat terpisah", undoable). A report an owner's account link
+skipped is already reviewed and is listed under "Dilewati otomatis" for 30 days, with the same "Catat
+terpisah" (reconcile-linked-account-reports D5, D6). Neither counts as needing attention (OD117, OD125).
 """
 
 from __future__ import annotations
@@ -23,13 +23,13 @@ SEEN_TWICE_DAYS = 30
 SEEN_TWICE_LIMIT = 200
 
 # A second observation Tinjau can act on; `n` is notification_events. Waiting ones have no reviewed_at,
-# skipped ones carry the pattern that skipped them.
+# skipped ones carry the account link that skipped them.
 SEEN_TWICE_SQL = "n.provenance_kind = 'duplicate_observation'"
 
 # The facts a "Catat terpisah" undo puts back; the event's result fields are restored by review undo.
 RESTORED_EVENT_FIELDS = (
     "processing_state", "provenance_kind", "error_code", "duplicate_of_transaction_id", "reviewed_at",
-    "interpretation", "skip_pattern_id",
+    "interpretation", "reporting_link_id",
 )
 
 
@@ -106,7 +106,7 @@ def _item(cur, user_id: str, event: dict, labels: dict[str, str]) -> dict[str, A
     kept_id = str(event["duplicate_of_transaction_id"]) if event.get("duplicate_of_transaction_id") else None
     account_id = (event.get("interpretation") or {}).get("account_id")
     return {
-        "event_id": str(event["id"]), "kind": "skipped" if event.get("skip_pattern_id") else "duplicate",
+        "event_id": str(event["id"]), "kind": "skipped" if event.get("reporting_link_id") else "duplicate",
         "app": INSTITUTION_LABELS.get(facts.institution or "", event.get("app_label") or "Aplikasi"),
         "type": facts.direction if facts.direction in {"expense", "income"} else None,
         "amount": facts.amount, "date": event["post_time"].isoformat(),
@@ -129,13 +129,13 @@ def seen_twice_items(cur, user_id: str) -> list[dict[str, Any]]:
 
 
 def skipped_items(cur, user_id: str) -> list[dict[str, Any]]:
-    """Reports an owner's skip pattern skipped in the last 30 days, newest first, with their pattern."""
-    from app.services.skip_patterns import institution_label
+    """Reports an owner's account link skipped in the last 30 days, newest first, with their link."""
+    from app.services.account_links import institution_label
 
     cur.execute(
-        f"""SELECT n.*, p.redundant_institution, p.direction AS pattern_direction, p.kept_institution
+        f"""SELECT n.*, l.account_id AS link_account_id, l.institution AS link_institution
             FROM notification_events n
-            JOIN notification_skip_patterns p ON p.id = n.skip_pattern_id AND p.user_id = n.user_id
+            JOIN account_report_links l ON l.id = n.reporting_link_id AND l.user_id = n.user_id
             WHERE n.user_id = %s AND {SEEN_TWICE_SQL} AND n.post_time >= %s
             ORDER BY n.post_time DESC, n.id LIMIT %s""",
         (user_id, seen_twice_since(), SEEN_TWICE_LIMIT),
@@ -144,11 +144,10 @@ def skipped_items(cur, user_id: str) -> list[dict[str, Any]]:
     labels = _account_labels(cur, user_id)
     items = []
     for event in events:
-        items.append({**_item(cur, user_id, event, labels), "pattern": {
-            "id": str(event["skip_pattern_id"]),
-            "redundant_label": institution_label(event["redundant_institution"]),
-            "direction": event["pattern_direction"],
-            "kept_label": institution_label(event["kept_institution"]),
+        items.append({**_item(cur, user_id, event, labels), "link": {
+            "id": str(event["reporting_link_id"]),
+            "account_label": labels.get(str(event["link_account_id"])),
+            "institution_label": institution_label(event["link_institution"]),
         }})
     return items
 
@@ -156,7 +155,7 @@ def skipped_items(cur, user_id: str) -> list[dict[str, Any]]:
 def skipped_count(cur, user_id: str) -> int:
     cur.execute(
         f"""SELECT COUNT(*) AS count FROM notification_events n
-            WHERE n.user_id = %s AND {SEEN_TWICE_SQL} AND n.skip_pattern_id IS NOT NULL AND n.post_time >= %s""",
+            WHERE n.user_id = %s AND {SEEN_TWICE_SQL} AND n.reporting_link_id IS NOT NULL AND n.post_time >= %s""",
         (user_id, seen_twice_since()),
     )
     return int(cur.fetchone()["count"])
@@ -176,9 +175,9 @@ def _locked_item(cur, user_id: str, event_id: str) -> dict:
 
 
 def acknowledge(user_id: str, event_id: str) -> dict:
-    """"Benar, satu transaksi": the owner confirms one money movement and the app learns to skip such
-    repeats from now on (D4); idempotent, and a repeat never adds a second pattern."""
-    from app.services.skip_patterns import learn_from_acknowledgement
+    """"Benar, satu transaksi": the owner confirms one money movement and the app links the account to the
+    other app, so such repeats are skipped from now on (D5); idempotent, a repeat never adds a second link."""
+    from app.services.account_links import learn_from_acknowledgement
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -188,9 +187,9 @@ def acknowledge(user_id: str, event_id: str) -> dict:
                    WHERE user_id = %s AND id = %s""",
                 (user_id, str(event["id"])),
             )
-            pattern = learn_from_acknowledgement(cur, user_id, event)
+            link = learn_from_acknowledgement(cur, user_id, event)
         conn.commit()
-    return {"ok": True, "event_id": str(event_id), "pattern": pattern}
+    return {"ok": True, "event_id": str(event_id), "link": link}
 
 
 def record_separately(user_id: str, event_id: str) -> dict:
@@ -230,7 +229,7 @@ def record_separately(user_id: str, event_id: str) -> dict:
                     "code": exc.code, "message": "Notifikasi ini tidak dapat dicatat terpisah.",
                 }) from None
             cur.execute(
-                """UPDATE notification_events SET duplicate_of_transaction_id = NULL, skip_pattern_id = NULL,
+                """UPDATE notification_events SET duplicate_of_transaction_id = NULL, reporting_link_id = NULL,
                        reviewed_at = NOW(), updated_at = NOW()
                    WHERE user_id = %s AND id = %s RETURNING transaction_id""",
                 (user_id, str(event["id"])),
@@ -255,10 +254,10 @@ def restore_seen_twice(cur, user_id: str, record: dict) -> None:
     cur.execute(
         """UPDATE notification_events SET processing_state = %s, provenance_kind = %s, error_code = %s,
                transaction_id = NULL, duplicate_of_transaction_id = %s, reviewed_at = %s, interpretation = %s,
-               skip_pattern_id = (SELECT id FROM notification_skip_patterns WHERE user_id = %s AND id = %s),
+               reporting_link_id = (SELECT id FROM account_report_links WHERE user_id = %s AND id = %s),
                updated_at = NOW()
            WHERE user_id = %s AND id = %s""",
         (before["processing_state"], before["provenance_kind"], before["error_code"], kept, before["reviewed_at"],
          json.dumps(before["interpretation"]) if before.get("interpretation") is not None else None,
-         user_id, before.get("skip_pattern_id"), user_id, record["event_id"]),
+         user_id, before.get("reporting_link_id"), user_id, record["event_id"]),
     )

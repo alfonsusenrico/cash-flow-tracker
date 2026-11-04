@@ -241,7 +241,7 @@ def review_queue(current_user: dict = Depends(get_current_user)):
             "awaiting": len(awaiting),
             "ambiguous": len(ambiguous),
             "seen_twice": len(seen_twice),
-            # Reports the owner's skip patterns skipped: shown for undo, never counted as work (OD125).
+            # Reports the owner's account links skipped: shown for undo, never counted as work (OD125).
             "skipped": len(skipped),
         },
         "questions": questions,

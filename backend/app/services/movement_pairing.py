@@ -215,6 +215,41 @@ def find_counterpart(cur, user_id: str, leg: dict, *, gap_seconds: int, accounts
 # Two apps report one arrival within seconds (observed: 0.13 s); a minute's slack covers a slow companion.
 SAME_ARRIVAL_WINDOW_SECONDS = 120
 
+# Reports of one linked account (D3, OD129). Mirrors arrive within 0.6 s when both apps notify at once, but
+# not every app notifies in real time and post times are each app's own; five minutes allows a late app,
+# while the link, one direction, absorb-once and the possible-transfer check keep coincidences out.
+LINKED_REPORT_WINDOW_SECONDS = 300
+
+# The legs one second report may repeat (D2). Unlike the guard's candidates, a kept leg may already be in a
+# movement: a late Jago report still repeats a GoPay credit that paired with its BCA debit meanwhile.
+LINKED_REPORT_SQL = """
+    SELECT t.id, t.type, t.account_id, t.amount, t.date, t.review_status, t.classified_by, t.owner_edited_at,
+           t.movement_id, n.id AS event_id, n.package_name, n.post_time, n.interpretation, n.result_key,
+           n.result_snapshot,
+           ARRAY(SELECT d.package_name FROM notification_events d
+                 WHERE d.user_id = n.user_id AND d.provenance_kind = 'duplicate_observation'
+                   AND d.duplicate_of_transaction_id = t.id AND d.id <> %(event_id)s) AS absorbed_packages
+    FROM notification_events n
+    JOIN transactions t ON t.id = n.transaction_id AND t.user_id = n.user_id
+    WHERE n.user_id = %(user_id)s AND n.processing_state = 'recorded' AND n.provenance_kind = 'observed_leg'
+      AND n.id <> %(event_id)s AND t.id <> %(transaction_id)s
+      AND t.owner_split_at IS NULL AND t.fee_for_movement_id IS NULL
+      AND t.goal_id IS NULL AND t.obligation_id IS NULL AND t.recurring_rule_id IS NULL
+      AND t.type = %(type)s AND t.amount = %(amount)s
+      AND n.post_time BETWEEN %(earliest)s AND %(latest)s
+    ORDER BY n.post_time, n.id
+"""
+
+# A same-amount leg in the other direction on the linked account this close to the new report may be the
+# other half of a real transfer, so the link does not skip and the normal pairing decides (D2).
+POSSIBLE_TRANSFER_SQL = """
+    SELECT t.id FROM transactions t
+    WHERE t.user_id = %(user_id)s AND t.account_id = %(account_id)s AND t.type <> %(type)s
+      AND t.amount = %(amount)s AND t.movement_id IS NULL AND t.fee_for_movement_id IS NULL
+      AND t.date BETWEEN %(earliest)s AND %(latest)s
+    LIMIT 1
+"""
+
 SAME_ARRIVAL_SQL = """
     SELECT t.id, t.type, t.account_id, t.amount, t.date, t.review_status, t.classified_by, t.owner_edited_at,
            n.id AS event_id, n.package_name, n.post_time, n.interpretation, n.result_key, n.result_snapshot
@@ -237,9 +272,9 @@ class ArrivalDecision:
 
     original: dict | None = None
     doubtful_ids: tuple[str, ...] = ()
-    # Set when an owner's skip pattern decided (skip-redundant-notifications D3): the skipped report is
-    # the new leg, or the recorded `original` when `replace_original` (the redundant app reported first).
-    skip_pattern_id: str | None = None
+    # Set when an account link decided (reconcile-linked-account-reports D2): the second report is the new
+    # leg, or the recorded `original` when `replace_original` (the second report arrived first).
+    reporting_link_id: str | None = None
     replace_original: bool = False
 
 
@@ -264,14 +299,17 @@ def same_arrival(cur, user_id: str, leg: dict, accounts: dict[str, dict]) -> Arr
     """The recorded observation of the same money as `leg`, reported by another institution's app.
 
     `leg` has `event_id`, `transaction_id` (None while not yet inserted), `type`, `amount`, `account_id`,
-    `post_time`, `institution` and `remote_account_id`. An owner's skip pattern decides first
-    (pattern_arrival). Otherwise a match needs the same direction and amount, a different account,
-    another app, post times at most SAME_ARRIVAL_WINDOW_SECONDS apart, and both legs naming each other's
-    account (or its root). Mirrored legs further apart, inside the pairing window, and a second possible
-    original are doubts, never duplicates.
+    `post_time`, `institution` and `remote_account_id`. An owner's account link decides first
+    (linked_arrival). Otherwise a match needs the same direction and amount, a different account, another
+    app, post times at most SAME_ARRIVAL_WINDOW_SECONDS apart, and both legs naming each other's account
+    (or its root). Mirrored legs further apart, inside the pairing window, and a second possible original
+    are doubts, never duplicates.
     """
     if not leg.get("institution"):
         return ArrivalDecision()
+    linked = linked_arrival(cur, user_id, leg, accounts)
+    if linked is not None:
+        return linked
     window = timedelta(seconds=max(SAME_ARRIVAL_WINDOW_SECONDS, settings.notification_pairing_window_seconds))
     cur.execute(SAME_ARRIVAL_SQL, {
         "user_id": user_id, "event_id": str(leg.get("event_id") or "00000000-0000-0000-0000-000000000000"),
@@ -280,9 +318,6 @@ def same_arrival(cur, user_id: str, leg: dict, accounts: dict[str, dict]) -> Arr
         "earliest": leg["post_time"] - window, "latest": leg["post_time"] + window,
     })
     rows = cur.fetchall()
-    decided = pattern_arrival(cur, user_id, leg, accounts, rows)
-    if decided is not None:
-        return decided
     if not leg.get("remote_account_id"):
         return ArrivalDecision()
     mirrored = [
@@ -299,45 +334,83 @@ def within_same_arrival(row: dict, leg: dict) -> bool:
     return abs((row["post_time"] - leg["post_time"]).total_seconds()) <= SAME_ARRIVAL_WINDOW_SECONDS
 
 
-def pattern_arrival(cur, user_id: str, leg: dict, accounts: dict[str, dict], rows: list[dict]) -> ArrivalDecision | None:
-    """What an owner's active skip pattern decides for `leg`, or None when no pattern applies (D3).
+def touches(accounts: dict[str, dict], account_id: str, leg_account_id: str | None, remote_id: str | None) -> bool:
+    """Whether a leg reports the linked account: it is on it, or names it (or, for a root account, any
+    account under it) as its remote."""
+    if leg_account_id and str(leg_account_id) == account_id:
+        return True
+    if not remote_id:
+        return False
+    if str(remote_id) == account_id:
+        return True
+    linked = accounts.get(account_id)
+    return bool(linked and not linked.get("parent_id") and root_of(accounts, remote_id) == account_id)
 
-    The redundant app's report is skipped only when exactly one recorded report from the kept app
-    holds the same money: same direction and amount (`rows`), at most SAME_ARRIVAL_WINDOW_SECONDS apart,
-    another account, and the redundant report naming the kept report's account or its root (OD122).
-    The kept app's report always stays. When the redundant one was recorded first it is replaced, unless
-    the owner touched it; then the kept app's report waits as an ordinary duplicate (OD119).
+
+def linked_arrival(cur, user_id: str, leg: dict, accounts: dict[str, dict]) -> ArrivalDecision | None:
+    """What the owner's account links decide for `leg` (D2, D4), or None when no link applies.
+
+    A link (account X, institution I) pairs `leg` with exactly one recorded report of the same direction and
+    amount from another institution, at most LINKED_REPORT_WINDOW_SECONDS away, when one of the two is on X
+    and the other, from I, reports X. The report that is not on X is the second report. A kept leg absorbs
+    at most one report per institution (OD133); matches further away, inside the pairing window, and several
+    matches are doubts; an opposite-direction leg on X right beside the new report hands it to pairing.
     """
-    from app.services.skip_patterns import matching_patterns
+    from app.services.account_links import active_links
 
-    patterns = matching_patterns(cur, user_id, leg["institution"], leg["type"])
-    close = [row for row in rows if within_same_arrival(row, leg)]
-    leg_root = root_of(accounts, str(leg["account_id"]))
-    leg_remote_root = root_of(accounts, leg.get("remote_account_id"))
-    for pattern in patterns:
-        if pattern["redundant_institution"] == leg["institution"]:
-            matches = [
-                row for row in close
-                if institution_of(row["package_name"]) == pattern["kept_institution"]
-                and leg_remote_root is not None and leg_remote_root == root_of(accounts, str(row["account_id"]))
-            ]
-        else:
-            matches = [
-                row for row in close
-                if institution_of(row["package_name"]) == pattern["redundant_institution"]
-                and root_of(accounts, (row.get("interpretation") or {}).get("remote_account_id")) == leg_root
-            ]
-        if len(matches) > 1:
-            return ArrivalDecision(doubtful_ids=tuple(str(row["id"]) for row in matches))
-        if not matches:
+    links: dict[str, dict[str, str]] = {}
+    for link in active_links(cur, user_id):
+        links.setdefault(str(link["account_id"]), {})[link["institution"]] = str(link["id"])
+    if not links:
+        return None
+    window = timedelta(seconds=max(LINKED_REPORT_WINDOW_SECONDS, settings.notification_pairing_window_seconds))
+    cur.execute(LINKED_REPORT_SQL, {
+        "user_id": user_id, "event_id": str(leg.get("event_id") or "00000000-0000-0000-0000-000000000000"),
+        "transaction_id": str(leg.get("transaction_id") or "00000000-0000-0000-0000-000000000000"),
+        "type": leg["type"], "amount": int(leg["amount"]),
+        "earliest": leg["post_time"] - window, "latest": leg["post_time"] + window,
+    })
+    leg_account = str(leg["account_id"])
+    candidates = []
+    for row in cur.fetchall():
+        institution = institution_of(row["package_name"])
+        if institution in {None, leg["institution"]}:
             continue
-        original = matches[0]
-        if pattern["redundant_institution"] == leg["institution"]:
-            return ArrivalDecision(original=original, skip_pattern_id=str(pattern["id"]))
-        if replaceable_leg(original):
-            return ArrivalDecision(original=original, skip_pattern_id=str(pattern["id"]), replace_original=True)
-        return ArrivalDecision(original=original)
-    return None
+        row_account = str(row["account_id"])
+        row_remote = (row.get("interpretation") or {}).get("remote_account_id")
+        for account_id, institutions in links.items():
+            if (row_account == account_id and leg["institution"] in institutions
+                    and touches(accounts, account_id, leg_account, leg.get("remote_account_id"))):
+                absorbed = {institution_of(package) for package in row["absorbed_packages"] or []}
+                if leg["institution"] in absorbed:
+                    continue
+                candidates.append((row, account_id, institutions[leg["institution"]], False))
+                break
+            if (leg_account == account_id and leg_account != row_account and institution in institutions
+                    and touches(accounts, account_id, row_account, row_remote)):
+                candidates.append((row, account_id, institutions[institution], True))
+                break
+    if not candidates:
+        return None
+    seconds = lambda row: abs((row["post_time"] - leg["post_time"]).total_seconds())  # noqa: E731
+    close = [item for item in candidates if seconds(item[0]) <= LINKED_REPORT_WINDOW_SECONDS]
+    if len(close) != 1:
+        return ArrivalDecision(doubtful_ids=tuple(str(item[0]["id"]) for item in candidates))
+    row, account_id, link_id, second_recorded_first = close[0]
+    near = timedelta(seconds=SAME_ARRIVAL_WINDOW_SECONDS)
+    cur.execute(POSSIBLE_TRANSFER_SQL, {
+        "user_id": user_id, "account_id": account_id, "type": leg["type"], "amount": int(leg["amount"]),
+        "earliest": leg["post_time"] - near, "latest": leg["post_time"] + near,
+    })
+    if cur.fetchone():
+        # Possibly the other half of a real transfer: neither skipped nor held, pairing decides.
+        return ArrivalDecision()
+    if not second_recorded_first:
+        return ArrivalDecision(original=row, reporting_link_id=link_id)
+    if row["movement_id"] is None and replaceable_leg(row):
+        return ArrivalDecision(original=row, reporting_link_id=link_id, replace_original=True)
+    # The owner touched the earlier report: it keeps the money and the new one waits in Tinjau (OD119).
+    return ArrivalDecision(original=row)
 
 
 def replaceable_leg(row: dict) -> bool:
@@ -356,21 +429,21 @@ def keeps_new_observation(new_basis: str | None, original: dict) -> bool:
 
 def mark_duplicate_observation(cur, user_id: str, event_id: str, kept_transaction_id: str,
                                kept_key: str | None, kept_snapshot: dict | None, interpretation: dict | None,
-                               skip_pattern_id: str | None = None) -> None:
+                               reporting_link_id: str | None = None) -> None:
     """Record an event as a second observation of the kept leg: no transaction, the kept leg's result.
 
-    With `skip_pattern_id` the owner's pattern skipped it, so it is already reviewed and never waits in
-    "Terlihat dua kali" (skip-redundant-notifications D3).
+    With `reporting_link_id` an owner's account link skipped it, so it is already reviewed and never waits
+    in "Terlihat dua kali" (reconcile-linked-account-reports D2).
     """
     cur.execute(
         """UPDATE notification_events SET processing_state = 'recorded', provenance_kind = 'duplicate_observation',
                transaction_id = NULL, duplicate_of_transaction_id = %s, movement_id = NULL, confirmed_role = NULL, result_key = %s, result_snapshot = %s,
                interpretation = COALESCE(%s::jsonb, interpretation), active_question = NULL, error_code = NULL,
-               skip_pattern_id = %s, reviewed_at = CASE WHEN %s::uuid IS NULL THEN NULL ELSE NOW() END,
+               reporting_link_id = %s, reviewed_at = CASE WHEN %s::uuid IS NULL THEN NULL ELSE NOW() END,
                lease_token = NULL, lease_expires_at = NULL, updated_at = NOW()
            WHERE user_id = %s AND id = %s""",
         (kept_transaction_id, kept_key, json.dumps(kept_snapshot) if kept_snapshot is not None else None,
-         json.dumps(interpretation) if interpretation is not None else None, skip_pattern_id, skip_pattern_id,
+         json.dumps(interpretation) if interpretation is not None else None, reporting_link_id, reporting_link_id,
          user_id, event_id),
     )
 
@@ -420,12 +493,12 @@ def repair_duplicate_arrivals(cur, user_id: str, accounts: dict[str, dict], legs
         if not original or original["post_time"] > current["post_time"]:
             # Each pair is decided once, from its later observation.
             continue
-        if decision.skip_pattern_id and decision.replace_original:
-            # The owner's pattern keeps this later report and skips the redundant earlier one.
+        if decision.reporting_link_id and decision.replace_original:
+            # The owner's link keeps this later report and skips the second report recorded earlier.
             dropped, kept = original, current
-        elif decision.skip_pattern_id and replaceable_leg(current):
+        elif decision.reporting_link_id and replaceable_leg(current):
             dropped, kept = current, original
-        elif decision.skip_pattern_id:
+        elif decision.reporting_link_id:
             continue
         elif keeps_new_observation((current["interpretation"] or {}).get("account_basis"), original):
             dropped, kept = original, current
@@ -436,7 +509,7 @@ def repair_duplicate_arrivals(cur, user_id: str, accounts: dict[str, dict], legs
         drop_observation(cur, user_id, dropped)
         mark_duplicate_observation(cur, user_id, str(dropped["event_id"]), str(kept["id"]),
                                    kept["result_key"], kept["result_snapshot"], None,
-                                   skip_pattern_id=decision.skip_pattern_id)
+                                   reporting_link_id=decision.reporting_link_id)
         gone.add(str(dropped["id"]))
         merged += 1
     return merged
