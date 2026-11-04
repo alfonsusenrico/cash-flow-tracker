@@ -700,13 +700,11 @@ export function TriageInbox() {
               <div className="space-y-3 pb-4 text-center">
                 {summary && (
                   <dl className="ws-facts tabular" aria-label="Siklus ini">
-                    <dt>Keluar siklus ini</dt>
-                    <dd>{bal(summary.keluar.total)}</dd>
-                    {summary.safe_to_spend.status === "available" && summary.safe_to_spend.per_day !== null ? (
-                      <><dt>Aman dipakai hari ini</dt><dd>{bal(summary.safe_to_spend.per_day)}</dd></>
-                    ) : (
-                      <><dt>Sisa</dt><dd>{bal(summary.remaining.total)}</dd></>
-                    )}
+                    <dt>Pengeluaran siklus ini</dt>
+                    <dd>{bal(summary.spending?.amount ?? summary.keluar.total)}</dd>
+                    {/* The period's safe amount, as on Beranda (refine-workspace-layout D5); no per-day figure. */}
+                    <dt>Aman dipakai sampai gajian</dt>
+                    <dd>{bal(Math.max(0, summary.remaining.total))}</dd>
                     <dt>Belum diklasifikasi</dt>
                     <dd>{bal(summary.keluar.lines.find((line) => line.key === "unclassified")?.amount ?? 0)}</dd>
                   </dl>

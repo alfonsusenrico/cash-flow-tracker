@@ -13,7 +13,7 @@ import {
 
 const PARSE_DELAY_MS = 300;
 
-const KIND_TEXT: Record<string, string> = { expense: "Keluar", income: "Masuk", movement: "Pindah saldo" };
+const KIND_TEXT: Record<string, string> = { expense: "Pengeluaran", income: "Masuk", movement: "Pindah saldo" };
 
 /**
  * Text-first Catat (redesign-transactions-workspace D11). While the owner types, a parse-only preview

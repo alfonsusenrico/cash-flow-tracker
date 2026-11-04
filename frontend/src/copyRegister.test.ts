@@ -64,6 +64,20 @@ describe("copy register", () => {
     expect(offenders(files)).toEqual([]);
   });
 
+  // Spending Terms (refine-workspace-layout D4): "Pengeluaran" and "Ditabung & investasi" name the figures on the
+  // pages this change owns; "Keluar" and "Belanja" are no longer figure labels there. Analisis and Laporan follow
+  // in compare-whole-months. "Keluar" as sign-out and "Uang keluar" in row text are not figure labels.
+  it("names spending figures Pengeluaran, never Keluar or Belanja, on Beranda, Transaksi, Tinjau and the money pages", () => {
+    const roots = ["components/beranda", "components/transactions", "components/review", "components/capture", "components/accounts",
+      "components/goals", "app/ledger/page.tsx", "app/page.tsx"];
+    const owned = roots.flatMap(sources).filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file));
+    const figureLabel = /(label|title|text)(=|: )["`](Keluar|Belanja)\b|<dt>(Keluar|Belanja)\b|>(Keluar|Belanja)<\/button|"(Keluar|Belanja) siklus/;
+    const found = owned.flatMap((file) => visibleLines(file)
+      .filter(({ text }) => figureLabel.test(text))
+      .map(({ line, text }) => `${path.relative(__dirname, file)}:${line}: ${text.trim()}`));
+    expect(found).toEqual([]);
+  });
+
   it("writes Analisis and Laporan impersonally, without the formal Anda", () => {
     const roots = ["components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx", "lib/reportLead.ts"];
     const analysis = roots.flatMap(sources).filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file));

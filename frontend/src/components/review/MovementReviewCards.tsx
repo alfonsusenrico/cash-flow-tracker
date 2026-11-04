@@ -136,7 +136,7 @@ function ExpensePicker({ item, categories, pending, onExpense, id }: {
         </label>
         <button type="submit" disabled={pending} className="ws-btn ws-btn-ink">Simpan sebagai pengeluaran</button>
       </form>
-      <p className="ws-caption">Setelah disimpan, ini dihitung di Keluar dan tidak dipasangkan lagi.</p>
+      <p className="ws-caption">Setelah disimpan, ini dihitung sebagai pengeluaran dan tidak dipasangkan lagi.</p>
       {error && <p role="alert" className="ws-alert">{error}</p>}
     </Picker>
   );
@@ -221,7 +221,7 @@ export function AwaitingMovementCard({
               n={n++}
               disabled={pending}
               label="Bukan pindah saldo, ini pengeluaran"
-              sub="Pilih kategorinya, lalu dihitung di Keluar"
+              sub="Pilih kategorinya, lalu dihitung sebagai pengeluaran"
               expanded={panel === "expense"}
               controls={panel === "expense" ? `${baseId}-expense` : undefined}
               onClick={() => toggle("expense")}
@@ -260,7 +260,7 @@ export function AwaitingMovementCard({
       />
       <p className="ws-caption">
         {item.notes ? `${item.notes}. ` : ""}
-        {outgoing ? "Selama belum lengkap, ini belum masuk Keluar." : "Selama belum lengkap, ini belum masuk Masuk."}
+        {outgoing ? "Selama belum lengkap, ini belum dihitung sebagai pengeluaran." : "Selama belum lengkap, ini belum masuk Masuk."}
       </p>
 
       {suggestion && topup && target && (
