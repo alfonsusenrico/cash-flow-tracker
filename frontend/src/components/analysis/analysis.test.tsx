@@ -87,6 +87,46 @@ describe("Ringkasan cards", () => {
     expect(rows[3]).toHaveTextContent("hari ini, masih berjalan");
   });
 
+  it("shows a day's amount above its bar on hover or tap, and hides it on leave or Esc", () => {
+    // jsdom has no PointerEvent, so `pointerType` would be lost; browsers always set it.
+    class TestPointerEvent extends MouseEvent {
+      pointerType: string;
+      constructor(type: string, init: PointerEventInit = {}) {
+        super(type, init);
+        this.pointerType = init.pointerType ?? "";
+      }
+    }
+    vi.stubGlobal("PointerEvent", TestPointerEvent);
+    const days = [
+      { date: "2026-11-01", expense: 40_000 },
+      { date: "2026-11-02", expense: 109_000 },
+      { date: "2026-11-03", expense: 12_000 },
+    ];
+    const { container } = wrap(<DailySpendCard days={days} money={money} today="2026-11-03" />);
+    const first = container.querySelector<HTMLElement>("[data-edge='start']") as HTMLElement;
+    const last = container.querySelector<HTMLElement>("[data-edge='end']") as HTMLElement;
+    expect(screen.queryByTestId("daily-spend-tip")).toBeNull();
+
+    fireEvent.pointerOver(first, { pointerType: "mouse" });
+    expect(screen.getByTestId("daily-spend-tip")).toHaveTextContent("1 NovRp 40.000");
+    fireEvent.pointerOut(first.parentElement as HTMLElement, { pointerType: "mouse" });
+    expect(screen.queryByTestId("daily-spend-tip")).toBeNull();
+
+    fireEvent.pointerDown(last, { pointerType: "touch" });
+    // A lifted finger leaves the chart; the label stays until a second tap, a tap outside or Esc.
+    fireEvent.pointerOut(last.parentElement as HTMLElement, { pointerType: "touch" });
+    expect(screen.getByTestId("daily-spend-tip")).toHaveTextContent("3 Nov · hari iniRp 12.000");
+    fireEvent.pointerDown(last, { pointerType: "touch" });
+    expect(screen.queryByTestId("daily-spend-tip")).toBeNull();
+    fireEvent.pointerDown(first, { pointerType: "touch" });
+    fireEvent.pointerDown(document.body, { pointerType: "touch" });
+    expect(screen.queryByTestId("daily-spend-tip")).toBeNull();
+    fireEvent.pointerDown(first, { pointerType: "touch" });
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.queryByTestId("daily-spend-tip")).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
   const window = { from: "2026-10-31T17:00:00+00:00", to: "2026-11-04T05:00:00+00:00" };
   const comparisonFixture = (overrides: Partial<ReportComparison>): ReportComparison => ({
     basis: "month",

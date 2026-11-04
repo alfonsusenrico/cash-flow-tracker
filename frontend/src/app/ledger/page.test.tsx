@@ -177,6 +177,23 @@ describe("Transaksi list", () => {
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
+  it("shows pillar and category columns instead of provenance, and colours each day figure by its kind", async () => {
+    renderPage();
+    const table = await screen.findByRole("table", { name: /dikelompokkan per hari/ });
+    const heads = within(table).getAllByRole("columnheader").map((cell) => cell.textContent);
+    expect(heads).toEqual(["Transaksi", "Jam", "Jenis", "Pilar", "Kategori", "Jumlah"]);
+    const kedai = within(table).getByRole("button", { name: "Kedai Awan" }).closest("tr") as HTMLElement;
+    expect(within(kedai).getByText("Keinginan")).toBeInTheDocument();
+    expect(within(kedai).getByText("Makan di Luar")).toHaveAttribute("title", "Makan di Luar");
+    expect(kedai).not.toHaveTextContent("Notifikasi bank");
+    const qris = within(table).getByText("Menunggu jawaban").closest("tr") as HTMLElement;
+    expect(qris.querySelector(".ws-tx-category")).toHaveTextContent("—");
+    expect(table).not.toHaveTextContent("Internal Movement");
+    const [nov2, nov1] = within(table).getAllByRole("rowheader");
+    expect(within(nov2).getByText("Rp 75.000")).toHaveClass("ws-amt-out");
+    expect(within(nov1).getByText("Rp 150.000")).toHaveClass("ws-amt-tr");
+  });
+
   it("says how many rows of a split day are still to load, and keeps one heading after loading more", async () => {
     const { user } = renderPage();
     expect(await screen.findByText(/1 lagi di hari ini/)).toBeInTheDocument();

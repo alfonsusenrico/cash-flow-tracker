@@ -2,7 +2,7 @@
 
 import { useRef, type PointerEvent as ReactPointerEvent } from "react";
 import {
-  RowAmount, RowAvatar, UNPAIRED_LABEL, movementDirection, provenanceText, routeIncomplete, rowKind, rowStatus, rowTitle,
+  RowAmount, RowAvatar, UNPAIRED_LABEL, movementDirection, routeIncomplete, rowCategory, rowKind, rowStatus, rowTitle,
 } from "@/components/beranda/activity";
 import { Pill, type Tone } from "@/components/workspace/primitives";
 import { dayName, previousDay, todayLocal, type DayGroup } from "@/lib/ledgerDays";
@@ -52,9 +52,9 @@ function DayTotals({ group, bal }: { group: DayGroup<LedgerRow>; bal: (amount: n
   const totals = group.totals;
   if (!totals) return null;
   const parts: React.ReactNode[] = [];
-  if (totals.spending) parts.push(<span key="out">Pengeluaran <b>{bal(totals.spending)}</b></span>);
+  if (totals.spending) parts.push(<span key="out">Pengeluaran <b className="ws-amt-out">{bal(totals.spending)}</b></span>);
   if (totals.inflow) parts.push(<span key="in">Masuk <b className="ws-amt-in">{bal(totals.inflow)}</b></span>);
-  if (totals.movements) parts.push(<span key="mv">Pindah saldo <b>{bal(totals.movements)}</b></span>);
+  if (totals.movements) parts.push(<span key="mv">Pindah saldo <b className="ws-amt-tr">{bal(totals.movements)}</b></span>);
   if (totals.waiting_count) parts.push(<span key="wait" className="ws-tx-waiting">{totals.waiting_count} menunggu jawaban</span>);
   if (!parts.length) return null;
   return (
@@ -172,8 +172,8 @@ export function LedgerTable({ groups, bal, openRow, selection, loadMore, openId,
           <th scope="col">Transaksi</th>
           <th scope="col" className="ws-tx-col-time">Jam</th>
           <th scope="col" className="ws-tx-col-kind">Jenis</th>
-          <th scope="col" className="ws-tx-col-cat">Kategori</th>
-          <th scope="col" className="ws-tx-col-prov">Dicatat</th>
+          <th scope="col" className="ws-tx-col-pillar">Pilar</th>
+          <th scope="col" className="ws-tx-col-category">Kategori</th>
           <th scope="col" className="r">Jumlah</th>
         </tr>
       </thead>
@@ -188,6 +188,7 @@ export function LedgerTable({ groups, bal, openRow, selection, loadMore, openId,
           {group.rows.map((row) => {
             const kind = rowKind(row);
             const status = rowStatus(row);
+            const category = rowCategory(row);
             return (
               <tr
                 key={row.id}
@@ -216,13 +217,13 @@ export function LedgerTable({ groups, bal, openRow, selection, loadMore, openId,
                 <td className="ws-tx-col-kind">
                   <Pill tone={KIND_PILL[kind].tone}>{KIND_PILL[kind].text}</Pill>
                 </td>
-                <td className="ws-tx-col-cat">
+                <td className="ws-tx-col-pillar">
                   <span className="ws-kk" data-bucket={status.bucket} style={status.color ? ({ "--kc": status.color } as React.CSSProperties) : undefined}>
                     {status.text}
                   </span>
                 </td>
-                <td className="ws-tx-col-prov">
-                  <span className="ws-prov">{provenanceText(row) ?? "—"}</span>
+                <td className="ws-tx-col-category">
+                  <span className="ws-tx-category" title={category}>{category}</span>
                 </td>
                 <td className="r tabular-nums">
                   <RowAmount row={row} bal={bal} />

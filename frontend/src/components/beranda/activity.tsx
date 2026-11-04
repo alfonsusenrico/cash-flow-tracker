@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { Card, CardHeader } from "@/components/workspace/primitives";
 import { kakeiboBucketInfo } from "@/lib/kakeibo";
-import { classifierLabel, sourceLabel } from "@/lib/provenance";
 import type { ActivityRow } from "./types";
 
 /** At most this many rows of today and yesterday on Beranda (beranda-cycle-summary). */
@@ -107,9 +106,12 @@ export function rowStatus(row: ActivityRow): { text: string; bucket: string; col
   return { text: info?.label ?? bucket, bucket, color: info?.color };
 }
 
-export function provenanceText(row: ActivityRow): string | null {
-  const parts = [classifierLabel(row.classified_by), sourceLabel(row.source)].filter(Boolean);
-  return parts.length ? parts.join(" · ") : null;
+/** Category cell: the owner's category name; "—" where the pillar text already says what the row is. */
+export function rowCategory(row: ActivityRow): string {
+  const kind = rowKind(row);
+  if (kind === "movement" || kind === "topup") return "—";
+  if (row.category_name) return row.category_name;
+  return isWaiting(row) ? "—" : "Tanpa kategori";
 }
 
 const AVATAR: Record<RowKind | "waiting", { icon: IconName | null; tone: string }> = {
