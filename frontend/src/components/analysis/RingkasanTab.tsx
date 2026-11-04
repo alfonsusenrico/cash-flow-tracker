@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { RecurringCharges } from "@/components/insights/ObservedInsights";
@@ -12,7 +12,6 @@ import { Card, CardHeader, ErrorState, Kpi, KpiStrip, Skeleton } from "@/compone
 import { Change, NoBaseline, Progress, baselineName } from "@/components/report/ComparisonParts";
 import reportStyles from "@/components/report/report.module.css";
 import { type ReportComparison, type ReportComparisonResponse, type ReportPeriodList, comparisonQuery, refHref } from "@/lib/monthlyReport";
-import { useWidthAtMost } from "@/hooks/useWidthAtMost";
 import { api } from "@/lib/api";
 import { kakeiboBucketInfo } from "@/lib/kakeibo";
 import { reportPeriodFilters } from "@/lib/ledgerFilters";
@@ -79,8 +78,6 @@ function useComparisons(basis: PeriodBasis, offset: number) {
 
 export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodBasis; offset: number; money: Money; onLabel: (label: string) => void }) {
   const [planDraft, setPlanDraft] = useState<ExpensePlanDraft | null>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
-  const oneColumn = useWidthAtMost(gridRef, 900);
   const analytics = useQuery<AnalyticsResponse>({
     queryKey: queryKeys.dashboard.analytics(basis, offset),
     queryFn: () => api.get(`/dashboard/analytics?timeframe=${basis}&cycle_offset=${offset}`),
@@ -108,21 +105,8 @@ export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodB
   // The explanation is shown only when its server lines add up to the figure shown (analysis-workspace).
   const spendingExplanation = data.explanations?.belanja && spending !== null && data.explanations.belanja.total === spending ? data.explanations.belanja : null;
 
-  const left = (
-    <>
-      {viewed?.running && <ProgressCard comparison={viewed} money={money} />}
-      {comparisons.completed && <BaselineCard comparison={comparisons.completed} money={money} />}
-      {comparisons.failed && <ErrorState message="Perbandingan periode belum bisa dimuat." onRetry={comparisons.retry} />}
-      <DailySpendCard days={data.daily_cadence ?? []} money={money} />
-    </>
-  );
-  const right = (
-    <>
-      <RecurringCharges bal={money} onCreatePlan={setPlanDraft} />
-      <QuestionRate />
-      <HabitsLearnedCard />
-    </>
-  );
+  const progressCard = viewed?.running ? <ProgressCard comparison={viewed} money={money} /> : null;
+  const baselineCard = comparisons.completed ? <BaselineCard comparison={comparisons.completed} money={money} /> : null;
   const unavailable = "Tidak tersedia";
 
   return (
@@ -143,15 +127,18 @@ export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodB
         />
         <Kpi icon="target" label="Ditabung & investasi" value={viewed ? money(viewed.totals.fresh_saving) : unavailable} />
       </KpiStrip>
-      <div ref={gridRef} className={cn(styles.grid, oneColumn && styles.one)}>
-        {oneColumn ? (
-          <div className={styles.stack}>{left}{right}</div>
-        ) : (
-          <>
-            <div className={styles.stack}>{left}</div>
-            <div className={styles.stack}>{right}</div>
-          </>
-        )}
+      {comparisons.failed && <ErrorState message="Perbandingan periode belum bisa dimuat." onRetry={comparisons.retry} />}
+      {(progressCard || baselineCard) && (
+        <div className={progressCard && baselineCard ? reportStyles.pair : undefined}>
+          {progressCard}
+          {baselineCard}
+        </div>
+      )}
+      <DailySpendCard days={data.daily_cadence ?? []} money={money} />
+      <div className={reportStyles.trio}>
+        <RecurringCharges bal={money} onCreatePlan={setPlanDraft} />
+        <QuestionRate />
+        <HabitsLearnedCard />
       </div>
       <CategoryBudgetSection rawCategories={data.category_variance ?? []} reportPeriod={reportPeriodFilters(basis, offset)} bal={money} />
       <RecurringRulesModal open={planDraft !== null} onClose={() => setPlanDraft(null)} expenseDraft={planDraft} />

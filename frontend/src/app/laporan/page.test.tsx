@@ -310,6 +310,22 @@ describe("Laporan Bulanan page", () => {
     expect(within(past).getByRole("link", { name: /Oktober 2026/ })).toHaveAttribute("aria-current", "page");
   });
 
+  it("lists the facts right after the figures in one column, in reading order", async () => {
+    class NarrowObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe() { this.callback([{ contentRect: { width: 800 } } as ResizeObserverEntry], this as unknown as ResizeObserver); }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", NarrowObserver);
+    mockApi(makeReport());
+    renderPage();
+    const facts = await screen.findByRole("region", { name: "Yang bisa diperbaiki" });
+    const table = screen.getByRole("region", { name: "Pengeluaran per pilar dan kategori" });
+    expect(facts.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+
   it("explains an empty ledger without zero figures", async () => {
     mockApi({ empty: true, basis: "month", cycle_available: false });
     renderPage();

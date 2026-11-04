@@ -18,13 +18,13 @@
 .notice b { font-weight: 600; }
 .noticeLinks { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-left: auto; }
 
-.kpiChips { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 6px; }
-.chipLine { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.kpiChips { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 6px; white-space: normal; }
+.chipLine { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-size: 12.5px; color: var(--muted); white-space: normal; }
 
 .progress { display: grid; gap: 4px; margin-top: 6px; }
 .progressTrack { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
 .progressFill { height: 100%; border-radius: 999px; background: var(--out-fg); }
-.progressText { font-size: 12.5px; color: var(--muted); }
+.progressText { font-size: 12.5px; color: var(--muted); white-space: normal; }
 
 .layout {
   display: grid;
@@ -33,12 +33,17 @@
   align-items: start;
 }
 .column { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* Ringkasan: the two comparison cards side by side, then the compact cards in one row. */
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.trio > * { height: 100%; }
 
 .table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .table th { text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .table th.num, .table td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .table td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-.pillarRow td { background: var(--surface-2); font-weight: 600; }
+.pillarRow td, .pillarRow th { background: var(--surface-2); font-weight: 600; }
+.pillarRow th { text-align: left; font-size: 13.5px; color: var(--text); padding: 8px; border-bottom: 1px solid var(--line); }
 .categoryRow td:first-child { padding-left: 26px; }
 .categoryRow .share { color: var(--muted); }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 999px; margin-right: 8px; vertical-align: 1px; }
@@ -82,11 +87,12 @@
 
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
+.single { grid-template-columns: minmax(0, 1fr); }
 @container main (max-width: 900px) {
-  .layout { grid-template-columns: minmax(0, 1fr); }
+  .pair, .trio { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
-  .layout { grid-template-columns: minmax(0, 1fr); }
+  .pair, .trio { grid-template-columns: minmax(0, 1fr); }
   .table td, .table th { padding: 7px 4px; }
   .categoryRow td:first-child { padding-left: 14px; }
   .hideNarrow { display: none; }

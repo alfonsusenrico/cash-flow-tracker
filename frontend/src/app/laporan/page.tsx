@@ -1,6 +1,8 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Fragment, Suspense, useEffect, useRef, useState } from "react";
+import { useWidthAtMost } from "@/hooks/useWidthAtMost";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -211,6 +213,16 @@ function ReportView() {
   const note = periodNote(report);
   const openClassify = () => setClassifyOpen(true);
   const comparison = report.comparison;
+  const pillars = <PillarTable comparison={comparison} money={bal} />;
+  const facts = <ImprovementFacts comparison={comparison} money={bal} />;
+  const history = <MonthlyHistory comparison={comparison} money={bal} basis={basis} />;
+  const merchants = <TopMerchantsCard report={report} />;
+  const savingsCard = <SavingsCard report={report} />;
+  const details = <SpendingDetailsCard report={report} />;
+  const incomeCard = <IncomeSourcesCard report={report} />;
+  const budget = <BudgetPanel report={report} onEdit={() => setBudgetOpen(true)} />;
+  const reflection = <ReflectionAnswer report={report} />;
+  const past = <PastReports periods={ordered} current={shownStart} basis={basis} />;
 
   return (
     <div className={styles.root}>
@@ -219,22 +231,10 @@ function ReportView() {
       {note ? <p className={reportStyles.notice} data-tone="info">{note}</p> : null}
       <DataQualityLine report={report} onClassify={openClassify} />
       <ReportKpis report={report} money={bal} />
-      <div className={reportStyles.layout}>
-        <div className={reportStyles.column}>
-          <PillarTable comparison={comparison} money={bal} />
-          <TopMerchantsCard report={report} />
-          <SpendingDetailsCard report={report} />
-        </div>
-        <div className={reportStyles.column}>
-          <ImprovementFacts comparison={comparison} money={bal} />
-          <MonthlyHistory comparison={comparison} money={bal} basis={basis} />
-          <BudgetPanel report={report} onEdit={() => setBudgetOpen(true)} />
-          <SavingsCard report={report} />
-          <IncomeSourcesCard report={report} />
-          <ReflectionAnswer report={report} />
-          <PastReports periods={ordered} current={shownStart} basis={basis} />
-        </div>
-      </div>
+      <ReportLayout
+        wide={[[pillars, merchants, savingsCard, details], [facts, history, incomeCard, budget, reflection, past]]}
+        narrow={[facts, pillars, history, merchants, savingsCard, details, incomeCard, budget, reflection, past]}
+      />
 
       <ClassificationDialog
         open={classifyOpen}
@@ -242,6 +242,23 @@ function ReportView() {
         scope={{ start: report.period.start, end: report.period.end }}
       />
       <BudgetEditorDialog open={budgetOpen} onClose={() => setBudgetOpen(false)} />
+    </div>
+  );
+}
+
+/**
+ * Two columns on a wide workspace; below 900 px one column in reading order, the facts right after the
+ * figures. Rendering the order (not CSS `order`) keeps the focus order equal to what is seen.
+ */
+function ReportLayout({ wide, narrow }: { wide: [React.ReactNode[], React.ReactNode[]]; narrow: React.ReactNode[] }) {
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const oneColumn = useWidthAtMost(layoutRef, 900);
+  const column = (cards: React.ReactNode[]) => (
+    <div className={reportStyles.column}>{cards.map((card, index) => <Fragment key={index}>{card}</Fragment>)}</div>
+  );
+  return (
+    <div ref={layoutRef} className={cn(reportStyles.layout, oneColumn && reportStyles.single)}>
+      {oneColumn ? column(narrow) : <>{column(wide[0])}{column(wide[1])}</>}
     </div>
   );
 }

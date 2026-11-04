@@ -116,7 +116,7 @@ export function PillarTable({ comparison, money }: { comparison: ReportCompariso
               const progress = progressByPillar.get(pillar.pillar);
               return [
                 <tr key={pillar.pillar} className={styles.pillarRow}>
-                  <th scope="row" style={{ textAlign: "left", fontWeight: 600, padding: 8 }}>
+                  <th scope="row">
                     <span aria-hidden="true" className={styles.dot} style={{ background: info?.color }} />
                     {name}
                   </th>
