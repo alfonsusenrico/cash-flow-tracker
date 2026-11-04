@@ -1,8 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
@@ -11,24 +9,22 @@ import { replaceSearch } from "@/lib/urlState";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
 import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
+import { Modal } from "@/components/ui/Modal";
 import { ReconciliationFlag } from "@/components/ui/ReconciliationFlag";
-import { Card, CardHeader, ErrorState, MoneyBar, Pill, Segmented, Skeleton } from "@/components/workspace/primitives";
-import { Drawer } from "@/components/workspace/overlays";
+import { Card, CardHeader, ErrorState, KpiCard, Skeleton } from "@/components/workspace/primitives";
+import { TopBarControls } from "@/components/workspace/context";
 import { ExplainableFigure, type ExplanationData } from "@/components/workspace/explain";
+import { useWidthAtMost } from "@/hooks/useWidthAtMost";
 import { canSwitchToAmountTracking, listAmountInvestmentProducts } from "@/lib/investmentTopups";
 import type { ReviewQueue } from "@/lib/review";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useAccountDialogs } from "./AccountDialogs";
 import type { AccountItem, AccountsResponse, NetWorthResponse } from "./types";
 import styles from "./money.module.css";
 
-type Show = "semua" | "siap" | "investasi";
-const SHOW_OPTIONS: { value: Show; label: string }[] = [
-  { value: "semua", label: "Semua" },
-  { value: "siap", label: "Siap pakai" },
-  { value: "investasi", label: "Investasi" },
-];
-
 const KIND: Record<AccountItem["type"], string> = { bank: "Bank", wallet: "E-wallet", cash: "Tunai", investment: "Investasi" };
+// Phones reorder in a mode: dragging would fight the page scroll (refine-workspace-layout D9).
+const PHONE_WIDTH = 760;
 
 function isHolding(account: AccountItem): boolean {
   return account.type === "investment" || Boolean(account.instrument_type);
@@ -40,18 +36,55 @@ function isPosition(account: AccountItem): boolean {
   );
 }
 
-function parseShow(value: string | null): Show {
-  return value === "siap" || value === "investasi" ? value : "semua";
+/** The stored default of new accounts; such accounts get a distinct display hue (D7). Nothing is written. */
+const DEFAULT_COLOURS = new Set(["#3b82f6", "#2563eb"]);
+// Hues apart from each other and from the semantic colours; every one passes 3:1 as a mark on the surfaces.
+const ACCOUNT_HUES = ["#2E7DF6", "#F08A24", "#16A34A", "#E0A800", "#7C6CF2", "#0FB5AE", "#E5484D", "#A855F7", "#64748B", "#D9467F"];
+
+function hueOf(hex: string): number | null {
+  const match = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!match) return null;
+  const [r, g, b] = match.slice(1).map((part) => parseInt(part, 16) / 255);
+  const max = Math.max(r, g, b);
+  const chroma = max - Math.min(r, g, b);
+  if (chroma < 0.15) return null;
+  const hue = max === r ? ((g - b) / chroma) % 6 : max === g ? (b - r) / chroma + 2 : (r - g) / chroma + 4;
+  return (hue * 60 + 360) % 360;
 }
 
-function showHref(pathname: string, search: URLSearchParams, show: Show, account: string | null): string {
-  const next = new URLSearchParams(search.toString());
-  if (show === "semua") next.delete("tampil");
-  else next.set("tampil", show);
-  if (account) next.set("akun", account);
-  else next.delete("akun");
-  const query = next.toString();
-  return query ? `${pathname}?${query}` : pathname;
+/** Display colours of the top-level accounts: stored colours stay, default ones get a hue no other account is near. */
+export function displayColours(accounts: AccountItem[]): Map<string, string> {
+  const colours = new Map<string, string>();
+  const stored = accounts.map((account) => account.color?.toLowerCase()).filter((colour): colour is string => Boolean(colour) && !DEFAULT_COLOURS.has(colour!));
+  const taken = stored.map(hueOf).filter((hue): hue is number => hue !== null);
+  const near = (hue: number | null) => hue !== null && taken.some((other) => Math.min(Math.abs(hue - other), 360 - Math.abs(hue - other)) < 25);
+  const free = ACCOUNT_HUES.filter((colour) => !stored.includes(colour.toLowerCase()) && !near(hueOf(colour)));
+  let next = 0;
+  for (const account of accounts) {
+    const stored = account.color?.toLowerCase();
+    if (stored && !DEFAULT_COLOURS.has(stored)) colours.set(account.id, account.color!);
+    else colours.set(account.id, free.length ? free[next++ % free.length] : ACCOUNT_HUES[next++ % ACCOUNT_HUES.length]);
+  }
+  return colours;
+}
+
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/);
+  return (words.length > 1 ? words[0][0] + words[1][0] : name.slice(0, 2)).toUpperCase();
+}
+
+function GainLine({ gain, pct, money }: { gain: number | null | undefined; pct: number | null | undefined; money: (value: number) => string }) {
+  if (gain == null) return <span className={styles.gainUnknown}>Modal belum dicatat</span>;
+  const up = gain >= 0;
+  return (
+    <span className={up ? styles.gainUp : styles.gainDown}>
+      <span aria-hidden="true">{up ? "▲" : "▼"} </span>
+      {up ? "+" : "−"}
+      {money(Math.abs(gain))}
+      {pct != null ? ` (${up ? "+" : "−"}${Math.abs(pct).toLocaleString("id-ID", { maximumFractionDigits: 2 })}%)` : ""}
+      <span className="sr-only">{up ? " untung" : " rugi"}</span>
+    </span>
+  );
 }
 
 export function AccountsView() {
@@ -59,12 +92,12 @@ export function AccountsView() {
   const { bal } = useAppCtx();
   const pathname = usePathname();
   const search = useSearchParams();
-  const show = parseShow(search.get("tampil"));
   const openId = search.get("akun");
   const dialogs = useAccountDialogs();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const phone = useWidthAtMost(rootRef, PHONE_WIDTH);
   const reorderButton = useRef<HTMLButtonElement>(null);
   const [reordering, setReordering] = useState(false);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const accountsQuery = useQuery<AccountsResponse>({ queryKey: queryKeys.accounts, queryFn: () => api.get("/accounts") });
   const netWorthQuery = useQuery<NetWorthResponse>({ queryKey: queryKeys.dashboard.netWorth, queryFn: () => api.get("/dashboard/net-worth") });
@@ -81,21 +114,25 @@ export function AccountsView() {
   }, [accounts]);
   const amountProducts = useMemo(() => new Set(listAmountInvestmentProducts(accountsQuery.data?.accounts ?? []).map((item) => item.id)), [accountsQuery.data]);
   const top = accounts.filter((account) => !account.parent_id);
-  const liquid = top.filter((account) => !isHolding(account));
-  const holdings = top.filter((account) => isHolding(account));
+  const colours = useMemo(() => displayColours(top), [top]);
   // Awaiting outflows per account, counted from the queue; amounts stay in Tinjau (OD59).
   const awaiting = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of queueQuery.data?.awaiting ?? []) counts.set(item.account_id, (counts.get(item.account_id) ?? 0) + 1);
     return counts;
   }, [queueQuery.data]);
-  const awaitingTotal = queueQuery.data?.awaiting?.length ?? 0;
 
-  const setShow = (value: Show) => replaceSearch(showHref(pathname, search, value, openId));
-  const openAccount = (id: string | null) => replaceSearch(showHref(pathname, search, show, id));
+  const openAccount = (id: string | null) => {
+    const next = new URLSearchParams(search.toString());
+    if (id) next.set("akun", id);
+    else next.delete("akun");
+    const query = next.toString();
+    // Replacing the address never scrolls the page (D7); the dialog opens over the list where it is.
+    replaceSearch(query ? `${pathname}?${query}` : pathname);
+  };
   const selected = openId ? byId.get(openId) ?? null : null;
 
-  // --- Reorder (moved from the page; same request bodies) ------------------------------------
+  // --- Reorder: the same requests as before, from drag handles, move buttons or the phone mode ------
   const [order, setOrder] = useState<Record<string, string[]>>({});
   const [orderStatus, setOrderStatus] = useState("");
   const [orderError, setOrderError] = useState("");
@@ -107,11 +144,10 @@ export function AccountsView() {
       await qc.invalidateQueries({ queryKey: queryKeys.accounts });
       setOrder({});
       setOrderError("");
-      setOrderStatus("Urutan rekening tersimpan.");
     },
     onError: () => {
       setOrder({});
-      setOrderError("Urutan gagal disimpan. Coba lagi.");
+      setOrderError("Urutan tidak tersimpan. Coba lagi.");
       setOrderStatus("");
     },
   });
@@ -127,7 +163,8 @@ export function AccountsView() {
     ids.splice(source, 1);
     ids.splice(destination, 0, id);
     setOrderError("");
-    setOrderStatus("");
+    const name = list.find((item) => item.id === id)?.name ?? "";
+    setOrderStatus(`${name} dipindah ke posisi ${destination + 1} dari ${ids.length}.`);
     setOrder((current) => ({ ...current, [key]: ids }));
     reorderMutation.mutate(ids);
   };
@@ -142,14 +179,10 @@ export function AccountsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openId, accountsQuery.data, byId]);
 
+  // The page's actions sit in the top bar beside the title, as in the old app (refine-workspace-layout D7).
   const header = (
+    <TopBarControls>
     <div className={styles.toolbar}>
-      <Segmented label="Tampilkan" options={SHOW_OPTIONS} value={show} onChange={setShow} />
-      <span className={styles.grow} />
-      <button ref={reorderButton} type="button" className="ws-btn" aria-pressed={reordering} onClick={() => (reordering ? finishReorder() : setReordering(true))}>
-        <Icon name="arrow-up-down" className="h-4 w-4" />
-        {reordering ? "Selesai" : "Ubah urutan"}
-      </button>
       <button type="button" className="ws-btn" onClick={() => dialogs.syncPricesMutation.mutate()} disabled={dialogs.syncPricesMutation.isPending}>
         <Icon name="refresh-cw" className="h-4 w-4" />
         {dialogs.syncPricesMutation.isPending ? "Memperbarui harga…" : "Perbarui harga"}
@@ -158,16 +191,17 @@ export function AccountsView() {
         <Icon name="calendar" className="h-4 w-4" />
         Rencana
       </button>
-      <button type="button" className="ws-btn ws-btn-ink" onClick={dialogs.openNewAccount}>
+      <button type="button" className="ws-btn" onClick={dialogs.openNewAccount}>
         <Icon name="plus" className="h-4 w-4" />
         Tambah rekening
       </button>
     </div>
+    </TopBarControls>
   );
 
   const status = (
     <>
-      <p className="sr-only" role="status">{dialogs.syncMessage ?? orderStatus}</p>
+      <p className="sr-only" role="status" aria-live="polite">{dialogs.syncMessage ?? orderStatus}</p>
       {dialogs.syncMessage && <p className={styles.notice} aria-hidden="true">{dialogs.syncMessage}</p>}
       {(orderError || dialogs.accountActionError) && <p className={styles.alert} role="alert">{orderError || dialogs.accountActionError}</p>}
     </>
@@ -175,19 +209,17 @@ export function AccountsView() {
 
   if (accountsQuery.isLoading) {
     return (
-      <div className={styles.root}>
+      <div className={styles.root} ref={rootRef}>
         {header}
-        <div className={styles.grid}>
-          <div className={styles.stack}><Skeleton style={{ height: 320 }} /><Skeleton style={{ height: 240 }} /></div>
-          <Skeleton style={{ height: 360 }} />
-        </div>
+        <Skeleton style={{ height: 120 }} />
+        <div className={styles.cards}><Skeleton style={{ height: 320 }} /><Skeleton style={{ height: 240 }} /></div>
         {dialogs.dialogs}
       </div>
     );
   }
   if (accountsQuery.isError) {
     return (
-      <div className={styles.root}>
+      <div className={styles.root} ref={rootRef}>
         {header}
         <ErrorState message="Daftar rekening gagal dimuat." onRetry={() => accountsQuery.refetch()} />
         {dialogs.dialogs}
@@ -195,164 +227,68 @@ export function AccountsView() {
     );
   }
 
-  const summary = (
-    <TotalAssets
-      query={netWorthQuery}
-      money={bal}
-      awaitingTotal={awaitingTotal}
-    />
-  );
-
-  const liquidCard = (show === "semua" || show === "siap") && (
-    <Card labelledBy="accounts-liquid">
-      <CardHeader id="accounts-liquid" icon="wallet" title="Uang siap pakai" extra={<span className={styles.headTotal}>{netWorthQuery.data?.liquid != null ? bal(netWorthQuery.data.liquid) : null}</span>} />
-      {liquid.length === 0 ? (
-        <p className="ws-caption">Belum ada rekening bank, e-wallet atau tunai.</p>
-      ) : (
-        <table className={cn("ws-tbl", styles.table)}>
-          <caption className="sr-only">Rekening dan kantong</caption>
-          <thead>
-            <tr><th scope="col">Rekening</th><th scope="col" className={styles.kindCol}>Jenis</th><th scope="col" className="r">Saldo</th></tr>
-          </thead>
-          <tbody>
-            {ordered(liquid, "top").map((account) => {
-              const pockets = ordered(account.children ?? [], account.id);
-              const open = !collapsed[account.id];
-              const flagged = pockets.filter((pocket) => pocket.reconciliation_required).length;
-              return (
-                <Fragment key={account.id}>
-                  <AccountRow
-                    account={account}
-                    kind={KIND[account.type]}
-                    secondary={[
-                      pockets.length ? `${pockets.length} kantong` : null,
-                      awaiting.get(account.id) ? `${awaiting.get(account.id)} pindah saldo belum lengkap` : null,
-                    ]}
-                    money={bal}
-                    onOpen={() => openAccount(account.id)}
-                    flag={account.reconciliation_required ? <ReconciliationFlag name={account.name} onReconcile={!pockets.length && account.investment_tracking_mode !== "amount" ? () => dialogs.openReconciliation(account) : undefined} /> : flagged ? <ReconciliationFlag name={account.name} pocketCount={flagged} /> : null}
-                    disclosure={pockets.length ? (
-                      <button
-                        type="button"
-                        className={styles.disclosure}
-                        aria-expanded={open}
-                        aria-label={`${open ? "Tutup" : "Buka"} kantong ${account.name}`}
-                        onClick={() => setCollapsed((current) => ({ ...current, [account.id]: open }))}
-                      >
-                        <Icon name={open ? "chevron-down" : "chevron-right"} className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                  />
-                  {open && pockets.map((pocket) => (
-                    <AccountRow
-                      key={pocket.id}
-                      account={pocket}
-                      pocketOf={account.name}
-                      kind={isHolding(pocket) ? "Investasi" : "Kantong"}
-                      secondary={[`Kantong di ${account.name}`, awaiting.get(pocket.id) ? `${awaiting.get(pocket.id)} pindah saldo belum lengkap` : null]}
-                      money={bal}
-                      onOpen={() => openAccount(pocket.id)}
-                      flag={pocket.reconciliation_required ? <ReconciliationFlag name={pocket.name} onReconcile={pocket.investment_tracking_mode !== "amount" ? () => dialogs.openReconciliation(pocket) : undefined} /> : null}
-                    />
-                  ))}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-    </Card>
-  );
-
-  const investmentCard = (show === "semua" || show === "investasi") && (
-    <Card labelledBy="accounts-investment">
-      <CardHeader id="accounts-investment" icon="trending-up" title="Investasi" extra={<span className={styles.headTotal}>{netWorthQuery.data?.investment != null ? bal(netWorthQuery.data.investment) : null}</span>} />
-      {holdings.length === 0 ? (
-        <p className="ws-caption">Belum ada produk investasi.</p>
-      ) : (
-        <table className={cn("ws-tbl", styles.table)}>
-          <caption className="sr-only">Produk investasi</caption>
-          <thead>
-            <tr><th scope="col">Produk</th><th scope="col" className={styles.kindCol}>Cara hitung</th><th scope="col" className="r">Nilai</th></tr>
-          </thead>
-          {ordered(holdings, "top").map((platform) => {
-            const products = ordered(platform.children ?? [], platform.id);
-            if (!products.length) {
-              const standalone = isPosition(platform) || platform.investment_tracking_mode === "amount" || amountProducts.has(platform.id);
-              return (
-                <tbody key={platform.id}>
-                  <AccountRow
-                    account={platform}
-                    kind={trackingPill(platform, amountProducts)}
-                    secondary={[standalone ? trackingText(platform, amountProducts) : "Belum ada produk"]}
-                    money={bal}
-                    onOpen={() => openAccount(platform.id)}
-                    flag={platform.reconciliation_required ? <ReconciliationFlag name={platform.name} /> : null}
-                  />
-                </tbody>
-              );
-            }
-            return (
-              <tbody key={platform.id}>
-                <tr className={styles.groupRow}>
-                  <th colSpan={3} scope="rowgroup">
-                    <button type="button" className="ws-rowbtn" onClick={() => openAccount(platform.id)}>
-                      {platform.name}
-                    </button>
-                    <span className="ws-caption"> · {products.length} produk · {bal(platform.balance)}</span>
-                  </th>
-                </tr>
-                {products.map((product) => (
-                  <AccountRow
-                    key={product.id}
-                    account={product}
-                    pocketOf={platform.name}
-                    kind={isHolding(product) ? trackingPill(product, amountProducts) : "Kantong kas"}
-                    secondary={[isHolding(product) ? trackingText(product, amountProducts) : `Kantong di ${platform.name}`]}
-                    money={bal}
-                    onOpen={() => openAccount(product.id)}
-                    flag={product.reconciliation_required ? <ReconciliationFlag name={product.name} onReconcile={!isHolding(product) ? () => dialogs.openReconciliation(product) : undefined} /> : null}
-                  />
-                ))}
-              </tbody>
-            );
-          })}
-        </table>
-      )}
-      <p className="ws-caption">Reksa dana bertambah per nominal setiap top up. Saham dihitung dari lot × harga terakhir, sehingga nilainya bisa berubah tanpa transaksi.</p>
-    </Card>
-  );
+  const topOrdered = ordered(top, "top");
+  const pocketCount = top.reduce((count, account) => count + (account.children?.length ?? 0), 0);
 
   return (
-    <div className={styles.root}>
+    <div className={styles.root} ref={rootRef}>
       {header}
       {status}
-      <div className={styles.grid}>
-        <div className={styles.summaryFirst}>{summary}</div>
-        <div className={styles.stack}>
-          {reordering ? (
-            <Card labelledBy="accounts-reorder">
-              <CardHeader id="accounts-reorder" icon="arrow-up-down" title="Ubah urutan" caption="Seret baris atau pakai tombol naik dan turun. Urutan langsung tersimpan." />
-              <ReorderList
-                rows={ordered(top, "top")}
-                childrenOf={(account) => ordered(account.children ?? [], account.id)}
-                move={move}
-                pending={reorderMutation.isPending}
-                dragged={dragged}
-                dragOver={dragOver}
-                setDragged={setDragged}
-                setDragOver={setDragOver}
-              />
-            </Card>
-          ) : (
-            <>
-              {liquidCard}
-              {investmentCard}
-            </>
-          )}
+      <AssetKpis query={netWorthQuery} money={bal} accountCount={top.length} pocketCount={pocketCount} accounts={top} />
+      <Composition accounts={topOrdered} colours={colours} money={bal} />
+      {phone && (
+        <div className={styles.phoneReorder}>
+          <button ref={reorderButton} type="button" className="ws-btn" aria-pressed={reordering} onClick={() => (reordering ? finishReorder() : setReordering(true))}>
+            <Icon name="arrow-up-down" className="h-4 w-4" />
+            {reordering ? "Selesai" : "Ubah urutan"}
+          </button>
         </div>
-      </div>
-      <AccountDrawer
+      )}
+      {phone && reordering ? (
+        <Card labelledBy="accounts-reorder">
+          <CardHeader id="accounts-reorder" icon="arrow-up-down" title="Ubah urutan" caption="Pakai tombol naik dan turun. Urutan langsung tersimpan." />
+          <ReorderList
+            rows={topOrdered}
+            childrenOf={(account) => ordered(account.children ?? [], account.id)}
+            move={move}
+            pending={reorderMutation.isPending}
+            dragged={dragged}
+            dragOver={dragOver}
+            setDragged={setDragged}
+            setDragOver={setDragOver}
+          />
+        </Card>
+      ) : (
+        <>
+          {!phone && <p className={styles.reorderHint}>Seret ⠿ untuk mengubah urutan rekening dan kantong, atau pakai tombol ▲▼ yang muncul saat baris disorot.</p>}
+          <div className={styles.cards}>
+            {topOrdered.map((account, index) => (
+              <AccountCard
+                key={account.id}
+                account={account}
+                colour={colours.get(account.id) ?? "var(--muted)"}
+                pockets={ordered(account.children ?? [], account.id)}
+                index={index}
+                count={topOrdered.length}
+                money={bal}
+                amountProducts={amountProducts}
+                awaiting={awaiting}
+                draggable={!phone}
+                onOpen={openAccount}
+                onAdd={() => dialogs.openNewPocket(account)}
+                onReconcile={dialogs.openReconciliation}
+                onMove={(id, list, key, destination) => move(list, key, id, destination)}
+                onMoveTop={(step) => move(topOrdered, "top", account.id, index + step)}
+                drag={{ dragged, dragOver, setDragged, setDragOver, dropTop: (target) => {
+                  if (!dragged || dragged === target || !topOrdered.some((row) => row.id === dragged)) return;
+                  move(topOrdered, "top", dragged, topOrdered.findIndex((row) => row.id === target));
+                } }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+      <AccountDetail
         account={selected}
         parent={selected?.parent_id ? byId.get(selected.parent_id) ?? null : null}
         money={bal}
@@ -362,6 +298,283 @@ export function AccountsView() {
       />
       {dialogs.dialogs}
     </div>
+  );
+}
+
+interface DragState {
+  dragged: string | null;
+  dragOver: string | null;
+  setDragged: (id: string | null) => void;
+  setDragOver: (id: string | null) => void;
+  dropTop: (target: string) => void;
+}
+
+/** One account as a card: its head and every pocket or product are buttons that open the detail (D7). */
+function AccountCard({
+  account,
+  colour,
+  pockets,
+  index,
+  count,
+  money,
+  amountProducts,
+  awaiting,
+  draggable,
+  onOpen,
+  onAdd,
+  onReconcile,
+  onMove,
+  onMoveTop,
+  drag,
+}: {
+  account: AccountItem;
+  colour: string;
+  pockets: AccountItem[];
+  index: number;
+  count: number;
+  money: (value: number) => string;
+  amountProducts: Set<string>;
+  awaiting: Map<string, number>;
+  draggable: boolean;
+  onOpen: (id: string) => void;
+  onAdd: () => void;
+  onReconcile: (account: AccountItem) => void;
+  onMove: (id: string, list: AccountItem[], key: string, destination: number) => void;
+  onMoveTop: (step: number) => void;
+  drag: DragState;
+}) {
+  const holding = isHolding(account);
+  const flagged = pockets.filter((pocket) => pocket.reconciliation_required).length;
+  const kind = holding ? (pockets.length ? `${pockets.length} produk` : trackingPill(account, amountProducts)) : `${KIND[account.type]}${pockets.length ? ` · ${pockets.length} kantong` : ""}`;
+  const waiting = awaiting.get(account.id);
+  const groupGain = account.group_capital_gain;
+  return (
+    <section
+      className={cn(styles.acard, drag.dragOver === account.id && styles.dropTarget, drag.dragged === account.id && styles.dragging)}
+      style={{ ["--ac" as string]: colour }}
+      aria-label={account.name}
+      data-account-row={account.id}
+      onDragOver={(event) => {
+        if (drag.dragged && drag.dragged !== account.id && !pockets.some((pocket) => pocket.id === drag.dragged)) {
+          event.preventDefault();
+          drag.setDragOver(account.id);
+        }
+      }}
+      onDragLeave={() => drag.setDragOver(null)}
+      onDrop={(event) => {
+        event.preventDefault();
+        drag.dropTop(account.id);
+        drag.setDragged(null);
+        drag.setDragOver(null);
+      }}
+    >
+      <div className={styles.acardHead}>
+        {draggable && (
+          <span
+            className={styles.handle}
+            draggable
+            aria-hidden="true"
+            onDragStart={(event) => { drag.setDragged(account.id); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", account.id); }}
+            onDragEnd={() => { drag.setDragged(null); drag.setDragOver(null); }}
+          >
+            <Icon name="grip-vertical" className="h-4 w-4" />
+          </span>
+        )}
+        <button type="button" className={styles.acardOpen} onClick={() => onOpen(account.id)} aria-label={account.name} aria-describedby={`acct-${account.id}`}>
+          <span className={styles.badge}>
+            <span className={styles.badgeMark} aria-hidden="true">{initials(account.name)}</span>
+            {account.name}
+          </span>
+          <span id={`acct-${account.id}`} className={styles.acardFacts}>
+            <span className={styles.acardKind}>{kind}</span>
+            <span className={styles.acardBalance}>{money(account.balance)}</span>
+          </span>
+          {holding && pockets.length > 0 && (
+            <span className={styles.acardGain}>
+              {groupGain === undefined ? null : <GainLine gain={groupGain} pct={account.group_cost_basis ? (groupGain! / account.group_cost_basis) * 100 : null} money={money} />}
+            </span>
+          )}
+        </button>
+        <span className={styles.acardTools}>
+          {draggable && count > 1 && <MoveButtons name={account.name} first={index === 0} last={index === count - 1} pending={false} onMove={onMoveTop} />}
+          <button type="button" className="ws-icon-btn" aria-label={holding ? `Tambah produk ${account.name}` : `Tambah kantong ${account.name}`} onClick={onAdd}>
+            <Icon name="plus" className="h-4 w-4" />
+          </button>
+        </span>
+      </div>
+      {(account.reconciliation_required || flagged > 0 || waiting) && (
+        <div className={styles.acardNotes}>
+          {account.reconciliation_required && <ReconciliationFlag name={account.name} onReconcile={!pockets.length && account.investment_tracking_mode !== "amount" ? () => onReconcile(account) : undefined} />}
+          {!account.reconciliation_required && flagged > 0 && <ReconciliationFlag name={account.name} pocketCount={flagged} />}
+          {waiting ? <span className="ws-caption">{waiting} pindah saldo belum lengkap</span> : null}
+        </div>
+      )}
+      {pockets.length > 0 && (
+        <ul className={styles.pockets} aria-label={holding ? `Produk ${account.name}` : `Kantong ${account.name}`}>
+          {pockets.map((pocket, pocketIndex) => {
+            const product = isHolding(pocket);
+            return (
+              <li
+                key={pocket.id}
+                data-account-row={pocket.id}
+                className={cn(styles.pocket, drag.dragOver === pocket.id && styles.dropTarget, drag.dragged === pocket.id && styles.dragging)}
+                onDragOver={(event) => { if (drag.dragged && pockets.some((item) => item.id === drag.dragged)) { event.preventDefault(); event.stopPropagation(); drag.setDragOver(pocket.id); } }}
+                onDrop={(event) => {
+                  if (!drag.dragged || !pockets.some((item) => item.id === drag.dragged)) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (drag.dragged !== pocket.id) onMove(drag.dragged, pockets, account.id, pocketIndex);
+                  drag.setDragged(null);
+                  drag.setDragOver(null);
+                }}
+              >
+                {draggable && (
+                  <span
+                    className={styles.handle}
+                    draggable
+                    aria-hidden="true"
+                    onDragStart={(event) => { event.stopPropagation(); drag.setDragged(pocket.id); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", pocket.id); }}
+                    onDragEnd={(event) => { event.stopPropagation(); drag.setDragged(null); drag.setDragOver(null); }}
+                  >
+                    <Icon name="grip-vertical" className="h-4 w-4" />
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className={styles.pocketOpen}
+                  onClick={() => onOpen(pocket.id)}
+                  aria-label={`${pocket.name}, ${product ? "produk" : "kantong"} di ${account.name}`}
+                  aria-describedby={`acct-${pocket.id}`}
+                >
+                  <span className={styles.pocketName}>
+                    <b>{pocket.name}</b>
+                    {product && <span>{productLine(pocket, amountProducts, money)}</span>}
+                  </span>
+                  <span id={`acct-${pocket.id}`} className={styles.pocketValue}>
+                    <b>{money(pocket.balance)}</b>
+                    {product && <GainLine gain={pocket.capital_gain} pct={pocket.capital_gain_pct} money={money} />}
+                  </span>
+                </button>
+                {pocket.reconciliation_required && (
+                  <ReconciliationFlag
+                    name={pocket.name}
+                    onReconcile={!product && pocket.investment_tracking_mode !== "amount" ? () => onReconcile(pocket) : undefined}
+                  />
+                )}
+                {draggable && pockets.length > 1 && (
+                  <MoveButtons
+                    name={pocket.name}
+                    first={pocketIndex === 0}
+                    last={pocketIndex === pockets.length - 1}
+                    pending={false}
+                    onMove={(step) => onMove(pocket.id, pockets, account.id, pocketIndex + step)}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function productLine(account: AccountItem, amountProducts: Set<string>, money: (value: number) => string): string {
+  const basis = account.cost_basis != null ? ` · modal ${money(account.cost_basis)}` : "";
+  if (account.instrument_type === "stock" && account.units) {
+    return `${(account.units / 100).toLocaleString("id-ID")} lot${account.last_price ? ` · harga ${fmtMoney(account.last_price)}` : ""}${account.avg_buy_price ? ` · modal ${fmtMoney(account.avg_buy_price)}` : ""}`;
+  }
+  return `${trackingPill(account, amountProducts)}${basis}`;
+}
+
+/** KPI cards on top (D7): Total aset, Siap pakai, Investasi with its gain, Kekayaan bersih. */
+function AssetKpis({
+  query,
+  money,
+  accountCount,
+  pocketCount,
+  accounts,
+}: {
+  query: { data?: NetWorthResponse; isLoading: boolean; isError: boolean; refetch: () => unknown };
+  money: (value: number) => string;
+  accountCount: number;
+  pocketCount: number;
+  accounts: AccountItem[];
+}) {
+  if (query.isLoading) return <Skeleton style={{ height: 120 }} />;
+  const data = query.data;
+  if (query.isError || !data) return <ErrorState message="Kekayaan bersih belum dapat dihitung." onRetry={() => query.refetch()} />;
+  const lines = data.lines ?? [];
+  const assetsExplanation: ExplanationData = {
+    title: "Total aset",
+    rule: "Uang siap pakai ditambah investasi. Saldo kantong dihitung sekali, tidak dihitung dua kali dengan rekening induknya.",
+    lines: lines.filter((line) => line.key === "liquid" || line.key === "investment").map((line) => ({ label: line.key === "liquid" ? "Uang siap pakai" : "Investasi", amount: money(line.amount) })),
+    total: { label: "Total aset", amount: money(data.total_assets) },
+  };
+  const netExplanation: ExplanationData = {
+    title: "Kekayaan bersih",
+    rule: "Total aset dikurangi saldo minus yang perlu dicocokkan dan sisa utang aktif. Angka yang sama dengan Beranda.",
+    lines: lines.map((line) => ({ label: line.key === "liquid" ? "Uang siap pakai" : line.key === "investment" ? "Investasi" : line.label, amount: money(line.amount) })),
+    total: { label: "Kekayaan bersih", amount: money(data.net_worth) },
+  };
+  // The investment gain is the sum of the platforms' server totals; null when any platform lacks a basis.
+  const platforms = accounts.filter((account) => isHolding(account) && (account.children?.length ?? 0) > 0);
+  const gains = platforms.map((account) => account.group_capital_gain);
+  const known = platforms.length > 0 && gains.every((gain) => gain != null);
+  const gain = known ? gains.reduce((sum: number, value) => sum + (value ?? 0), 0) : null;
+  const basis = known ? platforms.reduce((sum, account) => sum + (account.group_cost_basis ?? 0), 0) : null;
+  // An API from before the shared net worth rule has no liquid and investment parts; those cards then say so.
+  const parts = data.liquid != null && data.investment != null;
+  const share = parts && data.total_assets > 0 ? Math.round((Math.max(0, data.liquid) / data.total_assets) * 100) : null;
+  return (
+    <section className="ws-kcards ws-kcards-4" aria-label="Ringkasan aset">
+      <KpiCard
+        tone="neutral"
+        label="Total aset"
+        value={<ExplainableFigure label="Total aset" amountText={money(data.total_assets)} explanation={assetsExplanation} />}
+        caption={`${accountCount} rekening · ${pocketCount} kantong`}
+      />
+      <KpiCard tone="in" label="Siap pakai" valueIsWords={!parts} value={parts ? money(data.liquid) : "Belum tersedia"} caption={share != null ? `${share}% dari aset` : ""} />
+      <KpiCard
+        tone="inv"
+        label="Investasi"
+        valueIsWords={!parts}
+        value={parts ? money(data.investment) : "Belum tersedia"}
+        caption={gain != null ? <GainLine gain={gain} pct={basis ? (gain / basis) * 100 : null} money={money} /> : platforms.length ? "Modal belum lengkap" : "Belum ada investasi"}
+      />
+      <KpiCard
+        tone="net"
+        label="Kekayaan bersih"
+        value={<ExplainableFigure label="Kekayaan bersih" amountText={money(data.net_worth)} explanation={netExplanation} />}
+        caption={data.total_liabilities > 0 ? `setelah utang ${money(data.total_liabilities)}` : "tanpa utang aktif"}
+      />
+    </section>
+  );
+}
+
+/** Komposisi aset (D7): each top-level account's share of the assets, without debt. Shares are display only. */
+function Composition({ accounts, colours, money }: { accounts: AccountItem[]; colours: Map<string, string>; money: (value: number) => string }) {
+  const parts = accounts.filter((account) => account.balance > 0).sort((a, b) => b.balance - a.balance);
+  const total = parts.reduce((sum, account) => sum + account.balance, 0);
+  if (!total) return null;
+  return (
+    <Card labelledBy="accounts-composition">
+      <CardHeader id="accounts-composition" title="Komposisi aset" extra={<span className={styles.headTotal}>{money(total)}</span>} />
+      <div className={styles.compBar} aria-hidden="true">
+        {parts.map((account) => (
+          <i key={account.id} style={{ flex: account.balance, background: colours.get(account.id) }} />
+        ))}
+      </div>
+      <ul className={styles.compLegend} aria-label="Komposisi aset per rekening">
+        {parts.map((account) => (
+          <li key={account.id} style={{ ["--ac" as string]: colours.get(account.id) }}>
+            <span className={styles.compName}>{account.name}</span>
+            <span className={styles.compPct}>{((account.balance / total) * 100).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%</span>
+            <b>{money(account.balance)}</b>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 
@@ -382,48 +595,6 @@ function trackingPill(account: AccountItem, amountProducts: Set<string>): string
   if (account.instrument_type === "crypto") return "Kripto";
   if (account.instrument_type === "deposit") return "Deposito";
   return "Investasi";
-}
-
-function AccountRow({
-  account,
-  pocketOf,
-  kind,
-  secondary,
-  money,
-  onOpen,
-  flag,
-  disclosure,
-}: {
-  account: AccountItem;
-  pocketOf?: string;
-  kind: string;
-  secondary: (string | null)[];
-  money: (value: number) => string;
-  onOpen: () => void;
-  flag?: React.ReactNode;
-  disclosure?: React.ReactNode;
-}) {
-  const lines = secondary.filter(Boolean);
-  return (
-    <tr className={cn(pocketOf && styles.pocketRow)} data-account-row={account.id}>
-      <td>
-        <div className={styles.who}>
-          {disclosure ?? (pocketOf ? null : <span className={styles.disclosureSpace} aria-hidden="true" />)}
-          <span className={styles.mark} style={{ background: account.color || "var(--muted)" }} aria-hidden="true" />
-          <div className="ws-who-t">
-            <button type="button" className="ws-rowbtn" onClick={onOpen} aria-label={pocketOf ? `${account.name}, kantong di ${pocketOf}` : account.name}>
-              {account.name}
-            </button>
-            {lines.length > 0 && <span>{lines.join(" · ")}</span>}
-            <span className={styles.phoneKind}>{kind}</span>
-            {flag && <div className={styles.flag}>{flag}</div>}
-          </div>
-        </div>
-      </td>
-      <td className={styles.kindCol}><Pill>{kind}</Pill></td>
-      <td className={cn("r", styles.amount)}>{money(account.balance)}</td>
-    </tr>
-  );
 }
 
 function ReorderList({
@@ -526,84 +697,8 @@ function MoveButtons({ name, first, last, pending, onMove }: { name: string; fir
   );
 }
 
-function TotalAssets({
-  query,
-  money,
-  awaitingTotal,
-}: {
-  query: { data?: NetWorthResponse; isLoading: boolean; isError: boolean; refetch: () => unknown };
-  money: (value: number) => string;
-  awaitingTotal: number;
-}) {
-  if (query.isLoading) return <Card labelledBy="accounts-total"><h2 id="accounts-total" className={styles.plainTitle}>Total aset</h2><Skeleton style={{ height: 220 }} /></Card>;
-  const data = query.data;
-  if (query.isError || !data) {
-    return (
-      <Card labelledBy="accounts-total">
-        <h2 id="accounts-total" className={styles.plainTitle}>Total aset</h2>
-        <ErrorState message="Kekayaan bersih belum dapat dihitung." onRetry={() => query.refetch()} />
-      </Card>
-    );
-  }
-  const share = (part: number) => (data.total_assets > 0 ? Math.round((Math.max(0, part) / data.total_assets) * 100) : 0);
-  // An API from before the shared net worth rule has no lines; the facts then show only the totals.
-  const lines = data.lines ?? [];
-  const assetLines = lines.filter((line) => line.key === "liquid" || line.key === "investment");
-  const owedLines = lines.filter((line) => line.key !== "liquid" && line.key !== "investment");
-  const assetsExplanation: ExplanationData = {
-    title: "Total aset",
-    rule: "Uang siap pakai ditambah investasi. Saldo kantong dihitung sekali, tidak dihitung dua kali dengan rekening induknya.",
-    lines: assetLines.map((line) => ({ label: line.key === "liquid" ? "Uang siap pakai" : "Investasi", amount: money(line.amount) })),
-    total: { label: "Total aset", amount: money(data.total_assets) },
-  };
-  const netExplanation: ExplanationData = {
-    title: "Kekayaan bersih",
-    rule: "Total aset dikurangi saldo minus yang perlu dicocokkan dan sisa utang aktif. Angka yang sama dengan Beranda.",
-    lines: lines.map((line) => ({ label: line.key === "liquid" ? "Uang siap pakai" : line.key === "investment" ? "Investasi" : line.label, amount: money(line.amount) })),
-    total: { label: "Kekayaan bersih", amount: money(data.net_worth) },
-  };
-  return (
-    <Card labelledBy="accounts-total">
-      <h2 id="accounts-total" className={styles.plainTitle}>Total aset</h2>
-      <div className="ws-bigline">
-        <ExplainableFigure label="Total aset" amountText={money(data.total_assets)} explanation={assetsExplanation} />
-      </div>
-      <div className={styles.bar}>
-        <MoneyBar
-          label="Komposisi aset"
-          segments={[
-            { key: "liquid", label: `Siap pakai · ${share(data.liquid ?? 0)}%`, amount: Math.max(0, data.liquid ?? 0), display: money(data.liquid ?? 0), className: styles.segLiquid },
-            { key: "investment", label: `Investasi · ${share(data.investment ?? 0)}%`, amount: Math.max(0, data.investment ?? 0), display: money(data.investment ?? 0), className: styles.segInvest },
-          ]}
-        />
-      </div>
-      <dl className={styles.facts}>
-        <dt>Total aset</dt>
-        <dd>{money(data.total_assets)}</dd>
-        {owedLines.map((line) => (
-          <Fragment key={line.key}>
-            <dt>{line.key === "reconciliation_pending" ? line.label : `Utang ${line.label}`}</dt>
-            <dd>{money(line.amount)}</dd>
-          </Fragment>
-        ))}
-        <dt className={styles.strong}>Kekayaan bersih</dt>
-        <dd className={styles.strong}>
-          <ExplainableFigure label="Kekayaan bersih" amountText={money(data.net_worth)} explanation={netExplanation} />
-        </dd>
-      </dl>
-      <p className="ws-caption">Saldo kantong dihitung sekali, tidak dihitung dua kali dengan rekening induknya.</p>
-      {awaitingTotal > 0 && (
-        <p className="ws-caption">
-          {awaitingTotal} pindah saldo belum lengkap, jadi tujuannya belum masuk aset mana pun.{" "}
-          <Link href="/review?folder=pindah" className="ws-linkbtn">Buka Tinjau</Link>
-        </p>
-      )}
-      <p className={styles.linkRow}><Link href="/goals" className="ws-linkbtn">Lihat Ketahanan Dana</Link></p>
-    </Card>
-  );
-}
-
-function AccountDrawer({
+/** The detail of an account, pocket or product: a centered dialog, a bottom sheet on phones (D7). */
+function AccountDetail({
   account,
   parent,
   money,
@@ -627,8 +722,9 @@ function AccountDrawer({
   const isPocket = Boolean(account.parent_id);
   const kind = isPocket ? (holding ? "Produk investasi" : "Kantong") : KIND[account.type];
   return (
-    <Drawer open onClose={onClose} title={account.name} subtitle={parent ? `${kind} di ${parent.name}` : kind}>
+    <Modal open onClose={onClose} title={account.name}>
       <div className={styles.drawerBody}>
+        <p className="ws-caption">{parent ? `${kind} di ${parent.name}` : kind}</p>
         <div className={styles.drawerBalance}>
           <span className="ws-caption">{holding ? "Nilai" : "Saldo"}</span>
           <b>{money(account.balance)}</b>
@@ -646,9 +742,9 @@ function AccountDrawer({
           {account.default_funding_account_name && (<><dt>Rekening dana</dt><dd>{account.default_funding_account_name}</dd></>)}
           {pockets.length > 0 && (<><dt>Kantong</dt><dd>{pockets.length}</dd></>)}
         </dl>
-        {account.capital_gain != null && (
+        {holding && (
           <p className={styles.performance}>
-            Untung/rugi: {account.capital_gain >= 0 ? "+" : ""}{money(account.capital_gain)} ({account.capital_gain_pct ?? 0}%)
+            Untung/rugi: <GainLine gain={account.capital_gain} pct={account.capital_gain_pct} money={money} />
           </p>
         )}
         <div className={styles.drawerActions} role="group" aria-label={`Tindakan ${account.name}`}>
@@ -679,6 +775,6 @@ function AccountDrawer({
           </ConfirmActionButton>
         </div>
       </div>
-    </Drawer>
+    </Modal>
   );
 }

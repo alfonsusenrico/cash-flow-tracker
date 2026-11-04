@@ -20,6 +20,9 @@ export interface AccountItem {
   capital_gain?: number | null;
   capital_gain_pct?: number | null;
   cost_basis?: number | null;
+  /** A platform's own total over its products; null when a product has no cost basis (refine-workspace-layout D8). */
+  group_capital_gain?: number | null;
+  group_cost_basis?: number | null;
   investment_tracking_mode?: string | null;
   investment_value_estimated?: boolean;
   reconciliation_required?: boolean;

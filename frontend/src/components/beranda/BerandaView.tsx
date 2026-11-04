@@ -10,7 +10,7 @@ import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal"
 import { usePageHeader } from "@/components/workspace/context";
 import { ExplainableFigure } from "@/components/workspace/explain";
 import { Drawer } from "@/components/workspace/overlays";
-import { Card, CardHeader, ErrorState, MoneyBar, Skeleton } from "@/components/workspace/primitives";
+import { Card, CardHeader, ErrorState, KpiCard, MoneyBar, Skeleton } from "@/components/workspace/primitives";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { useWidthAtMost } from "@/hooks/useWidthAtMost";
 import { api } from "@/lib/api";
@@ -70,33 +70,6 @@ function AnimatedMoney({ value }: { value: number }) {
  * KPI cards (refine-workspace-layout D5): the period's safe amount first, then the four money figures.
  * Every figure is a server field with its "Rincian hitungan"; no sentence summary and no same-date chip.
  * ---------------------------------------------------------------------------------------------- */
-
-function KpiCard({
-  label,
-  tone,
-  hero,
-  value,
-  valueIsWords,
-  caption,
-}: {
-  label: string;
-  tone: "in" | "out" | "save" | "net" | "safe";
-  hero?: boolean;
-  value: React.ReactNode;
-  valueIsWords?: boolean;
-  caption: React.ReactNode;
-}) {
-  return (
-    <div className="ws-kcard" data-hero={hero || undefined} data-tone={tone}>
-      <div className="ws-kcard-l">
-        {!hero && <span className="ws-kcard-dot" aria-hidden="true" />}
-        {label}
-      </div>
-      <div className={valueIsWords ? "ws-kcard-v is-words" : "ws-kcard-v"}>{value}</div>
-      <div className="ws-kcard-c">{caption}</div>
-    </div>
-  );
-}
 
 function sinceCaption(summary: CycleSummary): string {
   return summary.period.basis === "cycle" ? `sejak gaji ${shortDate(summary.period.start_date)}` : `sejak 1 ${MONTH_NAME.format(new Date(`${summary.period.start_date}T00:00:00Z`))}`;

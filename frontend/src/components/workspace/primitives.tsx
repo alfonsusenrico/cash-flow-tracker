@@ -253,3 +253,31 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
     </div>
   );
 }
+
+/** A KPI card: small label with a colour dot, a large figure and one muted line (refine-workspace-layout D5). */
+export function KpiCard({
+  label,
+  tone,
+  hero,
+  value,
+  valueIsWords,
+  caption,
+}: {
+  label: string;
+  tone: "in" | "out" | "save" | "net" | "safe" | "inv" | "neutral";
+  hero?: boolean;
+  value: ReactNode;
+  valueIsWords?: boolean;
+  caption: ReactNode;
+}) {
+  return (
+    <div className="ws-kcard" data-hero={hero || undefined} data-tone={tone}>
+      <div className="ws-kcard-l">
+        {!hero && <span className="ws-kcard-dot" aria-hidden="true" />}
+        {label}
+      </div>
+      <div className={valueIsWords ? "ws-kcard-v is-words" : "ws-kcard-v"}>{value}</div>
+      <div className="ws-kcard-c">{caption}</div>
+    </div>
+  );
+}

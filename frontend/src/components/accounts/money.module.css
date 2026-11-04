@@ -48,7 +48,7 @@
 .dragging { opacity: 0.6; outline: 2px dashed var(--line-strong); }
 .dropTarget { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--ink); }
 
-.drawerBody { display: flex; flex-direction: column; gap: 14px; padding: 0 20px 20px; }
+.drawerBody { display: flex; flex-direction: column; gap: 14px; }
 .drawerBalance { display: flex; flex-direction: column; gap: 2px; }
 .drawerBalance b { font-size: 26px; font-weight: 450; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .drawerFacts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 14px; }
@@ -136,3 +136,48 @@
 /* A link on its own line keeps a 24px target (WCAG 2.5.8), also at 400% zoom. */
 .linkRow { margin: 0; font-size: 13px; }
 .linkRow :global(.ws-linkbtn) { display: inline-flex; align-items: center; min-height: 24px; }
+
+/* Rekening & Kantong cards (refine-workspace-layout D7–D9): the old app's account cards with pockets inside,
+   in two columns that flow without stretching. The whole head and every pocket row open the detail. */
+.cards { columns: 2 360px; column-gap: 16px; }
+.acard { break-inside: avoid; margin: 0 0 16px; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-card); }
+.acardHead { position: relative; display: flex; align-items: flex-start; gap: 6px; padding: 14px 14px 14px 10px; }
+.acardOpen { display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; padding: 4px 6px; border-radius: 12px; text-align: left; }
+.acardOpen:hover { background: var(--surface-2); }
+.badge { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; color: var(--text); font-size: 15px; font-weight: 700; }
+.badgeMark { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--ac); color: #FFFFFF; font-size: 12px; font-weight: 800; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35); }
+.acardFacts { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.acardKind { color: var(--muted); font-size: 12.5px; }
+.acardBalance { margin-top: 4px; color: var(--text); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.acardGain { font-size: 13px; font-weight: 600; }
+.acardTools { display: flex; flex: none; align-items: center; gap: 2px; }
+.acardTools :global(.ws-icon-btn), .pocket :global(.ws-icon-btn) { min-width: 32px; min-height: 32px; }
+.acardNotes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 16px 12px; }
+.pockets { margin: 0; padding: 0; border-top: 1px solid var(--line); list-style: none; }
+.pocket { position: relative; display: flex; align-items: center; gap: 4px; padding: 0 10px 0 8px; border-top: 1px solid var(--line); }
+.pocket:first-child { border-top: 0; }
+.pocket::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 3px; background: var(--ac); }
+.pocketOpen { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; min-height: 48px; padding: 8px 8px 8px 12px; text-align: left; }
+.pocketOpen:hover { background: var(--surface-2); }
+.pocketName { display: flex; flex-direction: column; min-width: 0; }
+.pocketName b { overflow: hidden; color: var(--text); font-size: 14px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.pocketName span { color: var(--muted); font-size: 12px; }
+.pocketValue { display: flex; flex: none; flex-direction: column; align-items: flex-end; font-size: 12px; }
+.pocketValue b { color: var(--text); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Move buttons show on hover and keyboard focus on desktop; touch screens always show them (D9). */
+.acardTools .moveButtons, .pocket .moveButtons { opacity: 0; }
+.acard:hover .acardTools .moveButtons, .acardHead:focus-within .moveButtons, .pocket:hover .moveButtons, .pocket:focus-within .moveButtons { opacity: 1; }
+@media (hover: none) { .acardTools .moveButtons, .pocket .moveButtons { opacity: 1; } }
+.gainUp { color: var(--in-fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.gainDown { color: var(--out-fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.gainUnknown { color: var(--muted); }
+.reorderHint { margin: 0; color: var(--muted); font-size: 12.5px; }
+.phoneReorder { display: flex; justify-content: flex-end; }
+.compBar { display: flex; gap: 3px; height: 10px; margin-top: 14px; overflow: hidden; border-radius: 5px; }
+.compBar > i { display: block; min-width: 3px; height: 100%; }
+.compLegend { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 20px; margin: 14px 0 0; padding: 0; list-style: none; }
+.compLegend li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.compName { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compName::before { content: ""; flex: none; width: 9px; height: 9px; border-radius: 3px; background: var(--ac); }
+.compPct { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.compLegend b { font-weight: 600; font-variant-numeric: tabular-nums; }

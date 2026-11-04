@@ -634,6 +634,7 @@ dialog.ws-dialog::backdrop { background: var(--scrim); }
 /* Beranda (refine-workspace-layout D5): KPI cards with large figures, the four-segment money bar, the
  * Kakeibo rows, Ketahanan Dana and the whole-row activity list. */
 .ws-kcards { display: grid; grid-template-columns: minmax(0, 1.2fr) repeat(4, minmax(0, 1fr)); gap: 12px; }
+.ws-kcards.ws-kcards-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .ws-kcard { min-width: 0; padding: 16px 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-card); }
 .ws-kcard-l { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; font-weight: 500; }
 .ws-kcard-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--kd, var(--muted)); }
@@ -641,6 +642,7 @@ dialog.ws-dialog::backdrop { background: var(--scrim); }
 .ws-kcard[data-tone="out"] { --kd: var(--out-solid); }
 .ws-kcard[data-tone="save"] { --kd: var(--k-saving); }
 .ws-kcard[data-tone="net"] { --kd: var(--inv-solid); }
+.ws-kcard[data-tone="inv"] { --kd: var(--inv-solid); }
 .ws-kcard-v { margin: 8px 0 6px; color: var(--text); font-size: clamp(19px, 1.75vw, 26px); white-space: nowrap; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .ws-kcard-v.is-words { font-size: 18px; font-weight: 600; }
 .ws-kcard[data-hero] .ws-kcard-v { color: var(--in-fg); font-size: clamp(22px, 2.3vw, 32px); }
@@ -685,6 +687,9 @@ dialog.ws-dialog::backdrop { background: var(--scrim); }
 @container main (max-width: 1100px) {
   .ws-kcards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .ws-kcard[data-hero] { grid-column: 1 / -1; }
+}
+@container main (max-width: 900px) {
+  .ws-kcards.ws-kcards-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @container main (max-width: 640px) {
   .ws-kcards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
