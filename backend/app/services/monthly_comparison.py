@@ -154,8 +154,12 @@ def _change(current: int, other: int | None, *, allowed: bool) -> int | None:
 def build_comparison(
     cur, user_id: str, *, basis: str, period: ObservedPeriod, listing: dict[str, Any], now: datetime,
     kakeibo_breakdown: KakeiboBreakdown, recurring_in_period: RecurringInPeriod,
+    merchants: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """The whole-period comparison of `period` (design D1–D7); `listing` is `list_periods` of the basis."""
+    """The whole-period comparison of `period` (design D1–D7); `listing` is `list_periods` of the basis.
+
+    `merchants` is the period's merchant spending, sorted, when the caller already loaded it (the report).
+    """
     first_day: date | None = listing["first_day"]
     periods: list[ObservedPeriod] = listing["periods"]  # newest first
     index = next(i for i, item in enumerate(periods) if item.start == period.start)
@@ -227,7 +231,7 @@ def build_comparison(
     result["pillars"] = _pillars(current, previous, baseline_amounts, previous_verdict, baseline_verdict)
     result["facts"] = _facts(
         cur, user_id, current, previous, baseline_amounts, running=running, now=now,
-        previous_verdict=previous_verdict, recurring_in_period=recurring_in_period, basis=basis,
+        previous_verdict=previous_verdict, recurring_in_period=recurring_in_period, basis=basis, merchants=merchants,
     )
     result["history"] = _history(periods, index, amounts, partial)
     return result
@@ -269,7 +273,7 @@ def _pillars(current: PeriodAmounts, previous: PeriodAmounts | None, baseline: l
 
 def _facts(cur, user_id: str, current: PeriodAmounts, previous: PeriodAmounts | None, baseline: list[PeriodAmounts], *,
            running: bool, now: datetime, previous_verdict: bool, recurring_in_period: RecurringInPeriod,
-           basis: str) -> list[dict[str, Any]]:
+           basis: str, merchants: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     """"Yang bisa diperbaiki" (D6); a running period gets only the top merchant, recurring and unexpected."""
     period = current.period
     unit = "bulan" if basis == "month" else "siklus"
@@ -308,8 +312,9 @@ def _facts(cur, user_id: str, current: PeriodAmounts, previous: PeriodAmounts | 
                 "amount": current.pillar("want"), "share": share_now, "previous_share": share_before,
                 "ref": _ref(period, kakeibo_type="want"),
             })
-    merchants = sorted(merchant_spending(cur, user_id, period.start, period.last_instant).values(),
-                       key=lambda item: (-item["amount"], item["name"]))
+    if merchants is None:
+        merchants = sorted(merchant_spending(cur, user_id, period.start, period.last_instant).values(),
+                           key=lambda item: (-item["amount"], item["name"]))
     if merchants:
         top = merchants[0]
         facts.append({

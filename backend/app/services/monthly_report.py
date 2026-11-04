@@ -371,9 +371,11 @@ def build_report(
         UNCLASSIFIED: kakeibo["unclassified_spent"],
     }
     previous = _previous_window(listing, period, basis, now=now)
+    recurring = recurring_in_period(cur, user_id, period, now=now)
     comparison = build_comparison(
         cur, user_id, basis=basis, period=period, listing=listing, now=now,
-        kakeibo_breakdown=kakeibo_breakdown, recurring_in_period=recurring_in_period,
+        kakeibo_breakdown=kakeibo_breakdown, recurring_in_period=lambda *_args, **_kwargs: recurring,
+        merchants=merchants,
     )
     first_day = listing["first_day"]
     previous_reflection = None
@@ -406,7 +408,7 @@ def build_report(
                 {"name": item["name"], "search_text": item["search_text"], "amount": item["amount"]} for item in merchants[:TOP_LIMIT]
             ],
             "unexpected": {"amount": kakeibo["unexpected_spent"], **_unexpected_items(cur, user_id, start, end)},
-            "recurring": recurring_in_period(cur, user_id, period, now=now),
+            "recurring": recurring,
             "essential": essential,
         },
         "comparison": comparison,
