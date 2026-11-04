@@ -101,11 +101,12 @@ function rowSubtitle(row: ActivityRow): string {
   if (isWaiting(row)) return `${row.account_name} · menunggu jawaban`;
   if (kind === "movement") return row.notes ? `Pindah saldo · ${row.notes}` : "Pindah saldo";
   if (kind === "topup") return row.notes || row.account_name;
-  return [row.account_name, row.category_name].filter(Boolean).join(" · ");
+  // A pocket named like its category ("Transportasi · Transportasi") is said once.
+  return [...new Set([row.account_name, row.category_name].filter(Boolean))].join(" · ");
 }
 
 /** Day and time on the right of a row, e.g. "3 Nov · 21.04". */
-function rowWhen(row: ActivityRow): string {
+export function rowWhen(row: ActivityRow): string {
   return `${SHORT_DAY.format(new Date(row.date))} · ${JAKARTA_TIME.format(new Date(row.date))}`;
 }
 

@@ -18,6 +18,8 @@ import { useWidthAtMost } from "@/hooks/useWidthAtMost";
 import { canSwitchToAmountTracking, listAmountInvestmentProducts } from "@/lib/investmentTopups";
 import type { ReviewQueue } from "@/lib/review";
 import { usePathname, useSearchParams } from "next/navigation";
+import { RowAmount, rowTitle, rowWhen } from "@/components/beranda/activity";
+import type { ActivityRow } from "@/components/beranda/types";
 import { useAccountDialogs } from "./AccountDialogs";
 import type { AccountItem, AccountsResponse, NetWorthResponse } from "./types";
 import styles from "./money.module.css";
@@ -307,6 +309,7 @@ export function AccountsView() {
       <AccountDetail
         account={selected}
         parent={selected?.parent_id ? byId.get(selected.parent_id) ?? null : null}
+        colour={(selected && colours.get(selected.parent_id ?? selected.id)) ?? "var(--muted)"}
         money={bal}
         amountProducts={amountProducts}
         dialogs={dialogs}
@@ -397,10 +400,7 @@ function AccountCard({
           </span>
         )}
         <button type="button" className={styles.acardOpen} onClick={() => onOpen(account.id)} aria-label={account.name} aria-describedby={`acct-${account.id}`}>
-          <span className={styles.badge}>
-            <span className={styles.badgeMark} aria-hidden="true">{initials(account.name)}</span>
-            {account.name}
-          </span>
+          <span className={styles.badge}>{account.name}</span>
           <span id={`acct-${account.id}`} className={styles.acardFacts}>
             <span className={styles.acardKind}>{kind}</span>
             <span className={styles.acardBalance}>{money(account.balance)}</span>
@@ -714,9 +714,46 @@ function MoveButtons({ name, first, last, pending, onMove }: { name: string; fir
 }
 
 /** The detail of an account, pocket or product: a centered dialog, a bottom sheet on phones (D7). */
+/** The three headline facts of the detail, as in the approved preview: value and gain for a product, pockets for a
+    parent, and kind and parent for a plain account or pocket. */
+function detailFacts(account: AccountItem, parent: AccountItem | null, money: (value: number) => string): { label: string; value: React.ReactNode }[] {
+  const pockets = account.children ?? [];
+  if (isHolding(account) && !pockets.length) {
+    const cost = account.cost_basis ?? (account.capital_gain != null ? account.balance - account.capital_gain : null);
+    return [
+      { label: "Nilai sekarang", value: money(account.balance) },
+      { label: "Modal", value: cost == null ? "Belum dicatat" : money(cost) },
+      { label: "Untung/rugi", value: <GainLine gain={account.capital_gain} pct={account.capital_gain_pct} money={money} /> },
+    ];
+  }
+  if (isHolding(account)) {
+    const gain = account.group_capital_gain;
+    return [
+      { label: "Nilai", value: money(account.balance) },
+      { label: "Produk", value: String(pockets.length) },
+      { label: "Untung/rugi", value: <GainLine gain={gain} pct={gain != null && account.group_cost_basis ? (gain / account.group_cost_basis) * 100 : null} money={money} /> },
+    ];
+  }
+  if (pockets.length) {
+    return [
+      { label: "Saldo", value: money(account.balance) },
+      { label: "Kantong", value: String(pockets.length) },
+      { label: "Kantong utama", value: pockets[0].name },
+    ];
+  }
+  return [
+    { label: "Saldo", value: money(account.balance) },
+    { label: "Jenis", value: KIND[account.type] },
+    { label: "Induk", value: parent ? parent.name : "—" },
+  ];
+}
+
+const RECENT_LIMIT = 4;
+
 function AccountDetail({
   account,
   parent,
+  colour,
   money,
   amountProducts,
   dialogs,
@@ -724,11 +761,17 @@ function AccountDetail({
 }: {
   account: AccountItem | null;
   parent: AccountItem | null;
+  colour: string;
   money: (value: number) => string;
   amountProducts: Set<string>;
   dialogs: ReturnType<typeof useAccountDialogs>;
   onClose: () => void;
 }) {
+  const recentQuery = useQuery<{ transactions: ActivityRow[] }>({
+    queryKey: ["transactions", "account", account?.id],
+    queryFn: () => api.get(`/transactions?account_id=${account!.id}&limit=${RECENT_LIMIT}`),
+    enabled: Boolean(account),
+  });
   if (!account) return null;
   const pockets = account.children ?? [];
   const holding = isHolding(account);
@@ -736,43 +779,83 @@ function AccountDetail({
   const amountTracked = amountProducts.has(account.id);
   const canReconcile = !pockets.length && account.investment_tracking_mode !== "amount";
   const isPocket = Boolean(account.parent_id);
-  const kind = isPocket ? (holding ? "Produk investasi" : "Kantong") : KIND[account.type];
+  const kind = isPocket ? (holding ? "Produk" : "Kantong") : KIND[account.type];
+  const recent = recentQuery.data?.transactions ?? [];
+  const units = account.units != null && account.investment_tracking_mode !== "amount";
+  const hasMoreFacts = Boolean(account.instrument_symbol || (holding && !pockets.length) || units || account.last_price != null || account.avg_buy_price != null || account.default_funding_account_name);
   return (
-    <Modal open onClose={onClose} title={account.name}>
+    <Modal
+      open
+      onClose={onClose}
+      title={account.name}
+      subtitle={parent ? `${kind} di ${parent.name}` : kind}
+      leading={<span className={styles.detailMark} style={{ background: colour, color: badgeInk(colour) }} aria-hidden="true">{initials(account.name)}</span>}
+      wide
+    >
       <div className={styles.drawerBody}>
-        <p className="ws-caption">{parent ? `${kind} di ${parent.name}` : kind}</p>
-        <div className={styles.drawerBalance}>
-          <span className="ws-caption">{holding ? "Nilai" : "Saldo"}</span>
-          <b>{money(account.balance)}</b>
-        </div>
+        <dl className={styles.detailFacts}>
+          {detailFacts(account, parent, money).map((fact) => (
+            <div key={fact.label}>
+              <dt>{fact.label}</dt>
+              <dd>{fact.value}</dd>
+            </div>
+          ))}
+        </dl>
         {account.reconciliation_required && (
           <ReconciliationFlag name={account.name} onReconcile={canReconcile ? () => dialogs.openReconciliation(account) : undefined} />
         )}
-        <dl className={styles.drawerFacts}>
-          {account.instrument_symbol && (<><dt>Kode</dt><dd>{account.instrument_symbol}</dd></>)}
-          {holding && (<><dt>Cara hitung</dt><dd>{trackingText(account, amountProducts)}</dd></>)}
-          {account.investment_tracking_mode === "amount" && (<><dt>Modal</dt><dd>{account.cost_basis == null ? "Belum diisi" : money(account.cost_basis)}{account.investment_value_estimated ? " · nilai estimasi" : ""}</dd></>)}
-          {account.units != null && account.investment_tracking_mode !== "amount" && (<><dt>Jumlah</dt><dd>{account.units.toLocaleString("id-ID")} {account.instrument_type === "stock" ? `lembar (${(account.units / 100).toLocaleString("id-ID")} lot)` : "unit"}</dd></>)}
-          {account.last_price != null && (<><dt>Harga terakhir</dt><dd>{fmtMoney(account.last_price)}</dd></>)}
-          {account.avg_buy_price != null && (<><dt>Modal beli rata-rata</dt><dd>{fmtMoney(account.avg_buy_price)}</dd></>)}
-          {account.default_funding_account_name && (<><dt>Rekening dana</dt><dd>{account.default_funding_account_name}</dd></>)}
-          {pockets.length > 0 && (<><dt>Kantong</dt><dd>{pockets.length}</dd></>)}
-        </dl>
-        {holding && (
-          <p className={styles.performance}>
-            Untung/rugi: <GainLine gain={account.capital_gain} pct={account.capital_gain_pct} money={money} />
-          </p>
+        {hasMoreFacts && (
+          <dl className={styles.drawerFacts}>
+            {account.instrument_symbol && (<><dt>Kode</dt><dd>{account.instrument_symbol}</dd></>)}
+            {holding && !pockets.length && (<><dt>Cara hitung</dt><dd>{trackingText(account, amountProducts)}{account.investment_value_estimated ? " · nilai estimasi" : ""}</dd></>)}
+            {units && (<><dt>Jumlah</dt><dd>{account.units!.toLocaleString("id-ID")} {account.instrument_type === "stock" ? `lembar (${(account.units! / 100).toLocaleString("id-ID")} lot)` : "unit"}</dd></>)}
+            {account.last_price != null && (<><dt>Harga terakhir</dt><dd>{fmtMoney(account.last_price)}</dd></>)}
+            {account.avg_buy_price != null && (<><dt>Modal beli rata-rata</dt><dd>{fmtMoney(account.avg_buy_price)}</dd></>)}
+            {account.default_funding_account_name && (<><dt>Rekening dana</dt><dd>{account.default_funding_account_name}</dd></>)}
+          </dl>
         )}
-        <div className={styles.drawerActions} role="group" aria-label={`Tindakan ${account.name}`}>
+        {pockets.length > 0 && (
+          <section aria-labelledby={`detail-pockets-${account.id}`}>
+            <h3 id={`detail-pockets-${account.id}`} className={styles.detailHeading}>{holding ? "Produk" : "Kantong"}</h3>
+            <ul className={styles.detailRows}>
+              {pockets.map((pocket) => (
+                <li key={pocket.id}>
+                  <i style={{ background: colour }} aria-hidden="true" />
+                  <span>{pocket.name}</span>
+                  <b>{money(pocket.balance)}</b>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        <section aria-labelledby={`detail-recent-${account.id}`}>
+          <h3 id={`detail-recent-${account.id}`} className={styles.detailHeading}>Transaksi terakhir</h3>
+          {recentQuery.isError && <p className="ws-caption">Transaksi terakhir belum bisa dimuat.</p>}
+          {recentQuery.isSuccess && recent.length === 0 && <p className="ws-caption">Belum ada transaksi di {isPocket ? (holding ? "produk" : "kantong") : "rekening"} ini.</p>}
+          {recent.length > 0 && (
+            <ul className={styles.detailRows}>
+              {recent.map((row) => (
+                <li key={row.id}>
+                  <span className={styles.detailTx}>
+                    <span>{rowTitle(row)}</span>
+                    <small>{rowWhen(row)}</small>
+                  </span>
+                  <RowAmount row={row} bal={money} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <div className={styles.detailActions} role="group" aria-label={`Tindakan ${account.name}`}>
           {position && amountTracked ? (
-            <button type="button" className="ws-btn ws-btn-ink" onClick={() => dialogs.openTopup(account)}>Top up</button>
+            <button type="button" className="ws-btn ws-btn-accent" onClick={() => dialogs.openTopup(account)}>Top up</button>
           ) : position ? (
             <>
-              <button type="button" className="ws-btn ws-btn-ink" onClick={() => dialogs.openTrade(account, "buy")}>Beli</button>
+              <button type="button" className="ws-btn ws-btn-accent" onClick={() => dialogs.openTrade(account, "buy")}>Beli</button>
               <button type="button" className="ws-btn" onClick={() => dialogs.openTrade(account, "sell")}>Jual</button>
             </>
           ) : !isPocket ? (
-            <button type="button" className="ws-btn ws-btn-ink" onClick={() => dialogs.openNewPocket(account)}>
+            <button type="button" className="ws-btn ws-btn-accent" onClick={() => dialogs.openNewPocket(account)}>
               <Icon name="plus" className="h-4 w-4" />
               Tambah kantong
             </button>
@@ -785,9 +868,9 @@ function AccountDetail({
             label={`Arsipkan ${isPocket ? "kantong" : "rekening"} ${account.name}`}
             confirmation={`Arsipkan ${isPocket ? "kantong" : "rekening"} "${account.name}"${pockets.length ? " beserta seluruh kantong di dalamnya" : ""}?`}
             onConfirm={() => { dialogs.archiveMutation.mutate(account.id); onClose(); }}
-            className="ws-btn ws-btn-danger"
+            className={styles.dangerLink}
           >
-            {isPocket ? "Arsipkan kantong" : "Arsipkan rekening"}
+            Arsipkan
           </ConfirmActionButton>
         </div>
       </div>

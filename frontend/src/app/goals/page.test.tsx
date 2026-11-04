@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import GoalsAndDebtsPage from "./page";
+import { billRows } from "@/components/goals/GoalsView";
 
 // Next.js keeps `useSearchParams` in sync with the history API; the mock does the same.
 vi.mock("next/navigation", async () => {
@@ -203,7 +204,9 @@ describe("goal backing forms", () => {
     const user = userEvent.setup();
     renderGoals();
 
-    expect(await screen.findByText("Terbayar Rp 3.000.000 dari Rp 15.000.000 · 20%")).toBeInTheDocument();
+    const debts = await screen.findByRole("region", { name: /^Utang/ });
+    expect(debts).toHaveTextContent(/Rp 12\.000\.000\s*sisa/);
+    expect(debts).toHaveTextContent(/Terbayar\s*20%\s*Minimal\s*Rp 500\.000/);
     const drawer = await openDrawer(user, "Kartu Kredit");
     expect(within(drawer).queryByText(/bulan lagi|bln lagi/)).not.toBeInTheDocument();
     await user.click(within(drawer).getByRole("button", { name: "Kaitkan atau catat pembayaran" }));
@@ -231,6 +234,7 @@ describe("goal backing forms", () => {
             { kind: "goal", goal_id: "g-paced", label: "Liburan", target_date: "2027-06-30", months_left: 8, set_aside: 750_000, funded: 0, amount: 1_105_000 },
           ] },
       };
+      if (path === "/dashboard/recurring-charges") return { ok: true, charges: [] };
       if (path === "/dashboard/net-worth") return {
         runway: { runway_days: null, runway_months: null, coverage_months: null, status: "unknown", emergency_fund_balance: 3_500_000, balance_basis: "goal",
           essential_cost: { amount: null, method: "unknown", basis: "unknown" } },
@@ -245,7 +249,8 @@ describe("goal backing forms", () => {
     const bills = within(card).getByRole("list", { name: "Tagihan berikutnya" });
     expect(within(bills).getAllByRole("listitem")).toHaveLength(2);
     expect(card).not.toHaveTextContent("Liburan");
-    expect(card).toHaveTextContent("Rp 395.000 total");
+    expect(card).toHaveTextContent("2 · Rp 395.000");
+    expect(card).not.toHaveTextContent("perkiraan");
     expect(await screen.findByText("Belum dapat dihitung")).toBeInTheDocument();
     expect(screen.queryByText(/^0 bulan/)).not.toBeInTheDocument();
     const user = userEvent.setup();
@@ -264,5 +269,26 @@ describe("goal backing forms", () => {
     expect(within(drawer).getByRole("group", { name: /Arsipkan target "Laptop"\? Saldo rekening tidak berubah\./ })).toBeInTheDocument();
     await user.click(within(drawer).getByRole("button", { name: "Ya, lanjutkan" }));
     await waitFor(() => expect(api.del).toHaveBeenCalledWith("/goals/goal-standalone"));
+  });
+});
+
+describe("bill rows", () => {
+  const plan = { kind: "plan" as const, rule_id: "r1", label: "Internet Rumah", due_date: "2026-11-10", overdue: false, amount: 330_000 };
+  const charge = (key: string, date: string | null, existing: boolean) => ({
+    key, merchant: key, cadence: "monthly" as const, typical_amount: 250_000, next_expected_date: date, existing_plan: existing ? { id: "rule" } : null,
+  });
+
+  it("adds charges seen recurring that no plan covers, from today to the window end, as estimates", () => {
+    const rows = billRows([plan], [
+      charge("Token Listrik", "2026-11-05", false),
+      charge("Sudah lewat", "2026-11-01", false),
+      charge("Sesudah jendela", "2026-12-20", false),
+      charge("Sudah direncanakan", "2026-11-06", true),
+      charge("Tanpa tanggal", null, false),
+    ], "2026-11-04", "2026-11-30");
+    expect(rows.map((row) => [row.label, row.date, row.note])).toEqual([
+      ["Token Listrik", "2026-11-05", "bulanan · perkiraan"],
+      ["Internet Rumah", "2026-11-10", "terjadwal"],
+    ]);
   });
 });

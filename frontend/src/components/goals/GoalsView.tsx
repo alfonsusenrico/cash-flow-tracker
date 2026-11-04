@@ -25,6 +25,8 @@ import type { GoalItem, ObligationItem } from "./types";
 const RecurringRulesModal = dynamic(() => import("@/components/recurring/RecurringRulesModal").then((module) => module.RecurringRulesModal), { ssr: false });
 
 const DAY_MONTH = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
+// en-CA formats a date as YYYY-MM-DD, comparable with the API's local dates.
+const JAKARTA_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });
 const MONTH_YEAR = new Intl.DateTimeFormat("id-ID", { month: "short", year: "numeric", timeZone: "Asia/Jakarta" });
 
 function shortDate(iso: string): string {
@@ -54,7 +56,6 @@ export function GoalsView() {
   const search = useSearchParams();
   const dialogs = useGoalDialogs();
   const [plansOpen, setPlansOpen] = useState(false);
-  const [archivedOpen, setArchivedOpen] = useState(false);
   const summaryQuery = useQuery<CycleSummary>({ queryKey: queryKeys.dashboard.cycleSummary, queryFn: () => api.get("/dashboard/cycle-summary") });
   const netWorthQuery = useQuery<NetWorthResponse>({ queryKey: queryKeys.dashboard.netWorth, queryFn: () => api.get("/dashboard/net-worth") });
 
@@ -78,7 +79,7 @@ export function GoalsView() {
         <Icon name="plus" className="h-4 w-4" />
         Tambah utang
       </button>
-      <button type="button" className="ws-btn ws-btn-ink" onClick={dialogs.openNewGoal}>
+      <button type="button" className="ws-btn ws-btn-accent" onClick={dialogs.openNewGoal}>
         <Icon name="plus" className="h-4 w-4" />
         Tambah target
       </button>
@@ -114,28 +115,28 @@ export function GoalsView() {
           <button type="button" className="ws-btn" onClick={dialogs.openNewGoal}>Buat target pertama</button>
         </div>
       ) : (
-        <ul className={styles.goalList}>
+        <ul className={styles.goalTiles}>
           {dialogs.goals.map((goal) => {
             const status = goalStatus(goal, bal);
             const percent = Math.max(0, Math.min(100, Math.round(goal.percentage_completed)));
+            const sources = goal.linked_accounts ?? [];
             return (
-              <li key={goal.id} className={styles.goal}>
-                <div className={styles.goalTop}>
-                  <button type="button" className="ws-rowbtn" onClick={() => open("target", goal.id)}>{goal.name}</button>
-                  <Pill tone={status.tone}>{status.text}</Pill>
-                </div>
-                <div className={styles.progress} aria-hidden="true">
-                  <i style={{ width: `${percent}%`, background: goal.color || "var(--in-solid)" }} />
-                </div>
-                <div className={styles.goalMeta}>
-                  <span>{bal(goal.current_amount)} dari {bal(goal.target_amount)} · {percent}%</span>
-                  <span>
-                    {goal.linked_accounts?.length
-                      ? `Dari ${goal.linked_accounts.map((account) => account.name).join(", ")}`
-                      : "Dicatat manual"}
-                    {goal.target_date ? ` · sampai ${MONTH_YEAR.format(new Date(goal.target_date))}` : ""}
+              <li key={goal.id}>
+                <button type="button" className={styles.goalTile} onClick={() => open("target", goal.id)} aria-label={goal.name}>
+                  <span className={styles.goalTop}>
+                    <b>{goal.name}</b>
+                    <Pill tone={status.tone}>{status.text}</Pill>
+                    <span className={styles.goalPct}>{percent}%</span>
                   </span>
-                </div>
+                  <span className={styles.progress} aria-hidden="true">
+                    <i style={{ width: `${percent}%`, background: percent >= 100 ? "var(--in-solid)" : "var(--tr-fg)" }} />
+                  </span>
+                  <span className={styles.goalMeta}>
+                    <span><b>{bal(goal.current_amount)}</b> dari {bal(goal.target_amount)}{goal.target_date ? ` · sampai ${MONTH_YEAR.format(new Date(goal.target_date))}` : ""}</span>
+                    <span>{sources.length ? `${sources.length} kantong` : "Dicatat manual"}</span>
+                  </span>
+                  {sources.length > 0 && <span className={styles.goalSources}>{sources.map((account) => account.name).join(" · ")}</span>}
+                </button>
               </li>
             );
           })}
@@ -147,47 +148,7 @@ export function GoalsView() {
   const billsCard = <BillsCard query={summaryQuery} money={bal} onPlans={() => setPlansOpen(true)} />;
   const runwayCard = <RunwayCard query={netWorthQuery} money={bal} />;
 
-  const debtsCard = (
-    <Card labelledBy="goals-debts">
-      <CardHeader id="goals-debts" icon="credit-card" title="Utang" count={active.length} countLabel={`${active.length} utang aktif`} />
-      {active.length === 0 ? (
-        <p className="ws-caption">Belum ada utang aktif.</p>
-      ) : (
-        <ul className={styles.goalList}>
-          {active.map((debt) => {
-            const percent = Math.max(0, Math.min(100, Math.round(debt.payoff_percentage)));
-            return (
-              <li key={debt.id} className={styles.goal}>
-                <div className={styles.goalTop}>
-                  <button type="button" className="ws-rowbtn" onClick={() => open("utang", debt.id)}>{debt.name}</button>
-                  {debt.due_date && <Pill tone="warn">Jatuh tempo {shortDate(debt.due_date)}</Pill>}
-                </div>
-                <div className={styles.progress} aria-hidden="true"><i style={{ width: `${percent}%`, background: "var(--tr-fg)" }} /></div>
-                <div className={styles.goalMeta}>
-                  <span>Terbayar {bal(debt.paid_amount)} dari {bal(debt.total_amount)} · {percent}%</span>
-                  <span>Sisa {bal(debt.remaining_amount)}{debt.minimum_payment ? ` · minimal ${bal(debt.minimum_payment)}` : ""}</span>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {archived.length > 0 && (
-        <div className={styles.archived}>
-          <button type="button" className="ws-linkbtn" aria-expanded={archivedOpen} onClick={() => setArchivedOpen((value) => !value)}>
-            {archivedOpen ? "Sembunyikan" : "Tampilkan"} {archived.length} utang lunas
-          </button>
-          {archivedOpen && (
-            <ul className={styles.archivedList}>
-              {archived.map((debt) => (
-                <li key={debt.id}><span>{debt.name}</span><span>{bal(debt.total_amount)}</span></li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </Card>
-  );
+  const debtsCard = <DebtsCard active={active} archived={archived} money={bal} onOpen={(id) => open("utang", id)} />;
 
   return (
     <div className={styles.root}>
@@ -207,36 +168,132 @@ export function GoalsView() {
   );
 }
 
+/** A charge the server saw recur with a steady amount; only the fields this page reads. */
+interface DetectedCharge {
+  key: string;
+  merchant: string;
+  cadence: "weekly" | "monthly";
+  typical_amount: number;
+  next_expected_date: string | null;
+  existing_plan: { id: string } | null;
+}
+
+interface BillRow {
+  key: string;
+  label: string;
+  date: string;
+  amount: number;
+  note: string;
+}
+
+const CADENCE: Record<DetectedCharge["cadence"], string> = { weekly: "mingguan", monthly: "bulanan" };
+
+/** Planned bills of the window, then charges seen recurring that no plan covers yet, from today to the window end,
+    marked as estimates (OD97). */
+export function billRows(lines: PlanLine[], charges: DetectedCharge[], today: string, windowEnd: string): BillRow[] {
+  const planned = lines.map((line) => ({
+    key: `plan-${line.rule_id}-${line.due_date}`,
+    label: line.label,
+    date: line.due_date,
+    amount: line.amount,
+    note: line.overdue ? "terlewat" : "terjadwal",
+  }));
+  const detected = charges
+    .filter((charge) => !charge.existing_plan && charge.next_expected_date != null)
+    .filter((charge) => charge.next_expected_date! >= today && charge.next_expected_date! <= windowEnd)
+    .map((charge) => ({
+      key: `seen-${charge.key}`,
+      label: charge.merchant,
+      date: charge.next_expected_date!,
+      amount: charge.typical_amount,
+      note: `${CADENCE[charge.cadence]} · perkiraan`,
+    }));
+  return [...planned, ...detected].sort((a, b) => a.date.localeCompare(b.date));
+}
+
 function BillsCard({ query, money, onPlans }: { query: { data?: CycleSummary; isLoading: boolean; isError: boolean; refetch: () => unknown }; money: (value: number) => string; onPlans: () => void }) {
+  const chargesQuery = useQuery<{ charges: DetectedCharge[] }>({ queryKey: queryKeys.dashboard.recurringCharges, queryFn: () => api.get("/dashboard/recurring-charges") });
   const data = query.data;
   const title = data?.scheduled.window_basis === "next_30_days" ? "Tagihan 30 hari ke depan" : "Tagihan sampai gaji berikutnya";
   const plans = (data?.scheduled.lines ?? []).filter((line): line is PlanLine => line.kind === "plan");
+  const rows = data ? billRows(plans, chargesQuery.data?.charges ?? [], JAKARTA_DATE.format(new Date()), data.scheduled.window_end) : [];
+  const total = rows.reduce((sum, row) => sum + row.amount, 0);
   return (
     <Card labelledBy="goals-bills">
-      <CardHeader id="goals-bills" icon="repeat" title={title} count={data && plans.length ? plans.length : undefined} countLabel={`${plans.length} tagihan`}
+      <CardHeader id="goals-bills" icon="calendar" title={title}
+        extra={rows.length ? <span className="ws-caption">{rows.length} · {money(total)}</span> : undefined}
         action={<button type="button" className="ws-linkbtn ws-accent-link" onClick={onPlans}>Kelola</button>} />
       {query.isLoading ? (
         <Skeleton style={{ height: 120 }} />
       ) : query.isError || !data ? (
         <ErrorState message="Tagihan belum dapat dimuat." onRetry={() => query.refetch()} />
-      ) : plans.length === 0 ? (
+      ) : rows.length === 0 ? (
         <p className="ws-caption">Tidak ada tagihan sampai {data.scheduled.window_basis === "next_30_days" ? "30 hari ke depan" : "gaji berikutnya"}.</p>
       ) : (
         <>
-          <div className="ws-dana-big"><b>{money(data.scheduled.plans_total ?? 0)}</b> total</div>
           <ul className={styles.billList} aria-label="Tagihan berikutnya">
-            {plans.slice(0, 3).map((line) => (
-              <li key={`${line.rule_id}-${line.due_date}`}>
+            {rows.slice(0, 3).map((row) => (
+              <li key={row.key}>
                 <span>
-                  <b>{line.label}</b>
-                  <span>{shortDate(line.due_date)}{line.overdue ? " · terlewat" : ""}</span>
+                  <b>{row.label}</b>
+                  <span>{shortDate(row.date)} · {row.note}</span>
                 </span>
-                <b>{money(line.amount)}</b>
+                <b>{money(row.amount)}</b>
               </li>
             ))}
           </ul>
-          {plans.length > 3 && <p className="ws-caption">dan {plans.length - 3} tagihan lain</p>}
+          {rows.length > 3 && <p className="ws-caption">dan {rows.length - 3} tagihan lain</p>}
         </>
+      )}
+      {chargesQuery.isError && <p className="ws-caption">Tagihan yang terdeteksi belum dapat dimuat.</p>}
+    </Card>
+  );
+}
+
+function DebtsCard({ active, archived, money, onOpen }: { active: ObligationItem[]; archived: ObligationItem[]; money: (value: number) => string; onOpen: (id: string) => void }) {
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const remaining = active.reduce((sum, debt) => sum + debt.remaining_amount, 0);
+  const total = active.reduce((sum, debt) => sum + debt.total_amount, 0);
+  const paid = active.reduce((sum, debt) => sum + debt.paid_amount, 0);
+  const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((paid / total) * 100))) : 0;
+  // The minimum shown is the one due first; debts without a due date come last.
+  const next = [...active].filter((debt) => debt.minimum_payment != null).sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999"))[0];
+  return (
+    <Card labelledBy="goals-debts">
+      <CardHeader id="goals-debts" icon="credit-card" title="Utang" extra={<span className="ws-caption">{active.length} aktif</span>} />
+      {active.length === 0 ? (
+        <p className="ws-caption">Belum ada utang aktif.</p>
+      ) : (
+        <>
+          <div className="ws-dana-big"><b className={styles.debtBig}>{money(remaining)}</b> sisa</div>
+          <div className={cn(styles.progress, "mt-3")} aria-hidden="true"><i style={{ width: `${percent}%`, background: "var(--tr-fg)" }} /></div>
+          <dl className={cn(styles.detailFacts, styles.factsTwo)}>
+            <div><dt>Terbayar</dt><dd>{percent}%</dd></div>
+            {next && <div><dt>Minimal{next.due_date ? ` · ${shortDate(next.due_date)}` : ""}</dt><dd>{money(next.minimum_payment!)}</dd></div>}
+          </dl>
+          <ul className={styles.debtNames} aria-label="Utang aktif">
+            {active.map((debt) => (
+              <li key={debt.id}>
+                <button type="button" className="ws-rowbtn" onClick={() => onOpen(debt.id)}>{debt.name}</button>
+                <span> · total {money(debt.total_amount)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {archived.length > 0 && (
+        <div className={styles.archived}>
+          <button type="button" className="ws-linkbtn" aria-expanded={archivedOpen} onClick={() => setArchivedOpen((value) => !value)}>
+            {archivedOpen ? "Sembunyikan" : "Tampilkan"} {archived.length} utang lunas
+          </button>
+          {archivedOpen && (
+            <ul className={styles.archivedList}>
+              {archived.map((debt) => (
+                <li key={debt.id}><span>{debt.name}</span><span>{money(debt.total_amount)}</span></li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </Card>
   );
@@ -246,6 +303,9 @@ function RunwayCard({ query, money }: { query: { data?: NetWorthResponse; isLoad
   const runway = query.data?.runway;
   const months = runway ? runway.coverage_months ?? runway.runway_months : null;
   const known = runway != null && months != null && runway.runway_days != null;
+  const target = runway?.target_months != null && runway.monthly_primary_expense != null ? runway.target_months * runway.monthly_primary_expense : null;
+  const coverage = target ? Math.max(0, Math.min(100, ((runway!.emergency_fund_balance ?? 0) / target) * 100)) : null;
+  const basisWord = runway?.balance_basis === "all_liquid" ? "saldo kas" : "dana darurat";
   return (
     <Card labelledBy="goals-runway">
       <CardHeader id="goals-runway" icon="shield" title="Ketahanan Dana" />
@@ -258,19 +318,16 @@ function RunwayCard({ query, money }: { query: { data?: NetWorthResponse; isLoad
           <div className="ws-dana-big">
             {known ? <><b>{months!.toLocaleString("id-ID", { maximumFractionDigits: 1 })}</b> bulan biaya pokok</> : <b className="!text-lg">Belum dapat dihitung</b>}
           </div>
-          {known && (
-            <div className={styles.runway} aria-hidden="true">
-              {Array.from({ length: 6 }, (_, index) => (
-                <i key={index} className={cn(index + 1 <= months! && styles.on)} />
-              ))}
-            </div>
+          {known && coverage != null && (
+            <div className="ws-bar mt-3" aria-hidden="true"><i style={{ width: `${coverage}%` }} /></div>
           )}
-          <dl className={styles.facts}>
-            <dt>Dana yang dihitung</dt>
-            <dd>{money(runway.emergency_fund_balance ?? 0)}</dd>
-            {runway.monthly_primary_expense != null && (<><dt>Biaya pokok per bulan</dt><dd>{money(runway.monthly_primary_expense)}</dd></>)}
-            {known && (<><dt>Bertahan</dt><dd>{runway.runway_days!.toLocaleString("id-ID")} hari</dd></>)}
-            {runway.target_months != null && (<><dt>Target</dt><dd>{runway.target_months} bulan</dd></>)}
+          <div className="ws-dana-foot">
+            <span><b>{money(runway.emergency_fund_balance ?? 0)}</b> {basisWord}</span>
+            {target != null && <span>target <b>{money(target)}</b></span>}
+          </div>
+          <dl className={cn(styles.detailFacts, styles.factsTwo)}>
+            <div><dt>Biaya pokok / bulan</dt><dd>{runway.monthly_primary_expense != null ? money(runway.monthly_primary_expense) : "Belum diketahui"}</dd></div>
+            <div><dt>Jika pemasukan berhenti</dt><dd>{known ? `${runway.runway_days!.toLocaleString("id-ID")} hari` : "—"}</dd></div>
           </dl>
           {!known && <p className="ws-caption">Biaya pokok bulanan belum dapat diperkirakan dari riwayat.</p>}
           {runway.balance_basis === "all_liquid" && <p className="ws-caption">{ALL_LIQUID_NOTICE}</p>}

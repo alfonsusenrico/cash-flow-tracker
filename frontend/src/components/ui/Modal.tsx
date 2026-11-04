@@ -7,13 +7,17 @@ interface ModalProps {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** A short line under the title, e.g. the account kind. */
+  subtitle?: string;
+  /** A decorative mark before the title; it must be aria-hidden. */
+  leading?: React.ReactNode;
   children: React.ReactNode;
   wide?: boolean;
   centered?: boolean;
   hideCloseButton?: boolean;
 }
 
-export function Modal({ open, onClose, title, children, wide, centered, hideCloseButton }: ModalProps) {
+export function Modal({ open, onClose, title, subtitle, leading, children, wide, centered, hideCloseButton }: ModalProps) {
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const onCloseRef = useRef(onClose);
@@ -106,9 +110,15 @@ export function Modal({ open, onClose, title, children, wide, centered, hideClos
         )}
 
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-[var(--line)]">
-          <h2 id={titleId} className="font-bold text-sm sm:text-base tracking-tight text-[var(--text)]">
-            {title}
-          </h2>
+          <div className="flex min-w-0 items-center gap-3">
+            {leading}
+            <div className="min-w-0">
+              <h2 id={titleId} className="font-bold text-sm sm:text-base tracking-tight text-[var(--text)]">
+                {title}
+              </h2>
+              {subtitle && <p className="text-[13px] text-[var(--muted)]">{subtitle}</p>}
+            </div>
+          </div>
           {!hideCloseButton && (
             <button
               onClick={onClose}

@@ -11,12 +11,12 @@
 .notice { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); color: var(--text); font-size: 13.5px; }
 .alert { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--out-bg); color: var(--out-fg); font-size: 13.5px; }
 .headTotal { margin-left: 8px; color: var(--muted); font-size: 14px; font-weight: 400; font-variant-numeric: tabular-nums; }
-.plainTitle { margin: 0; font-size: 16px; font-weight: 500; }
+.plainTitle { margin: 0; font-size: 16px; font-weight: 650; }
 
 .table { table-layout: auto; }
 .table td { vertical-align: top; }
 .table :global(.ws-who-t) > span { white-space: normal; }
-.amount { font-variant-numeric: tabular-nums; font-weight: 450; }
+.amount { font-variant-numeric: tabular-nums; font-weight: 600; }
 .who { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
 .mark { flex: none; width: 10px; height: 10px; margin-top: 7px; border-radius: 3px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 18%, transparent); }
 .disclosure { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; margin-top: 0; border-radius: 6px; color: var(--muted); }
@@ -25,16 +25,12 @@
 .pocketRow td:first-child { padding-left: 32px; }
 .flag { margin-top: 6px; }
 .phoneKind { display: none !important; }
-.groupRow th { padding: 14px 0 6px; border-bottom: 1px solid var(--line); color: var(--text); font-size: 14px; font-weight: 500; text-align: left; white-space: normal; }
+.groupRow th { padding: 14px 0 6px; border-bottom: 1px solid var(--line); color: var(--text); font-size: 14px; font-weight: 650; text-align: left; white-space: normal; }
 .groupRow :global(.ws-rowbtn) { display: inline; }
 
 .bar { margin-top: 14px; }
 .segLiquid { background: var(--accent); color: var(--accent-ink); }
 .segInvest { background: var(--inv-solid); color: var(--inv-solid-fg, #fff); }
-.facts { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; margin: 16px 0 10px; font-size: 14px; font-variant-numeric: tabular-nums; }
-.facts dt { color: var(--muted); }
-.facts dd { margin: 0; text-align: right; }
-.facts .strong { color: var(--text); font-weight: 500; }
 
 .reorder, .reorderPockets { margin: 12px 0 0; padding: 0; list-style: none; }
 .reorderPockets { margin: 0 0 0 28px; }
@@ -50,13 +46,33 @@
 
 .drawerBody { display: flex; flex-direction: column; gap: 14px; }
 .drawerBalance { display: flex; flex-direction: column; gap: 2px; }
-.drawerBalance b { font-size: 26px; font-weight: 450; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.drawerBalance b { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .drawerFacts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 14px; }
 .drawerFacts dt { color: var(--muted); }
 .drawerFacts dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.performance { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 14px; font-variant-numeric: tabular-nums; }
-.drawerActions { display: flex; flex-direction: column; gap: 8px; }
-.drawerActions > :global(.ws-btn), .drawerActions > button { justify-content: center; width: 100%; min-height: 44px; }
+/* Account detail (refine-workspace-layout D7): headline facts, pockets, recent rows and one action row. */
+.detailMark { display: grid; flex: none; place-items: center; width: 40px; height: 40px; border-radius: 12px; font-size: 13px; font-weight: 800; }
+.detailFacts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.detailFacts > div { min-width: 0; padding: 11px 12px; border-radius: 14px; background: var(--surface-2); }
+.detailFacts dt { color: var(--muted); font-size: 12px; font-weight: 600; }
+.detailFacts dd { margin: 2px 0 0; overflow-wrap: anywhere; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.detailHeading { margin: 0 0 4px; color: var(--muted); font-size: 13px; font-weight: 650; }
+.detailRows { margin: 0; padding: 0; list-style: none; }
+.detailRows li { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 8px 4px; border-top: 1px solid var(--line); }
+.detailRows li:first-child { border-top: 0; }
+.detailRows li > i { flex: none; width: 8px; height: 8px; border-radius: 3px; }
+.detailRows li > span:first-of-type { flex: 1; min-width: 0; font-weight: 600; }
+.detailRows li > :last-child { margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; }
+.detailRows li > b { font-weight: 650; }
+.detailTx { display: flex; flex-direction: column; }
+.detailTx small { color: var(--muted); font-size: 12.5px; font-weight: 400; }
+.detailActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dangerLink { margin-left: auto; padding: 0 6px; border-radius: 10px; color: var(--out-fg); font-weight: 650; }
+.dangerLink:hover { text-decoration: underline; }
+@media (max-width: 520px) {
+  .detailFacts { grid-template-columns: 1fr 1fr; }
+  .detailActions > :global(.ws-btn) { flex: 1 1 auto; justify-content: center; }
+}
 
 @container main (max-width: 900px) {
   .grid { grid-template-columns: minmax(0, 1fr); }
@@ -74,36 +90,38 @@
 
 /* Target & Tagihan */
 .emptyBlock { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
-.goalList { display: flex; flex-direction: column; gap: 16px; margin: 14px 0 0; padding: 0; list-style: none; }
-.goal { display: flex; flex-direction: column; gap: 8px; }
-.goalTop { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.goalTop :global(.ws-rowbtn) { white-space: normal; }
+/* Target tabungan tiles (refine-workspace-layout D11): the whole tile opens the goal. */
+.goalTiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin: 14px 0 0; padding: 0; list-style: none; }
+.goalTile { display: flex; flex-direction: column; gap: 10px; width: 100%; padding: 16px; border-radius: 16px; background: var(--surface-2); text-align: left; }
+.goalTile:hover { background: var(--surface-3); }
+.goalTop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.goalTop > b { font-size: 15px; font-weight: 700; }
+.goalPct { margin-left: auto; font-size: 18px; font-weight: 780; font-variant-numeric: tabular-nums; }
+.goalSources { color: var(--muted); font-size: 12.5px; }
 .progress { overflow: hidden; height: 8px; border-radius: 99px; background: var(--surface-3); }
 .progress > i { display: block; height: 100%; border-radius: inherit; }
+.goalMeta b { color: var(--text); font-weight: 650; }
 .goalMeta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 .archived { margin-top: 10px; }
 .archivedList { margin: 8px 0 0; padding: 0; list-style: none; font-size: 14px; }
 .archivedList li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-.runway { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 12px; }
-.runway > i { height: 8px; border-radius: 4px; background: var(--surface-3); }
-.runway > i.on { background: var(--in-solid); }
-.table tfoot th, .table tfoot td { padding-top: 10px; border-top: 1px solid var(--line); font-weight: 500; text-align: left; }
+.table tfoot th, .table tfoot td { padding-top: 10px; border-top: 1px solid var(--line); font-weight: 650; text-align: left; }
 .table tfoot td.r, .table tfoot td:last-child { text-align: right; }
 
 /* Pengaturan */
 .settingsNav { display: flex; flex-direction: column; gap: 14px; }
 .settingsNav ul, .settingsList ul { margin: 0; padding: 0; list-style: none; }
-.settingsGroupTitle { margin: 0 0 6px; padding: 0 12px; color: var(--muted); font-size: 12.5px; font-weight: 500; }
+.settingsGroupTitle { margin: 0 0 6px; padding: 0 12px; color: var(--muted); font-size: 12.5px; font-weight: 650; }
 .settingsLink { display: flex; align-items: center; min-height: 40px; padding: 0 12px; border-radius: 10px; color: var(--text-2); font-size: 14px; }
 .settingsLink:hover { background: var(--surface-2); color: var(--text); }
-.settingsLink[aria-current="page"] { background: var(--surface); color: var(--text); font-weight: 500; box-shadow: var(--shadow-card); }
+.settingsLink[aria-current="page"] { background: var(--surface); color: var(--text); font-weight: 650; box-shadow: var(--shadow-card); }
 .settingsList { display: flex; flex-direction: column; gap: 14px; }
 .settingsList .settingsGroupTitle { padding: 0 4px; }
 .settingsList ul { padding: 4px 14px; }
 .settingsList li + li { border-top: 1px solid var(--line); }
 .settingsListLink { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 0; color: var(--muted); }
 .settingsListLink > span { flex: 1; min-width: 0; }
-.settingsListLink b { display: block; color: var(--text); font-size: 14px; font-weight: 500; }
+.settingsListLink b { display: block; color: var(--text); font-size: 14px; font-weight: 650; }
 .settingsListLink span span { display: block; font-size: 12.5px; }
 .settingsPage { display: grid; grid-template-columns: 220px minmax(0, 720px); align-items: start; gap: 24px; }
 .settingsSide { position: sticky; top: 16px; }
@@ -119,9 +137,9 @@
 }
 .habits { display: flex; flex-direction: column; gap: 14px; }
 .habitTable td { vertical-align: top; }
-.tableCaption { padding-bottom: 6px; color: var(--text); font-size: 14px; font-weight: 500; text-align: left; }
+.tableCaption { padding-bottom: 6px; color: var(--text); font-size: 14px; font-weight: 650; text-align: left; }
 .themePick { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; border: 0; }
-.themePick legend { margin-bottom: 8px; color: var(--text); font-weight: 500; }
+.themePick legend { margin-bottom: 8px; color: var(--text); font-weight: 650; }
 .themePick label { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 12px; cursor: pointer; }
 .themePick input { width: 18px; height: 18px; accent-color: var(--ink); }
 .swatch { width: 28px; height: 20px; border-radius: 6px; border: 1px solid var(--line-strong); }
@@ -129,7 +147,7 @@
 .swatch[data-theme-preview="dark"] { background: linear-gradient(135deg, #1B1C1A 50%, #262825 50%); }
 .swatch[data-theme-preview="system"] { background: linear-gradient(135deg, #F7F6F2 50%, #1B1C1A 50%); }
 .switchRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
-.switchRow b { display: block; font-weight: 500; }
+.switchRow b { display: block; font-weight: 650; }
 .switchRow span { display: block; color: var(--muted); font-size: 13px; }
 .bar :global(.ws-legend) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .bar :global(.ws-legend-v) { font-size: 16px; white-space: nowrap; }
@@ -144,8 +162,7 @@
 .acardHead { position: relative; display: flex; align-items: flex-start; gap: 6px; padding: 14px 14px 14px 10px; }
 .acardOpen { display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; padding: 4px 6px; border-radius: 12px; text-align: left; }
 .acardOpen:hover { background: var(--surface-2); }
-.badge { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; color: var(--text); font-size: 15px; font-weight: 700; }
-.badgeMark { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--ac); color: var(--ac-ink, #FFFFFF); font-size: 12px; font-weight: 800; }
+.badge { display: inline-block; max-width: 100%; overflow: hidden; padding: 3px 11px; border-radius: 999px; background: var(--ac); color: var(--ac-ink, #FFFFFF); font-size: 14px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .acardFacts { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .acardKind { color: var(--muted); font-size: 12.5px; }
 .acardBalance { margin-top: 4px; color: var(--text); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
@@ -160,7 +177,7 @@
 .pocketOpen { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; min-height: 48px; padding: 8px 8px 8px 12px; text-align: left; }
 .pocketOpen:hover { background: var(--surface-2); }
 .pocketName { display: flex; flex-direction: column; min-width: 0; }
-.pocketName b { overflow: hidden; color: var(--text); font-size: 14px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.pocketName b { overflow: hidden; color: var(--text); font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .pocketName span { color: var(--muted); font-size: 12px; }
 .pocketValue { display: flex; flex: none; flex-direction: column; align-items: flex-end; font-size: 12px; }
 .pocketValue b { color: var(--text); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -183,6 +200,11 @@
 .compLegend b { font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* Target & Tagihan (refine-workspace-layout D11): three equal cards, then the goals at full width. */
+.factsTwo { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; }
+/* Doubled to outrank the shared ".ws-dana-big b" colour. */
+.debtBig.debtBig { color: var(--out-fg); }
+.debtNames { margin: 10px 0 0; padding: 0; color: var(--muted); font-size: 13px; list-style: none; }
+.debtNames :global(.ws-rowbtn) { display: inline; color: var(--text); font-size: 13px; }
 .trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 16px; }
 .trio > * { min-width: 0; }
 .billList { margin: 10px 0 0; padding: 0; list-style: none; }

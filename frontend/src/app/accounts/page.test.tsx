@@ -148,6 +148,34 @@ describe("account and pocket forms", () => {
     expect(screen.queryByRole("dialog", { name: /pindah saldo/i })).not.toBeInTheDocument();
   });
 
+  it("shows the detail's facts, pockets and the account's last transactions", async () => {
+    const pockets = [
+      { id: "atm", parent_id: "bca", name: "ATM", type: "bank", initial_balance: 0, balance: 300_000, is_archived: false, children: [] },
+      { id: "darurat", parent_id: "bca", name: "Dana Darurat", type: "bank", initial_balance: 0, balance: 700_000, is_archived: false, children: [] },
+    ];
+    const bca = { id: "bca", name: "BCA", type: "bank", initial_balance: 0, balance: 1_000_000, is_archived: false, children: pockets };
+    const paths: string[] = [];
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      paths.push(path);
+      if (path === "/accounts") return { ok: true, accounts: [bca], total_balance: 1_000_000 };
+      if (path === "/dashboard/net-worth") return { ok: true, net_worth: 0, total_assets: 0, total_liabilities: 0, accounts: [], obligations: [], liquid: 0, investment: 0, reconciliation_pending: 0, lines: [] };
+      if (path.startsWith("/transactions?account_id=bca")) {
+        return { ok: true, transactions: [{ id: "t1", account_id: "bca", account_name: "BCA", category_name: "Makan", type: "expense", amount: 45_000, date: "2026-11-03T14:04:00.000Z", notes: null, merchant: "Warung Sari" }] };
+      }
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [] };
+    });
+    const user = userEvent.setup();
+    renderAccounts();
+    const detail = await openDrawer(user, "BCA", "BCA");
+    expect(detail).toHaveTextContent(/Saldo\s*Rp 1\.000\.000\s*Kantong\s*2\s*Kantong utama\s*ATM/);
+    const pocketList = within(detail).getByRole("region", { name: "Kantong" });
+    expect(within(pocketList).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["ATMRp 300.000", "Dana DaruratRp 700.000"]);
+    const recent = within(detail).getByRole("region", { name: "Transaksi terakhir" });
+    expect(await within(recent).findByText("Warung Sari")).toBeInTheDocument();
+    expect(paths).toContain("/transactions?account_id=bca&limit=4");
+    expect(within(detail).getByRole("button", { name: "Arsipkan rekening BCA" })).toHaveTextContent("Arsipkan");
+  });
+
   it("offers the same add-pocket primary action on a liquid account without pockets", async () => {
     const liquid = { id: "cash-a", name: "Cash A", type: "cash", initial_balance: 1000, balance: 1000, is_archived: false, children: [] };
     vi.mocked(api.get).mockImplementation(async (path) => {
@@ -502,7 +530,7 @@ describe("account and pocket forms", () => {
     expect(within(shares).getByRole("button", { name: "Jual" })).toBeInTheDocument();
     expect(within(shares).getByRole("button", { name: "Perbarui nilai" })).toBeInTheDocument();
     expect(within(shares).getByRole("button", { name: "Sesuaikan Saldo" })).toBeInTheDocument();
-    expect(shares).toHaveTextContent(/Untung\/rugi: ▲ \+Rp 100\.000 \(\+20%\)/);
+    expect(shares).toHaveTextContent(/Modal\s*Rp 500\.000\s*Untung\/rugi\s*▲ \+Rp 100\.000 \(\+20%\)/);
     await user.click(within(shares).getByRole("button", { name: "Tutup" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "BBCA, produk di Broker" })).toHaveFocus());
 
