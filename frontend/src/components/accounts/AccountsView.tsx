@@ -278,7 +278,6 @@ export function AccountsView() {
         </Card>
       ) : (
         <>
-          {!phone && <p className={styles.reorderHint}>Seret ⠿ untuk mengubah urutan rekening dan kantong, atau pakai tombol ▲▼ yang muncul saat baris disorot.</p>}
           <div className={styles.cards}>
             {topOrdered.map((account, index) => (
               <AccountCard

@@ -188,7 +188,6 @@
 .gainUp { color: var(--in-fg); font-weight: 600; font-variant-numeric: tabular-nums; }
 .gainDown { color: var(--out-fg); font-weight: 600; font-variant-numeric: tabular-nums; }
 .gainUnknown { color: var(--muted); }
-.reorderHint { margin: 0; color: var(--muted); font-size: 12.5px; }
 .phoneReorder { display: flex; justify-content: flex-end; }
 .compBar { display: flex; gap: 3px; height: 10px; margin-top: 14px; overflow: hidden; border-radius: 5px; }
 .compBar > i { display: block; min-width: 3px; height: 100%; }
