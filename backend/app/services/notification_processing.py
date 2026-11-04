@@ -33,6 +33,7 @@ from app.services.notification_source_pocket import (
     accept_source_answer, resolved_facts, source_pocket_gate,
 )
 from app.services.purpose_questions import open_purpose_question, supports_purpose_question
+from app.services.test_sessions import TEST_SESSION_CODE, session_for_post_time
 
 
 logger = logging.getLogger(__name__)
@@ -157,6 +158,53 @@ def materialize_legacy_result(cur, event: dict):
     event.update(processing_state="recorded", result_snapshot=snapshot, result_key=key)
 
 
+EVENT_FIELDS = (
+    "device_id", "package_name", "app_label", "notification_key", "notification_id", "channel_id",
+    "category", "title", "body_text", "big_text", "sub_text", "summary_text", "post_time", "payload_hash",
+    "raw_extras", "source_version", "is_financial", "event_class", "expected_amount", "expected_direction",
+    "expected_counterparty", "label_notes",
+)
+
+
+def event_columns(payload: dict) -> tuple[tuple[str, ...], list, Jsonb]:
+    """The raw notification columns as ingest stores them, plus the captured facts kept for later re-reads."""
+    values = [Jsonb(payload.get(name)) if name == "raw_extras" and payload.get(name) is not None else payload.get(name)
+              for name in EVENT_FIELDS]
+    captured = {"expected_amount": str(payload["expected_amount"]) if payload.get("expected_amount") is not None else None,
+                "expected_direction": payload.get("expected_direction"), "post_time": payload["post_time"].isoformat()}
+    return EVENT_FIELDS, values, Jsonb(captured)
+
+
+def capture_for_test_session(conn, cur, payload: dict, user_id: str, session: dict) -> tuple[dict, bool, int]:
+    """Stores a notification posted during a test session without interpreting or booking it (Sesi uji D3).
+
+    The phone gets a settled `ignored` result, so it neither polls nor asks. A session whose data the owner
+    deleted still keeps its window: the notification is answered the same way but not stored.
+    """
+    ignored = {"payload_hash": payload["payload_hash"], "status": "ignored", "error_code": TEST_SESSION_CODE}
+    # Reason codes only: notification text is personal data and never logged.
+    logger.info("Notification captured for a test session package=%s", payload.get("package_name"))
+    if session["data_deleted"]:
+        conn.commit()
+        return ignored, False, 0
+    fields, values, captured = event_columns(payload)
+    cur.execute(
+        "INSERT INTO notification_events (user_id, " + ", ".join(fields)
+        + ", processing_state, processing_mode, captured_facts, error_code, next_attempt_at, test_session_id)"
+        + " VALUES (" + ", ".join(["%s"] * (len(fields) + 7)) + ")"
+        + " ON CONFLICT (user_id, payload_hash) DO NOTHING RETURNING *",
+        [user_id, *values, "ignored", "deterministic", captured, TEST_SESSION_CODE, None, session["id"]],
+    )
+    event = cur.fetchone()
+    accepted = event is not None
+    if not accepted:
+        cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND payload_hash = %s", (user_id, payload["payload_hash"]))
+        event = cur.fetchone()
+    result = compact_result(cur, event)
+    conn.commit()
+    return result, accepted, 0
+
+
 def accept_event(payload: dict, user_id: str) -> tuple[dict, bool, int]:
     facts = collect_facts(payload)
     with db_conn() as conn:
@@ -167,6 +215,9 @@ def accept_event(payload: dict, user_id: str) -> tuple[dict, bool, int]:
                 result = compact_result(cur, existing)
                 conn.commit()
                 return result, False, 0
+            session = session_for_post_time(cur, user_id, payload["post_time"])
+            if session:
+                return capture_for_test_session(conn, cur, payload, user_id, session)
             if facts.status == "ignored":
                 # Reason codes only: notification text is personal data and never logged.
                 logger.info("Notification ignored package=%s reason=%s", payload.get("package_name"), facts.ignore_reason)
@@ -179,21 +230,13 @@ def accept_event(payload: dict, user_id: str) -> tuple[dict, bool, int]:
             elif mode == "ai" and configuration_error(settings):
                 status = "failed"
                 error_code = configuration_error(settings)
-            fields = (
-                "device_id", "package_name", "app_label", "notification_key", "notification_id", "channel_id",
-                "category", "title", "body_text", "big_text", "sub_text", "summary_text", "post_time", "payload_hash",
-                "raw_extras", "source_version", "is_financial", "event_class", "expected_amount", "expected_direction",
-                "expected_counterparty", "label_notes",
-            )
-            values = [Jsonb(payload.get(name)) if name == "raw_extras" and payload.get(name) is not None else payload.get(name) for name in fields]
-            captured = {"expected_amount": str(payload["expected_amount"]) if payload.get("expected_amount") is not None else None,
-                        "expected_direction": payload.get("expected_direction"), "post_time": payload["post_time"].isoformat()}
+            fields, values, captured = event_columns(payload)
             cur.execute(
                 "INSERT INTO notification_events (user_id, " + ", ".join(fields)
                 + ", processing_state, processing_mode, captured_facts, error_code, next_attempt_at) VALUES ("
                 + ", ".join(["%s"] * (len(fields) + 5)) + ", NOW()"
                 + ") ON CONFLICT (user_id, payload_hash) DO NOTHING RETURNING *",
-                [user_id, *values, status, mode, Jsonb(captured), error_code],
+                [user_id, *values, status, mode, captured, error_code],
             )
             event = cur.fetchone()
             if not event:

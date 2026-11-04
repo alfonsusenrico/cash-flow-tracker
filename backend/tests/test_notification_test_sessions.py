@@ -168,6 +168,18 @@ def test_the_worker_retry_resolve_and_pairing_leave_session_events_alone(client,
         assert_capture_only(row, session_id)
 
 
+def test_with_the_ai_on_a_session_event_never_reaches_the_ai_queue(client, notification_owner, monkeypatch):
+    from dataclasses import replace
+    from app.services import notification_processing as processing
+
+    monkeypatch.setattr(processing, "settings", replace(processing.settings, notification_ai_enabled=True))
+    session_id = add_session(notification_owner)
+    jago = send(client, JAGO_CREDIT, JAGO, 0)
+    assert jago["status"] == "ignored"
+    assert_capture_only(event_row(jago["event_id"]), session_id)
+    assert processing.claim_event(include_ai=True) is None
+
+
 def test_the_database_refuses_to_book_a_session_event(client, notification_owner):
     from app.db.pool import db_conn
 
