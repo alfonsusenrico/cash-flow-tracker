@@ -20,17 +20,17 @@ function signed(item: SeenTwiceItem, bal: (amount: number) => string): string {
   return `${item.type === "income" ? "+" : item.type === "expense" ? "−" : ""}${bal(item.amount)}`;
 }
 
-function patternLine(item: SeenTwiceItem): string | null {
-  const { pattern } = item;
-  if (!pattern) return null;
-  const direction = pattern.direction === "income" ? "uang masuk" : "uang keluar";
-  return `${pattern.redundant_label}, ${direction} · dilewati bila ${pattern.kept_label} sudah melaporkan nominal yang sama`;
+function linkLine(item: SeenTwiceItem): string | null {
+  const { link } = item;
+  if (!link) return null;
+  return `${link.account_label ?? "Rekening"} juga dilaporkan ${link.institution_label}`;
 }
 
 /**
  * A second app's report of money that is already recorded once (recognise-one-arrival-seen-twice D3):
- * confirm it, or record it as its own transaction. A report an owner's pattern skipped is already
- * settled and only offers "Catat terpisah" (skip-redundant-notifications D5).
+ * confirm it, which links the account to that app, or record it as its own transaction. A report an
+ * owner's account link skipped is already settled and only offers "Catat terpisah"
+ * (reconcile-linked-account-reports D5, D6).
  */
 export function SeenTwiceCard({ item, headingId, pending, onAcknowledge, onRecordSeparately }: SeenTwiceCardProps) {
   const { bal } = useAppCtx();
@@ -40,7 +40,8 @@ export function SeenTwiceCard({ item, headingId, pending, onAcknowledge, onRecor
   const keptPlace = kept?.movement
     ? `${kept.movement.source ?? "?"} → ${kept.movement.target ?? "?"}`
     : kept?.account_name ?? null;
-  const pattern = patternLine(item);
+  const link = linkLine(item);
+  const sameAccount = !skipped && kept?.account_name ? `${kept.account_name} juga terlihat di ${item.app}` : null;
   return (
     <>
       <ItemHead
@@ -66,10 +67,16 @@ export function SeenTwiceCard({ item, headingId, pending, onAcknowledge, onRecor
         )}
         <dt className="text-[var(--muted)]">Laporan ini</dt>
         <dd className="min-w-0">{skipped ? "Dilewati, tidak dicatat" : "Tidak dicatat lagi"}</dd>
-        {pattern && (
+        {sameAccount && (
           <>
-            <dt className="text-[var(--muted)]">Pola</dt>
-            <dd className="min-w-0">{pattern}</dd>
+            <dt className="text-[var(--muted)]">Rekening yang sama</dt>
+            <dd className="min-w-0">{sameAccount}</dd>
+          </>
+        )}
+        {link && (
+          <>
+            <dt className="text-[var(--muted)]">Rekening terhubung</dt>
+            <dd className="min-w-0">{link}</dd>
           </>
         )}
       </dl>
@@ -79,7 +86,7 @@ export function SeenTwiceCard({ item, headingId, pending, onAcknowledge, onRecor
             onClick={() => void onRecordSeparately(item)} />
         ) : (
           <>
-            <Choice n={1} primary disabled={pending} label="Benar, satu transaksi" sub="Laporan serupa dilewati otomatis"
+            <Choice n={1} primary disabled={pending} label="Benar, satu transaksi" sub="Rekening ditautkan; laporan serupa dilewati otomatis"
               onClick={() => void onAcknowledge(item)} />
             <Choice n={2} disabled={pending} label="Catat terpisah" sub={recordSub}
               onClick={() => void onRecordSeparately(item)} />

@@ -154,7 +154,7 @@ describe("Terlihat dua kali", () => {
 describe("Dilewati otomatis", () => {
   const skipped = seenTwice({
     event_id: "ev-skip", kind: "skipped",
-    pattern: { id: "pattern-1", redundant_label: "Bank Jago", direction: "income", kept_label: "GoPay" },
+    link: { id: "link-1", account_label: "GoPay", institution_label: "Bank Jago" },
   });
 
   it("is its own optional folder, never counted as work", () => {

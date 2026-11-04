@@ -209,7 +209,7 @@ export function TriageList({
             <span><b>{FOLDER_LABELS.lewat}</b> <span className="ws-cnt">{triage.counts.lewat}</span></span>
             <span className="ws-opt">30 hari terakhir</span>
           </summary>
-          <p className="ws-caption">Laporan yang mengulang laporan aplikasi lain, sesuai pola di Pengaturan.</p>
+          <p className="ws-caption">Laporan rekening yang juga dilaporkan aplikasi lain, sudah tercatat sekali.</p>
           <TriageRows items={skipped} selectedId={selectedId} onOpen={onOpen} label={FOLDER_LABELS.lewat} />
         </details>
       )}

@@ -207,41 +207,17 @@ export async function deleteSenderAlias(id: string): Promise<{ ok: boolean }> {
   return api.del<{ ok: boolean }>(`/ingest/sender-aliases/${id}`);
 }
 
-export type SkipInstitution = "bca" | "jago" | "gopay" | "shopeepay" | "stockbit";
-
-/** "This app's reports repeat that app's": skipped when the kept app already reported the same money. */
-export interface SkipPattern {
+/** "This account is also reported by that app" (reconcile-linked-account-reports D1), learned in Tinjau. */
+export interface AccountLink {
   id: string;
-  redundant_institution: SkipInstitution;
-  redundant_label: string;
-  direction: "income" | "expense";
-  kept_institution: SkipInstitution;
-  kept_label: string;
-  source: "confirmation" | "manual";
+  account_id: string;
+  account_label: string | null;
+  institution: string;
+  institution_label: string;
+  source: "confirmation" | "converted";
   created_at: string | null;
   skipped_count: number;
   last_skipped_at: string | null;
-}
-
-export interface SkipPatternList {
-  ok: boolean;
-  patterns: SkipPattern[];
-  /** Apps that have sent the owner a notification, the only ones a pattern may name. */
-  institutions: { institution: SkipInstitution; label: string }[];
-}
-
-export async function getSkipPatterns(): Promise<SkipPatternList> {
-  return api.get<SkipPatternList>("/ingest/skip-patterns");
-}
-
-export async function createSkipPattern(body: {
-  redundant_institution: SkipInstitution; direction: "income" | "expense"; kept_institution: SkipInstitution;
-}): Promise<{ ok: boolean; pattern: SkipPattern }> {
-  return api.post<{ ok: boolean; pattern: SkipPattern }>("/ingest/skip-patterns", body);
-}
-
-export async function stopSkipPattern(id: string): Promise<{ ok: boolean }> {
-  return api.del<{ ok: boolean }>(`/ingest/skip-patterns/${id}`);
 }
 
 export interface ApiKeyMetadata {
