@@ -213,7 +213,7 @@ function BillsCard({ query, money, onPlans }: { query: { data?: CycleSummary; is
   const plans = (data?.scheduled.lines ?? []).filter((line): line is PlanLine => line.kind === "plan");
   return (
     <Card labelledBy="goals-bills">
-      <CardHeader id="goals-bills" icon="repeat" title={title} count={data ? plans.length : undefined} countLabel={`${plans.length} tagihan`}
+      <CardHeader id="goals-bills" icon="repeat" title={title} count={data && plans.length ? plans.length : undefined} countLabel={`${plans.length} tagihan`}
         action={<button type="button" className="ws-linkbtn ws-accent-link" onClick={onPlans}>Kelola</button>} />
       {query.isLoading ? (
         <Skeleton style={{ height: 120 }} />

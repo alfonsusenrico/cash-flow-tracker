@@ -52,7 +52,7 @@ function hueOf(hex: string): number | null {
   return (hue * 60 + 360) % 360;
 }
 
-/** Display colours of the top-level accounts: stored colours stay, default ones get a hue no other account is near. */
+/** Display colours of the top-level accounts: stored colours stay once, default or repeated ones get a hue no other account is near. */
 export function displayColours(accounts: AccountItem[]): Map<string, string> {
   const colours = new Map<string, string>();
   const stored = accounts.map((account) => account.color?.toLowerCase()).filter((colour): colour is string => Boolean(colour) && !DEFAULT_COLOURS.has(colour!));
@@ -60,10 +60,14 @@ export function displayColours(accounts: AccountItem[]): Map<string, string> {
   const near = (hue: number | null) => hue !== null && taken.some((other) => Math.min(Math.abs(hue - other), 360 - Math.abs(hue - other)) < 25);
   const free = ACCOUNT_HUES.filter((colour) => !stored.includes(colour.toLowerCase()) && !near(hueOf(colour)));
   let next = 0;
+  const shown = new Set<string>();
   for (const account of accounts) {
     const stored = account.color?.toLowerCase();
-    if (stored && !DEFAULT_COLOURS.has(stored)) colours.set(account.id, account.color!);
+    // A stored colour is kept the first time; a second account with the same colour gets a free hue, so no
+    // two top-level accounts look alike (the preview's rule).
+    if (stored && !DEFAULT_COLOURS.has(stored) && !shown.has(stored)) colours.set(account.id, account.color!);
     else colours.set(account.id, free.length ? free[next++ % free.length] : ACCOUNT_HUES[next++ % ACCOUNT_HUES.length]);
+    shown.add(colours.get(account.id)!.toLowerCase());
   }
   return colours;
 }

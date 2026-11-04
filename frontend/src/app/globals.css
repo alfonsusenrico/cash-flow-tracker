@@ -631,6 +631,9 @@ dialog.ws-dialog::backdrop { background: var(--scrim); }
 .ws-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .ws-bigline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; font-size: 30px; font-weight: 450; letter-spacing: -0.02em; }
 
+/* Pages with their own actions in the top bar (Rekening, Target) keep it one row with a narrower search. */
+.ws-topbar:has(.ws-controls:not(:empty)) .ws-search { width: 190px; }
+
 /* Beranda (refine-workspace-layout D5): KPI cards with large figures, the four-segment money bar, the
  * Kakeibo rows, Ketahanan Dana and the whole-row activity list. */
 .ws-kcards { display: grid; grid-template-columns: minmax(0, 1.2fr) repeat(4, minmax(0, 1fr)); gap: 12px; }

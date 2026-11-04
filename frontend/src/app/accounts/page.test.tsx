@@ -734,6 +734,10 @@ describe("account and pocket forms", () => {
     expect(new Set(assigned).size).toBe(3);
     // No assigned hue sits next to the stored orange.
     expect(assigned).not.toContain("#F08A24");
+    // Two accounts stored with the same colour do not look alike.
+    const twins = displayColours([{ id: "x", name: "X", color: "#8B5CF6" }, { id: "y", name: "Y", color: "#8B5CF6" }] as never[]);
+    expect(twins.get("x")).toBe("#8B5CF6");
+    expect(twins.get("y")).not.toBe("#8B5CF6");
   });
 
   it("opens a drawer from ?akun= and masks every amount when balances are hidden", async () => {
