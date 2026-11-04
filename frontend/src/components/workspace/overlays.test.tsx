@@ -3,17 +3,18 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { axe } from "vitest-axe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PHONE_QUERY, RAIL_QUERY } from "./layers";
-import { Drawer, DrawerSlotContext, TOAST_MS, ToastProvider, useToast } from "./overlays";
+import { Modal } from "@/components/ui/Modal";
+import { PHONE_QUERY } from "./layers";
+import { Drawer, TOAST_MS, ToastProvider, useToast } from "./overlays";
 import { ShortcutProvider } from "./shortcuts";
 
-type Width = "desk" | "rail" | "phone";
+type Width = "desk" | "tablet" | "phone";
 
 function stubWidth(width: Width) {
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
-      matches: (query === PHONE_QUERY && width === "phone") || (query === RAIL_QUERY && width === "rail"),
+      matches: query === PHONE_QUERY && width === "phone",
       media: query,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
@@ -21,19 +22,26 @@ function stubWidth(width: Width) {
   );
 }
 
-function DrawerHarness({ slot = null, setDrawerOpen = () => {} }: { slot?: HTMLElement | null; setDrawerOpen?: (open: boolean) => void }) {
+function DrawerHarness({ stacked = false }: { stacked?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [inner, setInner] = useState(false);
   return (
     <ShortcutProvider>
-      <DrawerSlotContext.Provider value={{ slot, setDrawerOpen }}>
-        <button type="button" onClick={() => setOpen(true)}>
-          Lihat detail
+      <button type="button" onClick={() => setOpen(true)}>
+        Lihat detail
+      </button>
+      <Drawer open={open} onClose={() => setOpen(false)} title="Warung Bu Sri" subtitle="Pengeluaran · 2 Nov">
+        <button type="button" onClick={() => setInner(true)}>
+          Ubah kategori
         </button>
-        <Drawer open={open} onClose={() => setOpen(false)} title="Warung Bu Sri" subtitle="Keluar · 2 Nov">
-          <button type="button">Ubah kategori</button>
-          <button type="button">Hapus</button>
-        </Drawer>
-      </DrawerSlotContext.Provider>
+        <button type="button">Hapus</button>
+      </Drawer>
+      {stacked && (
+        <Modal open={inner} onClose={() => setInner(false)} title="Pilih kategori">
+          <button type="button">Makanan</button>
+          <button type="button">Belanja</button>
+        </Modal>
+      )}
     </ShortcutProvider>
   );
 }
@@ -50,7 +58,71 @@ describe("Drawer", () => {
     document.body.style.overflow = "";
   });
 
-  it("opens as a modal sheet at phone width: focus moves in, Tab is trapped, the page is locked", async () => {
+  it.each(["desk", "tablet"] as const)("opens as a centered modal dialog at %s width, never in a side column", async (width) => {
+    stubWidth(width);
+    const user = userEvent.setup();
+    const { container } = render(<DrawerHarness />);
+    const { opener, drawer } = await openDrawer(user);
+
+    expect(drawer).toHaveAttribute("data-mode", "dialog");
+    expect(drawer).toHaveAttribute("aria-modal", "true");
+    // Portalled to the body, outside the page's own tree, over a scrim.
+    expect(container).not.toContainElement(drawer);
+    expect(document.body.querySelector(".ws-sheet-scrim")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Warung Bu Sri/ })).toHaveFocus();
+    expect(document.body.style.overflow).toBe("hidden");
+    expect((await axe(document.body)).violations).toHaveLength(0);
+
+    screen.getByRole("button", { name: "Hapus" }).focus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Tutup detail" })).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(screen.getByRole("button", { name: "Hapus" })).toHaveFocus();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("closes from the scrim and from the close button, returning focus each time", async () => {
+    stubWidth("desk");
+    const user = userEvent.setup();
+    const { baseElement } = render(<DrawerHarness />);
+    const { opener } = await openDrawer(user);
+    await user.click(baseElement.querySelector(".ws-sheet-scrim")!);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+
+    await openDrawer(user);
+    await user.click(screen.getByRole("button", { name: "Tutup detail" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
+
+  it("lets a dialog opened from inside it own Tab and Esc, then takes the keyboard back", async () => {
+    stubWidth("desk");
+    const user = userEvent.setup();
+    render(<DrawerHarness stacked />);
+    await openDrawer(user);
+    await user.click(screen.getByRole("button", { name: "Ubah kategori" }));
+    const inner = await screen.findByRole("dialog", { name: "Pilih kategori" });
+
+    screen.getByRole("button", { name: "Belanja" }).focus();
+    await user.tab();
+    expect(inner).toContainElement(document.activeElement as HTMLElement);
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Pilih kategori" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /Warung Bu Sri/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ubah kategori" })).toHaveFocus();
+
+    screen.getByRole("button", { name: "Hapus" }).focus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Tutup detail" })).toHaveFocus();
+  });
+
+  it("stays a bottom sheet at phone width: focus moves in, Tab is trapped, the page is locked", async () => {
     stubWidth("phone");
     const user = userEvent.setup();
     render(<DrawerHarness />);
@@ -79,7 +151,7 @@ describe("Drawer", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
-  it("restores the earlier body overflow after the sheet closes", async () => {
+  it("restores the earlier body overflow after it closes", async () => {
     stubWidth("phone");
     document.body.style.overflow = "clip";
     const user = userEvent.setup();
@@ -90,86 +162,22 @@ describe("Drawer", () => {
     expect(document.body.style.overflow).toBe("clip");
   });
 
-  it("is a modal overlay in the rail range and traps focus without locking the page", async () => {
-    stubWidth("rail");
-    const user = userEvent.setup();
-    render(<DrawerHarness slot={document.createElement("div")} />);
-    const { opener, drawer } = await openDrawer(user);
-
-    expect(drawer).toHaveAttribute("data-mode", "overlay");
-    expect(drawer).toHaveAttribute("aria-modal", "true");
-    expect(document.body.style.overflow).toBe("");
-    screen.getByRole("button", { name: "Hapus" }).focus();
-    await user.tab();
-    expect(screen.getByRole("button", { name: "Tutup detail" })).toHaveFocus();
-
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(opener).toHaveFocus();
-  });
-
-  it("closes from the scrim", async () => {
-    stubWidth("rail");
-    const user = userEvent.setup();
-    const { baseElement } = render(<DrawerHarness />);
-    const { opener } = await openDrawer(user);
-    await user.click(baseElement.querySelector(".ws-sheet-scrim")!);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(opener).toHaveFocus();
-  });
-
-  it("sits non-modally in the window's drawer slot above 1180 px", async () => {
-    stubWidth("desk");
-    const slot = document.createElement("div");
-    document.body.appendChild(slot);
-    const setDrawerOpen = vi.fn();
-    const user = userEvent.setup();
-    render(<DrawerHarness slot={slot} setDrawerOpen={setDrawerOpen} />);
-    const { opener, drawer } = await openDrawer(user);
-
-    expect(slot).toContainElement(drawer);
-    expect(drawer).toHaveAttribute("data-mode", "side");
-    expect(drawer).toHaveAttribute("aria-modal", "false");
-    expect(setDrawerOpen).toHaveBeenLastCalledWith(true);
-    expect(screen.getByRole("heading", { name: /Warung Bu Sri/ })).toHaveFocus();
-
-    await user.keyboard("{Escape}");
-    expect(setDrawerOpen).toHaveBeenLastCalledWith(false);
-    expect(opener).toHaveFocus();
-    slot.remove();
-  });
-
-  it("keeps focus inside when it mounts already open at phone width while a slot exists", async () => {
+  it("keeps focus inside when it mounts already open", async () => {
     stubWidth("phone");
-    const slot = document.createElement("div");
-    document.body.appendChild(slot);
     const opener = document.createElement("button");
     document.body.appendChild(opener);
     opener.focus();
-    const onClose = vi.fn();
     render(
       <ShortcutProvider>
-        <DrawerSlotContext.Provider value={{ slot, setDrawerOpen: () => {} }}>
-          <Drawer open onClose={onClose} title="Warung Bu Sri">
-            <button type="button">Hapus</button>
-          </Drawer>
-        </DrawerSlotContext.Provider>
+        <Drawer open onClose={vi.fn()} title="Warung Bu Sri">
+          <button type="button">Hapus</button>
+        </Drawer>
       </ShortcutProvider>,
     );
     const drawer = await screen.findByRole("dialog", { name: "Warung Bu Sri" });
     expect(drawer).toHaveAttribute("data-mode", "sheet");
     expect(drawer).toContainElement(document.activeElement as HTMLElement);
-    slot.remove();
     opener.remove();
-  });
-
-  it("falls back to a modal overlay above 1180 px when no slot exists", async () => {
-    stubWidth("desk");
-    const user = userEvent.setup();
-    render(<DrawerHarness />);
-    const { drawer } = await openDrawer(user);
-    expect(drawer).toHaveAttribute("data-mode", "overlay");
-    expect(drawer).toHaveAttribute("aria-modal", "true");
   });
 });
 

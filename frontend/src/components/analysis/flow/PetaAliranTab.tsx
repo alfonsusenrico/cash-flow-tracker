@@ -137,8 +137,8 @@ export function PetaAliranTab({
   onLabel: (label: string) => void;
 }) {
   const queryClient = useQueryClient();
-  // The viewport, not the column, decides the phone layout, so opening the side drawer does not swap the
-  // map for the table under the focused node.
+  // The viewport, not the column, decides the phone layout, so a resized column never swaps the map for
+  // the table under the focused node.
   const phone = useMediaQuery(PHONE_QUERY);
   const reduced = usePrefersReducedMotion();
   const { record } = useTransactionUndo();

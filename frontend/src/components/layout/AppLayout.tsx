@@ -25,7 +25,7 @@ import { TopBar } from "@/components/workspace/TopBar";
 import { PhoneTabBar } from "@/components/workspace/PhoneNav";
 import { ShortcutProvider, useShortcut, useShortcuts } from "@/components/workspace/shortcuts";
 import { ExplainProvider } from "@/components/workspace/explain";
-import { DrawerSlotContext, ToastProvider } from "@/components/workspace/overlays";
+import { ToastProvider } from "@/components/workspace/overlays";
 
 type QuickCaptureMode = "expense" | "income" | "movement";
 
@@ -140,8 +140,6 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const [manualAmount, setManualAmount] = useState<number | null>(null);
   const [header, setHeader] = useState<PageHeader | null>(null);
   const [controlsSlot, setControlsSlot] = useState<HTMLElement | null>(null);
-  const [drawerSlot, setDrawerSlot] = useState<HTMLElement | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const handleOpenQuickAdd = (type?: "expense" | "income") => {
     const defaultType = type ?? quickAddType;
@@ -358,35 +356,32 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       }}
     >
       <WorkspaceContext.Provider value={workspace}>
-        <DrawerSlotContext.Provider value={{ slot: drawerSlot, setDrawerOpen }}>
-          <ToastProvider>
-            <ExplainProvider>
-              <a className="ws-skip" href="#main">
-                Langsung ke konten
-              </a>
-              <div className="ws-stage">
-                <div className="ws-window" data-collapsed={sidebarCollapsed} data-drawer={drawerOpen}>
-                  <SideNav />
-                  <main id="main" tabIndex={-1} className="ws-main">
-                    <TopBar />
-                    {children}
-                  </main>
-                  <div className="ws-drawer-slot" ref={setDrawerSlot} />
-                </div>
+        <ToastProvider>
+          <ExplainProvider>
+            <a className="ws-skip" href="#main">
+              Langsung ke konten
+            </a>
+            <div className="ws-stage">
+              <div className="ws-window" data-collapsed={sidebarCollapsed}>
+                <SideNav />
+                <main id="main" tabIndex={-1} className="ws-main">
+                  <TopBar />
+                  {children}
+                </main>
               </div>
-              <PhoneTabBar />
-              <QuickCaptureModal
-                open={quickAddOpen}
-                onClose={() => setQuickAddOpen(false)}
-                defaultType={quickAddDefaultType}
-                defaultSourceAccountId={movementDefaults.sourceAccountId}
-                defaultTargetAccountId={movementDefaults.targetAccountId}
-                defaultAmount={manualAmount}
-              />
-              {catatOpen && <CatatDialog open onClose={() => setCatatOpen(false)} onManual={openManualCapture} />}
-            </ExplainProvider>
-          </ToastProvider>
-        </DrawerSlotContext.Provider>
+            </div>
+            <PhoneTabBar />
+            <QuickCaptureModal
+              open={quickAddOpen}
+              onClose={() => setQuickAddOpen(false)}
+              defaultType={quickAddDefaultType}
+              defaultSourceAccountId={movementDefaults.sourceAccountId}
+              defaultTargetAccountId={movementDefaults.targetAccountId}
+              defaultAmount={manualAmount}
+            />
+            {catatOpen && <CatatDialog open onClose={() => setCatatOpen(false)} onManual={openManualCapture} />}
+          </ExplainProvider>
+        </ToastProvider>
       </WorkspaceContext.Provider>
     </AppContext.Provider>
   );

@@ -14,29 +14,18 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/Icon";
-import { PHONE_QUERY, RAIL_QUERY, useEscapeLayer, useFocusTrap, useMediaQuery, useScrollLock } from "./layers";
+import { PHONE_QUERY, useEscapeLayer, useFocusTrap, useMediaQuery, useScrollLock } from "./layers";
 
 /* ---------------------------------------------------------------------------------------------
- * Drawer: a side panel in the window's third column above 1180px, an overlay from 761 to 1180px
- * and a bottom sheet at 760px and below. Overlay and sheet are modal (focus trapped, Esc closes);
- * focus returns to whatever opened the drawer.
+ * Drawer: a detail layer that opens as a centered dialog above 760px and as a bottom sheet at 760px and
+ * below. Both are modal (focus trapped, Esc and the scrim close, page scroll locked); focus returns to
+ * whatever opened it. A dialog opened from inside it stays on top and owns the keyboard.
  * ------------------------------------------------------------------------------------------- */
 
-interface DrawerSlotValue {
-  slot: HTMLElement | null;
-  setDrawerOpen: (open: boolean) => void;
-}
-
-export const DrawerSlotContext = createContext<DrawerSlotValue>({ slot: null, setDrawerOpen: () => {} });
-
-export type DrawerMode = "side" | "overlay" | "sheet";
+export type DrawerMode = "dialog" | "sheet";
 
 export function useDrawerMode(): DrawerMode {
-  const phone = useMediaQuery(PHONE_QUERY);
-  const rail = useMediaQuery(RAIL_QUERY);
-  if (phone) return "sheet";
-  if (rail) return "overlay";
-  return "side";
+  return useMediaQuery(PHONE_QUERY) ? "sheet" : "dialog";
 }
 
 export function Drawer({
@@ -52,53 +41,38 @@ export function Drawer({
   subtitle?: string;
   children: ReactNode;
 }) {
-  const { slot, setDrawerOpen } = useContext(DrawerSlotContext);
   const mode = useDrawerMode();
   const ref = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const titleId = useId();
-  const modal = mode !== "side" || !slot;
 
   useLayoutEffect(() => {
     if (!open) return;
     returnFocus.current = document.activeElement as HTMLElement | null;
     return () => {
-      // A row deleted from the drawer is gone; focus then goes to the main region, not to the page body.
+      // A row deleted from the detail is gone; focus then goes to the main region, not to the page body.
       const target = returnFocus.current;
       if (target?.isConnected) target.focus();
       else document.getElementById("main")?.focus();
     };
   }, [open]);
 
-  // The width is known only after the first render, so a drawer mounted open can move from the slot to
-  // the body; the portal then remounts and focus has to be placed again.
+  // The phone query is known only after the first render, so the layer can switch from dialog to sheet
+  // while open; focus is placed again on the heading.
   useLayoutEffect(() => {
     if (open) headingRef.current?.focus();
-  }, [open, modal]);
-
-  useEffect(() => {
-    if (mode !== "side") return;
-    setDrawerOpen(open);
-    return () => setDrawerOpen(false);
-  }, [open, mode, setDrawerOpen]);
+  }, [open, mode]);
 
   useEscapeLayer(open, onClose);
-  useFocusTrap(ref, open && modal);
-  useScrollLock(open && mode === "sheet");
+  useFocusTrap(ref, open);
+  useScrollLock(open);
 
   if (!open) return null;
-  const body = (
+  return createPortal(
     <>
-      {modal && <div className="ws-sheet-scrim" aria-hidden="true" onClick={onClose} />}
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal={modal ? "true" : "false"}
-        aria-labelledby={titleId}
-        className="ws-drawer"
-        data-mode={modal ? (mode === "side" ? "overlay" : mode) : "side"}
-      >
+      <div className="ws-sheet-scrim" aria-hidden="true" onClick={onClose} />
+      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} className="ws-drawer" data-mode={mode}>
         {mode === "sheet" && <div className="ws-grab" aria-hidden="true" />}
         <div className="ws-drawer-h">
           <h2 id={titleId} ref={headingRef} tabIndex={-1}>
@@ -111,9 +85,9 @@ export function Drawer({
         </div>
         {children}
       </div>
-    </>
+    </>,
+    document.body,
   );
-  return createPortal(body, modal ? document.body : slot!);
 }
 
 /* ---------------------------------------------------------------------------------------------

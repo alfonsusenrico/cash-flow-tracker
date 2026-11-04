@@ -250,10 +250,10 @@ describe("design tokens", () => {
     }
   });
 
-  it("stacks the overlay drawer and the phone sheet above the scrim that dims the page", () => {
+  it("stacks the detail dialog and the phone sheet above the scrim that dims the page", () => {
     const zOf = (selector: string) => Number(globals.slice(globals.indexOf(`${selector} {`)).match(/z-index:\s*(\d+)/)![1]);
     const scrim = zOf(".ws-sheet-scrim");
-    expect(zOf('.ws-drawer[data-mode="overlay"]')).toBeGreaterThan(scrim);
+    expect(zOf('.ws-drawer[data-mode="dialog"]')).toBeGreaterThan(scrim);
     expect(zOf('.ws-drawer[data-mode="sheet"]')).toBeGreaterThan(scrim);
   });
 
