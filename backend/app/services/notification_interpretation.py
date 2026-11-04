@@ -124,8 +124,10 @@ def validate_interpretation(
         if str(interpretation.candidate_transaction_id) not in candidates:
             raise EvidenceError("invalid_candidate_reference")
     if interpretation.same_money_as is not None:
-        supplied = {neighbour["id"] for neighbour in context.get("neighbours", [])}
-        if context.get("neighbours_incomplete") or interpretation.same_money_as not in supplied:
+        # Only a recorded neighbour can be the first observation; a queued one may still be this money's
+        # first report, and holding this event for it would leave the money unbooked.
+        recorded = {neighbour["id"] for neighbour in context.get("neighbours", []) if neighbour.get("state") == "recorded"}
+        if context.get("neighbours_incomplete") or interpretation.same_money_as not in recorded:
             raise EvidenceError("invalid_neighbour_reference")
 
 

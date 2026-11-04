@@ -173,14 +173,27 @@ def test_confirmed_proposal_becomes_a_duplicate(client, notification_owner, monk
 
 def test_unconfirmed_proposal_is_held_and_books_nothing(client, notification_owner, monkeypatch):
     owner = notification_owner
+    send(client, MYBCA_DEBIT, MYBCA, -3)
     enable_ai(monkeypatch)
     jago = send(client, JAGO_CREDIT, JAGO, 0)
-    send(client, MYBCA_DEBIT, MYBCA, 3)
+    # A recorded neighbour, but the opposite direction: the rule can't confirm it.
     claim_and_process(provider_for(lambda context: credit(
         owner, account="main", text_evidence="You've received", same_money_as=neighbour_id(context, "bca"))))
     stored = event_row(jago["event_id"])
     assert (stored["processing_state"], stored["error_code"]) == ("needs_review", "possible_duplicate_observation")
     assert stored["transaction_id"] is None and incomes(owner) == []
+
+
+def test_queued_neighbour_cannot_be_the_first_observation(client, notification_owner, monkeypatch):
+    owner = notification_owner
+    enable_ai(monkeypatch)
+    gopay = send(client, GOPAY_CREDIT, GOPAY, 0)
+    send(client, JAGO_CREDIT, JAGO, 0.13)
+    # GoPay is read first and names the still queued Jago event: rejected, the guard decides, GoPay books.
+    claim_and_process(provider_for(lambda context: credit(
+        owner, account="gopay", text_evidence="telah menerima", same_money_as=neighbour_id(context, "jago"))))
+    assert event_row(gopay["event_id"])["provenance_kind"] == "observed_leg"
+    assert [str(row["account_id"]) for row in incomes(owner)] == [owner["gopay"]]
 
 
 def test_unknown_neighbour_id_is_rejected_and_the_rule_still_guards(client, notification_owner, monkeypatch):

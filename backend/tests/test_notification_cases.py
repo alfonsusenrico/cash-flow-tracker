@@ -19,7 +19,7 @@ def test_synthetic_fact_expectations(case):
     assert facts.status == case.expected["facts_status"]
     assert facts.amount == case.expected["amount"]
     assert facts.direction == case.expected["direction"]
-    assert facts.timestamp.second == 27
+    assert facts.timestamp == case.event["post_time"]
 
 
 def test_unpaired_cross_account_income_uses_an_income_category_not_movement_category():
@@ -47,3 +47,18 @@ def test_unknown_pocket_is_an_explicit_mapping_error_in_model_context():
     case = next(case for case in synthetic_cases() if case.name == "jago-unknown-pocket")
     _, model_context = benchmark_input(case)
     assert model_context["facts"]["mapping_error"] == "uncertain_pocket_mapping"
+
+
+def test_arrival_sequence_is_versioned_and_names_one_second_observation():
+    from evaluation.notification_cases import FIXTURE_VERSION
+
+    sequence = [case for case in synthetic_cases() if case.expected.get("sequence")]
+    assert FIXTURE_VERSION == "synthetic-notifications-4"
+    assert [case.name for case in sequence] == [
+        "sequence-gopay-credit", "sequence-jago-credit", "sequence-mybca-debit", "sequence-jago-hop",
+        "sequence-unrelated-credit",
+    ]
+    assert [case.expected["same_money_as"] for case in sequence] == [None, "n1", None, None, None]
+    for case in sequence:
+        assert all(set(item) == {"id", "institution", "direction", "amount", "seconds_from_this", "state",
+                                 "account_id", "in_movement"} for item in case.context["neighbours"])
