@@ -68,6 +68,18 @@ export function displayColours(accounts: AccountItem[]): Map<string, string> {
   return colours;
 }
 
+/** The badge ink with the higher WCAG contrast on an account colour (white or the dark text ink). */
+function badgeInk(colour: string): string {
+  const match = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(colour);
+  if (!match) return "#FFFFFF";
+  const [r, g, b] = match.slice(1).map((part) => {
+    const value = parseInt(part, 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return (1.05 / (luminance + 0.05)) >= ((luminance + 0.05) / 0.0536) ? "#FFFFFF" : "#0A0D14";
+}
+
 function initials(name: string): string {
   const words = name.trim().split(/\s+/);
   return (words.length > 1 ? words[0][0] + words[1][0] : name.slice(0, 2)).toUpperCase();
@@ -351,7 +363,7 @@ function AccountCard({
   return (
     <section
       className={cn(styles.acard, drag.dragOver === account.id && styles.dropTarget, drag.dragged === account.id && styles.dragging)}
-      style={{ ["--ac" as string]: colour }}
+      style={{ ["--ac" as string]: colour, ["--ac-ink" as string]: badgeInk(colour) }}
       aria-label={account.name}
       data-account-row={account.id}
       onDragOver={(event) => {
