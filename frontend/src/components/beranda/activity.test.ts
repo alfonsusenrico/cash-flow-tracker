@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { UNPAIRED_LABEL, movementDirection, movementRoute, routeIncomplete, rowTitle } from "./activity";
+import { UNPAIRED_LABEL, movementDirection, movementRoute, routeIncomplete, rowCategory, rowTitle } from "./activity";
 import type { ActivityRow } from "./types";
 
 // Synthetic accounts: "Main Pocket" and "Tabungan" are pockets of Jago; "ATM" is a pocket of BCA; Gopay has no parent.
@@ -75,5 +75,26 @@ describe("movementDirection", () => {
 
   it("says the partner is missing when nobody paired the leg", () => {
     expect(movementDirection(leg({ type: "income" }))).toBe(UNPAIRED_LABEL);
+  });
+});
+
+describe("rowCategory", () => {
+  const spend = leg({ category_name: "Makan di Luar", merchant: "Kedai Awan", review_status: "reviewed" });
+
+  it("names the owner's category for an expense and an income", () => {
+    expect(rowCategory(spend)).toBe("Makan di Luar");
+    expect(rowCategory({ ...spend, type: "income", category_name: "Pendapatan Lain" })).toBe("Pendapatan Lain");
+  });
+
+  it("says when an expense or income has no category", () => {
+    expect(rowCategory({ ...spend, category_name: null })).toBe("Tanpa kategori");
+    expect(rowCategory({ ...spend, type: "income", category_name: null })).toBe("Tanpa kategori");
+  });
+
+  it("shows a dash for movements, top-ups and waiting rows without a category", () => {
+    expect(rowCategory(outboundLeg)).toBe("—");
+    expect(rowCategory(leg({}))).toBe("—");
+    expect(rowCategory({ ...spend, investment_topup_id: "topup", category_name: "Internal Movement" })).toBe("—");
+    expect(rowCategory({ ...spend, category_name: null, review_status: "needs_review" })).toBe("—");
   });
 });

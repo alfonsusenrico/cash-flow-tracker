@@ -602,7 +602,7 @@ dialog.ws-dialog::backdrop { background: var(--scrim); }
 .ws-kk[data-bucket="unclassified"]::before,
 .ws-kk[data-bucket="waiting"]::before { border: 1.5px dashed var(--k-none); background: transparent; }
 .ws-kk[data-bucket="none"]::before { display: none; }
-.ws-prov { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; white-space: nowrap; }
+.ws-tx-category { display: block; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ws-banner { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border-radius: 16px; font-size: 14px; line-height: 1.5; }
 .ws-banner .ws-tile { width: 34px; height: 34px; border-radius: 10px; }
@@ -952,6 +952,8 @@ dialog.ws-more::backdrop { background: var(--scrim); }
 .ws-tx-daytot { color: var(--muted); font-size: 13px; font-weight: 400; }
 .ws-tx-daytot b { color: var(--text); font-weight: 650; }
 .ws-tx-daytot .ws-amt-in { color: var(--in-fg); }
+.ws-tx-daytot .ws-amt-out { color: var(--out-fg); }
+.ws-tx-daytot .ws-amt-tr { color: var(--tr-fg); }
 .ws-tx-waiting { color: var(--warn-fg); }
 .ws-tx-row { cursor: pointer; }
 .ws-tx-row:hover td { background: var(--surface-2); }
@@ -980,8 +982,8 @@ dialog.ws-more::backdrop { background: var(--scrim); }
   font-size: 14px;
 }
 .ws-tx-selectbar .ws-notice { width: 100%; margin: 0; }
-@container main (max-width: 940px) { .ws-tx-col-prov { display: none; } }
-@container main (max-width: 860px) { .ws-tx-col-cat { display: none; } }
+@container main (max-width: 940px) { .ws-tx-col-pillar { display: none; } }
+@container main (max-width: 860px) { .ws-tx-col-category { display: none; } }
 @container main (max-width: 800px) { .ws-tx-col-time { display: none; } }
 
 /* Phone feed: a section per day with a sticky heading under the top bar. */

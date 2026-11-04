@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { RecurringCharges } from "@/components/insights/ObservedInsights";
@@ -220,9 +220,31 @@ export function BaselineCard({ comparison, money }: { comparison: ReportComparis
   );
 }
 
+/** Highest bottom offset of the hover label, in percent of the 180 px plot, leaving room for its two lines. */
+const TIP_MAX_BOTTOM_PERCENT = 70;
+
 /** Belanja harian: one bar per day up to today, the peak in the accent, today outlined, and a table (D4). */
 export function DailySpendCard({ days, money, today = todayIso() }: { days: { date: string; expense: number }[]; money: Money; today?: string }) {
   const [asTable, setAsTable] = useState(false);
+  // The day whose amount is shown above its bar: set by mouse hover, toggled by a tap, cleared by Esc, by the
+  // mouse leaving the chart, or by a tap outside it. A lifted finger also "leaves", so only a mouse leave clears it.
+  const [activeDay, setActiveDay] = useState<string | null>(null);
+  const plotRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!activeDay) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setActiveDay(null);
+    };
+    const onOutside = (event: PointerEvent) => {
+      if (!plotRef.current?.contains(event.target as Node)) setActiveDay(null);
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onOutside);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onOutside);
+    };
+  }, [activeDay]);
   const shown = days.filter((day) => day.date <= today);
   const peak = shown.reduce<{ date: string; expense: number } | null>((best, day) => (day.expense > 0 && (!best || day.expense > best.expense) ? day : best), null);
   const max = Math.max(1, ...shown.map((day) => day.expense));
@@ -261,12 +283,36 @@ export function DailySpendCard({ days, money, today = todayIso() }: { days: { da
         <>
           <div className={styles.chart} aria-hidden="true">
             <div className={styles.yax}><span>{money(max)}</span><span>{money(Math.round(max / 2))}</span><span>{money(0)}</span></div>
-            <div className={styles.plot}>
+            <div
+              ref={plotRef}
+              className={styles.plot}
+              onPointerLeave={(event) => {
+                if (event.pointerType === "mouse") setActiveDay(null);
+              }}
+            >
               <div className={styles.gridline} style={{ top: 0 }} />
               <div className={styles.gridline} style={{ top: "50%" }} />
-              {shown.map((day) => (
-                <div key={day.date} className={cn(styles.col, peak?.date === day.date && styles.peak, day.date === today && styles.today)} title={`${shortDay(day.date)}: ${money(day.expense)}`}>
+              {shown.map((day, index) => (
+                <div
+                  key={day.date}
+                  className={cn(styles.col, peak?.date === day.date && styles.peak, day.date === today && styles.today)}
+                  data-active={activeDay === day.date || undefined}
+                  data-edge={index === 0 ? "start" : index === shown.length - 1 ? "end" : undefined}
+                  onPointerEnter={(event) => {
+                    if (event.pointerType === "mouse") setActiveDay(day.date);
+                  }}
+                  onPointerDown={(event) => {
+                    if (event.pointerType !== "mouse") setActiveDay((current) => (current === day.date ? null : day.date));
+                  }}
+                >
                   <div className={styles.bar} style={{ height: `${(day.expense / max) * 100}%`, minHeight: day.expense > 0 ? 2 : 0 }} />
+                  {activeDay === day.date && (
+                    // Capped so the label of a tall bar stays inside the plot instead of covering the card heading.
+                    <span className={styles.tip} style={{ bottom: `calc(${Math.min((day.expense / max) * 100, TIP_MAX_BOTTOM_PERCENT)}% + 6px)` }} data-testid="daily-spend-tip">
+                      <span>{shortDay(day.date)}{day.date === today ? " · hari ini" : ""}</span>
+                      <b>{money(day.expense)}</b>
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
