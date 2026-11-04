@@ -68,9 +68,9 @@ Expected Result: a session can be replayed and scored outside production.
 
 ## 6. Acceptance and session
 
-- [ ] 6.1 Present to the owner: the verification, OD150–OD155, and the session-day steps. The owner accepts. Record their words and the date in proposal.md.
-- [ ] 6.2 After acceptance: archive the change on its branch with `openspec archive notification-test-session -y`, confirm `openspec validate --all --strict` exits 0, push the branch, and report the PR link. The owner merges, and the agent checks the deploy read-only.
-- [ ] 6.3 After the owner runs the session:
+- [x] 6.1 Present to the owner: the verification, OD150–OD155, and the session-day steps. The owner accepts. Record their words and the date in proposal.md.
+- [x] 6.2 After acceptance: archive the change on its branch with `openspec archive notification-test-session -y`, confirm `openspec validate --all --strict` exits 0, push the branch, and report the PR link. The owner merges, and the agent checks the deploy read-only.
+- [x] 6.3 Moved to follow-up work at acceptance (owner session pending), tracked in the research note's "Sesi uji follow-up". After the owner runs the session:
   - export, replay on `main` and on the merged linked-accounts code, with the drop-app variants from the case script;
   - score;
   - report per case;

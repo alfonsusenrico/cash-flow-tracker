@@ -20,6 +20,8 @@ The agreed answer is a capture-only test session. Notifications are stored as ra
 
 **Planning request, 2026-11-04.** The owner said "ok plan Sesi uji, case list is fine", after the agent's proposal: capture-only instead of switching anything off, the four-step session flow, and the 15-case list. **Plan approval, 2026-11-04.** After a summary of the plan, the owner said "Sesi uji approved". OD150–OD155 take their recommended defaults (design.md).
 
+**Acceptance, 2026-11-04.** After the summary with its verification, OD150–OD155 and the session-day steps, the owner said "accepted, give the PR url". The session replay (task 6.3) happens after the owner runs a session, so it is tracked as follow-up work in the research note.
+
 **Merge order:** this change ships after `reconcile-linked-account-reports` (V47) and `manual-balance-check` (V48), and uses V49. Before archiving, it is rebased on `main` with both merged, and its `currency-conversion-and-settings` delta is refreshed against the main spec.
 
 ## What Changes

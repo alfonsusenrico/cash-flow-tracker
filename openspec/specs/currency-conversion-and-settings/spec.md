@@ -59,11 +59,11 @@ The system SHALL support dynamic currency conversion and formatting between `IDR
 - **THEN** all balances and metrics immediately re-render in Indonesian Rupiah with "Rp" prefix and dot thousand separators without conversion loss
 
 ### Requirement: Sectioned Settings Page
-Settings SHALL be the page `/settings`, not a dialog, with eight sections in this order: HP & perangkat, Kebiasaan, Tampilan, then Akun: Profil, Gaji & siklus, Mata uang & anggaran, Pemetaan notifikasi, Nama pengirim. Each section SHALL have its own address and be one card with a title and neutral purpose. From 1024 px a grouped list SHALL sit beside the section and `/settings` SHALL show HP & perangkat; narrower screens SHALL show the list, then each section with a way back.
+Settings SHALL be the page `/settings`, not a dialog, with nine sections in this order: HP & perangkat, Kebiasaan, Tampilan, then Akun: Profil, Gaji & siklus, Mata uang & anggaran, Pemetaan notifikasi, Nama pengirim, Sesi uji. Each section SHALL have its own address and be one card with a title and neutral purpose. From 1024 px a grouped list SHALL sit beside the section and `/settings` SHALL show HP & perangkat; narrower screens SHALL show the list, then each section with a way back.
 
 #### Scenario: Section addresses
 - **WHEN** a section is opened
-- **THEN** its address SHALL be `/settings/perangkat`, `/settings/kebiasaan`, `/settings/tampilan`, `/settings/profil`, `/settings/gaji`, `/settings/anggaran`, `/settings/pemetaan` or `/settings/pengirim`, in the order of the list
+- **THEN** its address SHALL be `/settings/perangkat`, `/settings/kebiasaan`, `/settings/tampilan`, `/settings/profil`, `/settings/gaji`, `/settings/anggaran`, `/settings/pemetaan`, `/settings/pengirim` or `/settings/sesi-uji`, in the order of the list
 
 #### Scenario: Choosing a section on desktop
 - **GIVEN** a 1280 px wide window on `/settings`
