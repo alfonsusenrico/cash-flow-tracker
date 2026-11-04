@@ -266,6 +266,8 @@ export function useAccountDialogs() {
   const [actualBalStr, setActualBalStr] = useState("");
   const [reconcileNotes, setReconcileNotes] = useState("");
   const [reconcileError, setReconcileError] = useState("");
+  // Set when "Cocokkan saldo" opened the adjustment, so it can record a matched point afterwards (OD145).
+  const [afterReconcile, setAfterReconcile] = useState<((actual: number) => void) | null>(null);
 
   const reconcileMutation = useMutation({
     mutationFn: async () => {
@@ -282,6 +284,8 @@ export function useAccountDialogs() {
       qc.invalidateQueries({ queryKey: queryKeys.accounts });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      afterReconcile?.(parseNumberFromDots(actualBalStr));
+      setAfterReconcile(null);
       setReconcileAccount(null);
     },
     onError: (err: any) => {
@@ -510,11 +514,13 @@ export function useAccountDialogs() {
     setTradeModalOpen(true);
   };
 
-  const openReconciliation = (account: AccountItem) => {
+  const openReconciliation = (account: AccountItem, options?: { actual?: number; onReconciled?: (actual: number) => void }) => {
     setReconcileAccount(account);
-    setActualBalStr(formatNumberWithDots(account.balance));
+    setActualBalStr(formatNumberWithDots(options?.actual ?? account.balance));
     setReconcileNotes("");
     setReconcileError("");
+    // A function value in state must be wrapped, or React would call it as an updater.
+    setAfterReconcile(() => options?.onReconciled ?? null);
   };
 
   const dialogs = (
@@ -1378,7 +1384,7 @@ export function useAccountDialogs() {
       {reconcileAccount && (
         <Modal
           open={Boolean(reconcileAccount)}
-          onClose={() => setReconcileAccount(null)}
+          onClose={() => { setReconcileAccount(null); setAfterReconcile(null); }}
           title={`Sesuaikan Saldo: ${reconcileAccount.name}`}
         >
           <form
