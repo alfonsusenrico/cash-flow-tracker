@@ -170,7 +170,8 @@ function ReportView() {
             label={report?.period.label ?? "Memuat…"}
             offset={-position}
             minOffset={-(ordered.length - 1)}
-            onChange={(offset) => navigate({ start: offset === 0 ? null : ordered[-offset]?.start_date ?? null })}
+            // Without `start` the API opens the latest closed period, so the running one needs its date.
+            onChange={(offset) => navigate({ start: offset === 0 && ordered[0]?.complete ? null : ordered[-offset]?.start_date ?? null })}
           />
         )}
       </div>

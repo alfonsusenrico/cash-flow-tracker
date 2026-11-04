@@ -300,7 +300,8 @@ describe("Laporan Bulanan page", () => {
     // The history API, because Next.js commits no same-path navigation from a URL with a query (D13).
     expect(replaceState).toHaveBeenCalledWith(null, "", "/laporan?basis=month&start=2026-09-01");
     await userEvent.click(screen.getByRole("button", { name: "Bulan berikutnya" }));
-    expect(replaceState).toHaveBeenLastCalledWith(null, "", "/laporan?basis=month");
+    // The running month is reachable: without `start` the API would open the latest closed month.
+    expect(replaceState).toHaveBeenLastCalledWith(null, "", "/laporan?basis=month&start=2026-11-01");
     expect(navigation.replace).not.toHaveBeenCalled();
     replaceState.mockRestore();
     // Without salary cycles the basis switch offers only the calendar month.
