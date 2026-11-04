@@ -10,6 +10,8 @@ The desktop Transaksi table shows each row's category name in place of "Dicatat"
 
 **Owner request, 2026-11-04.** The owner asked for this change directly in the session, and it has no open scope questions. The heading "Pilar" for the existing pillar column is the agent's default (design D2). During the work the owner added two more requests: "only Masuk the amount colored in green, add also for pengeluaran (red), and pindah saldo (blue)" for the day headings, and "The belanja harian charts, make it hoverable and show how much the amount".
 
+**Acceptance, 2026-11-04.** After the summary with its verification, the owner said "accepted, give the PR url".
+
 ## What Changes
 
 - The `Dicatat` column of the desktop ledger table becomes `Kategori` and shows the category name.

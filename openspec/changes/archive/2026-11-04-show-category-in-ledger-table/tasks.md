@@ -15,4 +15,4 @@ Expected Result: the day figures read by colour and label, and every bar shows i
 ## 3. Verification
 
 - [x] 3.1 Frontend `npm ci`, type-check, lint, tests and build. `openspec validate --all --strict`. `git diff --check`. Evidence: verification.md.
-- [ ] 3.2 After the owner accepts: archive, push the branch, and report the PR link.
+- [x] 3.2 After the owner accepts: archive, push the branch, and report the PR link.
