@@ -45,6 +45,13 @@
 | `openspec validate --all --strict` | 80 passed, 0 warnings |
 | `git diff --check` | clean |
 
+**CI at `089e40e`:**
+- **Attempt 1:** frontend and compose/backup passed. The backend failed on one test, `test_concurrent_notification_delivery_creates_one_ledger_effect`: `created_transactions` 0 instead of 1, with `inserted` 1 and `updated` 1. That's 1838 passed, 1 failed.
+- **Attempt 2:** the failed job was re-run on the same commit, and all three jobs passed.
+- **Cause:** not established. The test passed 15 of 15 times alone locally and in the local full suite. It has not failed in the 15 earlier failed CI runs. It runs before every new test file.
+- **What this change touches there:** in `accept_event` it adds one read (the session window) after the duplicate lookup and moves the insert columns into `event_columns`, with no lock or order change. I found no mechanism that makes the inserting thread book nothing.
+- **Follow-up:** recorded as an intermittent failure to watch. If it recurs, capture the event's `processing_state` and `error_code` in the test's failure message before changing code.
+
 ## Replay dry run (synthetic export of the 1 Nov sequence)
 
 The synthetic export holds a GoPay "menerima Tabungan by Jago", a Jago "received from GoPay" and a myBCA debit, all case 1.
