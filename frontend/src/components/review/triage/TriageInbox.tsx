@@ -37,7 +37,7 @@ import {
   type PurposeQuestionEntry,
   type ReviewItem,
   type ReviewQueue,
-  type LearnedSkipPattern,
+  type LearnedAccountLink,
   type SeenTwiceItem,
   type TopupProductChoice,
 } from "@/lib/review";
@@ -515,29 +515,29 @@ export function TriageInbox() {
     };
   };
 
-  // "Batalkan" on the learned-pattern toast stops the pattern; the acknowledged report stays settled.
-  const stopLearnedPattern = async (pattern: LearnedSkipPattern) => {
+  // "Batalkan" on the learned-link toast stops the link; the acknowledged report stays settled.
+  const stopLearnedLink = async (link: LearnedAccountLink) => {
     try {
-      await api.del(`/ingest/skip-patterns/${pattern.id}`);
-      await qc.invalidateQueries({ queryKey: queryKeys.skipPatterns });
-      showToast(`Pola dibatalkan. Laporan ${pattern.redundant_label} serupa akan ditanyakan lagi.`);
+      await api.del(`/ingest/account-links/${link.id}`);
+      await qc.invalidateQueries({ queryKey: ["account-links"] });
+      showToast(`Tautan dibatalkan. Laporan ${link.institution_label} serupa akan ditanyakan lagi.`);
     } catch (error) {
       setFailure({ message: reviewErrorMessage(error) });
     }
   };
 
   const acknowledgeSeenTwice = (item: TriageItem) => async (entry: SeenTwiceItem) => {
-    const learned: { pattern: LearnedSkipPattern | null } = { pattern: null };
+    const learned: { link: LearnedAccountLink | null } = { link: null };
     const done = await act(item, async () => {
-      const response = await api.post<{ pattern: LearnedSkipPattern | null }>(`/review/seen-twice/${entry.event_id}/acknowledge`, {});
-      learned.pattern = response.pattern?.created ? response.pattern : null;
+      const response = await api.post<{ link: LearnedAccountLink | null }>(`/review/seen-twice/${entry.event_id}/acknowledge`, {});
+      learned.link = response.link?.created ? response.link : null;
       return { message: "ditandai satu transaksi", batches: [] };
     });
-    const pattern = learned.pattern;
-    if (done && pattern) {
-      void qc.invalidateQueries({ queryKey: queryKeys.skipPatterns });
-      showToast(`Laporan ${pattern.redundant_label} serupa akan dilewati otomatis.`, {
-        actionLabel: "Batalkan", onUndo: () => void stopLearnedPattern(pattern),
+    const link = learned.link;
+    if (done && link) {
+      void qc.invalidateQueries({ queryKey: ["account-links"] });
+      showToast(`${link.account_label ?? "Rekening"} juga dilaporkan ${link.institution_label}. Laporan serupa dilewati otomatis.`, {
+        actionLabel: "Batalkan", onUndo: () => void stopLearnedLink(link),
       });
     }
     return done;
