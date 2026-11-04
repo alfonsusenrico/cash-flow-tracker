@@ -279,11 +279,11 @@ Each figure keeps its explanation popover ("Rincian hitungan").
 
 | # | Decision | Default |
 | --- | --- | --- |
-| OD80 | Primary action and expense share the old coral | **Keep, as in the old app.** The owner asked for the old scheme unchanged |
-| OD81 | Meaning of "Pengeluaran" | **Spending without any saving (D4)**, via additive `spending` fields |
-| OD82 | Tanya's intent code | **Delete it** (D10); `lib/capture.ts` stays |
-| OD83 | Detail view | **Centered modal ≥ 761 px, bottom sheet below** (owner accepted) |
-| OD84 | Where help lives | **Pengaturan · Tampilan "Bantuan & pintasan"**, plus `?` everywhere |
-| OD85 | Reorder on desktop | **Always-on handles and hover/focus buttons**; phones use the "Ubah urutan" mode |
-| OD86 | Platform gain total | **Server fields on the parent** (D8) |
-| OD87 | Period stepper on Beranda (in the preview) | **No stepper**; the period named as text (D5) |
+| OD80 (resolved 2026-11-04: "approved, defaults ok") | Primary action and expense share the old coral | **Keep, as in the old app.** The owner asked for the old scheme unchanged |
+| OD81 (resolved 2026-11-04: "approved, defaults ok") | Meaning of "Pengeluaran" | **Spending without any saving (D4)**, via additive `spending` fields |
+| OD82 (resolved 2026-11-04: "approved, defaults ok") | Tanya's intent code | **Delete it** (D10); `lib/capture.ts` stays |
+| OD83 (resolved 2026-11-04: "approved, defaults ok") | Detail view | **Centered modal ≥ 761 px, bottom sheet below** (owner accepted) |
+| OD84 (resolved 2026-11-04: "approved, defaults ok") | Where help lives | **Pengaturan · Tampilan "Bantuan & pintasan"**, plus `?` everywhere |
+| OD85 (resolved 2026-11-04: "approved, defaults ok") | Reorder on desktop | **Always-on handles and hover/focus buttons**; phones use the "Ubah urutan" mode |
+| OD86 (resolved 2026-11-04: "approved, defaults ok") | Platform gain total | **Server fields on the parent** (D8) |
+| OD87 (resolved 2026-11-04: "approved, defaults ok") | Period stepper on Beranda (in the preview) | **No stepper**; the period named as text (D5) |

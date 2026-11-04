@@ -47,7 +47,7 @@ No money figure changes value. Every figure that is renamed or split states exac
    - WCAG 2.2 AA verification (phase 1 D17).
 5. **Owner testing, 2026-11-03.** The owner said "I'm not going to test anything until all phases done implemented properly and approved". This change is a correction of finished work, and the owner will look at it. The agent's evidence must still be complete, including data shaped like the owner's account.
 
-This plan is pending the owner's approval. No implementation starts before it.
+**Plan approval, 2026-11-04.** After a summary of both refinement plans (`refine-workspace-layout` and `compare-whole-months`), the owner said "approved, defaults ok". OD80–OD87 take their recommended defaults (design.md, open decisions).
 
 ## What Changes
 
