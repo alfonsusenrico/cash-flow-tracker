@@ -100,7 +100,7 @@ Migration V47 SHALL convert each active skip pattern into the link of the single
 ## MODIFIED Requirements
 
 ### Requirement: One Arrival Seen by Two Apps
-When no account link decides (Linked Account Reports), a new observed leg SHALL be recorded as a duplicate observation instead of a transaction when exactly one recorded observed leg of the owner has the same direction and amount, comes from another institution's app, has a post time at most 120 seconds away, is on a different account, and names the new leg's account (or its root) as its remote while the new leg names that leg's account (or its root). Such a leg SHALL NOT pair with, or count as a candidate for, any other leg.
+Without a deciding account link (Linked Account Reports), a new observed leg SHALL be recorded as a duplicate observation instead of a transaction when exactly one recorded observed leg of the owner has the same direction and amount, comes from another institution's app, has a post time at most 120 seconds away, is on a different account, and each leg names the other's account (or its root) as its remote. Such a leg SHALL NOT pair with, or count as a candidate for, any other leg.
 
 #### Scenario: Top-up seen by GoPay and Jago
 - **GIVEN** a GoPay income of Rp 500.000 on GoPay recorded from "Anda telah menerima Tabungan by Jago sebanyak Rp500.000.", whose remote is Jago · Kantong Utama
