@@ -19,7 +19,7 @@ So the duplicate is a notification-control problem with a deterministic answer. 
 
 ## Approval
 
-The owner asked for this plan in the session on 2026-11-04 (quotes above). Waiting for the owner's approval of the plan.
+The owner asked for this plan in the session on 2026-11-04 (quotes above). **Plan approval, 2026-11-04.** After a summary of the plan, the owner said "approved, defaults ok". OD122–OD128 take their recommended defaults (design.md, open decisions), including the live benchmark of `-12` against `-11` (about $0.10).
 
 ## What Changes
 
