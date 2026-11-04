@@ -20,8 +20,11 @@ from datetime import date, datetime, time, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-if "__file__" in globals():
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
+# From the repository the backend sits two levels up; piped into a container (`python -`) it is already
+# importable and `__file__` is "<stdin>".
+_SCRIPT = Path(globals().get("__file__", "<stdin>")).resolve()
+if len(_SCRIPT.parents) > 2 and (_SCRIPT.parents[2] / "backend").is_dir():
+    sys.path.insert(0, str(_SCRIPT.parents[2] / "backend"))
 
 # The same bounds as the backend rule (movement_pairing.SAME_ARRIVAL_WINDOW_SECONDS).
 SAME_ARRIVAL_WINDOW_SECONDS = 120
