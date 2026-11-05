@@ -29,4 +29,4 @@ Expected Result: the owner can run the SPayLater cycle end to end in the web app
 ## 4. Delivery
 
 - [x] 4.1 Run the full backend suite on migrated PostgreSQL, write `verification.md`, run `openspec validate --all --strict` and `git diff --check`, and review the diff.
-- [ ] 4.2 After the owner accepts, archive the change, push the branch and report the compare link. After the merge, check V50 and the deploy read-only.
+- [x] 4.2 After the owner accepts, archive the change, push the branch and report the compare link. After the merge, check V50 and the deploy read-only.

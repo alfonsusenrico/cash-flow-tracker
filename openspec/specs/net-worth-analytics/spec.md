@@ -6,7 +6,7 @@ Aggregate net worth and liquidity and expose cash-flow runway forecasts for fina
 ## Requirements
 
 ### Requirement: Net Worth & Liquidity Aggregation
-Net worth SHALL use Beranda's cycle-summary helper, so every page shows one Kekayaan bersih: `liquid` (cash, bank and wallet, each account once, without negative balances awaiting reconciliation), `investment` (last recorded values), `total_assets` = `liquid + investment`, `reconciliation_pending` (those negative balances as a positive amount owed), `total_liabilities` (active `obligations.remaining_amount`) and `net_worth` = `total_assets - reconciliation_pending - total_liabilities`.
+Net worth SHALL use Beranda's cycle-summary helper: `liquid` (cash, bank and wallet, each account once, without negative balances awaiting reconciliation), `investment`, `total_assets` = `liquid + investment`, `reconciliation_pending`, `credit_owed` (what credit accounts owe, as a positive amount), `total_liabilities` (active `obligations.remaining_amount` plus `credit_owed`) and `net_worth` = `total_assets - reconciliation_pending - total_liabilities`.
 
 #### Scenario: Calculating net worth
 - **WHEN** a user has 25,000,000 IDR across accounts and 5,000,000 IDR in outstanding debts
@@ -24,6 +24,11 @@ Net worth SHALL use Beranda's cycle-summary helper, so every page shows one Keka
 #### Scenario: Another owner's accounts
 - **WHEN** two owners each have accounts and debts
 - **THEN** each owner's figures SHALL include only that owner's accounts and debts
+
+#### Scenario: Credit owed is utang
+- **GIVEN** Rp 10.000.000 in liquid accounts, no investment, an obligation of Rp 2.200.200 and SPayLater owing Rp 470.000
+- **WHEN** net worth is computed
+- **THEN** `credit_owed` SHALL be 470000, `investment` SHALL be 0, `total_liabilities` SHALL be 2670200, `net_worth` SHALL be 7329800, and `lines` SHALL include one line for SPayLater
 
 ### Requirement: Net Worth Endpoint and Display
 `GET /api/dashboard/net-worth` SHALL return `liquid`, `investment`, `total_assets`, `reconciliation_pending`, `total_liabilities`, `net_worth` and `lines` (the cycle summary's `key`, `label`, `amount` lines, one per part and per active debt) besides its existing fields. The web SHALL show these server figures without computing them, and when the request fails it SHALL say the figure cannot be calculated instead of showing Rp 0.
