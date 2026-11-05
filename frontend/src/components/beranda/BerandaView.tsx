@@ -28,6 +28,7 @@ import {
   netWorthExplanation,
   periodWord,
   remainingExplanation,
+  savingChangeLabel,
   savingExplanation,
   scheduledExplanation,
   shortDate,
@@ -130,11 +131,11 @@ export function BerandaKpis({ summary }: { summary: CycleSummary }) {
         tone="save"
         label="Ditabung & investasi"
         value={
-          <ExplainableFigure label="Ditabung & investasi" amountText={money(summary.fresh_saving.amount)} explanation={savingExplanation(summary, money)}>
-            <AnimatedMoney value={summary.fresh_saving.amount} />
+          <ExplainableFigure label="Ditabung & investasi" amountText={money(Math.abs(summary.fresh_saving.amount))} explanation={savingExplanation(summary, money)}>
+            <AnimatedMoney value={Math.abs(summary.fresh_saving.amount)} />
           </ExplainableFigure>
         }
-        caption="kantong tabungan dan investasi"
+        caption={summary.tabungan ? savingChangeLabel(summary.tabungan.total, money) : "kantong tabungan dan investasi"}
       />
       <KpiCard
         tone="net"
@@ -144,7 +145,7 @@ export function BerandaKpis({ summary }: { summary: CycleSummary }) {
             <AnimatedMoney value={net.total} />
           </ExplainableFigure>
         }
-        caption={`aset ${money(net.liquid + net.investment - (net.reconciliation_pending ?? 0))} · utang ${money(net.debts + (net.credit_owed ?? 0))}`}
+        caption={`aset ${money(net.liquid + (net.dana_investasi ?? 0) + net.investment - (net.reconciliation_pending ?? 0))} · utang ${money(net.debts + (net.credit_owed ?? 0))}`}
       />
     </section>
   );
@@ -161,7 +162,8 @@ export function MoneyCard({ summary }: { summary: CycleSummary }) {
   const free = Math.max(0, remaining.total);
   const legend = [
     { key: "spending", label: "Pengeluaran", amount: spending.amount, color: "var(--out-solid)", explanation: spendingExplanation(summary, money) },
-    { key: "saving", label: "Ditabung & investasi", amount: saving.amount, color: "var(--k-saving)", explanation: savingExplanation(summary, money) },
+    // A savings decrease takes no width in the bar; its legend names the direction in words.
+    { key: "saving", label: saving.amount < 0 ? "Tabungan berkurang" : "Ditabung & investasi", amount: Math.max(0, saving.amount), shown: Math.abs(saving.amount), color: "var(--k-saving)", explanation: savingExplanation(summary, money) },
     { key: "scheduled", label: "Terjadwal", amount: scheduled.total, color: "var(--warn-solid)", explanation: scheduledExplanation(summary, money) },
     { key: "safe", label: "Aman dipakai", amount: free, color: "var(--in-solid)", explanation: remainingExplanation(summary, money) },
   ];
@@ -187,7 +189,7 @@ export function MoneyCard({ summary }: { summary: CycleSummary }) {
             <li key={item.key} style={{ ["--sc" as string]: item.color }}>
               <span className="ws-money-legend-h">{item.label}</span>
               <b>
-                <ExplainableFigure label={item.label} amountText={money(item.amount)} explanation={item.explanation} />
+                <ExplainableFigure label={item.label} amountText={money(item.shown ?? item.amount)} explanation={item.explanation} />
               </b>
             </li>
           ))}

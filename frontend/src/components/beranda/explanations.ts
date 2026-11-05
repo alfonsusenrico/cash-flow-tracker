@@ -65,7 +65,29 @@ export function spendingExplanation(summary: CycleSummary, money: Money): Explan
   };
 }
 
+/** "Tabungan bertambah" or "Tabungan berkurang": the direction is in the words, never only in a sign. */
+export function savingChangeLabel(total: number, money: Money): string {
+  return total < 0 ? `Tabungan berkurang ${money(-total)}` : `Tabungan bertambah ${money(total)}`;
+}
+
 export function savingExplanation(summary: CycleSummary, money: Money): ExplanationData {
+  const parts = summary.tabungan;
+  if (parts) {
+    const lines: ExplanationLine[] = [
+      { label: "Masuk ke tabungan", amount: signed(parts.masuk, money) },
+      { label: "Diambil dari tabungan", amount: signed(-parts.diambil, money) },
+      { label: "Pengeluaran dari tabungan", note: "tetap dihitung sebagai pengeluaran", amount: signed(-parts.belanja, money) },
+    ];
+    if (parts.pilar_tabungan) lines.push({ label: "Pengeluaran berpilar Tabungan", amount: signed(parts.pilar_tabungan, money) });
+    return {
+      title: "Ditabung & investasi",
+      rule: "Uang yang masuk ke kantong tabungan atau investasi, dikurangi yang diambil dan yang dibelanjakan dari tabungan.",
+      lines,
+      total: { label: parts.total < 0 ? "Tabungan berkurang" : "Tabungan bertambah", amount: money(Math.abs(parts.total)) },
+      notes: [`Bersama pengeluaran ${money(summary.spending.amount)}, totalnya ${money(summary.keluar.total)}.`],
+      link: { href: `${ledgerPeriod(summary)}&kakeibo=saving`, label: "Lihat yang ditabung" },
+    };
+  }
   return {
     title: "Ditabung & investasi",
     rule: "Pengeluaran berpilar Tabungan ditambah uang bersih yang dipindah ke kantong tabungan atau diinvestasikan.",
@@ -244,7 +266,7 @@ export function remainingExplanation(summary: CycleSummary, money: Money): Expla
     lines: [
       { label: "Masuk", amount: signed(summary.masuk.total, money) },
       { label: "Pengeluaran", amount: signed(-summary.spending.amount, money) },
-      { label: "Ditabung & investasi", amount: signed(-summary.fresh_saving.amount, money) },
+      { label: summary.fresh_saving.amount < 0 ? "Tabungan berkurang" : "Ditabung & investasi", amount: signed(-summary.fresh_saving.amount, money) },
       { label: "Terjadwal", amount: signed(-summary.scheduled.total, money) },
     ],
     total: { label: "Sisa", amount: balance(summary.remaining.total, money) },

@@ -181,6 +181,21 @@ describe("design tokens", () => {
     for (const [name, value] of Object.entries(values)) expect(theme[name], name).toBe(value);
   });
 
+  // The validated categorical use slots and the violet investment-kind steps (organize-accounts-by-use D7).
+  it.each([
+    [":root", {
+      "--use-harian": "#059669", "--use-tabungan": "#B7791F", "--use-dana": "#0EA5E9", "--use-investasi": "#8B5CF6",
+      "--kind-emas": "#C4B5FD", "--kind-reksa-dana": "#8B5CF6", "--kind-saham": "#5B21B6",
+    }],
+    [".dark", {
+      "--use-harian": "#0F9A6E", "--use-tabungan": "#A9772A", "--use-dana": "#2290CC", "--use-investasi": "#8F6BEF",
+      "--kind-emas": "#5B45A8", "--kind-reksa-dana": "#8F6BEF", "--kind-saham": "#C4B5FD",
+    }],
+  ] as const)("paints the account uses and investment kinds in %s", (selector, values) => {
+    const theme = themes[selector];
+    for (const [name, value] of Object.entries(values)) expect(theme[name], name).toBe(value);
+  });
+
   it("defines every custom property the stylesheets and components use", () => {
     const runtimeFontVariables = [...layout.matchAll(/variable: "(--[\w-]+)"/g)].map((match) => match[1]);
     const defined = new Set([...declaredIn(tokens), ...declaredIn(globals), ...runtimeFontVariables]);
@@ -342,7 +357,10 @@ describe("design tokens", () => {
         })
         .map(([name]) => name);
       // The need pillar keeps the old app's fjord blue (refine-workspace-layout D1), 25 degrees or more from the transfer sky.
-      expect(blue.filter((name) => !name.startsWith("--tr-") && !name.startsWith("--k-need"))).toEqual([]);
+      // Dana investasi keeps the sky slot of the validated use palette (organize-accounts-by-use D7); it is a
+      // chart mark on Rekening & Kantong, always labelled, never text or an interactive colour.
+      const allowed = (name: string) => name.startsWith("--tr-") || name.startsWith("--k-need") || name === "--use-dana";
+      expect(blue.filter((name) => !allowed(name))).toEqual([]);
       expect(Object.keys(theme).filter((name) => name.startsWith("--info"))).toEqual([]);
     });
 

@@ -1,8 +1,9 @@
 """Peta Aliran: where a period's money came from and where it went, as nodes and links that balance.
 
-Every income or expense row of a holder node (a liquid account with its folded pockets, a goal-linked
-saving account, or an investment account with its products) is assigned to exactly one link by
-`assign_rows`, which both the map and its drawer rows use, so a link's rows always add up to the link.
+Every income or expense row of a holder node (a liquid account with its folded pockets, a savings
+account that is goal-linked or has role tabungan, or an investment account with its products) is
+assigned to exactly one link by `assign_rows`, which both the map and its drawer rows use, so a link's
+rows always add up to the link.
 For every holder node the links in add up to the links out: the opening ledger balance plus what came in
 equals what went out plus "Masih ada", the ledger balance at the end of `through`.
 """
@@ -17,6 +18,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
+from app.services.account_roles import TABUNGAN
 from app.services.kakeibo import pillar_bucket_sql
 from app.services.reimbursements import load_spending_offsets
 from app.services.report_figures import cash_flow_totals, reportable_expense_sql, reportable_income_sql
@@ -114,15 +116,16 @@ def _holder_kind(account: dict[str, Any]) -> str:
 
 
 def holder_of(accounts: dict[str, dict[str, Any]]) -> dict[str, str]:
-    """Each account's holder node (OD44): a goal-linked account is its own saving node; a pocket or
-    product folds into its parent's node; a top-level account is a liquid or an investment node."""
+    """Each account's holder node (OD44): a goal-linked account or one with role tabungan is its own saving
+    node (organize-accounts-by-use D3); a pocket or product folds into its parent's node; a top-level
+    account is a liquid or an investment node."""
     result: dict[str, str] = {}
 
     def resolve(account_id: str, depth: int = 0) -> str:
         if account_id in result:
             return result[account_id]
         account = accounts[account_id]
-        if account["goal_linked"]:
+        if account["goal_linked"] or account.get("role") == TABUNGAN:
             node = f"sav:{account_id}"
         elif account["parent_id"] and account["parent_id"] in accounts and depth < 8:
             node = resolve(account["parent_id"], depth + 1)
@@ -140,7 +143,7 @@ def _load_accounts(cur, user_id: str) -> dict[str, dict[str, Any]]:
     cur.execute(
         """
         SELECT a.id, a.name, a.parent_id, a.type, a.instrument_type, a.initial_balance, a.is_archived,
-               a.display_order, a.created_at,
+               a.display_order, a.created_at, a.role,
                EXISTS (SELECT 1 FROM goal_accounts ga WHERE ga.account_id = a.id) AS goal_linked,
                (SELECT g.name FROM goal_accounts ga JOIN goals g ON g.id = ga.goal_id
                  WHERE ga.account_id = a.id ORDER BY g.name LIMIT 1) AS goal_name

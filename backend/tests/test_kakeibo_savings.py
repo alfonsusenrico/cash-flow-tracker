@@ -45,7 +45,7 @@ def test_kakeibo_breakdown_excludes_liquid_moves_and_preauth():
         {"pillar": "need", "total_amount": 951903},
         {"pillar": "want", "total_amount": 70400},
     ]
-    cur.fetchone.return_value = {"saving_transfers": 0}
+    cur.fetchone.side_effect = [{"into_savings": 0, "out_of_savings": 0}, {"paid_from_savings": 0}]
 
     res = get_kakeibo_breakdown(cur, user_id, start_utc, end_utc, total_inflow=290050, offsets=SpendingOffsets())
 
@@ -54,12 +54,14 @@ def test_kakeibo_breakdown_excludes_liquid_moves_and_preauth():
     assert res["saving_spent"] == 0
     assert res["total_allocated"] == 951903 + 70400
 
-    # Savings attribution follows linked bilateral movement roles, not note text.
+    # Savings attribution follows linked bilateral movement roles and the accounts' current roles,
+    # not note text and not the pillar stored on the leg (organize-accounts-by-use D3).
     query_call = cur.execute.call_args_list[1]
     query_sql = query_call[0][0]
     assert "outbound.movement_role = 'outbound'" in query_sql
     assert "inbound.movement_role = 'inbound'" in query_sql
-    assert "outbound.kakeibo_type = 'saving'" in query_sql
+    assert "sa.role IS NOT DISTINCT FROM 'tabungan'" in query_sql and "da.role IS NOT DISTINCT FROM 'tabungan'" in query_sql
+    assert "outbound.kakeibo_type = 'saving'" not in query_sql
 
 
 def test_kakeibo_breakdown_includes_true_saving_transfers():
@@ -73,8 +75,8 @@ def test_kakeibo_breakdown_includes_true_saving_transfers():
         {"pillar": "need", "total_amount": 500000},
         {"pillar": "want", "total_amount": 200000},
     ]
-    # 2. Genuine transfer to savings/investment account: Rp 300.000
-    cur.fetchone.return_value = {"saving_transfers": 300000}
+    # 2. Genuine transfer to savings/investment account: Rp 300.000; 3. nothing paid from savings
+    cur.fetchone.side_effect = [{"into_savings": 300000, "out_of_savings": 0}, {"paid_from_savings": 0}]
 
     res = get_kakeibo_breakdown(cur, user_id, start_utc, end_utc, total_inflow=1000000, offsets=SpendingOffsets())
 

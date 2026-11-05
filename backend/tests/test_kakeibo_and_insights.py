@@ -73,8 +73,8 @@ def test_kakeibo_breakdown_calculation():
         {"pillar": "need", "total_amount": 4_500_000},
         {"pillar": "want", "total_amount": 3_500_000},
     ]
-    # 2. Saving transfers: 2.0m
-    mock_cur.fetchone.return_value = {"saving_transfers": 2_000_000}
+    # 2. Saving transfers: 2.0m in, nothing out; 3. nothing paid from savings
+    mock_cur.fetchone.side_effect = [{"into_savings": 2_000_000, "out_of_savings": 0}, {"paid_from_savings": 0}]
 
     total_inflow = 10_000_000
     res = get_kakeibo_breakdown(mock_cur, user_id, start, end, total_inflow, SpendingOffsets())
@@ -142,7 +142,8 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
                 {"inflow": 10_000_000, "outflow": 8_000_000, "tx_count": 12},  # totals_row
                 {"total_budget": 10_000_000},                                 # cat_budget
                 {"inflow": 9_000_000, "outflow": 6_400_000, "tx_count": 10},  # prev_totals_row
-                {"saving_transfers": 1_000_000},                              # kakeibo saving transfers
+                {"into_savings": 1_000_000, "out_of_savings": 0},             # kakeibo saving transfers
+                {"paid_from_savings": 0},                                     # kakeibo spending from savings
             ]
 
             food_cid = str(uuid.uuid4())
@@ -352,7 +353,8 @@ def test_burn_rate_keeps_observed_averages_but_retires_forecasts():
                 {"spent": 50_000},                           # 30-day burn window
                 {"inflow": 0, "outflow": 50_000},            # totals_row
                 {"inflow": 0, "outflow": 0},                 # prev_totals_row
-                {"saving_transfers": 0},                     # saving_transfers in kakeibo
+                {"into_savings": 0, "out_of_savings": 0},    # saving transfers in kakeibo
+                {"paid_from_savings": 0},                    # spending from savings in kakeibo
             ]
 
             with TestClient(app) as client:

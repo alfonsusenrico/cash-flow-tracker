@@ -42,4 +42,17 @@ describe("API financial errors", () => {
       message: "Unit investasi tidak mencukupi. Tersedia 12 dari 15 unit yang dibutuhkan.",
     });
   });
+
+  it("explains a Kegunaan that contradicts the account type", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({ detail: { code: "account_role_type_mismatch" } }),
+    }));
+
+    await expect(api.patch("/accounts/spaylater", { role: "harian" })).rejects.toMatchObject({
+      status: 422,
+      message: expect.stringMatching(/^Kegunaan tidak sesuai jenis rekening\. Rekening kredit selalu Utang/),
+    });
+  });
 });

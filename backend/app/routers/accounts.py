@@ -2,11 +2,17 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
 from app.services.account_colours import default_account_color
+from app.services.account_layouts import (
+    GROUPING_PATTERN, AccountLayoutBody, load_layout, normalize_layout, save_layout, validate_layout_body,
+)
+from app.services.account_roles import (
+    DANA_INVESTASI, ROLE_PATTERN, account_kind, default_role, resolve_role_on_update, validate_role,
+)
 from app.services.auth import get_current_user
 from app.services.balance_check import check_balance, record_match
 from app.services.credit_accounts import (
@@ -41,6 +47,8 @@ class AccountCreate(BaseModel):
     # None picks the default for the account type: lavender for investments, blue otherwise.
     color: str | None = Field(default=None, max_length=30)
     display_order: int | None = Field(default=0)
+    # None picks the type's default (account_roles.default_role).
+    role: str | None = Field(default=None, pattern=ROLE_PATTERN)
 
 
 class AccountUpdate(BaseModel):
@@ -59,6 +67,7 @@ class AccountUpdate(BaseModel):
     last_price: float | None = Field(default=None, ge=0)
     color: str | None = Field(default=None, max_length=30)
     display_order: int | None = Field(default=None)
+    role: str | None = Field(default=None, pattern=ROLE_PATTERN)
 
 
 class AccountReorder(BaseModel):
@@ -113,6 +122,7 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
                     a.created_at,
                     a.credit_limit,
                     a.payment_day,
+                    a.role,
                     (
                         a.initial_balance 
                         + COALESCE(SUM(CASE WHEN t.account_id = a.id AND t.type = 'income' THEN t.amount ELSE 0 END), 0)
@@ -217,6 +227,8 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
             "payment_day": r.get("payment_day"),
             "credit_owed": credit_owed(balance) if r.get("type") == CREDIT_TYPE else None,
             "over_limit": over_limit(balance, r.get("credit_limit")) if r.get("type") == CREDIT_TYPE else False,
+            "role": r.get("role"),
+            "kind": account_kind(r),
             "is_archived": r.get("is_archived", False),
             "is_parent": False,
             "children": [],
@@ -266,6 +278,7 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
 
 def summarize_account_balances(accounts: list[dict[str, Any]]) -> dict[str, int]:
     liquid_balance = 0
+    dana_investasi = 0
     investment_balance = 0
     total_balance = 0
     reconciliation_pending = 0
@@ -281,6 +294,9 @@ def summarize_account_balances(accounts: list[dict[str, Any]]) -> dict[str, int]
         elif is_liquid:
             if account.get("reconciliation_required") and own_balance < 0:
                 reconciliation_pending += -own_balance
+            elif account.get("role") == DANA_INVESTASI:
+                # Cash that can only buy investments (an RDN) is an asset but not money to live on (D2).
+                dana_investasi += own_balance
             else:
                 liquid_balance += own_balance
         else:
@@ -288,6 +304,7 @@ def summarize_account_balances(accounts: list[dict[str, Any]]) -> dict[str, int]
 
     return {
         "liquid_balance": liquid_balance,
+        "dana_investasi": dana_investasi,
         "investment_balance": investment_balance,
         "total_balance": total_balance,
         "reconciliation_pending": reconciliation_pending,
@@ -365,6 +382,44 @@ def reorder_accounts(
     return {"ok": True, "message": "Accounts reordered successfully"}
 
 
+# Declared before "/{account_id}" so "layout" is never read as an account id.
+@router.get("/layout")
+def get_account_layout(
+    grouping: str = Query(pattern=GROUPING_PATTERN),
+    current_user: dict = Depends(get_current_user),
+):
+    """The owner's saved order for one grouping, normalized against the current accounts (D5)."""
+    user_id = current_user["id"]
+    accounts = get_accounts_with_balances(user_id)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            sections, cards = load_layout(cur, user_id, grouping)
+    return normalize_layout(accounts, grouping, sections, cards)
+
+
+@router.put("/layout")
+def put_account_layout(
+    payload: AccountLayoutBody,
+    grouping: str = Query(pattern=GROUPING_PATTERN),
+    current_user: dict = Depends(get_current_user),
+):
+    """Saves an order for one grouping: unknown, foreign or archived ids and misplaced cards are dropped,
+    and missing sections and cards are appended in default order. Saving the same body twice is a no-op."""
+    if payload.grouping is not None and payload.grouping != grouping:
+        raise refuse("layout_grouping_mismatch")
+    problem = validate_layout_body(payload)
+    if problem:
+        raise refuse(problem)
+    user_id = current_user["id"]
+    accounts = get_accounts_with_balances(user_id)
+    layout = normalize_layout(accounts, grouping, payload.sections, payload.cards)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            save_layout(cur, user_id, layout)
+        conn.commit()
+    return layout
+
+
 @router.post("")
 async def create_account(payload: AccountCreate, current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
@@ -383,6 +438,8 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
         raise refuse("credit_fields_not_allowed")
     if default_funding_account_id and payload.type != "investment" and not payload.instrument_type:
         raise HTTPException(status_code=400, detail="A default funding account is only valid for an investment account")
+    role = payload.role or default_role(payload.type, payload.instrument_type)
+    validate_role(payload.type, payload.instrument_type, role)
 
     # Determine initial values
     initial_bal = payload.initial_balance
@@ -452,13 +509,13 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                 INSERT INTO accounts (
                     user_id, parent_id, default_funding_account_id, default_pocket_id, name, type, initial_balance,
                     instrument_type, instrument_symbol, units, avg_buy_price,
-                    last_price, last_price_at, color, display_order, credit_limit, payment_day
+                    last_price, last_price_at, color, display_order, credit_limit, payment_day, role
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, parent_id, default_funding_account_id, default_pocket_id, name, type, initial_balance,
                           instrument_type, instrument_symbol, units, avg_buy_price,
                           last_price, last_price_at, color, display_order, is_archived, created_at,
-                          credit_limit, payment_day
+                          credit_limit, payment_day, role
                 """,
                 (
                     user_id,
@@ -478,6 +535,7 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                     payload.display_order or 0,
                     payload.credit_limit,
                     payload.payment_day,
+                    role,
                 ),
             )
             row = cur.fetchone()
@@ -544,6 +602,8 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
             "over_limit": over_limit(bal, row.get("credit_limit")) if row.get("type") == CREDIT_TYPE else False,
             "color": row.get("color") or "#3b82f6",
             "display_order": int(row.get("display_order") or 0),
+            "role": row.get("role"),
+            "kind": account_kind(row),
             "is_archived": row.get("is_archived", False),
             "is_parent": False,
             "children": [],
@@ -618,7 +678,7 @@ async def update_account(
         updates.append("payment_day = %s")
         params.append(payload.payment_day)
 
-    if not updates and "default_pocket_id" not in payload.model_fields_set:
+    if not updates and "default_pocket_id" not in payload.model_fields_set and payload.role is None:
         raise HTTPException(status_code=400, detail="No fields to update")
 
     with db_conn() as conn:
@@ -665,6 +725,13 @@ async def update_account(
             )
             if final_type == CREDIT_TYPE and final_instrument_type:
                 raise refuse("credit_fields_not_allowed")
+            final_role = resolve_role_on_update(
+                current_role=curr_acc.get("role"), requested_role=payload.role,
+                final_type=final_type, final_instrument_type=final_instrument_type,
+            )
+            if final_role != curr_acc.get("role"):
+                updates.append("role = %s")
+                params.append(final_role)
             if (final_type == CREDIT_TYPE) != (curr_acc["type"] == CREDIT_TYPE):
                 # Turning an account into credit or back reverses the meaning of its balance (D2).
                 cur.execute(
