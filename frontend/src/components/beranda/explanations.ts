@@ -255,8 +255,11 @@ export function remainingExplanation(summary: CycleSummary, money: Money): Expla
 export function netWorthExplanation(summary: CycleSummary, money: Money): ExplanationData {
   return {
     title: "Kekayaan bersih",
-    rule: "Semua saldo dan investasi dikurangi utang yang masih aktif.",
-    lines: summary.net_worth.lines.map((line) => ({ label: line.label, amount: signed(line.amount, money) })),
+    rule: "Semua saldo dan investasi dikurangi utang yang masih aktif, termasuk utang kredit.",
+    lines: summary.net_worth.lines.map((line) => ({
+      label: line.key.startsWith("credit:") ? `Utang ${line.label}` : line.label,
+      amount: signed(line.amount, money),
+    })),
     total: { label: "Kekayaan bersih", amount: money(summary.net_worth.total) },
     notes: ["Kantong dihitung sekali, tidak ganda dengan rekening induknya. Investasi memakai nilai terakhir yang tercatat."],
     link: { href: "/accounts", label: "Buka Rekening & Kantong" },

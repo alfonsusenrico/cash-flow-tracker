@@ -73,4 +73,41 @@ describe("AccountSelectOptions", () => {
     expect(screen.getByRole("option", { name: "RDN" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Broker|Saham/ })).not.toBeInTheDocument();
   });
+
+  it("lists credit accounts in their own Kredit group only when a picker opts in", async () => {
+    const accounts = [
+      { id: "bank", name: "Bank", type: "bank", balance: 500_000 },
+      { id: "spaylater", name: "SPayLater", type: "credit", balance: -470_000, credit_owed: 470_000 },
+      { id: "kredivo", name: "Kredivo", type: "credit", balance: 0, credit_owed: 0 },
+    ];
+    const money = (value: number) => `Rp ${value.toLocaleString("id-ID")}`;
+    const { container, rerender } = render(
+      <select aria-label="Rekening">
+        <AccountSelectOptions liquidOnly allowParentSelection includeCredit formatBalance={money} accounts={accounts} />
+      </select>,
+    );
+    const group = screen.getByRole("group", { name: "Kredit" });
+    expect([...group.querySelectorAll("option")].map((option) => option.textContent)).toEqual(["SPayLater (utang Rp 470.000)", "Kredivo"]);
+    expect(screen.getByRole("option", { name: /^Bank/ }).closest("optgroup")).toBeNull();
+    expect((await axe(container)).violations).toHaveLength(0);
+
+    rerender(
+      <select aria-label="Rekening">
+        <AccountSelectOptions liquidOnly allowParentSelection includeCredit excludeAccountId="spaylater" accounts={accounts} />
+      </select>,
+    );
+    expect(screen.queryByRole("option", { name: /SPayLater/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Kredivo" })).toBeInTheDocument();
+
+    // Without the opt-in a credit account is never offered, liquid-only or not (investment funding, debt payments).
+    for (const liquidOnly of [true, false]) {
+      rerender(
+        <select aria-label="Rekening">
+          <AccountSelectOptions liquidOnly={liquidOnly} allowParentSelection accounts={accounts} />
+        </select>,
+      );
+      expect(screen.queryByRole("group", { name: "Kredit" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: /SPayLater|Kredivo/ })).not.toBeInTheDocument();
+    }
+  });
 });

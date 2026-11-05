@@ -473,7 +473,7 @@ function LedgerPageContent() {
               Rekening
               <select value={filters.account} onChange={(event) => updateFilters({ account: event.target.value })}>
                 <option value="all">Semua rekening</option>
-                <AccountSelectOptions accounts={accounts} allowParentSelection={true} />
+                <AccountSelectOptions accounts={accounts} allowParentSelection={true} includeCredit />
               </select>
             </label>
             <label className="ws-field">

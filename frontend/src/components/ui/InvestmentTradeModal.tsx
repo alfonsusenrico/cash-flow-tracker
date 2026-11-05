@@ -13,7 +13,7 @@ interface AccountItem {
   default_funding_account_id?: string | null;
   default_funding_account_name?: string | null;
   name: string;
-  type: "cash" | "bank" | "wallet" | "investment";
+  type: "cash" | "bank" | "wallet" | "investment" | "credit";
   instrument_type?: "stock" | "mutual_fund" | "gold" | "crypto" | "deposit" | "other" | null;
   instrument_symbol?: string | null;
   units?: number | null;

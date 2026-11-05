@@ -240,6 +240,21 @@ describe("Beranda KPI cards", () => {
     expect(within(strip).getByRole("button", { name: /^Aman dipakai sampai gajian Rp 4\.922\.000/ })).toBeInTheDocument();
   });
 
+  it("counts what credit accounts owe in the net-worth utang, next to the debts", async () => {
+    const base = previewSummary();
+    summary = { ...base, net_worth: { ...base.net_worth, total: 45_860_000, credit_owed: 470_000, lines: [
+      ...base.net_worth.lines,
+      { key: "credit:spaylater", label: "SPayLater", amount: -470_000 },
+    ] } };
+    const user = userEvent.setup();
+    const strip = await kpis();
+    expect(strip).toHaveTextContent("aset Rp 48.730.000 · utang Rp 2.870.000");
+    await user.click(within(strip).getByRole("button", { name: "Kekayaan bersih Rp 45.860.000: lihat rincian" }));
+    const dialog = await screen.findByRole("dialog", { name: "Kekayaan bersih" });
+    expect(dialog).toHaveTextContent("Utang SPayLater");
+    expect(dialog).toHaveTextContent("Cicilan Laptop");
+  });
+
   it("shows Rp 0 and by how much the period is over, never a negative safe amount", async () => {
     const base = previewSummary();
     summary = { ...base, remaining: { ...base.remaining, total: -300_000 }, safe_to_spend: { ...base.safe_to_spend, per_day: 0, over_by: 300_000 } };

@@ -26,12 +26,68 @@ import { BalanceCheckDialog, canCheckBalance } from "./BalanceCheckDialog";
 import type { AccountItem, AccountsResponse, NetWorthResponse } from "./types";
 import styles from "./money.module.css";
 
-const KIND: Record<AccountItem["type"], string> = { bank: "Bank", wallet: "E-wallet", cash: "Tunai", investment: "Investasi" };
+const KIND: Record<AccountItem["type"], string> = { bank: "Bank", wallet: "E-wallet", cash: "Tunai", investment: "Investasi", credit: "Kredit" };
 // Phones reorder in a mode: dragging would fight the page scroll (refine-workspace-layout D9).
 const PHONE_WIDTH = 760;
 
 function isHolding(account: AccountItem): boolean {
   return account.type === "investment" || Boolean(account.instrument_type);
+}
+
+function isCredit(account: AccountItem): boolean {
+  return account.type === "credit";
+}
+
+/** What a credit account owes (positive); the API sends it, and a missing value falls back to the balance. */
+function owedOn(account: AccountItem): number {
+  return account.credit_owed ?? Math.max(0, -account.balance);
+}
+
+/** The headline of a credit account: what it owes, or the overpayment, never its negative balance (D3). */
+function creditHeadline(account: AccountItem, money: (value: number) => string): string {
+  if (account.balance > 0) return `Lebih bayar ${money(account.balance)}`;
+  return `Utang ${money(owedOn(account))}`;
+}
+
+/** Limit use, payment day and the over-limit mark of a credit account (add-credit-accounts D5). */
+function CreditFacts({ account, money }: { account: AccountItem; money: (value: number) => string }) {
+  const owed = owedOn(account);
+  const limit = account.credit_limit ?? null;
+  if (!limit && !account.payment_day && !account.over_limit) return null;
+  // The bar carries a percentage, so hidden balances stay hidden; the text says the amounts.
+  const used = limit ? Math.min(100, Math.round((owed / limit) * 100)) : 0;
+  const usedText = limit ? `${money(owed)} dari ${money(limit)}` : "";
+  return (
+    <div className={styles.credit}>
+      {limit ? (
+        <div className={styles.creditUse}>
+          <span className={styles.creditUseText}>{usedText}</span>
+          <div
+            className={styles.creditBar}
+            role="progressbar"
+            aria-label={`Limit terpakai ${account.name}`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={used}
+            aria-valuetext={`${usedText}, ${used}%`}
+          >
+            <i style={{ width: `${used}%` }} data-over={account.over_limit ? "" : undefined} />
+          </div>
+        </div>
+      ) : null}
+      {(account.payment_day || account.over_limit) && (
+        <div className={styles.creditNotes}>
+          {account.payment_day ? <span className="ws-caption">dibayar tiap tgl {account.payment_day}</span> : null}
+          {account.over_limit && (
+            <span className="ws-pill ws-tone-warn">
+              <Icon name="alert-triangle" className="h-3.5 w-3.5" />
+              Melewati limit
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function isPosition(account: AccountItem): boolean {
@@ -366,6 +422,7 @@ function AccountCard({
   const holding = isHolding(account);
   const flagged = pockets.filter((pocket) => pocket.reconciliation_required).length;
   const kind = holding ? (pockets.length ? `${pockets.length} produk` : trackingPill(account, amountProducts)) : `${KIND[account.type]}${pockets.length ? ` · ${pockets.length} kantong` : ""}`;
+  const credit = isCredit(account);
   const waiting = awaiting.get(account.id);
   const groupGain = account.group_capital_gain;
   return (
@@ -404,7 +461,7 @@ function AccountCard({
           <span className={styles.badge}>{account.name}</span>
           <span id={`acct-${account.id}`} className={styles.acardFacts}>
             <span className={styles.acardKind}>{kind}</span>
-            <span className={styles.acardBalance}>{money(account.balance)}</span>
+            <span className={styles.acardBalance}>{credit ? creditHeadline(account, money) : money(account.balance)}</span>
           </span>
           {holding && pockets.length > 0 && (
             <span className={styles.acardGain}>
@@ -414,14 +471,17 @@ function AccountCard({
         </button>
         <span className={styles.acardTools}>
           {draggable && count > 1 && <MoveButtons name={account.name} first={index === 0} last={index === count - 1} pending={false} onMove={onMoveTop} />}
-          <button type="button" className="ws-icon-btn" aria-label={holding ? `Tambah produk ${account.name}` : `Tambah kantong ${account.name}`} onClick={onAdd}>
-            <Icon name="plus" className="h-4 w-4" />
-          </button>
+          {!credit && (
+            <button type="button" className="ws-icon-btn" aria-label={holding ? `Tambah produk ${account.name}` : `Tambah kantong ${account.name}`} onClick={onAdd}>
+              <Icon name="plus" className="h-4 w-4" />
+            </button>
+          )}
         </span>
       </div>
+      {credit && <CreditFacts account={account} money={money} />}
       {(account.reconciliation_required || flagged > 0 || waiting) && (
         <div className={styles.acardNotes}>
-          {account.reconciliation_required && <ReconciliationFlag name={account.name} onReconcile={!pockets.length && account.investment_tracking_mode !== "amount" ? () => onReconcile(account) : undefined} />}
+          {account.reconciliation_required && <ReconciliationFlag name={account.name} onReconcile={!pockets.length && !credit && account.investment_tracking_mode !== "amount" ? () => onReconcile(account) : undefined} />}
           {!account.reconciliation_required && flagged > 0 && <ReconciliationFlag name={account.name} pocketCount={flagged} />}
           {waiting ? <span className="ws-caption">{waiting} pindah saldo belum lengkap</span> : null}
         </div>
@@ -504,6 +564,13 @@ function productLine(account: AccountItem, amountProducts: Set<string>, money: (
   return `${trackingPill(account, amountProducts)}${basis}`;
 }
 
+function netWorthLineLabel(line: { key: string; label: string }): string {
+  if (line.key === "liquid") return "Uang siap pakai";
+  if (line.key === "investment") return "Investasi";
+  if (line.key.startsWith("credit:")) return `Utang ${line.label}`;
+  return line.label;
+}
+
 /** KPI cards on top (D7): Total aset, Siap pakai, Investasi with its gain, Kekayaan bersih. */
 function AssetKpis({
   query,
@@ -530,8 +597,8 @@ function AssetKpis({
   };
   const netExplanation: ExplanationData = {
     title: "Kekayaan bersih",
-    rule: "Total aset dikurangi saldo minus yang perlu dicocokkan dan sisa utang aktif. Angka yang sama dengan Beranda.",
-    lines: lines.map((line) => ({ label: line.key === "liquid" ? "Uang siap pakai" : line.key === "investment" ? "Investasi" : line.label, amount: money(line.amount) })),
+    rule: "Total aset dikurangi saldo minus yang perlu dicocokkan, sisa utang aktif, dan utang kredit. Angka yang sama dengan Beranda.",
+    lines: lines.map((line) => ({ label: netWorthLineLabel(line), amount: money(line.amount) })),
     total: { label: "Kekayaan bersih", amount: money(data.net_worth) },
   };
   // The investment gain is the sum of the platforms' server totals; null when any platform lacks a basis.
@@ -571,7 +638,8 @@ function AssetKpis({
 
 /** Komposisi aset (D7): each top-level account's share of the assets, without debt. Shares are display only. */
 function Composition({ accounts, colours, money }: { accounts: AccountItem[]; colours: Map<string, string>; money: (value: number) => string }) {
-  const parts = accounts.filter((account) => account.balance > 0).sort((a, b) => b.balance - a.balance);
+  // An overpaid credit account is not an asset (add-credit-accounts D3), so credit stays out of the shares.
+  const parts = accounts.filter((account) => account.balance > 0 && !isCredit(account)).sort((a, b) => b.balance - a.balance);
   const total = parts.reduce((sum, account) => sum + account.balance, 0);
   if (!total) return null;
   return (
@@ -719,6 +787,14 @@ function MoveButtons({ name, first, last, pending, onMove }: { name: string; fir
     parent, and kind and parent for a plain account or pocket. */
 function detailFacts(account: AccountItem, parent: AccountItem | null, money: (value: number) => string): { label: string; value: React.ReactNode }[] {
   const pockets = account.children ?? [];
+  if (isCredit(account)) {
+    const overpaid = account.balance > 0;
+    return [
+      { label: overpaid ? "Lebih bayar" : "Utang", value: money(overpaid ? account.balance : owedOn(account)) },
+      { label: "Limit", value: account.credit_limit ? money(account.credit_limit) : "Tanpa limit" },
+      { label: "Tanggal bayar", value: account.payment_day ? `Tiap tgl ${account.payment_day}` : "—" },
+    ];
+  }
   if (isHolding(account) && !pockets.length) {
     const cost = account.cost_basis ?? (account.capital_gain != null ? account.balance - account.capital_gain : null);
     return [
@@ -783,7 +859,9 @@ function AccountDetail({
   const holding = isHolding(account);
   const position = isPosition(account);
   const amountTracked = amountProducts.has(account.id);
-  const canReconcile = !pockets.length && account.investment_tracking_mode !== "amount";
+  const credit = isCredit(account);
+  // "Sesuaikan Saldo" takes a positive cash balance; a credit account's owed amount is not one (D8).
+  const canReconcile = !pockets.length && !credit && account.investment_tracking_mode !== "amount";
   const isPocket = Boolean(account.parent_id);
   const kind = isPocket ? (holding ? "Produk" : "Kantong") : KIND[account.type];
   const recent = recentQuery.data?.transactions ?? [];
@@ -807,6 +885,12 @@ function AccountDetail({
             </div>
           ))}
         </dl>
+        {credit && account.over_limit && (
+          <p className="ws-pill ws-tone-warn self-start">
+            <Icon name="alert-triangle" className="h-3.5 w-3.5" />
+            Melewati limit
+          </p>
+        )}
         {account.reconciliation_required && (
           <ReconciliationFlag name={account.name} onReconcile={canReconcile ? () => dialogs.openReconciliation(account) : undefined} />
         )}
@@ -861,7 +945,7 @@ function AccountDetail({
               <button type="button" className="ws-btn ws-btn-accent" onClick={() => dialogs.openTrade(account, "buy")}>Beli</button>
               <button type="button" className="ws-btn" onClick={() => dialogs.openTrade(account, "sell")}>Jual</button>
             </>
-          ) : !isPocket ? (
+          ) : !isPocket && !credit ? (
             <button type="button" className="ws-btn ws-btn-accent" onClick={() => dialogs.openNewPocket(account)}>
               <Icon name="plus" className="h-4 w-4" />
               Tambah kantong

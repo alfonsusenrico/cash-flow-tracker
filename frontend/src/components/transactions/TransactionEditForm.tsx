@@ -7,6 +7,7 @@ import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { DebtAllocationEditor, allocationError, totalDebtPayments, type DebtAllocationValue } from "@/components/ui/DebtAllocationEditor";
 import { InfoHelp } from "@/components/ui/InfoHelp";
 import { api, uploadTransactionReceipt } from "@/lib/api";
+import { isCreditAccountChoice } from "@/lib/accountOptions";
 import { canConvertExpenseToTopup } from "@/lib/investmentTopups";
 import { KAKEIBO_PILLARS, kakeiboPillarInfo, pillarOrUnclassified, type KakeiboPillar } from "@/lib/kakeibo";
 import { MERCHANT_MAX_LENGTH, categoryOffsetsSpending, offsetCategoryOptions } from "@/lib/provenance";
@@ -75,6 +76,10 @@ export function TransactionEditForm({
   const offsetCategories = offsetCategoryOptions(categories);
   const originalAmounts = Object.fromEntries((tx.obligation_allocations ?? []).map((item) => [item.obligation_id, item.amount]));
   const debtLinked = kind === "expense" && debtRows.some((row) => row.obligation_id);
+  const creditIds = new Set(accounts.filter(isCreditAccountChoice).map((account) => String(account.id)));
+  const onCredit = creditIds.has(accountId);
+  // Credit accounts pay expenses; an income keeps credit only when it already sits there, as a refund does (D7).
+  const offerCredit = kind === "expense" || creditIds.has(tx.account_id);
   const convertible = canConvertExpenseToTopup(tx, accounts);
 
   const save = useMutation({
@@ -146,6 +151,8 @@ export function TransactionEditForm({
     if (next === "income") {
       setGoalId("");
       setDebtRows([]);
+      // The income picker has no credit accounts unless the row was already on one; return to its account.
+      if (creditIds.has(accountId) && !creditIds.has(tx.account_id)) setAccountId(tx.account_id);
     }
   };
 
@@ -180,8 +187,15 @@ export function TransactionEditForm({
       </div>
       <div>
         <label htmlFor="tx-edit-account" className={LABEL}>{kind === "expense" ? "Bayar dari" : "Masuk ke"}</label>
-        <select id="tx-edit-account" required value={accountId} onChange={(event) => setAccountId(event.target.value)} className={FIELD}>
-          <AccountSelectOptions accounts={accounts} formatBalance={bal} allowParentSelection={true} liquidOnly />
+        <select id="tx-edit-account" required value={accountId} className={FIELD} onChange={(event) => {
+          setAccountId(event.target.value);
+          // A debt is paid from cash, so a row moved to credit drops its debt link.
+          if (creditIds.has(event.target.value)) {
+            setDebtRows([]);
+            setObligationId("");
+          }
+        }}>
+          <AccountSelectOptions accounts={accounts} formatBalance={bal} allowParentSelection={true} liquidOnly includeCredit={offerCredit} />
         </select>
       </div>
       <div>
@@ -234,7 +248,7 @@ export function TransactionEditForm({
         </select>
         {goalId && <p className="ws-caption mt-1">Kaitan ini tidak menambah progres target. Target yang terhubung ke rekening mengikuti saldonya.</p>}
       </div>
-      {kind === "expense" ? (
+      {onCredit ? null : kind === "expense" ? (
         <DebtAllocationEditor idPrefix="tx-edit" debts={obligations} rows={debtRows} total={Number(amount.replace(/\./g, "")) || 0} currency={bal}
           originalAmounts={originalAmounts} onChange={(rows) => {
             setDebtRows(rows);

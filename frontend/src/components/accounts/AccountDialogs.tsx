@@ -7,7 +7,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { cn, fmtMoney, formatNumberWithDots, parseNumberFromDots, formatDecimalInput, parseDecimal, parseUnits } from "@/lib/utils";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Modal } from "@/components/ui/Modal";
-import { MonetaryInput } from "@/components/ui/FormField";
+import { FormField, MonetaryInput } from "@/components/ui/FormField";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { Icon } from "@/components/ui/Icon";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
@@ -44,6 +44,17 @@ const ACCOUNT_TAG_COLORS = [
   { name: "Teal", hex: "#0D9488" },
   { name: "Slate", hex: "#475569" },
 ];
+
+/** The credit-only fields of a save; empty inputs clear them. */
+function creditFieldValues(limit: string, paymentDay: string): { credit_limit: number | null; payment_day: number | null } {
+  const limitValue = parseNumberFromDots(limit);
+  const dayText = paymentDay.trim();
+  const day = Number(dayText);
+  if (dayText && (!Number.isInteger(day) || day < 1 || day > 31)) {
+    throw new Error("Tanggal bayar harus antara 1 dan 31.");
+  }
+  return { credit_limit: limitValue > 0 ? limitValue : null, payment_day: dayText ? day : null };
+}
 
 /**
  * Every Rekening & Kantong form and its write, moved unchanged from the page (design D5): the page and the
@@ -243,8 +254,11 @@ export function useAccountDialogs() {
 
   // Account form
   const [accName, setAccName] = useState("");
-  const [accType, setAccType] = useState<"cash" | "bank" | "wallet" | "investment">("bank");
+  const [accType, setAccType] = useState<AccountItem["type"]>("bank");
   const [accInitBal, setAccInitBal] = useState("");
+  // Credit-only fields (add-credit-accounts D2); what a credit account owes today is typed, positive, in accInitBal.
+  const [accCreditLimit, setAccCreditLimit] = useState("");
+  const [accPaymentDay, setAccPaymentDay] = useState("");
   const [accColor, setAccColor] = useState<string>(DEFAULT_ACCOUNT_TAG_COLOR);
   // Until the owner picks a colour, a new account's colour follows the default of its type.
   const [accColorChosen, setAccColorChosen] = useState(false);
@@ -302,7 +316,7 @@ export function useAccountDialogs() {
   const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData?.accounts]);
   const activeAccounts = useMemo(() => accounts.filter((a) => !a.is_archived), [accounts]);
   const parentCandidates = useMemo(
-    () => activeAccounts.filter((a) => !a.parent_id && a.type !== "investment" && a.id !== editingAccount?.id),
+    () => activeAccounts.filter((a) => !a.parent_id && a.type !== "investment" && a.type !== "credit" && a.id !== editingAccount?.id),
     [activeAccounts, editingAccount?.id],
   );
   // Open Add Account modal
@@ -311,6 +325,8 @@ export function useAccountDialogs() {
     setAccName("");
     setAccType("bank");
     setAccInitBal("");
+    setAccCreditLimit("");
+    setAccPaymentDay("");
     setAccColor(DEFAULT_ACCOUNT_TAG_COLOR);
     setAccColorChosen(false);
     setAccDefaultFundingId("");
@@ -327,6 +343,7 @@ export function useAccountDialogs() {
 
   // Open Add Pocket modal
   const handleOpenNewPocket = (parent: AccountItem) => {
+    if (parent.type === "credit") return;
     setPocketParentAccount(parent);
     setPocketName("");
     setPocketInitBal("");
@@ -351,6 +368,8 @@ export function useAccountDialogs() {
     setAccDefaultPocketId(acc.default_pocket_id || "");
     setAccParentId("");
     setAccInitBal(formatNumberWithDots(acc.initial_balance));
+    setAccCreditLimit(acc.credit_limit ? formatNumberWithDots(acc.credit_limit) : "");
+    setAccPaymentDay(acc.payment_day ? String(acc.payment_day) : "");
     const hasInst = Boolean(acc.instrument_type || acc.instrument_symbol || (acc.units !== null && acc.units !== undefined));
     setAccIsMultiInstrument(!hasInst);
     setAccInstrumentType(acc.instrument_type || "stock");
@@ -415,6 +434,8 @@ export function useAccountDialogs() {
       if (!name) throw new Error("Nama rekening wajib diisi");
       const initBal = parseInt(accInitBal.replace(/[^0-9]/g, "") || "0", 10);
       const isEditingPocket = Boolean(editingAccount?.parent_id);
+      const isCredit = !isEditingPocket && accType === "credit";
+      const creditFields = isCredit ? creditFieldValues(accCreditLimit, accPaymentDay) : null;
 
       const isInvestPocket = isEditingPocket && !accIsMultiInstrument;
       const isInvestTop = !isEditingPocket && accType === "investment";
@@ -428,7 +449,9 @@ export function useAccountDialogs() {
         : null;
 
       const defaultFunding = !isEditingPocket && accType === "investment" && accDefaultFundingId.trim() ? accDefaultFundingId.trim() : null;
-      const openingBalance = accType === "investment" && accIsMultiInstrument ? 0 : initBal;
+      let openingBalance = accType === "investment" && accIsMultiInstrument ? 0 : initBal;
+      // A credit account starts at minus what it owes today; "|| 0" keeps zero from becoming -0.
+      if (isCredit) openingBalance = -initBal || 0;
       let savedType = accType;
       if (isEditingPocket && editingAccount) {
         savedType = editingAccount.type;
@@ -440,9 +463,14 @@ export function useAccountDialogs() {
       }
 
       if (editingAccount) {
-        const moveUnder = !isEditingPocket && accParentId ? { parent_id: accParentId } : {};
+        const moveUnder = !isEditingPocket && !isCredit && accParentId ? { parent_id: accParentId } : {};
+        // Limit and payment day belong to credit only; leaving credit clears them so the type can change.
+        let creditPatch = {};
+        if (creditFields) creditPatch = creditFields;
+        else if (editingAccount.type === "credit") creditPatch = { credit_limit: null, payment_day: null };
         return api.patch(`/accounts/${editingAccount.id}`, {
           ...moveUnder,
+          ...creditPatch,
           name,
           type: savedType,
           instrument_type: hasInstrument ? accInstrumentType : null,
@@ -468,6 +496,7 @@ export function useAccountDialogs() {
           avg_buy_price: avgPriceNum,
           color: accColor,
           default_funding_account_id: defaultFunding,
+          ...(creditFields ?? {}),
         });
       }
     },
@@ -485,6 +514,10 @@ export function useAccountDialogs() {
         document.getElementById("account-default-pocket")?.focus();
       } else if (/saldo|initial_balance/i.test(message)) {
         document.getElementById("account-initial-balance")?.focus();
+      } else if (/^limit/i.test(message)) {
+        document.getElementById("account-credit-limit")?.focus();
+      } else if (/tanggal bayar/i.test(message)) {
+        document.getElementById("account-payment-day")?.focus();
       }
     },
   });
@@ -505,6 +538,8 @@ export function useAccountDialogs() {
   const accountNameError = /nama rekening|account name/i.test(accError) ? accError : undefined;
   const accountBalanceError = /saldo|initial_balance/i.test(accError) ? accError : undefined;
   const defaultPocketError = /kantong default|default pocket/i.test(accError) ? accError : undefined;
+  const creditLimitError = /^limit/i.test(accError) ? accError : undefined;
+  const paymentDayError = !creditLimitError && /tanggal bayar/i.test(accError) ? accError : undefined;
   const pocketNameError = /nama kantong|pocket name/i.test(pocketError) ? pocketError : undefined;
   const pocketBalanceError = /saldo|initial_balance/i.test(pocketError) ? pocketError : undefined;
 
@@ -636,10 +671,11 @@ export function useAccountDialogs() {
                   <option value="wallet">Dompet Digital / E-Wallet (GoPay, OVO, ShopeePay, dll)</option>
                   <option value="cash">Uang Tunai / Cash (Dompet, Brankas)</option>
                   <option value="investment">Rekening Investasi (Bibit, Stockbit, Binance, dll)</option>
+                  <option value="credit">Kredit / PayLater (SPayLater, Kredivo, kartu kredit)</option>
                 </select>
               </div>
 
-              {editingAccount && accType !== "investment" && !(editingAccount.children && editingAccount.children.length > 0) && parentCandidates.length > 0 && (
+              {editingAccount && accType !== "investment" && accType !== "credit" && editingAccount.type !== "credit" && !(editingAccount.children && editingAccount.children.length > 0) && parentCandidates.length > 0 && (
                 <div>
                   <label htmlFor="account-move-parent" className="font-medium text-[var(--muted)] block mb-1">Jadikan kantong di bawah</label>
                   <select
@@ -949,7 +985,52 @@ export function useAccountDialogs() {
             </div>
           )}
 
-          {!editingAccount && !(accType === "investment" && accIsMultiInstrument) && (
+          {!editingAccount?.parent_id && accType === "credit" && (
+            <>
+              {!editingAccount && (
+                <MonetaryInput
+                  id="account-initial-balance"
+                  name="initial_balance"
+                  label="Utang saat ini (IDR)"
+                  value={accInitBal}
+                  onChange={setAccInitBal}
+                  error={accountBalanceError}
+                  description="Jumlah yang belum dibayar hari ini. Isi 0 jika belum ada utang."
+                />
+              )}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <MonetaryInput
+                  id="account-credit-limit"
+                  name="credit_limit"
+                  label="Limit (opsional)"
+                  value={accCreditLimit}
+                  onChange={setAccCreditLimit}
+                  error={creditLimitError}
+                  placeholder="Contoh: 2.000.000"
+                  description="Batas dari penyedia kredit. Melewati limit hanya diberi tanda."
+                />
+                <FormField id="account-payment-day" label="Tanggal bayar tiap bulan (opsional)" error={paymentDayError}>
+                  {(field) => (
+                    <input
+                      {...field}
+                      name="payment_day"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={31}
+                      step={1}
+                      value={accPaymentDay}
+                      onChange={(event) => setAccPaymentDay(event.target.value)}
+                      placeholder="Contoh: 11"
+                      className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-bold tabular-nums text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)]"
+                    />
+                  )}
+                </FormField>
+              </div>
+            </>
+          )}
+
+          {!editingAccount && accType !== "credit" && !(accType === "investment" && accIsMultiInstrument) && (
             <MonetaryInput
               id="account-initial-balance"
               name="initial_balance"

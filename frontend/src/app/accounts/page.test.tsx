@@ -814,3 +814,198 @@ describe("account and pocket forms", () => {
     hidden.on = false;
   });
 });
+
+describe("credit accounts in Rekening & Kantong", () => {
+  const jago = { id: "jago", name: "Jago", type: "bank", initial_balance: 0, balance: 500_000, is_archived: false, children: [], created_at: "2026-09-01T00:00:00.000Z" };
+  const spaylater = {
+    id: "spaylater", name: "SPayLater", type: "credit", initial_balance: -350_000, balance: -470_000, is_archived: false, children: [],
+    credit_limit: 2_000_000, payment_day: 11, credit_owed: 470_000, over_limit: false, created_at: "2026-11-05T00:00:00.000Z",
+  };
+  const netWorth = {
+    ok: true, net_worth: 30_000, total_assets: 500_000, total_liabilities: 470_000, accounts: [], obligations: [],
+    liquid: 500_000, investment: 0, reconciliation_pending: 0, credit_owed: 470_000,
+    lines: [{ key: "liquid", label: "Dana likuid", amount: 500_000 }, { key: "investment", label: "Investasi", amount: 0 },
+      { key: "credit:spaylater", label: "SPayLater", amount: -470_000 }],
+  };
+
+  function mockAccounts(accounts: unknown[]) {
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { ok: true, accounts, total_balance: 0 };
+      if (path === "/dashboard/net-worth") return netWorth;
+      return { ok: true, rules: [], accounts: [], results: [], awaiting: [], transactions: [] };
+    });
+  }
+
+  afterEach(() => {
+    window.history.replaceState = realReplace;
+    realReplace(null, "", "/accounts");
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    realReplace(null, "", "/accounts");
+    window.history.replaceState = (state, title, url) => {
+      realReplace(state, title, url);
+      window.dispatchEvent(new Event("test-history"));
+    };
+    vi.mocked(api.post).mockResolvedValue({ ok: true });
+    vi.mocked(api.patch).mockResolvedValue({ ok: true });
+    mockAccounts([jago, spaylater]);
+  });
+
+  it("adds SPayLater as Kredit with what is owed today, a limit and a payment day, and no pocket option", async () => {
+    const user = userEvent.setup();
+    renderAccounts();
+    await user.click(await screen.findByRole("button", { name: "Tambah rekening" }));
+    const dialog = screen.getByRole("dialog", { name: "Tambah rekening" });
+    await user.type(within(dialog).getByRole("textbox", { name: "Nama Rekening" }), "SPayLater");
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Jenis rekening" }), "credit");
+
+    expect(within(dialog).queryByRole("textbox", { name: /Saldo Awal/ })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("combobox", { name: /kantong/i })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Warna Slate" })).toHaveAttribute("aria-pressed", "true");
+    await user.type(within(dialog).getByRole("textbox", { name: "Utang saat ini (IDR)" }), "350000");
+    await user.type(within(dialog).getByRole("textbox", { name: "Limit (opsional)" }), "2000000");
+    await user.type(within(dialog).getByRole("spinbutton", { name: "Tanggal bayar tiap bulan (opsional)" }), "11");
+    expect((await axe(dialog)).violations).toHaveLength(0);
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Rekening" }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/accounts", expect.objectContaining({
+      name: "SPayLater", type: "credit", initial_balance: -350_000, credit_limit: 2_000_000, payment_day: 11, color: "#475569",
+    })));
+  });
+
+  it("opens a credit account with no debt yet at zero, and refuses a payment day outside 1 to 31", async () => {
+    const user = userEvent.setup();
+    renderAccounts();
+    await user.click(await screen.findByRole("button", { name: "Tambah rekening" }));
+    const dialog = screen.getByRole("dialog", { name: "Tambah rekening" });
+    await user.type(within(dialog).getByRole("textbox", { name: "Nama Rekening" }), "Kredivo");
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Jenis rekening" }), "credit");
+    const day = within(dialog).getByRole("spinbutton", { name: "Tanggal bayar tiap bulan (opsional)" });
+    await user.type(day, "32");
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Rekening" }));
+
+    // The browser's own range check stops the save; the form also refuses it if that check is skipped.
+    expect(day).toBeInvalid();
+    fireEvent.submit(dialog.querySelector("form")!);
+    await waitFor(() => expect(day).toHaveAttribute("aria-invalid", "true"));
+    expect(day).toHaveAccessibleDescription("Tanggal bayar harus antara 1 dan 31.");
+    expect(day).toHaveFocus();
+    expect(api.post).not.toHaveBeenCalledWith("/accounts", expect.anything());
+
+    await user.clear(day);
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Rekening" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/accounts", expect.objectContaining({
+      type: "credit", initial_balance: 0, credit_limit: null, payment_day: null,
+    })));
+    const body = vi.mocked(api.post).mock.calls.at(-1)![1] as { initial_balance: number };
+    expect(Object.is(body.initial_balance, -0)).toBe(false);
+  });
+
+  it("does not send credit fields for a bank account", async () => {
+    const user = userEvent.setup();
+    renderAccounts();
+    await user.click(await screen.findByRole("button", { name: "Tambah rekening" }));
+    const dialog = screen.getByRole("dialog", { name: "Tambah rekening" });
+    await user.type(within(dialog).getByRole("textbox", { name: "Nama Rekening" }), "Bank Contoh");
+    expect(within(dialog).queryByRole("textbox", { name: "Limit (opsional)" })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Rekening" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/accounts", expect.objectContaining({ type: "bank" })));
+    expect(vi.mocked(api.post).mock.calls[0][1]).not.toHaveProperty("credit_limit");
+    expect(vi.mocked(api.post).mock.calls[0][1]).not.toHaveProperty("payment_day");
+  });
+
+  it("edits a credit account's name, limit and payment day without an owed amount or a parent", async () => {
+    const user = userEvent.setup();
+    renderAccounts();
+    const detail = await openDrawer(user, "SPayLater", "SPayLater");
+    await user.click(within(detail).getByRole("button", { name: "Ubah rekening" }));
+    const dialog = screen.getByRole("dialog", { name: "Ubah Rekening: SPayLater" });
+    expect(within(dialog).queryByRole("textbox", { name: /Utang saat ini/ })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("combobox", { name: "Jadikan kantong di bawah" })).not.toBeInTheDocument();
+    const limit = within(dialog).getByRole("textbox", { name: "Limit (opsional)" });
+    const day = within(dialog).getByRole("spinbutton", { name: "Tanggal bayar tiap bulan (opsional)" });
+    expect(limit).toHaveValue("2.000.000");
+    expect(day).toHaveValue(11);
+    await user.clear(limit);
+    await user.type(limit, "3000000");
+    await user.clear(day);
+    await user.type(day, "25");
+    expect((await axe(dialog)).violations).toHaveLength(0);
+    await user.click(within(dialog).getByRole("button", { name: "Simpan Perubahan" }));
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/accounts/spaylater", expect.objectContaining({
+      name: "SPayLater", type: "credit", credit_limit: 3_000_000, payment_day: 25,
+    })));
+    expect(vi.mocked(api.patch).mock.calls[0][1]).not.toHaveProperty("parent_id");
+    expect(vi.mocked(api.patch).mock.calls[0][1]).not.toHaveProperty("initial_balance");
+  });
+
+  it("does not offer a credit account as a parent for another account", async () => {
+    const gopay = { ...jago, id: "gopay", name: "GoPay", type: "wallet" };
+    mockAccounts([jago, gopay, spaylater]);
+    const user = userEvent.setup();
+    renderAccounts();
+    const detail = await openDrawer(user, "GoPay", "GoPay");
+    await user.click(within(detail).getByRole("button", { name: "Ubah rekening" }));
+    const parent = within(screen.getByRole("dialog", { name: "Ubah Rekening: GoPay" })).getByRole("combobox", { name: "Jadikan kantong di bawah" });
+    expect(within(parent).getByRole("option", { name: "Jago" })).toBeInTheDocument();
+    expect(within(parent).queryByRole("option", { name: "SPayLater" })).not.toBeInTheDocument();
+  });
+
+  it("shows what is owed, the limit used and the payment day on the card, with no pocket action", async () => {
+    renderAccounts();
+    const card = await row("SPayLater");
+    expect(card).toHaveTextContent("Kredit");
+    expect(card).toHaveTextContent("Utang Rp 470.000");
+    expect(card).toHaveTextContent("Rp 470.000 dari Rp 2.000.000");
+    expect(card).toHaveTextContent("dibayar tiap tgl 11");
+    expect(card).not.toHaveTextContent("-Rp 470.000");
+    expect(card).not.toHaveTextContent("Melewati limit");
+    const bar = within(card).getByRole("progressbar", { name: "Limit terpakai SPayLater" });
+    expect(bar).toHaveAttribute("aria-valuenow", "24");
+    expect(bar).toHaveAttribute("aria-valuetext", "Rp 470.000 dari Rp 2.000.000, 24%");
+    expect(within(card).queryByRole("button", { name: /Tambah kantong/ })).not.toBeInTheDocument();
+    expect((await axe(card)).violations).toHaveLength(0);
+    // Credit is utang, so it has no share in Komposisi aset.
+    expect(within(screen.getByRole("list", { name: "Komposisi aset per rekening" })).queryByText("SPayLater")).not.toBeInTheDocument();
+  });
+
+  it("marks a credit account over its limit in words, and shows an overpayment as Lebih bayar", async () => {
+    const over = { ...spaylater, balance: -2_100_000, credit_owed: 2_100_000, over_limit: true };
+    const overpaid = { ...spaylater, id: "kredivo", name: "Kredivo", balance: 25_000, credit_owed: 0, credit_limit: null, payment_day: null };
+    mockAccounts([jago, over, overpaid]);
+    renderAccounts();
+    const overCard = await row("SPayLater");
+    expect(overCard).toHaveTextContent("Utang Rp 2.100.000");
+    expect(overCard).toHaveTextContent("Melewati limit");
+    expect(within(overCard).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
+    const paidCard = await row("Kredivo");
+    expect(paidCard).toHaveTextContent("Lebih bayar Rp 25.000");
+    expect(paidCard).not.toHaveTextContent("Utang");
+    expect(within(paidCard).queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
+  it("offers no Cocokkan saldo, Sesuaikan Saldo or Tambah kantong in a credit account's detail", async () => {
+    const user = userEvent.setup();
+    renderAccounts();
+    const detail = await openDrawer(user, "SPayLater", "SPayLater");
+    expect(detail).toHaveTextContent(/Utang\s*Rp 470\.000\s*Limit\s*Rp 2\.000\.000\s*Tanggal bayar\s*Tiap tgl 11/);
+    expect(within(detail).queryByRole("button", { name: "Cocokkan saldo" })).not.toBeInTheDocument();
+    expect(within(detail).queryByRole("button", { name: "Sesuaikan Saldo" })).not.toBeInTheDocument();
+    expect(within(detail).queryByRole("button", { name: /Tambah kantong/ })).not.toBeInTheDocument();
+    expect(within(detail).getByRole("button", { name: "Ubah rekening" })).toBeInTheDocument();
+    expect((await axe(detail)).violations).toHaveLength(0);
+  });
+
+  it("counts credit in the server's net worth and names it as utang in the explanation", async () => {
+    const user = userEvent.setup();
+    renderAccounts();
+    const kpis = await screen.findByRole("region", { name: "Ringkasan aset" });
+    expect(kpis).toHaveTextContent("setelah utang Rp 470.000");
+    await user.click(within(kpis).getByRole("button", { name: "Kekayaan bersih Rp 30.000: lihat rincian" }));
+    const explanation = await screen.findByRole("dialog", { name: "Kekayaan bersih" });
+    expect(explanation).toHaveTextContent("Utang SPayLater");
+  });
+});

@@ -6,8 +6,9 @@ import { api, createMovement, uploadTransactionReceipt, type CreateMovementPaylo
 import { cn, fmtMoney, formatNumberWithDots, localDatetimeToISO, toDatetimeLocal } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
-import { listLiquidAccountChoices } from "@/lib/accountOptions";
-import { FormSection, PendingSubmitButton } from "@/components/ui/FormField";
+import { listCreditAccountChoices, listLiquidAccountChoices } from "@/lib/accountOptions";
+import { FormSection, MonetaryInput, PendingSubmitButton } from "@/components/ui/FormField";
+import { useToast } from "@/components/workspace/overlays";
 import { InfoHelp } from "@/components/ui/InfoHelp";
 import { DebtAllocationEditor, allocationError, totalDebtPayments, type DebtAllocationValue } from "@/components/ui/DebtAllocationEditor";
 import { queryKeys } from "@/lib/queryKeys";
@@ -17,7 +18,7 @@ import { categoryOffsetsSpending, offsetCategoryOptions } from "@/lib/provenance
 import { z } from "zod";
 
 type QuickCaptureMode = "expense" | "income" | "movement";
-type MovementField = "sourceAccountId" | "targetAccountId" | "amount" | "date" | "notes";
+type MovementField = "sourceAccountId" | "targetAccountId" | "amount" | "date" | "notes" | "fee";
 type QuickCaptureSubmission =
   | { kind: "movement"; payload: CreateMovementPayload }
   | { kind: "transaction" };
@@ -64,6 +65,7 @@ export function QuickCaptureModal({
   defaultAmount = null,
 }: QuickCaptureModalProps) {
   const qc = useQueryClient();
+  const { showToast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const accountRef = useRef<HTMLSelectElement>(null);
   const categoryRef = useRef<HTMLSelectElement>(null);
@@ -90,6 +92,7 @@ export function QuickCaptureModal({
   const [selectedObligationId, setSelectedObligationId] = useState<string>("");
   const [debtRows, setDebtRows] = useState<DebtAllocationValue[]>([]);
   const [notes, setNotes] = useState("");
+  const [feeStr, setFeeStr] = useState("");
   const [receipt, setReceipt] = useState<File | null>(null);
   const [savedTransactionId, setSavedTransactionId] = useState<string | null>(null);
   const [txDate, setTxDate] = useState(() => toDatetimeLocal(new Date()));
@@ -131,6 +134,24 @@ export function QuickCaptureModal({
     () => liquidAccounts.map((account: any) => String(account.id ?? account.account_id ?? "")),
     [liquidAccounts],
   );
+  // Credit accounts may pay an expense and be either side of a movement, never an income (add-credit-accounts D7).
+  const creditAccounts = useMemo(() => listCreditAccountChoices(activeAccounts), [activeAccounts]);
+  const creditAccountIds = useMemo(
+    () => creditAccounts.map((account: any) => String(account.id ?? account.account_id ?? "")),
+    [creditAccounts],
+  );
+  const movementAccountIds = useMemo(
+    () => [...liquidAccountIds, ...creditAccountIds],
+    [liquidAccountIds, creditAccountIds],
+  );
+  const accountChoices = useMemo(
+    () => (type === "expense" ? [...liquidAccounts, ...creditAccounts] : liquidAccounts),
+    [creditAccounts, liquidAccounts, type],
+  );
+  const isCreditId = (accountId: string) => creditAccountIds.includes(accountId);
+  const sourceIsCredit = isCreditId(movementSourceAccountId);
+  const targetIsCredit = isCreditId(movementTargetAccountId);
+  const accountIsCredit = type === "expense" && isCreditId(selectedAccount);
   const categories = useMemo(() => categoriesData?.categories ?? [], [categoriesData?.categories]);
   const goals = useMemo(() => goalsData?.goals ?? [], [goalsData?.goals]);
   const obligations = useMemo(() => obligationsData?.obligations ?? [], [obligationsData?.obligations]);
@@ -151,39 +172,41 @@ export function QuickCaptureModal({
 
   // Set default account when accounts load
   useEffect(() => {
-    if (liquidAccounts.length > 0 && !liquidAccounts.some((account) => account.id === selectedAccount)) {
-      const preferred = liquidAccounts.find((account) => account.id === defaultAccountId);
-      setSelectedAccount(String(preferred?.id ?? liquidAccounts[0].id));
+    if (accountChoices.length > 0 && !accountChoices.some((account) => account.id === selectedAccount)) {
+      const preferred = accountChoices.find((account) => account.id === defaultAccountId);
+      setSelectedAccount(String(preferred?.id ?? accountChoices[0].id));
     }
-  }, [defaultAccountId, liquidAccounts, selectedAccount]);
+  }, [defaultAccountId, accountChoices, selectedAccount]);
 
   useEffect(() => {
     if (!open || liquidAccountIds.length === 0) return;
     setMovementSourceAccountId((current) => {
-      if (liquidAccountIds.includes(current)) return current;
-      if (defaultSourceAccountId && liquidAccountIds.includes(defaultSourceAccountId)) {
+      if (movementAccountIds.includes(current)) return current;
+      if (defaultSourceAccountId && movementAccountIds.includes(defaultSourceAccountId)) {
         return defaultSourceAccountId;
       }
       return liquidAccountIds[0];
     });
-  }, [defaultSourceAccountId, liquidAccountIds, open]);
+  }, [defaultSourceAccountId, liquidAccountIds, movementAccountIds, open]);
 
   useEffect(() => {
     if (!open || liquidAccountIds.length === 0) return;
     let sourceId = liquidAccountIds[0];
-    if (liquidAccountIds.includes(movementSourceAccountId)) {
+    if (movementAccountIds.includes(movementSourceAccountId)) {
       sourceId = movementSourceAccountId;
-    } else if (defaultSourceAccountId && liquidAccountIds.includes(defaultSourceAccountId)) {
+    } else if (defaultSourceAccountId && movementAccountIds.includes(defaultSourceAccountId)) {
       sourceId = defaultSourceAccountId;
     }
+    // One credit account cannot pay another: a credit source keeps only cash targets (D6).
+    const targetIds = creditAccountIds.includes(sourceId) ? liquidAccountIds : movementAccountIds;
     setMovementTargetAccountId((current) => {
-      if (liquidAccountIds.includes(current) && current !== sourceId) return current;
-      if (defaultTargetAccountId && liquidAccountIds.includes(defaultTargetAccountId) && defaultTargetAccountId !== sourceId) {
+      if (targetIds.includes(current) && current !== sourceId) return current;
+      if (defaultTargetAccountId && targetIds.includes(defaultTargetAccountId) && defaultTargetAccountId !== sourceId) {
         return defaultTargetAccountId;
       }
       return liquidAccountIds.find((accountId) => accountId !== sourceId) ?? "";
     });
-  }, [defaultSourceAccountId, defaultTargetAccountId, liquidAccountIds, movementSourceAccountId, open]);
+  }, [creditAccountIds, defaultSourceAccountId, defaultTargetAccountId, liquidAccountIds, movementAccountIds, movementSourceAccountId, open]);
 
   // Sync default type when opened
   useEffect(() => {
@@ -194,6 +217,7 @@ export function QuickCaptureModal({
       setMovementTargetAccountId(defaultTargetAccountId ?? "");
       setMovementFieldErrors({});
       setNotes("");
+      setFeeStr("");
       setTxDate(toDatetimeLocal(new Date()));
       setErr("");
       setIsSuccess(false);
@@ -266,6 +290,7 @@ export function QuickCaptureModal({
   };
 
   const parsedAmount = parseAmount(amountStr);
+  const parsedFee = parseAmount(feeStr);
   const offsetsSpending = type === "income" && categoryOffsetsSpending(categories, selectedCategory);
   const offsetCategories = useMemo(() => offsetCategoryOptions(categories), [categories]);
   const hasSelectedDebt = type === "expense" && debtRows.some((row) => row.obligation_id);
@@ -291,6 +316,7 @@ export function QuickCaptureModal({
     setHasKakeiboOverride(false);
     setErr("");
     setMovementFieldErrors({});
+    setFeeStr("");
     if (nextType === "movement") {
       setSelectedGoalId("");
       setSelectedObligationId("");
@@ -326,7 +352,7 @@ export function QuickCaptureModal({
 
       const isoDate = localDatetimeToISO(txDate) || new Date().toISOString();
 
-      const created = await api.post<{ ok: boolean; transaction_id: string }>("/transactions", {
+      const created = await api.post<{ ok: boolean; transaction_id: string; over_limit?: boolean }>("/transactions", {
         type,
         amount: parsedAmount,
         account_id: selectedAccount,
@@ -364,6 +390,11 @@ export function QuickCaptureModal({
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       qc.invalidateQueries({ queryKey: queryKeys.goals });
       qc.invalidateQueries({ queryKey: queryKeys.obligations });
+      if (result.kind === "transaction" && result.transaction.over_limit) {
+        // A purchase over the limit is saved; the owner is only told (add-credit-accounts D5).
+        const creditAccount = creditAccounts.find((account: any) => account.id === selectedAccount);
+        showToast(`Melewati limit ${creditAccount?.name ?? "rekening kredit"}`);
+      }
       if (result.kind === "transaction" && result.receiptWarning) {
         setIsSuccess(false);
         setSavedTransactionId(result.transaction.transaction_id);
@@ -412,22 +443,34 @@ export function QuickCaptureModal({
         else if (field === "date") dateRef.current?.focus();
         return;
       }
-      if (liquidAccountIds.length < 2) {
+      if (liquidAccountIds.length === 0 || movementAccountIds.length < 2) {
         const message = "Tambahkan rekening likuid lain untuk memindahkan saldo.";
         setMovementFieldErrors({ targetAccountId: message });
         targetAccountRef.current?.focus();
         return;
       }
-      if (!liquidAccountIds.includes(movementValidation.data.sourceAccountId)) {
+      if (!movementAccountIds.includes(movementValidation.data.sourceAccountId)) {
         const message = "Pilih rekening sumber yang masih aktif.";
         setMovementFieldErrors({ sourceAccountId: message });
         sourceAccountRef.current?.focus();
         return;
       }
-      if (!liquidAccountIds.includes(movementValidation.data.targetAccountId)) {
+      if (!movementAccountIds.includes(movementValidation.data.targetAccountId)) {
         const message = "Pilih rekening tujuan yang masih aktif.";
         setMovementFieldErrors({ targetAccountId: message });
         targetAccountRef.current?.focus();
+        return;
+      }
+      if (sourceIsCredit && targetIsCredit) {
+        const message = "Salah satu sisi harus rekening bank, e-wallet, atau tunai.";
+        setMovementFieldErrors({ targetAccountId: message });
+        targetAccountRef.current?.focus();
+        return;
+      }
+      const fee = targetIsCredit && parsedFee > 0 ? parsedFee : null;
+      if (fee !== null && fee > movementValidation.data.amount) {
+        setMovementFieldErrors({ fee: "Biaya tidak boleh melebihi nominal." });
+        document.getElementById("quick-capture-fee")?.focus();
         return;
       }
       mutation.mutate({
@@ -438,6 +481,7 @@ export function QuickCaptureModal({
           amount: movementValidation.data.amount,
           notes: movementValidation.data.notes || null,
           date: localDatetimeToISO(movementValidation.data.date) || new Date().toISOString(),
+          ...(fee !== null ? { fee } : {}),
         },
       });
       return;
@@ -619,7 +663,7 @@ export function QuickCaptureModal({
                 className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:border-[var(--ink)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
               >
                 <option value="">Pilih rekening</option>
-                <AccountSelectOptions accounts={activeAccounts} formatBalance={fmtMoney} allowParentSelection liquidOnly />
+                <AccountSelectOptions accounts={activeAccounts} formatBalance={fmtMoney} allowParentSelection liquidOnly includeCredit />
               </select>
               {movementFieldErrors.sourceAccountId && (
                 <p id="quick-capture-source-error" className="mt-1 text-xs text-out-fg" role="alert">
@@ -651,6 +695,7 @@ export function QuickCaptureModal({
                   allowParentSelection
                   excludeAccountId={movementSourceAccountId}
                   liquidOnly
+                  includeCredit={!sourceIsCredit}
                 />
               </select>
               {movementFieldErrors.targetAccountId && (
@@ -658,12 +703,28 @@ export function QuickCaptureModal({
                   {movementFieldErrors.targetAccountId}
                 </p>
               )}
-              {liquidAccountIds.length < 2 && (
+              {(liquidAccountIds.length === 0 || movementAccountIds.length < 2) && (
                 <p className="mt-1 text-xs text-[var(--muted)]">
                   Tambahkan rekening likuid lain untuk memindahkan saldo.
                 </p>
               )}
             </div>
+            {targetIsCredit && (
+              <div className="sm:col-span-2">
+                <MonetaryInput
+                  id="quick-capture-fee"
+                  name="fee"
+                  label="Biaya / bunga (opsional)"
+                  value={feeStr}
+                  onChange={(value) => {
+                    setFeeStr(value);
+                    setMovementFieldErrors((current) => ({ ...current, fee: undefined }));
+                  }}
+                  error={movementFieldErrors.fee}
+                  description="Bagian dari nominal yang menjadi biaya atau bunga. Dicatat sebagai pengeluaran Biaya kredit."
+                />
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -676,10 +737,17 @@ export function QuickCaptureModal({
                 id="quick-capture-account"
                 name="account_id"
                 value={selectedAccount}
-                onChange={(event) => setSelectedAccount(event.target.value)}
+                onChange={(event) => {
+                  setSelectedAccount(event.target.value);
+                  // A debt is paid from cash; a credit purchase keeps no debt link (D7).
+                  if (isCreditId(event.target.value)) {
+                    setDebtRows([]);
+                    setSelectedObligationId("");
+                  }
+                }}
                 className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30 focus-visible:border-[var(--ink)]"
               >
-                <AccountSelectOptions accounts={activeAccounts} formatBalance={fmtMoney} allowParentSelection liquidOnly />
+                <AccountSelectOptions accounts={activeAccounts} formatBalance={fmtMoney} allowParentSelection liquidOnly includeCredit={type === "expense"} />
               </select>
             </div>
 
@@ -815,15 +883,17 @@ export function QuickCaptureModal({
               </select>
             </div>
 
-            <DebtAllocationEditor idPrefix="quick-capture" debts={availableObligations} rows={debtRows} total={parsedAmount} currency={fmtMoney} onChange={(rows) => {
-              setDebtRows(rows);
-              setSelectedObligationId(rows[0]?.obligation_id || "");
-              if (rows.length) setSelectedGoalId("");
-              if (rows.some((row) => row.obligation_id)) {
-                setAmountStr(formatNumberWithDots(totalDebtPayments(rows)));
-              }
-              setErr("");
-            }} />
+            {!accountIsCredit && (
+              <DebtAllocationEditor idPrefix="quick-capture" debts={availableObligations} rows={debtRows} total={parsedAmount} currency={fmtMoney} onChange={(rows) => {
+                setDebtRows(rows);
+                setSelectedObligationId(rows[0]?.obligation_id || "");
+                if (rows.length) setSelectedGoalId("");
+                if (rows.some((row) => row.obligation_id)) {
+                  setAmountStr(formatNumberWithDots(totalDebtPayments(rows)));
+                }
+                setErr("");
+              }} />
+            )}
           </div>
           </div>
         )}

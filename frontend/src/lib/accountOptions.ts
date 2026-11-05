@@ -10,6 +10,11 @@ export interface AccountChoice {
   children?: AccountChoice[];
 }
 
+/** A credit account (paylater, credit card): money is owed on it, so it is never liquid. */
+export function isCreditAccountChoice(account: AccountChoice): boolean {
+  return account.type === "credit";
+}
+
 export function isLiquidAccountChoice(account: AccountChoice): boolean {
   return (
     LIQUID_ACCOUNT_TYPES.has(account.type ?? "") &&
@@ -44,4 +49,18 @@ export function listLiquidAccountChoices<T extends AccountChoice>(accounts: T[])
     .filter((account) => !nestedIds.has(choiceId(account)))
     .flatMap((account) => [account, ...((account.children ?? []) as T[])])
     .filter(isLiquidAccountChoice);
+}
+
+/**
+ * Credit accounts for the pickers that opt in to a "Kredit" group (add-credit-accounts D7). A credit
+ * account is always top-level, so each one is listed once.
+ */
+export function listCreditAccountChoices<T extends AccountChoice>(accounts: T[]): T[] {
+  const seen = new Set<string>();
+  return accounts.filter((account) => {
+    const id = choiceId(account);
+    if (!isCreditAccountChoice(account) || account.parent_id || !id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
 }

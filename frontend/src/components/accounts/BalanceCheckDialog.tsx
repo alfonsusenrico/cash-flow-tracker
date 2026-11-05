@@ -55,7 +55,13 @@ const DAY = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", t
 
 /** Liquid accounts and pockets, and parents whose pockets are all liquid (manual-balance-check D2). */
 export function canCheckBalance(account: AccountItem): boolean {
-  const liquid = (item: AccountItem) => item.type !== "investment" && !item.instrument_type && item.investment_tracking_mode !== "amount";
+  // Credit is left out too: its balance is what is owed, not money in a bank app (add-credit-accounts D8).
+  const liquid = (item: AccountItem) => (
+    item.type !== "investment"
+    && item.type !== "credit"
+    && !item.instrument_type
+    && item.investment_tracking_mode !== "amount"
+  );
   return liquid(account) && (account.children ?? []).every(liquid);
 }
 

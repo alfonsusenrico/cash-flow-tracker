@@ -150,4 +150,9 @@ describe("canCheckBalance", () => {
     expect(canCheckBalance({ ...pocket, investment_tracking_mode: "amount" })).toBe(false);
     expect(canCheckBalance({ ...pocket, children: [{ ...pocket, id: "fund", type: "investment", instrument_type: "mutual_fund" } as AccountItem] })).toBe(false);
   });
+
+  it("leaves credit accounts out, because their balance is what is owed", () => {
+    const credit = { ...pocket, id: "spaylater", name: "SPayLater", type: "credit", parent_id: null, balance: -470_000, credit_owed: 470_000 } as AccountItem;
+    expect(canCheckBalance(credit)).toBe(false);
+  });
 });

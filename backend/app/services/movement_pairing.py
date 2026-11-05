@@ -18,7 +18,9 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.db.pool import db_conn
-from app.services.ledger_mutations import LIQUID_ACCOUNT_TYPES, ensure_generic_movement_accounts, lock_owned_accounts
+from app.services.ledger_mutations import (
+    MOVEMENT_ACCOUNT_TYPES, ensure_generic_movement_accounts, lock_owned_accounts,
+)
 from app.services.movement_linkage import (
     ensure_internal_movement_categories, link_transactions_as_movement, movement_note,
 )
@@ -634,7 +636,17 @@ def link_pair(cur, user_id: str, expense_id: str, income_id: str, *, fee: int, n
 
 
 def undo_movement_fee(cur, user_id: str, movement_id: str, outbound_id: str) -> int:
-    """Return a movement's fee to its outbound leg and remove the fee row; returns the fee restored."""
+    """Return a movement's fee to its outbound leg and remove the fee row; returns the fee restored.
+
+    A credit bill's fee sits on the credit account, not the outbound leg: it stays as the owner's own expense
+    and only loses its tie to the movement (add-credit-accounts D6).
+    """
+    cur.execute(
+        """UPDATE transactions SET fee_for_movement_id = NULL, updated_at = NOW()
+           WHERE user_id = %s AND fee_for_movement_id = %s AND movement_id IS NULL AND type = 'expense'
+             AND account_id <> (SELECT account_id FROM transactions WHERE user_id = %s AND id = %s)""",
+        (user_id, movement_id, user_id, outbound_id),
+    )
     cur.execute(
         """DELETE FROM transactions
            WHERE user_id = %s AND fee_for_movement_id = %s AND movement_id IS NULL AND type = 'expense'
@@ -865,7 +877,7 @@ def complete_movement(
     locked = lock_owned_accounts(cur, user_id, [own_account_id, counterpart_account_id])
     other = locked[counterpart_account_id]
     ensure_generic_movement_accounts(locked[own_account_id], other)
-    if any(account["type"] not in LIQUID_ACCOUNT_TYPES for account in locked.values()):
+    if any(account["type"] not in MOVEMENT_ACCOUNT_TYPES for account in locked.values()):
         raise HTTPException(status_code=422, detail={"code": "account_not_liquid", "message": "Both accounts must be liquid"})
     if other["has_children"]:
         raise HTTPException(status_code=422, detail={"code": "account_has_pockets", "message": "Choose a pocket, not its parent account"})

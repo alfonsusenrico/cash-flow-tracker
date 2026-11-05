@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listLiquidAccountChoices } from "./accountOptions";
+import { listCreditAccountChoices, listLiquidAccountChoices } from "./accountOptions";
 
 describe("account choices", () => {
   it("keeps liquid investment-funding accounts but excludes instrument positions", () => {
@@ -24,5 +24,12 @@ describe("account choices", () => {
     ];
 
     expect(listLiquidAccountChoices(accounts).map((account) => account.id)).toEqual(["bank", "pocket-a", "pocket-b", "cash"]);
+  });
+
+  it("keeps credit accounts out of the liquid choices and lists each one once on its own", () => {
+    const credit = { id: "spaylater", type: "credit" };
+    const accounts = [{ id: "cash", type: "cash" }, credit, credit, { id: "position", type: "investment" }];
+    expect(listLiquidAccountChoices(accounts).map((account) => account.id)).toEqual(["cash"]);
+    expect(listCreditAccountChoices(accounts).map((account) => account.id)).toEqual(["spaylater"]);
   });
 });

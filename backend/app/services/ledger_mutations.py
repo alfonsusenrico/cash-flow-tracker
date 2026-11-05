@@ -11,6 +11,9 @@ from app.services.provenance import Provenance
 
 
 LIQUID_ACCOUNT_TYPES = {"cash", "bank", "ewallet", "wallet"}
+# A movement links cash accounts, or cash and a credit account: a bill payment or a cash advance
+# (add-credit-accounts D6). ensure_generic_movement_accounts refuses credit on both sides.
+MOVEMENT_ACCOUNT_TYPES = LIQUID_ACCOUNT_TYPES | {"credit"}
 
 
 def lock_owned_accounts(
@@ -22,7 +25,7 @@ def lock_owned_accounts(
         SELECT a.id, a.user_id, a.name, a.type, a.instrument_type,
                a.initial_balance, a.units, a.avg_buy_price, a.last_price,
                a.parent_id, a.default_pocket_id, a.default_funding_account_id, a.instrument_symbol, a.is_archived,
-               a.investment_tracking_mode, a.investment_cost_basis,
+               a.investment_tracking_mode, a.investment_cost_basis, a.credit_limit, a.payment_day,
                EXISTS (SELECT 1 FROM accounts child WHERE child.parent_id = a.id) AS has_children,
                a.reconciliation_required,
                EXISTS (
@@ -114,6 +117,9 @@ def ensure_generic_movement_accounts(
                 "message": "Investment positions can only be changed through a Beli/Jual trade.",
             },
         )
+    if source_account.get("type") == "credit" and target_account.get("type") == "credit":
+        # A payment or an advance moves cash; one credit account cannot pay another (add-credit-accounts D6).
+        raise HTTPException(status_code=422, detail={"code": "credit_movement_needs_cash"})
 
 
 def movement_kakeibo(source: dict[str, Any], target: dict[str, Any], *, is_trade: bool = False) -> str | None:

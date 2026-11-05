@@ -11,7 +11,7 @@ import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { ExpensePlanDraft, RecurringRule } from "@/types/recurring";
 import { queryKeys } from "@/lib/queryKeys";
-import { listLiquidAccountChoices } from "@/lib/accountOptions";
+import { listCreditAccountChoices, listLiquidAccountChoices } from "@/lib/accountOptions";
 import { parseRecurringRuleForm } from "@/lib/recurringForm";
 import { InvestmentScheduleDraft, listAmountInvestmentProducts } from "@/lib/investmentTopups";
 
@@ -112,6 +112,13 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
   const rules = rulesData?.rules ?? [];
   const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData?.accounts]);
   const liquidAccounts = useMemo(() => listLiquidAccountChoices(accounts), [accounts]);
+  // A recurring expense may be paid on credit; incomes, transfers and top-ups stay on cash (add-credit-accounts D7).
+  const creditAccounts = useMemo(() => listCreditAccountChoices(accounts), [accounts]);
+  const sourceChoices = useMemo(
+    () => (type === "expense" ? [...liquidAccounts, ...creditAccounts] : liquidAccounts),
+    [creditAccounts, liquidAccounts, type],
+  );
+  const sourceIsCredit = creditAccounts.some((account: any) => String(account.id ?? account.account_id ?? "") === sourceAccountId);
   const investmentProducts = useMemo(() => listAmountInvestmentProducts(accounts), [accounts]);
   const targetChoices = type === "investment_topup" ? investmentProducts : liquidAccounts;
   const draftInitialized = useRef(false);
@@ -161,7 +168,6 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
   useEffect(() => {
     if (!open || liquidAccounts.length === 0) return;
     if ((investmentDraft || expenseDraft) && activeTab !== "create") return;
-    const sourceChoices = liquidAccounts;
     const getAccountId = (account: any) => String(account.id ?? account.account_id ?? "");
     const firstSourceId = getAccountId(sourceChoices[0]);
     const effectiveSourceId = sourceChoices.some((account: any) => getAccountId(account) === sourceAccountId)
@@ -179,7 +185,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
       const target = targetChoices.find((account) => getAccountId(account) !== effectiveSourceId);
       return target ? getAccountId(target) : "";
     });
-  }, [liquidAccounts, targetChoices, open, sourceAccountId, investmentDraft, expenseDraft, activeTab]);
+  }, [liquidAccounts, sourceChoices, targetChoices, open, sourceAccountId, investmentDraft, expenseDraft, activeTab]);
 
   // Filter rules
   const filteredRules = rules.filter((r) => {
@@ -200,7 +206,8 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
         sourceAccountId,
         targetAccountId: type === "transfer" || type === "investment_topup" ? targetAccountId || null : null,
         categoryId: type === "transfer" || type === "investment_topup" ? null : categoryId || null,
-        obligationId: obligationId || null,
+        // A debt is paid from cash; the hidden debt choice of a credit source is not sent.
+        obligationId: sourceIsCredit ? null : obligationId || null,
         scheduleType,
         scheduleDay: scheduleType === "payday" ? null : Number(scheduleDay),
         isActive,
@@ -532,7 +539,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                   className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
                 >
                   <option value="">Pilih rekening…</option>
-                  <AccountSelectOptions accounts={accounts} allowParentSelection={true} liquidOnly />
+                  <AccountSelectOptions accounts={accounts} allowParentSelection={true} liquidOnly includeCredit={type === "expense"} />
                 </select>
               </div>
 
@@ -572,7 +579,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
             </div>
 
             {/* Optional Debt Obligation Link */}
-            {type === "expense" && obligations.length > 0 && (
+            {type === "expense" && !sourceIsCredit && obligations.length > 0 && (
               <div className="p-3 rounded-xl border border-out-solid/20 bg-out-solid/5 space-y-1">
                 <label htmlFor="recurring-obligation" className="text-xs font-medium text-[var(--text)] block mb-1">
                   Bayar tagihan / utang (opsional)

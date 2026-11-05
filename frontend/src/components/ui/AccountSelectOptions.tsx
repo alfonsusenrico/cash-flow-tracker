@@ -1,5 +1,5 @@
 import React from "react";
-import { isLiquidAccountChoice } from "@/lib/accountOptions";
+import { isCreditAccountChoice, isLiquidAccountChoice, listCreditAccountChoices } from "@/lib/accountOptions";
 
 export interface AccountOptionItem {
   id?: string;
@@ -20,6 +20,11 @@ interface Props {
   allowParentSelection?: boolean;
   excludeAccountId?: string;
   liquidOnly?: boolean;
+  /**
+   * Adds credit accounts in their own "Kredit" group. Without it no credit account is offered, so only
+   * the pickers that may book on credit list them (add-credit-accounts D7).
+   */
+  includeCredit?: boolean;
 }
 
 export function AccountSelectOptions({
@@ -28,15 +33,24 @@ export function AccountSelectOptions({
   allowParentSelection = false,
   excludeAccountId,
   liquidOnly = false,
+  includeCredit = false,
 }: Props) {
   const getId = (a: AccountOptionItem) => (a.id || a.account_id || "") as string;
   const getName = (a: AccountOptionItem) => (a.name || a.account_name || "") as string;
 
-  // Top-level accounts have parent_id null or undefined
-  const topAccounts = accounts.filter((account) => !account.parent_id);
-  const hasAvailableAccount = accounts
+  // Top-level accounts have parent_id null or undefined; credit accounts only appear in the "Kredit" group.
+  const topAccounts = accounts.filter((account) => !account.parent_id && !isCreditAccountChoice(account));
+  const creditAccounts = includeCredit
+    ? listCreditAccountChoices(accounts).filter((account) => getId(account) !== excludeAccountId)
+    : [];
+  const hasAvailableAccount = creditAccounts.length > 0 || accounts
     .flatMap((account) => [account, ...(account.children ?? [])])
-    .some((account) => getId(account) && getId(account) !== excludeAccountId && (!liquidOnly || isLiquidAccountChoice(account)));
+    .some((account) => (
+      getId(account)
+      && getId(account) !== excludeAccountId
+      && !isCreditAccountChoice(account)
+      && (!liquidOnly || isLiquidAccountChoice(account))
+    ));
 
   if (liquidOnly && !hasAvailableAccount) {
     return (
@@ -119,6 +133,25 @@ export function AccountSelectOptions({
           </option>
         );
       })}
+      {creditAccounts.length > 0 && (
+        <optgroup label="Kredit">
+          {creditAccounts.map((account) => {
+            const owed = creditOwed(account);
+            return (
+              <option key={getId(account)} value={getId(account)}>
+                {getName(account)}
+                {formatBalance && owed > 0 ? ` (utang ${formatBalance(owed)})` : ""}
+              </option>
+            );
+          })}
+        </optgroup>
+      )}
     </>
   );
+}
+
+/** What a credit account owes as a positive amount; the API sends it, older rows fall back to the balance. */
+function creditOwed(account: AccountOptionItem): number {
+  if (typeof account.credit_owed === "number") return account.credit_owed;
+  return Math.max(0, -(account.balance ?? 0));
 }

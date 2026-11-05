@@ -144,7 +144,7 @@ export function BerandaKpis({ summary }: { summary: CycleSummary }) {
             <AnimatedMoney value={net.total} />
           </ExplainableFigure>
         }
-        caption={`aset ${money(net.liquid + net.investment - (net.reconciliation_pending ?? 0))} · utang ${money(net.debts)}`}
+        caption={`aset ${money(net.liquid + net.investment - (net.reconciliation_pending ?? 0))} · utang ${money(net.debts + (net.credit_owed ?? 0))}`}
       />
     </section>
   );

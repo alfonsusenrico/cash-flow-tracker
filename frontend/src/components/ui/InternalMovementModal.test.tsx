@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, deleteMovement, splitMovement, updateMovement } from "@/lib/api";
@@ -134,5 +134,46 @@ describe("InternalMovementModal", () => {
     expect(screen.queryByRole("dialog", { name: "Ubah pindah saldo" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Pindahkan Saldo" })).not.toBeInTheDocument();
     expect(deleteMovement).not.toHaveBeenCalled();
+  });
+
+  it("keeps a credit payment's target when editing, sends no fee, and never pairs two credit accounts", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      accounts: [
+        { id: "bayar-kredit", name: "Bayar Kredit", type: "bank", balance: 30_000 },
+        { id: "spaylater", name: "SPayLater", type: "credit", balance: 0, credit_owed: 0 },
+        { id: "kredivo", name: "Kredivo", type: "credit", balance: -100_000, credit_owed: 100_000 },
+      ],
+    });
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <InternalMovementModal
+          open
+          onClose={() => {}}
+          editingMovement={{
+            id: "payment-1", sourceAccountId: "bayar-kredit", targetAccountId: "spaylater",
+            amount: 470_000, notes: null, date: "2026-11-11T09:00:00.000Z",
+          }}
+        />
+      </QueryClientProvider>,
+    );
+
+    const target = await screen.findByRole("combobox", { name: "Ke rekening" });
+    await waitFor(() => expect(target).toHaveValue("spaylater"));
+    expect(screen.getByRole("combobox", { name: "Dari rekening" })).toHaveValue("bayar-kredit");
+    expect(within(target).getByRole("group", { name: "Kredit" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /Biaya/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Simpan Perubahan" }));
+    await waitFor(() => expect(updateMovement).toHaveBeenCalledWith("payment-1", expect.objectContaining({
+      source_account_id: "bayar-kredit", target_account_id: "spaylater", amount: 470_000,
+    })));
+    expect(vi.mocked(updateMovement).mock.calls[0][1]).not.toHaveProperty("fee");
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Dari rekening" }), "kredivo");
+    const targetAfter = screen.getByRole("combobox", { name: "Ke rekening" });
+    expect(within(targetAfter).queryByRole("group", { name: "Kredit" })).not.toBeInTheDocument();
+    await waitFor(() => expect(targetAfter).toHaveValue("bayar-kredit"));
   });
 });

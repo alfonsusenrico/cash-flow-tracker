@@ -53,7 +53,7 @@ def link_payment_to_obligation(cur, user_id: str, transaction: dict[str, Any], o
         transaction["type"] != "expense"
         or transaction["movement_id"] is not None
         or transaction["fee_for_movement_id"] is not None
-        or transaction["account_type"] == "investment"
+        or transaction["account_type"] in {"investment", "credit"}
     ):
         raise HTTPException(
             status_code=422,
@@ -91,7 +91,7 @@ def obligation_payment_candidates(cur, user_id: str, obligation: dict[str, Any])
         FROM transactions t
         JOIN accounts a ON a.id = t.account_id
         WHERE t.user_id = %s AND t.type = 'expense' AND t.movement_id IS NULL
-          AND t.fee_for_movement_id IS NULL AND a.type <> 'investment'
+          AND t.fee_for_movement_id IS NULL AND a.type NOT IN ('investment', 'credit')
           AND t.obligation_id IS NULL
           AND NOT EXISTS (SELECT 1 FROM transaction_obligation_allocations x WHERE x.transaction_id = t.id)
           AND t.date >= %s AND t.date <= NOW()
