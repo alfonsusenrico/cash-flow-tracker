@@ -202,6 +202,13 @@ describe("Beranda KPI cards", () => {
     expect(strip.textContent).not.toMatch(/%/);
   });
 
+  it("shows each figure's final value at once, without counting up (SPEC §10)", async () => {
+    const strip = await kpis();
+    // No timer has run: a counting figure would still read Rp 0 or an intermediate value here.
+    expect(within(strip).getByRole("button", { name: /^Pengeluaran siklus ini/ })).toHaveTextContent("Rp 2.364.500");
+    expect(within(strip).getByRole("button", { name: /^Masuk siklus ini/ })).toHaveTextContent("Rp 9.800.000");
+  });
+
   it("shows no written summary and no insight banner", async () => {
     await kpis();
     expect(document.querySelector(".ws-lede")).toBeNull();

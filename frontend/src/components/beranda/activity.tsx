@@ -143,7 +143,7 @@ export function RowAmount({ row, bal }: { row: ActivityRow; bal: (amount: number
     );
   }
   if (kind === "income") return <span className="ws-amt-in">+{bal(row.amount)}</span>;
-  return <span>−{bal(row.amount)}</span>;
+  return <span className="ws-amt-out">−{bal(row.amount)}</span>;
 }
 
 const SHORT_DAY = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
@@ -184,7 +184,7 @@ export function ActivityCard({
         title="Aktivitas terbaru"
         count={rows?.length}
         countLabel={rows ? `${rows.length} transaksi` : undefined}
-        extra={<span className="text-[13.5px] font-normal text-[var(--muted)]">hari ini dan kemarin</span>}
+        extra={<span className="text-sm font-normal text-[var(--muted)]">hari ini dan kemarin</span>}
         action={
           <Link href="/ledger" className="ws-linkbtn ws-accent-link">
             Semua transaksi

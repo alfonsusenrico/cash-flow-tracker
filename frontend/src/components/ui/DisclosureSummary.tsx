@@ -7,7 +7,7 @@ import { Icon } from "./Icon";
  */
 export function DisclosureSummary({ children }: { children: ReactNode }) {
   return (
-    <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-[var(--radius-md)] text-sm font-semibold text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] [&::-webkit-details-marker]:hidden [[open]>&>svg]:rotate-180">
+    <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-md text-sm font-semibold text-[var(--text)] [&::-webkit-details-marker]:hidden [[open]>&>svg]:rotate-180">
       {children}
       <Icon name="chevron-down" className="h-4 w-4 shrink-0 text-[var(--text-2)] transition-transform motion-reduce:transition-none" />
     </summary>

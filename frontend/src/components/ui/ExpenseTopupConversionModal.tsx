@@ -79,7 +79,7 @@ export function ExpenseTopupConversionModal({ expense, accounts, onClose, onConv
               onChange={(event) => setProductId(event.target.value)}
               disabled={busy}
               aria-invalid={Boolean(error) && !productId}
-              className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+              className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
             >
               <option value="">Pilih produk…</option>
               {products.map((product) => (
@@ -92,8 +92,8 @@ export function ExpenseTopupConversionModal({ expense, accounts, onClose, onConv
         )}
         {error && <p role="alert" className="text-sm text-out-fg">{error}</p>}
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--line)] pt-3">
-          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-xl border border-[var(--line)] px-3 text-sm">Batal</button>
-          <button type="submit" disabled={busy || products.length === 0} className="min-h-11 rounded-xl bg-[#1E201E] px-4 text-sm font-semibold text-white disabled:opacity-50">
+          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-md border border-[var(--line)] px-3 text-sm">Batal</button>
+          <button type="submit" disabled={busy || products.length === 0} className="ws-btn ws-btn-accent disabled:opacity-50">
             {busy ? "Menyimpan…" : "Jadikan top up"}
           </button>
         </div>

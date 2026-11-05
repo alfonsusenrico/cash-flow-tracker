@@ -263,7 +263,7 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
             >
               <span>
                 <span className="block font-medium">Pintasan satu tombol</span>
-                <span className="block text-[13px] text-[var(--muted)]">
+                <span className="block text-sm text-[var(--muted)]">
                   {switchCaption(context.pageGroups)} Matikan jika bentrok dengan pembaca layar atau alat bantu lain.
                 </span>
               </span>

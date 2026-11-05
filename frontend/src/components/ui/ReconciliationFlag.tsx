@@ -11,7 +11,7 @@ interface ReconciliationFlagProps {
 }
 
 const flagClass =
-  "inline-flex min-h-8 items-center gap-1 rounded-full border border-warn-solid/40 bg-warn-solid/10 px-2.5 text-xs font-semibold text-[var(--text)]";
+  "inline-flex min-h-8 items-center gap-1 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-2.5 text-xs font-semibold text-[var(--text)]";
 
 /** Marks an account whose recorded balance went negative and needs reconciling with the bank. */
 export function ReconciliationFlag({ name, onReconcile, pocketCount }: ReconciliationFlagProps) {
@@ -32,7 +32,7 @@ export function ReconciliationFlag({ name, onReconcile, pocketCount }: Reconcili
       aria-label={`${text}: sesuaikan saldo ${name}`}
       className={cn(
         flagClass,
-        "hover:bg-warn-solid/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)]",
+        "hover:bg-[var(--surface-2)]",
       )}
     >
       {content}

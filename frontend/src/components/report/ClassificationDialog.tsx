@@ -26,7 +26,7 @@ interface Gaps {
 }
 
 const SELECT_CLASS =
-  "min-h-11 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--ink)]";
+  "min-h-11 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--text)]";
 
 function PillarSelect({ id, label, value, onChange }: { id: string; label: string; value: KakeiboPillar | ""; onChange: (value: KakeiboPillar | "") => void }) {
   return (
@@ -118,7 +118,7 @@ export function ClassificationDialog({ open, onClose, scope }: { open: boolean; 
 
         {data && data.categories.length > 0 && (
           <section aria-labelledby="classify-categories" className="space-y-2">
-            <h3 id="classify-categories" className="text-sm font-bold text-[var(--text)]">Kategori tanpa pilar</h3>
+            <h3 id="classify-categories" className="text-sm font-semibold text-[var(--text)]">Kategori tanpa pilar</h3>
             <p className="text-xs text-[var(--text-2)]">Berlaku untuk transaksinya yang belum punya pilar sendiri.</p>
             <ul className="divide-y divide-[var(--line)]">
               {data.categories.map((category) => {
@@ -157,7 +157,7 @@ export function ClassificationDialog({ open, onClose, scope }: { open: boolean; 
 
         {rows.length > 0 && (
           <section aria-labelledby="classify-rows" className="space-y-2">
-            <h3 id="classify-rows" className="text-sm font-bold text-[var(--text)]">
+            <h3 id="classify-rows" className="text-sm font-semibold text-[var(--text)]">
               Transaksi belum diklasifikasi <span className="tabular-nums text-[var(--muted)]">({data?.transaction_count})</span>
             </h3>
             {data && data.transaction_count > rows.length && (
@@ -183,7 +183,7 @@ export function ClassificationDialog({ open, onClose, scope }: { open: boolean; 
                         {shortDate(row.date.slice(0, 10))} · {row.category_name ?? "Tanpa kategori"} · {row.account_name}
                       </span>
                     </span>
-                    <span className="shrink-0 font-bold tabular-nums">{bal(row.amount)}</span>
+                    <span className="shrink-0 font-semibold tabular-nums">{bal(row.amount)}</span>
                   </label>
                 </li>
               ))}

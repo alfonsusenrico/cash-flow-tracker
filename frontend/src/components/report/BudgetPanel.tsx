@@ -90,7 +90,7 @@ export function BudgetEditorDialog({ open, onClose }: { open: boolean; onClose: 
                   value={values[row.id] ?? ""}
                   onChange={(event) => setValues((current) => ({ ...current, [row.id]: grouped(Number(digits(event.target.value)) || null) }))}
                   placeholder="Tanpa batas"
-                  className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] pl-9 pr-3 text-right text-sm tabular-nums text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
+                  className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface)] pl-9 pr-3 text-right text-sm tabular-nums text-[var(--text)]"
                 />
               </div>
             </li>
@@ -123,7 +123,7 @@ export function BudgetPanel({ report, onEdit }: { report: MonthlyReport; onEdit:
     <ReportPanel id="report-budget" title="Anggaran dan realisasi">
       {budget.overall && (
         <p className="text-sm text-[var(--text)]">
-          Total: keluar <span className="font-bold tabular-nums">{bal(budget.overall.spent)}</span> dari anggaran{" "}
+          Total: keluar <span className="font-semibold tabular-nums">{bal(budget.overall.spent)}</span> dari anggaran{" "}
           <span className="tabular-nums">{bal(budget.overall.budget)}</span>,{" "}
           {budget.overall.remaining >= 0 ? `sisa ${bal(budget.overall.remaining)}` : `lebih ${bal(-budget.overall.remaining)}`}.
         </p>
@@ -139,7 +139,7 @@ export function BudgetPanel({ report, onEdit }: { report: MonthlyReport; onEdit:
                   aria-label={`${bal(row.spent)} dari ${bal(row.budget)}, lihat transaksi ${row.name}`}
                   className={cn("inline-flex min-h-11 shrink-0 items-center tabular-nums", LINK_CLASS)}
                 >
-                  <span className="font-bold">{bal(row.spent)}</span>
+                  <span className="font-semibold">{bal(row.spent)}</span>
                   <span className="text-[var(--muted)]">&nbsp;/ {bal(row.budget)}</span>
                 </Link>
               </div>

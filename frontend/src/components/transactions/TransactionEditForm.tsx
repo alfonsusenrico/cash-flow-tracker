@@ -17,7 +17,7 @@ import type { LedgerRowDetail } from "./types";
 
 type EditKind = "expense" | "income";
 
-const FIELD = "min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]";
+const FIELD = "min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]";
 const LABEL = "mb-1 block text-xs font-medium text-[var(--muted)]";
 
 function initialDebtRows(tx: LedgerRowDetail): DebtAllocationValue[] {
@@ -158,7 +158,7 @@ export function TransactionEditForm({
 
   return (
     <form className="ws-tx-edit space-y-4 text-xs" aria-labelledby="tx-edit-title" onSubmit={submit}>
-      <h3 id="tx-edit-title" className="text-[15px] font-medium text-[var(--text)]">Ubah transaksi</h3>
+      <h3 id="tx-edit-title" className="text-sm font-medium text-[var(--text)]">Ubah transaksi</h3>
       {error && (
         <div role="alert" className="ws-notice ws-tx-error">
           {error}

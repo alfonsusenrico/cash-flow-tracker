@@ -14,7 +14,7 @@ export const COMPANION_MIN_ANDROID = "Android 8.0";
 
 const QR_SIZE = 160;
 const linkClass =
-  "font-semibold text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]";
+  "font-semibold text-[var(--text)] underline underline-offset-2";
 
 function DownloadDetails() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -40,7 +40,7 @@ function DownloadDetails() {
 
   return (
     <div className="flex flex-wrap items-start gap-4 text-xs">
-      <div className="shrink-0 rounded-[var(--radius-md)] border border-[var(--line)] bg-white p-2">
+      <div className="shrink-0 rounded-xl border border-[var(--line)] bg-white p-2">
         <canvas
           ref={canvasRef}
           width={QR_SIZE}
@@ -92,10 +92,10 @@ export function CompanionDownloadSection() {
 /** Collapsed in the pairing dialog, so its QR cannot be mistaken for the pairing code. */
 export function CompanionDownloadDisclosure() {
   return (
-    <details className="group rounded-[var(--radius-md)] border border-[var(--line)]">
+    <details className="group rounded-xl border border-[var(--line)]">
       <summary
         id="companion-download-disclosure"
-        className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 font-semibold text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] [&::-webkit-details-marker]:hidden"
+        className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-md px-3 font-semibold text-[var(--text)] [&::-webkit-details-marker]:hidden"
       >
         Belum punya aplikasinya? Unduh aplikasi pendamping
         <Icon name="chevron-down" className="h-4 w-4 shrink-0 text-[var(--muted)] transition-transform group-open:rotate-180" />

@@ -57,10 +57,10 @@ export function QuestionRate() {
   return (
     <section aria-labelledby="question-rate-title" className="ws-card space-y-3 text-xs">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <h2 id="question-rate-title" className="text-base font-bold tracking-tight text-[var(--text)]">Seberapa sering ditanya</h2>
+        <h2 id="question-rate-title" className="text-base font-semibold tracking-tight text-[var(--text)]">Seberapa sering ditanya</h2>
         {thisWeek && thisWeek.recorded > 0 && (
           <p className="shrink-0 text-right tabular-nums" data-testid="question-rate-headline">
-            <span className="text-sm font-black text-[var(--text)]">{share(thisWeek.asked, thisWeek.recorded)}</span>
+            <span className="text-sm font-semibold text-[var(--text)]">{share(thisWeek.asked, thisWeek.recorded)}</span>
             <span className="text-[var(--muted)]"> minggu ini · {thisWeek.asked} dari {thisWeek.recorded}</span>
           </p>
         )}
@@ -83,13 +83,13 @@ export function QuestionRate() {
                   {day(week.week_start)} – {day(week.week_end)}
                 </h3>
                 {week.in_progress && (
-                  <span className="shrink-0 rounded-full border border-warn-solid/30 bg-warn-solid/10 px-2 py-0.5 font-semibold text-warn-fg">
+                  <span className="shrink-0 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-2 py-0.5 font-semibold text-warn-fg">
                     berjalan
                   </span>
                 )}
                 {week.recorded > 0 && (
                   <p className="ml-auto shrink-0 tabular-nums text-[var(--text)]">
-                    Ditanya <span className="font-bold">{week.asked}</span> dari {week.recorded} ({share(week.asked, week.recorded)})
+                    Ditanya <span className="font-semibold">{week.asked}</span> dari {week.recorded} ({share(week.asked, week.recorded)})
                   </p>
                 )}
               </div>
@@ -97,7 +97,7 @@ export function QuestionRate() {
                 <p className="text-[var(--muted)]">Tidak ada transaksi tercatat.</p>
               ) : (
                 <>
-                  <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-[var(--line)]">
+                  <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-none bg-[var(--line)]">
                     <div className="h-full rounded-full bg-[var(--text-2)]" style={{ width: share(week.asked, week.recorded) }} />
                   </div>
                   <dl className="flex flex-wrap gap-x-3 gap-y-1">

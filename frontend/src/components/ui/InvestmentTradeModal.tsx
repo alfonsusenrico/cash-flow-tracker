@@ -228,9 +228,9 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
               onClick={() => setAction(act)}
               aria-pressed={action === act}
               className={cn(
-                  "min-h-11 flex-1 rounded-lg px-3 text-sm font-semibold transition-colors motion-reduce:transition-none",
+                  "min-h-11 flex-1 rounded-md px-3 text-sm font-semibold transition-colors motion-reduce:transition-none",
                   action === act
-                  ? "bg-[var(--text)] text-[var(--surface)] shadow-sm"
+                  ? "ws-seg-on"
                   : "text-[var(--muted)] hover:text-[var(--text)]"
               )}
             >
@@ -241,12 +241,12 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
 
         {/* Instrument & Symbol badge */}
         <div className="flex items-center gap-2 px-1">
-          <span className="text-[11px] text-[var(--muted)] uppercase font-medium">Instrumen:</span>
-          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-inv-solid/15 text-inv-fg">
+          <span className="text-xs text-[var(--muted)] uppercase font-medium">Instrumen:</span>
+          <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-[var(--surface-2)] text-inv-fg">
             {pocket.instrument_type ?? "investasi"}
           </span>
           {pocket.instrument_symbol && (
-            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[var(--surface-2)] border border-[var(--line)] text-[var(--text)]">
+            <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-[var(--surface-2)] border border-[var(--line)] text-[var(--text)]">
               {pocket.instrument_symbol}
             </span>
           )}
@@ -254,11 +254,11 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
 
         {/* Current position */}
         {currentUnits > 0 && (
-          <div className="px-3 py-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-xs space-y-0.5">
+          <div className="px-3 py-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] text-xs space-y-0.5">
             <div className="font-semibold text-[var(--muted)] uppercase tracking-wider mb-1">Posisi Saat Ini</div>
             <div className="flex justify-between">
               <span className="text-[var(--muted)]">Unit dimiliki</span>
-              <span className="font-bold tabular">
+              <span className="font-semibold tabular">
                 {cfg.isLotBased
                   ? `${currentUnits} lembar (${currentUnits / 100} lot)`
                   : `${currentUnits} ${cfg.unitUnit}`}
@@ -266,12 +266,12 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
             </div>
             <div className="flex justify-between">
               <span className="text-[var(--muted)]">Avg. harga beli (Modal)</span>
-              <span className="font-bold tabular">{fmtMoney(currentAvg)}</span>
+              <span className="font-semibold tabular">{fmtMoney(currentAvg)}</span>
             </div>
             {pocket.last_price && (
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">Harga pasar terkini</span>
-                <span className="font-bold tabular">{fmtMoney(pocket.last_price)}</span>
+                <span className="font-semibold tabular">{fmtMoney(pocket.last_price)}</span>
               </div>
             )}
           </div>
@@ -292,15 +292,15 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
             onChange={(e) => { setInputUnits(e.target.value); setErrorField(null); setError(""); }}
             aria-invalid={exceedsPosition || errorField === "units" || undefined}
             aria-describedby={exceedsPosition || errorField === "units" ? "investment-trade-units-error" : undefined}
-            className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
+            className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none"
           />
           {(exceedsPosition || errorField === "units") && (
-            <p id="investment-trade-units-error" className="mt-1 text-[11px] font-medium text-out-fg" role="alert">
+            <p id="investment-trade-units-error" className="mt-1 text-xs font-medium text-out-fg" role="alert">
               {exceedsPosition ? "Jumlah jual melebihi unit yang dimiliki." : error}
             </p>
           )}
           {cfg.isLotBased && parsedInputUnits > 0 && (
-            <p className="text-[10px] text-[var(--muted)] mt-1">
+            <p className="text-xs text-[var(--muted)] mt-1">
               = {(parsedInputUnits * 100).toLocaleString("id-ID")} lembar
             </p>
           )}
@@ -311,13 +311,13 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
           <div className="flex items-center justify-between mb-1">
             <label htmlFor="investment-trade-price" className="block text-xs font-medium text-[var(--muted)]">{cfg.priceLabel}</label>
             {(pocket.last_price || pocket.avg_buy_price) && (
-              <div className="flex items-center gap-1.5 text-[10px]">
+              <div className="flex items-center gap-1.5 text-xs">
                 <span className="text-[var(--muted)]">Isi cepat:</span>
                 {pocket.last_price && (
                   <button
                     type="button"
                     onClick={() => setInputPrice(Math.round(pocket.last_price!).toLocaleString("id-ID"))}
-                    className="inline-flex min-h-6 items-center px-1.5 py-0.5 rounded bg-[var(--surface-2)] hover:bg-[var(--line)] border border-[var(--line)] text-in-fg font-semibold transition-colors motion-reduce:transition-none"
+                    className="inline-flex min-h-6 items-center px-1.5 py-0.5 rounded-md bg-[var(--surface-2)] hover:bg-[var(--line)] border border-[var(--line)] text-in-fg font-semibold transition-colors motion-reduce:transition-none"
                     title="Gunakan harga pasar terkini"
                   >
                     Pasar ({fmtMoney(pocket.last_price)})
@@ -327,7 +327,7 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
                   <button
                     type="button"
                     onClick={() => setInputPrice(Math.round(pocket.avg_buy_price!).toLocaleString("id-ID"))}
-                    className="inline-flex min-h-6 items-center px-1.5 py-0.5 rounded bg-[var(--surface-2)] hover:bg-[var(--line)] border border-[var(--line)] text-[var(--text)] font-semibold transition-colors motion-reduce:transition-none"
+                    className="inline-flex min-h-6 items-center px-1.5 py-0.5 rounded-md bg-[var(--surface-2)] hover:bg-[var(--line)] border border-[var(--line)] text-[var(--text)] font-semibold transition-colors motion-reduce:transition-none"
                     title="Gunakan harga modal rata-rata"
                   >
                     Modal ({fmtMoney(pocket.avg_buy_price)})
@@ -352,7 +352,7 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
               const raw = e.target.value.replace(/[^0-9]/g, "");
               setInputPrice(raw ? parseInt(raw, 10).toLocaleString("id-ID") : "");
             }}
-            className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
+            className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none"
           />
         </div>
 
@@ -365,7 +365,7 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
             onChange={(e) => { setFundingAccountId(e.target.value); setErrorField(null); setError(""); }}
             aria-invalid={errorField === "funding" || undefined}
             aria-describedby={errorField === "funding" ? "investment-trade-funding-error" : undefined}
-            className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
+            className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none"
           >
             <option value="">Pilih rekening</option>
             {fundingCandidates.map((account) => (
@@ -390,11 +390,11 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
             </div>
             <div className="flex justify-between">
               <span>Nominal transaksi</span>
-              <span className="font-bold tabular">{fmtMoney(tradeAmount)}</span>
+              <span className="font-semibold tabular">{fmtMoney(tradeAmount)}</span>
             </div>
             <div className="flex justify-between">
               <span>Unit setelah transaksi</span>
-              <span className="font-bold tabular">
+              <span className="font-semibold tabular">
                 {cfg.isLotBased
                   ? `${projectedUnits.toLocaleString("id-ID")} lembar (${(projectedUnits / 100).toLocaleString("id-ID")} lot)`
                   : `${projectedUnits} ${cfg.unitUnit}`}
@@ -406,14 +406,14 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
             {selectedFundingAccount && projectedFundingBalance !== null && (
               <div className="flex justify-between">
                 <span>Saldo rekening setelah transaksi</span>
-                <span className={cn("font-bold tabular", insufficientDisplayedBalance && "text-out-fg")}>{fmtMoney(projectedFundingBalance)}</span>
+                <span className={cn("font-semibold tabular", insufficientDisplayedBalance && "text-out-fg")}>{fmtMoney(projectedFundingBalance)}</span>
               </div>
             )}
             {insufficientDisplayedBalance && <p role="alert" className="font-medium text-out-fg">Saldo rekening yang ditampilkan tidak cukup untuk pembelian ini.</p>}
             {action === "buy" && (
               <div className="flex justify-between">
                 <span>Avg. beli baru</span>
-                <span className="font-bold tabular">{fmtMoney(projectedAvg)}</span>
+                <span className="font-semibold tabular">{fmtMoney(projectedAvg)}</span>
               </div>
             )}
           </div>
@@ -429,12 +429,12 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
             placeholder="Kosongkan untuk auto-generate"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
+            className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none"
           />
         </div>
 
         {error && !errorField && (
-          <p role="alert" aria-live="assertive" className="text-xs text-out-fg bg-out-solid/10 border border-out-solid/25 rounded-lg px-3 py-2">
+          <p role="alert" aria-live="assertive" className="text-xs text-out-fg bg-[var(--surface-2)] border border-[var(--line)] rounded-xl px-3 py-2">
             {error}
           </p>
         )}
@@ -445,7 +445,7 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
             type="submit"
             disabled={tradeMutation.isPending || exceedsPosition || insufficientDisplayedBalance}
             className={cn(
-              "min-h-11 flex-1 rounded-xl bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] transition-colors hover:opacity-90 disabled:opacity-50",
+              "min-h-11 flex-1 rounded-md bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] transition-colors hover:opacity-90 disabled:opacity-50",
             )}
           >
             {tradeMutation.isPending ? "Memproses…" : submitLabel}
@@ -453,7 +453,7 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
           <button
             type="button"
             onClick={handleClose}
-            className="px-4 py-2.5 rounded-lg text-sm font-semibold bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--line)]/50 transition-colors"
+            className="px-4 py-2.5 rounded-md text-sm font-semibold bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--line)]/50 transition-colors"
           >
             Batal
           </button>

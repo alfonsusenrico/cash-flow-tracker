@@ -60,10 +60,10 @@ export function RecurringCharges({ bal, onCreatePlan }: { bal: Money; onCreatePl
   return (
     <section aria-labelledby="recurring-title" className="ws-card space-y-3 text-xs">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <h2 id="recurring-title" className="text-base font-bold tracking-tight text-[var(--text)]">Tagihan & langganan terdeteksi</h2>
+        <h2 id="recurring-title" className="text-base font-semibold tracking-tight text-[var(--text)]">Tagihan & langganan terdeteksi</h2>
         {data && charges.length > 0 && (
           <p className="shrink-0 text-right tabular-nums" data-testid="recurring-headline">
-            <span className="text-sm font-black text-[var(--text)]">{charges.length}</span>
+            <span className="text-sm font-semibold text-[var(--text)]">{charges.length}</span>
             <span className="text-[var(--muted)]"> · {bal(data.monthly_equivalent_total)}/bln</span>
           </p>
         )}
@@ -82,7 +82,7 @@ export function RecurringCharges({ bal, onCreatePlan }: { bal: Money; onCreatePl
                 <div className="min-w-0">
                   <Link
                     href={ledgerHref({ from: data.window.start, to: data.window.end, type: "expense", q: charge.search_text })}
-                    className="block min-h-6 truncate font-semibold leading-6 text-[var(--text)] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
+                    className="block min-h-6 truncate font-semibold leading-6 text-[var(--text)] underline underline-offset-2"
                   >
                     {charge.merchant}
                   </Link>
@@ -90,7 +90,7 @@ export function RecurringCharges({ bal, onCreatePlan }: { bal: Money; onCreatePl
                     {CADENCE_LABEL[charge.cadence]} · {charge.occurrences} kali · {charge.account_name}
                   </p>
                 </div>
-                <span className="shrink-0 text-right text-sm font-black tabular-nums">{bal(charge.typical_amount)}</span>
+                <span className="shrink-0 text-right text-sm font-semibold tabular-nums">{bal(charge.typical_amount)}</span>
               </div>
               <p className="tabular-nums text-[var(--text-2)]">
                 Terakhir {day(charge.last_date)} · berikutnya perkiraan {day(charge.next_expected_date)}
@@ -102,7 +102,7 @@ export function RecurringCharges({ bal, onCreatePlan }: { bal: Money; onCreatePl
               )}
               <div className="flex flex-wrap items-center gap-2">
                 {charge.existing_plan ? (
-                  <span className="rounded-full border border-in-solid/30 bg-in-solid/10 px-2 py-0.5 font-semibold text-in-fg">
+                  <span className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-2 py-0.5 font-semibold text-in-fg">
                     Sudah ada rencana: {charge.existing_plan.name}
                   </span>
                 ) : (
@@ -110,7 +110,7 @@ export function RecurringCharges({ bal, onCreatePlan }: { bal: Money; onCreatePl
                     type="button"
                     onClick={() => onCreatePlan(charge.plan_draft)}
                     aria-label={`Jadikan rencana: ${charge.merchant}`}
-                    className="min-h-11 rounded-lg border border-[var(--line)] px-3 font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
+                    className="min-h-11 rounded-md border border-[var(--line)] px-3 font-semibold text-[var(--text)] hover:bg-[var(--surface-2)]"
                   >
                     Jadikan rencana
                   </button>

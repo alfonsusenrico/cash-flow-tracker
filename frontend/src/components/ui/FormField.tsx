@@ -32,9 +32,9 @@ export function FormField({
   const describedBy = [descriptionId, errorId].filter(Boolean).join(" ") || undefined;
 
   return (
-    <div className={cn("space-y-1", className)}>
+    <div className={cn("space-y-2", className)}>
       <div className="flex items-center gap-1">
-        <label htmlFor={id} className="block text-[11px] font-medium text-[var(--muted)]">
+        <label htmlFor={id} className="block text-xs font-medium text-[var(--muted)]">
           {label}
           {required ? <span aria-hidden="true"> *</span> : null}
         </label>
@@ -46,7 +46,7 @@ export function FormField({
         "aria-invalid": error ? true : undefined,
       })}
       {error ? (
-        <p id={errorId} className="text-[11px] font-medium text-out-fg" role="alert">
+        <p id={errorId} className="text-xs font-medium text-out-fg" role="alert">
           {error}
         </p>
       ) : null}
@@ -92,7 +92,8 @@ export function MonetaryInput({
           onChange={(event) => onChange(formatNumberWithDots(event.target.value))}
           placeholder={placeholder}
           className={cn(
-            "min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-bold tabular-nums text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)]",
+            // Money input (SPEC §7): 56 px, Inter 20/600 tabular, -0.01em.
+            "ws-money-input h-14 w-full rounded-md border border-[var(--line-strong)] bg-[var(--dialog)] px-3 text-xl leading-5 font-semibold tabular-nums tracking-[-0.01em] text-[var(--text)]",
             className,
           )}
         />
@@ -108,7 +109,7 @@ export function FormErrorSummary({ message }: { message?: string }) {
       role="alert"
       aria-live="assertive"
       tabIndex={-1}
-      className="rounded-xl border border-out-solid/25 bg-out-solid/10 p-3 text-xs font-medium text-out-fg"
+      className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 text-xs font-medium text-out-fg"
     >
       {message}
     </div>
@@ -153,15 +154,15 @@ interface ChoiceGroupProps {
 export function ChoiceGroup({ label, name, value, options, onChange }: ChoiceGroupProps) {
   return (
     <fieldset className="space-y-1.5">
-      <legend className="text-[11px] font-medium text-[var(--muted)]">{label}</legend>
+      <legend className="text-xs font-medium text-[var(--muted)]">{label}</legend>
       <div className="flex flex-wrap gap-2">
         {options.map((option) => (
           <label
             key={option.value}
             className={cn(
-              "inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 text-xs font-semibold",
+              "inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-3 text-xs font-semibold",
               value === option.value
-                ? "border-[var(--text)] bg-[var(--surface-2)] text-[var(--text)]"
+                ? "border-[var(--line-strong)] bg-[var(--surface-2)] text-[var(--text)]"
                 : "border-[var(--line)] text-[var(--muted)]",
               option.disabled && "cursor-not-allowed opacity-50",
             )}

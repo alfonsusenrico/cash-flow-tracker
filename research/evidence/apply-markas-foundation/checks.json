@@ -1,0 +1,362 @@
+[
+ {
+  "name": "keyboard focus / light",
+  "pass": true,
+  "detail": {
+   "stops": 14,
+   "bad": []
+  }
+ },
+ {
+  "name": "keyboard focus /ledger light",
+  "pass": true,
+  "detail": {
+   "stops": 14,
+   "bad": []
+  }
+ },
+ {
+  "name": "keyboard focus /settings/profil light",
+  "pass": true,
+  "detail": {
+   "stops": 14,
+   "bad": []
+  }
+ },
+ {
+  "name": "keyboard focus on + Catat light",
+  "pass": true,
+  "detail": {
+   "text": "Catat",
+   "tag": "button",
+   "outline": "solid 2px rgb(69, 72, 79)",
+   "outlineOffset": "2px",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "boxShadow": "none",
+   "color": "rgb(10, 13, 20)",
+   "background": "rgb(255, 51, 75)",
+   "fontSize": "14px",
+   "numeric": "normal",
+   "animation": "none 0s",
+   "transition": "0.14s, 0.14s, 0.14s",
+   "wrapperShadow": null
+  }
+ },
+ {
+  "name": "pointer click shows no outline light",
+  "pass": true,
+  "detail": {
+   "text": "Filter",
+   "tag": "button",
+   "outline": "none 3px rgb(28, 30, 34)",
+   "outlineOffset": "0px",
+   "border": "1px rgb(132, 127, 120)",
+   "boxShadow": "none",
+   "color": "rgb(28, 30, 34)",
+   "background": "rgb(241, 239, 235)",
+   "fontSize": "14px",
+   "numeric": "normal",
+   "animation": "none 0s",
+   "transition": "0.14s, 0.14s, 0.14s",
+   "wrapperShadow": null
+  }
+ },
+ {
+  "name": "sentence field focus light",
+  "pass": true,
+  "detail": {
+   "text": "",
+   "tag": "input",
+   "outline": "none 3px rgb(28, 30, 34)",
+   "outlineOffset": "2px",
+   "border": "1px rgb(43, 45, 50)",
+   "boxShadow": "rgba(28, 30, 34, 0.1) 0px 0px 0px 3px",
+   "color": "rgb(28, 30, 34)",
+   "background": "rgb(248, 247, 244)",
+   "fontSize": "16px",
+   "numeric": "lining-nums tabular-nums",
+   "animation": "none 0s",
+   "transition": "0.14s, 0.14s",
+   "wrapperShadow": null
+  }
+ },
+ {
+  "name": "field error in Catat light",
+  "pass": "not reachable",
+  "detail": {
+   "alert": "Source and target accounts must be different"
+  }
+ },
+ {
+  "name": "dialog layer shadow light",
+  "pass": true,
+  "detail": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px"
+ },
+ {
+  "name": "cards are flat light",
+  "pass": true,
+  "detail": {
+   "cards": 10
+  }
+ },
+ {
+  "name": "primary button colours light",
+  "pass": true,
+  "detail": {
+   "text": "Catat",
+   "tag": "button",
+   "outline": "solid 2px rgb(69, 72, 79)",
+   "outlineOffset": "2px",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "boxShadow": "none",
+   "color": "rgb(10, 13, 20)",
+   "background": "rgb(255, 51, 75)",
+   "fontSize": "14px",
+   "numeric": "normal",
+   "animation": "none 0s",
+   "transition": "0.14s, 0.14s, 0.14s",
+   "wrapperShadow": null
+  }
+ },
+ {
+  "name": "figures tabular, prose proportional light",
+  "pass": true,
+  "detail": {
+   "amounts": 23,
+   "notTabular": [],
+   "subtitle": "lining-nums"
+  }
+ },
+ {
+  "name": "keyboard focus / dark",
+  "pass": true,
+  "detail": {
+   "stops": 14,
+   "bad": []
+  }
+ },
+ {
+  "name": "keyboard focus /ledger dark",
+  "pass": true,
+  "detail": {
+   "stops": 14,
+   "bad": []
+  }
+ },
+ {
+  "name": "keyboard focus /settings/profil dark",
+  "pass": true,
+  "detail": {
+   "stops": 14,
+   "bad": []
+  }
+ },
+ {
+  "name": "keyboard focus on + Catat dark",
+  "pass": true,
+  "detail": {
+   "text": "Catat",
+   "tag": "button",
+   "outline": "solid 2px rgb(189, 190, 194)",
+   "outlineOffset": "2px",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "boxShadow": "none",
+   "color": "rgb(10, 13, 20)",
+   "background": "rgb(255, 71, 87)",
+   "fontSize": "14px",
+   "numeric": "normal",
+   "animation": "none 0s",
+   "transition": "0.14s, 0.14s, 0.14s",
+   "wrapperShadow": null
+  }
+ },
+ {
+  "name": "pointer click shows no outline dark",
+  "pass": true,
+  "detail": {
+   "text": "Filter",
+   "tag": "button",
+   "outline": "none 3px rgb(232, 231, 228)",
+   "outlineOffset": "0px",
+   "border": "1px rgb(110, 112, 118)",
+   "boxShadow": "none",
+   "color": "rgb(232, 231, 228)",
+   "background": "rgb(28, 29, 32)",
+   "fontSize": "14px",
+   "numeric": "normal",
+   "animation": "none 0s",
+   "transition": "0.14s, 0.14s, 0.14s",
+   "wrapperShadow": null
+  }
+ },
+ {
+  "name": "sentence field focus dark",
+  "pass": true,
+  "detail": {
+   "text": "",
+   "tag": "input",
+   "outline": "none 3px rgb(232, 231, 228)",
+   "outlineOffset": "2px",
+   "border": "1px rgb(201, 201, 204)",
+   "boxShadow": "rgba(232, 231, 228, 0.12) 0px 0px 0px 3px",
+   "color": "rgb(232, 231, 228)",
+   "background": "rgb(28, 29, 32)",
+   "fontSize": "16px",
+   "numeric": "lining-nums tabular-nums",
+   "animation": "none 0s",
+   "transition": "0.14s, 0.14s",
+   "wrapperShadow": null
+  }
+ },
+ {
+  "name": "field error in Catat dark",
+  "pass": "not reachable",
+  "detail": {
+   "alert": "Source and target accounts must be different"
+  }
+ },
+ {
+  "name": "dialog layer shadow dark",
+  "pass": true,
+  "detail": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px"
+ },
+ {
+  "name": "cards are flat dark",
+  "pass": true,
+  "detail": {
+   "cards": 10
+  }
+ },
+ {
+  "name": "primary button colours dark",
+  "pass": true,
+  "detail": {
+   "text": "Catat",
+   "tag": "button",
+   "outline": "solid 2px rgb(189, 190, 194)",
+   "outlineOffset": "2px",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "boxShadow": "none",
+   "color": "rgb(10, 13, 20)",
+   "background": "rgb(255, 71, 87)",
+   "fontSize": "14px",
+   "numeric": "normal",
+   "animation": "none 0s",
+   "transition": "0.14s, 0.14s, 0.14s",
+   "wrapperShadow": null
+  }
+ },
+ {
+  "name": "figures tabular, prose proportional dark",
+  "pass": true,
+  "detail": {
+   "amounts": 23,
+   "notTabular": [],
+   "subtitle": "lining-nums"
+  }
+ },
+ {
+  "name": "sheet error field light",
+  "pass": true,
+  "detail": {
+   "invalid": "true",
+   "border": "1px rgb(43, 45, 50)",
+   "error": {
+    "size": "12px",
+    "color": "rgb(184, 20, 45)"
+   }
+  }
+ },
+ {
+  "name": "sheet error field dark",
+  "pass": true,
+  "detail": {
+   "invalid": "true",
+   "border": "1px rgb(201, 201, 204)",
+   "error": {
+    "size": "12px",
+    "color": "rgb(255, 107, 120)"
+   }
+  }
+ },
+ {
+  "name": "no overflow at 320 /",
+  "pass": true,
+  "detail": {
+   "overflow": 0
+  }
+ },
+ {
+  "name": "no overflow at 320 /review",
+  "pass": true,
+  "detail": {
+   "overflow": 0
+  }
+ },
+ {
+  "name": "no overflow at 320 /ledger",
+  "pass": true,
+  "detail": {
+   "overflow": 0
+  }
+ },
+ {
+  "name": "no overflow at 320 /insights",
+  "pass": true,
+  "detail": {
+   "overflow": 0
+  }
+ },
+ {
+  "name": "no overflow at 320 /laporan",
+  "pass": true,
+  "detail": {
+   "overflow": 0
+  }
+ },
+ {
+  "name": "no overflow at 320 /accounts",
+  "pass": true,
+  "detail": {
+   "overflow": 0
+  }
+ },
+ {
+  "name": "no overflow at 320 /goals",
+  "pass": true,
+  "detail": {
+   "overflow": 0
+  }
+ },
+ {
+  "name": "no overflow at 320 /settings/profil",
+  "pass": true,
+  "detail": {
+   "overflow": 0
+  }
+ },
+ {
+  "name": "keyboard focus in Catat light",
+  "pass": true,
+  "detail": {
+   "stops": 8,
+   "bad": []
+  }
+ },
+ {
+  "name": "keyboard focus in Catat dark",
+  "pass": true,
+  "detail": {
+   "stops": 8,
+   "bad": []
+  }
+ },
+ {
+  "name": "reduced motion",
+  "pass": true,
+  "detail": {
+   "dialog": "none 0s",
+   "row": "0s"
+  }
+ }
+]

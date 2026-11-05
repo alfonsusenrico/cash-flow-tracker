@@ -113,7 +113,7 @@ export function MoreSheet({ open, onClose }: { open: boolean; onClose: () => voi
         <>
           <div className="ws-grab" aria-hidden="true" />
           <div className="flex items-center justify-between gap-3">
-            <h2 id={titleId} className="text-[17px] font-medium">
+            <h2 id={titleId} className="text-base font-medium">
               Lainnya
             </h2>
             <button type="button" className="ws-close" aria-label="Tutup Lainnya" onClick={onClose}>

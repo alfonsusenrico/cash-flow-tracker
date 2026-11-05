@@ -69,8 +69,8 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-[var(--window)] text-[var(--text)] px-4">
-      <div className="w-full max-w-sm rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm sm:p-8">
-        <h1 className="text-2xl font-bold mb-1 text-center tracking-tight">CashFlow</h1>
+      <div className="w-full max-w-sm rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 sm:p-8">
+        <h1 className="text-2xl font-semibold mb-1 text-center tracking-tight">CashFlow</h1>
         <p className="text-center text-xs text-[var(--muted)] mb-6">
           {mode === "login" ? "Masuk ke akun" : "Buat akun baru"}
         </p>
@@ -85,7 +85,7 @@ export default function LoginPage() {
                 id="full_name"
                 name="full_name"
                 autoComplete="name"
-                className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
+                className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none"
               />
             </div>
           )}
@@ -99,7 +99,7 @@ export default function LoginPage() {
               autoComplete="username"
               required
               minLength={mode === "register" ? 6 : undefined}
-              className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
+              className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none"
             />
           </div>
           <div>
@@ -114,10 +114,10 @@ export default function LoginPage() {
               required
               minLength={mode === "register" ? REGISTRATION_PASSWORD_MIN_LENGTH : undefined}
               aria-describedby={mode === "register" ? "password-help" : undefined}
-              className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
+              className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none"
             />
             {mode === "register" && (
-              <p id="password-help" className="mt-1 text-[11px] text-[var(--muted)]">
+              <p id="password-help" className="mt-1 text-xs text-[var(--muted)]">
                 Minimal {REGISTRATION_PASSWORD_MIN_LENGTH} karakter.
               </p>
             )}
@@ -132,7 +132,7 @@ export default function LoginPage() {
                 name="invite_code"
                 autoComplete="off"
                 required
-                className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
+                className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none"
               />
             </div>
           )}
@@ -146,7 +146,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="min-h-11 w-full rounded-xl bg-[#1E201E] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#313631] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)] disabled:opacity-50"
+            className="ws-btn ws-btn-accent w-full"
           >
             {loading ? "Memproses…" : mode === "login" ? "Masuk" : "Daftar Akun"}
           </button>
@@ -158,7 +158,7 @@ export default function LoginPage() {
               Belum punya akun?{" "}
               <button
                 onClick={() => { setMode("register"); setError(""); }}
-                className="min-h-11 font-semibold text-[var(--text)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
+                className="min-h-11 font-semibold text-[var(--text)] underline underline-offset-4"
               >
                 Daftar sekarang
               </button>
@@ -168,7 +168,7 @@ export default function LoginPage() {
               Sudah punya akun?{" "}
               <button
                 onClick={() => { setMode("login"); setError(""); }}
-                className="min-h-11 font-semibold text-[var(--text)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
+                className="min-h-11 font-semibold text-[var(--text)] underline underline-offset-4"
               >
                 Masuk di sini
               </button>

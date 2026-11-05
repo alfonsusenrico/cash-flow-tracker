@@ -20,11 +20,11 @@ export function PeriodStepper({ label, offset, onChange, unit, minOffset = -36 }
         disabled={offset <= minOffset}
         aria-label={`${unit} sebelumnya`}
         title={`${unit} sebelumnya`}
-        className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--ink)] disabled:opacity-30"
+        className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--text)] disabled:opacity-30"
       >
         <Icon name="chevron-left" className="h-3.5 w-3.5" />
       </button>
-      <span aria-live="polite" className="min-w-[7.5rem] select-none px-1 text-center font-bold tabular text-[var(--text)]">
+      <span aria-live="polite" className="min-w-[7.5rem] select-none px-1 text-center font-semibold tabular text-[var(--text)]">
         {label}
       </span>
       <button
@@ -33,7 +33,7 @@ export function PeriodStepper({ label, offset, onChange, unit, minOffset = -36 }
         disabled={offset >= 0}
         aria-label={`${unit} berikutnya`}
         title={`${unit} berikutnya`}
-        className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--ink)] disabled:opacity-30"
+        className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--text)] disabled:opacity-30"
       >
         <Icon name="chevron-right" className="h-3.5 w-3.5" />
       </button>
@@ -41,7 +41,7 @@ export function PeriodStepper({ label, offset, onChange, unit, minOffset = -36 }
         <button
           type="button"
           onClick={() => onChange(0)}
-          className="min-h-10 px-2 text-[11px] font-semibold text-[var(--text)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
+          className="min-h-10 px-2 text-xs font-semibold text-[var(--text)] underline-offset-2 hover:underline"
         >
           {unit === "Siklus" ? "Siklus ini" : "Bulan ini"}
         </button>

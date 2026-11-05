@@ -2,13 +2,13 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 export const LINK_CLASS =
-  "rounded underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)]";
+  "rounded-md underline underline-offset-2";
 
 /** A side panel of the report (comparison, data quality, budget). */
 export function ReportPanel({ id, title, children, className }: { id: string; title: string; children: React.ReactNode; className?: string }) {
   return (
     <section aria-labelledby={`${id}-title`} className={cn("ws-card space-y-3", className)}>
-      <h2 id={`${id}-title`} className="text-base font-bold tracking-tight text-[var(--text)]">{title}</h2>
+      <h2 id={`${id}-title`} className="text-base font-semibold tracking-tight text-[var(--text)]">{title}</h2>
       {children}
     </section>
   );
@@ -38,17 +38,17 @@ export function AmountRow({
         <Link
           href={href}
           aria-label={linkLabel ? `${amount}, ${linkLabel}` : undefined}
-          className={cn("inline-flex min-h-11 shrink-0 items-center text-sm font-bold tabular-nums text-[var(--text)]", LINK_CLASS)}
+          className={cn("inline-flex min-h-11 shrink-0 items-center text-sm font-semibold tabular-nums text-[var(--text)]", LINK_CLASS)}
         >
           {amount}
         </Link>
       ) : (
-        <span className="shrink-0 text-sm font-bold tabular-nums text-[var(--text)]">{amount}</span>
+        <span className="shrink-0 text-sm font-semibold tabular-nums text-[var(--text)]">{amount}</span>
       )}
     </li>
   );
 }
 
 export function SubHeading({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">{children}</h3>;
+  return <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">{children}</h3>;
 }

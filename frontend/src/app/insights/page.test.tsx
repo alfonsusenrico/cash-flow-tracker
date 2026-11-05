@@ -20,7 +20,6 @@ vi.mock("@/components/layout/AppLayout", () => ({
     timeframe: "month", setTimeframe, cycleOffset: -1, bal: (amount: number) => `Rp ${amount.toLocaleString("id-ID")}`,
   }),
 }));
-vi.mock("@/hooks/useAnimatedCounter", () => ({ useAnimatedCounter: (value: number) => value }));
 vi.mock("@/components/recurring/RecurringRulesModal", () => ({
   RecurringRulesModal: ({ open, expenseDraft }: { open: boolean; expenseDraft?: { name: string; amount: number } | null }) =>
     open ? <div role="dialog" aria-label="Rencana baru">{expenseDraft?.name} {expenseDraft?.amount}</div> : null,

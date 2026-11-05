@@ -597,7 +597,7 @@ export function useAccountDialogs() {
           }}
         >
           {accError && (
-            <div role="alert" className="rounded-xl border border-out-solid/20 bg-out-solid/10 p-3 text-xs text-out-fg">
+            <div role="alert" className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 text-xs text-out-fg">
               {accError}
             </div>
           )}
@@ -616,7 +616,7 @@ export function useAccountDialogs() {
               aria-invalid={Boolean(accountNameError) || undefined}
               aria-describedby={accountNameError ? "account-name-error" : undefined}
               placeholder="Contoh: BCA Utama, Bibit, Binance, GoPay"
-              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+              className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
             />
             {accountNameError && <p id="account-name-error" className="mt-1 text-xs text-out-fg">{accountNameError}</p>}
           </div>
@@ -638,9 +638,9 @@ export function useAccountDialogs() {
                       aria-label={`Warna ${col.name}`}
                       aria-pressed={isSelected}
                       className={cn(
-                        "min-h-11 min-w-11 rounded-full transition-transform flex items-center justify-center text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--text)]",
+                        "min-h-11 min-w-11 rounded-full transition-transform flex items-center justify-center text-white",
                         isSelected
-                          ? "ring-2 ring-offset-2 ring-[var(--text)] scale-110"
+                          ? "scale-110"
                           : "hover:scale-105 opacity-80 hover:opacity-100"
                       )}
                       style={{ backgroundColor: col.hex }}
@@ -654,13 +654,13 @@ export function useAccountDialogs() {
 
               {accName.trim() && (
                 <div className="mt-2 p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] flex items-center justify-between">
-                  <span className="text-[11px] text-[var(--muted)] font-medium">Pratinjau Tag Rekening:</span>
+                  <span className="text-xs text-[var(--muted)] font-medium">Pratinjau Tag Rekening:</span>
                   <span
                     style={{
                       backgroundColor: accColor,
                       color: getContrastTextColor(accColor),
                     }}
-                    className="font-bold text-xs sm:text-sm px-3 py-1 rounded-xl shadow-2xs"
+                    className="font-semibold text-xs sm:text-sm px-3 py-1 rounded-md"
                   >
                     {accName.trim()}
                   </span>
@@ -682,7 +682,7 @@ export function useAccountDialogs() {
                     setAccType(nextType);
                     if (!editingAccount && !accColorChosen) setAccColor(defaultAccountTagColor(nextType));
                   }}
-                  className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                  className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
                 >
                   <option value="bank">Rekening Bank (BCA, Mandiri, BRI, dll)</option>
                   <option value="wallet">Dompet Digital / E-Wallet (GoPay, OVO, ShopeePay, dll)</option>
@@ -703,14 +703,14 @@ export function useAccountDialogs() {
                     value={accParentId}
                     onChange={(e) => setAccParentId(e.target.value)}
                     aria-describedby="account-move-parent-hint"
-                    className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                    className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
                   >
                     <option value="">Tetap sebagai rekening utama</option>
                     {parentCandidates.map((candidate) => (
                       <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
                     ))}
                   </select>
-                  <p id="account-move-parent-hint" className="mt-1 text-[10px] text-[var(--muted)]">
+                  <p id="account-move-parent-hint" className="mt-1 text-xs text-[var(--muted)]">
                     Untuk saldo yang sebenarnya disimpan di bank lain, misalnya GoPay Tabungan di Jago. Riwayat transaksi tetap
                     utuh; beri nama kantong sama seperti di notifikasi bank.
                   </p>
@@ -729,7 +729,7 @@ export function useAccountDialogs() {
                     onChange={(e) => setAccDefaultPocketId(e.target.value)}
                     aria-invalid={Boolean(defaultPocketError) || undefined}
                     aria-describedby={defaultPocketError ? "account-default-pocket-error" : undefined}
-                    className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                    className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
                   >
                     <option value="">Tanpa Kantong Default (Gunakan Rekening Induk)</option>
                     {editingAccount.children.filter((child) => !child.is_archived).map((child) => (
@@ -739,7 +739,7 @@ export function useAccountDialogs() {
                     ))}
                   </select>
                   {defaultPocketError && <p id="account-default-pocket-error" className="mt-1 text-xs text-out-fg">{defaultPocketError}</p>}
-                  <p className="text-[10px] text-[var(--muted)] mt-1">
+                  <p className="text-xs text-[var(--muted)] mt-1">
                     Transaksi mobile tanpa rincian kantong akan otomatis dialokasikan ke kantong default ini.
                   </p>
                 </div>
@@ -755,17 +755,17 @@ export function useAccountDialogs() {
                         onClick={() => setAccIsMultiInstrument(true)}
                         aria-pressed={accIsMultiInstrument}
                         className={cn(
-                          "min-h-11 p-2.5 rounded-xl border text-left transition-[border-color,background-color,color]",
+                          "min-h-11 p-2.5 rounded-md border text-left transition-[border-color,background-color,color]",
                           accIsMultiInstrument
-                            ? "bg-inv-solid/15 border-inv-solid text-white shadow-xs"
+                            ? "bg-[var(--window)] border-[var(--line-strong)] text-[var(--text)]"
                             : "bg-[var(--surface-2)] border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
                         )}
                       >
-                        <div className="flex items-center gap-1.5 font-bold text-xs text-[var(--text)]">
+                        <div className="flex items-center gap-1.5 font-semibold text-xs text-[var(--text)]">
                           <Icon name="layers" className="h-3.5 w-3.5 text-inv-fg" />
                           <span>Platform Multi-Kantong</span>
                         </div>
-                        <p className="text-[10px] text-[var(--muted)] mt-1 leading-relaxed">
+                        <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
                           Bibit, Bareksa, Stockbit. Memiliki banyak produk instrumen yang dikelola per kantong di dalam.
                         </p>
                       </button>
@@ -775,17 +775,17 @@ export function useAccountDialogs() {
                         onClick={() => setAccIsMultiInstrument(false)}
                         aria-pressed={!accIsMultiInstrument}
                         className={cn(
-                          "min-h-11 p-2.5 rounded-xl border text-left transition-[border-color,background-color,color]",
+                          "min-h-11 p-2.5 rounded-md border text-left transition-[border-color,background-color,color]",
                           !accIsMultiInstrument
-                            ? "bg-inv-solid/15 border-inv-solid text-white shadow-xs"
+                            ? "bg-[var(--window)] border-[var(--line-strong)] text-[var(--text)]"
                             : "bg-[var(--surface-2)] border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
                         )}
                       >
-                        <div className="flex items-center gap-1.5 font-bold text-xs text-[var(--text)]">
+                        <div className="flex items-center gap-1.5 font-semibold text-xs text-[var(--text)]">
                           <Icon name="chart" className="h-3.5 w-3.5 text-inv-fg" />
                           <span>Instrumen Tunggal</span>
                         </div>
-                        <p className="text-[10px] text-[var(--muted)] mt-1 leading-relaxed">
+                        <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
                           Binance (langsung Kripto), Emas Fisik, atau akun khusus 1 instrumen tanpa kantong.
                         </p>
                       </button>
@@ -793,25 +793,25 @@ export function useAccountDialogs() {
                   </div>
 
                   {accIsMultiInstrument && (
-                    <div className="p-3 rounded-xl bg-inv-solid/10 border border-inv-solid/20 text-inv-fg text-[11px] leading-relaxed">
+                    <div className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] text-inv-fg text-xs leading-relaxed">
                       💡 Rekening <strong>{accName || "Investasi"}</strong> akan dibuat sebagai akun induk platform. Setelah dibuat, berbagai kantong instrumen dapat ditambahkan (seperti RDPU, Saham BBCA, Bareksa Sukuk, dll) di dalamnya.
                     </div>
                   )}
 
                   <div className="pt-2 border-t border-[var(--line)]">
                     <label htmlFor="account-default-funding" className="font-medium text-[var(--muted)] flex items-center justify-between mb-1.5">
-                      <span className="flex items-center gap-1.5 font-bold text-xs text-[var(--text)]">
+                      <span className="flex items-center gap-1.5 font-semibold text-xs text-[var(--text)]">
                         <Icon name="credit-card" className="h-3.5 w-3.5 text-tr-fg" />
                         <span>Sumber Dana / RDN Default</span>
                       </span>
-                      <span className="text-[10px] text-[var(--muted)]">Opsional</span>
+                      <span className="text-xs text-[var(--muted)]">Opsional</span>
                     </label>
                     <select
                       id="account-default-funding"
                       name="default_funding_account_id"
                       value={accDefaultFundingId}
                       onChange={(e) => setAccDefaultFundingId(e.target.value)}
-                      className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                      className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
                     >
                       <option value="">-- Tanpa RDN / Sumber Default --</option>
                       <AccountSelectOptions
@@ -822,7 +822,7 @@ export function useAccountDialogs() {
                         formatBalance={fmtMoney}
                       />
                     </select>
-                    <p className="text-[10px] text-[var(--muted)] mt-1 leading-relaxed">
+                    <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
                       Notifikasi beli/jual dari broker (misal Stockbit) akan otomatis mendebit rekening ini tanpa memotong budget belanja harian.
                     </p>
                   </div>
@@ -839,9 +839,9 @@ export function useAccountDialogs() {
                   onClick={() => setAccIsMultiInstrument(true)}
                   aria-pressed={accIsMultiInstrument}
                   className={cn(
-                    "min-h-11 px-3 rounded-xl border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
+                    "min-h-11 px-3 rounded-md border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
                     accIsMultiInstrument
-                      ? "bg-tr-solid text-white border-tr-solid shadow-xs"
+                      ? "bg-[var(--window)] text-[var(--text)] border-[var(--line-strong)]"
                       : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--text)]"
                   )}
                 >
@@ -853,9 +853,9 @@ export function useAccountDialogs() {
                   onClick={() => setAccIsMultiInstrument(false)}
                   aria-pressed={!accIsMultiInstrument}
                   className={cn(
-                    "min-h-11 px-3 rounded-xl border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
+                    "min-h-11 px-3 rounded-md border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
                     !accIsMultiInstrument
-                      ? "bg-inv-solid text-inv-solid-fg border-inv-solid shadow-xs"
+                      ? "bg-[var(--window)] text-[var(--text)] border-[var(--line-strong)]"
                       : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--text)]"
                   )}
                 >
@@ -872,7 +872,7 @@ export function useAccountDialogs() {
           {/* Show Instrument Fields if single instrument OR editing investment pocket */}
           {((!editingAccount?.parent_id && accType === "investment" && !accIsMultiInstrument) ||
             (editingAccount?.parent_id && !accIsMultiInstrument)) && (
-            <div className="space-y-3 p-3.5 rounded-2xl bg-inv-solid/5 border border-inv-solid/20">
+            <div className="space-y-3 p-3.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)]">
               <div>
                 <p className="font-medium text-[var(--muted)] block mb-1.5">Tipe instrumen</p>
                 <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
@@ -883,9 +883,9 @@ export function useAccountDialogs() {
                       onClick={() => setAccInstrumentType(opt.value)}
                       aria-pressed={accInstrumentType === opt.value}
                       className={cn(
-                        "min-h-11 px-2 rounded-xl border text-xs font-semibold transition-colors",
+                        "min-h-11 px-2 rounded-md border text-xs font-semibold transition-colors",
                         accInstrumentType === opt.value
-                          ? "bg-inv-solid text-inv-solid-fg border-inv-solid shadow-xs"
+                          ? "bg-[var(--window)] text-[var(--text)] border-[var(--line-strong)]"
                           : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--text)]"
                       )}
                     >
@@ -898,7 +898,7 @@ export function useAccountDialogs() {
               {accInstrumentType !== "deposit" && <div className="relative">
                 <label htmlFor="account-ticker" className="font-medium text-[var(--muted)] flex items-center justify-between mb-1">
                   <span>Simbol Ticker / Kode (Yahoo Finance)</span>
-                  <span className="text-[10px] text-[var(--muted)]">Opsional</span>
+                  <span className="text-xs text-[var(--muted)]">Opsional</span>
                 </label>
                 <div className="relative">
                   <input
@@ -908,7 +908,7 @@ export function useAccountDialogs() {
                     value={accTicker}
                     onChange={(e) => handleSearchTicker(e.target.value, false)}
                     placeholder="Contoh: BBCA, GC=F, AAPL, BTC-USD"
-                    className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] uppercase pr-8 font-semibold"
+                    className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] uppercase pr-8 font-semibold"
                   />
                   {isSearchingTicker && (
                     <div className="absolute right-2.5 top-2.5">
@@ -916,12 +916,12 @@ export function useAccountDialogs() {
                     </div>
                   )}
                 </div>
-                <p className="text-[10px] text-[var(--muted)] mt-1">
+                <p className="text-xs text-[var(--muted)] mt-1">
                   Kosongkan jika produk manual tanpa ticker publik (misal RDPU Bibit / Bareksa).
                 </p>
 
                 {tickerSuggestions.length > 0 && (
-                  <div className="absolute z-50 left-0 right-0 mt-1 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-2xl overflow-hidden max-h-48 overflow-y-auto">
+                  <div className="absolute z-50 left-0 right-0 mt-1 rounded-xl border border-[var(--line)] bg-[var(--dialog)] shadow-float overflow-hidden max-h-48 overflow-y-auto">
                     {tickerSuggestions.map((item) => (
                       <button
                         key={item.symbol}
@@ -939,10 +939,10 @@ export function useAccountDialogs() {
                         className="flex min-h-11 w-full items-center justify-between border-b border-[var(--line)]/50 p-2.5 text-left text-xs hover:bg-[var(--surface-2)] last:border-0"
                       >
                         <div>
-                          <span className="font-bold text-inv-fg">{item.symbol}</span>
+                          <span className="font-semibold text-inv-fg">{item.symbol}</span>
                           <span className="text-[var(--text)] ml-2">{item.name}</span>
                         </div>
-                        <span className="text-[10px] uppercase text-[var(--muted)] px-1.5 py-0.5 rounded bg-[var(--surface-2)] font-medium">
+                        <span className="text-xs uppercase text-[var(--muted)] px-1.5 py-0.5 rounded-md bg-[var(--surface-2)] font-medium">
                           {item.exchange || item.type}
                         </span>
                       </button>
@@ -974,9 +974,9 @@ export function useAccountDialogs() {
                           }
                         }}
                         placeholder={aCfg.unitsPlaceholder}
-                        className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
+                        className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
                       />
-                      <p className="text-[10px] text-[var(--muted)] mt-0.5">{aCfg.unitsHint}</p>
+                      <p className="text-xs text-[var(--muted)] mt-0.5">{aCfg.unitsHint}</p>
                     </div>
                     <div>
                       <label htmlFor="account-average-price" className="font-medium text-[var(--muted)] block mb-1">
@@ -998,7 +998,7 @@ export function useAccountDialogs() {
                           }
                         }}
                         placeholder={aCfg.pricePlaceholder}
-                        className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
+                        className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
                       />
                     </div>
                   </div>
@@ -1044,7 +1044,7 @@ export function useAccountDialogs() {
                       value={accPaymentDay}
                       onChange={(event) => setAccPaymentDay(event.target.value)}
                       placeholder="Contoh: 11"
-                      className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-bold tabular-nums text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)]"
+                      className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-semibold tabular-nums text-[var(--text)]"
                     />
                   )}
                 </FormField>
@@ -1078,14 +1078,14 @@ export function useAccountDialogs() {
             <button
               type="button"
               onClick={() => setAccountModalOpen(false)}
-              className="flex-1 rounded-xl border border-[var(--line)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)]"
+              className="flex-1 rounded-md border border-[var(--line)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)]"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={saveAccountMutation.isPending}
-              className="min-h-11 flex-1 rounded-xl bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50"
+              className="min-h-11 flex-1 rounded-md bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50"
             >
               {saveAccountMutation.isPending
                 ? "Menyimpan…"
@@ -1112,7 +1112,7 @@ export function useAccountDialogs() {
             }}
           >
             {pocketError && (
-              <div role="alert" className="p-3 rounded-xl bg-out-solid/10 border border-out-solid/20 text-out-fg font-medium">
+              <div role="alert" className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] text-out-fg font-medium">
                 {pocketError}
               </div>
             )}
@@ -1133,7 +1133,7 @@ export function useAccountDialogs() {
                     ? "Contoh: Bibit RDPU, Saham BBCA, Bareksa Sukuk"
                     : "Contoh: Tabungan Utama, RDPU BCA, Tabungan Emas"
                 }
-                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
               />
               {pocketNameError && <p id="pocket-name-error" className="mt-1 text-xs text-out-fg">{pocketNameError}</p>}
             </div>
@@ -1146,9 +1146,9 @@ export function useAccountDialogs() {
                   onClick={() => setPocketIsInvestment(false)}
                   aria-pressed={!pocketIsInvestment}
                   className={cn(
-                    "min-h-11 px-3 rounded-xl border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
+                    "min-h-11 px-3 rounded-md border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
                     !pocketIsInvestment
-                      ? "bg-tr-solid text-white border-tr-solid shadow-xs"
+                      ? "bg-[var(--window)] text-[var(--text)] border-[var(--line-strong)]"
                       : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--text)]"
                   )}
                 >
@@ -1160,9 +1160,9 @@ export function useAccountDialogs() {
                   onClick={() => setPocketIsInvestment(true)}
                   aria-pressed={pocketIsInvestment}
                   className={cn(
-                    "min-h-11 px-3 rounded-xl border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
+                    "min-h-11 px-3 rounded-md border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
                     pocketIsInvestment
-                      ? "bg-inv-solid text-inv-solid-fg border-inv-solid shadow-xs"
+                      ? "bg-[var(--window)] text-[var(--text)] border-[var(--line-strong)]"
                       : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--text)]"
                   )}
                 >
@@ -1170,7 +1170,7 @@ export function useAccountDialogs() {
                   <span>Instrumen Investasi</span>
                 </button>
               </div>
-              <p className="text-[10px] text-[var(--muted)] mt-1">
+              <p className="text-xs text-[var(--muted)] mt-1">
                 {pocketIsInvestment
                   ? "Kantong ini untuk instrumen investasi (Saham, Reksadana, Emas, Kripto, Deposito) dengan pemantauan harga pasar / capital gain."
                   : "Kantong ini untuk uang cair atau pos belanja operasional biasa."}
@@ -1180,7 +1180,7 @@ export function useAccountDialogs() {
             <RoleField id="pocket-role" value={pocketRole} onChange={setPocketRole} fixed={pocketIsInvestment ? "investasi" : null} error={pocketRoleError} />
 
             {pocketIsInvestment && (
-              <div className="space-y-3 p-3.5 rounded-2xl bg-inv-solid/5 border border-inv-solid/20">
+              <div className="space-y-3 p-3.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)]">
                 <div>
                   <p className="font-medium text-[var(--muted)] block mb-1.5">Tipe instrumen</p>
                   <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
@@ -1191,9 +1191,9 @@ export function useAccountDialogs() {
                         onClick={() => setPocketInstrumentType(opt.value)}
                         aria-pressed={pocketInstrumentType === opt.value}
                         className={cn(
-                          "min-h-11 px-2 rounded-xl border text-xs font-semibold transition-colors",
+                          "min-h-11 px-2 rounded-md border text-xs font-semibold transition-colors",
                           pocketInstrumentType === opt.value
-                            ? "bg-inv-solid text-inv-solid-fg border-inv-solid shadow-xs"
+                            ? "bg-[var(--window)] text-[var(--text)] border-[var(--line-strong)]"
                             : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--text)]"
                         )}
                       >
@@ -1206,7 +1206,7 @@ export function useAccountDialogs() {
                 {pocketInstrumentType !== "deposit" && <div className="relative">
                   <label htmlFor="pocket-ticker" className="font-medium text-[var(--muted)] flex items-center justify-between mb-1">
                     <span>Simbol Ticker / Kode (Yahoo Finance)</span>
-                    <span className="text-[10px] text-[var(--muted)]">Opsional</span>
+                    <span className="text-xs text-[var(--muted)]">Opsional</span>
                   </label>
                   <div className="relative">
                     <input
@@ -1216,7 +1216,7 @@ export function useAccountDialogs() {
                       value={pocketTicker}
                       onChange={(e) => handleSearchTicker(e.target.value, true)}
                       placeholder="Contoh: BBCA, GC=F, AAPL, BTC-USD"
-                      className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] uppercase pr-8 font-semibold"
+                      className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] uppercase pr-8 font-semibold"
                     />
                     {pocketIsSearchingTicker && (
                       <div className="absolute right-2.5 top-2.5">
@@ -1224,12 +1224,12 @@ export function useAccountDialogs() {
                       </div>
                     )}
                   </div>
-                  <p className="text-[10px] text-[var(--muted)] mt-1">
+                  <p className="text-xs text-[var(--muted)] mt-1">
                     Kosongkan jika produk manual tanpa ticker publik (misal RDPU Bibit / BCA Reksadana). Nilai pasar dapat diupdate berkala via tombol "Perbarui nilai".
                   </p>
 
                   {pocketTickerSuggestions.length > 0 && (
-                    <div className="absolute z-50 left-0 right-0 mt-1 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-2xl overflow-hidden max-h-48 overflow-y-auto">
+                    <div className="absolute z-50 left-0 right-0 mt-1 rounded-xl border border-[var(--line)] bg-[var(--dialog)] shadow-float overflow-hidden max-h-48 overflow-y-auto">
                       {pocketTickerSuggestions.map((item) => (
                         <button
                           key={item.symbol}
@@ -1247,10 +1247,10 @@ export function useAccountDialogs() {
                           className="flex min-h-11 w-full items-center justify-between border-b border-[var(--line)]/50 p-2.5 text-left text-xs hover:bg-[var(--surface-2)] last:border-0"
                         >
                           <div>
-                            <span className="font-bold text-inv-fg">{item.symbol}</span>
+                            <span className="font-semibold text-inv-fg">{item.symbol}</span>
                             <span className="text-[var(--text)] ml-2">{item.name}</span>
                           </div>
-                          <span className="text-[10px] uppercase text-[var(--muted)] px-1.5 py-0.5 rounded bg-[var(--surface-2)] font-medium">
+                          <span className="text-xs uppercase text-[var(--muted)] px-1.5 py-0.5 rounded-md bg-[var(--surface-2)] font-medium">
                             {item.exchange || item.type}
                           </span>
                         </button>
@@ -1282,9 +1282,9 @@ export function useAccountDialogs() {
                             }
                           }}
                           placeholder={pCfg.unitsPlaceholder}
-                          className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
+                          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
                         />
-                        <p className="text-[10px] text-[var(--muted)] mt-0.5">{pCfg.unitsHint}</p>
+                        <p className="text-xs text-[var(--muted)] mt-0.5">{pCfg.unitsHint}</p>
                       </div>
                       <div>
                         <label htmlFor="pocket-average-price" className="font-medium text-[var(--muted)] block mb-1">
@@ -1306,7 +1306,7 @@ export function useAccountDialogs() {
                             }
                           }}
                           placeholder={pCfg.pricePlaceholder}
-                          className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
+                          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
                         />
                       </div>
                     </div>
@@ -1333,14 +1333,14 @@ export function useAccountDialogs() {
               <button
                 type="button"
                 onClick={() => setPocketModalOpen(false)}
-                className="flex-1 rounded-xl border border-[var(--line)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)]"
+                className="flex-1 rounded-md border border-[var(--line)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)]"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={savePocketMutation.isPending}
-                className="min-h-11 flex-1 rounded-xl bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50"
+                className="min-h-11 flex-1 rounded-md bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50"
               >
                 {savePocketMutation.isPending ? "Menyimpan…" : "Buat Kantong"}
               </button>
@@ -1364,7 +1364,7 @@ export function useAccountDialogs() {
             }}
           >
             {valError && (
-              <div role="alert" className="p-3 rounded-xl bg-out-solid/10 border border-out-solid/20 text-out-fg font-medium">
+              <div role="alert" className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] text-out-fg font-medium">
                 {valError}
               </div>
             )}
@@ -1373,15 +1373,15 @@ export function useAccountDialogs() {
               Perbarui nilai pasar investasi terkini (misal dari aplikasi Bibit, Bareksa, atau harga penutupan). Untung/rugi dihitung otomatis terhadap modal beli.
             </p>
 
-            <div className="p-3.5 rounded-2xl bg-[var(--surface-2)] border border-[var(--line)] space-y-1.5">
+            <div className="p-3.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-[var(--muted)]">Nilai Tercatat Saat Ini:</span>
-                <span className="font-bold tabular text-sm text-[var(--text)]">
+                <span className="font-semibold tabular text-sm text-[var(--text)]">
                   {bal(valuationAccount.balance)}
                 </span>
               </div>
               {valuationAccount.units && valuationAccount.avg_buy_price ? (
-                <div className="flex items-center justify-between text-[11px] text-[var(--muted)] pt-1.5 border-t border-[var(--line)]/50">
+                <div className="flex items-center justify-between text-xs text-[var(--muted)] pt-1.5 border-t border-[var(--line)]/50">
                   <span>Kepemilikan:</span>
                   <span className="tabular text-[var(--text)]">
                     {valuationAccount.units} {getInstrumentConfig(valuationAccount.instrument_type).unitUnit} @ {fmtMoney(valuationAccount.avg_buy_price)}
@@ -1402,9 +1402,9 @@ export function useAccountDialogs() {
                 value={valCurrentBalStr}
                 onChange={(e) => setValCurrentBalStr(formatNumberWithDots(e.target.value))}
                 placeholder="Contoh: 10.450.000"
-                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-base font-bold tabular text-[var(--text)]"
+                className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-base font-semibold tabular text-[var(--text)]"
               />
-              <p className="text-[10px] text-[var(--muted)] mt-1">
+              <p className="text-xs text-[var(--muted)] mt-1">
                 Nilai portofolio total saat ini dari aplikasi atau pantauan harga terbaru.
               </p>
             </div>
@@ -1421,9 +1421,9 @@ export function useAccountDialogs() {
                 value={valCostBasisStr}
                 onChange={(e) => setValCostBasisStr(formatNumberWithDots(e.target.value))}
                 placeholder="Contoh: 10.000.000"
-                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
+                className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
               />
-              <p className="text-[10px] text-[var(--muted)] mt-1">
+              <p className="text-xs text-[var(--muted)] mt-1">
                 Total modal bersih yang dibayarkan saat membeli ({valuationAccount.units ? `${valuationAccount.units} ${getInstrumentConfig(valuationAccount.instrument_type).unitUnit}` : "aset ini"}).
               </p>
             </div>
@@ -1441,7 +1441,7 @@ export function useAccountDialogs() {
                     <span className="text-[var(--muted)]">Estimasi untung/rugi:</span>
                     <span
                       className={cn(
-                        "font-bold text-xs",
+                        "font-semibold text-xs",
                         gain >= 0 ? "text-in-fg" : "text-out-fg"
                       )}
                     >
@@ -1463,7 +1463,7 @@ export function useAccountDialogs() {
                 value={valNotes}
                 onChange={(e) => setValNotes(e.target.value)}
                 placeholder="Contoh: Update return bulanan RDPU Bibit"
-                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
               />
             </div>
 
@@ -1500,7 +1500,7 @@ export function useAccountDialogs() {
             }}
           >
             {reconcileError && (
-              <div role="alert" className="p-3 rounded-xl bg-out-solid/10 border border-out-solid/20 text-out-fg font-medium">
+              <div role="alert" className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] text-out-fg font-medium">
                 {reconcileError}
               </div>
             )}
@@ -1509,9 +1509,9 @@ export function useAccountDialogs() {
               Masukkan nominal saldo yang saat ini tercatat pada aplikasi bank atau dompet fisik. Transaksi penyesuaian akan dicatat secara otomatis jika ada selisih.
             </p>
 
-            <div className="p-3.5 rounded-2xl bg-[var(--surface-2)] border border-[var(--line)] flex items-center justify-between">
+            <div className="p-3.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] flex items-center justify-between">
               <span className="text-[var(--muted)]">Saldo Tercatat Saat Ini:</span>
-              <span className="font-bold tabular text-sm text-[var(--text)]">
+              <span className="font-semibold tabular text-sm text-[var(--text)]">
                 {bal(reconcileAccount.balance)}
               </span>
             </div>
@@ -1537,7 +1537,7 @@ export function useAccountDialogs() {
                     <span className="text-[var(--muted)]">Penyesuaian Selisih:</span>
                     <span
                       className={cn(
-                        "font-bold text-xs",
+                        "font-semibold text-xs",
                         diff > 0
                           ? "text-in-fg"
                           : diff < 0
@@ -1563,7 +1563,7 @@ export function useAccountDialogs() {
                 value={reconcileNotes}
                 onChange={(e) => setReconcileNotes(e.target.value)}
                 placeholder="Contoh: Biaya admin bulanan bank atau pembulatan"
-                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
               />
             </div>
 

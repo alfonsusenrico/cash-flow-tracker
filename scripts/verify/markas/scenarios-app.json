@@ -1,0 +1,427 @@
+[
+ {
+  "name": "beranda",
+  "path": "/"
+ },
+ {
+  "name": "tinjau",
+  "path": "/review"
+ },
+ {
+  "name": "transaksi",
+  "path": "/ledger"
+ },
+ {
+  "name": "analisis",
+  "path": "/insights"
+ },
+ {
+  "name": "analisis-kalender",
+  "path": "/insights",
+  "steps": [
+   {
+    "click": "^Kalender$"
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "analisis-peta-aliran",
+  "path": "/insights",
+  "steps": [
+   {
+    "click": "^Peta Aliran$",
+    "after": 2000
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "laporan",
+  "path": "/laporan"
+ },
+ {
+  "name": "rekening",
+  "path": "/accounts",
+  "steps": [
+   {
+    "click": "^Kartu$"
+   },
+   {
+    "click": "^Per kegunaan$"
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "rekening-grafik",
+  "path": "/accounts",
+  "steps": [
+   {
+    "click": "^Grafik$"
+   },
+   {
+    "click": "^Per kegunaan$"
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "rekening-per-rekening",
+  "path": "/accounts",
+  "steps": [
+   {
+    "click": "^Kartu$"
+   },
+   {
+    "click": "^Per rekening$"
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "target",
+  "path": "/goals"
+ },
+ {
+  "name": "pengaturan",
+  "path": "/settings"
+ },
+ {
+  "name": "pengaturan-profil",
+  "path": "/settings/profil"
+ },
+ {
+  "name": "pengaturan-gaji",
+  "path": "/settings/gaji"
+ },
+ {
+  "name": "pengaturan-anggaran",
+  "path": "/settings/anggaran"
+ },
+ {
+  "name": "pengaturan-pemetaan",
+  "path": "/settings/pemetaan"
+ },
+ {
+  "name": "pengaturan-pengirim",
+  "path": "/settings/pengirim"
+ },
+ {
+  "name": "pengaturan-perangkat",
+  "path": "/settings/perangkat"
+ },
+ {
+  "name": "pengaturan-kebiasaan",
+  "path": "/settings/kebiasaan"
+ },
+ {
+  "name": "pengaturan-sesi-uji",
+  "path": "/settings/sesi-uji"
+ },
+ {
+  "name": "pengaturan-tampilan",
+  "path": "/settings/tampilan"
+ },
+ {
+  "name": "dlg-catat-tulis",
+  "path": "/",
+  "steps": [
+   {
+    "click": "^Catat( transaksi)?( Catat)?$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-catat-manual",
+  "path": "/",
+  "steps": [
+   {
+    "click": "^Catat( transaksi)?( Catat)?$"
+   },
+   {
+    "click": "^Isi manual$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-catat-perpindahan",
+  "path": "/",
+  "steps": [
+   {
+    "click": "^Catat( transaksi)?( Catat)?$"
+   },
+   {
+    "click": "^Isi manual$"
+   },
+   {
+    "click": "^Perpindahan$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-transaksi-detail",
+  "path": "/ledger",
+  "steps": [
+   {
+    "click": "^SPBU Contoh",
+    "after": 2500
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-transaksi-ubah",
+  "path": "/ledger",
+  "steps": [
+   {
+    "click": "^SPBU Contoh",
+    "after": 2500
+   },
+   {
+    "click": "^Ubah$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-transaksi-filter",
+  "path": "/ledger",
+  "steps": [
+   {
+    "click": "^Filter"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-rekening-detail",
+  "path": "/accounts",
+  "steps": [
+   {
+    "click": "^ATM, kantong di BCA"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-cocokkan-saldo",
+  "path": "/accounts",
+  "steps": [
+   {
+    "click": "^ATM, kantong di BCA"
+   },
+   {
+    "click": "^Cocokkan saldo$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-investasi-detail",
+  "path": "/accounts",
+  "steps": [
+   {
+    "click": "^Saham Contoh Bank"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-tinjau-item",
+  "path": "/review",
+  "steps": [
+   {
+    "click": "Pembayaran QRIS ?3 Nov"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-notifikasi",
+  "path": "/",
+  "steps": [
+   {
+    "click": "^Notifikasi"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-target-detail",
+  "path": "/goals",
+  "steps": [
+   {
+    "click": "^Dana Darurat ?Tercapai"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-utang-kelola",
+  "path": "/goals",
+  "steps": [
+   {
+    "click": "^Kelola$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-rencana",
+  "path": "/goals",
+  "steps": [
+   {
+    "click": "^Rencana$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-penjelasan-angka",
+  "path": "/",
+  "steps": [
+   {
+    "click": "Rp 797\\.249$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-bantuan",
+  "path": "/",
+  "steps": [
+   {
+    "key": [
+     "?",
+     "Slash",
+     191,
+     8,
+     "?"
+    ]
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark"
+  ]
+ },
+ {
+  "name": "dlg-tema",
+  "path": "/",
+  "steps": [
+   {
+    "click": "^Tema:"
+   }
+  ],
+  "cells": [
+   "1440-light"
+  ]
+ },
+ {
+  "name": "dlg-lainnya-ponsel",
+  "path": "/",
+  "steps": [
+   {
+    "click": "^Lainnya$"
+   }
+  ],
+  "cells": [
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-tinjau-ubah-kategori",
+  "path": "/review",
+  "steps": [
+   {
+    "click": "Pembayaran QRIS ?3 Nov"
+   },
+   {
+    "click": "^Ubah kategori"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light"
+  ]
+ },
+ {
+  "name": "dlg-laporan-tak-terduga",
+  "path": "/laporan",
+  "steps": [
+   {
+    "click": "Tak terduga, tagihan berulang dan biaya hidup pokok"
+   }
+  ],
+  "cells": [
+   "1440-light"
+  ],
+  "full": true
+ },
+ {
+  "name": "komponen",
+  "path": "/komponen",
+  "componentSheet": true
+ }
+]

@@ -99,10 +99,10 @@ function EssentialBrief({ report }: { report: MonthlyReport }) {
         <p className="mt-1 text-[var(--text-2)]">Belum bisa dihitung. Butuh satu bulan lengkap atau anggaran Kebutuhan.</p>
       ) : (
         <p className="mt-1 text-[var(--text)]">
-          <span className="font-bold tabular-nums">{bal(essential.amount)}</span> per bulan
+          <span className="font-semibold tabular-nums">{bal(essential.amount)}</span> per bulan
           {essential.coverage_months !== null && (
             <>
-              {" "}· dana darurat cukup untuk <span className="font-bold tabular-nums">{essential.coverage_months.toLocaleString("id-ID")}</span> bulan
+              {" "}· dana darurat cukup untuk <span className="font-semibold tabular-nums">{essential.coverage_months.toLocaleString("id-ID")}</span> bulan
             </>
           )}
           {essential.limited_history && <span className="text-[var(--text-2)]"> (riwayat masih sedikit)</span>}

@@ -28,7 +28,6 @@ const hidden = vi.hoisted(() => ({ on: false }));
 vi.mock("@/components/layout/AppLayout", () => ({
   useAppCtx: () => ({ bal: (amount: number) => (hidden.on ? "••••" : `Rp ${amount.toLocaleString("id-ID")}`) }),
 }));
-vi.mock("@/hooks/useAnimatedCounter", () => ({ useAnimatedCounter: (amount: number) => amount }));
 
 const investmentParent = {
   id: "investment-parent",

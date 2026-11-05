@@ -1,228 +1,220 @@
 /* Cash Flow Tracker — workspace design tokens.
  *
- * Values: the pre-redesign "Coral Terminal" palette (commit 6cc6704, frontend/tokens.css), set on the
- * semantic token names of the workspace (refine-workspace-layout D1). Cool grey paper and white cards in
- * light, pitch obsidian in dark, one hot coral accent for the primary action and the active item, and
- * semantic pairs (soft fill + text ink of the same hue) for income emerald, expense coral, transfer sky,
- * investment lavender and warning amber. Information that is none of these uses the neutral tokens.
- * Tokens without an old counterpart are derived from the nearest old value (verification.md lists them).
+ * Values: option 6 "Markas+" (cash-flow-tracker-prototypes design-options/option-6/styles.css, accepted by the
+ * owner on 2026-11-05), set on the workspace's semantic token names (apply-markas-foundation D3). Warm paper
+ * neutrals in light and soft charcoal in dark, one coral accent for the primary action and the selection
+ * bar, text inks for income, expense, transfer, investment and warning, and mark colours that are never
+ * text. Concepts the app had no name for take the prototype's names (--dialog, --field-focus, --ring, --fs-*,
+ * --sp-*, --r-*, --t-*). Chart tokens without a prototype counterpart (--heat-*, --band-op, --kind-*) keep
+ * their values until their page is rebuilt.
  *
  * Light is the default; the dark theme applies with the `.dark` class on <html>, which the pre-paint
- * theme script in layout.tsx sets before the first paint (light, dark or "Ikuti sistem").
+ * theme script in layout.tsx sets before the first paint (light, dark or "Ikuti sistem"). `.theme-light` repeats
+ * the light values for the development-only component sheet, which shows both themes side by side.
  */
 
-:root {
+:root, .theme-light {
   color-scheme: light;
 
-  /* Surfaces and ink. Window and canvas are the same paper, so the workspace fills the page. */
-  --canvas: #E8ECEF;
-  --window: #E8ECEF;
-  --surface: #FFFFFF;
-  --surface-2: #EEF2F5;
-  --surface-3: #D8DFE5;
-  --line: rgba(10, 13, 20, 0.09);
-  --line-strong: rgba(10, 13, 20, 0.18);
-  --text: #0A0D14;
-  --text-2: #343E4E;
-  --muted: #4E5D70;
-  /* Icon tiles beside card titles; the tile repeats its label, so it is decorative. */
-  --tile: #E2E8F0;
-  --tile-fg: #343E4E;
-  /* The sidebar column and its hover, a step apart from the paper as in the old app. */
-  --nav-bg: #F0F3F6;
-  --nav-hover: #E2E8F0;
-  /* Structural dark fill: toasts, tooltips, pressed chips, switches. */
-  --ink: #0A0D14;
-  --ink-hover: #343E4E;
-  --ink-fg: #FFFFFF;
+  /* Families: Inter for text and amounts, Manrope for titles and the hero figure (SPEC §1). */
+  --font-sans: var(--font-inter), "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font-manrope), "Manrope", var(--font-inter), "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* cv11 is Inter's single-storey a. Inter's tnum also widens the hyphen, so prose keeps proportional
+     figures and only amounts, counts, times, tables and fields are tabular (--features-num). */
+  --features-text: "lnum" 1, "cv11" 1;
+  --features-num: "tnum" 1, "lnum" 1, "cv11" 1;
+  --features-display: "lnum" 1;
+  --features-hero: "tnum" 1, "lnum" 1;
 
-  /* Coral accent: the primary action ("+ Catat") and the active navigation item. Text on the coral uses
-   * --accent-ink; coral-coloured text on a surface uses the darker --accent-fg. */
+  /* The seven sizes, the spacing steps, the three radii and the two motion timings. */
+  --fs-12: 12px;
+  --fs-14: 14px;
+  --fs-16: 16px;
+  --fs-20: 20px;
+  --fs-24: 24px;
+  --fs-32: 32px;
+  --fs-44: 44px;
+  --sp-4: 4px;
+  --sp-8: 8px;
+  --sp-12: 12px;
+  --sp-16: 16px;
+  --sp-24: 24px;
+  --sp-32: 32px;
+  --sp-48: 48px;
+  --sp-64: 64px;
+  --r-control: 6px;
+  --r-panel: 12px;
+  --r-layer: 16px;
+  --t-state: 140ms cubic-bezier(0.2, 0, 0, 1);
+  --t-layer: 200ms cubic-bezier(0.2, 0, 0, 1);
+
+  /* Surfaces (--s0, --s1, --s2) and lines. Cards and panels take --s1, the prototype's panel tone. */
+  --canvas: #F8F7F4;
+  --window: #F8F7F4;
+  --surface: #F1EFEB;
+  --surface-2: #E6E3DD;
+  --surface-3: #E6E3DD;
+  --dialog: #F8F7F4;
+  --line: #E1DDD6;
+  --line-strong: #847F78;
+  --text: #1C1E22;
+  --text-2: #5B5E65;
+  --muted: #5B5E65;
+  --tile: #E6E3DD;
+  --tile-fg: #5B5E65;
+  --nav-bg: #F1EFEB;
+  --nav-hover: #E6E3DD;
+  --ink: #1C1E22;
+  --ink-hover: #45484F;
+  --ink-fg: #F8F7F4;
+
+  /* Coral: the primary fill (--accent with --accent-ink text), the selection bar and coral text (--accent-fg). */
   --accent: #FF334B;
-  --accent-hover: #F02A42;
+  --accent-hover: #FF4D61;
+  --accent-pressed: #FF6B7C;
   --accent-ink: #0A0D14;
-  --accent-soft: #FFE8EC;
+  --accent-soft: #E6E3DD;
   --accent-fg: #B8142D;
 
-  /* Semantic pairs: soft fill and text ink of the same hue, 4.5:1 or better on every surface and on
-   * their own fill. Hues: income emerald, expense coral, transfer sky, investment lavender, warning amber. */
-  --in-bg: #ECFDF5;
+  /* Text inks. The former soft fills are the neutral badge fill: badges carry the ink on --surface-2. */
+  --in-bg: #E6E3DD;
   --in-fg: #056548;
-  --out-bg: #FFE8EC;
+  --out-bg: #E6E3DD;
   --out-fg: #B8142D;
-  --tr-bg: #E0F2FE;
+  --tr-bg: #E6E3DD;
   --tr-fg: #075985;
-  --inv-bg: #F5F3FF;
+  --inv-bg: #E6E3DD;
   --inv-fg: #5B21B6;
-  --warn-bg: #FEF3C7;
+  --warn-bg: #E6E3DD;
   --warn-fg: #8F4F04;
-  --ok-bg: #ECFDF5;
+  --ok-bg: #E6E3DD;
   --ok-fg: #056548;
-  --ok-dot: #059669;
+  --ok-dot: #047857;
 
-  /* Solid semantic fills for bars, dots and the few solid buttons. */
-  --in-solid: #059669;
-  --in-solid-hover: #047857;
-  --out-solid: #FF334B;
-  --out-solid-hover: #E02038;
-  --tr-solid: #0EA5E9;
-  --inv-solid: #8B5CF6;
-  --warn-solid: #F59E0B;
-  --danger-solid: #E02038;
-  --danger-solid-hover: #9F1239;
+  /* Mark colours: dots, bars and chart marks, never text. */
+  --in-solid: #047857;
+  --out-solid: #E11D48;
+  --tr-solid: #0284C7;
+  --inv-solid: #7C3AED;
+  --warn-solid: #B45309;
+  --danger-solid: #B8142D;
+  --danger-solid-hover: #A9122A;
   --danger-contrast: #FFFFFF;
 
-  /* Kakeibo pillars, the old app's hues: need fjord blue 227, want plum 316, culture olive 70, unexpected
-   * terracotta 23 and saving forest green 134, each at least 25 degrees from the income, expense,
-   * transfer and investment hues. Each is a text ink (4.5:1 on every surface and its soft fill) and a
-   * chart mark (3:1 on the tracks). "Belum diklasifikasi" stays a neutral slate: it is missing
-   * information, not a sixth kind of spending. */
-  --k-need: #2448C4;
-  --k-need-soft: #EEF2FF;
-  --k-want: #A21C7E;
-  --k-want-soft: #FDF2F8;
-  --k-culture: #56640F;
-  --k-culture-soft: #F7F9E6;
-  --k-unexpected: #9E440D;
-  --k-unexpected-soft: #FFF1EA;
-  --k-saving: #296B38;
-  --k-saving-soft: #EEF7F0;
-  --k-none: #475569;
-  --k-none-soft: #F1F5F9;
+  /* Kakeibo pillars: marks only, always beside the pillar's name (D4). "Belum diklasifikasi" stays neutral. */
+  --k-need: #7C3AED;
+  --k-need-soft: #E6E3DD;
+  --k-want: #E11D48;
+  --k-want-soft: #E6E3DD;
+  --k-culture: #0369A1;
+  --k-culture-soft: #E6E3DD;
+  --k-unexpected: #B45309;
+  --k-unexpected-soft: #E6E3DD;
+  --k-saving: #047857;
+  --k-saving-soft: #E6E3DD;
+  --k-none: #64748B;
+  --k-none-soft: #E6E3DD;
 
-  /* Analisis: calendar heat (each level also writes its amount) and Peta Aliran ribbons
-   * (patterns, not colour alone, mark Pindah saldo, investment and waiting money). */
+  /* Analisis: calendar heat and Peta Aliran ribbons (heat and band opacity change with their page). */
   --heat-1: #FFF1F3;
   --heat-2: #FFDDE2;
   --heat-3: #FFC4CC;
   --heat-4: #FFA6B3;
   --heat-5: #FF8899;
-  --flow-in: #059669;
+  --flow-in: #047857;
   --flow-tr: var(--tr-solid);
-  --flow-inv: #8B5CF6;
-  --flow-warn: #D97706;
-  --flow-left: #94A3B8;
-  --flow-other: #94A3B8;
+  --flow-inv: #7C3AED;
+  --flow-warn: #B45309;
+  --flow-left: #64748B;
+  --flow-other: #64748B;
   --band-op: 0.42;
 
-  /* Rekening & Kantong uses (organize-accounts-by-use D7): the four categorical slots validated with the
-   * dataviz validator, for Uang harian, Tabungan, Dana investasi and Investasi. They are marks only (bars,
-   * rings, card edges): every segment is also labelled in text, and text keeps the text tokens. Utang uses
-   * --out-solid. The kind steps are violet steps that tell Emas, Reksa dana and Saham apart inside
-   * Investasi, always beside their label. */
-  --use-harian: #059669;
-  --use-tabungan: #B7791F;
-  --use-dana: #0EA5E9;
-  --use-investasi: #8B5CF6;
+  /* Rekening & Kantong uses take the prototype's marks; the investment kind steps change with their page. */
+  --use-harian: #64748B;
+  --use-tabungan: #047857;
+  --use-dana: #0284C7;
+  --use-investasi: #7C3AED;
   --kind-emas: #C4B5FD;
   --kind-reksa-dana: #8B5CF6;
   --kind-saham: #5B21B6;
 
-  /* Focus ring: the text colour, so it reads on the paper, surfaces and the coral item alike. */
-  --focus: #0A0D14;
-  --scrim: rgba(8, 10, 14, 0.4);
+  /* Focus is neutral: a 2 px keyboard outline for controls; a 1 px edge and a soft ring for fields. */
+  --focus: #45484F;
+  --field-focus: #2B2D32;
+  --ring: rgba(28, 30, 34, 0.10);
+  --scrim: rgba(28, 26, 22, 0.44);
 
-  /* Elevation. Cards carry --shadow-card; floating layers (drawers, sheets, popovers, dialogs, menus,
-   * the toast and the phone tab bar) carry --shadow-float. --shadow-xs is the 1px raise of plain chips
-   * and buttons and stays lighter than --shadow-sm. */
-  --shadow-window: none;
-  --shadow-card: 0 1px 2px rgba(8, 10, 14, 0.04);
-  --shadow-float: 0 14px 36px -6px rgba(8, 10, 14, 0.18);
-  --shadow-xs: 0 1px 2px 0 rgba(8, 10, 14, 0.04);
-  --shadow-sm: 0 2px 8px -1px rgba(8, 10, 14, 0.06);
-  --shadow-md: 0 10px 28px -4px rgba(8, 10, 14, 0.1);
+  /* Only floating layers cast a shadow: dialogs, sheets, popovers, menus and toasts. */
+  --shadow-float: 0 16px 48px rgba(40, 34, 26, 0.14), 0 2px 6px rgba(40, 34, 26, 0.06);
 
-  /* Geometry */
-  --radius-window: 28px;
-  --radius-card: 20px;
-  --radius-btn: 12px;
-  --radius-xs: 8px;
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 18px;
-  --radius-xl: 22px;
-  --radius-2xl: 26px;
-  --radius-3xl: 32px;
-  --radius-pill: 9999px;
+  /* Shell geometry until the shell phase replaces it. */
   --sidebar-width: 248px;
   --rail-width: 76px;
-
-  /* Typography */
-  --font-body: var(--font-jakarta), "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: var(--font-body);
-  --font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-
-  /* Text on the income and transfer solids, and on the investment solid (raw because the light and dark
-     solids need different inks for 4.5:1). */
-  --in-solid-fg: #0A0D14;
-  --in-solid-hover-fg: #FFFFFF;
-  --tr-solid-fg: #0A0D14;
-  --inv-solid-fg: #0A0D14;
 }
 
 .dark {
   color-scheme: dark;
 
-  --canvas: #050608;
-  --window: #050608;
-  --surface: #0E1118;
-  --surface-2: #141A24;
-  --surface-3: #181E2A;
-  --line: rgba(255, 255, 255, 0.08);
-  --line-strong: rgba(255, 255, 255, 0.16);
-  --text: #F8FAFC;
-  --text-2: #94A3B8;
-  --muted: #8B9AAF;
-  --tile: #181E2A;
-  --tile-fg: #94A3B8;
-  --nav-bg: #020305;
-  --nav-hover: #0A0D14;
-  --ink: #F8FAFC;
-  --ink-hover: #CBD5E1;
-  --ink-fg: #0A0D14;
+  --canvas: #151517;
+  --window: #151517;
+  --surface: #1C1D20;
+  --surface-2: #26272B;
+  --surface-3: #26272B;
+  --dialog: #1C1D20;
+  --line: #2F3034;
+  --line-strong: #6E7076;
+  --text: #E8E7E4;
+  --text-2: #A3A3A7;
+  --muted: #A3A3A7;
+  --tile: #26272B;
+  --tile-fg: #A3A3A7;
+  --nav-bg: #1C1D20;
+  --nav-hover: #26272B;
+  --ink: #E8E7E4;
+  --ink-hover: #BDBEC2;
+  --ink-fg: #151517;
 
   --accent: #FF4757;
   --accent-hover: #FF6675;
+  --accent-pressed: #FF8A95;
   --accent-ink: #0A0D14;
-  --accent-soft: rgba(255, 71, 87, 0.18);
-  --accent-fg: #FF4757;
+  --accent-soft: #26272B;
+  --accent-fg: #FF6B78;
 
-  --in-bg: rgba(16, 185, 129, 0.16);
-  --in-fg: #10B981;
-  --out-bg: rgba(255, 71, 87, 0.18);
-  --out-fg: #FF5263;
-  --tr-bg: rgba(56, 189, 248, 0.14);
+  --in-bg: #26272B;
+  --in-fg: #34D399;
+  --out-bg: #26272B;
+  --out-fg: #FF6B78;
+  --tr-bg: #26272B;
   --tr-fg: #38BDF8;
-  --inv-bg: rgba(167, 139, 250, 0.16);
-  --inv-fg: #A78BFA;
-  --warn-bg: rgba(251, 191, 36, 0.16);
+  --inv-bg: #26272B;
+  --inv-fg: #B39DFB;
+  --warn-bg: #26272B;
   --warn-fg: #FBBF24;
-  --ok-bg: rgba(16, 185, 129, 0.16);
-  --ok-fg: #10B981;
+  --ok-bg: #26272B;
+  --ok-fg: #34D399;
   --ok-dot: #10B981;
 
   --in-solid: #10B981;
-  --in-solid-hover: #34D399;
   --out-solid: #FF4757;
-  --out-solid-hover: #FF6675;
-  --tr-solid: #38BDF8;
-  --inv-solid: #A78BFA;
-  --warn-solid: #FBBF24;
-  --danger-solid: #9F1239;
-  --danger-solid-hover: #881337;
+  --tr-solid: #0EA5E9;
+  --inv-solid: #8B5CF6;
+  --warn-solid: #F59E0B;
+  --danger-solid: #E11D48;
+  --danger-solid-hover: #CF1B42;
 
-  --k-need: #8099F5;
-  --k-need-soft: rgba(128, 153, 245, 0.16);
-  --k-want: #E879C6;
-  --k-want-soft: rgba(232, 121, 198, 0.16);
-  --k-culture: #B5C350;
-  --k-culture-soft: rgba(181, 195, 80, 0.16);
-  --k-unexpected: #F0915A;
-  --k-unexpected-soft: rgba(240, 145, 90, 0.16);
-  --k-saving: #7AC68A;
-  --k-saving-soft: rgba(122, 198, 138, 0.16);
+  --k-need: #8B5CF6;
+  --k-need-soft: #26272B;
+  --k-want: #FF4757;
+  --k-want-soft: #26272B;
+  --k-culture: #38BDF8;
+  --k-culture-soft: #26272B;
+  --k-unexpected: #FBBF24;
+  --k-unexpected-soft: #26272B;
+  --k-saving: #10B981;
+  --k-saving-soft: #26272B;
   --k-none: #94A3B8;
-  --k-none-soft: rgba(148, 163, 184, 0.16);
+  --k-none-soft: #26272B;
 
   --heat-1: #1C1218;
   --heat-2: #2C1419;
@@ -230,30 +222,25 @@
   --heat-4: #571B26;
   --heat-5: #70202E;
   --flow-in: #10B981;
-  --flow-inv: #A78BFA;
-  --flow-warn: #FBBF24;
-  --flow-left: #64748B;
-  --flow-other: #8B9AAF;
+  --flow-inv: #8B5CF6;
+  --flow-warn: #F59E0B;
+  --flow-left: #94A3B8;
+  --flow-other: #94A3B8;
   --band-op: 0.5;
 
-  --use-harian: #0F9A6E;
-  --use-tabungan: #A9772A;
-  --use-dana: #2290CC;
-  --use-investasi: #8F6BEF;
+  --use-harian: #94A3B8;
+  --use-tabungan: #10B981;
+  --use-dana: #0EA5E9;
+  --use-investasi: #8B5CF6;
   --kind-emas: #5B45A8;
   --kind-reksa-dana: #8F6BEF;
   --kind-saham: #C4B5FD;
 
-  --focus: #F8FAFC;
-  --scrim: rgba(0, 0, 0, 0.6);
+  --focus: #BDBEC2;
+  /* One step lighter than the prototype's #C9C9CC (2.996:1), so the focused edge reaches 3:1 against --line-strong (owner, 2026-11-05). */
+  --field-focus: #CACACD;
+  --ring: rgba(232, 231, 228, 0.12);
+  --scrim: rgba(8, 8, 9, 0.62);
 
-  --shadow-window: none;
-  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.02);
-  --shadow-float: 0 18px 48px -6px rgba(0, 0, 0, 0.85);
-  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-sm: 0 4px 14px -2px rgba(0, 0, 0, 0.7);
-  --shadow-md: 0 14px 36px -4px rgba(0, 0, 0, 0.9);
-
-  --in-solid-hover-fg: #0A0D14;
-  --inv-solid-fg: #0A0D14;
+  --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
 }

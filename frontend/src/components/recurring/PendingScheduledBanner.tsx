@@ -102,9 +102,9 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
   return (
     <div className="space-y-3">
       {autoLinks.length > 0 && (
-        <section aria-labelledby="auto-linked-title" className="space-y-2 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 text-xs text-[var(--text)] sm:p-5">
+        <section aria-labelledby="auto-linked-title" className="space-y-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-xs text-[var(--text)] sm:p-5">
           <div>
-            <h2 id="auto-linked-title" className="text-xs font-bold sm:text-sm">Ditautkan otomatis</h2>
+            <h2 id="auto-linked-title" className="text-xs font-semibold sm:text-sm">Ditautkan otomatis</h2>
             <p className="mt-0.5 text-[var(--text-2)]">
               Satu-satunya transaksi tercatat yang sama persis (rekening, nominal, sekitar jatuh tempo) dikaitkan ke rencana
               ini. Batalkan jika keliru; transaksi itu tidak akan dikaitkan otomatis lagi ke rencana yang sama.
@@ -122,7 +122,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                       {link.obligation_name && link.obligation_name !== link.name ? ` · ${link.obligation_name}` : ""}
                     </p>
                     <p className="text-[var(--text-2)]">
-                      <span className="mr-1 inline-flex rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-1.5 font-semibold text-[var(--text)]">
+                      <span className="mr-1 inline-flex rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-1.5 font-semibold text-[var(--text)]">
                         Ditautkan otomatis
                       </span>
                       <span className="tabular-nums">Jatuh tempo {planDay(link.scheduled_for)} · {autoLinkLabel(link)}</span>
@@ -136,7 +136,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                     disabled={Boolean(busy)}
                     onClick={() => unlink.mutate(link)}
                     aria-label={`Batalkan tautan ${link.name} jatuh tempo ${planDay(link.scheduled_for)}`}
-                    className="min-h-11 shrink-0 rounded-lg border border-[var(--line)] px-3 font-semibold disabled:opacity-50"
+                    className="min-h-11 shrink-0 rounded-md border border-[var(--line)] px-3 font-semibold disabled:opacity-50"
                   >
                     Batalkan tautan
                   </button>
@@ -149,15 +149,15 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
       {dueRules.length > 0 && (
       <section
         aria-labelledby="due-plans-title"
-        className="space-y-3 rounded-2xl border border-warn-solid/20 bg-warn-solid/10 p-4 text-[var(--text)] sm:p-5"
+        className="space-y-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-4 text-[var(--text)] sm:p-5"
       >
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div className="flex items-start gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-warn-solid/20 text-warn-fg">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--surface-2)] text-warn-fg">
               <Icon name="clock" className="h-4 w-4" />
             </div>
             <div>
-              <h2 id="due-plans-title" className="text-xs font-bold sm:text-sm">
+              <h2 id="due-plans-title" className="text-xs font-semibold sm:text-sm">
                 {dueRules.length} rencana jatuh tempo
               </h2>
               <p className="mt-0.5 text-xs text-[var(--text-2)]">
@@ -170,14 +170,14 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
             <button
               type="button"
               onClick={onOpenRulesManager}
-              className="min-h-11 self-start rounded-xl border border-warn-solid/30 px-3 text-xs font-semibold text-warn-fg hover:bg-warn-solid/20"
+              className="min-h-11 self-start rounded-md border border-[var(--line)] px-3 text-xs font-semibold text-warn-fg hover:bg-[var(--surface-2)]"
             >
               Kelola rencana
             </button>
           )}
         </div>
 
-        <ul className="space-y-2 border-t border-warn-solid/15 pt-2">
+        <ul className="space-y-2 border-t border-[var(--line)] pt-2">
           {dueRules.map((rule) => {
             const isTransfer = rule.type === "transfer" || rule.type === "investment_topup";
             const candidates = rule.candidates ?? [];
@@ -193,24 +193,24 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                   disabled={busy}
                   onClick={() => occurrence.mutate({ kind: "link", rule, transactionId: candidate.id })}
                   aria-label={`Kaitkan ${candidateLabel(candidate)} ke ${rule.name}`}
-                  className="min-h-11 shrink-0 rounded-lg px-2 font-semibold underline underline-offset-2 disabled:opacity-50"
+                  className="min-h-11 shrink-0 rounded-md px-2 font-semibold underline underline-offset-2 disabled:opacity-50"
                 >
                   Kaitkan
                 </button>
               </li>
             );
             return (
-              <li key={rule.id} className="min-w-0 space-y-2 rounded-xl border border-black/[0.06] bg-[var(--surface)]/80 p-3 text-xs dark:border-white/[0.06]">
+              <li key={rule.id} className="min-w-0 space-y-2 rounded-xl border border-[var(--line)] bg-[var(--surface)]/80 p-3 text-xs">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <h3 className="truncate font-semibold">{rule.name}</h3>
-                    <p className="truncate text-[11px] text-[var(--muted)]">
+                    <p className="truncate text-xs text-[var(--muted)]">
                       {isTransfer ? `${rule.source_account_name} → ${rule.target_account_name}` : rule.source_account_name}
                       {rule.obligation_name ? ` · ${rule.obligation_name}` : ""}
                     </p>
-                    <p className="text-[11px] tabular-nums text-[var(--muted)]">Jatuh tempo {planDay(rule.next_due_date)}</p>
+                    <p className="text-xs tabular-nums text-[var(--muted)]">Jatuh tempo {planDay(rule.next_due_date)}</p>
                   </div>
-                  <span className="shrink-0 font-bold tabular-nums">{fmtMoney(rule.amount)}</span>
+                  <span className="shrink-0 font-semibold tabular-nums">{fmtMoney(rule.amount)}</span>
                 </div>
 
                 <p className="text-[var(--text-2)]">{MATCH_TEXT[rule.match_state]}</p>
@@ -233,7 +233,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                     type="button"
                     disabled={busy}
                     onClick={() => occurrence.mutate({ kind: "skip", rule })}
-                    className="min-h-11 rounded-lg border border-[var(--line)] px-3 font-semibold disabled:opacity-50"
+                    className="min-h-11 rounded-md border border-[var(--line)] px-3 font-semibold disabled:opacity-50"
                   >
                     Lewati kali ini
                   </button>
@@ -241,7 +241,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
                     type="button"
                     disabled={busy}
                     onClick={() => occurrence.mutate({ kind: "record", rule })}
-                    className="min-h-11 rounded-lg border border-[var(--line)] px-3 font-semibold disabled:opacity-50"
+                    className="min-h-11 rounded-md border border-[var(--line)] px-3 font-semibold disabled:opacity-50"
                   >
                     {hasSameAmount ? "Bukan salah satunya, catat manual" : "Catat manual (tidak tertangkap)"}
                   </button>

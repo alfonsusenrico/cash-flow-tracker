@@ -32,7 +32,7 @@ export function AmountTrackingSwitchModal({ product, onClose }: Props) {
   return (
     <Modal open onClose={() => { if (!busy) onClose(); }} title="Ubah ke pelacakan nominal">
       <div className="space-y-4">
-        <div className="rounded-xl border border-inv-solid/25 bg-inv-bg p-3 text-inv-fg">
+        <div className="rounded-xl border border-[var(--line)] bg-inv-bg p-3 text-inv-fg">
           <p className="text-xs">Produk reksadana</p>
           <p className="break-words font-semibold">{product.name}</p>
         </div>
@@ -52,8 +52,8 @@ export function AmountTrackingSwitchModal({ product, onClose }: Props) {
         <p className="text-sm font-semibold">Perubahan ini tidak dapat dibatalkan.</p>
         {error && <p role="alert" className="text-sm text-out-fg">{error}</p>}
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--line)] pt-3">
-          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-xl border border-[var(--line)] px-3 text-sm">Batal</button>
-          <button type="button" data-autofocus onClick={() => { setError(""); mutation.mutate(product.id); }} disabled={busy} className="min-h-11 rounded-xl bg-[#1E201E] px-4 text-sm font-semibold text-white disabled:opacity-50">
+          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-md border border-[var(--line)] px-3 text-sm">Batal</button>
+          <button type="button" data-autofocus onClick={() => { setError(""); mutation.mutate(product.id); }} disabled={busy} className="ws-btn ws-btn-accent disabled:opacity-50">
             {busy ? "Menyimpan…" : "Ubah ke nominal"}
           </button>
         </div>

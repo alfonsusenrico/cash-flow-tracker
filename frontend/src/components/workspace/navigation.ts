@@ -63,6 +63,7 @@ const PAGE_META: [string, PageMeta][] = [
   ["/insights", { title: "Analisis", subtitle: "Ke mana uang digunakan, dibanding periode lalu" }],
   ["/laporan", { title: "Laporan", subtitle: "Laporan bulanan Kakeibo" }],
   ["/settings", { title: "Pengaturan", subtitle: "HP, kebiasaan, tampilan dan akun" }],
+  ["/komponen", { title: "Komponen", subtitle: "Lembar komponen Markas+, hanya di build lokal" }],
 ];
 
 /** Title and subtitle of the top bar from the route; Beranda writes its own date and period line. */

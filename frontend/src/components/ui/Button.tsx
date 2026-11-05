@@ -15,12 +15,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       {...props}
       className={cn(
-        "inline-flex items-center justify-center font-medium rounded-[var(--radius-md)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]",
-        size === "sm" ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm",
-        variant === "primary" && "bg-[var(--ink)] hover:bg-[var(--ink-hover)] text-[var(--ink-fg)]",
-        variant === "secondary" && "bg-[var(--surface)] border border-[var(--line)] hover:bg-[var(--window)] text-[var(--text)]",
-        variant === "danger" && "bg-[var(--danger-solid)] hover:bg-[var(--danger-solid-hover)] text-[var(--danger-contrast)]",
-        variant === "ghost" && "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--window)]",
+        // Button geometry from SPEC §7: 36 px (44 at phone width), 16 px sides, 8 px gap, radius 6, 14/500.
+        "inline-flex items-center justify-center gap-2 rounded-md border text-sm font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-45",
+        size === "sm" ? "min-h-7 px-2" : "min-h-11 px-4 sm:min-h-9",
+        variant === "primary" && "border-transparent bg-[var(--accent)] text-[var(--accent-ink)] hover:bg-[var(--accent-hover)] active:translate-y-px active:bg-[var(--accent-pressed)]",
+        variant === "secondary" && "border-[var(--line-strong)] bg-transparent text-[var(--text)] hover:bg-[var(--surface)] active:bg-[var(--surface-2)]",
+        variant === "danger" && "border-transparent bg-[var(--danger-solid)] text-[var(--danger-contrast)] hover:brightness-[.92]",
+        variant === "ghost" && "border-transparent px-3 text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] active:bg-[var(--surface-2)]",
         className
       )}
     >

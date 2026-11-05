@@ -1,0 +1,47 @@
+[
+ {
+  "name": "komponen",
+  "path": "/komponen"
+ },
+ {
+  "name": "beranda",
+  "path": "/beranda"
+ },
+ {
+  "name": "tinjau",
+  "path": "/tinjau"
+ },
+ {
+  "name": "transaksi",
+  "path": "/transaksi"
+ },
+ {
+  "name": "analisis",
+  "path": "/analisis"
+ },
+ {
+  "name": "laporan",
+  "path": "/laporan"
+ },
+ {
+  "name": "rekening",
+  "path": "/rekening"
+ },
+ {
+  "name": "target",
+  "path": "/target"
+ },
+ {
+  "name": "pengaturan",
+  "path": "/pengaturan"
+ },
+ {
+  "name": "dlg-catat",
+  "path": "/beranda",
+  "steps": [
+   {
+    "click": "^(\\+ )?Catat"
+   }
+  ]
+ }
+]

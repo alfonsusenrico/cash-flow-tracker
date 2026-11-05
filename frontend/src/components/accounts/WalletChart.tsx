@@ -109,7 +109,7 @@ export function WalletChart({
         </svg>
         <div className={styles.ringLegend} role="group" aria-label="Pilih kegunaan">
           {shares.map((entry) => (
-            <button key={entry.use.key} type="button" aria-pressed={entry.use.key === focus} disabled={entry.share === 0} onClick={() => setChosen(entry.use.key)}>
+            <button key={entry.use.key} type="button" className="ws-select-row" aria-pressed={entry.use.key === focus} disabled={entry.share === 0} onClick={() => setChosen(entry.use.key)}>
               <Swatch colour={entry.use.colour} />
               <b>{entry.use.label}</b>{" "}
               <span>

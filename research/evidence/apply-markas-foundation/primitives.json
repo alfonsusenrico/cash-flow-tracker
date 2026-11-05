@@ -1,0 +1,122 @@
+{
+ "summary": {
+  "same": 826,
+  "differing": 14
+ },
+ "report": {
+  "primary button light": "match",
+  "primary button dark": "match",
+  "secondary button light": "match",
+  "secondary button dark": "match",
+  "quiet button light": "match",
+  "quiet button dark": "match",
+  "destructive button light": "match",
+  "destructive button dark": "match",
+  "icon button light": "match",
+  "icon button dark": "match",
+  "link button light": {
+   "borderTopLeftRadius": {
+    "prototype": "6px",
+    "app": "0px"
+   }
+  },
+  "link button dark": {
+   "borderTopLeftRadius": {
+    "prototype": "6px",
+    "app": "0px"
+   }
+  },
+  "key cap light": "match",
+  "key cap dark": "match",
+  "input light": "match",
+  "input dark": "match",
+  "input focus light": "match",
+  "input focus dark": "match",
+  "input error light": "match",
+  "input error dark": "match",
+  "select light": "match",
+  "select dark": "match",
+  "money input light": "match",
+  "money input dark": "match",
+  "field label light": "match",
+  "field label dark": "match",
+  "field error light": "match",
+  "field error dark": "match",
+  "switch on light": "match",
+  "switch on dark": "match",
+  "chip light": "match",
+  "chip dark": "match",
+  "segmented track light": "match",
+  "segmented track dark": "match",
+  "segment selected light": "match",
+  "segment selected dark": "match",
+  "segment light": "match",
+  "segment dark": "match",
+  "badge light": "match",
+  "badge dark": "match",
+  "toast light": "match",
+  "toast dark": "match",
+  "dialog light": {
+   "height": {
+    "prototype": "223px",
+    "app": "219px"
+   },
+   "paddingTop": {
+    "prototype": "0px",
+    "app": "24px"
+   },
+   "paddingRight": {
+    "prototype": "0px",
+    "app": "24px"
+   },
+   "paddingBottom": {
+    "prototype": "0px",
+    "app": "24px"
+   },
+   "paddingLeft": {
+    "prototype": "0px",
+    "app": "24px"
+   },
+   "boxShadow": {
+    "prototype": "rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px",
+    "app": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px"
+   }
+  },
+  "dialog dark": {
+   "height": {
+    "prototype": "223px",
+    "app": "219px"
+   },
+   "paddingTop": {
+    "prototype": "0px",
+    "app": "24px"
+   },
+   "paddingRight": {
+    "prototype": "0px",
+    "app": "24px"
+   },
+   "paddingBottom": {
+    "prototype": "0px",
+    "app": "24px"
+   },
+   "paddingLeft": {
+    "prototype": "0px",
+    "app": "24px"
+   },
+   "boxShadow": {
+    "prototype": "rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px",
+    "app": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px"
+   }
+  },
+  "dialog title light": "match",
+  "dialog title dark": "match",
+  "empty title light": "match",
+  "empty title dark": "match",
+  "empty line light": "match",
+  "empty line dark": "match",
+  "skeleton bar light": "match",
+  "skeleton bar dark": "match",
+  "error box light": "match",
+  "error box dark": "match"
+ }
+}

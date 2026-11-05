@@ -1,0 +1,40 @@
+/* Component sheet only (development builds). Simulated states mirror the prototype's #/komponen helpers so
+   hover, focus and pressed can be measured without a pointer. */
+.intro { max-width: 75ch; margin-top: 4px; color: var(--muted); }
+.section { margin-top: 48px; }
+.section > h2 { margin-bottom: 16px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.cell { min-width: 0; padding: 24px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--window); color: var(--text); }
+.cell > * + * { margin-top: 16px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.type { display: grid; grid-template-columns: 152px minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.type > :last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 12px; }
+.swatch { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.swatchBox { flex: none; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: var(--r-control); }
+.formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; }
+.nav { max-width: 240px; padding: 8px 0; border-radius: var(--r-panel); background: var(--surface); }
+.navItem { display: flex; align-items: center; gap: 12px; height: 36px; margin: 0 8px; padding: 0 16px; border-radius: var(--r-control); color: var(--muted); font-weight: 500; }
+.navItem[aria-current="page"] { background: var(--surface-2); color: var(--text); }
+.navItem .grow { flex: 1; }
+.count { color: var(--muted); font-size: var(--fs-12); line-height: 16px; font-variant-numeric: tabular-nums lining-nums; font-feature-settings: var(--features-num); }
+.static { position: relative !important; inset: auto !important; left: auto !important; top: auto !important; bottom: auto !important; transform: none !important; animation: none !important; }
+.sheet { max-width: 390px; border-bottom: 0; border-radius: var(--r-layer) var(--r-layer) 0 0; }
+.dialogFoot { display: flex; justify-content: flex-end; gap: 8px; margin: 16px -24px -24px; padding: 16px 24px; border-top: 1px solid var(--line); }
+.skelRow { display: flex; align-items: center; gap: 16px; height: 56px; border-bottom: 1px solid var(--line); }
+.skelRow > span { height: 12px; }
+
+.isHover:global(.ws-btn) { background: var(--surface) !important; }
+.isHover:global(.ws-btn-accent) { background: var(--accent-hover) !important; }
+.isHover:global(.ws-btn-danger) { background: var(--danger-solid) !important; filter: brightness(0.92); }
+.isHover:global(.ws-icon-btn), .isHover:global(.ws-act) { background: var(--surface) !important; color: var(--text) !important; }
+.isPressed:global(.ws-btn) { background: var(--surface-2) !important; }
+.isPressed:global(.ws-btn-accent) { background: var(--accent-pressed) !important; transform: translateY(1px); }
+.isPressed:global(.ws-btn-danger) { background: var(--danger-solid) !important; filter: brightness(0.84); }
+.isFocus { outline: 2px solid var(--focus) !important; outline-offset: 2px; }
+.fieldFocus { border-color: var(--field-focus) !important; box-shadow: 0 0 0 3px var(--ring); }
+
+@media (max-width: 760px) {
+  .grid, .formGrid { grid-template-columns: minmax(0, 1fr); }
+  .type { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}

@@ -1,0 +1,1224 @@
+{
+ "komponen-1440-light": {
+  "path": "/komponen",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 582,
+    "Manrope": 16
+   },
+   "sizes": {
+    "12px": 356,
+    "14px": 219,
+    "20px": 10,
+    "24px": 5,
+    "44px": 4,
+    "32px": 2,
+    "16px": 2
+   },
+   "weights": {
+    "400": 309,
+    "500": 244,
+    "600": 45
+   },
+   "textStylesInMain": 11,
+   "mainStyles": {
+    "Inter|12|400": 264,
+    "Inter|14|500": 148,
+    "Inter|12|500": 83,
+    "Inter|14|400": 37,
+    "Inter|14|600": 22,
+    "Manrope|20|600": 6,
+    "Manrope|44|600": 4,
+    "Manrope|24|600": 4,
+    "Inter|20|600": 4,
+    "Inter|32|600": 2,
+    "Inter|16|400": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 4,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\"",
+     "Manrope 44/600 \"Rp 2.276.410\"",
+     "Manrope 44/600 \"Rp 2.276.410\"",
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 4,
+    "examples": [
+     "Inter 16/400 \"Untuk apa transfer Rp 120.000 ke ANDI S?\"",
+     "Inter 16/400 \"Untuk apa transfer Rp 120.000 ke ANDI S?\"",
+     "Inter 14/400 \"≈ Rp 113.820 per hari\"",
+     "Inter 14/400 \"≈ Rp 113.820 per hari\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 12,
+    "examples": [
+     "button.btn.btn-primary.is-focus \"Catat\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-secondary.is-focus \"Ubah\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-quiet.is-focus \"Rincian\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-danger.is-focus \"Hapus\" 2px rgb(69, 72, 79)",
+     "button.icon-btn.is-focus \"Contoh fokus\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-primary.is-focus \"Catat\" 2px rgb(189, 190, 194)",
+     "button.btn.btn-secondary.is-focus \"Ubah\" 2px rgb(189, 190, 194)",
+     "button.btn.btn-quiet.is-focus \"Rincian\" 2px rgb(189, 190, 194)",
+     "button.btn.btn-danger.is-focus \"Hapus\" 2px rgb(189, 190, 194)",
+     "button.icon-btn.is-focus \"Contoh fokus\" 2px rgb(189, 190, 194)",
+     "button.row.is-focus \"07.55 Jago · Kantong Utama → GoPayIsi Go\" 2px rgb(69, 72, 79)",
+     "button.row.is-focus \"07.55 Jago · Kantong Utama → GoPayIsi Go\" 2px rgb(189, 190, 194)"
+    ]
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 6,
+    "examples": [
+     "div.toast.ks-static \"Dijawab · Pembayaran QRISUrungkan\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Judul dialogKeterangan satu barisIsi dia\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Lembar ponselDialog di ponsel muncul dar\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px",
+     "div.toast.ks-static \"Dijawab · Pembayaran QRISUrungkan\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Judul dialogKeterangan satu barisIsi dia\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Lembar ponselDialog di ponsel muncul dar\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px"
+    ]
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  }
+ },
+ "beranda-1440-light": {
+  "path": "/beranda",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 106,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 54,
+    "14px": 48,
+    "20px": 5,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 59,
+    "500": 26,
+    "600": 24
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 34,
+    "Inter|14|400": 11,
+    "Inter|14|600": 10,
+    "Inter|12|500": 5,
+    "Inter|20|600": 4,
+    "Inter|14|500": 3,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 1,
+    "examples": [
+     "Inter 12/400 \"aset Rp 58.971.280 · utang Rp 13.143.000\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  }
+ },
+ "dlg-catat-1440-light": {
+  "path": "/beranda",
+  "log": [
+   "clicked Catat"
+  ],
+  "hasDialog": true,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 116,
+    "Manrope": 4
+   },
+   "sizes": {
+    "12px": 57,
+    "14px": 55,
+    "20px": 6,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 62,
+    "500": 33,
+    "600": 25
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|400": 37,
+    "Inter|14|400": 11,
+    "Inter|14|500": 10,
+    "Inter|14|600": 10,
+    "Inter|12|500": 5,
+    "Inter|20|600": 4,
+    "Manrope|44|600": 1,
+    "Manrope|20|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 1,
+    "examples": [
+     "Inter 12/400 \"aset Rp 58.971.280 · utang Rp 13.143.000\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 1,
+    "examples": [
+     "div.dialog \"Tulis transaksiSatu kalimat dengan jumla\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px"
+    ]
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  }
+ },
+ "komponen-1440-dark": {
+  "path": "/komponen",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 582,
+    "Manrope": 16
+   },
+   "sizes": {
+    "12px": 356,
+    "14px": 219,
+    "20px": 10,
+    "24px": 5,
+    "44px": 4,
+    "32px": 2,
+    "16px": 2
+   },
+   "weights": {
+    "400": 309,
+    "500": 244,
+    "600": 45
+   },
+   "textStylesInMain": 11,
+   "mainStyles": {
+    "Inter|12|400": 264,
+    "Inter|14|500": 148,
+    "Inter|12|500": 83,
+    "Inter|14|400": 37,
+    "Inter|14|600": 22,
+    "Manrope|20|600": 6,
+    "Manrope|44|600": 4,
+    "Manrope|24|600": 4,
+    "Inter|20|600": 4,
+    "Inter|32|600": 2,
+    "Inter|16|400": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 4,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\"",
+     "Manrope 44/600 \"Rp 2.276.410\"",
+     "Manrope 44/600 \"Rp 2.276.410\"",
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 4,
+    "examples": [
+     "Inter 16/400 \"Untuk apa transfer Rp 120.000 ke ANDI S?\"",
+     "Inter 16/400 \"Untuk apa transfer Rp 120.000 ke ANDI S?\"",
+     "Inter 14/400 \"≈ Rp 113.820 per hari\"",
+     "Inter 14/400 \"≈ Rp 113.820 per hari\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 12,
+    "examples": [
+     "button.btn.btn-primary.is-focus \"Catat\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-secondary.is-focus \"Ubah\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-quiet.is-focus \"Rincian\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-danger.is-focus \"Hapus\" 2px rgb(69, 72, 79)",
+     "button.icon-btn.is-focus \"Contoh fokus\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-primary.is-focus \"Catat\" 2px rgb(189, 190, 194)",
+     "button.btn.btn-secondary.is-focus \"Ubah\" 2px rgb(189, 190, 194)",
+     "button.btn.btn-quiet.is-focus \"Rincian\" 2px rgb(189, 190, 194)",
+     "button.btn.btn-danger.is-focus \"Hapus\" 2px rgb(189, 190, 194)",
+     "button.icon-btn.is-focus \"Contoh fokus\" 2px rgb(189, 190, 194)",
+     "button.row.is-focus \"07.55 Jago · Kantong Utama → GoPayIsi Go\" 2px rgb(69, 72, 79)",
+     "button.row.is-focus \"07.55 Jago · Kantong Utama → GoPayIsi Go\" 2px rgb(189, 190, 194)"
+    ]
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 6,
+    "examples": [
+     "div.toast.ks-static \"Dijawab · Pembayaran QRISUrungkan\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Judul dialogKeterangan satu barisIsi dia\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Lembar ponselDialog di ponsel muncul dar\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px",
+     "div.toast.ks-static \"Dijawab · Pembayaran QRISUrungkan\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Judul dialogKeterangan satu barisIsi dia\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Lembar ponselDialog di ponsel muncul dar\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px"
+    ]
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  }
+ },
+ "beranda-1440-dark": {
+  "path": "/beranda",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 106,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 54,
+    "14px": 48,
+    "20px": 5,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 59,
+    "500": 26,
+    "600": 24
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 34,
+    "Inter|14|400": 11,
+    "Inter|14|600": 10,
+    "Inter|12|500": 5,
+    "Inter|20|600": 4,
+    "Inter|14|500": 3,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 1,
+    "examples": [
+     "Inter 12/400 \"aset Rp 58.971.280 · utang Rp 13.143.000\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  }
+ },
+ "dlg-catat-1440-dark": {
+  "path": "/beranda",
+  "log": [
+   "clicked Catat"
+  ],
+  "hasDialog": true,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 116,
+    "Manrope": 4
+   },
+   "sizes": {
+    "12px": 57,
+    "14px": 55,
+    "20px": 6,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 62,
+    "500": 33,
+    "600": 25
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|400": 37,
+    "Inter|14|400": 11,
+    "Inter|14|500": 10,
+    "Inter|14|600": 10,
+    "Inter|12|500": 5,
+    "Inter|20|600": 4,
+    "Manrope|44|600": 1,
+    "Manrope|20|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 1,
+    "examples": [
+     "Inter 12/400 \"aset Rp 58.971.280 · utang Rp 13.143.000\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 1,
+    "examples": [
+     "div.dialog \"Tulis transaksiSatu kalimat dengan jumla\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px"
+    ]
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  }
+ },
+ "komponen-390-light": {
+  "path": "/komponen",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 552,
+    "Manrope": 16
+   },
+   "sizes": {
+    "12px": 320,
+    "14px": 225,
+    "20px": 10,
+    "24px": 5,
+    "44px": 4,
+    "32px": 2,
+    "16px": 2
+   },
+   "weights": {
+    "400": 288,
+    "500": 236,
+    "600": 44
+   },
+   "textStylesInMain": 11,
+   "mainStyles": {
+    "Inter|12|400": 230,
+    "Inter|14|500": 148,
+    "Inter|12|500": 83,
+    "Inter|14|400": 53,
+    "Inter|14|600": 22,
+    "Manrope|20|600": 6,
+    "Manrope|44|600": 4,
+    "Manrope|24|600": 4,
+    "Inter|20|600": 4,
+    "Inter|32|600": 2,
+    "Inter|16|400": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 4,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\"",
+     "Manrope 44/600 \"Rp 2.276.410\"",
+     "Manrope 44/600 \"Rp 2.276.410\"",
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 5,
+    "examples": [
+     "Inter 16/400 \"Untuk apa transfer Rp 120.000 ke ANDI S?\"",
+     "Inter 16/400 \"Untuk apa transfer Rp 120.000 ke ANDI S?\"",
+     "Inter 14/400 \"≈ Rp 113.820 per hari\"",
+     "Inter 14/400 \"≈ Rp 113.820 per hari\"",
+     "Inter 12/400 \"6\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 12,
+    "examples": [
+     "button.btn.btn-primary.is-focus \"Catat\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-secondary.is-focus \"Ubah\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-quiet.is-focus \"Rincian\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-danger.is-focus \"Hapus\" 2px rgb(69, 72, 79)",
+     "button.icon-btn.is-focus \"Contoh fokus\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-primary.is-focus \"Catat\" 2px rgb(189, 190, 194)",
+     "button.btn.btn-secondary.is-focus \"Ubah\" 2px rgb(189, 190, 194)",
+     "button.btn.btn-quiet.is-focus \"Rincian\" 2px rgb(189, 190, 194)",
+     "button.btn.btn-danger.is-focus \"Hapus\" 2px rgb(189, 190, 194)",
+     "button.icon-btn.is-focus \"Contoh fokus\" 2px rgb(189, 190, 194)",
+     "button.row.is-focus \"07.55 Jago · Kantong Utama → GoPayIsi Go\" 2px rgb(69, 72, 79)",
+     "button.row.is-focus \"07.55 Jago · Kantong Utama → GoPayIsi Go\" 2px rgb(189, 190, 194)"
+    ]
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 6,
+    "examples": [
+     "div.toast.ks-static \"Dijawab · Pembayaran QRISUrungkan\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Judul dialogKeterangan satu barisIsi dia\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Lembar ponselDialog di ponsel muncul dar\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px",
+     "div.toast.ks-static \"Dijawab · Pembayaran QRISUrungkan\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Judul dialogKeterangan satu barisIsi dia\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Lembar ponselDialog di ponsel muncul dar\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px"
+    ]
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  }
+ },
+ "beranda-390-light": {
+  "path": "/beranda",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 74,
+    "Manrope": 3
+   },
+   "sizes": {
+    "14px": 38,
+    "12px": 34,
+    "20px": 3,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 38,
+    "500": 18,
+    "600": 21
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 16,
+    "Inter|14|400": 11,
+    "Inter|14|600": 10,
+    "Inter|12|500": 5,
+    "Inter|14|500": 3,
+    "Inter|20|600": 2,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 2,
+    "examples": [
+     "Inter 12/400 \"aset Rp 58.971.280 · utang Rp 13.143.000\"",
+     "Inter 12/400 \"6\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  }
+ },
+ "dlg-catat-390-light": {
+  "path": "/beranda",
+  "log": [
+   "clicked Catat transaksi"
+  ],
+  "hasDialog": true,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 84,
+    "Manrope": 4
+   },
+   "sizes": {
+    "14px": 45,
+    "12px": 37,
+    "20px": 4,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 41,
+    "500": 25,
+    "600": 22
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|400": 19,
+    "Inter|14|400": 11,
+    "Inter|14|500": 10,
+    "Inter|14|600": 10,
+    "Inter|12|500": 5,
+    "Inter|20|600": 2,
+    "Manrope|44|600": 1,
+    "Manrope|20|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 2,
+    "examples": [
+     "Inter 12/400 \"aset Rp 58.971.280 · utang Rp 13.143.000\"",
+     "Inter 12/400 \"6\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 1,
+    "examples": [
+     "div.dialog \"Tulis transaksiSatu kalimat dengan jumla\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px"
+    ]
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  }
+ },
+ "komponen-390-dark": {
+  "path": "/komponen",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 552,
+    "Manrope": 16
+   },
+   "sizes": {
+    "12px": 320,
+    "14px": 225,
+    "20px": 10,
+    "24px": 5,
+    "44px": 4,
+    "32px": 2,
+    "16px": 2
+   },
+   "weights": {
+    "400": 288,
+    "500": 236,
+    "600": 44
+   },
+   "textStylesInMain": 11,
+   "mainStyles": {
+    "Inter|12|400": 230,
+    "Inter|14|500": 148,
+    "Inter|12|500": 83,
+    "Inter|14|400": 53,
+    "Inter|14|600": 22,
+    "Manrope|20|600": 6,
+    "Manrope|44|600": 4,
+    "Manrope|24|600": 4,
+    "Inter|20|600": 4,
+    "Inter|32|600": 2,
+    "Inter|16|400": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 4,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\"",
+     "Manrope 44/600 \"Rp 2.276.410\"",
+     "Manrope 44/600 \"Rp 2.276.410\"",
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 5,
+    "examples": [
+     "Inter 16/400 \"Untuk apa transfer Rp 120.000 ke ANDI S?\"",
+     "Inter 16/400 \"Untuk apa transfer Rp 120.000 ke ANDI S?\"",
+     "Inter 14/400 \"≈ Rp 113.820 per hari\"",
+     "Inter 14/400 \"≈ Rp 113.820 per hari\"",
+     "Inter 12/400 \"6\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 12,
+    "examples": [
+     "button.btn.btn-primary.is-focus \"Catat\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-secondary.is-focus \"Ubah\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-quiet.is-focus \"Rincian\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-danger.is-focus \"Hapus\" 2px rgb(69, 72, 79)",
+     "button.icon-btn.is-focus \"Contoh fokus\" 2px rgb(69, 72, 79)",
+     "button.btn.btn-primary.is-focus \"Catat\" 2px rgb(189, 190, 194)",
+     "button.btn.btn-secondary.is-focus \"Ubah\" 2px rgb(189, 190, 194)",
+     "button.btn.btn-quiet.is-focus \"Rincian\" 2px rgb(189, 190, 194)",
+     "button.btn.btn-danger.is-focus \"Hapus\" 2px rgb(189, 190, 194)",
+     "button.icon-btn.is-focus \"Contoh fokus\" 2px rgb(189, 190, 194)",
+     "button.row.is-focus \"07.55 Jago · Kantong Utama → GoPayIsi Go\" 2px rgb(69, 72, 79)",
+     "button.row.is-focus \"07.55 Jago · Kantong Utama → GoPayIsi Go\" 2px rgb(189, 190, 194)"
+    ]
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 6,
+    "examples": [
+     "div.toast.ks-static \"Dijawab · Pembayaran QRISUrungkan\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Judul dialogKeterangan satu barisIsi dia\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Lembar ponselDialog di ponsel muncul dar\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px",
+     "div.toast.ks-static \"Dijawab · Pembayaran QRISUrungkan\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Judul dialogKeterangan satu barisIsi dia\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px",
+     "div.dialog.ks-static \"Lembar ponselDialog di ponsel muncul dar\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px"
+    ]
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  }
+ },
+ "beranda-390-dark": {
+  "path": "/beranda",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 74,
+    "Manrope": 3
+   },
+   "sizes": {
+    "14px": 38,
+    "12px": 34,
+    "20px": 3,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 38,
+    "500": 18,
+    "600": 21
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 16,
+    "Inter|14|400": 11,
+    "Inter|14|600": 10,
+    "Inter|12|500": 5,
+    "Inter|14|500": 3,
+    "Inter|20|600": 2,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 2,
+    "examples": [
+     "Inter 12/400 \"aset Rp 58.971.280 · utang Rp 13.143.000\"",
+     "Inter 12/400 \"6\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  }
+ },
+ "dlg-catat-390-dark": {
+  "path": "/beranda",
+  "log": [
+   "clicked Catat transaksi"
+  ],
+  "hasDialog": true,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 84,
+    "Manrope": 4
+   },
+   "sizes": {
+    "14px": 45,
+    "12px": 37,
+    "20px": 4,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 41,
+    "500": 25,
+    "600": 22
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|400": 19,
+    "Inter|14|400": 11,
+    "Inter|14|500": 10,
+    "Inter|14|600": 10,
+    "Inter|12|500": 5,
+    "Inter|20|600": 2,
+    "Manrope|44|600": 1,
+    "Manrope|20|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 2,
+    "examples": [
+     "Inter 12/400 \"aset Rp 58.971.280 · utang Rp 13.143.000\"",
+     "Inter 12/400 \"6\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 1,
+    "examples": [
+     "div.dialog \"Tulis transaksiSatu kalimat dengan jumla\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px"
+    ]
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  }
+ }
+}

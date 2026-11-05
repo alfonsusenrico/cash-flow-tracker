@@ -11,6 +11,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // The development-only component sheet (apply-markas-foundation D12) does not exist in other builds.
+  if (pathname.startsWith("/komponen") && process.env.NEXT_PUBLIC_COMPONENT_SHEET !== "1") {
+    return new NextResponse("Not Found", { status: 404 });
+  }
+
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }

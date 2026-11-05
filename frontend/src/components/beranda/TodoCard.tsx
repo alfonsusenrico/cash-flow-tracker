@@ -172,7 +172,7 @@ export function TodoCard({
         title="Perlu tindakan"
         count={attention || undefined}
         countLabel={`${attention} perlu ditinjau`}
-        extra={waitingAmount ? <span className="text-[13px] font-normal text-[var(--muted)]">{waitingAmount} menunggu jawaban</span> : undefined}
+        extra={waitingAmount ? <span className="text-sm font-normal text-[var(--muted)]">{waitingAmount} menunggu jawaban</span> : undefined}
         action={
           attention ? (
             <Link href="/review" className="ws-linkbtn ws-accent-link">
