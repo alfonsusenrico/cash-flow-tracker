@@ -23,7 +23,7 @@ Expected Result: the owner's order is saved per grouping and is the same on ever
 ## 4. Notification regression with the new structure
 
 - [x] 4.1 Add regression tests with synthetic accounts: GoPay Tabungan as a pocket under the Jago parent, and RDN under BCA. Flows: BCA → GoPay top-up (link skip), GoPay Tabungan → Main, Main → GoPay Tabungan, Jago → BCA, and an RDN deposit (D8). Evidence: all pass with no rule change. Any failure is surfaced to the owner before rules change.
-- [ ] 4.2 With the owner's go-ahead, re-export the 2026-11-05 Sesi uji read-only, move Gopay under Jago in a local copy, replay it and score it. Evidence: the score in `verification.md`, with no personal data. The export is deleted afterwards.
+- [x] 4.2 With the owner's go-ahead, re-export the 2026-11-05 Sesi uji read-only, move Gopay under Jago in a local copy, replay it and score it. Evidence: the score in `verification.md`, with no personal data. The export is deleted afterwards.
 
 Expected Result: restructuring GoPay and the RDN keeps notifications recording correctly.
 
@@ -42,4 +42,4 @@ Expected Result: the accepted preview works in the app with real data rules.
 ## 6. Delivery
 
 - [x] 6.1 Run the full backend suite on migrated PostgreSQL. Write `verification.md`, including a before and after comparison of cycle figures on a synthetic owner shaped like the owner's accounts. Run `openspec validate --all --strict` and `git diff --check`, then review the diff.
-- [ ] 6.2 After the owner accepts, archive the change, push the branch and report the compare link. After the merge, check V51 and the deploy read-only. Then the owner moves GoPay and the RDN and sets roles in the app.
+- [x] 6.2 After the owner accepts, archive the change, push the branch and report the compare link. After the merge, check V51 and the deploy read-only. Then the owner moves GoPay and the RDN and sets roles in the app.

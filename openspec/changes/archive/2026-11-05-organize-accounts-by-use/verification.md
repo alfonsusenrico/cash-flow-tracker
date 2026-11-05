@@ -77,8 +77,20 @@ The dataviz validator was run in this session on the use tokens:
 
 The screenshots stay in the session scratchpad.
 
+### Sesi uji replay (task 4.2)
+
+The owner gave the go-ahead on 2026-11-05, and the session was re-exported read-only from production. It was replayed deterministically on loopback PostgreSQL at V51 with this tree's backend, in two structures:
+- the owner's current structure;
+- a restructured copy, with Gopay as a pocket of Jago, RDN BCA as a pocket of BCA with role `dana_investasi`, and Jago's Tabungan pocket with role `tabungan`.
+
+**Results:**
+- `score_test_session.py` gives 18 of 18 for both.
+- No case summary differs, and there are no replay failures.
+- The only per-event difference is the account label "Gopay" becoming "Jago · Gopay" on seven events.
+
+The export, the replays and the database were deleted afterwards, and no personal data is recorded here.
+
 ### Not verified yet
 
-- **4.2:** replaying the owner's 2026-11-05 Sesi uji export with Gopay moved under Jago. It needs the owner's go-ahead for a fresh read-only export, because the earlier copy was deleted.
 - **Mouse drag in a real browser.** It is covered by component tests (dragStart and drop). Automation used the keyboard path.
 - **Production:** checked read-only after the merge (V51, then the owner's restructuring in the app).
