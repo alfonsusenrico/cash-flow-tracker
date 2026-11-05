@@ -213,7 +213,7 @@ The time window for pairing a new notification leg with a counterpart at once SH
 - **THEN** the window SHALL be 900 seconds and the processor configuration error SHALL be `processor_configuration_invalid`
 
 ### Requirement: One Arrival Seen by Two Apps
-Without a deciding account link (Linked Account Reports), a new observed leg SHALL be recorded as a duplicate observation instead of a transaction when exactly one recorded observed leg of the owner has the same direction and amount, comes from another institution's app, has a post time at most 120 seconds away, is on a different account, and each leg names the other's account (or its root) as its remote. Such a leg SHALL NOT pair with, or count as a candidate for, any other leg.
+Without a deciding account link (Linked Account Reports), a new observed leg SHALL be recorded as a duplicate observation, not a transaction, when exactly one recorded observed leg of the owner, paired into a movement or not, has the same direction and amount, comes from another app, is at most 120 seconds away, is on another account, and each leg names the other's account (or its root) as remote. It SHALL NOT pair with or be a candidate for any other leg.
 
 #### Scenario: Top-up seen by GoPay and Jago
 - **GIVEN** a GoPay income of Rp 500.000 on GoPay recorded from "Anda telah menerima Tabungan by Jago sebanyak Rp500.000.", whose remote is Jago · Kantong Utama
@@ -221,11 +221,26 @@ Without a deciding account link (Linked Account Reports), a new observed leg SHA
 - **THEN** no transaction SHALL be created for it, its event SHALL be recorded with provenance `duplicate_observation` pointing at the GoPay leg, and Kantong Utama's balance SHALL be unchanged
 - **AND** a myBCA "You spent IDR 500,000.00 at Payment." 3 seconds later SHALL see the GoPay income as its only compatible counterpart
 
+#### Scenario: Second report after the first one paired
+- **GIVEN** the GoPay income of Rp 500.000 already paired with a myBCA "You spent IDR 500,000.00 at Payment." into one movement BCA → GoPay
+- **WHEN** Jago's "You've received Rp500.000 from GoPay." arrives 1 second after the GoPay report, with no account link
+- **THEN** its event SHALL be a `duplicate_observation` of the GoPay leg waiting under "Terlihat dua kali", no transaction SHALL be created, the movement SHALL be unchanged and Kantong Utama's balance SHALL be unchanged
+
+#### Scenario: A paired leg is never replaced
+- **GIVEN** a Jago income on the default pocket Kantong Utama with remote GoPay, already paired into a movement
+- **WHEN** GoPay's "Anda telah menerima Tabungan by Jago sebanyak Rp500.000." arrives 1 second later naming GoPay
+- **THEN** the Jago leg and its movement SHALL be kept and the GoPay event SHALL be the `duplicate_observation`
+
+#### Scenario: Possible transfer after the first report
+- **GIVEN** a GoPay income of Rp 500.000 recorded from "Anda telah menerima Tabungan by Jago sebanyak Rp500.000." and, 60 seconds later, an unpaired GoPay expense of Rp 500.000 from "Rp500.000 udah dikirim ke Bank Jago Raka Purnama."
+- **WHEN** Jago's "You've received Rp500.000 from GoPay." arrives 1 second after the expense
+- **THEN** the guard SHALL NOT hold it, and the normal pairing SHALL decide, linking it with the GoPay expense as one movement
+
 #### Scenario: Kept leg is not the default-pocket fallback
 - **GIVEN** Jago's "You've received Rp500.000 from GoPay." was recorded first, on the default pocket Jago · Kantong Utama with remote GoPay
 - **WHEN** GoPay's "Anda telah menerima Tabungan by Jago sebanyak Rp500.000." arrives 1 second later on GoPay with remote Jago · Kantong Utama
 - **THEN** the GoPay leg SHALL be kept, the Jago leg's transaction SHALL be removed in the same database transaction with its balance effect, and the Jago event SHALL become the `duplicate_observation`
-- **AND** the removal SHALL happen only while the Jago leg is automatic, unlinked and not edited by the owner; otherwise the GoPay event SHALL be the duplicate
+- **AND** the removal SHALL happen only while the Jago leg is automatic, unlinked, not in a movement and not edited by the owner; otherwise the GoPay event SHALL be the duplicate
 
 #### Scenario: Two real transfers of the same amount
 - **WHEN** a GoPay income of Rp 500.000 and a Jago income of Rp 500.000 arrive 30 seconds apart and neither names the other's account as its remote
@@ -244,8 +259,8 @@ Without a deciding account link (Linked Account Reports), a new observed leg SHA
 - **THEN** the new leg SHALL be recorded as a transaction and flagged `needs_review` with `ambiguous_movement`, and no event SHALL become a duplicate observation
 
 #### Scenario: Deferred pass
-- **WHEN** the deferred re-pairing pass meets an unlinked automatic leg that the guard would have marked a duplicate
-- **THEN** it SHALL apply the same rule, and repeated passes SHALL change nothing further
+- **WHEN** the deferred re-pairing pass meets an unlinked automatic leg that the guard would have marked a duplicate, including one whose original is already in a movement
+- **THEN** it SHALL apply the same rule, dropping only the unpaired leg, and repeated passes SHALL change nothing further
 
 ### Requirement: Linking Retires Automatic Memory
 When a leg becomes part of a movement by automatic pairing, the owner's merge or the owner's completion, an automatic (`ai`) memory entry for that leg's match key whose category is not an internal-movement category SHALL be deleted in the same database transaction. Owner memory entries SHALL NOT be changed.

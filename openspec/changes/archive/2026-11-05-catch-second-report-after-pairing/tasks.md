@@ -25,4 +25,4 @@ Expected Result: the Tinjau list shows a question's real direction.
 ## 4. Delivery
 
 - [x] 4.1 Write `verification.md`, run `openspec validate --all --strict` and `git diff --check`, then review the full diff.
-- [ ] 4.2 After the owner accepts, archive the change, push the branch and report the compare link. The owner opens and merges the merge request.
+- [x] 4.2 After the owner accepts, archive the change, push the branch and report the compare link. The owner opens and merges the merge request.
