@@ -172,8 +172,10 @@ export function itemFolderLabel(item: TriageItem): string {
 /** Short title of an item for the list, the toast and announcements. */
 export function itemTitle(item: TriageItem): string {
   switch (item.kind) {
-    case "question":
-      return item.entry.transaction.merchant || item.entry.transaction.notes || "Pembayaran tanpa nama toko";
+    case "question": {
+      const { merchant, notes, type } = item.entry.transaction;
+      return merchant || notes || (type === "income" ? "Uang masuk" : "Pembayaran tanpa nama toko");
+    }
     case "group":
     case "suggestion":
       return item.group.label;
