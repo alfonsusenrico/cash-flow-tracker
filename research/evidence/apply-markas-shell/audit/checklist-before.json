@@ -1,0 +1,3405 @@
+{
+ "shell-beranda-1440-light": {
+  "path": "/",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 83,
+    "Manrope": 2
+   },
+   "sizes": {
+    "14px": 62,
+    "12px": 12,
+    "24px": 5,
+    "16px": 4,
+    "32px": 2
+   },
+   "weights": {
+    "400": 31,
+    "500": 19,
+    "600": 35
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|14|400": 22,
+    "Inter|14|600": 20,
+    "Inter|14|500": 8,
+    "Inter|12|400": 7,
+    "Inter|24|600": 4,
+    "Inter|16|600": 4,
+    "Inter|32|600": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1440,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-tinjau-1440-light": {
+  "path": "/review",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 70,
+    "Manrope": 2
+   },
+   "sizes": {
+    "14px": 35,
+    "12px": 34,
+    "24px": 2,
+    "32px": 1
+   },
+   "weights": {
+    "400": 27,
+    "500": 30,
+    "600": 15
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 17,
+    "Inter|12|500": 12,
+    "Inter|14|500": 8,
+    "Inter|14|400": 8,
+    "Inter|14|600": 7,
+    "Inter|24|600": 1,
+    "Inter|32|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1440,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-transaksi-1440-light": {
+  "path": "/ledger?period=cycle",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 437,
+    "Manrope": 2
+   },
+   "sizes": {
+    "14px": 323,
+    "12px": 111,
+    "24px": 4,
+    "16px": 1
+   },
+   "weights": {
+    "400": 286,
+    "500": 70,
+    "600": 83
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|14|400": 228,
+    "Inter|14|600": 73,
+    "Inter|12|400": 56,
+    "Inter|12|500": 50,
+    "Inter|14|500": 10,
+    "Inter|24|600": 3,
+    "Inter|16|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1440,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-analisis-1440-light": {
+  "path": "/insights",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 165,
+    "Manrope": 2
+   },
+   "sizes": {
+    "12px": 97,
+    "14px": 61,
+    "24px": 4,
+    "16px": 4,
+    "20px": 1
+   },
+   "weights": {
+    "400": 53,
+    "500": 28,
+    "600": 86
+   },
+   "textStylesInMain": 9,
+   "mainStyles": {
+    "Inter|12|600": 51,
+    "Inter|12|400": 37,
+    "Inter|14|600": 21,
+    "Inter|14|500": 14,
+    "Inter|14|400": 14,
+    "Inter|16|600": 4,
+    "Inter|24|600": 3,
+    "Inter|12|500": 3,
+    "Inter|20|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 1,
+    "examples": [
+     "Inter 14/500 \"Rp 0\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1440,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-laporan-1440-light": {
+  "path": "/laporan",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 205,
+    "Manrope": 2
+   },
+   "sizes": {
+    "14px": 124,
+    "12px": 73,
+    "24px": 5,
+    "16px": 5
+   },
+   "weights": {
+    "400": 102,
+    "500": 28,
+    "600": 77
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|14|400": 67,
+    "Inter|14|600": 41,
+    "Inter|12|400": 33,
+    "Inter|12|600": 19,
+    "Inter|12|500": 14,
+    "Inter|16|600": 5,
+    "Inter|24|600": 4,
+    "Inter|14|500": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 1,
+    "examples": [
+     "Inter 14/400 \"Rp 4.802.000\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1440,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-rekening-1440-light": {
+  "path": "/accounts",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 147,
+    "Manrope": 2
+   },
+   "sizes": {
+    "12px": 74,
+    "14px": 49,
+    "20px": 15,
+    "16px": 9,
+    "24px": 1,
+    "32px": 1
+   },
+   "weights": {
+    "400": 20,
+    "500": 23,
+    "600": 106
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|600": 56,
+    "Inter|14|600": 20,
+    "Inter|20|600": 15,
+    "Inter|12|400": 13,
+    "Inter|14|500": 9,
+    "Inter|16|600": 9,
+    "Inter|14|400": 5,
+    "Inter|32|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1440,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-target-1440-light": {
+  "path": "/goals",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 70,
+    "Manrope": 2
+   },
+   "sizes": {
+    "14px": 50,
+    "12px": 17,
+    "32px": 2,
+    "16px": 2,
+    "24px": 1
+   },
+   "weights": {
+    "400": 18,
+    "500": 18,
+    "600": 36
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|14|600": 23,
+    "Inter|14|400": 10,
+    "Inter|12|400": 6,
+    "Inter|12|600": 4,
+    "Inter|14|500": 2,
+    "Inter|32|600": 2,
+    "Inter|12|500": 2,
+    "Inter|16|600": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1440,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-pengaturan-1440-light": {
+  "path": "/settings",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 49,
+    "Manrope": 2
+   },
+   "sizes": {
+    "14px": 33,
+    "12px": 16,
+    "24px": 1,
+    "16px": 1
+   },
+   "weights": {
+    "400": 22,
+    "500": 14,
+    "600": 15
+   },
+   "textStylesInMain": 5,
+   "mainStyles": {
+    "Inter|12|400": 8,
+    "Inter|14|600": 5,
+    "Inter|14|500": 3,
+    "Inter|14|400": 3,
+    "Inter|12|600": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1440,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-beranda-390-light": {
+  "path": "/",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 74,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 51,
+    "12px": 13,
+    "20px": 5,
+    "16px": 4,
+    "24px": 1,
+    "32px": 1
+   },
+   "weights": {
+    "400": 33,
+    "500": 8,
+    "600": 34
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|14|400": 22,
+    "Inter|14|600": 20,
+    "Inter|14|500": 8,
+    "Inter|12|400": 7,
+    "Inter|20|600": 4,
+    "Inter|16|600": 4,
+    "Inter|24|600": 1,
+    "Inter|32|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 390,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-tinjau-390-light": {
+  "path": "/review",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 25,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 13,
+    "12px": 12,
+    "20px": 1
+   },
+   "weights": {
+    "400": 13,
+    "500": 6,
+    "600": 7
+   },
+   "textStylesInMain": 4,
+   "mainStyles": {
+    "Inter|14|500": 6,
+    "Inter|12|400": 6,
+    "Inter|14|600": 3,
+    "Inter|14|400": 3
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 390,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-transaksi-390-light": {
+  "path": "/ledger?period=cycle",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 219,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 154,
+    "12px": 61,
+    "20px": 4,
+    "16px": 1
+   },
+   "weights": {
+    "400": 130,
+    "500": 8,
+    "600": 82
+   },
+   "textStylesInMain": 6,
+   "mainStyles": {
+    "Inter|14|600": 73,
+    "Inter|14|400": 72,
+    "Inter|12|400": 54,
+    "Inter|14|500": 8,
+    "Inter|20|600": 3,
+    "Inter|16|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 390,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-analisis-390-light": {
+  "path": "/insights",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 153,
+    "Manrope": 1
+   },
+   "sizes": {
+    "12px": 95,
+    "14px": 50,
+    "20px": 5,
+    "16px": 4
+   },
+   "weights": {
+    "400": 55,
+    "500": 17,
+    "600": 82
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|600": 48,
+    "Inter|12|400": 37,
+    "Inter|14|600": 21,
+    "Inter|14|500": 14,
+    "Inter|14|400": 14,
+    "Inter|20|600": 4,
+    "Inter|16|600": 4,
+    "Inter|12|500": 3
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 1,
+    "examples": [
+     "Inter 14/500 \"Rp 0\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 390,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-laporan-390-light": {
+  "path": "/laporan",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 181,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 99,
+    "12px": 73,
+    "20px": 5,
+    "16px": 5
+   },
+   "weights": {
+    "400": 94,
+    "500": 17,
+    "600": 71
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|14|400": 57,
+    "Inter|14|600": 37,
+    "Inter|12|400": 33,
+    "Inter|12|600": 19,
+    "Inter|12|500": 13,
+    "Inter|16|600": 5,
+    "Inter|20|600": 4,
+    "Inter|14|500": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 1,
+    "examples": [
+     "Inter 14/400 \"Rp 4.802.000\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 390,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-rekening-390-light": {
+  "path": "/accounts",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 96,
+    "Manrope": 1
+   },
+   "sizes": {
+    "12px": 48,
+    "14px": 31,
+    "16px": 9,
+    "20px": 8,
+    "24px": 1
+   },
+   "weights": {
+    "400": 18,
+    "500": 13,
+    "600": 66
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|600": 33,
+    "Inter|14|600": 12,
+    "Inter|14|500": 10,
+    "Inter|12|400": 9,
+    "Inter|16|600": 9,
+    "Inter|20|600": 7,
+    "Inter|14|400": 5,
+    "Inter|24|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 390,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-target-390-light": {
+  "path": "/goals",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 61,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 39,
+    "12px": 18,
+    "32px": 2,
+    "16px": 2,
+    "20px": 1
+   },
+   "weights": {
+    "400": 20,
+    "500": 7,
+    "600": 35
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|14|600": 23,
+    "Inter|14|400": 10,
+    "Inter|12|400": 6,
+    "Inter|12|600": 4,
+    "Inter|14|500": 2,
+    "Inter|32|600": 2,
+    "Inter|12|500": 2,
+    "Inter|16|600": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 390,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-pengaturan-390-light": {
+  "path": "/settings",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 27,
+    "Manrope": 1
+   },
+   "sizes": {
+    "12px": 16,
+    "14px": 11,
+    "20px": 1
+   },
+   "weights": {
+    "400": 13,
+    "500": 1,
+    "600": 14
+   },
+   "textStylesInMain": 1,
+   "mainStyles": {
+    "Inter|14|500": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 390,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-beranda-1024-light": {
+  "path": "/",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 73,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 52,
+    "12px": 11,
+    "24px": 5,
+    "16px": 4,
+    "32px": 2
+   },
+   "weights": {
+    "400": 30,
+    "500": 12,
+    "600": 32
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|14|400": 22,
+    "Inter|14|600": 20,
+    "Inter|14|500": 8,
+    "Inter|12|400": 7,
+    "Inter|24|600": 4,
+    "Inter|16|600": 4,
+    "Inter|32|600": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1024,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-tinjau-1024-light": {
+  "path": "/review",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 60,
+    "Manrope": 1
+   },
+   "sizes": {
+    "12px": 33,
+    "14px": 25,
+    "24px": 2,
+    "32px": 1
+   },
+   "weights": {
+    "400": 26,
+    "500": 23,
+    "600": 12
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 17,
+    "Inter|12|500": 12,
+    "Inter|14|500": 8,
+    "Inter|14|400": 8,
+    "Inter|14|600": 7,
+    "Inter|24|600": 1,
+    "Inter|32|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1024,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-transaksi-1024-light": {
+  "path": "/ledger?period=cycle",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 376,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 262,
+    "12px": 110,
+    "24px": 4,
+    "16px": 1
+   },
+   "weights": {
+    "400": 234,
+    "500": 63,
+    "600": 80
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|14|400": 177,
+    "Inter|14|600": 73,
+    "Inter|12|400": 56,
+    "Inter|12|500": 50,
+    "Inter|14|500": 10,
+    "Inter|24|600": 3,
+    "Inter|16|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1024,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-analisis-1024-light": {
+  "path": "/insights",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 155,
+    "Manrope": 1
+   },
+   "sizes": {
+    "12px": 96,
+    "14px": 51,
+    "24px": 4,
+    "16px": 4,
+    "20px": 1
+   },
+   "weights": {
+    "400": 52,
+    "500": 21,
+    "600": 83
+   },
+   "textStylesInMain": 9,
+   "mainStyles": {
+    "Inter|12|600": 51,
+    "Inter|12|400": 37,
+    "Inter|14|600": 21,
+    "Inter|14|500": 14,
+    "Inter|14|400": 14,
+    "Inter|16|600": 4,
+    "Inter|24|600": 3,
+    "Inter|12|500": 3,
+    "Inter|20|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 1,
+    "examples": [
+     "Inter 14/500 \"Rp 0\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1024,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-laporan-1024-light": {
+  "path": "/laporan",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 195,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 114,
+    "12px": 72,
+    "24px": 5,
+    "16px": 5
+   },
+   "weights": {
+    "400": 101,
+    "500": 21,
+    "600": 74
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|14|400": 67,
+    "Inter|14|600": 41,
+    "Inter|12|400": 33,
+    "Inter|12|600": 19,
+    "Inter|12|500": 14,
+    "Inter|16|600": 5,
+    "Inter|24|600": 4,
+    "Inter|14|500": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 1,
+    "examples": [
+     "Inter 14/400 \"Rp 4.802.000\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1024,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-rekening-1024-light": {
+  "path": "/accounts",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 137,
+    "Manrope": 1
+   },
+   "sizes": {
+    "12px": 73,
+    "14px": 39,
+    "20px": 15,
+    "16px": 9,
+    "24px": 1,
+    "32px": 1
+   },
+   "weights": {
+    "400": 19,
+    "500": 16,
+    "600": 103
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|600": 56,
+    "Inter|14|600": 20,
+    "Inter|20|600": 15,
+    "Inter|12|400": 13,
+    "Inter|14|500": 9,
+    "Inter|16|600": 9,
+    "Inter|14|400": 5,
+    "Inter|32|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1024,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-target-1024-light": {
+  "path": "/goals",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 60,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 40,
+    "12px": 16,
+    "32px": 2,
+    "16px": 2,
+    "24px": 1
+   },
+   "weights": {
+    "400": 17,
+    "500": 11,
+    "600": 33
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|14|600": 23,
+    "Inter|14|400": 10,
+    "Inter|12|400": 6,
+    "Inter|12|600": 4,
+    "Inter|14|500": 2,
+    "Inter|32|600": 2,
+    "Inter|12|500": 2,
+    "Inter|16|600": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1024,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-pengaturan-1024-light": {
+  "path": "/settings",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 39,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 23,
+    "12px": 15,
+    "24px": 1,
+    "16px": 1
+   },
+   "weights": {
+    "400": 21,
+    "500": 7,
+    "600": 12
+   },
+   "textStylesInMain": 5,
+   "mainStyles": {
+    "Inter|12|400": 8,
+    "Inter|14|600": 5,
+    "Inter|14|500": 3,
+    "Inter|14|400": 3,
+    "Inter|12|600": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1024,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-beranda-320-light": {
+  "path": "/",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 74,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 51,
+    "12px": 13,
+    "20px": 5,
+    "16px": 4,
+    "24px": 1,
+    "32px": 1
+   },
+   "weights": {
+    "400": 33,
+    "500": 8,
+    "600": 34
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|14|400": 22,
+    "Inter|14|600": 20,
+    "Inter|14|500": 8,
+    "Inter|12|400": 7,
+    "Inter|20|600": 4,
+    "Inter|16|600": 4,
+    "Inter|24|600": 1,
+    "Inter|32|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 320,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 2,
+     "expected": 0,
+     "pass": false
+    }
+   ],
+   "outsideFrame": [
+    "button.ws-xn \"Rp 2.908.751\" +3",
+    "button.ws-xn \"Rp 66.461.849\" +16"
+   ],
+   "passed": 1,
+   "failed": 1
+  }
+ },
+ "shell-tinjau-320-light": {
+  "path": "/review",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 25,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 13,
+    "12px": 12,
+    "20px": 1
+   },
+   "weights": {
+    "400": 13,
+    "500": 6,
+    "600": 7
+   },
+   "textStylesInMain": 4,
+   "mainStyles": {
+    "Inter|14|500": 6,
+    "Inter|12|400": 6,
+    "Inter|14|600": 3,
+    "Inter|14|400": 3
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 320,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-transaksi-320-light": {
+  "path": "/ledger?period=cycle",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 218,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 154,
+    "12px": 60,
+    "20px": 4,
+    "16px": 1
+   },
+   "weights": {
+    "400": 129,
+    "500": 8,
+    "600": 82
+   },
+   "textStylesInMain": 6,
+   "mainStyles": {
+    "Inter|14|600": 73,
+    "Inter|14|400": 72,
+    "Inter|12|400": 53,
+    "Inter|14|500": 8,
+    "Inter|20|600": 3,
+    "Inter|16|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 320,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-analisis-320-light": {
+  "path": "/insights",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 153,
+    "Manrope": 1
+   },
+   "sizes": {
+    "12px": 95,
+    "14px": 50,
+    "20px": 5,
+    "16px": 4
+   },
+   "weights": {
+    "400": 55,
+    "500": 17,
+    "600": 82
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|600": 48,
+    "Inter|12|400": 37,
+    "Inter|14|600": 21,
+    "Inter|14|500": 14,
+    "Inter|14|400": 14,
+    "Inter|20|600": 4,
+    "Inter|16|600": 4,
+    "Inter|12|500": 3
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 1,
+    "examples": [
+     "Inter 14/500 \"Rp 0\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 320,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-laporan-320-light": {
+  "path": "/laporan",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 181,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 99,
+    "12px": 73,
+    "20px": 5,
+    "16px": 5
+   },
+   "weights": {
+    "400": 94,
+    "500": 17,
+    "600": 71
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|14|400": 57,
+    "Inter|14|600": 37,
+    "Inter|12|400": 33,
+    "Inter|12|600": 19,
+    "Inter|12|500": 13,
+    "Inter|16|600": 5,
+    "Inter|20|600": 4,
+    "Inter|14|500": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 1,
+    "examples": [
+     "Inter 14/400 \"Rp 4.802.000\""
+    ]
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 320,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ },
+ "shell-rekening-320-light": {
+  "path": "/accounts",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 96,
+    "Manrope": 1
+   },
+   "sizes": {
+    "12px": 48,
+    "14px": 31,
+    "16px": 9,
+    "20px": 8,
+    "24px": 1
+   },
+   "weights": {
+    "400": 18,
+    "500": 13,
+    "600": 66
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|600": 33,
+    "Inter|14|600": 12,
+    "Inter|14|500": 10,
+    "Inter|12|400": 9,
+    "Inter|16|600": 9,
+    "Inter|20|600": 7,
+    "Inter|14|400": 5,
+    "Inter|24|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 320,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 4,
+     "expected": 0,
+     "pass": false
+    }
+   ],
+   "outsideFrame": [
+    "li. \"Reksa dana Rp 12.357.300▲Rp 15\" +7",
+    "span.wallet_gain__3XMe5 \"▲Rp 157.300 (1,3%) untung\" +7",
+    "li. \"Saham Rp 6.772.000▼Rp 288.000 \" +4",
+    "span.wallet_gain__3XMe5 \"▼Rp 288.000 (4,1%) rugi\" +4"
+   ],
+   "passed": 1,
+   "failed": 1
+  }
+ },
+ "shell-target-320-light": {
+  "path": "/goals",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 61,
+    "Manrope": 1
+   },
+   "sizes": {
+    "14px": 39,
+    "12px": 18,
+    "32px": 2,
+    "16px": 2,
+    "20px": 1
+   },
+   "weights": {
+    "400": 20,
+    "500": 7,
+    "600": 35
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|14|600": 23,
+    "Inter|14|400": 10,
+    "Inter|12|400": 6,
+    "Inter|12|600": 4,
+    "Inter|14|500": 2,
+    "Inter|32|600": 2,
+    "Inter|12|500": 2,
+    "Inter|16|600": 2
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 320,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 14,
+     "expected": 0,
+     "pass": false
+    }
+   ],
+   "outsideFrame": [
+    "li. \"Dana DaruratTercapai100%Rp 20.\" +27",
+    "button.money_goalTile__FhA7o \"Dana DaruratTercapai100%Rp 20.\" +27",
+    "span.money_goalTop__s2xFE \"Dana DaruratTercapai100%\" +11",
+    "span.money_goalPct__ylHdI \"100%\" +11",
+    "span.money_progress__jqjN9 \"\" +11",
+    "span.money_goalMeta__5UJ11 \"Rp 20.412.400 dari Rp 20.000.0\" +11",
+    "span.money_goalSources__dAFMB \"Dana Darurat · Darurat Kecil ·\" +11",
+    "li. \"RumahTanpa tanggal8%Rp 12.600.\" +27"
+   ],
+   "passed": 1,
+   "failed": 1
+  }
+ },
+ "shell-pengaturan-320-light": {
+  "path": "/settings",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 27,
+    "Manrope": 1
+   },
+   "sizes": {
+    "12px": 16,
+    "14px": 11,
+    "20px": 1
+   },
+   "weights": {
+    "400": 13,
+    "500": 1,
+    "600": 14
+   },
+   "textStylesInMain": 1,
+   "mainStyles": {
+    "Inter|14|500": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 320,
+   "checks": [
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 2,
+   "failed": 0
+  }
+ }
+}

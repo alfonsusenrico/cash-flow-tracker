@@ -7,7 +7,7 @@ import { useShortcuts } from "@/components/workspace/shortcuts";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import styles from "@/components/accounts/money.module.css";
 
-/** Tampilan (D9): the same theme, shortcut and hidden-balance state the account menu and help dialog use. */
+/** Tampilan (D9): the same theme, shortcut and hidden-balance state as the top bar's Tema menu and Sembunyikan saldo button. */
 export function AppearanceSettings() {
   const { themeChoice, setThemeChoice, openHelp } = useWorkspace();
   const { singleKeysEnabled, setSingleKeysEnabled } = useShortcuts();

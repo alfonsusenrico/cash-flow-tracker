@@ -11,7 +11,7 @@ import type { AnalysisTab, PeriodBasis } from "@/components/analysis/types";
 import { ANALYSIS_TABS as TABS, DATE_PATTERN, analysisHref, parseTab } from "@/components/analysis/url";
 import type { FlowView } from "@/components/analysis/flow/PetaAliranTab";
 import { PeriodStepper } from "@/components/ui/PeriodStepper";
-import { TopBarControls } from "@/components/workspace/context";
+import { PageActions } from "@/components/workspace/context";
 import { Segmented, Skeleton } from "@/components/workspace/primitives";
 import { replaceSearch } from "@/lib/urlState";
 
@@ -60,9 +60,9 @@ function Analysis() {
 
   return (
     <div className={styles.root}>
-      <TopBarControls>
+      <PageActions>
         <PeriodStepper unit={basis === "month" ? "Bulan" : "Siklus"} label={label ?? "Memuat…"} offset={offset} onChange={setCycleOffset} />
-      </TopBarControls>
+      </PageActions>
       <div className={styles.toolbar}>
         <div className={styles.tabs} role="tablist" aria-label="Analisis" onKeyDown={onTabKey}>
           {TABS.map((entry, index) => (

@@ -2,13 +2,19 @@
 
 import { createContext, type ReactNode, useContext, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import type { ThemeChoice, ResolvedTheme } from "@/lib/theme";
+import { MenuButton } from "./Menu";
+import { PHONE_QUERY, useMediaQuery } from "./layers";
 
 export interface WorkspaceNotification {
+  /** Includes the report end date or the plan date, so a new occurrence is new again (D6). */
   id: string;
   title: string;
   detail: string;
-  href: string;
+  /** Where the item leads; absent for items that open "Rencana jatuh tempo" instead (D7). */
+  href?: string;
+  opensDuePlans?: boolean;
 }
 
 export interface PageHeader {
@@ -23,6 +29,10 @@ export interface WorkspaceValue {
   reviewAttention: number | null;
   reportBadge: boolean;
   notifications: WorkspaceNotification[];
+  /** Ids not yet seen in this browser; every item counts when the seen state is unavailable. */
+  unreadIds: ReadonlySet<string>;
+  markNotificationsSeen: () => void;
+  openDuePlans: () => void;
   themeChoice: ThemeChoice;
   resolvedTheme: ResolvedTheme;
   setThemeChoice: (choice: ThemeChoice) => void;
@@ -35,8 +45,8 @@ export interface WorkspaceValue {
   logout: () => void;
   header: PageHeader | null;
   setHeader: (header: PageHeader | null) => void;
-  controlsSlot: HTMLElement | null;
-  setControlsSlot: (element: HTMLElement | null) => void;
+  actionsSlot: HTMLElement | null;
+  setActionsSlot: (element: HTMLElement | null) => void;
 }
 
 export const WorkspaceContext = createContext<WorkspaceValue | null>(null);
@@ -47,7 +57,7 @@ export function useWorkspace(): WorkspaceValue {
   return value;
 }
 
-/** Lets a page write its own top-bar title and subtitle (Beranda: the date and the period line). */
+/** Lets a page write its own title and subtitle in the title block (Beranda: the date and the period line). */
 export function usePageHeader(header: PageHeader | null) {
   const context = useContext(WorkspaceContext);
   const setHeader = context?.setHeader;
@@ -60,10 +70,48 @@ export function usePageHeader(header: PageHeader | null) {
   }, [setHeader, title, subtitle]);
 }
 
-/** Renders page controls, such as a period stepper, in the top bar's controls slot (inline outside the shell). */
-export function TopBarControls({ children }: { children: ReactNode }) {
+export interface PageMoreAction {
+  key: string;
+  label: string;
+  icon: IconName;
+  onSelect?: () => void;
+  href?: string;
+  /** Listed in "…" only below 768 px, where its visible button is hidden (Perbarui harga on Rekening). */
+  phoneOnly?: boolean;
+}
+
+/**
+ * A page's actions in the title block (D4): at most two visible controls as children, the rest in the "…" menu
+ * labelled "Tindakan lain". The page keeps every handler; only where the controls render changes. Outside the
+ * shell (page tests) they render in place.
+ */
+export function PageActions({ children, more = [] }: { children?: ReactNode; more?: PageMoreAction[] }) {
   const context = useContext(WorkspaceContext);
-  if (!context) return <>{children}</>;
-  if (!context.controlsSlot) return null;
-  return createPortal(children, context.controlsSlot);
+  const phone = useMediaQuery(PHONE_QUERY);
+  const listed = more.filter((action) => phone || !action.phoneOnly);
+  const content = (
+    <>
+      {children}
+      {listed.length > 0 && (
+        <MenuButton
+          label="Tindakan lain"
+          className="ws-icon-btn"
+          menuLabel="Tindakan lain"
+          width={260}
+          entries={listed.map((action) => ({
+            key: action.key,
+            label: action.label,
+            icon: action.icon,
+            href: action.href,
+            onSelect: action.onSelect,
+          }))}
+        >
+          <Icon name="more" className="h-4 w-4" />
+        </MenuButton>
+      )}
+    </>
+  );
+  if (!context) return content;
+  if (!context.actionsSlot) return null;
+  return createPortal(content, context.actionsSlot);
 }

@@ -365,7 +365,7 @@ describe("design tokens", () => {
       return globals.slice(start, globals.indexOf("}", start));
     };
     expect(rule(".ws-card")).toContain("box-shadow: none");
-    for (const floating of [".ws-menu", ".ws-explain", ".ws-toast", "dialog.ws-dialog", '.ws-drawer[data-mode="dialog"]']) {
+    for (const floating of [".ws-menu", ".popover", ".ws-explain", ".ws-toast", "dialog.shell-dialog", '.ws-drawer[data-mode="dialog"]']) {
       expect(rule(floating), floating).toContain("box-shadow: var(--shadow-float)");
     }
   });

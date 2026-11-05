@@ -1,75 +1,67 @@
 "use client";
 
-import Link from "next/link";
-import { Icon } from "@/components/ui/Icon";
+import { useId, useRef, useState } from "react";
 import { useWorkspace } from "./context";
-import { Disclosure } from "./Disclosure";
-import { SETTINGS_LINK } from "./navigation";
+import { MenuPanel } from "./Menu";
 
-function initialsOf(name: string): string {
+export function initialsOf(name: string): string {
   const words = name.trim().split(/[\s_.-]+/).filter(Boolean);
   const letters = words.length > 1 ? words[0][0] + words[1][0] : name.slice(0, 2);
   return letters.toUpperCase() || "?";
 }
 
 /**
- * The signed-in account and its menu: hide balances, Pengaturan, Keluar. On wider screens it is the card in
- * the sidebar foot; on phones the avatar in the header (refine-workspace-layout D3).
+ * The user button in the sidebar foot and its account menu (D1, D6): the name and username, Profil and Keluar.
+ * "Sembunyikan saldo" sits in the top bar and Pengaturan in the sidebar foot.
  */
-export function AccountMenu({ variant }: { variant: "avatar" | "card" }) {
-  const { username, displayName, hideBalances, toggleHideBalances, logout } = useWorkspace();
+export function AccountMenu() {
+  const { username, displayName, logout } = useWorkspace();
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
   const name = displayName || username || "";
-  const initials = initialsOf(name || "?");
+  const second = displayName && username ? username : null;
   return (
-    <Disclosure
-      label={`Akun ${name}`.trim()}
-      buttonClassName={variant === "card" ? "ws-account-card" : "ws-avatar"}
-      buttonContent={
-        variant === "card" ? (
+    <>
+      <button
+        ref={button}
+        type="button"
+        className="user-btn"
+        aria-label={`Akun ${name}`.trim()}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="avatar" aria-hidden="true">
+          {initialsOf(name || "?")}
+        </span>
+        <span className="who" aria-hidden="true">
+          <span className="t-body">{name}</span>
+          {second && <span className="t-meta">{second}</span>}
+        </span>
+      </button>
+      <MenuPanel
+        open={open}
+        anchorRef={button}
+        onClose={() => setOpen(false)}
+        label="Akun"
+        id={menuId}
+        width={240}
+        header={
           <>
-            <span className="ws-account-initials" aria-hidden="true">
-              {initials}
-            </span>
-            <span className="ws-rail-hide min-w-0" aria-hidden="true">
-              <strong>{name}</strong>
-              {username && displayName && <small>{username}</small>}
-            </span>
+            <div className="popover-who">
+              <p className="t-body">{name}</p>
+              {second && <p className="t-meta">{second}</p>}
+            </div>
+            <div className="menu-sep" role="separator" />
           </>
-        ) : (
-          <span aria-hidden="true">{initials}</span>
-        )
-      }
-      panelLabel="Akun"
-      anchorClassName={variant === "card" ? "ws-account-anchor" : undefined}
-      panelClassName={variant === "card" ? "ws-menu-up" : undefined}
-    >
-      {(close) => (
-        <>
-          <div className="ws-menu-h">
-            Masuk sebagai <strong className="font-medium text-[var(--text)]">{username}</strong>
-          </div>
-          <button
-            type="button"
-            className="ws-menu-item"
-            onClick={() => {
-              toggleHideBalances();
-              close();
-            }}
-          >
-            <Icon name={hideBalances ? "eye" : "eye-off"} className="h-4 w-4" />
-            {hideBalances ? "Tampilkan saldo" : "Sembunyikan saldo"}
-          </button>
-          <Link href={SETTINGS_LINK.href} className="ws-menu-item" onClick={close}>
-            <Icon name="sliders" className="h-4 w-4" />
-            Pengaturan
-          </Link>
-          <div className="ws-menu-sep" />
-          <button type="button" className="ws-menu-item" onClick={logout}>
-            <Icon name="logout" className="h-4 w-4" />
-            Keluar
-          </button>
-        </>
-      )}
-    </Disclosure>
+        }
+        entries={[
+          { key: "profil", label: "Profil", icon: "settings", href: "/settings/profil" },
+          { key: "keluar", label: "Keluar", icon: "logout", onSelect: logout },
+        ]}
+      />
+    </>
   );
 }

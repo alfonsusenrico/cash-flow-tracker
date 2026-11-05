@@ -12,6 +12,8 @@ const SLANG = /\b(saranku|buat baru|buat diterima|buat mulai|nggak|ngga|gak|udah
 const CONVERSATION = [
   // Beranda's hero figure as the owner approved it in the preview (refine-workspace-layout D5, OD96).
   "Aman dipakai sampai gajian",
+  // Bantuan's third fact names that same hero in the prototype's wording (apply-markas-shell D8).
+  "Beranda menunjukkan berapa yang aman dipakai sampai gajian.",
   // The connect-phone guide's prose.
   "HP-mu siap! Mulai sekarang transaksi tercatat sendiri.",
   "Tenang, aplikasi di HP-mu bakal nunjukin cara benerinnya.",

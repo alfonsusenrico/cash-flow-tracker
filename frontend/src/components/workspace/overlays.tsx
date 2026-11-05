@@ -17,8 +17,8 @@ import { Icon } from "@/components/ui/Icon";
 import { PHONE_QUERY, useEscapeLayer, useFocusTrap, useMediaQuery, useScrollLock } from "./layers";
 
 /* ---------------------------------------------------------------------------------------------
- * Drawer: a detail layer that opens as a centered dialog above 760px and as a bottom sheet at 760px and
- * below. Both are modal (focus trapped, Esc and the scrim close, page scroll locked); focus returns to
+ * Drawer: a detail layer that opens as a centered dialog from 768px and as a bottom sheet below 768px.
+ * Both are modal (focus trapped, Esc and the scrim close, page scroll locked); focus returns to
  * whatever opened it. A dialog opened from inside it stays on top and owns the keyboard.
  * ------------------------------------------------------------------------------------------- */
 

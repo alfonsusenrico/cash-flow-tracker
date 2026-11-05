@@ -423,5 +423,226 @@
   "name": "komponen",
   "path": "/komponen",
   "componentSheet": true
+ },
+ {
+  "name": "shell-beranda",
+  "path": "/",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-tinjau",
+  "path": "/review",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-transaksi",
+  "path": "/ledger?period=cycle",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-analisis",
+  "path": "/insights",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-analisis-kalender",
+  "path": "/insights",
+  "shell": true,
+  "steps": [
+   {
+    "click": "^Kalender$"
+   }
+  ]
+ },
+ {
+  "name": "shell-analisis-peta-aliran",
+  "path": "/insights",
+  "shell": true,
+  "steps": [
+   {
+    "click": "^Peta Aliran$",
+    "after": 2000
+   }
+  ]
+ },
+ {
+  "name": "shell-laporan",
+  "path": "/laporan",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-rekening",
+  "path": "/accounts",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-target",
+  "path": "/goals",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-pengaturan",
+  "path": "/settings",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-dlg-notifikasi",
+  "path": "/",
+  "shell": true,
+  "steps": [
+   {
+    "click": "^Notifikasi"
+   }
+  ]
+ },
+ {
+  "name": "shell-dlg-tema",
+  "path": "/",
+  "shell": true,
+  "steps": [
+   {
+    "click": "^Tema$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark"
+  ]
+ },
+ {
+  "name": "shell-dlg-tema",
+  "path": "/",
+  "shell": true,
+  "steps": [
+   {
+    "click": "^Lainnya$"
+   },
+   {
+    "click": "^Tema"
+   }
+  ],
+  "cells": [
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "shell-dlg-akun",
+  "path": "/",
+  "shell": true,
+  "steps": [
+   {
+    "click": "^Akun "
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark"
+  ]
+ },
+ {
+  "name": "shell-dlg-lainnya",
+  "path": "/",
+  "shell": true,
+  "steps": [
+   {
+    "click": "^Lainnya$"
+   }
+  ],
+  "cells": [
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "shell-dlg-bantuan",
+  "path": "/",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 600
+   },
+   {
+    "key": [
+     "?",
+     "Slash",
+     191,
+     8,
+     "?"
+    ]
+   }
+  ]
+ },
+ {
+  "name": "shell-rail",
+  "path": "/",
+  "shell": true,
+  "cells": [
+   "1440-light",
+   "1440-dark"
+  ],
+  "steps": [
+   {
+    "eval": "localStorage.setItem('sidebarCollapsed','1'); location.reload(); 'collapsed'",
+    "after": 3000
+   }
+  ]
+ },
+ {
+  "name": "shell-sesi-uji",
+  "path": "/insights",
+  "shell": true,
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ],
+  "steps": [
+   {
+    "eval": "fetch('/api/ingest/test-sessions/current',{credentials:'include'}).then((r)=>r.json()).then((d)=> d.session && d.session.status==='open' ? 'open' : fetch('/api/ingest/test-sessions',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({duration_minutes:60})}).then((r)=>r.status)).then((s)=>{ location.reload(); return String(s); })",
+    "after": 3500
+   }
+  ]
  }
 ]

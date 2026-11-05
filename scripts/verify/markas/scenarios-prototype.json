@@ -43,5 +43,177 @@
     "click": "^(\\+ )?Catat"
    }
   ]
+ },
+ {
+  "name": "shell-beranda",
+  "path": "/beranda",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-tinjau",
+  "path": "/tinjau",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-transaksi",
+  "path": "/transaksi",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-analisis",
+  "path": "/analisis/ringkasan",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-analisis-kalender",
+  "path": "/analisis/kalender",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-analisis-peta-aliran",
+  "path": "/analisis/peta-aliran",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-laporan",
+  "path": "/laporan/2026-10",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-rekening",
+  "path": "/rekening",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-target",
+  "path": "/target",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-pengaturan",
+  "path": "/pengaturan/perangkat",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-dlg-notifikasi",
+  "path": "/beranda?d=notifikasi",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-dlg-tema",
+  "path": "/beranda?d=tema",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-dlg-akun",
+  "path": "/beranda?d=akun",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark"
+  ]
+ },
+ {
+  "name": "shell-dlg-lainnya",
+  "path": "/beranda?d=lainnya",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "cells": [
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "shell-dlg-bantuan",
+  "path": "/beranda?d=bantuan",
+  "shell": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "shell-rail",
+  "path": "/beranda",
+  "shell": true,
+  "cells": [
+   "1440-light",
+   "1440-dark"
+  ],
+  "steps": [
+   {
+    "click": "^Ciutkan menu samping$"
+   }
+  ]
  }
 ]

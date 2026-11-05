@@ -82,7 +82,6 @@ const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 const PAGE_KEYS: PageShortcutGroup = {
   name: "Di Tinjau",
-  caption: "tombol satu huruf di Tinjau",
   entries: [
     { keys: ["J", "K"], text: "Pindah ke item berikutnya atau sebelumnya" },
     { keys: ["Enter"], text: "Buka item yang dipilih" },

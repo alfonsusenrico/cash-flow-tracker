@@ -1,0 +1,268 @@
+{
+ "passed": 46,
+ "failed": 0,
+ "results": [
+  {
+   "check": "skip link is the first stop and moves focus to main",
+   "cell": "1440-light",
+   "pass": true,
+   "detail": "Lewati ke isi → main"
+  },
+  {
+   "check": "focus after the skip link starts inside main",
+   "cell": "1440-light",
+   "pass": true,
+   "detail": "Aman dipakai sampai gajian −Rp 1.806.924: lihat rincian"
+  },
+  {
+   "check": "⌘K focuses the top-bar search on Beranda",
+   "cell": "1440-light",
+   "pass": true
+  },
+  {
+   "check": "⌘K focuses Transaksi's own search",
+   "cell": "1440-light",
+   "pass": true
+  },
+  {
+   "check": "N opens Catat",
+   "cell": "1440-light",
+   "pass": true
+  },
+  {
+   "check": "? opens Bantuan & pintasan and Esc closes it",
+   "cell": "1440-light",
+   "pass": true
+  },
+  {
+   "check": "Tema menu: focus on the checked item, ↓ moves, Esc returns to Tema",
+   "cell": "1440-light",
+   "pass": true,
+   "detail": "Terang → Gelap → Tema"
+  },
+  {
+   "check": "account menu: Profil, ↓ Keluar, Esc back to the user button",
+   "cell": "1440-light",
+   "pass": true,
+   "detail": "Profil → Keluar → Akun Dimas Pratama"
+  },
+  {
+   "check": "bell: focus inside the popover, Esc back to the bell",
+   "cell": "1440-light",
+   "pass": true
+  },
+  {
+   "check": "sticky part below the top bar on /accounts",
+   "cell": "1440-light",
+   "pass": true,
+   "detail": "null"
+  },
+  {
+   "check": "sticky part below the top bar on /review",
+   "cell": "1440-light",
+   "pass": true,
+   "detail": "192"
+  },
+  {
+   "check": "sticky part below the top bar on /settings/tampilan",
+   "cell": "1440-light",
+   "pass": true,
+   "detail": "168"
+  },
+  {
+   "check": "skip link is the first stop and moves focus to main",
+   "cell": "1440-dark",
+   "pass": true,
+   "detail": "Lewati ke isi → main"
+  },
+  {
+   "check": "focus after the skip link starts inside main",
+   "cell": "1440-dark",
+   "pass": true,
+   "detail": "Aman dipakai sampai gajian −Rp 1.806.924: lihat rincian"
+  },
+  {
+   "check": "⌘K focuses the top-bar search on Beranda",
+   "cell": "1440-dark",
+   "pass": true
+  },
+  {
+   "check": "⌘K focuses Transaksi's own search",
+   "cell": "1440-dark",
+   "pass": true
+  },
+  {
+   "check": "N opens Catat",
+   "cell": "1440-dark",
+   "pass": true
+  },
+  {
+   "check": "? opens Bantuan & pintasan and Esc closes it",
+   "cell": "1440-dark",
+   "pass": true
+  },
+  {
+   "check": "Tema menu: focus on the checked item, ↓ moves, Esc returns to Tema",
+   "cell": "1440-dark",
+   "pass": true,
+   "detail": "Gelap → Ikuti sistem → Tema"
+  },
+  {
+   "check": "account menu: Profil, ↓ Keluar, Esc back to the user button",
+   "cell": "1440-dark",
+   "pass": true,
+   "detail": "Profil → Keluar → Akun Dimas Pratama"
+  },
+  {
+   "check": "bell: focus inside the popover, Esc back to the bell",
+   "cell": "1440-dark",
+   "pass": true
+  },
+  {
+   "check": "sticky part below the top bar on /accounts",
+   "cell": "1440-dark",
+   "pass": true,
+   "detail": "null"
+  },
+  {
+   "check": "sticky part below the top bar on /review",
+   "cell": "1440-dark",
+   "pass": true,
+   "detail": "192"
+  },
+  {
+   "check": "sticky part below the top bar on /settings/tampilan",
+   "cell": "1440-dark",
+   "pass": true,
+   "detail": "168"
+  },
+  {
+   "check": "Lainnya traps Tab and Esc returns to Lainnya",
+   "cell": "390-light",
+   "pass": true
+  },
+  {
+   "check": "focus not obscured on /ledger?period=cycle",
+   "cell": "390-light",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "focus not obscured on /goals",
+   "cell": "390-light",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "focus not obscured on /accounts",
+   "cell": "390-light",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "phone search opens Transaksi with its search focused and drops fokus",
+   "cell": "390-light",
+   "pass": true,
+   "detail": "ledger-search "
+  },
+  {
+   "check": "Lainnya traps Tab and Esc returns to Lainnya",
+   "cell": "390-dark",
+   "pass": true
+  },
+  {
+   "check": "focus not obscured on /ledger?period=cycle",
+   "cell": "390-dark",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "focus not obscured on /goals",
+   "cell": "390-dark",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "focus not obscured on /accounts",
+   "cell": "390-dark",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "phone search opens Transaksi with its search focused and drops fokus",
+   "cell": "390-dark",
+   "pass": true,
+   "detail": "ledger-search "
+  },
+  {
+   "check": "Lainnya traps Tab and Esc returns to Lainnya",
+   "cell": "320-light",
+   "pass": true
+  },
+  {
+   "check": "focus not obscured on /ledger?period=cycle",
+   "cell": "320-light",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "focus not obscured on /goals",
+   "cell": "320-light",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "focus not obscured on /accounts",
+   "cell": "320-light",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "phone search opens Transaksi with its search focused and drops fokus",
+   "cell": "320-light",
+   "pass": true,
+   "detail": "ledger-search "
+  },
+  {
+   "check": "Lainnya traps Tab and Esc returns to Lainnya",
+   "cell": "320-dark",
+   "pass": true
+  },
+  {
+   "check": "focus not obscured on /ledger?period=cycle",
+   "cell": "320-dark",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "focus not obscured on /goals",
+   "cell": "320-dark",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "focus not obscured on /accounts",
+   "cell": "320-dark",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "phone search opens Transaksi with its search focused and drops fokus",
+   "cell": "320-dark",
+   "pass": true,
+   "detail": "ledger-search "
+  },
+  {
+   "check": "toast bottom edge 32 px above the viewport edge",
+   "cell": "1440",
+   "pass": true,
+   "detail": "32"
+  },
+  {
+   "check": "toast bottom edge 80 px above the viewport edge",
+   "cell": "390",
+   "pass": true,
+   "detail": "80"
+  }
+ ]
+}

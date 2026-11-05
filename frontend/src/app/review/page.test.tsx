@@ -588,10 +588,12 @@ describe("Tinjau triage", () => {
     await loaded();
     act(() => itemHeading().focus());
     await user.keyboard("?");
-    const help = await screen.findByRole("dialog", { name: "Pintasan keyboard" });
-    const group = within(help).getByRole("region", { name: "Di Tinjau" });
-    for (const key of ["J", "K", "Enter", "E", "T", "1–9", "Z"]) expect(within(group).getByText(key, { selector: "kbd" })).toBeInTheDocument();
-    expect(help).toHaveTextContent("N, ?, dan tombol satu huruf di Tinjau jalan tanpa tombol lain.");
+    const help = await screen.findByRole("dialog", { name: "Bantuan & pintasan" });
+    for (const key of ["J / K", "Enter", "E", "T", "1–9", "Z"]) {
+      const cap = within(help).getByText(key, { selector: "kbd" });
+      expect(cap.closest("tr")).toHaveTextContent(/di Tinjau$/);
+    }
+    expect(help).toHaveTextContent("Pintasan satu tombol bisa dimatikan di Pengaturan › Tampilan.");
     expect((await axe(help)).violations).toHaveLength(0);
   });
 

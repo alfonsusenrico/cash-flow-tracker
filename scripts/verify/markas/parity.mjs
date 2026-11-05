@@ -24,13 +24,16 @@ const pages = JSON.parse(readFileSync(path.join(here, "scenarios-app.json"), "ut
 // Amounts, percentages, counts with a unit, dates and times as the page writes them.
 const FIGURES = String.raw`/[−+-]?Rp\s?[\d.]+(?:,\d+)?|\d+(?:,\d+)?\s?%|\b\d{1,2} (?:Jan|Feb|Mar|Apr|Mei|Jun|Jul|Agu|Sep|Okt|Nov|Des)[a-z]*\b|\b\d{1,2}[.:]\d{2}\b|\b\d+(?:,\d+)? (?:bulan|hari|transaksi|kantong|rekening)\b/g`;
 
+// The seed owner: the audit seed's by default, the parity seed's through MARKAS_USER (apply-markas-shell D13).
+const credentials = { username: process.env.MARKAS_USER ?? "raka_contoh", password: process.env.MARKAS_PASSWORD ?? "contoh-sandi-123" };
+
 async function figuresOf(origin) {
   const browser = await launch({ port: Number(args.port ?? 9634), profileDir: path.join(args.out, `.profile-${new URL(origin).port}`) });
   const result = {};
   try {
     await browser.navigate(`${origin}/auth/login`);
     await browser.evaluate(`fetch("/api/auth/login", { method: "POST", credentials: "include",
-      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "raka_contoh", password: "contoh-sandi-123" }) })`);
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(${JSON.stringify(credentials)}) })`);
     await browser.setCell({ width: 1440, height: 900, theme: "light" });
     for (const page of pages) {
       await browser.navigate(origin + page.path);
