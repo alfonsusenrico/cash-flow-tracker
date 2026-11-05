@@ -15,4 +15,4 @@ Expected Result: a leg absorbs at most one report per app, and the field session
 ## 3. Delivery
 
 - [x] 3.1 Write `verification.md`, run `openspec validate --all --strict` and `git diff --check`, then review the diff.
-- [ ] 3.2 After the owner accepts, archive the change, push the branch and report the compare link.
+- [x] 3.2 After the owner accepts, archive the change, push the branch and report the compare link.
