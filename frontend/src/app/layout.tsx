@@ -6,19 +6,22 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PRODUCT_NAME } from "@/components/workspace/navigation";
 import { THEME_SCRIPT } from "@/lib/theme";
 
-// Self-hosted (OFL-1.1, Latin subset) so builds never depend on fetching Google Fonts.
-const jakarta = localFont({
-  src: "./fonts/PlusJakartaSans-latin-variable.woff2",
-  variable: "--font-jakarta",
+// Self-hosted (OFL-1.1, Latin subset) so builds never depend on fetching Google Fonts. These are the
+// files the Markas+ prototype loaded from Google Fonts: Inter variable for text and amounts, Manrope
+// SemiBold (a static 600 instance) for titles and the hero figure. The weight ranges clamp heavier
+// requests to 600 instead of synthesising them.
+const inter = localFont({
+  src: "./fonts/Inter-latin-variable.woff2",
+  variable: "--font-inter",
   display: "swap",
-  weight: "200 800",
+  weight: "400 600",
 });
 
-const geistMono = localFont({
-  src: "./fonts/GeistMono-latin-variable.woff2",
-  variable: "--font-geist-mono",
+const manrope = localFont({
+  src: "./fonts/Manrope-latin-600.woff2",
+  variable: "--font-manrope",
   display: "swap",
-  weight: "100 900",
+  weight: "600",
 });
 
 export const metadata: Metadata = {
@@ -36,12 +39,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id" className={`${jakarta.variable} ${geistMono.variable}`} suppressHydrationWarning>
+    <html lang="id" className={`${inter.variable} ${manrope.variable}`} suppressHydrationWarning>
       <head>
         {/* Applies the stored theme before the first paint (CSP allows inline scripts: 'unsafe-inline'). */}
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className={`${jakarta.className} antialiased`}>
+      <body>
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

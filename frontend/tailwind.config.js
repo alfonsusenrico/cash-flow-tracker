@@ -3,15 +3,52 @@ module.exports = {
   content: ["./src/**/*.{ts,tsx}"],
   darkMode: "class",
   theme: {
+    // Markas+ scales replace Tailwind's defaults (apply-markas-foundation D5–D7): seven sizes with their role
+    // line-heights, three weights, the three radii and one layer shadow. Any other value fails typeScale.test.ts
+    // or geometry.test.ts instead of rendering silently.
+    fontSize: {
+      xs: ["var(--fs-12)", { lineHeight: "16px" }],
+      sm: ["var(--fs-14)", { lineHeight: "20px" }],
+      base: ["var(--fs-16)", { lineHeight: "24px" }],
+      xl: ["var(--fs-20)", { lineHeight: "28px" }],
+      "2xl": ["var(--fs-24)", { lineHeight: "32px" }],
+      "3xl": ["var(--fs-32)", { lineHeight: "40px" }],
+      "4xl": ["var(--fs-44)", { lineHeight: "52px" }],
+    },
+    fontWeight: {
+      normal: "400",
+      medium: "500",
+      semibold: "600",
+    },
+    borderRadius: {
+      none: "0",
+      sm: "var(--r-control)",
+      DEFAULT: "var(--r-control)",
+      md: "var(--r-control)",
+      lg: "var(--r-panel)",
+      xl: "var(--r-panel)",
+      "2xl": "var(--r-layer)",
+      "3xl": "var(--r-layer)",
+      full: "9999px",
+    },
+    boxShadow: {
+      none: "none",
+      float: "var(--shadow-float)",
+    },
+    fontFamily: {
+      sans: ["var(--font-sans)"],
+      display: ["var(--font-display)"],
+    },
     extend: {
-      // Workspace tokens only (redesign-money-and-settings D11). The semantic solids take an opacity modifier
-      // through color-mix, so `bg-out-solid/10` tints with the themed token; the other keys are plain variables.
+      // Workspace tokens only (redesign-money-and-settings D11). Tinted semantic fills are gone (D7), so the
+      // keys are plain variables without an opacity channel.
       colors: {
         canvas: "var(--canvas)",
         window: "var(--window)",
         surface: "var(--surface)",
         "surface-2": "var(--surface-2)",
         "surface-3": "var(--surface-3)",
+        dialog: "var(--dialog)",
         line: "var(--line)",
         "line-strong": "var(--line-strong)",
         text: "var(--text)",
@@ -22,62 +59,35 @@ module.exports = {
           hover: "var(--ink-hover)",
           fg: "var(--ink-fg)",
         },
-        "in": {
-          "fg": "var(--in-fg)",
-          "bg": "var(--in-bg)",
-          "solid": "color-mix(in srgb, var(--in-solid) calc(<alpha-value> * 100%), transparent)",
-          "solid-hover": "color-mix(in srgb, var(--in-solid-hover) calc(<alpha-value> * 100%), transparent)",
-          "solid-fg": "var(--in-solid-fg)",
-          "solid-hover-fg": "var(--in-solid-hover-fg)",
+        in: {
+          fg: "var(--in-fg)",
+          bg: "var(--in-bg)",
+          solid: "var(--in-solid)",
         },
-        "out": {
-          "fg": "var(--out-fg)",
-          "bg": "var(--out-bg)",
-          "solid": "color-mix(in srgb, var(--out-solid) calc(<alpha-value> * 100%), transparent)",
-          "solid-hover": "color-mix(in srgb, var(--out-solid-hover) calc(<alpha-value> * 100%), transparent)",
+        out: {
+          fg: "var(--out-fg)",
+          bg: "var(--out-bg)",
+          solid: "var(--out-solid)",
         },
-        "tr": {
-          "fg": "var(--tr-fg)",
-          "bg": "var(--tr-bg)",
-          "solid": "color-mix(in srgb, var(--tr-solid) calc(<alpha-value> * 100%), transparent)",
-          "solid-fg": "var(--tr-solid-fg)",
+        tr: {
+          fg: "var(--tr-fg)",
+          bg: "var(--tr-bg)",
+          solid: "var(--tr-solid)",
         },
-        "inv": {
-          "fg": "var(--inv-fg)",
-          "bg": "var(--inv-bg)",
-          "solid": "color-mix(in srgb, var(--inv-solid) calc(<alpha-value> * 100%), transparent)",
-          "solid-fg": "var(--inv-solid-fg)",
+        inv: {
+          fg: "var(--inv-fg)",
+          bg: "var(--inv-bg)",
+          solid: "var(--inv-solid)",
         },
-        "warn": {
-          "fg": "var(--warn-fg)",
-          "bg": "var(--warn-bg)",
-          "solid": "color-mix(in srgb, var(--warn-solid) calc(<alpha-value> * 100%), transparent)",
+        warn: {
+          fg: "var(--warn-fg)",
+          bg: "var(--warn-bg)",
+          solid: "var(--warn-solid)",
         },
-        "ok": {
-          "fg": "var(--ok-fg)",
-          "bg": "var(--ok-bg)",
+        ok: {
+          fg: "var(--ok-fg)",
+          bg: "var(--ok-bg)",
         },
-      },
-      fontFamily: {
-        sans: ["var(--font-jakarta)", "Plus Jakarta Sans", "ui-sans-serif", "system-ui", "-apple-system", "sans-serif"],
-        display: ["var(--font-jakarta)", "Plus Jakarta Sans", "ui-sans-serif", "system-ui", "-apple-system", "sans-serif"],
-        mono: ["var(--font-geist-mono)", "Geist Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
-      },
-      borderRadius: {
-        xs: "var(--radius-xs)",
-        sm: "var(--radius-sm)",
-        md: "var(--radius-md)",
-        lg: "var(--radius-lg)",
-        btn: "var(--radius-btn)",
-        window: "var(--radius-window)",
-        card: "var(--radius-card)",
-      },
-      boxShadow: {
-        xs: "var(--shadow-xs)",
-        sm: "var(--shadow-sm)",
-        md: "var(--shadow-md)",
-        card: "var(--shadow-card)",
-        float: "var(--shadow-float)",
       },
     },
   },

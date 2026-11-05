@@ -65,7 +65,7 @@ export function InfoHelp({ label, children, id: providedId }: InfoHelpProps) {
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setPinned((current) => !current)}
-        className="inline-flex min-h-6 min-w-6 items-center justify-center rounded-md text-[var(--muted)] hover:text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)]"
+        className="inline-flex min-h-6 min-w-6 items-center justify-center rounded-md text-[var(--muted)] hover:text-[var(--text)]"
       >
         <Icon name="info" aria-hidden="true" className="h-3.5 w-3.5" />
       </button>
@@ -75,7 +75,7 @@ export function InfoHelp({ label, children, id: providedId }: InfoHelpProps) {
         hidden={!open}
         role="note"
         style={{ left: leftOffset }}
-        className={`absolute z-50 w-64 max-w-[min(16rem,calc(100vw-2rem))] rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3 text-left text-xs font-normal leading-relaxed text-[var(--text)] shadow-lg ${above ? "bottom-full mb-2" : "top-full mt-2"}`}
+        className={`absolute z-50 w-64 max-w-[min(16rem,calc(100vw-2rem))] rounded-xl border border-[var(--line)] bg-[var(--dialog)] p-3 shadow-float text-left text-xs font-normal leading-relaxed text-[var(--text)] ${above ? "bottom-full mb-2" : "top-full mt-2"}`}
       >
         {children}
       </span>

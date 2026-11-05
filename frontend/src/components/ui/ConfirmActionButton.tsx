@@ -55,7 +55,7 @@ export function ConfirmActionButton({
           onConfirm();
         }}
         disabled={disabled}
-        className="min-h-11 rounded-lg bg-[var(--danger-solid)] px-2.5 text-[11px] font-semibold text-[var(--danger-contrast)] hover:bg-[var(--danger-solid-hover)]"
+        className="min-h-11 rounded-md bg-[var(--danger-solid)] px-2.5 text-xs font-semibold text-[var(--danger-contrast)] hover:bg-[var(--danger-solid-hover)]"
       >
         Ya, lanjutkan
       </button>
@@ -65,7 +65,7 @@ export function ConfirmActionButton({
           stopEventPropagation(event);
           setIsConfirming(false);
         }}
-        className="min-h-11 rounded-lg border border-[var(--line)] px-2.5 text-[11px] font-semibold text-[var(--muted)]"
+        className="min-h-11 rounded-md border border-[var(--line)] px-2.5 text-xs font-semibold text-[var(--muted)]"
       >
         Batal
       </button>

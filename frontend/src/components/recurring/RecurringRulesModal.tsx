@@ -284,7 +284,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
               type="button"
               onClick={() => setActiveTab("list")}
               className={cn(
-                "min-h-11 rounded-xl px-3 text-xs font-semibold transition-colors",
+                "min-h-11 rounded-md px-3 text-xs font-semibold transition-colors",
                 activeTab === "list"
                   ? "bg-[var(--surface-2)] text-[var(--text)] border border-[var(--line)]"
                   : "text-[var(--muted)] hover:text-[var(--text)]"
@@ -296,7 +296,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
               type="button"
               onClick={startNewRule}
               className={cn(
-                "min-h-11 rounded-xl px-3 text-xs font-semibold transition-colors",
+                "min-h-11 rounded-md px-3 text-xs font-semibold transition-colors",
                 activeTab === "create"
                   ? "bg-[var(--surface-2)] text-[var(--text)] border border-[var(--line)]"
                   : "text-[var(--muted)] hover:text-[var(--text)]"
@@ -315,7 +315,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                   aria-pressed={filterType === t}
                   onClick={() => setFilterType(t)}
                   className={cn(
-                    "min-h-11 rounded-lg px-1.5 transition-colors",
+                    "min-h-11 rounded-md px-1.5 transition-colors",
                     filterType === t
                       ? "bg-[var(--text)] font-semibold text-[var(--surface)]"
                       : "text-[var(--muted)] hover:text-[var(--text)]"
@@ -332,7 +332,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
         {activeTab === "list" && (
           <div className="space-y-2.5">
             {listError && (
-              <p role="alert" className="rounded-xl border border-out-solid/20 bg-out-solid/10 p-3 font-medium text-out-fg">
+              <p role="alert" className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 font-medium text-out-fg">
                 {listError}
               </p>
             )}
@@ -349,34 +349,34 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                   <div
                     key={rule.id}
                     className={cn(
-                      "flex flex-col gap-3 rounded-2xl border p-3.5 transition-[color,border-color,background-color,opacity] motion-reduce:transition-none",
+                      "flex flex-col gap-3 rounded-xl border p-3.5 transition-[color,border-color,background-color,opacity] motion-reduce:transition-none",
                       rule.is_active
-                        ? "bg-[var(--surface-2)] border-black/[0.08] dark:border-white/[0.08]"
+                        ? "bg-[var(--surface-2)] border-[var(--line)]"
                         : "bg-[var(--surface)]/50 border-[var(--line)] opacity-60"
                     )}
                   >
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-sm text-[var(--text)]">{rule.name}</span>
-                        {rule.type === "investment_topup" && <span className="rounded bg-inv-solid/10 px-1.5 py-0.5 text-xs text-inv-fg">Top up Investasi</span>}
+                        <span className="font-semibold text-sm text-[var(--text)]">{rule.name}</span>
+                        {rule.type === "investment_topup" && <span className="rounded-md bg-[var(--surface-2)] px-1.5 py-0.5 text-xs text-inv-fg">Top up Investasi</span>}
                         {rule.is_payroll_allocation && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-tr-solid/15 text-tr-fg">
+                          <span className="px-1.5 py-0.5 rounded-md text-xs font-semibold bg-[var(--surface-2)] text-tr-fg">
                             Dulu alokasi gaji
                           </span>
                         )}
                         {isDebt && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-out-solid/15 text-out-fg">
+                          <span className="px-1.5 py-0.5 rounded-md text-xs font-semibold bg-[var(--surface-2)] text-out-fg">
                             Cicilan: {rule.obligation_name}
                           </span>
                         )}
                         {rule.legacy_auto_post && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-warn-solid/15 text-warn-fg">
+                          <span className="px-1.5 py-0.5 rounded-md text-xs font-semibold bg-[var(--surface-2)] text-warn-fg">
                             Dulu dicatat otomatis
                           </span>
                         )}
                       </div>
 
-                      <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-medium text-[var(--muted)]">
+                      <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs font-medium text-[var(--muted)]">
                         {isTransfer ? (
                           <span>
                             {rule.source_account_name} → {rule.target_account_name}
@@ -398,10 +398,10 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
 
                     <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] pt-2">
                       <div className="min-w-0">
-                        <div className="whitespace-nowrap font-bold tabular text-sm text-[var(--text)]">
+                        <div className="whitespace-nowrap font-semibold tabular text-sm text-[var(--text)]">
                           {fmtMoney(rule.amount)}
                         </div>
-                        <div className="text-[10px] text-[var(--muted)] font-medium tabular">
+                        <div className="text-xs text-[var(--muted)] font-medium tabular">
                           Berikutnya: {rule.next_due_date}
                         </div>
                       </div>
@@ -426,7 +426,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                             setFormError("");
                             setActiveTab("create");
                           }}
-                          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]"
+                          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]"
                           aria-label={`Ubah rencana ${rule.name}`}
                         >
                           <Icon name="edit" className="h-4 w-4" />
@@ -435,9 +435,9 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                           type="button"
                           onClick={() => toggleMutation.mutate(rule.id)}
                           className={cn(
-                            "inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg transition-colors",
+                            "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md transition-colors",
                             rule.is_active
-                              ? "text-in-fg hover:bg-in-solid/10"
+                              ? "text-in-fg hover:bg-[var(--surface-2)]"
                               : "text-[var(--muted)] hover:bg-[var(--surface-2)]"
                           )}
                           aria-label={rule.is_active ? `Nonaktifkan ${rule.name}` : `Aktifkan ${rule.name}`}
@@ -448,7 +448,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                           label={`Hapus rencana ${rule.name}`}
                           confirmation={`Hapus rencana "${rule.name}"? Rencana yang punya riwayat hanya bisa dinonaktifkan.`}
                           onConfirm={() => deleteMutation.mutate(rule.id)}
-                          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg hover:bg-out-solid/10 text-[var(--muted)] hover:text-out-fg transition-colors"
+                          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-[var(--surface-2)] text-[var(--muted)] hover:text-out-fg transition-colors"
                         >
                           <Icon name="trash" className="h-4 w-4" />
                         </ConfirmActionButton>
@@ -471,7 +471,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
             }}
           >
             {formError && (
-              <div role="alert" aria-live="assertive" className="p-3 rounded-xl bg-out-solid/10 border border-out-solid/20 text-out-fg font-medium">
+              <div role="alert" aria-live="assertive" className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] text-out-fg font-medium">
                 {formError}
               </div>
             )}
@@ -490,7 +490,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Contoh: Alokasi Makan, Cicilan KPR, Bayar Wifi"
-                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-semibold text-[var(--text)]"
+                className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-semibold text-[var(--text)]"
               />
             </div>
 
@@ -502,7 +502,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                   name="type"
                   value={type}
                   onChange={(e) => handleTypeChange(e.target.value as RecurringRule["type"])}
-                  className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                  className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
                 >
                   <option value="transfer">Pindah Saldo / Alokasi Kantong</option>
                   <option value="expense">Pengeluaran / Pembayaran Tagihan</option>
@@ -521,7 +521,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                   value={amountStr}
                   onChange={(e) => setAmountStr(formatNumberWithDots(e.target.value))}
                   placeholder="Contoh: 1.500.000"
-                  className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-bold tabular text-[var(--text)]"
+                  className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-semibold tabular text-[var(--text)]"
                 />
               </div>
             </div>
@@ -536,7 +536,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                   name="source_account_id"
                   value={sourceAccountId}
                   onChange={(e) => setSourceAccountId(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                  className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
                 >
                   <option value="">Pilih rekening…</option>
                   <AccountSelectOptions accounts={accounts} allowParentSelection={true} liquidOnly includeCredit={type === "expense"} />
@@ -551,7 +551,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                     name="target_account_id"
                     value={targetAccountId}
                     onChange={(e) => setTargetAccountId(e.target.value)}
-                    className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                    className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
                   >
                     <option value="">Pilih rekening tujuan…</option>
                     {type === "investment_topup" ? investmentProducts.map((product) => <option key={product.id} value={product.id}>{product.name}</option>) : <AccountSelectOptions accounts={accounts} allowParentSelection={true} excludeAccountId={sourceAccountId} liquidOnly />}
@@ -565,7 +565,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                     name="category_id"
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
-                    className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                    className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
                   >
                     <option value="">Pilih Kategori…</option>
                     {categories.filter((c: any) => c.kind === type && !c.is_archived).map((c: any) => (
@@ -580,7 +580,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
 
             {/* Optional Debt Obligation Link */}
             {type === "expense" && !sourceIsCredit && obligations.length > 0 && (
-              <div className="p-3 rounded-xl border border-out-solid/20 bg-out-solid/5 space-y-1">
+              <div className="p-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] space-y-1">
                 <label htmlFor="recurring-obligation" className="text-xs font-medium text-[var(--text)] block mb-1">
                   Bayar tagihan / utang (opsional)
                 </label>
@@ -589,7 +589,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                   name="obligation_id"
                   value={obligationId}
                   onChange={(e) => setObligationId(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                  className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
                 >
                   <option value="">Tidak terkait tagihan</option>
                   {obligations.map((o: any) => (
@@ -610,7 +610,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                 type="text"
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
-                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
               />
             </div>
             </FormSection>
@@ -624,7 +624,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                   name="schedule_type"
                   value={scheduleType}
                   onChange={(e) => handleScheduleTypeChange(e.target.value as "monthly_day" | "payday" | "weekly")}
-                  className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                  className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
                 >
                   {legacyPaydaySchedule && <option value="payday">Tanggal gaji lama (perkiraan)</option>}
                   <option value="monthly_day">Tanggal Tertentu Bulanan</option>
@@ -644,7 +644,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                         name="schedule_day"
                         value={scheduleDay}
                         onChange={(event) => setScheduleDay(Number(event.target.value))}
-                        className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+                        className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
                       >
                         <option value={1}>Senin</option>
                         <option value={2}>Selasa</option>
@@ -669,7 +669,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                         required
                         value={scheduleDay}
                         onChange={(event) => setScheduleDay(Number(event.target.value))}
-                        className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm tabular text-[var(--text)] font-semibold"
+                        className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm tabular text-[var(--text)] font-semibold"
                       />
                     </>
                   )}
@@ -685,7 +685,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                     name="is_active"
                     checked={isActive}
                     onChange={(e) => setIsActive(e.target.checked)}
-                    className="rounded border-[var(--line)] text-in-fg focus:ring-in-solid h-4 w-4"
+                    className="rounded-md border-[var(--line)] text-in-fg h-4 w-4"
                   />
                   <span className="font-semibold text-xs text-[var(--text)]">Rencana aktif</span>
                 </label>
@@ -706,14 +706,14 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
                   setEditingRuleId(null);
                   setActiveTab("list");
                 }}
-                className="px-4 py-2 rounded-xl border border-[var(--line)] text-[var(--muted)] hover:bg-[var(--surface-2)]"
+                className="px-4 py-2 rounded-md border border-[var(--line)] text-[var(--muted)] hover:bg-[var(--surface-2)]"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={createMutation.isPending}
-                className="min-h-11 rounded-xl bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50"
+                className="min-h-11 rounded-md bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50"
               >
                 {createMutation.isPending ? "Menyimpan…" : editingRuleId ? "Simpan Perubahan" : "Simpan Rencana"}
               </button>

@@ -316,7 +316,7 @@ function RunwayCard({ query, money }: { query: { data?: NetWorthResponse; isLoad
       ) : (
         <>
           <div className="ws-dana-big">
-            {known ? <><b>{months!.toLocaleString("id-ID", { maximumFractionDigits: 1 })}</b> bulan biaya pokok</> : <b className="!text-lg">Belum dapat dihitung</b>}
+            {known ? <><b>{months!.toLocaleString("id-ID", { maximumFractionDigits: 1 })}</b> bulan biaya pokok</> : <b className="!text-base">Belum dapat dihitung</b>}
           </div>
           {known && coverage != null && (
             <div className="ws-bar mt-3" aria-hidden="true"><i style={{ width: `${coverage}%` }} /></div>

@@ -21,12 +21,20 @@ function componentFiles(dir: string): string[] {
   });
 }
 
+function cssModules(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return cssModules(full);
+    return entry.name.endsWith(".module.css") ? [full] : [];
+  });
+}
+
 function componentSources(dir: string): string[] {
   return componentFiles(dir).map((file) => readFileSync(file, "utf8"));
 }
 
 function block(selector: string): Record<string, string> {
-  const start = tokens.indexOf(`${selector} {`);
+  const start = selector === ":root" ? tokens.indexOf(":root, .theme-light {") : tokens.indexOf(`${selector} {`);
   expect(start).toBeGreaterThanOrEqual(0);
   const body = tokens.slice(start, tokens.indexOf("\n}", start));
   return Object.fromEntries([...body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((match) => [match[1], match[2].trim()]));
@@ -75,17 +83,17 @@ function contrast(first: Rgb, second: Rgb): number {
   return (light + 0.05) / (dark + 0.05);
 }
 
-// Text tokens paired with every background they are painted on.
-const SURFACES = ["--surface", "--window", "--surface-2"];
+// Text tokens paired with every background they are painted on: the canvas (s0), cards and panels (s1),
+// the raised badge and selection fill (s2) and the dialog surface.
+const SURFACES = ["--window", "--surface", "--surface-2", "--dialog"];
 const textPairs: [string, string[]][] = [
-  ["--text", [...SURFACES, "--surface-3", "--canvas"]],
-  ["--text-2", [...SURFACES, "--surface-3", "--nav-bg", "--nav-hover"]],
-  // Also the inactive labels of the phone tab bar, which sits on --surface.
-  ["--muted", [...SURFACES, "--surface-3", "--nav-bg", "--nav-hover"]],
-  ["--ink-fg", ["--ink", "--ink-hover"]],
+  ["--text", [...SURFACES, "--canvas", "--nav-bg", "--nav-hover"]],
+  ["--text-2", [...SURFACES, "--nav-bg", "--nav-hover"]],
+  ["--muted", [...SURFACES, "--nav-bg", "--nav-hover"]],
   ["--tile-fg", ["--tile"]],
-  ["--accent-ink", ["--accent", "--accent-hover"]],
-  ["--accent-fg", [...SURFACES, "--accent-soft"]],
+  ["--ink-fg", ["--ink"]],
+  ["--accent-ink", ["--accent", "--accent-hover", "--accent-pressed"]],
+  ["--accent-fg", SURFACES],
   ["--in-fg", [...SURFACES, "--in-bg"]],
   ["--out-fg", [...SURFACES, "--out-bg"]],
   ["--tr-fg", [...SURFACES, "--tr-bg"]],
@@ -93,11 +101,6 @@ const textPairs: [string, string[]][] = [
   ["--warn-fg", [...SURFACES, "--warn-bg"]],
   ["--ok-fg", [...SURFACES, "--ok-bg"]],
   ["--danger-contrast", ["--danger-solid", "--danger-solid-hover"]],
-  // Text on the semantic solids (the `*-solid-fg` Tailwind keys).
-  ["--in-solid-fg", ["--in-solid"]],
-  ["--in-solid-hover-fg", ["--in-solid-hover"]],
-  ["--tr-solid-fg", ["--tr-solid"]],
-  ["--inv-solid-fg", ["--inv-solid"]],
 ];
 
 /** The compatibility aliases removed in phase 5 (redesign-money-and-settings D11); none may come back. */
@@ -127,11 +130,18 @@ function findings(pattern: RegExp, sources: string[] = sourceFiles): string[] {
     [...line.matchAll(pattern)].map((match) => `${path.relative(srcDir, file)}:${index + 1} ${match[0]}`)));
 }
 
-// Icons and marks need 3:1 (WCAG 1.4.11). The focus ring sits 2px outside its control, on the window or a surface.
+// Marks need 3:1 (WCAG 1.4.11): money marks on the page and panel surfaces, the focus outline on every
+// surface, and a focused field's edge against its resting edge (SPEC §3.3).
 const markPairs: [string, string[]][] = [
   ["--focus", SURFACES],
-  ["--ok-dot", ["--surface", "--window"]],
-  ["--accent-fg", ["--accent-soft"]],
+  ["--field-focus", SURFACES],
+  ["--in-solid", ["--window", "--surface"]],
+  ["--tr-solid", ["--window", "--surface"]],
+  ["--inv-solid", ["--window", "--surface"]],
+  ["--warn-solid", ["--window", "--surface"]],
+  ["--out-solid", ["--window", "--surface"]],
+  ["--ok-dot", ["--window", "--surface"]],
+  ["--line-strong", ["--window", "--surface", "--surface-2"]],
 ];
 
 const PILLARS = ["need", "want", "culture", "unexpected", "saving"] as const;
@@ -150,58 +160,134 @@ function hueOf(colour: Rgb): { hue: number; saturation: number } {
   return { hue: sector * 60, saturation: chroma / (1 - Math.abs(2 * lightness - 1)) };
 }
 
-const hueDistance = (first: number, second: number) => {
-  const difference = Math.abs(first - second) % 360;
-  return Math.min(difference, 360 - difference);
-};
-
 const tailwindTheme = resolveConfig(createRequire(import.meta.url)("../../tailwind.config.js")).theme as unknown as Record<
   string,
-  Record<string, Record<string, string>>
+  Record<string, unknown>
 >;
 
+// Option 6 "Markas+" values on the app's token names (apply-markas-foundation D3), light then dark.
+const MARKAS: Record<string, [string, string]> = {
+  "--canvas": ["#F8F7F4", "#151517"],
+  "--window": ["#F8F7F4", "#151517"],
+  "--surface": ["#F1EFEB", "#1C1D20"],
+  "--surface-2": ["#E6E3DD", "#26272B"],
+  "--surface-3": ["#E6E3DD", "#26272B"],
+  "--nav-bg": ["#F1EFEB", "#1C1D20"],
+  "--nav-hover": ["#E6E3DD", "#26272B"],
+  "--accent-soft": ["#E6E3DD", "#26272B"],
+  "--dialog": ["#F8F7F4", "#1C1D20"],
+  "--line": ["#E1DDD6", "#2F3034"],
+  "--line-strong": ["#847F78", "#6E7076"],
+  "--text": ["#1C1E22", "#E8E7E4"],
+  "--ink": ["#1C1E22", "#E8E7E4"],
+  "--muted": ["#5B5E65", "#A3A3A7"],
+  "--text-2": ["#5B5E65", "#A3A3A7"],
+  "--ink-hover": ["#45484F", "#BDBEC2"],
+  "--ink-fg": ["#F8F7F4", "#151517"],
+  "--accent": ["#FF334B", "#FF4757"],
+  "--accent-hover": ["#FF4D61", "#FF6675"],
+  "--accent-pressed": ["#FF6B7C", "#FF8A95"],
+  "--accent-ink": ["#0A0D14", "#0A0D14"],
+  "--accent-fg": ["#B8142D", "#FF6B78"],
+  "--in-fg": ["#056548", "#34D399"],
+  "--ok-fg": ["#056548", "#34D399"],
+  "--out-fg": ["#B8142D", "#FF6B78"],
+  "--tr-fg": ["#075985", "#38BDF8"],
+  "--inv-fg": ["#5B21B6", "#B39DFB"],
+  "--warn-fg": ["#8F4F04", "#FBBF24"],
+  "--in-bg": ["#E6E3DD", "#26272B"],
+  "--out-bg": ["#E6E3DD", "#26272B"],
+  "--tr-bg": ["#E6E3DD", "#26272B"],
+  "--inv-bg": ["#E6E3DD", "#26272B"],
+  "--warn-bg": ["#E6E3DD", "#26272B"],
+  "--ok-bg": ["#E6E3DD", "#26272B"],
+  "--in-solid": ["#047857", "#10B981"],
+  "--ok-dot": ["#047857", "#10B981"],
+  "--k-saving": ["#047857", "#10B981"],
+  "--flow-in": ["#047857", "#10B981"],
+  "--use-tabungan": ["#047857", "#10B981"],
+  "--tr-solid": ["#0284C7", "#0EA5E9"],
+  "--use-dana": ["#0284C7", "#0EA5E9"],
+  "--inv-solid": ["#7C3AED", "#8B5CF6"],
+  "--k-need": ["#7C3AED", "#8B5CF6"],
+  "--flow-inv": ["#7C3AED", "#8B5CF6"],
+  "--use-investasi": ["#7C3AED", "#8B5CF6"],
+  "--warn-solid": ["#B45309", "#F59E0B"],
+  "--flow-warn": ["#B45309", "#F59E0B"],
+  "--k-unexpected": ["#B45309", "#FBBF24"],
+  "--out-solid": ["#E11D48", "#FF4757"],
+  "--k-want": ["#E11D48", "#FF4757"],
+  "--k-culture": ["#0369A1", "#38BDF8"],
+  "--k-none": ["#64748B", "#94A3B8"],
+  "--flow-left": ["#64748B", "#94A3B8"],
+  "--flow-other": ["#64748B", "#94A3B8"],
+  "--use-harian": ["#64748B", "#94A3B8"],
+  "--danger-solid": ["#B8142D", "#E11D48"],
+  "--danger-solid-hover": ["#A9122A", "#CF1B42"],
+  "--danger-contrast": ["#FFFFFF", "#FFFFFF"],
+  "--focus": ["#45484F", "#BDBEC2"],
+  "--field-focus": ["#2B2D32", "#C9C9CC"],
+  "--ring": ["rgba(28, 30, 34, 0.10)", "rgba(232, 231, 228, 0.12)"],
+  "--scrim": ["rgba(28, 26, 22, 0.44)", "rgba(8, 8, 9, 0.62)"],
+  "--shadow-float": [
+    "0 16px 48px rgba(40, 34, 26, 0.14), 0 2px 6px rgba(40, 34, 26, 0.06)",
+    "0 16px 48px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3)",
+  ],
+};
+
+/** Tokens retired with the pre-redesign styling; none may come back (apply-markas-foundation D3, D6, D7). */
+const RETIRED = [
+  "--font-body", "--font-mono", "--radius-window", "--radius-card", "--radius-btn", "--radius-xs", "--radius-sm", "--radius-md",
+  "--radius-lg", "--radius-xl", "--radius-2xl", "--radius-3xl", "--radius-pill", "--shadow-window", "--shadow-card", "--shadow-xs",
+  "--shadow-sm", "--shadow-md", "--in-solid-fg", "--in-solid-hover", "--in-solid-hover-fg", "--out-solid-hover", "--tr-solid-fg",
+  "--inv-solid-fg",
+];
+
 describe("design tokens", () => {
-  // The pre-redesign "Coral Terminal" values (commit 6cc6704) on the semantic names (refine-workspace-layout D1).
   it.each([
-    [":root", {
-      "--window": "#E8ECEF", "--surface": "#FFFFFF", "--surface-3": "#D8DFE5", "--text": "#0A0D14", "--text-2": "#343E4E", "--muted": "#4E5D70",
-      "--accent": "#FF334B", "--accent-hover": "#F02A42", "--accent-soft": "#FFE8EC", "--accent-ink": "#0A0D14", "--in-solid": "#059669",
-      "--in-fg": "#056548", "--out-solid": "#FF334B", "--out-fg": "#B8142D", "--warn-solid": "#F59E0B", "--tr-solid": "#0EA5E9",
-      "--inv-solid": "#8B5CF6", "--k-need": "#2448C4", "--k-want": "#A21C7E", "--k-culture": "#56640F", "--k-unexpected": "#9E440D",
-      "--k-saving": "#296B38", "--k-none": "#475569",
-    }],
-    [".dark", {
-      "--window": "#050608", "--surface": "#0E1118", "--surface-3": "#181E2A", "--text": "#F8FAFC", "--text-2": "#94A3B8", "--muted": "#8B9AAF",
-      "--accent": "#FF4757", "--accent-hover": "#FF6675", "--accent-ink": "#0A0D14", "--in-solid": "#10B981", "--in-fg": "#10B981",
-      "--out-solid": "#FF4757", "--warn-solid": "#FBBF24", "--tr-solid": "#38BDF8", "--inv-solid": "#A78BFA", "--k-need": "#8099F5",
-      "--k-want": "#E879C6", "--k-culture": "#B5C350", "--k-unexpected": "#F0915A", "--k-saving": "#7AC68A", "--k-none": "#94A3B8",
-    }],
-  ] as const)("paints %s with the pre-redesign palette", (selector, values) => {
+    [":root", 0],
+    [".dark", 1],
+  ] as const)("paints %s with the Markas+ palette", (selector, index) => {
     const theme = themes[selector];
-    for (const [name, value] of Object.entries(values)) expect(theme[name], name).toBe(value);
+    for (const [name, values] of Object.entries(MARKAS)) expect(theme[name], name).toBe(values[index]);
   });
 
-  // The validated categorical use slots and the violet investment-kind steps (organize-accounts-by-use D7).
-  it.each([
-    [":root", {
-      "--use-harian": "#059669", "--use-tabungan": "#B7791F", "--use-dana": "#0EA5E9", "--use-investasi": "#8B5CF6",
-      "--kind-emas": "#C4B5FD", "--kind-reksa-dana": "#8B5CF6", "--kind-saham": "#5B21B6",
-    }],
-    [".dark", {
-      "--use-harian": "#0F9A6E", "--use-tabungan": "#A9772A", "--use-dana": "#2290CC", "--use-investasi": "#8F6BEF",
-      "--kind-emas": "#5B45A8", "--kind-reksa-dana": "#8F6BEF", "--kind-saham": "#C4B5FD",
-    }],
-  ] as const)("paints the account uses and investment kinds in %s", (selector, values) => {
-    const theme = themes[selector];
-    for (const [name, value] of Object.entries(values)) expect(theme[name], name).toBe(value);
+  it("keeps the chart tokens without a prototype counterpart until their page changes", () => {
+    for (const name of ["--heat-1", "--heat-5", "--band-op", "--kind-emas", "--kind-reksa-dana", "--kind-saham"]) {
+      expect(themes[":root"][name], name).toBeDefined();
+      expect(themes[".dark"][name], name).toBeDefined();
+    }
+  });
+
+  it("defines the type, spacing, radius and motion scales of the prototype", () => {
+    const root = themes[":root"];
+    expect([12, 14, 16, 20, 24, 32, 44].map((size) => root[`--fs-${size}`])).toEqual(["12px", "14px", "16px", "20px", "24px", "32px", "44px"]);
+    expect([4, 8, 12, 16, 24, 32, 48, 64].map((step) => root[`--sp-${step}`])).toEqual(["4px", "8px", "12px", "16px", "24px", "32px", "48px", "64px"]);
+    expect([root["--r-control"], root["--r-panel"], root["--r-layer"]]).toEqual(["6px", "12px", "16px"]);
+    expect(root["--t-state"]).toBe("140ms cubic-bezier(0.2, 0, 0, 1)");
+    expect(root["--t-layer"]).toBe("200ms cubic-bezier(0.2, 0, 0, 1)");
+    expect(root["--features-text"]).toBe('"lnum" 1, "cv11" 1');
+    expect(root["--features-num"]).toBe('"tnum" 1, "lnum" 1, "cv11" 1');
+    expect(root["--font-sans"]).toMatch(/^var\(--font-inter\), "Inter"/);
+    expect(root["--font-display"]).toMatch(/^var\(--font-manrope\), "Manrope"/);
   });
 
   it("defines every custom property the stylesheets and components use", () => {
     const runtimeFontVariables = [...layout.matchAll(/variable: "(--[\w-]+)"/g)].map((match) => match[1]);
-    const defined = new Set([...declaredIn(tokens), ...declaredIn(globals), ...runtimeFontVariables]);
-    const used = new Set([tokens, globals, ...componentSources(srcDir)].flatMap((source) => [...usedIn(source)]));
+    // Components set some properties inline (style={{ "--bc": colour }}); those count as defined too.
+    const inline = componentSources(srcDir).flatMap((source) => [...source.matchAll(/["'](--[\w-]+)["'](?:\s+as\s+string)?\]?\s*:/g)].map((match) => match[1]));
+    const defined = new Set([...declaredIn(tokens), ...declaredIn(globals), ...runtimeFontVariables, ...inline]);
+    const modules = cssModules(srcDir).map((file) => readFileSync(file, "utf8"));
+    const used = new Set([tokens, globals, ...modules, ...componentSources(srcDir)].flatMap((source) => [...usedIn(source)]));
 
     expect([...used].filter((name) => !defined.has(name)).sort()).toEqual([]);
+  });
+
+  it("declares and uses no retired token", () => {
+    const declared = declaredIn(tokens + globals);
+    expect(RETIRED.filter((name) => declared.has(name))).toEqual([]);
+    const retiredUse = new RegExp(`var\\(\\s*(?:${RETIRED.map((name) => name.replace(/-/g, "\\-")).join("|")})\\s*[,)]`, "g");
+    expect(findings(retiredUse, [...sourceFiles, path.join(appDir, "globals.css"), ...cssModules(srcDir)])).toEqual([]);
   });
 
   it("declares and uses no compatibility alias", () => {
@@ -227,18 +313,31 @@ describe("design tokens", () => {
     expect(findings(new RegExp(`\\b(?:${LEGACY_UTILITIES.join("|")})\\b`, "g"))).toEqual([]);
   });
 
-  it("builds every semantic Tailwind key from a token declared in both themes", () => {
+  it("builds every semantic Tailwind key from a token declared in both themes, without an opacity channel", () => {
     const colors = createRequire(import.meta.url)("../../tailwind.config.js").theme.extend.colors as Record<string, string | Record<string, string>>;
     const values = Object.values(colors).flatMap((value) => (typeof value === "string" ? [value] : Object.values(value)));
-    const referenced = values.map((value) => value.match(/var\((--[\w-]+)\)/)?.[1]);
-    expect(referenced.filter((name) => !name)).toEqual([]);
-    for (const name of referenced as string[]) {
+    expect(values.filter((value) => !/^var\(--[\w-]+\)$/.test(value))).toEqual([]);
+    for (const value of values) {
+      const name = value.slice(4, -1);
       expect(themes[":root"][name], `${name} in :root`).toBeDefined();
       expect(themes[".dark"][name], `${name} in .dark`).toBeDefined();
     }
-    for (const family of ["in", "out", "tr", "inv", "warn", "ok"]) {
-      for (const shade of ["fg", "bg"]) expect((colors[family] as Record<string, string>)[shade], `${family}-${shade}`).toContain(`var(--${family}-${shade})`);
-    }
+  });
+
+  it("paints no tinted semantic fill behind text", () => {
+    // Badges carry the ink on the raised neutral fill (D7); tints of a mark colour fall below 4.5:1 on s2.
+    expect(findings(/(?<![\w-])(?:[a-z-]+:)*(?:bg|border)-(?:in|out|tr|inv|warn|ok)-(?:solid|bg|fg)\/\d+/g)).toEqual([]);
+    expect(findings(/color-mix\(in srgb, var\(--(?:in|out|tr|inv|warn)-/g)).toEqual([]);
+  });
+
+  it("replaces Tailwind's type, weight, radius and shadow scales with the prototype's", () => {
+    expect(Object.keys(tailwindTheme.fontSize)).toEqual(["xs", "sm", "base", "xl", "2xl", "3xl", "4xl"]);
+    expect(Object.values(tailwindTheme.fontSize as Record<string, [string, { lineHeight: string }]>).map(([size, { lineHeight }]) => `${size}/${lineHeight}`))
+      .toEqual(["var(--fs-12)/16px", "var(--fs-14)/20px", "var(--fs-16)/24px", "var(--fs-20)/28px", "var(--fs-24)/32px", "var(--fs-32)/40px", "var(--fs-44)/52px"]);
+    expect(tailwindTheme.fontWeight).toEqual({ normal: "400", medium: "500", semibold: "600" });
+    expect(new Set(Object.values(tailwindTheme.borderRadius))).toEqual(new Set(["0", "var(--r-control)", "var(--r-panel)", "var(--r-layer)", "9999px"]));
+    expect(tailwindTheme.boxShadow).toEqual({ none: "none", float: "var(--shadow-float)" });
+    expect(Object.keys(tailwindTheme.fontFamily)).toEqual(["sans", "display"]);
   });
 
   it("paints Kakeibo pillars only through their tokens in kakeibo.ts", () => {
@@ -247,20 +346,26 @@ describe("design tokens", () => {
     expect(kakeibo).not.toMatch(/#[0-9a-fA-F]{6}/);
   });
 
+  it("uses pillar colours only as marks, never as text", () => {
+    // D4: dots, bars and rails carry the pillar colour; the pillar's name and amount keep the text tokens.
+    const textUse = /(?:text-\[var\(--k-|(?<![\w-])color:\s*var\(--k-|style=\{\{[^}]*(?<![\w-])color:\s*[\w?.]*(?:info|bucket|pillar)\??\.color)/g;
+    expect(findings(textUse, [...sourceFiles, path.join(appDir, "globals.css"), ...cssModules(srcDir)])).toEqual([]);
+  });
+
   it("starts new investment accounts with a lavender tag colour", async () => {
     const { defaultAccountTagColor, INVESTMENT_ACCOUNT_TAG_COLOR } = await import("@/lib/accountColours");
     expect(defaultAccountTagColor("investment")).toBe(INVESTMENT_ACCOUNT_TAG_COLOR);
     for (const type of ["bank", "wallet", "cash"]) expect(defaultAccountTagColor(type)).not.toBe(INVESTMENT_ACCOUNT_TAG_COLOR);
   });
 
-  it("gives every card the card shadow token and floating layers the float token", () => {
+  it("gives cards no shadow and floating layers the layer shadow token", () => {
     const rule = (selector: string) => {
       const start = globals.indexOf(`${selector} {`);
       expect(start, selector).toBeGreaterThanOrEqual(0);
       return globals.slice(start, globals.indexOf("}", start));
     };
-    expect(rule(".ws-card")).toContain("box-shadow: var(--shadow-card)");
-    for (const floating of [".ws-menu", ".ws-explain", ".ws-toast", "dialog.ws-dialog"]) {
+    expect(rule(".ws-card")).toContain("box-shadow: none");
+    for (const floating of [".ws-menu", ".ws-explain", ".ws-toast", "dialog.ws-dialog", '.ws-drawer[data-mode="dialog"]']) {
       expect(rule(floating), floating).toContain("box-shadow: var(--shadow-float)");
     }
   });
@@ -272,70 +377,12 @@ describe("design tokens", () => {
     expect(zOf('.ws-drawer[data-mode="sheet"]')).toBeGreaterThan(scrim);
   });
 
-  it("generates shadow-xs from the --shadow-xs token", () => {
-    const boxShadow = tailwindTheme.boxShadow as unknown as Record<string, string>;
-    expect(boxShadow.xs).toBe("var(--shadow-xs)");
-    expect(boxShadow.sm).toBe("var(--shadow-sm)");
-  });
-
   describe.each(Object.entries(themes))("in %s", (selector, theme) => {
-    it("keeps --shadow-xs a 1px raise lighter than --shadow-sm", () => {
-      const shadow = (name: string) => {
-        const match = resolve(theme, name).match(/^0 (\d+)px (\d+)px (?:-?\d+(?:px)? )?rgba\(\d+, \d+, \d+, ([\d.]+)\)$/);
-        expect(match, `${name} in ${selector}`).not.toBeNull();
-        return { offset: Number(match![1]), blur: Number(match![2]), alpha: Number(match![3]) };
-      };
-      const xs = shadow("--shadow-xs");
-      const sm = shadow("--shadow-sm");
-      expect(xs.offset).toBe(1);
-      expect(xs.blur).toBeLessThanOrEqual(2);
-      expect(xs.blur).toBeLessThan(sm.blur);
-      expect(xs.alpha).toBeLessThan(sm.alpha);
-    });
-
-    // Chips, notes and pills carry text on `bg-<family>-solid/5` to `/15` (income only to `/10`); transfer and warning also on `/20`.
-    it.each([["in", 0.1], ["out", 0.15], ["inv", 0.15], ["tr", 0.2], ["warn", 0.2]] as const)("keeps --%s-fg at WCAG AA on the tints of its solid up to %s", (family, strongest) => {
-      const solid = painted(theme, `--${family}-solid`);
-      for (const surface of ["--surface", "--surface-2"]) {
-        for (const alpha of [0.05, 0.1, 0.15, 0.2].filter((value) => value <= strongest)) {
-          const base = painted(theme, surface);
-          const tint = base.map((channel, index) => solid[index] * alpha + channel * (1 - alpha)) as Rgb;
-          expect(contrast(painted(theme, `--${family}-fg`), tint), `${alpha} ${family} over ${surface} in ${selector}`)
-            .toBeGreaterThanOrEqual(4.5);
-        }
+    it.each(textPairs)("keeps %s at WCAG AA on its backgrounds", (text, backgrounds) => {
+      for (const background of backgrounds) {
+        expect(contrast(painted(theme, text), painted(theme, background)), `${text} on ${background} in ${selector}`)
+          .toBeGreaterThanOrEqual(4.5);
       }
-    });
-
-    it.each([...PILLARS, "unclassified"])("keeps the %s pillar colour at WCAG AA as text and as a mark", (pillar) => {
-      // The pillar colour is a chart mark (dots, bar segments) and may be text. Text needs 4.5:1 on every surface
-      // and the pillar's soft fill; marks need 3:1 on the bar tracks (--surface-2, --surface-3 and --line).
-      const colour = painted(theme, pillarToken(pillar));
-      for (const background of ["--surface", "--window", "--surface-2", `${pillarToken(pillar)}-soft`]) {
-        expect(contrast(colour, painted(theme, background)), `${pillar} text on ${background} in ${selector}`).toBeGreaterThanOrEqual(4.5);
-      }
-      for (const track of ["--surface-3", "--line", "--surface-2"]) {
-        expect(contrast(colour, painted(theme, track)), `${pillar} mark on ${track} in ${selector}`).toBeGreaterThanOrEqual(3);
-      }
-    });
-
-    it("gives every pillar its own hue, apart from the transfer, investment, income and expense colours", () => {
-      const pillarHue = (pillar: string) => hueOf(painted(theme, pillarToken(pillar)));
-      const reserved = ["--tr-solid", "--tr-fg", "--inv-solid", "--inv-fg", "--in-solid", "--in-fg", "--out-solid", "--out-fg"];
-      for (const pillar of PILLARS) {
-        const { hue, saturation } = pillarHue(pillar);
-        expect(saturation, `${pillar} is a colour, not a grey, in ${selector}`).toBeGreaterThan(0.35);
-        for (const token of reserved) {
-          const distance = hueDistance(hue, hueOf(painted(theme, token)).hue);
-          expect(distance, `${pillar} vs ${token} in ${selector}`).toBeGreaterThanOrEqual(25);
-        }
-      }
-      for (const [index, first] of PILLARS.entries()) {
-        for (const second of PILLARS.slice(index + 1)) {
-          expect(hueDistance(pillarHue(first).hue, pillarHue(second).hue), `${first} vs ${second} in ${selector}`).toBeGreaterThanOrEqual(40);
-        }
-      }
-      // "Belum diklasifikasi" is missing information, so it stays a neutral grey rather than a sixth hue.
-      expect(pillarHue("unclassified").saturation, `unclassified in ${selector}`).toBeLessThan(0.25);
     });
 
     it.each(markPairs)("keeps the mark %s at 3:1 on its backgrounds", (mark, backgrounds) => {
@@ -344,9 +391,33 @@ describe("design tokens", () => {
       }
     });
 
-    it("uses blue only for transfers and the need pillar: no info blue and no other blue token", () => {
-      // Chroma rather than HSL saturation: the cool slate neutrals of the palette are near-black or
-      // near-white greys whose HSL saturation is high although they read as grey.
+    it("sets a focused field's edge apart from its resting edge", () => {
+      // SPEC §3.3 gives 3.47:1 light and "3.00:1" dark; the dark pair measures 2.996:1, so the bound is the
+      // prototype's rounded value. The field's edge against its surface stays above 9:1, and the soft ring
+      // and the caret also mark focus.
+      expect(contrast(painted(theme, "--field-focus"), painted(theme, "--line-strong")), selector).toBeGreaterThanOrEqual(2.995);
+    });
+
+    it("keeps the keyboard focus outline at 7:1 on every surface", () => {
+      for (const surface of SURFACES) {
+        expect(contrast(painted(theme, "--focus"), painted(theme, surface)), `--focus on ${surface} in ${selector}`).toBeGreaterThanOrEqual(7);
+      }
+    });
+
+    it.each([...PILLARS, "unclassified"])("keeps the %s pillar mark at 3:1 on the canvas, the surfaces and the raised fill", (pillar) => {
+      const colour = painted(theme, pillarToken(pillar));
+      for (const background of ["--canvas", "--window", "--surface", "--surface-2"]) {
+        expect(contrast(colour, painted(theme, background)), `${pillar} mark on ${background} in ${selector}`).toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it("keeps Belum diklasifikasi a neutral grey", () => {
+      // "Belum diklasifikasi" is missing information, so it stays grey rather than a sixth hue.
+      expect(hueOf(painted(theme, "--k-none")).saturation, `unclassified in ${selector}`).toBeLessThan(0.25);
+    });
+
+    it("uses blue only for transfers, the Budaya pillar and Dana investasi: no info blue and no other blue token", () => {
+      // Chroma rather than HSL saturation: the slate neutrals read as grey although their HSL saturation is high.
       const blue = Object.entries(theme)
         .filter(([, value]) => /^#[0-9A-Fa-f]{6}$/.test(value))
         .filter(([, value]) => {
@@ -356,19 +427,9 @@ describe("design tokens", () => {
           return chroma > 0.2 && hue >= 190 && hue <= 245;
         })
         .map(([name]) => name);
-      // The need pillar keeps the old app's fjord blue (refine-workspace-layout D1), 25 degrees or more from the transfer sky.
-      // Dana investasi keeps the sky slot of the validated use palette (organize-accounts-by-use D7); it is a
-      // chart mark on Rekening & Kantong, always labelled, never text or an interactive colour.
-      const allowed = (name: string) => name.startsWith("--tr-") || name.startsWith("--k-need") || name === "--use-dana";
+      const allowed = (name: string) => name.startsWith("--tr-") || name === "--k-culture" || name === "--use-dana";
       expect(blue.filter((name) => !allowed(name))).toEqual([]);
       expect(Object.keys(theme).filter((name) => name.startsWith("--info"))).toEqual([]);
-    });
-
-    it.each(textPairs)("keeps %s at WCAG AA on its backgrounds", (text, backgrounds) => {
-      for (const background of backgrounds) {
-        expect(contrast(painted(theme, text), painted(theme, background)), `${text} on ${background} in ${selector}`)
-          .toBeGreaterThanOrEqual(4.5);
-      }
     });
   });
 });

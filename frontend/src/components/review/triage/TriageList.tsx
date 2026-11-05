@@ -86,7 +86,7 @@ export function TriageRows({ items, selectedId, onOpen, label }: {
           <li key={item.id}>
             <button
               type="button"
-              className="ws-tri-row"
+              className="ws-tri-row ws-select-row"
               data-row={item.id}
               aria-current={item.id === selectedId ? "true" : undefined}
               onClick={() => onOpen(item)}

@@ -20,7 +20,7 @@ export function fixedRole(type: string, isProduct: boolean): AccountRole | null 
   return null;
 }
 
-const fieldClass = "w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]";
+const fieldClass = "w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]";
 
 /** "Kegunaan": a choice for cash accounts, a fixed line for credit and investment products. */
 export function RoleField({
@@ -41,7 +41,7 @@ export function RoleField({
       <div>
         <p className="font-medium text-[var(--muted)] block mb-1">Kegunaan</p>
         <p className="text-sm font-semibold text-[var(--text)]">{fixed === "utang" ? "Utang" : "Investasi"}</p>
-        <p className="mt-1 text-[10px] text-[var(--muted)]">Ditentukan oleh jenis rekening.</p>
+        <p className="mt-1 text-xs text-[var(--muted)]">Ditentukan oleh jenis rekening.</p>
       </div>
     );
   }
@@ -63,7 +63,7 @@ export function RoleField({
           <option key={role.value} value={role.value}>{role.label}</option>
         ))}
       </select>
-      <p id={hintId} className="mt-1 text-[10px] text-[var(--muted)]">
+      <p id={hintId} className="mt-1 text-xs text-[var(--muted)]">
         Uang harian dan Tabungan masuk Saldo tersedia. Dana investasi adalah uang yang belum dibelikan, misalnya RDN.
       </p>
       {error && <p id={errorId} className="mt-1 text-xs text-out-fg">{error}</p>}

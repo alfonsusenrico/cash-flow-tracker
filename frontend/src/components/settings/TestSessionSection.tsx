@@ -181,7 +181,7 @@ export function TestSessionSection() {
                         <a
                           href={testSessionCsvUrl(session.id)}
                           download
-                          className="inline-flex min-h-11 items-center rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--text)] hover:bg-[var(--window)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]"
+                          className="inline-flex min-h-11 items-center rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--text)] hover:bg-[var(--window)]"
                           aria-label={`Unduh CSV sesi ${windowText(session)}`}
                         >
                           Unduh CSV
@@ -222,7 +222,7 @@ function SessionReport({ session }: { session: TestSession }) {
     return <p className="text-[var(--muted)]">Belum ada notifikasi tersimpan di sesi ini.</p>;
   }
   return (
-    <ol aria-label="Notifikasi sesi" className="divide-y divide-[var(--line)] rounded-[var(--radius-md)] border border-[var(--line)]">
+    <ol aria-label="Notifikasi sesi" className="divide-y divide-[var(--line)] rounded-xl border border-[var(--line)]">
       {data.events.map((event) => (
         <ReportRow key={event.event_id} sessionId={session.id} event={event} />
       ))}

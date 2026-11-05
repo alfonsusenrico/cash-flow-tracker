@@ -48,10 +48,10 @@ export function ManualApiKey() {
   const key = data?.api_key;
 
   return (
-    <details className="group rounded-[var(--radius-md)] border border-[var(--line)]">
+    <details className="group rounded-xl border border-[var(--line)]">
       <summary
         id="manual-api-key-title"
-        className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 font-semibold text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] [&::-webkit-details-marker]:hidden"
+        className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-md px-3 font-semibold text-[var(--text)] [&::-webkit-details-marker]:hidden"
       >
         Kunci API manual (cadangan)
         <Icon name="chevron-down" className="h-4 w-4 text-[var(--muted)] transition-transform group-open:rotate-180" />
@@ -65,7 +65,7 @@ export function ManualApiKey() {
         {error && <SettingsAlert>{error}</SettingsAlert>}
 
         {plainKey ? (
-          <div className="space-y-2.5 rounded-[var(--radius-md)] border border-warn-solid/40 bg-warn-solid/10 p-3">
+          <div className="space-y-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3">
             <p className="font-semibold text-[var(--text)]">Salin kunci API baru sekarang</p>
             <p className="text-xs text-[var(--text-2)]">Kunci ini hanya ditampilkan sekali. Masukkan ke aplikasi pendamping di ponsel.</p>
             <div className="flex flex-wrap items-center gap-2">
@@ -74,7 +74,7 @@ export function ManualApiKey() {
                 aria-label="Kunci API baru"
                 readOnly
                 value={plainKey}
-                className="min-h-11 min-w-0 flex-1 select-all rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] px-3 font-mono text-xs text-[var(--text)]"
+                className="min-h-11 min-w-0 flex-1 select-all rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 tabular-nums text-xs text-[var(--text)]"
               />
               <Button type="button" size="sm" className="min-h-11" onClick={() => void copyKey()}>
                 {copy === "copied" ? "Tersalin" : "Salin"}
@@ -101,7 +101,7 @@ export function ManualApiKey() {
             <dl className="grid gap-3 sm:grid-cols-2">
               <div>
                 <dt className="text-xs text-[var(--muted)]">Awalan kunci aktif</dt>
-                <dd className="font-mono font-semibold text-[var(--text)]">{key?.key_prefix ? `${key.key_prefix}••••••••••••` : "Belum ada kunci"}</dd>
+                <dd className="tabular-nums font-semibold text-[var(--text)]">{key?.key_prefix ? `${key.key_prefix}••••••••••••` : "Belum ada kunci"}</dd>
               </div>
               <div>
                 <dt className="text-xs text-[var(--muted)]">Terakhir digunakan</dt>
@@ -109,7 +109,7 @@ export function ManualApiKey() {
               </div>
             </dl>
             {confirming ? (
-              <div className="space-y-2 rounded-[var(--radius-md)] border border-out-solid/30 bg-out-solid/10 p-3">
+              <div className="space-y-2 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3">
                 <p className="text-xs font-semibold text-out-fg">
                   Kunci manual lama langsung dicabut. Ponsel yang dipasangkan lewat QR tetap terhubung. Lanjutkan?
                 </p>

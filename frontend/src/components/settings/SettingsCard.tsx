@@ -5,7 +5,7 @@ import { settingsSection, type SettingsSectionSlug } from "@/components/settings
 export const SETTINGS_FIELD_WIDTH = "w-full max-w-md";
 
 export const settingsControlClass =
-  "min-h-11 w-full rounded-[var(--radius-md)] border border-[var(--line-strong)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] disabled:opacity-50";
+  "min-h-11 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] disabled:opacity-50";
 
 /**
  * Confirmed destructive action. `rose-700` maps to the expense hover token, which is light coral in dark
@@ -15,7 +15,7 @@ export const confirmDangerClass = "bg-[var(--danger-solid)] text-[var(--danger-c
 
 /** Quiet destructive text button; rose 700/300 keep 4.5:1 on both surfaces where the coral token does not. */
 export const quietDangerClass =
-  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-[var(--radius-md)] px-3 text-xs font-semibold text-out-fg hover:bg-out-solid/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] disabled:opacity-50";
+  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl px-3 text-xs font-semibold text-out-fg hover:bg-[var(--surface-2)] disabled:opacity-50";
 
 interface SettingsCardProps {
   section: SettingsSectionSlug;
@@ -35,7 +35,7 @@ export function SettingsCard({ section, children, footer }: SettingsCardProps) {
             id={headingId}
             tabIndex={-1}
             data-settings-heading
-            className="text-base font-bold tracking-tight text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]"
+            className="text-base font-semibold tracking-tight text-[var(--text)]"
           >
             {title}
           </h2>
@@ -68,7 +68,7 @@ export function SettingsSubsection({ id, headingRef, title, description, action,
     <section aria-labelledby={id} className={cn("space-y-3 border-t border-[var(--line)] pt-5 first:border-t-0 first:pt-0", className)}>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1 space-y-0.5">
-          <h3 ref={headingRef} id={id} tabIndex={-1} className="text-sm font-semibold text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]">
+          <h3 ref={headingRef} id={id} tabIndex={-1} className="text-sm font-semibold text-[var(--text)]">
             {title}
           </h3>
           {description && <p className="text-xs text-[var(--muted)]">{description}</p>}
@@ -119,7 +119,7 @@ export function SettingsSaveStatus({ dirty, saved }: { dirty: boolean; saved: bo
 
 export function SettingsAlert({ children }: { children: React.ReactNode }) {
   return (
-    <p role="alert" className="rounded-[var(--radius-md)] border border-out-solid/25 bg-out-solid/10 px-3 py-2 text-xs font-medium text-out-fg">
+    <p role="alert" className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs font-medium text-out-fg">
       {children}
     </p>
   );
@@ -128,7 +128,7 @@ export function SettingsAlert({ children }: { children: React.ReactNode }) {
 /** Bordered list of rows used for devices, mappings and sender names. */
 export function SettingsList({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <ul aria-label={label} className="divide-y divide-[var(--line)] rounded-[var(--radius-md)] border border-[var(--line)]">
+    <ul aria-label={label} className="divide-y divide-[var(--line)] rounded-xl border border-[var(--line)]">
       {children}
     </ul>
   );

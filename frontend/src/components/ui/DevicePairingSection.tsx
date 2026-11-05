@@ -50,8 +50,8 @@ function ReadinessBadge({ device, checkedAt }: { device: PairedDevice; checkedAt
     <span
       className={
         ready
-          ? "rounded-full bg-[var(--in-bg)] px-2 py-0.5 text-[11px] font-bold text-[var(--in-fg)]"
-          : "rounded-full bg-[var(--warn-bg)] px-2 py-0.5 text-[11px] font-bold text-[var(--text)]"
+          ? "rounded-md bg-[var(--in-bg)] px-2 py-0.5 text-xs font-semibold text-[var(--in-fg)]"
+          : "rounded-md bg-[var(--warn-bg)] px-2 py-0.5 text-xs font-semibold text-[var(--text)]"
       }
     >
       {ready ? "Siap" : "Perlu dicek"}

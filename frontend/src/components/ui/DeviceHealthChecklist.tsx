@@ -72,12 +72,12 @@ export function DeviceHealthChecklist({ checklist, device }: DeviceHealthCheckli
   return (
     <section
       aria-labelledby="device-health-title"
-      className="space-y-2.5 rounded-[var(--radius-lg)] border border-[var(--line-strong)] bg-[var(--surface)] p-3.5"
+      className="space-y-2.5 rounded-xl border border-[var(--line-strong)] bg-[var(--surface)] p-3.5"
     >
-      <h3 id="device-health-title" className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-2)]">
+      <h3 id="device-health-title" className="text-xs font-semibold uppercase tracking-wider text-[var(--text-2)]">
         Status HP
       </h3>
-      <p className="flex items-center gap-2.5 text-sm font-bold text-[var(--text)]">
+      <p className="flex items-center gap-2.5 text-sm font-semibold text-[var(--text)]">
         {busy && <Pulse />}
         <span>{headline}</span>
       </p>
@@ -92,14 +92,14 @@ export function DeviceHealthChecklist({ checklist, device }: DeviceHealthCheckli
             <li
               key={step.key}
               data-state={step.state}
-              className="rounded-[var(--radius-sm)] bg-[var(--window)] px-2.5 py-2"
+              className="rounded-xl bg-[var(--window)] px-2.5 py-2"
             >
               <div className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2.5">
                 <span aria-hidden="true" className={cn("grid h-7 w-7 place-items-center rounded-full", style.mark)}>
                   <Icon name={style.icon} className="h-4 w-4" strokeWidth={2.5} />
                 </span>
                 <span className="text-sm font-semibold text-[var(--text)]">{step.label}</span>
-                <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", style.badge)}>
+                <span className={cn("rounded-md px-2 py-0.5 text-xs font-semibold", style.badge)}>
                   {STEP_STATE_TEXT[step.state]}
                 </span>
               </div>
@@ -107,8 +107,8 @@ export function DeviceHealthChecklist({ checklist, device }: DeviceHealthCheckli
                 <p className="mt-1.5 pl-[38px] text-xs text-[var(--text)]">{checklist.selfTestProblem}</p>
               )}
               {showBattery && (
-                <p className="mt-1.5 rounded-[var(--radius-xs)] bg-[var(--warn-bg)] px-2.5 py-2 text-xs text-[var(--text)]">
-                  <span className="font-bold">Saran: </span>
+                <p className="mt-1.5 rounded-xl bg-[var(--warn-bg)] px-2.5 py-2 text-xs text-[var(--text)]">
+                  <span className="font-semibold">Saran: </span>
                   {BATTERY_HINT}
                 </p>
               )}
@@ -118,7 +118,7 @@ export function DeviceHealthChecklist({ checklist, device }: DeviceHealthCheckli
       </ul>
 
       {checklist.stage === "failed" && (
-        <p className="rounded-[var(--radius-sm)] bg-[var(--out-bg)] px-3 py-2.5 text-xs text-[var(--text)]">
+        <p className="rounded-xl bg-[var(--out-bg)] px-3 py-2.5 text-xs text-[var(--text)]">
           {FIX_ON_PHONE}
         </p>
       )}

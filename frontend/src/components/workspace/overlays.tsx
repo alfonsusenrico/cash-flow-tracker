@@ -77,7 +77,7 @@ export function Drawer({
         <div className="ws-drawer-h">
           <h2 id={titleId} ref={headingRef} tabIndex={-1}>
             {title}
-            {subtitle && <span className="block text-[13px] font-normal text-[var(--muted)]">{subtitle}</span>}
+            {subtitle && <span className="block text-sm font-normal text-[var(--muted)]">{subtitle}</span>}
           </h2>
           <button type="button" className="ws-close" aria-label="Tutup detail" onClick={onClose}>
             <Icon name="x" className="h-4 w-4" />

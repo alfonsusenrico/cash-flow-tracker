@@ -120,7 +120,7 @@ export function SalarySettingsSection() {
       {!pending && !failed && (
         <>
           <SettingsSubsection id="salary-source-title" title="Sumber gaji saat ini">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface-2)]/40 px-3 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)]/40 px-3 py-2.5">
               {configured ? (
                 <p className="min-w-0 flex-1 break-words text-[var(--text)]">
                   <span className="font-semibold">{configured.value}</span>
@@ -140,8 +140,8 @@ export function SalarySettingsSection() {
               )}
             </div>
 
-            <details open={!configured} className="group rounded-[var(--radius-md)] border border-[var(--line)]">
-              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 font-semibold text-[var(--text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] [&::-webkit-details-marker]:hidden">
+            <details open={!configured} className="group rounded-xl border border-[var(--line)]">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-md px-3 font-semibold text-[var(--text)] [&::-webkit-details-marker]:hidden">
                 {configured ? "Ganti sumber" : "Pilih sumber"}
                 <Icon name="chevron-down" className="h-4 w-4 text-[var(--muted)] transition-transform group-open:rotate-180" />
               </summary>

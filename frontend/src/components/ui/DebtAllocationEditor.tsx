@@ -111,7 +111,7 @@ export function DebtAllocationEditor({
             <div className="flex min-w-0 items-end gap-2">
               <div className="min-w-0 flex-1">
                 <label htmlFor={selectId} className="mb-1 block text-xs text-[var(--muted)]">Tagihan {index + 1}</label>
-                <select id={selectId} name={`${idPrefix}-obligation-${index}`} autoComplete="off" value={row.obligation_id} onChange={(event) => updateDebt(index, event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]">
+                <select id={selectId} name={`${idPrefix}-obligation-${index}`} autoComplete="off" value={row.obligation_id} onChange={(event) => updateDebt(index, event.target.value)} className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--text)]">
                   <option value="">Pilih tagihan</option>
                   {choices.map((debt) => (
                     <option key={debt.id} value={debt.id}>{debt.name}{debt.is_archived ? " (tersimpan)" : ` · ${currency(debt.remaining_amount + (originalAmounts[debt.id] || 0))} tersedia`}</option>
@@ -122,12 +122,12 @@ export function DebtAllocationEditor({
               <button type="button" onClick={() => {
                 if (rows.length === 1) setEditingAmounts(false);
                 onChange(rows.filter((_, itemIndex) => itemIndex !== index));
-              }} className="min-h-11 shrink-0 rounded-xl px-3 text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]" aria-label={`Hapus tagihan ${index + 1}`}>Hapus</button>
+              }} className="min-h-11 shrink-0 rounded-md px-3 text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)]" aria-label={`Hapus tagihan ${index + 1}`}>Hapus</button>
             </div>
             {row.obligation_id && (editingAmounts ? (
               <div className="min-w-0">
                 <label htmlFor={`${selectId}-amount`} className="mb-1 block text-xs text-[var(--muted)]">Dibayar untuk tagihan {index + 1} (IDR)</label>
-                <input id={`${selectId}-amount`} name={`${idPrefix}-payment-${index}`} type="text" inputMode="numeric" autoComplete="off" value={row.amount} onChange={(event) => updateAmount(index, event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm tabular-nums text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]" />
+                <input id={`${selectId}-amount`} name={`${idPrefix}-payment-${index}`} type="text" inputMode="numeric" autoComplete="off" value={row.amount} onChange={(event) => updateAmount(index, event.target.value)} className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm tabular-nums text-[var(--text)]" />
               </div>
             ) : (
               <p className="text-sm tabular-nums text-[var(--text)]">Dibayar {currency(Number(row.amount.replace(/\./g, "")) || 0)}</p>
@@ -135,7 +135,7 @@ export function DebtAllocationEditor({
           </div>
         );
       })}
-      {canAdd && <button type="button" onClick={addDebt} className="min-h-11 rounded-xl border border-[var(--line)] px-3 text-xs font-semibold text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]">+ Tambah tagihan</button>}
+      {canAdd && <button type="button" onClick={addDebt} className="min-h-11 rounded-md border border-[var(--line)] px-3 text-xs font-semibold text-[var(--text)]">+ Tambah tagihan</button>}
       {rows.some((row) => row.obligation_id) && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] pt-2">
           <div className="text-xs tabular-nums text-[var(--muted)]" aria-live="polite">
@@ -143,7 +143,7 @@ export function DebtAllocationEditor({
             {allocated !== total && <p>Jumlah bayar belum sesuai nominal transaksi.</p>}
             {hasIncompleteAmount && <p>Isi jumlah bayar positif sebelum menyimpan.</p>}
           </div>
-          <button id={`${idPrefix}-edit-amounts`} type="button" onClick={() => setEditingAmounts(!editingAmounts)} className="min-h-11 rounded-xl px-3 text-xs font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]" aria-expanded={editingAmounts}>
+          <button id={`${idPrefix}-edit-amounts`} type="button" onClick={() => setEditingAmounts(!editingAmounts)} className="min-h-11 rounded-md px-3 text-xs font-semibold text-[var(--text)] hover:bg-[var(--surface-2)]" aria-expanded={editingAmounts}>
             {editingAmounts ? "Selesai ubah jumlah" : "Ubah jumlah"}
           </button>
         </div>

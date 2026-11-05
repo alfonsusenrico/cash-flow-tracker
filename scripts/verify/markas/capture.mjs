@@ -1,0 +1,165 @@
+// Captures app or prototype routes and dialogs at 1440 × 900 and 390 × 844 in both themes, and writes
+// checklist.json with the in-page measurements (measure.js), axe-core violations, horizontal overflow
+// and console errors for every capture.
+//
+// Usage:
+//   node capture.mjs --target app --origin http://127.0.0.1:3471 --out <dir> [--only <regex>] [--skip <regex>] [--cells 1440-light,390-dark]
+//   node capture.mjs --target prototype --origin http://127.0.0.1:3481 --out <dir> [--only <regex>]
+// The app target logs in as the synthetic seed owner (MARKAS_USER, MARKAS_PASSWORD; defaults below).
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { launch, sleep } from "./cdp.mjs";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+function parseArgs(argv) {
+  const args = {};
+  for (let index = 0; index < argv.length; index += 2) args[argv[index].replace(/^--/, "")] = argv[index + 1];
+  return args;
+}
+
+const args = parseArgs(process.argv.slice(2));
+if (!args.target || !args.origin || !args.out) {
+  console.error("Usage: node capture.mjs --target app|prototype --origin <url> --out <dir> [--only <regex>] [--cells <list>]");
+  process.exit(2);
+}
+
+const CELLS = [
+  { name: "1440-light", width: 1440, height: 900, theme: "light" },
+  { name: "1440-dark", width: 1440, height: 900, theme: "dark" },
+  { name: "390-light", width: 390, height: 844, theme: "light", mobile: true },
+  { name: "390-dark", width: 390, height: 844, theme: "dark", mobile: true },
+];
+const cells = args.cells ? CELLS.filter((cell) => args.cells.split(",").includes(cell.name)) : CELLS;
+const scenarios = JSON.parse(readFileSync(path.join(here, `scenarios-${args.target}.json`), "utf8"));
+const measureSource = readFileSync(path.join(here, "measure.js"), "utf8");
+mkdirSync(args.out, { recursive: true });
+const reportFile = path.join(args.out, "checklist.json");
+
+const browser = await launch({ port: Number(args.port ?? 9631), profileDir: path.join(args.out, ".profile") });
+
+// Clicks the smallest visible element whose label or text matches, inside the open dialog when there is one.
+const clickMatching = (pattern) =>
+  browser.evaluate(`(async () => {
+    const re = new RegExp(${JSON.stringify(pattern)}, "i");
+    const dialogs = [...document.querySelectorAll('[role=dialog]')].filter((d) => d.getBoundingClientRect().width > 0);
+    const scope = dialogs.length ? dialogs[dialogs.length - 1] : document;
+    const pool = [...scope.querySelectorAll("button, a, [role=button], [role=tab], [role=option], li, tr, [tabindex]")];
+    const matches = pool.filter((element) => {
+      const box = element.getBoundingClientRect();
+      const label = ((element.getAttribute("aria-label") || "") + " " + element.textContent.replace(/\\s+/g, " ")).trim();
+      return box.width > 0 && box.height > 0 && re.test(label);
+    });
+    if (!matches.length) return "NOT FOUND";
+    matches.sort((a, b) => {
+      const first = a.getBoundingClientRect();
+      const second = b.getBoundingClientRect();
+      return first.width * first.height - second.width * second.height;
+    });
+    const element = matches[0];
+    const box = element.getBoundingClientRect();
+    if (box.top < 60 || box.bottom > innerHeight - 60) {
+      element.scrollIntoView({ block: "center" });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+    element.click();
+    return "clicked " + (element.getAttribute("aria-label") || element.textContent.trim()).slice(0, 50);
+  })()`);
+
+async function runSteps(steps, log) {
+  for (const step of steps) {
+    if (step.wait) {
+      await sleep(step.wait);
+    } else if (step.key) {
+      await browser.key(...step.key);
+      await sleep(800);
+      log.push(`key ${step.key[0]}`);
+    } else if (step.eval) {
+      log.push(String(await browser.evaluate(step.eval)));
+      await sleep(step.after ?? 600);
+    } else if (step.click) {
+      let result = "NOT FOUND";
+      for (let attempt = 0; attempt < 20 && result === "NOT FOUND"; attempt += 1) {
+        result = await clickMatching(step.click);
+        if (result === "NOT FOUND") await sleep(400);
+      }
+      log.push(result);
+      await sleep(step.after ?? 900);
+    }
+  }
+}
+
+async function login() {
+  await browser.navigate(`${args.origin}/auth/login`);
+  const username = process.env.MARKAS_USER ?? "raka_contoh";
+  const password = process.env.MARKAS_PASSWORD ?? "contoh-sandi-123";
+  const status = await browser.evaluate(`fetch("/api/auth/login", {
+    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(${JSON.stringify({ username, password })}),
+  }).then((response) => response.status)`);
+  if (status !== 200) throw new Error(`login returned ${status}`);
+}
+
+function urlFor(scenario, cell) {
+  if (args.target === "prototype") {
+    const word = cell.theme === "dark" ? "gelap" : "terang";
+    return `${args.origin}/index.html#${scenario.path}${scenario.path.includes("?") ? "&" : "?"}tema=${word}`;
+  }
+  return args.origin + scenario.path;
+}
+
+const report = {};
+try {
+  if (args.target === "app") await login();
+  for (const cell of cells) {
+    await browser.setCell(cell);
+    for (const scenario of scenarios) {
+      if (args.only && !new RegExp(args.only).test(scenario.name)) continue;
+      if (args.skip && new RegExp(args.skip).test(scenario.name)) continue;
+      if (scenario.cells && !scenario.cells.includes(cell.name)) continue;
+      const key = `${scenario.name}-${cell.width}-${cell.theme}`;
+      browser.consoleErrors.length = 0;
+      if (args.target === "app") {
+        await browser.evaluate(`localStorage.setItem("theme", "${cell.theme}")`).catch(() => {});
+      } else {
+        await browser.navigate("about:blank");
+      }
+      await browser.navigate(urlFor(scenario, cell));
+      await browser.settle();
+      const log = [];
+      if (scenario.steps) await runSteps(scenario.steps, log);
+      await sleep(300);
+      const hasDialog = await browser.evaluate(
+        "Boolean([...document.querySelectorAll('[role=dialog], [role=alertdialog], dialog[open]')].find((d) => d.getBoundingClientRect().width > 0))",
+      );
+      const fullPage = !scenario.steps || scenario.full;
+      if (fullPage) {
+        await browser.evaluate("window.scrollTo(0, 0)");
+        await sleep(200);
+        await browser.shot(path.join(args.out, `${key}.png`), { full: true });
+      } else {
+        await browser.shot(path.join(args.out, `${key}.png`));
+      }
+      await browser.evaluate(`window.__measureRoot = ${JSON.stringify(scenario.measureRoot ?? null)}`);
+      const measure = await browser.evaluate(measureSource).catch((error) => ({ error: String(error).slice(0, 200) }));
+      const violations = await browser.axe().catch((error) => [{ id: "axe-error", impact: "critical", targets: [String(error).slice(0, 120)] }]);
+      report[key] = {
+        path: scenario.path,
+        log,
+        hasDialog,
+        consoleErrors: browser.consoleErrors.slice(0, 5),
+        axeSeriousOrCritical: violations
+          .filter((violation) => ["serious", "critical"].includes(violation.impact))
+          .map((violation) => `${violation.id} (${violation.nodes}) ${violation.targets.join(" | ")}`.slice(0, 300)),
+        axeOther: violations.filter((violation) => !["serious", "critical"].includes(violation.impact)).map((violation) => violation.id),
+        measure,
+      };
+      const flags = report[key].axeSeriousOrCritical.length + report[key].consoleErrors.length;
+      console.log(key, hasDialog ? "dialog" : "", JSON.stringify(log), flags ? `flags ${flags}` : "");
+      writeFileSync(reportFile, JSON.stringify(report, null, 1));
+    }
+  }
+} finally {
+  browser.close();
+}

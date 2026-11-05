@@ -140,7 +140,7 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
             <div className="flex flex-col items-center gap-3">
               {active ? (
                 <>
-                  <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-white p-2">
+                  <div className="rounded-xl border border-[var(--line)] bg-white p-2">
                     <canvas
                       ref={canvasRef}
                       width={QR_SIZE}
@@ -157,7 +157,7 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
                   )}
                   <p className="text-center text-[var(--muted)]">
                     Kode{" "}
-                    <span className="font-mono text-base font-bold tracking-widest text-[var(--text)]">
+                    <span className="tabular-nums text-base font-semibold tracking-widest text-[var(--text)]">
                       {groupCode(active.code)}
                     </span>
                   </p>
@@ -166,7 +166,7 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
                   </p>
                 </>
               ) : (
-                <div className="flex h-64 w-64 max-w-full items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--line-strong)] p-4 text-center font-semibold text-[var(--text)]">
+                <div className="flex h-64 w-64 max-w-full items-center justify-center rounded-xl border border-dashed border-[var(--line-strong)] p-4 text-center font-semibold text-[var(--text)]">
                   {requestError ? "Kode gagal dibuat." : expired ? "Kode sudah kedaluwarsa." : "Membuat kode…"}
                 </div>
               )}
@@ -191,7 +191,7 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
 
         {!paired && (
           <>
-            <p className="text-[11px] text-[var(--muted)]">
+            <p className="text-xs text-[var(--muted)]">
               Kode hanya dapat dipakai sekali dan berlaku 5 menit. Membuat kode baru membatalkan kode sebelumnya.
             </p>
             <CompanionDownloadDisclosure />

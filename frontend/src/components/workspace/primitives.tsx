@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
 
-/** Card on the surface token with the card shadow; no outline. */
+/** Card on the panel surface: flat, no shadow and no outline (SPEC §5). */
 export function Card({
   children,
   className,
@@ -227,12 +227,10 @@ export function Skeleton({ className, style }: { className?: string; style?: Rea
   return <div className={cn("ws-skeleton", className)} style={style} aria-hidden="true" />;
 }
 
-export function EmptyState({ icon = "check", title, children, action }: { icon?: IconName; title: string; children?: ReactNode; action?: ReactNode }) {
+// Empty state (SPEC §7): centred 14/500 title, one 12/400 line and an optional action; no icon tile.
+export function EmptyState({ title, children, action }: { icon?: IconName; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
     <div className="ws-empty">
-      <div className="ws-tile" aria-hidden="true" style={{ background: "var(--in-solid)", color: "var(--in-solid-fg)" }}>
-        <Icon name={icon} />
-      </div>
       <h2>{title}</h2>
       {children && <p>{children}</p>}
       {action}
@@ -246,7 +244,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
     <div className="ws-error" role="alert">
       <p>{message}</p>
       {onRetry && (
-        <button type="button" className="ws-btn ws-btn-sm" onClick={onRetry}>
+        <button type="button" className="ws-btn" onClick={onRetry}>
           Coba lagi
         </button>
       )}

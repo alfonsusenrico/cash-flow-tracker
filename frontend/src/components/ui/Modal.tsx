@@ -81,11 +81,13 @@ export function Modal({ open, onClose, title, subtitle, leading, children, wide,
   return createPortal(
     <div
       className={cn(
-        "fixed inset-0 z-[100] flex justify-center overflow-y-auto overscroll-contain bg-black/60 backdrop-blur-xs transition-opacity motion-reduce:transition-none",
-        centered ? "items-center p-4" : "items-end p-0 sm:items-center sm:p-4",
+        "fixed inset-0 z-[100] flex justify-center overflow-y-auto overscroll-contain bg-[var(--scrim)] ws-scrim-in",
+        centered ? "items-center p-4" : "items-end p-0 sm:items-center sm:p-6",
       )}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
+      {/* Dialog geometry from SPEC §7: radius 16 (sheet 16 16 0 0), 1 px line, the dialog surface and the
+          layer shadow; header 24 24 16 with the Manrope dialog title. */}
       <div
         ref={ref}
         role="dialog"
@@ -93,44 +95,43 @@ export function Modal({ open, onClose, title, subtitle, leading, children, wide,
         aria-labelledby={titleId}
         tabIndex={-1}
         className={cn(
-          "w-full overflow-y-auto bg-[var(--surface)] shadow-2xl",
-          centered ? "border border-[var(--line)]" : "border-t sm:border border-[var(--line)]",
-          centered ? "rounded-[var(--radius-card,20px)] max-h-[calc(100dvh-32px)]" : "rounded-t-[28px] sm:rounded-[var(--radius-card,20px)] max-h-[90dvh] sm:max-h-[calc(100dvh-48px)]",
+          "w-full overflow-y-auto border border-[var(--line)] bg-[var(--dialog)] text-[var(--text)] shadow-float",
           centered
-            ? "animate-in fade-in zoom-in-95 duration-150 motion-reduce:animate-none motion-reduce:transition-none"
-            : "animate-in slide-in-from-bottom-5 duration-200 ease-out motion-reduce:animate-none motion-reduce:transition-none sm:fade-in",
+            ? "rounded-2xl max-h-[calc(100dvh-32px)] ws-layer-in"
+            : "rounded-t-2xl border-b-0 sm:border-b sm:rounded-2xl max-h-[92dvh] sm:max-h-[calc(100dvh-96px)] ws-sheet-in sm:ws-layer-in",
           wide ? "sm:max-w-2xl" : "sm:max-w-md"
         )}
       >
-        {/* Mobile Pull/Drag Indicator */}
         {!centered && (
-          <div className="sm:hidden flex justify-center pt-2.5 pb-1 select-none">
-            <div className="w-10 h-1.5 rounded-full bg-[var(--muted)]/30" />
+          <div className="sm:hidden flex justify-center pt-2 select-none" aria-hidden="true">
+            <div className="h-1 w-8 rounded-md bg-[var(--line-strong)]" />
           </div>
         )}
 
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-[var(--line)]">
+        <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3 sm:px-6 sm:pt-6 sm:pb-4">
           <div className="flex min-w-0 items-center gap-3">
             {leading}
             <div className="min-w-0">
-              <h2 id={titleId} className="font-bold text-sm sm:text-base tracking-tight text-[var(--text)]">
+              <h2 id={titleId} className="t-dtitle text-[var(--text)]">
                 {title}
               </h2>
-              {subtitle && <p className="text-[13px] text-[var(--muted)]">{subtitle}</p>}
+              {subtitle && <p className="mt-1 text-xs text-[var(--muted)]">{subtitle}</p>}
             </div>
           </div>
           {!hideCloseButton && (
             <button
               onClick={onClose}
               type="button"
-              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-lg leading-none text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text)] motion-reduce:transition-none"
+              className="ws-icon-btn -mr-2 -mt-1.5"
               aria-label="Tutup"
             >
-              ✕
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
             </button>
           )}
         </div>
-        <div className="px-4 sm:px-6 py-3.5 sm:py-4">{children}</div>
+        <div className="px-4 pb-4 sm:px-6 sm:pb-6">{children}</div>
       </div>
     </div>,
     document.body

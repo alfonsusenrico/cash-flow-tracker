@@ -121,7 +121,7 @@ function NotificationsMenu() {
               ))}
             </>
           ) : (
-            <p className="px-2.5 py-3 text-[13.5px] text-[var(--muted)]">Belum ada yang baru.</p>
+            <p className="px-2.5 py-3 text-sm text-[var(--muted)]">Belum ada yang baru.</p>
           )
         }
       </Disclosure>

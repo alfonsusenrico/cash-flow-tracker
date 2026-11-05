@@ -11,7 +11,6 @@ import { usePageHeader } from "@/components/workspace/context";
 import { ExplainableFigure } from "@/components/workspace/explain";
 import { Drawer } from "@/components/workspace/overlays";
 import { Card, CardHeader, ErrorState, KpiCard, MoneyBar, Skeleton } from "@/components/workspace/primitives";
-import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { useWidthAtMost } from "@/hooks/useWidthAtMost";
 import { api } from "@/lib/api";
 import { KAKEIBO_BUCKETS } from "@/lib/kakeibo";
@@ -61,10 +60,10 @@ function useDisplayMoney(): Money {
   return (amount: number) => bal(amount);
 }
 
-function AnimatedMoney({ value }: { value: number }) {
-  const shown = useAnimatedCounter(value);
+// Figures show their final value at once (SPEC §10: no counting numbers).
+function FinalMoney({ value }: { value: number }) {
   const { bal } = useAppCtx();
-  return <>{bal(shown)}</>;
+  return <>{bal(value)}</>;
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -102,7 +101,7 @@ export function BerandaKpis({ summary }: { summary: CycleSummary }) {
         label="Aman dipakai sampai gajian"
         value={
           <ExplainableFigure label="Aman dipakai sampai gajian" amountText={balance(remaining.total, money)} explanation={remainingExplanation(summary, money)}>
-            <AnimatedMoney value={free} />
+            <FinalMoney value={free} />
           </ExplainableFigure>
         }
         caption={remaining.total < 0 ? `lebih ${money(-remaining.total)} dari uang masuk` : days}
@@ -112,7 +111,7 @@ export function BerandaKpis({ summary }: { summary: CycleSummary }) {
         label="Masuk"
         value={
           <ExplainableFigure label={`Masuk ${word}`} amountText={money(summary.masuk.total)} explanation={masukExplanation(summary, money)}>
-            <AnimatedMoney value={summary.masuk.total} />
+            <FinalMoney value={summary.masuk.total} />
           </ExplainableFigure>
         }
         caption={masukCaption(summary, money)}
@@ -122,7 +121,7 @@ export function BerandaKpis({ summary }: { summary: CycleSummary }) {
         label="Pengeluaran"
         value={
           <ExplainableFigure label={`Pengeluaran ${word}`} amountText={money(summary.spending.amount)} explanation={spendingExplanation(summary, money)}>
-            <AnimatedMoney value={summary.spending.amount} />
+            <FinalMoney value={summary.spending.amount} />
           </ExplainableFigure>
         }
         caption={sinceCaption(summary)}
@@ -132,7 +131,7 @@ export function BerandaKpis({ summary }: { summary: CycleSummary }) {
         label="Ditabung & investasi"
         value={
           <ExplainableFigure label="Ditabung & investasi" amountText={money(Math.abs(summary.fresh_saving.amount))} explanation={savingExplanation(summary, money)}>
-            <AnimatedMoney value={Math.abs(summary.fresh_saving.amount)} />
+            <FinalMoney value={Math.abs(summary.fresh_saving.amount)} />
           </ExplainableFigure>
         }
         caption={summary.tabungan ? savingChangeLabel(summary.tabungan.total, money) : "kantong tabungan dan investasi"}
@@ -142,7 +141,7 @@ export function BerandaKpis({ summary }: { summary: CycleSummary }) {
         label="Kekayaan bersih"
         value={
           <ExplainableFigure label="Kekayaan bersih" amountText={money(net.total)} explanation={netWorthExplanation(summary, money)}>
-            <AnimatedMoney value={net.total} />
+            <FinalMoney value={net.total} />
           </ExplainableFigure>
         }
         caption={`aset ${money(net.liquid + (net.dana_investasi ?? 0) + net.investment - (net.reconciliation_pending ?? 0))} · utang ${money(net.debts + (net.credit_owed ?? 0))}`}
@@ -172,7 +171,7 @@ export function MoneyCard({ summary }: { summary: CycleSummary }) {
       <CardHeader
         id="beranda-money"
         title={`Uang ${word}`}
-        extra={<span className="text-[13px] font-normal text-[var(--muted)]">dari {money(masuk.total)} masuk</span>}
+        extra={<span className="text-sm font-normal text-[var(--muted)]">dari {money(masuk.total)} masuk</span>}
         action={
           <Link href="/goals" className="ws-linkbtn ws-accent-link">
             Tagihan
@@ -236,7 +235,7 @@ export function KakeiboCard({ summary }: { summary: CycleSummary }) {
         id="beranda-kakeibo"
         title={`Kakeibo ${word}`}
         extra={
-          <span className="text-[13px] font-normal text-[var(--muted)]">
+          <span className="text-sm font-normal text-[var(--muted)]">
             Pengeluaran <ExplainableFigure label={`Pengeluaran ${word}`} amountText={money(summary.spending.amount)} explanation={spendingExplanation(summary, money)} />
           </span>
         }
@@ -482,15 +481,15 @@ export default function BerandaView() {
 function BerandaSkeleton() {
   return (
     <div aria-busy="true" aria-label="Memuat Beranda">
-      <Skeleton className="h-[132px] rounded-[18px]" />
+      <Skeleton className="h-[132px] rounded-xl" />
       <div className="ws-home-grid">
         <div className="ws-stack">
-          <Skeleton className="h-[160px] rounded-[18px]" />
-          <Skeleton className="h-[420px] rounded-[18px]" />
+          <Skeleton className="h-[160px] rounded-xl" />
+          <Skeleton className="h-[420px] rounded-xl" />
         </div>
         <div className="ws-stack">
-          <Skeleton className="h-[140px] rounded-[18px]" />
-          <Skeleton className="h-[260px] rounded-[18px]" />
+          <Skeleton className="h-[140px] rounded-xl" />
+          <Skeleton className="h-[260px] rounded-xl" />
         </div>
       </div>
     </div>

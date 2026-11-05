@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -17,17 +17,32 @@ describe("web fonts", () => {
   });
 
   it("ships the OFL licence beside each bundled font", () => {
-    expect(read("fonts/PlusJakartaSans-OFL.txt")).toContain("SIL Open Font License");
-    expect(read("fonts/GeistMono-OFL.txt")).toContain("SIL Open Font License");
+    expect(read("fonts/Inter-OFL.txt")).toContain("SIL Open Font License");
+    expect(read("fonts/Manrope-OFL.txt")).toContain("SIL Open Font License");
   });
 
-  it("uses Plus Jakarta Sans for text and Geist Mono for code, and no longer ships Geist sans", () => {
+  it("uses Inter for text and amounts and Manrope for titles, and ships no other family", () => {
     const layout = read("layout.tsx");
-    expect(layout).toContain('src: "./fonts/PlusJakartaSans-latin-variable.woff2"');
-    expect(layout).toContain('src: "./fonts/GeistMono-latin-variable.woff2"');
-    expect(layout).not.toContain("Geist-latin-variable");
-    expect(existsSync(path.join(appDir, "fonts/Geist-latin-variable.woff2"))).toBe(false);
-    expect(readFileSync(path.resolve(appDir, "../../tokens.css"), "utf8")).toContain('--font-body: var(--font-jakarta), "Plus Jakarta Sans"');
+    expect(layout).toContain('src: "./fonts/Inter-latin-variable.woff2"');
+    expect(layout).toContain('src: "./fonts/Manrope-latin-600.woff2"');
+    // Inter's variable range clamps to 400–600 and Manrope is the single 600 instance (SPEC §1).
+    expect(layout).toMatch(/Inter-latin-variable\.woff2",\n\s+variable: "--font-inter",\n\s+display: "swap",\n\s+weight: "400 600"/);
+    expect(layout).toMatch(/Manrope-latin-600\.woff2",\n\s+variable: "--font-manrope",\n\s+display: "swap",\n\s+weight: "600"/);
+    expect(readdirSync(path.join(appDir, "fonts")).sort()).toEqual([
+      "Inter-OFL.txt",
+      "Inter-latin-variable.woff2",
+      "Manrope-OFL.txt",
+      "Manrope-latin-600.woff2",
+    ]);
+    expect(layout).not.toMatch(/Jakarta|Geist/);
+    const tokens = readFileSync(path.resolve(appDir, "../../tokens.css"), "utf8");
+    expect(tokens).toContain('--font-sans: var(--font-inter), "Inter"');
+    expect(tokens).toContain('--font-display: var(--font-manrope), "Manrope"');
+    expect(tokens).not.toMatch(/Jakarta|Geist|--font-mono/);
+  });
+
+  it("turns off synthetic bold so no weight above 600 is faked", () => {
+    expect(read("globals.css")).toMatch(/body \{[^}]*font-synthesis-weight: none;/);
   });
 
   it("keeps stylesheets free of third-party font imports", () => {

@@ -18,15 +18,15 @@ export const chartGridProps = {
 
 export const chartAxisProps = {
   stroke: "transparent",
-  tick: { fill: "var(--muted)", fontSize: 11, fontFamily: "inherit" },
+  tick: { fill: "var(--muted)", fontSize: 12, fontFamily: "inherit" },
   tickLine: false,
 };
 
 export const chartTooltipStyle = {
-  backgroundColor: "var(--surface)",
+  backgroundColor: "var(--dialog)",
   border: "1px solid var(--line)",
-  borderRadius: "12px",
-  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+  borderRadius: "var(--r-panel)",
+  boxShadow: "var(--shadow-float)",
   color: "var(--text)",
   fontSize: "12px",
   padding: "8px 12px",

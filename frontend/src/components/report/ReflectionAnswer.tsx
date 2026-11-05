@@ -87,7 +87,7 @@ export function ReflectionAnswer({ report }: { report: MonthlyReport }) {
           aria-describedby={helpId}
           onChange={(event) => setNote(event.target.value)}
           placeholder="Misalnya: masak di rumah tiga kali seminggu"
-          className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
+          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
         />
         <p id={helpId} className="text-xs text-[var(--muted)]">
           Satu atau dua hal saja. Catatan ini muncul lagi di laporan berikutnya. <span className="tabular-nums">{note.length}/{MAX_LENGTH}</span>

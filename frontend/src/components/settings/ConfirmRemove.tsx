@@ -80,7 +80,7 @@ export function ConfirmRemove({
           stop();
           onConfirm();
         }}
-        className={`inline-flex min-h-11 items-center justify-center rounded-[var(--radius-md)] px-3 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] disabled:opacity-50 ${confirmDangerClass}`}
+        className={`inline-flex min-h-11 items-center justify-center rounded-md px-3 text-xs font-semibold disabled:opacity-50 ${confirmDangerClass}`}
       >
         {pending ? pendingLabel : confirmLabel}
       </button>
