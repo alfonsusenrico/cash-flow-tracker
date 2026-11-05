@@ -165,4 +165,6 @@ def test_preview_logs(client, owner, caplog):
         f"Capture preview user={owner['user_id']} outcome=problem problems=missing_amount",
     ]
     for message in [record.getMessage() for record in caplog.records]:
-        assert "rahasiaku" not in message.casefold() and "123" not in message
+        # The owner's random UUID may itself contain "123"; only the typed text must never reach the log.
+        typed = message.replace(owner["user_id"], "")
+        assert "rahasiaku" not in typed.casefold() and "123" not in typed
