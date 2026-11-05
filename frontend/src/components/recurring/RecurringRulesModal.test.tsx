@@ -176,4 +176,41 @@ describe("RecurringRulesModal", () => {
       obligation_id: null,
     })));
   });
+
+  it("offers credit accounts for a recurring expense only, without a debt link", async () => {
+    const getDefault = vi.mocked(api.get).getMockImplementation()!;
+    vi.mocked(api.get).mockImplementation(async (path, signal) => {
+      if (path === "/accounts") return { accounts: [
+        { id: "account-1", name: "BCA", type: "bank", balance: 100_000 },
+        { id: "account-2", name: "Jago", type: "bank", balance: 25_000 },
+        { id: "spaylater", name: "SPayLater", type: "credit", balance: 0, credit_owed: 0 },
+      ] };
+      if (path === "/obligations") return { obligations: [{ id: "debt-1", name: "Cicilan Contoh", remaining_amount: 900_000, is_archived: false }] };
+      return getDefault(path, signal);
+    });
+    const user = userEvent.setup();
+    renderRules();
+    await user.click(screen.getByRole("button", { name: "+ Tambah Rencana" }));
+    const source = screen.getByRole("combobox", { name: "Dari rekening" });
+    await waitFor(() => expect(within(source).getByRole("option", { name: "BCA" })).toBeInTheDocument());
+    expect(within(source).queryByRole("group", { name: "Kredit" })).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Jenis Rencana" }), "expense");
+    expect(within(source).getByRole("group", { name: "Kredit" })).toBeInTheDocument();
+    expect(await screen.findByRole("combobox", { name: /tagihan|utang|cicilan/i })).toBeInTheDocument();
+    await user.selectOptions(source, "spaylater");
+    expect(screen.queryByRole("combobox", { name: /tagihan|utang|cicilan/i })).not.toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Nama Rencana" }), "Langganan musik");
+    await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "55000");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Kategori Pengeluaran" }), "category-expense");
+    await user.click(screen.getByRole("button", { name: "Simpan Rencana" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/recurring", expect.objectContaining({
+      type: "expense", source_account_id: "spaylater", obligation_id: null,
+    })));
+
+    await user.click(screen.getByRole("button", { name: "+ Tambah Rencana" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Jenis Rencana" }), "income");
+    const incomeSource = screen.getByRole("combobox", { name: "Masuk ke rekening" });
+    expect(within(incomeSource).queryByRole("group", { name: "Kredit" })).not.toBeInTheDocument();
+  });
 });

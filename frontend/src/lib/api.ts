@@ -54,8 +54,17 @@ function normalizeApiErrorDetail(detail: unknown): string | ApiErrorDetail {
     pairing_configuration_invalid: "Pemasangan ponsel belum dikonfigurasi di server.",
     session_required: "Masuk kembali di browser untuk membuat kode pemasangan.",
   };
+  const creditMessages: Record<string, string> = {
+    credit_parent_not_allowed: "Rekening kredit tidak dapat memiliki kantong atau menjadi kantong.",
+    credit_balance_sign: "Saldo awal tidak sesuai jenis rekening. Utang kredit diisi sebagai angka positif.",
+    credit_fields_not_allowed: "Limit dan tanggal bayar hanya untuk rekening kredit.",
+    credit_type_change_has_transactions: "Jenis rekening kredit tidak dapat diubah setelah ada transaksi atau kantong.",
+    credit_account_not_allowed: "Rekening kredit tidak dapat dipakai di sini. Pilih rekening bank, e-wallet, atau tunai.",
+    credit_fee_not_allowed: "Biaya hanya dapat dicatat saat membayar ke rekening kredit dan tidak boleh melebihi nominal.",
+    credit_movement_needs_cash: "Salah satu sisi pindah saldo harus rekening bank, e-wallet, atau tunai.",
+  };
   const knownMessage = structured.code
-    ? investmentMessages[structured.code] ?? deviceMessages[structured.code]
+    ? investmentMessages[structured.code] ?? deviceMessages[structured.code] ?? creditMessages[structured.code]
     : undefined;
   if (knownMessage) {
     return { ...structured, message: knownMessage };
@@ -128,6 +137,8 @@ export interface CreateMovementPayload {
   notes?: string | null;
   date?: string | null;
   idempotency_key?: string | null;
+  /** Interest or a fee charged with a credit bill; only for a movement into a credit account. */
+  fee?: number | null;
 }
 
 export interface CreateMovementResponse {

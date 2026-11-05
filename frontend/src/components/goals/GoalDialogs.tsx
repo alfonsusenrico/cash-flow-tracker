@@ -79,7 +79,8 @@ export function useGoalDialogs() {
   });
 
   const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData?.accounts]);
-  const topAccounts = useMemo(() => accounts.filter((a: any) => !a.parent_id), [accounts]);
+  // A credit account's balance is debt, so it cannot fund a goal's progress (add-credit-accounts D3).
+  const topAccounts = useMemo(() => accounts.filter((a: any) => !a.parent_id && a.type !== "credit"), [accounts]);
   const obligationTotalValue = parseNumberFromDots(obTotal);
   const obligationRemainingValue = obRemaining.trim()
     ? parseNumberFromDots(obRemaining)

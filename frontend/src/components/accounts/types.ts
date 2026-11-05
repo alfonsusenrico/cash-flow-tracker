@@ -6,7 +6,7 @@ export interface AccountItem {
   default_funding_account_id?: string | null;
   default_funding_account_name?: string | null;
   name: string;
-  type: "cash" | "bank" | "wallet" | "investment";
+  type: "cash" | "bank" | "wallet" | "investment" | "credit";
   initial_balance: number;
   balance: number;
   color?: string;
@@ -26,6 +26,12 @@ export interface AccountItem {
   investment_tracking_mode?: string | null;
   investment_value_estimated?: boolean;
   reconciliation_required?: boolean;
+  /** Credit accounts only (add-credit-accounts D2): the provider's limit and the day the bill is paid. */
+  credit_limit?: number | null;
+  payment_day?: number | null;
+  /** What a credit account owes, as a positive amount; null for every other type. */
+  credit_owed?: number | null;
+  over_limit?: boolean;
   is_archived: boolean;
   is_parent?: boolean;
   default_pocket_id?: string | null;
@@ -50,5 +56,7 @@ export interface NetWorthResponse {
   liquid: number;
   investment: number;
   reconciliation_pending: number;
+  /** What credit accounts owe; already part of `total_liabilities`. */
+  credit_owed?: number;
   lines: { key: string; label: string; amount: number }[];
 }

@@ -9,6 +9,9 @@ from app.db.pool import db_conn
 from app.services.account_colours import default_account_color
 from app.services.auth import get_current_user
 from app.services.balance_check import check_balance, record_match
+from app.services.credit_accounts import (
+    CREDIT_TYPE, credit_owed, is_credit, over_limit, refuse, validate_credit_fields,
+)
 from app.services.ledger_mutations import get_locked_ledger_balance, lock_owned_accounts
 from app.services.investment_topups import convert_product_to_amount, initialize_amount_tracking
 from app.services.provenance import system_provenance
@@ -23,8 +26,11 @@ router = APIRouter(tags=["Accounts"])
 
 class AccountCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    type: str = Field(default="bank", pattern="^(cash|bank|wallet|investment)$")
-    initial_balance: int = Field(default=0, ge=0)
+    type: str = Field(default="bank", pattern="^(cash|bank|wallet|investment|credit)$")
+    # Negative only for a credit account: what it owes today (validate_credit_fields).
+    initial_balance: int = Field(default=0, ge=-(10**15), le=10**15)
+    credit_limit: int | None = Field(default=None, gt=0, le=10**15)
+    payment_day: int | None = Field(default=None, ge=1, le=31)
     parent_id: UUID | None = None
     default_funding_account_id: UUID | None = None
     default_pocket_id: UUID | None = None
@@ -39,8 +45,10 @@ class AccountCreate(BaseModel):
 
 class AccountUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
-    type: str | None = Field(default=None, pattern="^(cash|bank|wallet|investment)$")
+    type: str | None = Field(default=None, pattern="^(cash|bank|wallet|investment|credit)$")
     is_archived: bool | None = None
+    credit_limit: int | None = Field(default=None, gt=0, le=10**15)
+    payment_day: int | None = Field(default=None, ge=1, le=31)
     parent_id: UUID | None = None
     default_funding_account_id: UUID | None = None
     default_pocket_id: UUID | None = None
@@ -103,6 +111,8 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
                     a.reconciliation_event_id,
                     a.is_archived,
                     a.created_at,
+                    a.credit_limit,
+                    a.payment_day,
                     (
                         a.initial_balance 
                         + COALESCE(SUM(CASE WHEN t.account_id = a.id AND t.type = 'income' THEN t.amount ELSE 0 END), 0)
@@ -201,7 +211,12 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
             "reconciliation_required": bool(r.get("reconciliation_required", False)),
             "reconciliation_reason": r.get("reconciliation_reason"),
             "reconciliation_event_id": str(r["reconciliation_event_id"]) if r.get("reconciliation_event_id") else None,
-            "reconciliation_discrepancy": min(0, ledger_balance),
+            # A credit account owes money by design; its negative balance is not a discrepancy.
+            "reconciliation_discrepancy": 0 if r.get("type") == CREDIT_TYPE else min(0, ledger_balance),
+            "credit_limit": int(r["credit_limit"]) if r.get("credit_limit") is not None else None,
+            "payment_day": r.get("payment_day"),
+            "credit_owed": credit_owed(balance) if r.get("type") == CREDIT_TYPE else None,
+            "over_limit": over_limit(balance, r.get("credit_limit")) if r.get("type") == CREDIT_TYPE else False,
             "is_archived": r.get("is_archived", False),
             "is_parent": False,
             "children": [],
@@ -254,12 +269,16 @@ def summarize_account_balances(accounts: list[dict[str, Any]]) -> dict[str, int]
     investment_balance = 0
     total_balance = 0
     reconciliation_pending = 0
+    owed_on_credit = 0
 
     for account in accounts:
         own_balance = int(account.get("own_balance", account["balance"]))
         total_balance += own_balance
         is_liquid = account.get("type") in {"cash", "bank", "ewallet", "wallet"} and not account.get("instrument_type")
-        if is_liquid:
+        if is_credit(account):
+            # What a credit account owes is a liability, never an asset (add-credit-accounts D3).
+            owed_on_credit += credit_owed(own_balance)
+        elif is_liquid:
             if account.get("reconciliation_required") and own_balance < 0:
                 reconciliation_pending += -own_balance
             else:
@@ -272,6 +291,7 @@ def summarize_account_balances(accounts: list[dict[str, Any]]) -> dict[str, int]
         "investment_balance": investment_balance,
         "total_balance": total_balance,
         "reconciliation_pending": reconciliation_pending,
+        "credit_owed": owed_on_credit,
     }
 
 
@@ -355,6 +375,12 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
 
     if default_pocket_id:
         raise HTTPException(status_code=400, detail="A new account cannot select a default pocket before its child pockets exist")
+    validate_credit_fields(
+        account_type=payload.type, parent_id=parent_id, initial_balance=payload.initial_balance,
+        credit_limit=payload.credit_limit, payment_day=payload.payment_day,
+    )
+    if payload.type == CREDIT_TYPE and (payload.instrument_type or payload.instrument_symbol or payload.units):
+        raise refuse("credit_fields_not_allowed")
     if default_funding_account_id and payload.type != "investment" and not payload.instrument_type:
         raise HTTPException(status_code=400, detail="A default funding account is only valid for an investment account")
 
@@ -386,12 +412,14 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
             # 2-level depth validation
             if parent_id:
                 cur.execute(
-                    "SELECT id, parent_id, investment_tracking_mode FROM accounts WHERE user_id = %s AND id = %s FOR UPDATE",
+                    "SELECT id, parent_id, type, investment_tracking_mode FROM accounts WHERE user_id = %s AND id = %s FOR UPDATE",
                     (user_id, parent_id),
                 )
                 parent_row = cur.fetchone()
                 if not parent_row:
                     raise HTTPException(status_code=404, detail="Parent account not found")
+                if is_credit(parent_row):
+                    raise refuse("credit_parent_not_allowed")
                 if parent_row.get("investment_tracking_mode") == "amount":
                     raise HTTPException(status_code=409, detail={"code": "amount_product_must_remain_leaf"})
                 if parent_row["parent_id"] is not None:
@@ -424,12 +452,13 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                 INSERT INTO accounts (
                     user_id, parent_id, default_funding_account_id, default_pocket_id, name, type, initial_balance,
                     instrument_type, instrument_symbol, units, avg_buy_price,
-                    last_price, last_price_at, color, display_order
+                    last_price, last_price_at, color, display_order, credit_limit, payment_day
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, parent_id, default_funding_account_id, default_pocket_id, name, type, initial_balance,
                           instrument_type, instrument_symbol, units, avg_buy_price,
-                          last_price, last_price_at, color, display_order, is_archived, created_at
+                          last_price, last_price_at, color, display_order, is_archived, created_at,
+                          credit_limit, payment_day
                 """,
                 (
                     user_id,
@@ -447,6 +476,8 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                     last_price_at,
                     payload.color or default_account_color(payload.type),
                     payload.display_order or 0,
+                    payload.credit_limit,
+                    payload.payment_day,
                 ),
             )
             row = cur.fetchone()
@@ -507,6 +538,10 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
             "capital_gain": cap_gain,
             "capital_gain_pct": cap_gain_pct,
             "cost_basis": total_cost,
+            "credit_limit": int(row["credit_limit"]) if row.get("credit_limit") is not None else None,
+            "payment_day": row.get("payment_day"),
+            "credit_owed": credit_owed(bal) if row.get("type") == CREDIT_TYPE else None,
+            "over_limit": over_limit(bal, row.get("credit_limit")) if row.get("type") == CREDIT_TYPE else False,
             "color": row.get("color") or "#3b82f6",
             "display_order": int(row.get("display_order") or 0),
             "is_archived": row.get("is_archived", False),
@@ -576,6 +611,12 @@ async def update_account(
     if "display_order" in payload.model_fields_set and payload.display_order is not None:
         updates.append("display_order = %s")
         params.append(payload.display_order)
+    if "credit_limit" in payload.model_fields_set:
+        updates.append("credit_limit = %s")
+        params.append(payload.credit_limit)
+    if "payment_day" in payload.model_fields_set:
+        updates.append("payment_day = %s")
+        params.append(payload.payment_day)
 
     if not updates and "default_pocket_id" not in payload.model_fields_set:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -613,6 +654,28 @@ async def update_account(
             ) if "parent_id" in payload.model_fields_set else (
                 str(curr_acc["parent_id"]) if curr_acc.get("parent_id") else None
             )
+
+            final_limit = payload.credit_limit if "credit_limit" in payload.model_fields_set else curr_acc.get("credit_limit")
+            final_payment_day = (
+                payload.payment_day if "payment_day" in payload.model_fields_set else curr_acc.get("payment_day")
+            )
+            validate_credit_fields(
+                account_type=final_type, parent_id=final_parent_id, initial_balance=int(curr_acc["initial_balance"]),
+                credit_limit=final_limit, payment_day=final_payment_day,
+            )
+            if final_type == CREDIT_TYPE and final_instrument_type:
+                raise refuse("credit_fields_not_allowed")
+            if (final_type == CREDIT_TYPE) != (curr_acc["type"] == CREDIT_TYPE):
+                # Turning an account into credit or back reverses the meaning of its balance (D2).
+                cur.execute(
+                    """SELECT EXISTS (SELECT 1 FROM transactions WHERE user_id = %s AND account_id = %s)
+                              OR EXISTS (SELECT 1 FROM accounts WHERE user_id = %s AND parent_id = %s) AS used""",
+                    (user_id, aid, user_id, aid),
+                )
+                if cur.fetchone()["used"]:
+                    raise refuse("credit_type_change_has_transactions")
+            if final_parent_id and "parent_id" in payload.model_fields_set and is_credit(locked.get(final_parent_id)):
+                raise refuse("credit_parent_not_allowed")
 
             if "default_funding_account_id" in payload.model_fields_set and payload.default_funding_account_id is not None:
                 dfid = str(payload.default_funding_account_id)
@@ -816,7 +879,10 @@ def reconcile_account(
 
     with db_conn() as conn:
         with conn.cursor() as cur:
-            lock_owned_accounts(cur, user_id, [aid])
+            locked = lock_owned_accounts(cur, user_id, [aid])
+            # "Sesuaikan saldo" sets a cash balance; a credit account's owed amount is not one (D8).
+            if is_credit(locked[aid]):
+                raise refuse("credit_account_not_allowed")
             cur.execute("SELECT investment_tracking_mode FROM accounts WHERE id = %s", (aid,))
             if cur.fetchone().get("investment_tracking_mode") == "amount":
                 raise HTTPException(status_code=409, detail={"code": "amount_valuation_required"})

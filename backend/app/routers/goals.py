@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from app.db.pool import db_conn
 from app.routers.accounts import get_accounts_with_balances
 from app.services.auth import get_current_user
+from app.services.credit_accounts import ensure_not_credit
 
 router = APIRouter(tags=["Goals"])
 
@@ -44,12 +45,16 @@ def _validate_goal_accounts(cur, user_id: str, account_ids: list[UUID]) -> list[
     if not requested:
         return []
     cur.execute(
-        "SELECT id FROM accounts WHERE user_id = %s AND id = ANY(%s) AND is_archived = FALSE",
+        "SELECT id, type FROM accounts WHERE user_id = %s AND id = ANY(%s) AND is_archived = FALSE",
         (user_id, requested),
     )
-    found = {str(row["id"]) for row in cur.fetchall()}
+    rows = cur.fetchall()
+    found = {str(row["id"]) for row in rows}
     if found != set(requested):
         raise HTTPException(status_code=404, detail="One or more linked accounts were not found")
+    # A goal is funded by money held, never by credit owed (add-credit-accounts D7).
+    for row in rows:
+        ensure_not_credit(row)
     return requested
 
 

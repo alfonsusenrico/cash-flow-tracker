@@ -102,8 +102,11 @@ export interface CycleSummary {
     total: number;
     liquid: number;
     investment: number;
+    /** Active obligations only; credit accounts' debt is `credit_owed`. */
     debts: number;
     reconciliation_pending?: number;
+    /** What credit accounts owe, a positive amount; utang is `debts + credit_owed`. */
+    credit_owed?: number;
     lines: SummaryLine[];
   };
   comparison: {

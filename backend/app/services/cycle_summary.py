@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 
 from app.core.config import settings
 from app.routers.accounts import summarize_account_balances
+from app.services.credit_accounts import credit_owed, is_credit
 from app.services.kakeibo import UNCLASSIFIED
 from app.services.observed_insights import comparison_windows, period_comparison
 from app.services.plan_occurrences import unpaid_plan_lines
@@ -253,12 +254,20 @@ def net_worth_breakdown(cur, user_id: str, accounts: list[dict[str, Any]]) -> di
             "amount": -balances["reconciliation_pending"],
         })
     lines += [{"key": f"debt:{debt['id']}", "label": debt["name"], "amount": -debt["amount"]} for debt in debts]
+    # What credit accounts owe is utang next to the debts (add-credit-accounts D4).
+    credit_lines = [
+        {"key": f"credit:{account['id']}", "label": account["name"], "amount": -credit_owed(account["own_balance"])}
+        for account in accounts
+        if is_credit(account) and credit_owed(account["own_balance"]) > 0
+    ]
+    lines += credit_lines
     return {
         "total": sum(line["amount"] for line in lines),
         "liquid": balances["liquid_balance"],
         "investment": balances["investment_balance"],
         "reconciliation_pending": balances["reconciliation_pending"],
         "debts": sum(debt["amount"] for debt in debts),
+        "credit_owed": balances["credit_owed"],
         "lines": lines,
     }
 

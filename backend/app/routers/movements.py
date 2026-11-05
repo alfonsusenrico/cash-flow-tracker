@@ -16,6 +16,7 @@ from app.services.ledger_mutations import (
     movement_kakeibo,
 )
 from app.services.auth import get_current_user
+from app.services.credit_accounts import book_credit_fee, is_credit
 from app.services.entity_names import resolve_account_name
 from app.services.investment_topups import reject_topup_movement
 from app.services.merchant_memory import record_owner_corrections, snapshot_rows
@@ -36,6 +37,8 @@ class MovementCreate(BaseModel):
     notes: str | None = Field(default=None, max_length=500)
     date: datetime | None = None
     idempotency_key: str | None = Field(default=None, max_length=64)
+    # Interest or a fee charged with a credit bill; booked as its own expense on the credit account (D6).
+    fee: int | None = Field(default=None, gt=0)
 
 
 class MovementUpdate(BaseModel):
@@ -167,6 +170,8 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
 
             locked = lock_owned_accounts(cur, user_id, [source_id, target_id])
             ensure_generic_movement_accounts(locked[source_id], locked[target_id])
+            if payload.fee is not None and (not is_credit(locked[target_id]) or payload.fee > payload.amount):
+                raise HTTPException(status_code=422, detail={"code": "credit_fee_not_allowed"})
             result = create_bilateral_movement(
                 cur,
                 user_id=user_id,
@@ -182,6 +187,10 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
                 idempotency_key=payload.idempotency_key,
                 provenance=system_provenance("movement"),
             )
+            if payload.fee is not None:
+                result["fee_transaction_id"] = book_credit_fee(
+                    cur, user_id, target_id, result["movement_id"], payload.fee, tx_date,
+                )
 
             conn.commit()
 

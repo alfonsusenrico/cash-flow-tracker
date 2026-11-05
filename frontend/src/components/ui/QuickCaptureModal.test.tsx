@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 import { api, createMovement, uploadTransactionReceipt } from "@/lib/api";
+import { ToastProvider } from "@/components/workspace/overlays";
 import { QuickCaptureModal } from "./QuickCaptureModal";
 
 vi.mock("@/lib/api", () => ({
@@ -530,5 +531,148 @@ describe("QuickCaptureModal", () => {
     await user.click(screen.getByRole("button", { name: "Simpan Transaksi" }));
     await waitFor(() => expect(api.post).toHaveBeenCalled());
     expect(vi.mocked(api.post).mock.calls[0][1]).not.toHaveProperty("offset_category_id");
+  });
+});
+
+describe("QuickCaptureModal with credit accounts", () => {
+  const bank = { id: "jago", name: "Jago", type: "bank", balance: 500_000, children: [
+    { id: "bayar-kredit", name: "Bayar Kredit", type: "bank", parent_id: "jago", balance: 500_000 },
+  ] };
+  const pocket = bank.children[0];
+  const spaylater = { id: "spaylater", name: "SPayLater", type: "credit", balance: -470_000, credit_owed: 470_000, credit_limit: 500_000, over_limit: false };
+  const kredivo = { id: "kredivo", name: "Kredivo", type: "credit", balance: 0, credit_owed: 0, credit_limit: null, over_limit: false };
+
+  function renderWithToast(props: { defaultType?: "expense" | "income" | "movement" } = {}) {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <QuickCaptureModal open onClose={vi.fn()} {...props} />
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [bank, pocket, spaylater, kredivo] };
+      if (path === "/categories") {
+        return { categories: [
+          { id: "makan", name: "Makan", kind: "expense", kakeibo_type: "need" },
+          { id: "refund", name: "Refund", kind: "income" },
+        ] };
+      }
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [{ id: "debt-1", name: "Cicilan Contoh", remaining_amount: 900_000, is_archived: false }] };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    vi.mocked(createMovement).mockResolvedValue({ ok: true, movement_id: "m1", expense_transaction_id: "out", income_transaction_id: "in" });
+  });
+
+  it("books an expense on credit from a Kredit group, without a debt link, and tells when it passes the limit", async () => {
+    vi.mocked(api.post).mockResolvedValue({ ok: true, transaction_id: "dinner", over_limit: true });
+    const user = userEvent.setup();
+    const { container } = renderWithToast();
+
+    const account = await screen.findByRole("combobox", { name: "Bayar dari" });
+    const group = await within(account).findByRole("group", { name: "Kredit" });
+    expect(within(group).getAllByRole("option").map((option) => option.textContent)).toEqual(["SPayLater (utang Rp 470.000)", "Kredivo"]);
+    expect(screen.getByRole("button", { name: "+ Tambah tagihan" })).toBeInTheDocument();
+
+    await user.selectOptions(account, "spaylater");
+    expect(screen.queryByRole("button", { name: "+ Tambah tagihan" })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Kategori" }), "makan");
+    await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "120000");
+    expect((await axe(container)).violations).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Simpan Transaksi" }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/transactions", expect.objectContaining({
+      type: "expense", account_id: "spaylater", amount: 120_000, category_id: "makan", obligation_id: null,
+    })));
+    expect(await screen.findByText("Melewati limit SPayLater")).toBeInTheDocument();
+  });
+
+  it("does not offer credit accounts for an income", async () => {
+    const user = userEvent.setup();
+    renderWithToast();
+    await screen.findByRole("combobox", { name: "Bayar dari" });
+    await user.click(screen.getByRole("button", { name: "Pemasukan" }));
+    const account = screen.getByRole("combobox", { name: "Masuk ke" });
+    expect(within(account).queryByRole("group", { name: "Kredit" })).not.toBeInTheDocument();
+    expect(within(account).queryByRole("option", { name: /SPayLater|Kredivo/ })).not.toBeInTheDocument();
+  });
+
+  it("pays a credit bill with a fee, and sends a fee only when the target is credit", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithToast({ defaultType: "movement" });
+
+    const source = await screen.findByRole("combobox", { name: "Dari rekening" });
+    await waitFor(() => expect(source).toHaveValue("jago"));
+    await user.selectOptions(source, "bayar-kredit");
+    const target = screen.getByRole("combobox", { name: "Ke rekening" });
+    expect(within(target).getByRole("group", { name: "Kredit" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Biaya / bunga (opsional)" })).not.toBeInTheDocument();
+
+    await user.selectOptions(target, "spaylater");
+    const fee = screen.getByRole("textbox", { name: "Biaya / bunga (opsional)" });
+    await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "480000");
+    await user.type(fee, "10000");
+    expect(fee).toHaveValue("10.000");
+    expect((await axe(container)).violations).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Pindahkan Saldo" }));
+
+    await waitFor(() => expect(createMovement).toHaveBeenCalledWith(expect.objectContaining({
+      source_account_id: "bayar-kredit", target_account_id: "spaylater", amount: 480_000, fee: 10_000,
+    })));
+  });
+
+  it("sends no fee between cash accounts and refuses a fee above the amount", async () => {
+    const user = userEvent.setup();
+    renderWithToast({ defaultType: "movement" });
+    const source = await screen.findByRole("combobox", { name: "Dari rekening" });
+    await waitFor(() => expect(source).toHaveValue("jago"));
+    const target = screen.getByRole("combobox", { name: "Ke rekening" });
+
+    await user.selectOptions(target, "spaylater");
+    await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "5000");
+    const fee = screen.getByRole("textbox", { name: "Biaya / bunga (opsional)" });
+    await user.type(fee, "9000");
+    await user.click(screen.getByRole("button", { name: "Pindahkan Saldo" }));
+    expect(await screen.findByText("Biaya tidak boleh melebihi nominal.")).toBeInTheDocument();
+    expect(fee).toHaveFocus();
+    expect(fee).toHaveAttribute("aria-invalid", "true");
+    expect(createMovement).not.toHaveBeenCalled();
+
+    await user.selectOptions(target, "bayar-kredit");
+    expect(screen.queryByRole("textbox", { name: "Biaya / bunga (opsional)" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Pindahkan Saldo" }));
+    await waitFor(() => expect(createMovement).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(createMovement).mock.calls[0][0]).not.toHaveProperty("fee");
+  });
+
+  it("keeps a credit source from paying another credit account", async () => {
+    const user = userEvent.setup();
+    renderWithToast({ defaultType: "movement" });
+    const source = await screen.findByRole("combobox", { name: "Dari rekening" });
+    await waitFor(() => expect(source).toHaveValue("jago"));
+    await user.selectOptions(source, "spaylater");
+
+    const target = screen.getByRole("combobox", { name: "Ke rekening" });
+    expect(within(target).queryByRole("group", { name: "Kredit" })).not.toBeInTheDocument();
+    expect(within(target).queryByRole("option", { name: /Kredivo/ })).not.toBeInTheDocument();
+    expect(target).not.toHaveValue("kredivo");
+  });
+
+  it("shows the server's reason when a movement with credit is refused", async () => {
+    vi.mocked(createMovement).mockRejectedValue(new Error("Salah satu sisi pindah saldo harus rekening bank, e-wallet, atau tunai."));
+    const user = userEvent.setup();
+    renderWithToast({ defaultType: "movement" });
+    const source = await screen.findByRole("combobox", { name: "Dari rekening" });
+    await waitFor(() => expect(source).toHaveValue("jago"));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Ke rekening" }), "spaylater");
+    await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "470000");
+    await user.click(screen.getByRole("button", { name: "Pindahkan Saldo" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Salah satu sisi pindah saldo harus rekening bank, e-wallet, atau tunai.");
   });
 });

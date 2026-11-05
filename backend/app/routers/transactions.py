@@ -19,6 +19,7 @@ from app.services.debt_allocations import (
     validate_allocation_request,
     validate_debt_capacity,
 )
+from app.services.credit_accounts import ensure_not_credit, is_credit, over_limit, refuse
 from app.services.entity_names import resolve_account_name, resolve_category_name
 from app.services.kakeibo import PILLAR_FILTER_PATTERN, PILLAR_PATTERN, effective_pillar, effective_pillar_sql, pillar_bucket_sql
 from app.services.report_figures import cash_flow_totals
@@ -814,6 +815,9 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 transaction_type=payload.type,
                 investment_action=payload.investment_action,
             )
+            if (obligation_id or allocation_values) and is_credit(matched_source):
+                # A debt is paid from cash; a credit purchase that repays another debt is not supported (D7).
+                raise refuse("credit_account_not_allowed")
             if obligation_id:
                 cur.execute("SELECT id FROM obligations WHERE user_id = %s AND id = %s AND is_archived = FALSE AND remaining_amount > 0", (user_id, obligation_id))
                 if not cur.fetchone():
@@ -868,6 +872,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 position = locked[position_id]
                 if position.get("investment_tracking_mode") == "amount":
                     raise HTTPException(status_code=409, detail={"code": "amount_product_trade_not_supported"})
+                ensure_not_credit(funding)
                 if funding.get("type") not in {"cash", "bank", "wallet", "ewallet"} or funding.get("instrument_type"):
                     raise HTTPException(status_code=400, detail="Funding account must be a liquid account")
                 if position.get("type") != "investment" and not position.get("instrument_type"):
@@ -1013,12 +1018,20 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                         (payload.amount, payload.amount, obligation_id, user_id),
                     )
 
+            # A purchase over a credit account's limit is saved and only flagged (add-credit-accounts D5).
+            credit_over_limit = False
+            if is_credit(matched_source):
+                cur.execute("SELECT credit_limit FROM accounts WHERE user_id = %s AND id = %s", (user_id, account_id))
+                limit = cur.fetchone()["credit_limit"]
+                credit_over_limit = over_limit(get_locked_ledger_balance(cur, user_id, account_id), limit)
+
             conn.commit()
 
     request_plan_linking(user_id)
     return {
         "ok": True,
         "transaction_id": str(created["id"]),
+        "over_limit": credit_over_limit,
         "message": "Transaction recorded successfully",
     }
 
@@ -1324,6 +1337,8 @@ def update_transaction(
                 cur.execute("SELECT id FROM obligations WHERE user_id = %s AND id = %s AND is_archived = FALSE AND remaining_amount > 0", (user_id, new_obligation_id))
                 if not cur.fetchone() and new_obligation_id != (str(old_tx["obligation_id"]) if old_tx.get("obligation_id") else None):
                     raise HTTPException(status_code=404, detail="Obligation not found")
+                if is_credit(locked_account):
+                    raise refuse("credit_account_not_allowed")
 
             if new_type == "expense":
                 if locked_account.get("type") in {"cash", "bank", "wallet", "ewallet"} and not locked_account.get("instrument_type"):

@@ -170,6 +170,14 @@
 .acardTools { display: flex; flex: none; align-items: center; gap: 2px; }
 .acardTools :global(.ws-icon-btn), .pocket :global(.ws-icon-btn) { min-width: 32px; min-height: 32px; }
 .acardNotes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 16px 12px; }
+/* Credit accounts (add-credit-accounts): limit use as text and a bar, payment day and the over-limit mark. */
+.credit { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 14px; }
+.creditUse { display: flex; flex-direction: column; gap: 6px; }
+.creditUseText { color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.creditBar { overflow: hidden; height: 8px; border-radius: 99px; background: var(--surface-3); }
+.creditBar > i { display: block; height: 100%; border-radius: inherit; background: var(--ink); }
+.creditBar > i[data-over] { background: var(--warn-solid); }
+.creditNotes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pockets { margin: 0; padding: 0; border-top: 1px solid var(--line); list-style: none; }
 .pocket { position: relative; display: flex; align-items: center; gap: 4px; padding: 0 10px 0 8px; border-top: 1px solid var(--line); }
 .pocket:first-child { border-top: 0; }

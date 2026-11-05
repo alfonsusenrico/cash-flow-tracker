@@ -611,6 +611,26 @@ describe("Tinjau triage", () => {
     await waitFor(() => expect(api.post).toHaveBeenLastCalledWith("/review/bulk", { action: "keep_separate", transaction_ids: ["tx-ambiguous"] }));
   });
 
+  it("completes a one-sided debit as a credit payment from a Kredit choice", async () => {
+    const getAccounts = vi.mocked(api.get).getMockImplementation()!;
+    vi.mocked(api.get).mockImplementation(async (path, signal) => {
+      if (path === "/accounts") {
+        const listed = (await getAccounts(path, signal)) as { accounts: unknown[] };
+        return { accounts: [...listed.accounts, { id: "account-spaylater", name: "SPayLater", type: "credit", parent_id: null, balance: -470_000, credit_owed: 470_000 }] };
+      }
+      return getAccounts(path, signal);
+    });
+    const { user, container } = renderPage();
+    await loaded();
+    await user.click(row("Keluar dari GoPay"));
+    const choice = await within(pane()).findByRole("button", { name: /^SPayLater/ });
+    expect(choice).toHaveTextContent("Kredit · bayar tagihan ke sini");
+    expect(within(pane()).getByRole("button", { name: /^BCA Harian/ })).toHaveTextContent("Pindah saldo ke sini");
+    expect((await axe(container)).violations).toHaveLength(0);
+    await user.click(choice);
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/movements/complete", { transaction_id: "tx-await", target_account_id: "account-spaylater" }));
+  });
+
   it("offers the existing leg instead of recording a transfer twice", async () => {
     const candidate = { id: "tx-existing-in", type: "income", amount: 500_000, date: "2026-10-20T05:37:00Z", account_id: "account-bca", category_name: "Internal Movement", notes: "Pindah saldo contoh" };
     vi.mocked(api.post).mockImplementation(async (path, body) => {

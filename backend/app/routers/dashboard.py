@@ -1287,6 +1287,7 @@ def get_dashboard_net_worth(current_user: dict = Depends(get_current_user)):
             breakdown = net_worth_breakdown(cur, user_id, accounts)
             total_assets = breakdown["liquid"] + breakdown["investment"]
             net_worth = breakdown["total"]
+            total_liabilities += breakdown["credit_owed"]
 
             # 3. Ketahanan Dana / Runway calculation
             # The no-reserve fallback is liquid cash, as on the overview; investments are not a reserve.
@@ -1314,6 +1315,7 @@ def get_dashboard_net_worth(current_user: dict = Depends(get_current_user)):
         "liquid": breakdown["liquid"],
         "investment": breakdown["investment"],
         "reconciliation_pending": breakdown["reconciliation_pending"],
+        "credit_owed": breakdown["credit_owed"],
         "lines": breakdown["lines"],
     }
 

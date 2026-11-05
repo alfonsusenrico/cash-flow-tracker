@@ -8,7 +8,7 @@ import { Modal } from "@/components/ui/Modal";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { FormSection } from "@/components/ui/FormField";
 import { queryKeys } from "@/lib/queryKeys";
-import { listLiquidAccountChoices } from "@/lib/accountOptions";
+import { isCreditAccountChoice, listCreditAccountChoices, listLiquidAccountChoices } from "@/lib/accountOptions";
 import { movementFormSchema } from "@/lib/movementFormSchema";
 
 interface InternalMovementModalProps {
@@ -51,6 +51,15 @@ export function InternalMovementModal({
 
   const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData?.accounts]);
   const liquidAccounts = useMemo(() => listLiquidAccountChoices(accounts), [accounts]);
+  // A credit account may be either side of a movement, with cash on the other side (add-credit-accounts D6).
+  const movementAccounts = useMemo(
+    () => [...liquidAccounts, ...listCreditAccountChoices(accounts)],
+    [accounts, liquidAccounts],
+  );
+  const isCreditId = (accountId: string) => movementAccounts.some(
+    (account) => String(account.id ?? account.account_id ?? "") === accountId && isCreditAccountChoice(account),
+  );
+  const sourceIsCredit = isCreditId(sourceAccountId);
 
   // Set default accounts when loaded
   useEffect(() => {
@@ -58,31 +67,31 @@ export function InternalMovementModal({
     const getAccountId = (account: any) => String(account.id ?? account.account_id ?? "");
     const firstAccountId = getAccountId(liquidAccounts[0]);
     setSourceAccountId((current) =>
-      liquidAccounts.some((account) => getAccountId(account) === current)
+      movementAccounts.some((account) => getAccountId(account) === current)
         ? current
         : firstAccountId,
     );
     setTargetAccountId((current) => {
-      const sourceId = liquidAccounts.some((account) => getAccountId(account) === sourceAccountId)
-        ? sourceAccountId
-        : firstAccountId;
-      if (current !== sourceId && liquidAccounts.some((account) => getAccountId(account) === current)) {
+      const source = movementAccounts.find((account) => getAccountId(account) === sourceAccountId);
+      const sourceId = source ? sourceAccountId : firstAccountId;
+      const targets = source && isCreditAccountChoice(source) ? liquidAccounts : movementAccounts;
+      if (current !== sourceId && targets.some((account) => getAccountId(account) === current)) {
         return current;
       }
       const target = liquidAccounts.find((account) => getAccountId(account) !== sourceId);
       return target ? getAccountId(target) : "";
     });
-  }, [liquidAccounts, sourceAccountId]);
+  }, [liquidAccounts, movementAccounts, sourceAccountId]);
 
   useEffect(() => {
     if (open) {
       const requestedSource = editingMovement?.sourceAccountId ?? "";
       const requestedTarget = editingMovement?.targetAccountId ?? "";
       const getAccountId = (account: any) => String(account.id ?? account.account_id ?? "");
-      const sourceId = liquidAccounts.some((account) => getAccountId(account) === requestedSource)
+      const sourceId = movementAccounts.some((account) => getAccountId(account) === requestedSource)
         ? requestedSource
         : getAccountId(liquidAccounts[0] ?? {});
-      const targetId = liquidAccounts.some((account) => getAccountId(account) === requestedTarget && requestedTarget !== sourceId)
+      const targetId = movementAccounts.some((account) => getAccountId(account) === requestedTarget && requestedTarget !== sourceId)
         ? requestedTarget
         : getAccountId(liquidAccounts.find((account) => getAccountId(account) !== sourceId) ?? {});
       setSourceAccountId(sourceId);
@@ -95,7 +104,7 @@ export function InternalMovementModal({
       setConfirmDelete(false);
       setConfirmSplit(false);
     }
-  }, [editingMovement, liquidAccounts, open]);
+  }, [editingMovement, liquidAccounts, movementAccounts, open]);
 
   const parsedAmount = useMemo(() => {
     const raw = amountStr.replace(/[^0-9]/g, "");
@@ -113,6 +122,9 @@ export function InternalMovementModal({
         notes: notes.trim(),
       });
       if (!validation.success) throw new Error(validation.error.issues[0].message);
+      if (isCreditId(validation.data.sourceAccountId) && isCreditId(validation.data.targetAccountId)) {
+        throw new Error("Salah satu sisi harus rekening bank, e-wallet, atau tunai.");
+      }
 
       const payload = {
         source_account_id: validation.data.sourceAccountId,
@@ -176,7 +188,7 @@ export function InternalMovementModal({
   return (
     <Modal open={open && Boolean(editingMovement)} onClose={onClose} title="Ubah pindah saldo">
       <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-        <FormSection title="Arah pemindahan" description="Saldo berpindah antar-rekening likuid. Ini bukan pemasukan atau pengeluaran; posisi investasi berubah melalui Beli/Jual." className="border-t-0 pt-0">
+        <FormSection title="Arah pemindahan" description="Saldo berpindah antar-rekening, termasuk membayar kredit. Ini bukan pemasukan atau pengeluaran; posisi investasi berubah melalui Beli/Jual." className="border-t-0 pt-0">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="movement-source-account" className="block text-[11px] font-medium text-[var(--muted)] mb-1">
@@ -189,7 +201,7 @@ export function InternalMovementModal({
               onChange={(e) => setSourceAccountId(e.target.value)}
               className="min-h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]/30"
             >
-              <AccountSelectOptions accounts={accounts} formatBalance={fmtMoney} allowParentSelection={true} liquidOnly />
+              <AccountSelectOptions accounts={accounts} formatBalance={fmtMoney} allowParentSelection={true} liquidOnly includeCredit />
             </select>
           </div>
 
@@ -210,6 +222,7 @@ export function InternalMovementModal({
                 allowParentSelection={true}
                 excludeAccountId={sourceAccountId}
                 liquidOnly
+                includeCredit={!sourceIsCredit}
               />
             </select>
           </div>

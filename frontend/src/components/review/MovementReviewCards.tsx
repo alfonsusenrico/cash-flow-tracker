@@ -8,7 +8,7 @@ import { Choice, Picker } from "@/components/review/triage/Choice";
 import { ItemHead, longWhen } from "@/components/review/triage/ItemHead";
 import type { AccountOptionItem } from "@/components/ui/AccountSelectOptions";
 import type { CategoryOption } from "@/components/review/ReviewGroupCard";
-import { listLiquidAccountChoices } from "@/lib/accountOptions";
+import { isCreditAccountChoice, listCreditAccountChoices, listLiquidAccountChoices } from "@/lib/accountOptions";
 import { KAKEIBO_PILLARS } from "@/lib/kakeibo";
 import type { AmbiguousItem, AwaitingItem, CompletionCandidate, ReviewItem, TopupProductChoice } from "@/lib/review";
 
@@ -27,11 +27,21 @@ export interface TopupOptions {
 interface Counterpart {
   id: string;
   label: string;
+  /** A credit account: completing with it records a credit payment or a cash advance (add-credit-accounts D6). */
+  credit: boolean;
 }
 
-/** Liquid accounts and pockets the leg can pair with; a parent that holds pockets is not a counterpart. */
+/**
+ * Liquid accounts and pockets the leg can pair with, then credit accounts; a parent that holds pockets is not
+ * a counterpart. A leg on a credit account gets cash counterparts only: one credit account cannot pay another.
+ */
 export function counterpartChoices(accounts: AccountOptionItem[], excludeId: string): Counterpart[] {
-  const listed = listLiquidAccountChoices(accounts) as AccountOptionItem[];
+  const credit = listCreditAccountChoices(accounts) as AccountOptionItem[];
+  const legOnCredit = credit.some((account) => String(account.id ?? account.account_id) === excludeId);
+  const listed = [
+    ...listLiquidAccountChoices(accounts),
+    ...(legOnCredit ? [] : credit),
+  ] as AccountOptionItem[];
   const names = new Map(accounts.flatMap((account) => [account, ...(account.children ?? [])])
     .map((account) => [String(account.id ?? account.account_id), String(account.name ?? account.account_name ?? "")]));
   return listed
@@ -40,9 +50,14 @@ export function counterpartChoices(accounts: AccountOptionItem[], excludeId: str
       const id = String(account.id ?? account.account_id);
       const parent = account.parent_id ? names.get(String(account.parent_id)) : null;
       const name = String(account.name ?? account.account_name ?? "");
-      return { id, label: parent ? `${parent} · ${name}` : name };
+      return { id, label: parent ? `${parent} · ${name}` : name, credit: isCreditAccountChoice(account) };
     })
     .filter((choice) => choice.id !== excludeId);
+}
+
+function choiceSub(account: Counterpart, outgoing: boolean): string {
+  if (account.credit) return outgoing ? "Kredit · bayar tagihan ke sini" : "Kredit · uang dari sini";
+  return outgoing ? "Pindah saldo ke sini" : "Pindah saldo dari sini";
 }
 
 function EditLink({ item }: { item: ReviewItem }) {
@@ -200,7 +215,7 @@ export function AwaitingMovementCard({
               n={n++}
               disabled={pending}
               label={account.label}
-              sub={outgoing ? "Pindah saldo ke sini" : "Pindah saldo dari sini"}
+              sub={choiceSub(account, outgoing)}
               onClick={() => void onComplete(item, account.id)}
             />
           ))}
@@ -234,9 +249,16 @@ export function AwaitingMovementCard({
               {outgoing ? "Rekening tujuan lain" : "Rekening asal lain"}
               <select value={otherAccount} onChange={(event) => setOtherAccount(event.target.value)} aria-invalid={error ? true : undefined}>
                 <option value="">Pilih rekening atau kantong</option>
-                {rest.map((account) => (
+                {rest.filter((account) => !account.credit).map((account) => (
                   <option key={account.id} value={account.id}>{account.label}</option>
                 ))}
+                {rest.some((account) => account.credit) && (
+                  <optgroup label="Kredit">
+                    {rest.filter((account) => account.credit).map((account) => (
+                      <option key={account.id} value={account.id}>{account.label}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </label>
             <button type="submit" disabled={pending} className="ws-btn">Lengkapi pindah saldo</button>

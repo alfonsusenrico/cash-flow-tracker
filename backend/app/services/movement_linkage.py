@@ -3,7 +3,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from app.services.ledger_mutations import (
-    LIQUID_ACCOUNT_TYPES, ensure_generic_movement_accounts, lock_owned_accounts, movement_kakeibo,
+    MOVEMENT_ACCOUNT_TYPES, ensure_generic_movement_accounts, lock_owned_accounts, movement_kakeibo,
 )
 from app.services.merchant_memory import record_owner_corrections, retire_automatic_memory, snapshot_rows
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS
@@ -140,8 +140,8 @@ def link_transactions_as_movement(
 
     accounts = lock_owned_accounts(cur, user_id, [source_id, target_id])
     ensure_generic_movement_accounts(accounts[source_id], accounts[target_id])
-    if any(account["type"] not in LIQUID_ACCOUNT_TYPES for account in accounts.values()):
-        raise HTTPException(status_code=422, detail="Both accounts must be liquid")
+    if any(account["type"] not in MOVEMENT_ACCOUNT_TYPES for account in accounts.values()):
+        raise HTTPException(status_code=422, detail="Both accounts must be liquid, or one may be a credit account")
 
     expense_category_id, income_category_id = ensure_internal_movement_categories(cur, user_id)
     before_classification = snapshot_rows(cur, user_id, [expense_id, income_id]) if owner_edit else {}

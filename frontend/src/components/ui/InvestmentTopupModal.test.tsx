@@ -35,6 +35,13 @@ describe("amount investment top-ups", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it("never offers a credit account as top-up funding", () => {
+    show({ allAccounts: [...accounts, { id: "spaylater", name: "SPayLater", type: "credit", balance: -470_000 }] });
+    const funding = screen.getByRole("combobox", { name: "Dari rekening" });
+    expect(funding.querySelector('option[value="spaylater"]')).toBeNull();
+    expect(funding.querySelector('optgroup[label="Kredit"]')).toBeNull();
+  });
+
   it("prefers the product funding account when it is eligible", () => {
     show({ product: { ...product, default_funding_account_id: "other" }, allAccounts: [...accounts, { id: "other", name: "Other funding", type: "bank" }] });
     expect(screen.getByRole("combobox", { name: "Dari rekening" })).toHaveValue("other");
