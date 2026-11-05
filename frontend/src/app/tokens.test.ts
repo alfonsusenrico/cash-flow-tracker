@@ -226,7 +226,7 @@ const MARKAS: Record<string, [string, string]> = {
   "--danger-solid-hover": ["#A9122A", "#CF1B42"],
   "--danger-contrast": ["#FFFFFF", "#FFFFFF"],
   "--focus": ["#45484F", "#BDBEC2"],
-  "--field-focus": ["#2B2D32", "#C9C9CC"],
+  "--field-focus": ["#2B2D32", "#CACACD"],
   "--ring": ["rgba(28, 30, 34, 0.10)", "rgba(232, 231, 228, 0.12)"],
   "--scrim": ["rgba(28, 26, 22, 0.44)", "rgba(8, 8, 9, 0.62)"],
   "--shadow-float": [
@@ -392,10 +392,9 @@ describe("design tokens", () => {
     });
 
     it("sets a focused field's edge apart from its resting edge", () => {
-      // SPEC §3.3 gives 3.47:1 light and "3.00:1" dark; the dark pair measures 2.996:1, so the bound is the
-      // prototype's rounded value. The field's edge against its surface stays above 9:1, and the soft ring
-      // and the caret also mark focus.
-      expect(contrast(painted(theme, "--field-focus"), painted(theme, "--line-strong")), selector).toBeGreaterThanOrEqual(2.995);
+      // A focused field's edge differs from its resting edge by at least 3:1 (WCAG 1.4.11). The dark value is
+      // one step lighter than the prototype's so it reaches 3:1.
+      expect(contrast(painted(theme, "--field-focus"), painted(theme, "--line-strong")), selector).toBeGreaterThanOrEqual(3);
     });
 
     it("keeps the keyboard focus outline at 7:1 on every surface", () => {

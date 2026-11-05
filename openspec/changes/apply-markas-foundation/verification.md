@@ -194,3 +194,7 @@ Backend suite: not run, because no backend, database or companion file changed.
 
 None introduced. The findings above (the font features the served files lack, and the dark field-focus contrast
 printed as 3.00:1) describe the prototype itself and are for the owner's decision.
+
+### Owner acceptance, 2026-11-05
+
+The owner answered "accepted, continue". As recommended, dark `--field-focus` moves one step to `#CACACD`, which measures 3.027:1 against `--line-strong`. The token test now requires at least 3:1.

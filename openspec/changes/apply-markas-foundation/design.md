@@ -91,7 +91,7 @@ The app's semantic names stay; their values change. Concepts the app lacks take 
 | `--danger-solid-hover` | `--danger` at 92 % brightness | `#A9122A` | `#CF1B42` |
 | `--danger-contrast` | `--on-danger` | `#FFFFFF` | `#FFFFFF` |
 | `--focus` | `--focus` | `#45484F` | `#BDBEC2` |
-| new `--field-focus` | `--field-focus` | `#2B2D32` | `#C9C9CC` |
+| new `--field-focus` | `--field-focus` | `#2B2D32` | `#CACACD` (prototype `#C9C9CC`, nudged to 3:1, owner 2026-11-05) |
 | new `--ring` | `--ring` | `rgba(28, 30, 34, 0.10)` | `rgba(232, 231, 228, 0.12)` |
 | `--scrim` | `--scrim` | `rgba(28, 26, 22, 0.44)` | `rgba(8, 8, 9, 0.62)` |
 | `--shadow-float` | `--shadow-layer` | `0 16px 48px rgba(40, 34, 26, 0.14), 0 2px 6px rgba(40, 34, 26, 0.06)` | `0 16px 48px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3)` |
