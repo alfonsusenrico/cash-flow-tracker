@@ -55,6 +55,6 @@ Expected Result: selection is straight everywhere it is marked, and nothing coun
 
   Evidence: counts and the side-by-side images in `verification.md` and `research/evidence/apply-markas-foundation/`.
 - [x] 7.2 Run `npm test`, `npm run type-check`, `npm run lint`, `npm run build`, `git diff --check` and `openspec validate --all --strict`, and confirm `git diff --stat origin/main -- backend db mobile nginx` is empty. Review the final diff for unrequested changes. Evidence: command results with counts in `verification.md`; the backend suite is recorded as not run because no backend file changed.
-- [ ] 7.3 Present the evidence to the owner. After the owner accepts, archive the change, push `feat/markas-foundation` and report the compare link; the owner opens and merges the merge request. Evidence: the `openspec archive` output, the pushed branch and the compare link.
+- [x] 7.3 Present the evidence to the owner. After the owner accepts, archive the change, push `feat/markas-foundation` and report the compare link; the owner opens and merges the merge request. Evidence: the `openspec archive` output, the pushed branch and the compare link.
 
 Expected Result: the foundation is verified against the prototype and handed to the owner for review.

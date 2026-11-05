@@ -12,17 +12,17 @@ The web app SHALL bundle every font file it uses and serve it from its own origi
 - A production build SHALL NOT fetch fonts from a third-party provider.
 - A page SHALL NOT request fonts or font stylesheets from a third-party host.
 - Each bundled font SHALL ship with its licence text.
-- Interface text SHALL use Plus Jakarta Sans and code-like text Geist Mono.
+- Interface text and amounts SHALL use Inter; page, dialog and section titles, the brand and a page's hero figure SHALL use Manrope. No other family SHALL be bundled.
 
 #### Scenario: Build without access to a font provider
 
 - **WHEN** the frontend is built on a host that cannot reach Google Fonts
-- **THEN** the build completes and the output contains the Plus Jakarta Sans and Geist Mono files with their licences, and no Geist sans file
+- **THEN** the build completes and the output contains the Inter and Manrope files with their licences, and no Plus Jakarta Sans, Geist Mono or Geist sans file
 
 #### Scenario: Page renders with bundled fonts
 
 - **WHEN** a browser loads any page of the web app
-- **THEN** body text renders in Plus Jakarta Sans and code-like text in Geist Mono
+- **THEN** body text and amounts render in Inter and the page title renders in Manrope
 - **AND** every font request goes to the app's own origin, with none to a third-party host
 
 #### Scenario: Third-party font is blocked by policy

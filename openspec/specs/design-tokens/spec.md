@@ -38,17 +38,90 @@ Every text and icon pair that the workspace tokens define (text, muted and the s
 - **WHEN** `tokens.test.ts` runs
 - **THEN** it SHALL report every defined pair in light and dark at or above its threshold, and fail on the first pair below it
 
-### Requirement: Pre-Redesign Palette Values
-The workspace tokens SHALL carry the colour values of the pre-redesign app (commit `6cc6704`, "Coral Terminal") in both themes: window, surface, ink, muted, primary coral, the semantic hues with their text inks and soft fills, the six Kakeibo hues and the sidebar tones. Token names SHALL stay as they are. A token without an old counterpart SHALL take the nearest old value and be listed in the change's verification record.
-
-#### Scenario: Dark window and coral primary
-- **WHEN** a page renders in the dark theme
-- **THEN** the window SHALL be `#050608`, cards `#0E1118`, body text `#F8FAFC` and the primary fill `#FF4757` with its `#0A0D14` contrast ink
+### Requirement: Markas Palette Values
+The workspace tokens SHALL carry the option-6 "Markas+" colour values in both themes, set on the existing token names: warm paper surfaces in light, soft charcoal in dark, one coral accent, the semantic text inks and the mark colours. A token without a prototype counterpart SHALL keep its value until the change that restyles its page, and SHALL be listed in this change's verification record.
 
 #### Scenario: Light theme values
 - **WHEN** a page renders in the light theme
-- **THEN** the window SHALL be `#E8ECEF`, cards `#FFFFFF`, body text `#0A0D14`, the primary fill `#FF334B`, need `#2448C4` and saving `#296B38`
+- **THEN** the canvas SHALL be `#F8F7F4`, cards and panels `#F1EFEB`, the raised fill `#E6E3DD`, lines `#E1DDD6`, control edges `#847F78`, text `#1C1E22`, muted text `#5B5E65`, the primary fill `#FF334B` with its `#0A0D14` ink, and coral text `#B8142D`
+
+#### Scenario: Dark theme values
+- **WHEN** a page renders in the dark theme
+- **THEN** the canvas SHALL be `#151517`, cards and panels `#1C1D20`, the raised fill `#26272B`, lines `#2F3034`, control edges `#6E7076`, text `#E8E7E4`, muted text `#A3A3A7`, the primary fill `#FF4757` with its `#0A0D14` ink, and coral text `#FF6B78`
+
+#### Scenario: No tinted semantic fills
+- **WHEN** a component paints a semantic colour at reduced opacity behind text, such as `bg-out-solid/10`
+- **THEN** `tokens.test.ts` SHALL fail and name the file, and badges SHALL instead use the raised neutral fill with the semantic text ink
 
 #### Scenario: Contrast still enforced
 - **WHEN** `tokens.test.ts` runs after the values change
-- **THEN** every text pair SHALL measure at least 4.5:1 and every meaningful mark at least 3:1 in both themes, and the test SHALL fail on the first pair below its threshold
+- **THEN** every text pair SHALL measure at least 4.5:1 and every mark at least 3:1 in both themes, and the test SHALL fail on the first pair below its threshold
+
+### Requirement: Type Families and Scale
+The web app SHALL render text only in Inter and Manrope, only at 12, 14, 16, 20, 24, 32 and 44 px, and only at weights 400, 500 and 600. Manrope SHALL be used only for page, dialog and section titles, Laporan questions, the brand and a page's hero figure. Amounts, counts, times, column dates, tables, fields, badges and chart labels SHALL use tabular lining figures; prose SHALL use proportional lining figures.
+
+#### Scenario: A stray size or weight is added
+- **WHEN** a change adds `font-size: 13.5px`, `text-[15px]`, `text-lg`, `font-weight: 700` or `font-bold` to a stylesheet or a component under `frontend/src`
+- **THEN** `typeScale.test.ts` SHALL fail and name the file and the value
+
+#### Scenario: Every page measured
+- **WHEN** every route is captured at 1440 and 390 px in both themes and the computed styles of visible text are read
+- **THEN** the families SHALL be only Inter and Manrope, the sizes only the seven listed and the weights only 400, 500 and 600, with Manrope only on titles and the brand
+
+#### Scenario: Figures align, prose stays natural
+- **WHEN** a ledger column shows amounts under each other and a subtitle reads "hari ke-14"
+- **THEN** the amounts SHALL use tabular figures and line up digit for digit, and the subtitle SHALL use proportional figures so the hyphen keeps its normal width
+
+### Requirement: Geometry, Borders and Elevation
+Corner radii SHALL be 6 px for controls, 12 px for panels, tiles, popovers and toasts, and 16 px for dialogs and sheets; rows and bars SHALL be square and only dots circular. Every border SHALL be 1 px in a neutral line token, and no border, outline or ring SHALL use the accent or a semantic colour except selection bars, group rails and keyboard focus. Only dialogs, sheets, popovers, menus and toasts SHALL cast a shadow.
+
+#### Scenario: A thick or coloured border is added
+- **WHEN** a change gives a control, card, chip, dialog or field a 2 px border, a coral or semantic border colour, a coloured ring or a radius other than 0, 6, 12, 16 or a circle
+- **THEN** `geometry.test.ts` SHALL fail and name the file
+
+#### Scenario: Cards are flat
+- **WHEN** a card or panel renders in the light or the dark theme
+- **THEN** its computed `box-shadow` SHALL be `none`, while an open dialog, menu or toast SHALL carry the layer shadow token of that theme
+
+#### Scenario: Field error stays neutral
+- **WHEN** the owner submits Catat with an empty amount
+- **THEN** the amount field's edge SHALL stay the neutral field-focus colour, the error SHALL be named in 12 px expense text under the field, and the field SHALL carry `aria-invalid` and `aria-describedby`
+
+### Requirement: Neutral Focus Indicators
+Keyboard focus on buttons, links, rows, navigation items, tabs, segments and swatches SHALL be a 2 px outline in the focus token with a 2 px offset, inset 2 px on rows and navigation items, at least 3:1 against every surface. A focused text field SHALL show no outline but a 1 px edge in the field-focus token, at least 3:1 against its resting edge, and a 3 px soft neutral ring.
+
+#### Scenario: Keyboard focus on a button
+- **WHEN** a keyboard user tabs to "+ Catat"
+- **THEN** it SHALL show a 2 px `#45484F` outline 2 px outside it in light and a `#BDBEC2` one in dark, with no coloured ring
+
+#### Scenario: Clicking into the sentence field
+- **WHEN** the owner clicks into "Tulis transaksi" in Catat in the light theme
+- **THEN** the field SHALL show a 1 px `#2B2D32` edge and a 3 px `rgba(28, 30, 34, 0.10)` ring, no outline and no coral
+
+#### Scenario: Pointer click on a button
+- **WHEN** the owner clicks a button with the pointer
+- **THEN** no focus outline SHALL appear
+
+### Requirement: State and Layer Motion
+Hover, press, selection, switch and field-focus changes SHALL take 140 ms, and dialogs, popovers, toasts and sheets SHALL enter within 200 ms, all on the curve `cubic-bezier(0.2, 0, 0, 1)` without bounce. No figure SHALL count between values. When reduced motion is requested, no transition or animation SHALL run.
+
+#### Scenario: A figure changes
+- **GIVEN** Beranda shows "Pengeluaran" Rp 100.000
+- **WHEN** a new transaction makes it Rp 150.000
+- **THEN** the figure SHALL show Rp 150.000 at once, without intermediate values
+
+#### Scenario: Reduced motion
+- **GIVEN** the operating system requests reduced motion
+- **WHEN** the owner opens a dialog or hovers a row
+- **THEN** the dialog SHALL appear and the row SHALL change colour without any transition
+
+### Requirement: Straight Selection Marks
+A selected or current item marked at its left SHALL use the shared straight bar: on navigation and rail items a 2 by 20 px bar 8 px left of the item's fill, on square rows a 2 px bar along the full height at the left edge, with no radius. Group rails SHALL be a shared 2 px straight line beside the group. Neither SHALL be drawn as a border or an inset shadow on a rounded element.
+
+#### Scenario: A curved mark is added again
+- **WHEN** a change styles `[aria-pressed="true"]`, `[aria-current]`, `[aria-selected]` or `[data-selected]` with `border-left` or a left inset `box-shadow`, or uses a Tailwind `border-l-` utility in a component
+- **THEN** `selectionMarks.test.ts` SHALL fail and name the file
+
+#### Scenario: Chosen pocket in the goal account picker
+- **WHEN** the owner chooses a child pocket in the goal account picker
+- **THEN** the pocket SHALL be marked by the straight bar at its left edge, which does not follow any corner
