@@ -251,11 +251,15 @@ POSSIBLE_TRANSFER_SQL = """
 """
 
 # A recorded leg may already be in a movement: when the bank's report pairs it before the second app's report
-# arrives, that report still repeats it (catch-second-report-after-pairing D1).
+# arrives, that report still repeats it (catch-second-report-after-pairing D1). Its absorbed reports keep it to
+# one report per app (absorb-one-report-without-link D1).
 SAME_ARRIVAL_SQL = """
     SELECT t.id, t.type, t.account_id, t.amount, t.date, t.review_status, t.classified_by, t.owner_edited_at,
            t.movement_id, n.id AS event_id, n.package_name, n.post_time, n.interpretation, n.result_key,
-           n.result_snapshot
+           n.result_snapshot,
+           ARRAY(SELECT d.package_name FROM notification_events d
+                 WHERE d.user_id = n.user_id AND d.provenance_kind = 'duplicate_observation'
+                   AND d.duplicate_of_transaction_id = t.id AND d.id <> %(event_id)s) AS absorbed_packages
     FROM notification_events n
     JOIN transactions t ON t.id = n.transaction_id AND t.user_id = n.user_id
     WHERE n.user_id = %(user_id)s AND n.processing_state = 'recorded' AND n.provenance_kind = 'observed_leg'
@@ -326,6 +330,7 @@ def same_arrival(cur, user_id: str, leg: dict, accounts: dict[str, dict]) -> Arr
     mirrored = [
         row for row in rows
         if institution_of(row["package_name"]) not in {None, leg["institution"]} and names_each_other(accounts, leg, row)
+        and not absorbed_from(row, leg["institution"])
     ]
     close = [row for row in mirrored if within_same_arrival(row, leg)]
     if len(close) == 1 and len(mirrored) == 1:
@@ -344,6 +349,11 @@ def possible_transfer(cur, user_id: str, account_id: str, leg: dict) -> bool:
         "earliest": leg["post_time"] - near, "latest": leg["post_time"] + near,
     })
     return cur.fetchone() is not None
+
+
+def absorbed_from(row: dict, institution: str) -> bool:
+    """Whether the recorded leg already absorbed a report from `institution`: one arrival, one report per app."""
+    return institution in {institution_of(package) for package in row.get("absorbed_packages") or []}
 
 
 def within_same_arrival(row: dict, leg: dict) -> bool:
@@ -397,8 +407,7 @@ def linked_arrival(cur, user_id: str, leg: dict, accounts: dict[str, dict]) -> A
         for account_id, institutions in links.items():
             if (row_account == account_id and leg["institution"] in institutions
                     and touches(accounts, account_id, leg_account, leg.get("remote_account_id"))):
-                absorbed = {institution_of(package) for package in row["absorbed_packages"] or []}
-                if leg["institution"] in absorbed:
+                if absorbed_from(row, leg["institution"]):
                     continue
                 candidates.append((row, account_id, institutions[leg["institution"]], False))
                 break
