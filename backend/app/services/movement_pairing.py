@@ -250,14 +250,17 @@ POSSIBLE_TRANSFER_SQL = """
     LIMIT 1
 """
 
+# A recorded leg may already be in a movement: when the bank's report pairs it before the second app's report
+# arrives, that report still repeats it (catch-second-report-after-pairing D1).
 SAME_ARRIVAL_SQL = """
     SELECT t.id, t.type, t.account_id, t.amount, t.date, t.review_status, t.classified_by, t.owner_edited_at,
-           n.id AS event_id, n.package_name, n.post_time, n.interpretation, n.result_key, n.result_snapshot
+           t.movement_id, n.id AS event_id, n.package_name, n.post_time, n.interpretation, n.result_key,
+           n.result_snapshot
     FROM notification_events n
     JOIN transactions t ON t.id = n.transaction_id AND t.user_id = n.user_id
     WHERE n.user_id = %(user_id)s AND n.processing_state = 'recorded' AND n.provenance_kind = 'observed_leg'
       AND n.id <> %(event_id)s AND t.id <> %(transaction_id)s
-      AND t.movement_id IS NULL AND t.owner_split_at IS NULL AND t.fee_for_movement_id IS NULL
+      AND t.owner_split_at IS NULL AND t.fee_for_movement_id IS NULL
       AND t.goal_id IS NULL AND t.obligation_id IS NULL AND t.recurring_rule_id IS NULL
       AND t.type = %(type)s AND t.amount = %(amount)s AND t.account_id <> %(account_id)s
       AND n.post_time BETWEEN %(earliest)s AND %(latest)s
@@ -326,8 +329,21 @@ def same_arrival(cur, user_id: str, leg: dict, accounts: dict[str, dict]) -> Arr
     ]
     close = [row for row in mirrored if within_same_arrival(row, leg)]
     if len(close) == 1 and len(mirrored) == 1:
+        if possible_transfer(cur, user_id, str(close[0]["account_id"]), leg):
+            # Possibly the other half of a real transfer: neither held nor flagged, pairing decides (D3).
+            return ArrivalDecision()
         return ArrivalDecision(original=close[0])
     return ArrivalDecision(doubtful_ids=tuple(str(row["id"]) for row in mirrored))
+
+
+def possible_transfer(cur, user_id: str, account_id: str, leg: dict) -> bool:
+    """Whether an unpaired leg of the same amount in the other direction is on `account_id` near `leg`."""
+    near = timedelta(seconds=SAME_ARRIVAL_WINDOW_SECONDS)
+    cur.execute(POSSIBLE_TRANSFER_SQL, {
+        "user_id": user_id, "account_id": account_id, "type": leg["type"], "amount": int(leg["amount"]),
+        "earliest": leg["post_time"] - near, "latest": leg["post_time"] + near,
+    })
+    return cur.fetchone() is not None
 
 
 def within_same_arrival(row: dict, leg: dict) -> bool:
@@ -397,27 +413,26 @@ def linked_arrival(cur, user_id: str, leg: dict, accounts: dict[str, dict]) -> A
     if len(close) != 1:
         return ArrivalDecision(doubtful_ids=tuple(str(item[0]["id"]) for item in candidates))
     row, account_id, link_id, second_recorded_first = close[0]
-    near = timedelta(seconds=SAME_ARRIVAL_WINDOW_SECONDS)
-    cur.execute(POSSIBLE_TRANSFER_SQL, {
-        "user_id": user_id, "account_id": account_id, "type": leg["type"], "amount": int(leg["amount"]),
-        "earliest": leg["post_time"] - near, "latest": leg["post_time"] + near,
-    })
-    if cur.fetchone():
+    if possible_transfer(cur, user_id, account_id, leg):
         # Possibly the other half of a real transfer: neither skipped nor held, pairing decides.
         return ArrivalDecision()
     if not second_recorded_first:
         return ArrivalDecision(original=row, reporting_link_id=link_id)
-    if row["movement_id"] is None and replaceable_leg(row):
+    if replaceable_leg(row):
         return ArrivalDecision(original=row, reporting_link_id=link_id, replace_original=True)
     # The owner touched the earlier report: it keeps the money and the new one waits in Tinjau (OD119).
     return ArrivalDecision(original=row)
 
 
 def replaceable_leg(row: dict) -> bool:
-    """An observation that only the pipeline has touched, so another observation may take its place (D2)."""
+    """An observation that only the pipeline has touched, so another observation may take its place (D2).
+
+    A leg in a movement never is: removing it would break the movement (catch-second-report-after-pairing D2).
+    """
     interpretation = row.get("interpretation") or {}
-    return (row["review_status"] in {"auto", "needs_review"} and row.get("owner_edited_at") is None
-            and row.get("classified_by") != "owner" and not interpretation.get("purpose_answer"))
+    return (row.get("movement_id") is None and row["review_status"] in {"auto", "needs_review"}
+            and row.get("owner_edited_at") is None and row.get("classified_by") != "owner"
+            and not interpretation.get("purpose_answer"))
 
 
 def keeps_new_observation(new_basis: str | None, original: dict) -> bool:
@@ -474,7 +489,8 @@ def repair_duplicate_arrivals(cur, user_id: str, accounts: dict[str, dict], legs
             continue
         cur.execute(
             """SELECT n.id AS event_id, n.package_name, n.post_time, n.interpretation, n.result_key, n.result_snapshot,
-                      t.id, t.type, t.account_id, t.amount, t.review_status, t.classified_by, t.owner_edited_at
+                      t.id, t.type, t.account_id, t.amount, t.review_status, t.classified_by, t.owner_edited_at,
+                      t.movement_id
                FROM notification_events n JOIN transactions t ON t.id = n.transaction_id AND t.user_id = n.user_id
                WHERE n.user_id = %s AND n.id = %s AND n.provenance_kind = 'observed_leg' AND t.movement_id IS NULL""",
             (user_id, row["event_id"]),
@@ -490,8 +506,11 @@ def repair_duplicate_arrivals(cur, user_id: str, accounts: dict[str, dict], legs
         }
         decision = same_arrival(cur, user_id, leg, accounts)
         original = decision.original
-        if not original or original["post_time"] > current["post_time"]:
-            # Each pair is decided once, from its later observation.
+        if not original:
+            continue
+        if original["post_time"] > current["post_time"] and original["movement_id"] is None:
+            # Each pair is decided once, from its later observation. A paired original is never visited,
+            # so its pair is decided from the unpaired leg (catch-second-report-after-pairing D4).
             continue
         if decision.reporting_link_id and decision.replace_original:
             # The owner's link keeps this later report and skips the second report recorded earlier.

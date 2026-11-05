@@ -20,7 +20,7 @@ function itemDate(item: TriageItem): string | null {
 
 function itemLine(item: TriageItem): string {
   switch (item.kind) {
-    case "question": return "Belum dikenali · Pembayaran tanpa nama toko";
+    case "question": return item.entry.transaction.type === "income" ? "Belum dikenali · Uang masuk" : "Belum dikenali · Pembayaran tanpa nama toko";
     case "group": {
       const { group } = item;
       const parts = item.folder === "otomatis" ? ["Dicatat otomatis"] : ["Perlu jawaban"];
@@ -45,7 +45,10 @@ function itemLine(item: TriageItem): string {
 
 function itemAmount(item: TriageItem, bal: (amount: number) => string): { text: string; className: string } {
   switch (item.kind) {
-    case "question": return { text: `−${bal(item.entry.transaction.amount)}`, className: "" };
+    case "question": {
+      const { amount, type } = item.entry.transaction;
+      return type === "income" ? { text: `+${bal(amount)}`, className: "ws-amt-in" } : { text: `−${bal(amount)}`, className: "" };
+    }
     case "group":
     case "suggestion": return { text: `${item.group.type === "income" ? "+" : "−"}${bal(item.group.total)}`, className: item.group.type === "income" ? "ws-amt-in" : "" };
     case "seen_twice": {

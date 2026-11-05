@@ -256,6 +256,29 @@ describe("Tinjau triage", () => {
     expect(window.location.search).toBe("?item=tx-await&folder=pindah");
   });
 
+  it("Question rows follow the money's direction", async () => {
+    const base = queue();
+    const [entry] = base.questions;
+    currentQueue = { ...base, counts: { ...base.counts, attention: 6, questions: 2 }, questions: [entry, {
+      ...entry, event_id: "event-income", post_time: "2026-10-21T12:00:00Z",
+      question: { ...entry.question, question_id: "question-income", prompt: "Apa ini? Rp10.000 masuk ke Kantong Utama" },
+      transaction: {
+        ...entry.transaction, id: "tx-income-question", type: "income", amount: 10_000, date: "2026-10-21T12:00:00Z",
+        account_name: "Bank Jago · Kantong Utama", notes: "Uang masuk dari GoPay",
+      },
+    }] };
+    renderPage();
+    await loaded();
+    const income = row("Uang masuk dari GoPay");
+    expect(income).toHaveTextContent("Belum dikenali · Uang masuk");
+    expect(income).not.toHaveTextContent("Pembayaran tanpa nama toko");
+    expect(income).not.toHaveTextContent("−");
+    expect(within(income).getByText("+Rp 10.000")).toHaveClass("ws-amt-in");
+    const expense = row("Pengeluaran Groceries");
+    expect(expense).toHaveTextContent("Belum dikenali · Pembayaran tanpa nama toko");
+    expect(within(expense).getByText("−Rp 187.500")).not.toHaveClass("ws-amt-in");
+  });
+
   it("Optional automatic rows", async () => {
     renderPage();
     await loaded();

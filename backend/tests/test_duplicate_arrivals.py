@@ -107,6 +107,70 @@ def test_jago_first_keeps_the_named_gopay_leg(client, notification_owner):
     assert_one_movement_bca_to_gopay(owner, jago["event_id"])
 
 
+
+# --- catch-second-report-after-pairing: the second report after the first one paired -----------------
+
+
+def test_gopay_then_mybca_then_jago_books_one_movement(client, notification_owner):
+    owner = notification_owner
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    send(client, MYBCA_DEBIT, MYBCA, 1.1)
+    jago = send(client, JAGO_CREDIT, JAGO, 1.3)
+    assert_one_movement_bca_to_gopay(owner, jago["event_id"])
+    assert event_row(jago["event_id"])["reviewed_at"] is None
+    assert [item["event_id"] for item in client.get("/api/review/queue").json()["seen_twice"]] == [jago["event_id"]]
+
+
+GOPAY_SEND_TO_JAGO = "Rp500.000 udah dikirim ke Bank Jago Raka Purnama."
+
+
+def test_a_paired_leg_is_never_replaced(client, notification_owner):
+    owner = notification_owner
+    jago = send(client, JAGO_CREDIT, JAGO, 0)
+    send(client, GOPAY_SEND_TO_JAGO, GOPAY, 0.5)
+    kept = next(row for row in incomes(owner) if str(row["account_id"]) == owner["main"])
+    assert kept["movement_id"] is not None
+    gopay = send(client, GOPAY_CREDIT, GOPAY, 1)
+    rows = legs(owner)
+    assert [(str(row["account_id"]), row["type"]) for row in rows] == [(owner["gopay"], "expense"), (owner["main"], "income")]
+    assert rows[0]["movement_id"] == rows[1]["movement_id"] == kept["movement_id"]
+    assert event_row(jago["event_id"])["provenance_kind"] == "observed_leg"
+    duplicate = event_row(gopay["event_id"])
+    assert duplicate["provenance_kind"] == "duplicate_observation"
+    assert str(duplicate["duplicate_of_transaction_id"]) == str(kept["id"])
+
+
+def test_possible_transfer_without_a_link_is_not_held(client, notification_owner):
+    owner = notification_owner
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    send(client, GOPAY_SEND_TO_JAGO, GOPAY, 60)
+    jago = send(client, JAGO_CREDIT, JAGO, 61)
+    stored = event_row(jago["event_id"])
+    assert stored["provenance_kind"] != "duplicate_observation"
+    jago_leg = next(row for row in incomes(owner) if str(row["account_id"]) == owner["main"])
+    gopay_send = next(row for row in legs(owner) if row["type"] == "expense")
+    assert jago_leg["movement_id"] is not None and jago_leg["movement_id"] == gopay_send["movement_id"]
+
+
+def test_deferred_pass_holds_a_report_whose_original_paired_later(client, notification_owner, monkeypatch):
+    from app.services import notification_application
+    from app.services.movement_pairing import ArrivalDecision, repair_unpaired_movements
+
+    owner = notification_owner
+    send(client, GOPAY_CREDIT, GOPAY, 1)
+    send(client, MYBCA_DEBIT, MYBCA, 2)
+    with monkeypatch.context() as patched:
+        # Posted first but processed last, by a release without the rule.
+        patched.setattr(notification_application, "same_arrival", lambda *args, **kwargs: ArrivalDecision())
+        jago = send(client, JAGO_CREDIT, JAGO, 0)
+    assert len(incomes(owner)) == 2
+    first = repair_unpaired_movements(now=START + timedelta(minutes=5))
+    assert first["duplicates"] == 1
+    assert_one_movement_bca_to_gopay(owner, jago["event_id"])
+    again = repair_unpaired_movements(now=START + timedelta(minutes=6))
+    assert again["duplicates"] == 0
+    assert_one_movement_bca_to_gopay(owner, jago["event_id"])
+
 # --- reconcile-linked-account-reports 1.1: a linked account skips its second report ------------------
 
 
