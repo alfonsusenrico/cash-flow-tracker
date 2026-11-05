@@ -62,6 +62,8 @@ function normalizeApiErrorDetail(detail: unknown): string | ApiErrorDetail {
     credit_account_not_allowed: "Rekening kredit tidak dapat dipakai di sini. Pilih rekening bank, e-wallet, atau tunai.",
     credit_fee_not_allowed: "Biaya hanya dapat dicatat saat membayar ke rekening kredit dan tidak boleh melebihi nominal.",
     credit_movement_needs_cash: "Salah satu sisi pindah saldo harus rekening bank, e-wallet, atau tunai.",
+    account_role_type_mismatch:
+      "Kegunaan tidak sesuai jenis rekening. Rekening kredit selalu Utang, produk investasi selalu Investasi, dan rekening bank, e-wallet, atau tunai memakai Uang harian, Tabungan, atau Dana investasi.",
   };
   const knownMessage = structured.code
     ? investmentMessages[structured.code] ?? deviceMessages[structured.code] ?? creditMessages[structured.code]

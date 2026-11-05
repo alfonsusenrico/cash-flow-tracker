@@ -77,6 +77,12 @@ export interface CycleSummary {
   spending: { amount: number; lines: (SummaryLine & { key: KakeiboBucket })[] };
   /** Ditabung & investasi: the saving bucket of Keluar. `spending + fresh_saving = keluar`. */
   fresh_saving: { amount: number; lines: (SummaryLine & { key: KakeiboBucket })[] };
+  /**
+   * The savings change behind `fresh_saving.amount` (organize-accounts-by-use D4): moves into savings, moves
+   * out, spending paid from savings and saving-pillar spending, each positive; `total` may be negative.
+   * Absent from an API older than account roles.
+   */
+  tabungan?: { total: number; masuk: number; diambil: number; belanja: number; pilar_tabungan: number };
   masuk: { total: number; lines: SummaryLine[] };
   waiting: { count: number; total: number; in_keluar: number; not_in_keluar: number; lines: WaitingLine[] };
   scheduled: {
@@ -105,6 +111,8 @@ export interface CycleSummary {
     /** Active obligations only; credit accounts' debt is `credit_owed`. */
     debts: number;
     reconciliation_pending?: number;
+    /** Cash that can only be invested, such as an RDN: an asset outside Saldo tersedia. */
+    dana_investasi?: number;
     /** What credit accounts owe, a positive amount; utang is `debts + credit_owed`. */
     credit_owed?: number;
     lines: SummaryLine[];

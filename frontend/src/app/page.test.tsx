@@ -255,6 +255,33 @@ describe("Beranda KPI cards", () => {
     expect(dialog).toHaveTextContent("Cicilan Laptop");
   });
 
+  it("states the savings change in words, with what went in, came out and was spent from savings", async () => {
+    const base = previewSummary();
+    summary = {
+      ...base,
+      fresh_saving: { ...base.fresh_saving, amount: -500_000 },
+      keluar: { ...base.keluar, total: base.spending.amount - 500_000 },
+      tabungan: { total: -500_000, masuk: 300_000, diambil: 600_000, belanja: 200_000, pilar_tabungan: 0 },
+      net_worth: { ...base.net_worth, dana_investasi: 1_200_000 },
+    };
+    const user = userEvent.setup();
+    const strip = await kpis();
+    expect(strip).toHaveTextContent("Tabungan berkurang Rp 500.000");
+    expect(within(strip).getByRole("button", { name: "Ditabung & investasi Rp 500.000: lihat rincian" })).toBeInTheDocument();
+    // Dana investasi is an asset outside Saldo tersedia, so the caption's assets include it.
+    const assets = base.net_worth.liquid + 1_200_000 + base.net_worth.investment - (base.net_worth.reconciliation_pending ?? 0);
+    expect(strip).toHaveTextContent(`aset Rp ${assets.toLocaleString("id-ID")}`);
+    await user.click(within(strip).getByRole("button", { name: "Ditabung & investasi Rp 500.000: lihat rincian" }));
+    const dialog = await screen.findByRole("dialog", { name: "Ditabung & investasi" });
+    expect(within(dialog).getAllByRole("row").map((row) => row.textContent)).toEqual([
+      "Masuk ke tabungan+Rp 300.000",
+      "Diambil dari tabungan−Rp 600.000",
+      "Pengeluaran dari tabungantetap dihitung sebagai pengeluaran−Rp 200.000",
+      "Tabungan berkurangRp 500.000",
+    ]);
+    expect((await axe(document.body)).violations).toHaveLength(0);
+  });
+
   it("shows Rp 0 and by how much the period is over, never a negative safe amount", async () => {
     const base = previewSummary();
     summary = { ...base, remaining: { ...base.remaining, total: -300_000 }, safe_to_spend: { ...base.safe_to_spend, per_day: 0, over_by: 300_000 } };

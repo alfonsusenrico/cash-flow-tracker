@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
+from app.services.account_roles import TABUNGAN
 from app.services.debt_allocations import load_allocation_rows, lock_debts, reverse_allocations
 from app.services.provenance import Provenance
 
@@ -25,7 +26,7 @@ def lock_owned_accounts(
         SELECT a.id, a.user_id, a.name, a.type, a.instrument_type,
                a.initial_balance, a.units, a.avg_buy_price, a.last_price,
                a.parent_id, a.default_pocket_id, a.default_funding_account_id, a.instrument_symbol, a.is_archived,
-               a.investment_tracking_mode, a.investment_cost_basis, a.credit_limit, a.payment_day,
+               a.investment_tracking_mode, a.investment_cost_basis, a.credit_limit, a.payment_day, a.role,
                EXISTS (SELECT 1 FROM accounts child WHERE child.parent_id = a.id) AS has_children,
                a.reconciliation_required,
                EXISTS (
@@ -122,20 +123,24 @@ def ensure_generic_movement_accounts(
         raise HTTPException(status_code=422, detail={"code": "credit_movement_needs_cash"})
 
 
+def is_savings_destination(account: dict[str, Any]) -> bool:
+    """Role tabungan, a goal link (`is_savings`) or an investment product (organize-accounts-by-use D3)."""
+    return (
+        account.get("type") == "investment"
+        or bool(account.get("instrument_type"))
+        or bool(account.get("is_savings"))
+        or account.get("role") == TABUNGAN
+    )
+
+
 def movement_kakeibo(source: dict[str, Any], target: dict[str, Any], *, is_trade: bool = False) -> str | None:
+    """The stored pillar of a movement's outbound leg, for readers such as the ledger's pillar filter.
+
+    Kakeibo's saving figure does not read it: it classifies movements from the accounts' current roles.
+    """
     if is_trade:
         return None
-    source_is_savings = (
-        source.get("type") == "investment"
-        or bool(source.get("instrument_type"))
-        or bool(source.get("is_savings"))
-    )
-    target_is_savings = (
-        target.get("type") == "investment"
-        or bool(target.get("instrument_type"))
-        or bool(target.get("is_savings"))
-    )
-    if source_is_savings != target_is_savings:
+    if is_savings_destination(source) != is_savings_destination(target):
         return "saving"
     return None
 

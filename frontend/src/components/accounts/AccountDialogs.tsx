@@ -16,6 +16,7 @@ import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
 import { AmountTrackingSwitchModal } from "@/components/ui/AmountTrackingSwitchModal";
 import { InvestmentScheduleDraft } from "@/lib/investmentTopups";
 import { DEFAULT_ACCOUNT_TAG_COLOR, INVESTMENT_ACCOUNT_TAG_COLOR, defaultAccountTagColor } from "@/lib/accountColours";
+import { RoleField, cashRoleOf, fixedRole, type CashRole } from "./RoleField";
 import type { AccountItem, AccountsResponse } from "./types";
 
 function getContrastTextColor(hexColor?: string): string {
@@ -265,6 +266,8 @@ export function useAccountDialogs() {
   const [accDefaultFundingId, setAccDefaultFundingId] = useState<string>("");
   const [accDefaultPocketId, setAccDefaultPocketId] = useState<string>("");
   const [accParentId, setAccParentId] = useState<string>("");
+  // "Kegunaan" of a cash, bank or e-wallet account; credit and products take theirs from the type (D1).
+  const [accRole, setAccRole] = useState<CashRole>("harian");
   const [accError, setAccError] = useState("");
 
   const [accountActionError, setAccountActionError] = useState("");
@@ -274,6 +277,7 @@ export function useAccountDialogs() {
   const [pocketParentAccount, setPocketParentAccount] = useState<AccountItem | null>(null);
   const [pocketName, setPocketName] = useState("");
   const [pocketInitBal, setPocketInitBal] = useState("");
+  const [pocketRole, setPocketRole] = useState<CashRole>("harian");
   const [pocketError, setPocketError] = useState("");
 
   // Reconciliation form
@@ -331,6 +335,7 @@ export function useAccountDialogs() {
     setAccColorChosen(false);
     setAccDefaultFundingId("");
     setAccDefaultPocketId("");
+    setAccRole("harian");
     setAccIsMultiInstrument(true);
     setAccInstrumentType("stock");
     setAccTicker("");
@@ -347,6 +352,7 @@ export function useAccountDialogs() {
     setPocketParentAccount(parent);
     setPocketName("");
     setPocketInitBal("");
+    setPocketRole("harian");
     const isParentInvest = parent.type === "investment";
     setPocketIsInvestment(isParentInvest);
     setPocketInstrumentType(isParentInvest ? "mutual_fund" : "stock");
@@ -367,6 +373,7 @@ export function useAccountDialogs() {
     setAccDefaultFundingId(acc.default_funding_account_id || "");
     setAccDefaultPocketId(acc.default_pocket_id || "");
     setAccParentId("");
+    setAccRole(cashRoleOf(acc.role));
     setAccInitBal(formatNumberWithDots(acc.initial_balance));
     setAccCreditLimit(acc.credit_limit ? formatNumberWithDots(acc.credit_limit) : "");
     setAccPaymentDay(acc.payment_day ? String(acc.payment_day) : "");
@@ -409,6 +416,7 @@ export function useAccountDialogs() {
         instrument_symbol: isInvest ? pTickerSymbol : null,
         units: isInvest ? pUnitsNum : null,
         avg_buy_price: isInvest ? pAvgPriceNum : null,
+        role: isInvest ? "investasi" : pocketRole,
       });
     },
     onSuccess: () => {
@@ -421,6 +429,8 @@ export function useAccountDialogs() {
       setPocketError(message);
       if (/nama kantong|pocket name/i.test(message)) {
         document.getElementById("pocket-name")?.focus();
+      } else if (/^kegunaan/i.test(message)) {
+        document.getElementById("pocket-role")?.focus();
       } else if (/saldo|initial_balance/i.test(message)) {
         document.getElementById("pocket-initial-balance")?.focus();
       }
@@ -461,6 +471,7 @@ export function useAccountDialogs() {
           savedType = "bank";
         }
       }
+      const role = fixedRole(savedType, hasInstrument) ?? accRole;
 
       if (editingAccount) {
         const moveUnder = !isEditingPocket && !isCredit && accParentId ? { parent_id: accParentId } : {};
@@ -473,6 +484,7 @@ export function useAccountDialogs() {
           ...creditPatch,
           name,
           type: savedType,
+          role,
           instrument_type: hasInstrument ? accInstrumentType : null,
           ...(editingAccount.investment_tracking_mode !== "amount" ? { instrument_symbol: tickerSymbol } : {}),
           ...(!(hasInstrument && accInstrumentType === "deposit" && editingAccount.instrument_type === "deposit") && editingAccount.investment_tracking_mode !== "amount" ? {
@@ -489,6 +501,7 @@ export function useAccountDialogs() {
         return api.post("/accounts", {
           name,
           type: accType,
+          role,
           initial_balance: openingBalance,
           instrument_type: hasInstrument ? accInstrumentType : null,
           instrument_symbol: tickerSymbol,
@@ -512,6 +525,8 @@ export function useAccountDialogs() {
         document.getElementById("account-name")?.focus();
       } else if (/kantong default|default pocket/i.test(message)) {
         document.getElementById("account-default-pocket")?.focus();
+      } else if (/^kegunaan/i.test(message)) {
+        document.getElementById("account-role")?.focus();
       } else if (/saldo|initial_balance/i.test(message)) {
         document.getElementById("account-initial-balance")?.focus();
       } else if (/^limit/i.test(message)) {
@@ -540,7 +555,9 @@ export function useAccountDialogs() {
   const defaultPocketError = /kantong default|default pocket/i.test(accError) ? accError : undefined;
   const creditLimitError = /^limit/i.test(accError) ? accError : undefined;
   const paymentDayError = !creditLimitError && /tanggal bayar/i.test(accError) ? accError : undefined;
+  const roleError = /^kegunaan/i.test(accError) ? accError : undefined;
   const pocketNameError = /nama kantong|pocket name/i.test(pocketError) ? pocketError : undefined;
+  const pocketRoleError = /^kegunaan/i.test(pocketError) ? pocketError : undefined;
   const pocketBalanceError = /saldo|initial_balance/i.test(pocketError) ? pocketError : undefined;
 
   const openTrade = (account: AccountItem, action: "buy" | "sell") => {
@@ -675,9 +692,11 @@ export function useAccountDialogs() {
                 </select>
               </div>
 
+              <RoleField id="account-role" value={accRole} onChange={setAccRole} fixed={fixedRole(accType, false)} error={roleError} />
+
               {editingAccount && accType !== "investment" && accType !== "credit" && editingAccount.type !== "credit" && !(editingAccount.children && editingAccount.children.length > 0) && parentCandidates.length > 0 && (
                 <div>
-                  <label htmlFor="account-move-parent" className="font-medium text-[var(--muted)] block mb-1">Jadikan kantong di bawah</label>
+                  <label htmlFor="account-move-parent" className="font-medium text-[var(--muted)] block mb-1">Pindahkan ke rekening</label>
                   <select
                     id="account-move-parent"
                     name="parent_id"
@@ -843,6 +862,9 @@ export function useAccountDialogs() {
                   <Icon name="chart" className="h-3.5 w-3.5" />
                   <span>Instrumen Investasi</span>
                 </button>
+              </div>
+              <div className="mt-4">
+                <RoleField id="account-role" value={accRole} onChange={setAccRole} fixed={accIsMultiInstrument ? null : "investasi"} error={roleError} />
               </div>
             </div>
           )}
@@ -1154,6 +1176,8 @@ export function useAccountDialogs() {
                   : "Kantong ini untuk uang cair atau pos belanja operasional biasa."}
               </p>
             </div>
+
+            <RoleField id="pocket-role" value={pocketRole} onChange={setPocketRole} fixed={pocketIsInvestment ? "investasi" : null} error={pocketRoleError} />
 
             {pocketIsInvestment && (
               <div className="space-y-3 p-3.5 rounded-2xl bg-inv-solid/5 border border-inv-solid/20">

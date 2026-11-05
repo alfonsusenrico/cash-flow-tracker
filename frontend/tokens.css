@@ -105,6 +105,19 @@
   --flow-other: #94A3B8;
   --band-op: 0.42;
 
+  /* Rekening & Kantong uses (organize-accounts-by-use D7): the four categorical slots validated with the
+   * dataviz validator, for Uang harian, Tabungan, Dana investasi and Investasi. They are marks only (bars,
+   * rings, card edges): every segment is also labelled in text, and text keeps the text tokens. Utang uses
+   * --out-solid. The kind steps are violet steps that tell Emas, Reksa dana and Saham apart inside
+   * Investasi, always beside their label. */
+  --use-harian: #059669;
+  --use-tabungan: #B7791F;
+  --use-dana: #0EA5E9;
+  --use-investasi: #8B5CF6;
+  --kind-emas: #C4B5FD;
+  --kind-reksa-dana: #8B5CF6;
+  --kind-saham: #5B21B6;
+
   /* Focus ring: the text colour, so it reads on the paper, surfaces and the coral item alike. */
   --focus: #0A0D14;
   --scrim: rgba(8, 10, 14, 0.4);
@@ -222,6 +235,14 @@
   --flow-left: #64748B;
   --flow-other: #8B9AAF;
   --band-op: 0.5;
+
+  --use-harian: #0F9A6E;
+  --use-tabungan: #A9772A;
+  --use-dana: #2290CC;
+  --use-investasi: #8F6BEF;
+  --kind-emas: #5B45A8;
+  --kind-reksa-dana: #8F6BEF;
+  --kind-saham: #C4B5FD;
 
   --focus: #F8FAFC;
   --scrim: rgba(0, 0, 0, 0.6);

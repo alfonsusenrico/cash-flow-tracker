@@ -141,6 +141,15 @@ def generate_financial_narrative(
     return narrative, trend_status
 
 
+# A savings destination (organize-accounts-by-use D3): role tabungan, a goal link or an investment product.
+# The role test is NULL-safe so a row read before V51's backfill counts as it did before V51.
+_PRODUCT_SQL = "({a}.type = 'investment' OR {a}.instrument_type IS NOT NULL)"
+_SAVINGS_DESTINATION_SQL = (
+    "({a}.role IS NOT DISTINCT FROM 'tabungan' OR {a}.type = 'investment' OR {a}.instrument_type IS NOT NULL"
+    " OR EXISTS (SELECT 1 FROM goal_accounts ga_{a} WHERE ga_{a}.account_id = {a}.id))"
+)
+
+
 def get_kakeibo_breakdown(
     cur,
     user_id: str,
@@ -178,51 +187,69 @@ def get_kakeibo_breakdown(
     saving_expenses = pillar_map.get("saving", 0)
     unclassified_spent = pillar_map.get(UNCLASSIFIED, 0)
 
-    # 2. Net fresh saving across durably linked movements.
+    # 2. Net fresh saving across durably linked movements, classified from both accounts as they are now
+    # (organize-accounts-by-use D3), so a role or goal link set later also applies to earlier movements.
+    # A Beli/Jual trade stays outside Kakeibo: a movement touching an investment product counts only as
+    # an investment top-up, or as an older row stored as saving before top-ups existed.
+    source_saving = _SAVINGS_DESTINATION_SQL.format(a="sa")
+    target_saving = _SAVINGS_DESTINATION_SQL.format(a="da")
+    source_product = _PRODUCT_SQL.format(a="sa")
+    target_product = _PRODUCT_SQL.format(a="da")
     cur.execute(
-        """
+        f"""
         SELECT
-            COALESCE(SUM(
-                CASE
-                    WHEN NOT (
-                        sa.type = 'investment' OR sa.instrument_type IS NOT NULL
-                        OR EXISTS (SELECT 1 FROM goal_accounts sga WHERE sga.account_id = sa.id)
-                    ) AND (
-                        da.type = 'investment' OR da.instrument_type IS NOT NULL
-                        OR EXISTS (SELECT 1 FROM goal_accounts dga WHERE dga.account_id = da.id)
-                    ) THEN outbound.amount
-                    WHEN (
-                        sa.type = 'investment' OR sa.instrument_type IS NOT NULL
-                        OR EXISTS (SELECT 1 FROM goal_accounts sga WHERE sga.account_id = sa.id)
-                    ) AND NOT (
-                        da.type = 'investment' OR da.instrument_type IS NOT NULL
-                        OR EXISTS (SELECT 1 FROM goal_accounts dga WHERE dga.account_id = da.id)
-                    ) THEN -outbound.amount
-                    ELSE 0
-                END
-            ), 0) AS saving_transfers
-        FROM transactions outbound
-        JOIN transactions inbound
-          ON inbound.movement_id = outbound.movement_id
-         AND inbound.movement_role = 'inbound'
-        JOIN accounts sa ON sa.id = outbound.account_id
-        JOIN accounts da ON da.id = inbound.account_id
-        WHERE outbound.user_id = %s
-          AND outbound.movement_role = 'outbound'
-          AND outbound.kakeibo_type = 'saving'
-          AND outbound.date >= %s AND outbound.date <= %s
+            COALESCE(SUM(legs.amount) FILTER (WHERE NOT legs.source_saving AND legs.target_saving), 0) AS into_savings,
+            COALESCE(SUM(legs.amount) FILTER (WHERE legs.source_saving AND NOT legs.target_saving), 0) AS out_of_savings
+        FROM (
+            SELECT outbound.amount,
+                   {source_saving} AS source_saving,
+                   {target_saving} AS target_saving
+            FROM transactions outbound
+            JOIN transactions inbound
+              ON inbound.user_id = outbound.user_id
+             AND inbound.movement_id = outbound.movement_id
+             AND inbound.movement_role = 'inbound'
+            JOIN accounts sa ON sa.id = outbound.account_id AND sa.user_id = outbound.user_id
+            JOIN accounts da ON da.id = inbound.account_id AND da.user_id = outbound.user_id
+            WHERE outbound.user_id = %s
+              AND outbound.movement_role = 'outbound'
+              AND outbound.date >= %s AND outbound.date <= %s
+              AND NOT (
+                  ({source_product} OR {target_product})
+                  AND outbound.kakeibo_type IS DISTINCT FROM 'saving'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM investment_topups it
+                      WHERE it.user_id = outbound.user_id AND it.id = outbound.movement_id
+                  )
+              )
+        ) legs
         """,
         (user_id, start_utc, end_utc),
     )
-    st_row = cur.fetchone()
-    if st_row:
-        if isinstance(st_row, dict):
-            net_saving_transfers = int(st_row.get("saving_transfers") or st_row.get("net_saving_transfers") or 0)
-        else:
-            net_saving_transfers = int(st_row[0])
-    else:
-        net_saving_transfers = 0
-    saving_spent = max(0, saving_expenses + net_saving_transfers)
+    transfers = cur.fetchone() or {}
+    into_savings = int(transfers.get("into_savings") or 0)
+    out_of_savings = int(transfers.get("out_of_savings") or 0)
+    net_saving_transfers = into_savings - out_of_savings
+
+    # 3. Spending paid from a savings account stays in its pillar and also lowers the savings change (D4).
+    cur.execute(
+        f"""
+        SELECT COALESCE(SUM(t.amount), 0) AS paid_from_savings
+        FROM transactions t
+        LEFT JOIN categories c ON c.id = t.category_id
+        JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id
+        WHERE t.user_id = %s
+          AND {reportable_expense_sql()}
+          AND t.date >= %s AND t.date <= %s
+          AND (a.role IS NOT DISTINCT FROM 'tabungan' OR EXISTS (SELECT 1 FROM goal_accounts ga WHERE ga.account_id = a.id))
+        """,
+        (user_id, start_utc, end_utc),
+    )
+    paid_row = cur.fetchone() or {}
+    paid_from_savings = int(paid_row.get("paid_from_savings") or 0)
+    # No clamp: more taken out of savings than put in is a negative savings change, and Keluar
+    # (spending + this figure) stays equal to the money that really left daily use.
+    saving_spent = saving_expenses + net_saving_transfers - paid_from_savings
 
     total_allocated = need_spent + want_spent + culture_spent + unexpected_spent + saving_spent + unclassified_spent
     base_calc = max(total_inflow, total_allocated)
@@ -258,6 +285,9 @@ def get_kakeibo_breakdown(
         "saving_spent": saving_spent,
         "saving_expenses": saving_expenses,
         "net_saving_transfers": net_saving_transfers,
+        "saving_into": into_savings,
+        "saving_out": out_of_savings,
+        "saving_paid_from_savings": paid_from_savings,
         "saving_pct": saving_pct,
         "saving_target_pct": 20.0,
         # Spending with no transaction or category pillar; outside the 50/30/20 groups.
@@ -797,6 +827,7 @@ def get_dashboard_overview(
         "kpis": {
             "liquid_net_worth": liquid_balance,
             "liquid_balance": liquid_balance,
+            "dana_investasi_balance": balance_summary["dana_investasi"],
             "investment_balance": investment_balance,
             "total_balance": total_balance,
             "reconciliation_pending": reconciliation_pending,
@@ -1285,7 +1316,7 @@ def get_dashboard_net_worth(current_user: dict = Depends(get_current_user)):
             # Same rule as Beranda: a negative balance waiting for reconciliation is its own owed line,
             # not a reduction of the assets.
             breakdown = net_worth_breakdown(cur, user_id, accounts)
-            total_assets = breakdown["liquid"] + breakdown["investment"]
+            total_assets = breakdown["liquid"] + breakdown["dana_investasi"] + breakdown["investment"]
             net_worth = breakdown["total"]
             total_liabilities += breakdown["credit_owed"]
 
@@ -1313,6 +1344,7 @@ def get_dashboard_net_worth(current_user: dict = Depends(get_current_user)):
         "obligations": obligations,
         "runway": runway_info,
         "liquid": breakdown["liquid"],
+        "dana_investasi": breakdown["dana_investasi"],
         "investment": breakdown["investment"],
         "reconciliation_pending": breakdown["reconciliation_pending"],
         "credit_owed": breakdown["credit_owed"],

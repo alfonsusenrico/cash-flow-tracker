@@ -189,6 +189,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
         "ok": True,
         "currency": current_user.get("currency", "IDR"),
         "total_liquid_balance": liquid_balance,
+        "dana_investasi_balance": balance_summary["dana_investasi"],
         "investment_balance": investment_balance,
         "total_net_worth": total_balance,
         "reconciliation_pending": reconciliation_pending,

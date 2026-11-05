@@ -1,5 +1,7 @@
 export const queryKeys = {
   accounts: ["accounts"] as const,
+  /** Under the accounts key, so a new or archived account also refreshes the saved order. */
+  accountLayout: (grouping: string) => ["accounts", "layout", grouping] as const,
   categories: ["categories"] as const,
   categoryManagement: ["categories", "management"] as const,
   goals: ["goals"] as const,

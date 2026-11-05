@@ -173,7 +173,7 @@ def assert_lines_add_up(data):
     assert waiting["count"] == len(waiting["lines"])
     assert data["remaining"]["total"] == data["masuk"]["total"] - data["keluar"]["total"] - data["scheduled"]["total"]
     net = data["net_worth"]
-    assert net["total"] == (net["liquid"] + net["investment"] - net["reconciliation_pending"] - net["debts"]
+    assert net["total"] == (net["liquid"] + net["dana_investasi"] + net["investment"] - net["reconciliation_pending"] - net["debts"]
                             - net["credit_owed"])
     for line in data["scheduled"]["lines"]:
         if line["kind"] == "goal":

@@ -124,6 +124,7 @@ def _keluar(kakeibo: dict[str, Any], offsets, period: str) -> dict[str, Any]:
 def spending_split(keluar: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     """Keluar split into Pengeluaran (every bucket but saving) and Ditabung & investasi (the saving bucket).
 
+    The saving bucket may be negative when more left savings than came in (organize-accounts-by-use D4).
     The two add up to `keluar.total` exactly, so Beranda's segments and the Kakeibo card stay one identity
     (refine-workspace-layout D4). Analisis uses the same split for its Pengeluaran explanation.
     """
@@ -134,6 +135,26 @@ def spending_split(keluar: dict[str, Any]) -> tuple[dict[str, Any], dict[str, An
     if spending["amount"] + fresh_saving["amount"] != keluar["total"]:
         raise RuntimeError("Pengeluaran and saving do not add up to Keluar")
     return spending, fresh_saving
+
+
+def savings_change(kakeibo: dict[str, Any]) -> dict[str, int]:
+    """The parts of the savings change ("Tabungan bertambah/berkurang"), for Beranda's lines (D4).
+
+    `total` is the Kakeibo saving bucket: `masuk - diambil - belanja + pilar_tabungan`, where `masuk` is
+    moved into savings, `diambil` moved out of savings, `belanja` spending paid from a savings account and
+    `pilar_tabungan` expenses whose pillar is saving. `diambil` and `belanja` are positive amounts, and
+    `total` may be negative.
+    """
+    parts = {
+        "total": int(kakeibo["saving_spent"]),
+        "masuk": int(kakeibo["saving_into"]),
+        "diambil": int(kakeibo["saving_out"]),
+        "belanja": int(kakeibo["saving_paid_from_savings"]),
+        "pilar_tabungan": int(kakeibo["saving_expenses"]),
+    }
+    if parts["masuk"] - parts["diambil"] - parts["belanja"] + parts["pilar_tabungan"] != parts["total"]:
+        raise RuntimeError("Savings change parts do not add up to the saving bucket")
+    return parts
 
 
 def _months_left(start: date, target: date) -> int:
@@ -231,6 +252,9 @@ def _goal_lines(
 def net_worth_breakdown(cur, user_id: str, accounts: list[dict[str, Any]]) -> dict[str, Any]:
     """Assets less active debts, each account counted once (a parent's balance already holds its pockets).
 
+    Assets are Dana likuid, Dana investasi and Investasi; Dana investasi is left out of Dana likuid, so
+    Saldo tersedia and Ketahanan Dana's fallback never count it.
+
     The one net worth rule: Beranda (`/dashboard/cycle-summary`) and Rekening (`/dashboard/net-worth`) both use it.
     """
     balances = summarize_account_balances(accounts)
@@ -243,10 +267,11 @@ def net_worth_breakdown(cur, user_id: str, accounts: list[dict[str, Any]]) -> di
         (user_id,),
     )
     debts = [{"id": str(row["id"]), "name": row["name"], "amount": int(row["remaining_amount"])} for row in cur.fetchall()]
-    lines = [
-        {"key": "liquid", "label": "Dana likuid", "amount": balances["liquid_balance"]},
-        {"key": "investment", "label": "Investasi", "amount": balances["investment_balance"]},
-    ]
+    lines = [{"key": "liquid", "label": "Dana likuid", "amount": balances["liquid_balance"]}]
+    if balances["dana_investasi"]:
+        # Cash kept for buying investments is an asset of its own, outside Dana likuid (D2).
+        lines.append({"key": "dana_investasi", "label": "Dana investasi", "amount": balances["dana_investasi"]})
+    lines.append({"key": "investment", "label": "Investasi", "amount": balances["investment_balance"]})
     if balances["reconciliation_pending"]:
         # Negative balances waiting for reconciliation are kept out of liquid funds but still owed.
         lines.append({
@@ -264,6 +289,7 @@ def net_worth_breakdown(cur, user_id: str, accounts: list[dict[str, Any]]) -> di
     return {
         "total": sum(line["amount"] for line in lines),
         "liquid": balances["liquid_balance"],
+        "dana_investasi": balances["dana_investasi"],
         "investment": balances["investment_balance"],
         "reconciliation_pending": balances["reconciliation_pending"],
         "debts": sum(debt["amount"] for debt in debts),
@@ -371,7 +397,8 @@ def build_cycle_summary(
     with conn.cursor() as cur:
         masuk = _masuk(cur, user_id, start, end, basis)
         offsets = load_spending_offsets(cur, user_id, start, end)
-        keluar = _keluar(kakeibo_breakdown(cur, user_id, start, end, masuk["total"], offsets), offsets, basis)
+        kakeibo = kakeibo_breakdown(cur, user_id, start, end, masuk["total"], offsets)
+        keluar = _keluar(kakeibo, offsets, basis)
         waiting = waiting_summary(fetch_waiting_rows(cur, user_id, start, end))
 
         if expected.status == "estimated" and expected.date > today:
@@ -386,6 +413,9 @@ def build_cycle_summary(
         comparison = _comparison(cur, user_id, kakeibo_breakdown, (start, end, window_label), previous)
 
     spending, fresh_saving = spending_split(keluar)
+    tabungan = savings_change(kakeibo)
+    if tabungan["total"] != fresh_saving["amount"]:
+        raise RuntimeError("Savings change does not match the saving bucket of Keluar")
     scheduled_total = sum(line["amount"] for line in scheduled_lines)
     remaining_lines = [
         {"key": "masuk", "label": "Masuk", "amount": masuk["total"]},
@@ -420,6 +450,7 @@ def build_cycle_summary(
         "keluar": keluar,
         "spending": spending,
         "fresh_saving": fresh_saving,
+        "tabungan": tabungan,
         "masuk": masuk,
         "waiting": waiting,
         "scheduled": {

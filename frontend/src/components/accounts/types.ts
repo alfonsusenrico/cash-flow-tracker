@@ -1,5 +1,10 @@
 import type { EmergencyRunway } from "@/components/dashboard/EmergencyCoverage";
 
+/** What the money in a kantong or produk is for ("Kegunaan", organize-accounts-by-use D1). */
+export type AccountRole = "harian" | "tabungan" | "dana_investasi" | "investasi" | "utang";
+/** The investment kind of a product (D6); null for every account that is not a product. */
+export type InvestmentKind = "emas" | "reksa_dana" | "saham" | "lainnya";
+
 export interface AccountItem {
   id: string;
   parent_id?: string | null;
@@ -9,6 +14,10 @@ export interface AccountItem {
   type: "cash" | "bank" | "wallet" | "investment" | "credit";
   initial_balance: number;
   balance: number;
+  /** A parent's balance outside its pockets; equal to `balance` for an account without pockets. */
+  own_balance?: number;
+  role?: AccountRole;
+  kind?: InvestmentKind | null;
   color?: string;
   display_order?: number;
   instrument_type?: "stock" | "mutual_fund" | "gold" | "crypto" | "deposit" | "other" | null;
@@ -53,10 +62,22 @@ export interface NetWorthResponse {
   accounts: { id: string; name: string; type: string; balance: number; share: number }[];
   obligations: { id: string; name: string; total_amount: number; remaining_amount: number; due_date: string | null; minimum_payment: number | null; notes: string | null }[];
   runway: EmergencyRunway;
+  /** Saldo tersedia: Uang harian and Tabungan, without Dana investasi (D2). */
   liquid: number;
+  /** Cash waiting to be invested, such as an RDN; part of net worth, not of Saldo tersedia. */
+  dana_investasi?: number;
   investment: number;
   reconciliation_pending: number;
   /** What credit accounts owe; already part of `total_liabilities`. */
   credit_owed?: number;
   lines: { key: string; label: string; amount: number }[];
+}
+
+export type LayoutGrouping = "use" | "rekening";
+
+/** The owner's saved order of rows and cards for one grouping (D5). */
+export interface AccountLayout {
+  grouping: LayoutGrouping;
+  sections: string[];
+  cards: Record<string, string[]>;
 }
