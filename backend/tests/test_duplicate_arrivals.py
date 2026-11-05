@@ -171,6 +171,45 @@ def test_deferred_pass_holds_a_report_whose_original_paired_later(client, notifi
     assert again["duplicates"] == 0
     assert_one_movement_bca_to_gopay(owner, jago["event_id"])
 
+
+def second_top_up_with_jago_first(client):
+    """Two top-ups of one amount 98 seconds apart; the second one's Jago report arrives before GoPay's."""
+    first_jago = send(client, JAGO_CREDIT, JAGO, 0.13)
+    send(client, GOPAY_CREDIT, GOPAY, 0)
+    send(client, MYBCA_DEBIT, MYBCA, 1)
+    second_jago = send(client, JAGO_CREDIT, JAGO, 98)
+    send(client, GOPAY_CREDIT, GOPAY, 98.6)
+    send(client, MYBCA_DEBIT, MYBCA, 99)
+    return first_jago, second_jago
+
+
+def gopay_incomes(owner):
+    return [row for row in incomes(owner) if str(row["account_id"]) == owner["gopay"]]
+
+
+def test_a_kept_leg_absorbs_one_report_per_app(client, notification_owner):
+    owner = notification_owner
+    first_jago, second_jago = second_top_up_with_jago_first(client)
+    first_gopay, second_gopay = gopay_incomes(owner)
+    assert first_gopay["movement_id"] and second_gopay["movement_id"] and first_gopay["movement_id"] != second_gopay["movement_id"]
+    assert [str(row["account_id"]) for row in incomes(owner)] == [owner["gopay"], owner["gopay"]]
+    assert str(event_row(first_jago["event_id"])["duplicate_of_transaction_id"]) == str(first_gopay["id"])
+    second = event_row(second_jago["event_id"])
+    assert second["provenance_kind"] == "duplicate_observation"
+    assert str(second["duplicate_of_transaction_id"]) == str(second_gopay["id"])
+    assert balances(owner)[owner["main"]] == 1000000
+
+
+def test_a_linked_second_top_up_is_skipped_against_its_own_leg(client, notification_owner):
+    owner = notification_owner
+    link = add_link(owner)
+    first_jago, second_jago = second_top_up_with_jago_first(client)
+    first_gopay, second_gopay = gopay_incomes(owner)
+    assert_skipped(first_jago["event_id"], link)
+    assert_skipped(second_jago["event_id"], link)
+    assert str(event_row(second_jago["event_id"])["duplicate_of_transaction_id"]) == str(second_gopay["id"])
+    assert balances(owner)[owner["main"]] == 1000000
+
 # --- reconcile-linked-account-reports 1.1: a linked account skips its second report ------------------
 
 

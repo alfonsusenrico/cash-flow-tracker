@@ -213,7 +213,7 @@ The time window for pairing a new notification leg with a counterpart at once SH
 - **THEN** the window SHALL be 900 seconds and the processor configuration error SHALL be `processor_configuration_invalid`
 
 ### Requirement: One Arrival Seen by Two Apps
-Without a deciding account link (Linked Account Reports), a new observed leg SHALL be recorded as a duplicate observation, not a transaction, when exactly one recorded observed leg of the owner, paired into a movement or not, has the same direction and amount, comes from another app, is at most 120 seconds away, is on another account, and each leg names the other's account (or its root) as remote. It SHALL NOT pair with or be a candidate for any other leg.
+Without a deciding account link (Linked Account Reports), a new observed leg SHALL be a duplicate observation, not a transaction, when exactly one recorded observed leg of the owner, paired or not, has the same direction and amount, comes from another app, is at most 120 seconds away, is on another account, has absorbed no report from the new leg's app, and each names the other's account (or its root) as remote. It SHALL NOT pair with or be a candidate for any other leg.
 
 #### Scenario: Top-up seen by GoPay and Jago
 - **GIVEN** a GoPay income of Rp 500.000 on GoPay recorded from "Anda telah menerima Tabungan by Jago sebanyak Rp500.000.", whose remote is Jago · Kantong Utama
@@ -261,6 +261,11 @@ Without a deciding account link (Linked Account Reports), a new observed leg SHA
 #### Scenario: Deferred pass
 - **WHEN** the deferred re-pairing pass meets an unlinked automatic leg that the guard would have marked a duplicate, including one whose original is already in a movement
 - **THEN** it SHALL apply the same rule, dropping only the unpaired leg, and repeated passes SHALL change nothing further
+
+#### Scenario: A kept leg absorbs one report per app
+- **GIVEN** a GoPay income of Rp 500.000 paired with a myBCA debit into BCA → GoPay, whose Jago repeat is already a duplicate observation of it
+- **WHEN** a second top-up of Rp 500.000 arrives 98 seconds later and its Jago "You've received Rp500.000 from GoPay." comes before its GoPay report
+- **THEN** the Jago report SHALL NOT be a duplicate observation of the first GoPay income; it SHALL be decided against the second top-up's GoPay report, which keeps it out of the ledger, and the first movement SHALL be unchanged
 
 ### Requirement: Linking Retires Automatic Memory
 When a leg becomes part of a movement by automatic pairing, the owner's merge or the owner's completion, an automatic (`ai`) memory entry for that leg's match key whose category is not an internal-movement category SHALL be deleted in the same database transaction. Owner memory entries SHALL NOT be changed.
