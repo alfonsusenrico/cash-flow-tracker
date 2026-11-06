@@ -37,8 +37,8 @@ body {
 
 /* Tabular figures for every amount, count, time, date column, table, field, badge and chart label. */
 .tabular, .tabular-nums, .t-fig-l, .t-fig, .t-amt, .ws-cnt, .ws-kbd, .ws-pill, .ws-badge, .ws-tbl, .ws-xtable,
-.ws-kpi-value, .ws-kcard-v, .ws-legend-v, .ws-money-legend b, .ws-kk-amount, .ws-dana-big b, .ws-dana-foot b,
-.ws-act-r, .ws-amt-in, .ws-amt-out, .ws-amt-tr, .ws-amt-inv, .ws-tx-amount-v, .ws-tx-daytot, .ws-tri-amount, .ws-tri-when, .ws-bigline, .ws-facts dd, .ws-rows .r,
+.ws-kpi-value, .ws-kcard-v, .ws-dana-big b, .ws-dana-foot b,
+.ws-amt-in, .ws-amt-out, .ws-amt-tr, .ws-amt-inv, .ws-tx-amount-v, .ws-tx-daytot, .ws-tri-amount, .ws-tri-when, .ws-bigline, .ws-facts dd, .ws-rows .r,
 .ws-chip-delta, table, dd, input, select, textarea, svg text {
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: var(--features-num);
@@ -758,7 +758,6 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 
 /* Per-element colour hooks; components set them inline (pillar, legend and bar colours). */
 .ws-kk { --kc: var(--k-none); }
-.ws-legend-h { --sc: var(--muted); }
 .ws-bar { --bc: var(--in-solid); }
 
 .ws-card { min-width: 0; padding: 20px 22px; border-radius: var(--r-panel); background: var(--surface); box-shadow: none; }
@@ -808,24 +807,6 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-chip { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 var(--sp-12); border: 1px solid var(--line-strong); border-radius: var(--r-control); color: var(--text); font-size: var(--fs-12); line-height: 16px; font-weight: 500; transition: background-color var(--t-state); }
 .ws-chip:hover { background: var(--surface); }
 .ws-chip[aria-pressed="true"] { border-color: var(--line-strong); background: var(--surface-2); color: var(--text); }
-
-/* Money bar: labelled segments; the bar itself is decorative. */
-.ws-moneybar { display: flex; gap: 8px; }
-.ws-moneybar > span { display: flex; align-items: center; min-width: 0; height: 42px; padding: 0 14px; overflow: hidden; border-radius: 0; font-size: var(--fs-14); font-weight: 600; white-space: nowrap; container-type: inline-size; }
-/* A segment too narrow for its amount shows colour only; the legend below repeats every amount. */
-@container (max-width: 8.5rem) {
-  .ws-moneybar-text { visibility: hidden; }
-}
-.ws-seg-used { background: var(--surface-3); color: var(--text); }
-.ws-seg-sched { background: var(--warn-bg); color: var(--warn-fg); }
-.ws-seg-safe { background: var(--in-bg); color: var(--in-fg); }
-.ws-seg-over { background: var(--out-bg); color: var(--out-fg); }
-.ws-legend { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
-.ws-legend-h { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 14px; }
-.ws-legend-h::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sc, var(--muted)); }
-.ws-legend-v { margin: 8px 0 6px; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
-.ws-legend-f { margin-top: 6px; color: var(--muted); font-size: 14px; }
-.ws-legend-f b { color: var(--text); font-weight: 600; }
 
 /* Explainable figure ("Rincian hitungan") */
 .ws-xn {
@@ -941,12 +922,6 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-error p { flex: 1; min-width: 12rem; }
 
 /* Lists, tables and banners */
-.ws-todo { display: flex; flex-direction: column; margin-top: 10px; }
-.ws-todo-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
-.ws-todo-item:first-child { padding-top: 4px; border-top: 0; }
-.ws-todo-t { flex: 1; min-width: 0; }
-.ws-todo-item b { display: block; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
-.ws-todo-sub { color: var(--muted); font-size: 14px; }
 .ws-act, .ws-act[class*="ws-tone-"] { display: inline-flex; flex: none; align-items: center; min-height: 28px; padding: 0 var(--sp-8); border-radius: var(--r-control); background: transparent; color: var(--muted); font-size: var(--fs-14); font-weight: 500; transition: background-color var(--t-state), color var(--t-state); }
 .ws-act:hover, .ws-act[class*="ws-tone-"]:hover { background: var(--surface-2); color: var(--text); }
 
@@ -988,16 +963,8 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-bar { position: relative; height: 8px; overflow: hidden; border-radius: 0; background: var(--surface-2); }
 .ws-bar > i { display: block; height: 100%; border-radius: 0; background: var(--bc, var(--in-solid)); }
 
-/* ======================================================================
- * Beranda
- * ====================================================================== */
-.ws-home-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; gap: 16px; margin-top: 16px; }
-.ws-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.ws-bigline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; font-size: 32px; font-weight: 600; letter-spacing: -0.02em; }
-
-
-/* Beranda (refine-workspace-layout D5): KPI cards with large figures, the four-segment money bar, the
- * Kakeibo rows, Ketahanan Dana and the whole-row activity list. */
+/* KPI cards with large figures (refine-workspace-layout D5), Transaksi's until its phase; Ketahanan Dana's large
+ * line, Target & Tagihan's. */
 .ws-kcards { display: grid; grid-template-columns: minmax(0, 1.2fr) repeat(4, minmax(0, 1fr)); gap: 12px; }
 .ws-kcards.ws-kcards-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .ws-kcards.ws-kcards-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1015,42 +982,10 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-kcard-c { color: var(--muted); font-size: 12px; line-height: 1.4; }
 .ws-accent-link { display: inline-flex; align-items: center; min-height: 28px; color: var(--accent-fg); font-size: var(--fs-14); font-weight: 500; text-decoration: none; text-underline-offset: 3px; }
 .ws-accent-link:hover { text-decoration: underline; }
-.ws-money-legend { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
-.ws-money-legend li { min-width: 0; }
-.ws-money-legend-h { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 14px; }
-.ws-money-legend-h::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 0; background: var(--sc); }
-.ws-money-legend b { display: block; margin-top: 4px; color: var(--text); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.ws-seg-spending { background: var(--out-solid); }
-.ws-seg-saving { background: var(--k-saving); }
-.ws-seg-scheduled { background: var(--warn-solid); }
-.ws-card[aria-labelledby="beranda-money"] .ws-moneybar > span { height: 12px; padding: 0; border-radius: 0; font-size: 0; }
-.ws-card[aria-labelledby="beranda-money"] .ws-moneybar { gap: 4px; }
-.ws-card[aria-labelledby="beranda-money"] .ws-seg-safe { background: var(--in-solid); }
-.ws-kk-rows { display: flex; flex-direction: column; margin: 12px 0 0; padding: 0; list-style: none; }
-.ws-kk-rows li { display: grid; grid-template-columns: minmax(0, 1fr) 72px auto; align-items: center; gap: 12px; padding: 6px 0; font-size: 14px; }
-.ws-kk-rows li > .ws-kk { --kc: inherit; }
-.ws-kk-rows .ws-kk::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--kc); }
-.ws-kk-rows .ws-kk[data-bucket="unclassified"]::before { border: 1.5px dashed var(--k-none); background: transparent; }
-.ws-kk-rows a { display: inline-flex; align-items: center; min-height: 24px; color: inherit; text-decoration: none; }
-.ws-kk-rows a:hover { text-decoration: underline; }
-.ws-kk-bar { display: block; height: 6px; overflow: hidden; border-radius: 0; background: var(--surface-2); }
-.ws-kk-bar > i { display: block; height: 100%; border-radius: 0; background: var(--kc); }
-.ws-kk-amount { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
-.ws-kk-saving { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .ws-dana-big { margin-top: 12px; color: var(--muted); font-size: 14px; }
 .ws-dana-big b { margin-right: 4px; color: var(--text); font-size: 32px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .ws-dana-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; margin-top: 10px; color: var(--muted); font-size: 14px; }
 .ws-dana-foot b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-.ws-act-list { margin: 10px 0 0; padding: 0; list-style: none; }
-.ws-act-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 9px 8px; border-top: 1px solid var(--line); border-radius: 0; text-align: left; transition: background-color var(--t-state); }
-.ws-act-list li:first-child .ws-act-row { border-top: 0; }
-.ws-act-row:hover { background: var(--surface-2); }
-.ws-act-row .ws-who-t { flex: 1; min-width: 0; }
-/* Titles wrap to a second line before they are cut, so a route keeps both its sides (design, Risks). */
-.ws-act-row .ws-who-t b { display: -webkit-box; overflow: hidden; color: var(--text); font-weight: 600; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
-.ws-act-row .ws-who-t > span { display: block; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.ws-act-r { display: flex; flex: none; flex-direction: column; align-items: flex-end; gap: 2px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.ws-act-r > span:last-child { color: var(--muted); font-size: 12px; font-weight: 400; }
 @container main (max-width: 1100px) {
   .ws-kcards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .ws-kcard[data-hero] { grid-column: 1 / -1; }
@@ -1066,19 +1001,183 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
   .ws-kcard { padding: 14px; }
   .ws-kcards.ws-kcards-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ws-kcards.ws-kcards-3 > :last-child { grid-column: 1 / -1; }
-  .ws-money-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-
-/* BerandaView uses the same 900px (useWidthAtMost) to move Perlu tindakan up in the DOM. */
 @container main (max-width: 900px) {
-  .ws-home-grid { grid-template-columns: minmax(0, 1fr); }
   .ws-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 18px; }
   .ws-kpi:nth-child(3) { border-left: 0; }
 }
-@container main (max-width: 640px) {
-  .ws-legend { grid-template-columns: minmax(0, 1fr); }
-  .ws-hide-narrow { display: none; }
-  .ws-moneybar > span { height: 14px; padding: 0; font-size: 0; border-radius: var(--r-control); }
+
+/* ======================================================================
+ * Markas+ page pieces (apply-markas-beranda D1 to D12), shared by the redesigned pages: the reading and context
+ * columns, section headers, figure blocks, the split bar, list rows, day headings, the context panel, Kakeibo
+ * rows, the Rincian dialog, the masked figure and the loading and failure states. Values from option-6 styles.css.
+ * ====================================================================== */
+/* A focused row stays below the sticky top bar and the day heading over it (WCAG 2.4.11). */
+html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16)); }
+.legend, .kk-row, .row .r-time, .sec-h .aside, .day-h .tot, .mask, .part-amt {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: var(--features-num);
+}
+.mask { letter-spacing: 0.08em; }
+.muted { color: var(--muted); }
+.c-income { color: var(--in-fg); }
+.c-transfer { color: var(--tr-fg); }
+.c-invest { color: var(--inv-fg); }
+.c-warning { color: var(--warn-fg); }
+.c-accent { color: var(--accent-fg); }
+.dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.dot.is-unclassified { border: 1.5px dashed var(--k-none); background: transparent; }
+.ph-only { display: none; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) var(--context-w); align-items: start; gap: var(--sp-24); }
+.cols > * { min-width: 0; }
+.stack > * + * { margin-top: var(--sp-48); }
+.beranda-note { margin-bottom: var(--sp-16); }
+.sec-h { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-4) var(--sp-12); min-height: 32px; margin-bottom: var(--sp-12); }
+.sec-h .t-label { flex: 1; }
+.sec-h .aside { color: var(--muted); font-size: var(--fs-12); line-height: 16px; }
+.sec-h.is-flush { margin-bottom: 0; }
+.sec-h .chev { color: var(--muted); }
+
+.panel { padding: var(--sp-24); border-radius: var(--r-panel); background: var(--surface); }
+.panel-block { display: block; }
+.panel-block + .panel-block { margin-top: var(--sp-24); padding-top: var(--sp-24); border-top: 1px solid var(--line); }
+
+/* Hero and supporting figures */
+.hero .hero-top { position: relative; display: flex; align-items: center; gap: var(--sp-8); min-height: 32px; }
+.hero .hero-top .t-label { flex: 0 1 auto; }
+.hero .hero-top .ws-btn-quiet.ws-btn-sm { padding: 0 var(--sp-8); }
+.hero .hero-fig { margin-top: var(--sp-8); }
+.hero .hero-sub { margin-top: var(--sp-8); color: var(--muted); text-wrap: pretty; }
+.sw-bar { display: block; flex: none; width: 16px; height: 2px; }
+.hero-top .sw-bar { position: absolute; margin-top: -24px; }
+.fig-block .t-meta { margin-top: var(--sp-4); }
+.fig-block .fb-label { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-4); }
+.legend { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-24); margin-top: var(--sp-16); }
+.legend .fb-label .t-meta { margin: 0; }
+
+/* Bars: the split bar's square segments 2 px apart, and the 2 px progress bar */
+.split { display: flex; gap: 2px; height: 8px; margin-top: var(--sp-24); }
+.split > span { display: block; min-width: 2px; height: 100%; }
+.prog { position: relative; height: 4px; overflow: hidden; background: var(--surface-2); }
+.prog > span { position: absolute; top: 0; bottom: 0; left: 0; background: var(--text); }
+
+/* List rows: whole-row links or buttons, with a -12 px bleed so their text aligns to the column edge */
+.list { margin: 0 calc(-1 * var(--sp-12)); }
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-16);
+  width: 100%;
+  min-height: 56px;
+  padding: 0 var(--sp-12);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-state);
+}
+.list > li:last-child > .row { border-bottom: 0; }
+.row:hover { background: var(--surface); }
+.row:active { background: var(--surface-2); }
+.panel .row:hover { background: var(--surface-2); }
+.row:focus-visible { outline-offset: -2px; }
+.row .r-time { flex: none; width: 40px; color: var(--muted); font-size: var(--fs-12); line-height: 16px; }
+.row .r-main { display: flex; flex: 1; align-items: baseline; gap: var(--sp-8); min-width: 0; }
+.row .r-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .r-meta { flex: 1 1 0; min-width: 0; overflow: hidden; color: var(--muted); font-size: var(--fs-12); line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.row .r-cat { flex: none; width: 168px; overflow: hidden; color: var(--muted); font-size: var(--fs-12); line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.row .r-pillar { display: flex; flex: none; align-items: center; gap: var(--sp-8); width: 112px; color: var(--muted); font-size: var(--fs-12); line-height: 16px; white-space: nowrap; }
+.row .r-amt { flex: none; min-width: 120px; text-align: right; }
+.row .r-ico { display: flex; flex: none; align-items: center; width: 40px; height: 20px; color: var(--muted); }
+.row .chev { display: flex; flex: none; color: var(--muted); }
+.row.is-plain { cursor: default; }
+.row.is-plain:hover { background: none; }
+
+.day-h {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-12);
+  height: 40px;
+  margin: 0 calc(-1 * var(--sp-12));
+  padding: 0 var(--sp-12);
+  border-bottom: 1px solid var(--line);
+  background: var(--window);
+}
+.day-h .t-label { flex: 1 0 auto; color: var(--text); white-space: nowrap; }
+.day-h .tot { min-width: 0; overflow: hidden; color: var(--muted); font-size: var(--fs-12); line-height: 16px; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.day-group + .day-group { margin-top: var(--sp-24); }
+.list-foot { display: flex; justify-content: center; padding: var(--sp-16) 0; }
+
+/* Kakeibo rows: dot, label and amount, with the bucket's 2 px bar under label and amount */
+.kk-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; column-gap: var(--sp-8); row-gap: var(--sp-8); padding: var(--sp-12) 0; }
+.kk-row .prog { grid-column: 2 / 4; height: 2px; }
+.kk-row .t-amt { text-align: right; }
+.kk-row .kk-label { justify-self: start; color: var(--text); text-decoration: none; text-underline-offset: 3px; }
+.kk-row .kk-label:hover { text-decoration: underline; }
+.kk-row .kk-note { grid-column: 2 / 4; justify-self: start; text-decoration: none; text-underline-offset: 3px; }
+.kk-row .kk-note:hover { text-decoration: underline; }
+
+/* Rincian dialog: calculation lines 44 px, the total 56 px under a strong rule, and lines that open in place */
+.dlg-t .t-meta { margin-top: var(--sp-4); }
+.dlg-f { display: flex; flex: none; align-items: center; justify-content: flex-end; gap: var(--sp-8); padding: var(--sp-16) var(--sp-24); border-top: 1px solid var(--line); }
+.rincian .list { margin: 0; }
+.rincian .row { min-height: 44px; padding: 0; }
+.rincian .row .t-amt { flex: none; }
+.rincian .row.is-total { min-height: 56px; border-top: 1px solid var(--line-strong); }
+.rincian .row.is-line[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.rincian .row.is-line .chev { transition: transform var(--t-state); }
+.rincian .parts { padding: var(--sp-8) 0 var(--sp-12) var(--sp-16); border-bottom: 1px solid var(--line); }
+.rincian .parts > * + * { margin-top: var(--sp-8); }
+.rincian .part { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-12); padding: var(--sp-4) 0; font-size: var(--fs-12); line-height: 16px; }
+.rincian .part-label { min-width: 0; overflow-wrap: anywhere; }
+.rincian .part-label a { color: var(--text); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.rincian .part-note { display: block; color: var(--muted); }
+.rincian .part-amt { flex: none; font-weight: 500; white-space: nowrap; }
+.rincian .part-link { display: inline-flex; align-items: center; min-height: 24px; }
+
+/* Loading and failure (SPEC §7): static skeleton bars and the error box */
+.skel { display: block; height: 12px; border-radius: var(--r-control); background: var(--surface-2); }
+.skel.is-hero { height: 44px; margin-top: var(--sp-16); }
+.skel.is-line { height: 14px; margin-top: var(--sp-12); }
+.skel.is-split { height: 8px; margin-top: var(--sp-24); border-radius: 0; }
+.skel.is-fig { height: 20px; margin-top: var(--sp-8); }
+.skel.is-label { margin: var(--sp-8) 0 var(--sp-24); }
+.hero-skel .legend { margin-top: var(--sp-16); }
+.panel-block > .skel + .skel { margin-top: var(--sp-8); }
+.skel-row { display: flex; align-items: center; gap: var(--sp-16); height: 56px; border-bottom: 1px solid var(--line); }
+.skel-row .grow, .error-box .grow { flex: 1; min-width: 0; }
+.error-box { display: flex; align-items: center; gap: var(--sp-16); padding: var(--sp-16) var(--sp-24); border: 1px solid var(--line-strong); border-radius: var(--r-panel); }
+.error-box > svg { flex: none; }
+
+/* One column below 1200 px, with the panel after the reading column; two supporting columns below 1024 px. */
+@media (max-width: 1199px) {
+  .cols { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 1023px) {
+  .legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .stack > * + * { margin-top: var(--sp-32); }
+  .panel { padding: var(--sp-16); }
+  .legend { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-16); }
+  .legend .is-phone-hide { display: none; }
+  /* The phone's 44 px target for Rincian, without growing its 32 px label row. */
+  .hero .hero-top .ws-btn-sm { min-height: 44px; margin: -6px 0; }
+  .row { min-height: 64px; padding-top: var(--sp-8); padding-bottom: var(--sp-8); }
+  .row .r-main { flex-direction: column; align-items: flex-start; gap: 0; }
+  .row .r-main > * { max-width: 100%; }
+  .row .r-meta { flex: none; }
+  .row :is(.r-time, .r-cat, .r-pillar, .dt-only) { display: none; }
+  .row .ph-only { display: block; }
+  .row .r-amt { min-width: 0; }
+  .day-h { top: 56px; }
+  .dlg-f { flex-wrap: wrap; padding: var(--sp-12) var(--sp-16) calc(var(--sp-12) + env(safe-area-inset-bottom, 0px)); }
+  .dlg-f .ws-btn { flex: 1; }
+  .rincian .row { padding-top: 0; padding-bottom: 0; }
 }
 
 /* Page parts on phones; the shell's own phone rules are in the Shell block. */

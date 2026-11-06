@@ -185,44 +185,6 @@ export function ChipGroup<T extends string>({
   );
 }
 
-export interface MoneySegment {
-  key: string;
-  label: string;
-  /** Integer rupiah from the server; only used for proportions. */
-  amount: number;
-  display: string;
-  className: string;
-}
-
-/**
- * Labelled money segments. The bar is decorative (`aria-hidden`); every value is also text, either in
- * the built-in legend or in the caller's own labelled columns (`legend={false}`).
- */
-export function MoneyBar({ segments, legend = true, label }: { segments: MoneySegment[]; legend?: boolean; label?: string }) {
-  const visible = segments.filter((segment) => segment.amount > 0);
-  return (
-    <div>
-      <div className="ws-moneybar" aria-hidden="true">
-        {visible.map((segment) => (
-          <span key={segment.key} className={segment.className} style={{ flex: segment.amount }}>
-            <span className="ws-moneybar-text">{segment.display}</span>
-          </span>
-        ))}
-      </div>
-      {legend && (
-        <ul className="ws-legend" aria-label={label}>
-          {segments.map((segment) => (
-            <li key={segment.key}>
-              <span className="ws-legend-h">{segment.label}</span>
-              <span className="ws-legend-v">{segment.display}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 export function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return <div className={cn("ws-skeleton", className)} style={style} aria-hidden="true" />;
 }

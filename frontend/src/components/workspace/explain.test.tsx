@@ -1,10 +1,20 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { useRef, useState } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExplainProvider, ExplainableFigure, type ExplanationData } from "./explain";
+import { ExplanationDialog, type RincianData } from "./ExplanationDialog";
 import { PHONE_QUERY } from "./layers";
 import { ShortcutProvider } from "./shortcuts";
+
+const app = vi.hoisted(() => ({ hideBalances: false }));
+vi.mock("@/components/layout/AppLayout", () => ({
+  useAppCtx: () => ({ hideBalances: app.hideBalances, bal: (amount: number) => (app.hideBalances ? "Rp ••••••" : `Rp ${amount.toLocaleString("id-ID")}`) }),
+}));
+vi.mock("next/navigation", () => ({ usePathname: () => "/", useRouter: () => ({ push: vi.fn() }) }));
 
 const SAFE_TO_SPEND: ExplanationData = {
   title: "Aman dipakai hari ini",
@@ -197,3 +207,169 @@ describe("ExplainableFigure", () => {
     error.mockRestore();
   });
 });
+
+const RINCIAN: RincianData = {
+  title: "Aman dipakai sampai gajian",
+  rule: "Masuk dikurangi Pengeluaran, Ditabung & investasi dan tagihan terjadwal sampai akhir siklus.",
+  lines: [
+    { key: "masuk", label: "Masuk", amount: "Rp 9.518.400", parts: [{ label: "Gaji", amount: "Rp 9.500.000" }, { label: "Refund", amount: "Rp 18.400" }] },
+    {
+      key: "spending",
+      label: "Pengeluaran",
+      amount: "−Rp 3.502.990",
+      parts: [
+        { label: "Kebutuhan", amount: "Rp 2.341.000", href: "/ledger?period=cycle&kakeibo=need" },
+        { label: "Belum diklasifikasi", amount: "Rp 1.161.990", href: "/ledger?period=cycle&kakeibo=unclassified" },
+      ],
+    },
+    { key: "saving", label: "Ditabung & investasi", amount: "−Rp 2.750.000" },
+    { key: "scheduled", label: "Terjadwal sampai 24 Nov", amount: "−Rp 989.000", parts: [{ label: "Tagihan: SPayLater", note: "jatuh tempo 5 Nov", amount: "−Rp 434.000" }], partNotes: ["Sampai sehari sebelum perkiraan gaji berikutnya (24 Nov)."] },
+  ],
+  total: { label: "Aman dipakai", amount: "Rp 2.276.410" },
+  notes: ["4 hal (Rp 190.500) masih menunggu jawaban; Rp 45.000 di antaranya sudah termasuk."],
+  waiting: {
+    label: "Menunggu jawaban",
+    amount: "Rp 190.500",
+    lines: [{ label: "TRF BIFAST", note: "Belum dikenali · sudah dihitung di Pengeluaran sebagai Belum diklasifikasi", amount: "Rp 120.000" }],
+    link: { href: "/review", label: "Jawab di Tinjau" },
+  },
+  link: { href: "/ledger?period=cycle", label: "Lihat transaksi siklus ini" },
+};
+
+function RincianHarness() {
+  const [open, setOpen] = useState(false);
+  const opener = useRef<HTMLButtonElement>(null);
+  return (
+    <ShortcutProvider>
+      <main>
+        <button ref={opener} type="button" aria-haspopup="dialog" aria-expanded={open} aria-label="Rincian aman dipakai sampai gajian" onClick={() => setOpen(true)}>
+          Rincian
+        </button>
+        <a href="/ledger">Semua transaksi</a>
+      </main>
+      <ExplanationDialog
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          opener.current?.focus();
+        }}
+        data={RINCIAN}
+      />
+    </ShortcutProvider>
+  );
+}
+
+describe("ExplanationDialog (Rincian)", () => {
+  beforeEach(() => {
+    app.hideBalances = false;
+  });
+
+  async function openRincian() {
+    const user = userEvent.setup();
+    render(<RincianHarness />);
+    const opener = screen.getByRole("button", { name: "Rincian aman dipakai sampai gajian" });
+    await user.click(opener);
+    const dialog = await screen.findByRole("dialog", { name: "Aman dipakai sampai gajian" });
+    return { user, opener, dialog };
+  }
+  const lines = (dialog: HTMLElement) => [...dialog.querySelectorAll(".list > li > .row")].map((row) => row.textContent);
+
+  it("opens a 480 px dialog with the meta, the rule, four lines, the total and the footer link, with focus inside", async () => {
+    const { opener, dialog } = await openRincian();
+    expect(opener).toHaveAttribute("aria-expanded", "true");
+    expect(dialog).toHaveClass("shell-dialog", "rincian");
+    expect(dialog.style.getPropertyValue("--dw")).toBe("480px");
+    expect(dialog).toHaveTextContent("Rincian hitungan");
+    expect(within(dialog).getByText(RINCIAN.rule)).toHaveClass("t-body");
+    expect(lines(dialog)).toEqual([
+      "MasukRp 9.518.400", "Pengeluaran−Rp 3.502.990", "Ditabung & investasi−Rp 2.750.000", "Terjadwal sampai 24 Nov−Rp 989.000",
+      "Aman dipakaiRp 2.276.410", "Menunggu jawaban · Rp 190.500",
+    ]);
+    expect(dialog.querySelector(".is-total .t-fig")).toHaveTextContent("Rp 2.276.410");
+    expect(within(dialog).getByRole("link", { name: "Lihat transaksi siklus ini" })).toHaveAttribute("href", "/ledger?period=cycle");
+    expect(dialog.querySelector(".dlg-f")).toContainElement(within(dialog).getByRole("link", { name: "Lihat transaksi siklus ini" }));
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+  });
+
+  it("is centered from 768 px and a bottom sheet below, by the shared dialog rules", () => {
+    const css = readFileSync(path.join(__dirname, "../../app/globals.css"), "utf8");
+    expect(css).toMatch(/dialog\.shell-dialog \{[^}]*width: min\(var\(--dw, 560px\), calc\(100vw - 48px\)\);[^}]*margin: auto;/);
+    const phone = css.slice(css.indexOf("@media (max-width: 767px)"));
+    expect(phone).toMatch(/dialog\.shell-dialog \{ width: 100%; max-height: 92vh; margin: auto 0 0; border-bottom: 0; border-radius: var\(--r-layer\) var\(--r-layer\) 0 0; \}/);
+  });
+
+  it("traps Tab inside and returns focus to Rincian on Esc and on the close button", async () => {
+    const { user, opener, dialog } = await openRincian();
+    for (let step = 0; step < 12; step += 1) {
+      await user.tab();
+      expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    }
+    await user.keyboard("{Escape}");
+    await waitForClosed();
+    expect(opener).toHaveFocus();
+    expect(opener).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(opener);
+    const again = await screen.findByRole("dialog", { name: "Aman dipakai sampai gajian" });
+    await user.click(within(again).getByRole("button", { name: "Tutup rincian" }));
+    await waitForClosed();
+    expect(opener).toHaveFocus();
+  });
+
+  async function waitForClosed() {
+    await vi.waitFor(() => expect(screen.queryByRole("dialog", { name: "Aman dipakai sampai gajian" })).not.toBeInTheDocument());
+  }
+
+  it("opens a line in place with Enter and Space and shows exactly the lines it is given", async () => {
+    const { user, dialog } = await openRincian();
+    const spending = within(dialog).getByRole("button", { name: /^Pengeluaran/ });
+    expect(spending).toHaveAttribute("aria-expanded", "false");
+    spending.focus();
+    await user.keyboard("{Enter}");
+    expect(spending).toHaveAttribute("aria-expanded", "true");
+    const parts = document.getElementById(spending.getAttribute("aria-controls")!)!;
+    expect([...parts.querySelectorAll(".part")].map((part) => part.textContent)).toEqual(["KebutuhanRp 2.341.000", "Belum diklasifikasiRp 1.161.990"]);
+    expect(within(parts).getByRole("link", { name: "Kebutuhan" })).toHaveAttribute("href", "/ledger?period=cycle&kakeibo=need");
+    await user.keyboard(" ");
+    expect(spending).toHaveAttribute("aria-expanded", "false");
+    expect(within(dialog).queryByRole("link", { name: "Kebutuhan" })).not.toBeInTheDocument();
+    // A line without parts is plain text, not a disclosure.
+    expect(within(dialog).queryByRole("button", { name: /^Ditabung/ })).not.toBeInTheDocument();
+
+    const scheduled = within(dialog).getByRole("button", { name: /^Terjadwal sampai 24 Nov/ });
+    await user.click(scheduled);
+    expect(dialog).toHaveTextContent("Tagihan: SPayLaterjatuh tempo 5 Nov−Rp 434.000");
+    expect(dialog).toHaveTextContent("Sampai sehari sebelum perkiraan gaji berikutnya (24 Nov).");
+
+    const waiting = within(dialog).getByRole("button", { name: /^Menunggu jawaban/ });
+    await user.click(waiting);
+    expect(dialog).toHaveTextContent("TRF BIFASTBelum dikenali · sudah dihitung di Pengeluaran sebagai Belum diklasifikasiRp 120.000");
+    expect(within(dialog).getByRole("link", { name: "Jawab di Tinjau" })).toHaveAttribute("href", "/review");
+  });
+
+  it("masks every amount, parts included, with hidden balances", async () => {
+    app.hideBalances = true;
+    const { user, dialog } = await openRincian();
+    await user.click(within(dialog).getByRole("button", { name: /^Pengeluaran/ }));
+    const masks = within(dialog).getAllByRole("img", { name: "Disembunyikan" });
+    expect(masks.length).toBe(4 + 1 + 1 + 2);
+    // Only the window's date keeps its digits.
+    const amounts = [...dialog.querySelectorAll(".list")].map((list) => list.textContent).join(" ").replace("sampai 24 Nov", "");
+    expect(amounts).not.toMatch(/\d/);
+  });
+
+  it.each([
+    ["light", false],
+    ["dark", true],
+  ])("has no axe violations when open, with a line open, in the %s theme", async (_theme, dark) => {
+    if (dark) document.documentElement.classList.add("dark");
+    try {
+      const { user, dialog } = await openRincian();
+      await user.click(within(dialog).getByRole("button", { name: /^Masuk/ }));
+      expect((await axe(document.body)).violations).toHaveLength(0);
+    } finally {
+      document.documentElement.classList.remove("dark");
+    }
+  });
+});
+

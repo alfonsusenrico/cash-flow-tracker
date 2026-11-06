@@ -10,8 +10,11 @@ import { describe, expect, it } from "vitest";
 const SLANG = /\b(saranku|buat baru|buat diterima|buat mulai|nggak|ngga|gak|udah|beres|nangkep|ketangkep|nyambung|nyambungin|bikin|aja|banget|dimatiin|kamu|aku|nunggu|gajian|lagi bikin|cuma|nebak|dobel|ketemu|benerin|lanjutin|nuntun|tunjukin|ngecek)\b|\b\w+-mu\b/i;
 
 const CONVERSATION = [
-  // Beranda's hero figure as the owner approved it in the preview (refine-workspace-layout D5, OD96).
+  // Beranda's hero figure as the owner approved it in the preview (refine-workspace-layout D5, OD96), its Rincian
+  // control and its line (apply-markas-beranda D3, "Safe-to-Spend Today").
   "Aman dipakai sampai gajian",
+  "Rincian aman dipakai sampai gajian",
+  "hari lagi sampai gajian",
   // Bantuan's third fact names that same hero in the prototype's wording (apply-markas-shell D8).
   "Beranda menunjukkan berapa yang aman dipakai sampai gajian.",
   // The connect-phone guide's prose.
@@ -77,6 +80,30 @@ describe("copy register", () => {
       .filter(({ text }) => figureLabel.test(text))
       .map(({ line, text }) => `${path.relative(__dirname, file)}:${line}: ${text.trim()}`));
     expect(found).toEqual([]);
+  });
+
+  // Beranda's labels, lines, captions and states (apply-markas-beranda D3 to D8, D13).
+  const BERANDA_STRINGS = [
+    "Tidak ada yang perlu dijawab.", "Perlu dipilih di Tinjau", "Lihat transaksi ", "hari lagi sampai gajian",
+    "Tanggal gaji berikutnya belum diketahui", "Gaji baru belum tercatat", "Sumber gaji belum diatur", "Siklus gaji belum ada",
+    "sudah lebih", "Tabungan bertambah", "Tabungan berkurang", "tagihan & setoran", "sejak gaji", "Buka Tinjau",
+    "Belum ada transaksi hari ini dan kemarin.", "Daftar Tinjau belum bisa dimuat.", "Aktivitas belum bisa dimuat.",
+    "Angka Beranda belum dapat dimuat", "Belum bisa dihitung", "Menunggu jawaban", "Jawab di Tinjau",
+    "Masuk dikurangi Pengeluaran, Ditabung & investasi dan tagihan terjadwal sampai akhir",
+  ];
+  // "Keluar ke …" is a movement's direction (activity.tsx movementDirection), not a spending figure.
+  const SPENDING_WORD = /\b(Keluar(?! ke )|Belanja)\b/;
+
+  it("words Beranda's new labels, lines and captions neutrally, naming spending Pengeluaran", () => {
+    const beranda = sources("components/beranda").filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file));
+    const text = beranda.map((file) => readFileSync(file, "utf8")).join("\n");
+    expect(BERANDA_STRINGS.filter((label) => !text.includes(label))).toEqual([]);
+    expect(BERANDA_STRINGS.filter((label) => SLANG.test(label) && !CONVERSATION.some((allowed) => allowed.includes(label) || label.includes(allowed)))).toEqual([]);
+    expect(BERANDA_STRINGS.filter((label) => SPENDING_WORD.test(label))).toEqual([]);
+    const lines = beranda.flatMap((file) => visibleLines(file).filter(({ text: line }) => [...line.matchAll(/["`]([^"`]*)["`]/g)].some(([, value]) => SPENDING_WORD.test(value))));
+    expect(lines.map(({ text: line }) => line.trim())).toEqual([]);
+    expect(SPENDING_WORD.test("Keluar siklus ini")).toBe(true);
+    expect(SPENDING_WORD.test("Belanja harian")).toBe(true);
   });
 
   it("writes Analisis and Laporan impersonally, without the formal Anda", () => {

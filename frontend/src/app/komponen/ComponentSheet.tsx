@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { MonetaryInput } from "@/components/ui/FormField";
 import { Icon } from "@/components/ui/Icon";
 import { Input, Select } from "@/components/ui/Input";
+import { FigureBlock, HeroFigure, SplitBar } from "@/components/workspace/figures";
+import { DayHeading, ListRow, Panel, PanelBlock, SectionHeader } from "@/components/workspace/lists";
 import { EmptyState, ErrorState, Pill, Segmented, Skeleton } from "@/components/workspace/primitives";
 import { KAKEIBO_BUCKETS } from "@/lib/kakeibo";
 import styles from "./komponen.module.css";
@@ -108,6 +110,61 @@ function ButtonRow({ className, label }: { className: string; label: string }) {
         <button key={state || "rest"} type="button" tabIndex={-1} className={`${className} ${state}`}>{label}</button>
       ))}
       <button type="button" className={className} disabled>{label}</button>
+    </div>
+  );
+}
+
+const SPLIT = [
+  { key: "spending", label: "Pengeluaran", amount: 3_502_990, color: "var(--out-solid)" },
+  { key: "saving", label: "Ditabung & investasi", amount: 2_750_000, color: "var(--inv-solid)" },
+  { key: "scheduled", label: "Terjadwal", amount: 989_000, color: "var(--warn-solid)" },
+  { key: "safe", label: "Aman dipakai", amount: 2_276_410, color: "var(--in-solid)" },
+];
+
+const ROW_STATES: [string, string][] = [["bawaan", ""], ["hover", styles.rowHover], ["ditekan", styles.rowPressed], ["fokus", styles.isFocusRow]];
+
+function Pillar({ color, label }: { color: string; label: string }) {
+  return (
+    <>
+      <span className="dot" style={{ background: color }} aria-hidden="true" />
+      <span>{label}</span>
+    </>
+  );
+}
+
+function PageRows() {
+  return (
+    <div>
+      <DayHeading label="Kamis, 5 November · hari ini" totals="Pengeluaran Rp 52.500" />
+      <ul className="list">
+        {ROW_STATES.map(([state, className]) => (
+          <li key={state} className={className}>
+            <ListRow time="12.37" title={`Warung Bu Tini (${state})`} meta="Jago · Makan & Jajan" phoneMeta="12.37 · Kebutuhan"
+              status={<Pillar color="var(--k-need)" label="Kebutuhan" />} amount={<span className="t-amt">−Rp 30.000</span>} />
+          </li>
+        ))}
+        <li>
+          <ListRow time="11.19" title="Teh Tarik Corner (terpilih)" meta="ShopeePay" status={<Pillar color="var(--k-want)" label="Keinginan" />}
+            amount={<span className="t-amt">−Rp 22.500</span>} selected />
+        </li>
+        <li>
+          <ListRow time="08.02" title="Gaji Oktober" meta="BCA · Utama" status="Uang masuk" amount={<span className="t-amt c-income">+Rp 9.518.400</span>} />
+        </li>
+        <li>
+          <ListRow time="07.55" title="Jago · Kantong Utama → GoPay" meta="Isi GoPay" status="Tidak dihitung" amount={<span className="t-amt c-transfer">Rp 200.000</span>} />
+        </li>
+        <li>
+          <ListRow time="07.40" title="Top up Investasi" meta="Stockbit · RDN" status={<Pillar color="var(--k-saving)" label="Tabungan" />}
+            amount={<span className="t-amt c-invest">Rp 250.000</span>} />
+        </li>
+        <li>
+          <ListRow time="07.31" title="Warung Bu Tini (lengkap)" meta="Jago · Makan & Jajan" category="Makan & Jajan"
+            status={<Pillar color="var(--k-need)" label="Kebutuhan" />} amount={<span className="t-amt">−Rp 18.000</span>} />
+        </li>
+        <li>
+          <ListRow icon="help" title="TRF BIFAST 88213 ANDI S" meta="Belum dikenali · 4 Nov 09.12" amount={<span className="t-amt">−Rp 120.000</span>} chevron />
+        </li>
+      </ul>
     </div>
   );
 }
@@ -252,6 +309,60 @@ export function ComponentSheet() {
               ))}
             </div>
           </>
+        )}
+      </Both>
+
+      <Both title="Angka utama, batang, angka pendukung">
+        {(theme) => (
+          <HeroFigure id={`ks-hero-${theme}`} label="Aman dipakai sampai gajian" mark="var(--in-solid)" figure="Rp 2.276.410" line="20 hari lagi sampai gajian 25 Nov"
+            action={<button type="button" tabIndex={-1} className="ws-btn ws-btn-quiet ws-btn-sm">Rincian</button>}>
+            <SplitBar label="Uang siklus ini dari Rp 9.518.400 masuk" emptyLabel="Uang siklus ini: belum ada uang masuk" total={9_518_400} segments={SPLIT} />
+            <div className="legend">
+              <FigureBlock label="Masuk" figure="Rp 9.518.400" caption="Gaji 23 Okt" phoneHidden />
+              <FigureBlock label="Pengeluaran" mark="var(--out-solid)" figure="Rp 3.502.990" caption="sejak gaji 23 Okt" />
+              <FigureBlock label="Ditabung & investasi" mark="var(--inv-solid)" figure="Rp 2.750.000" caption="Tabungan bertambah" />
+              <FigureBlock label="Terjadwal" mark="var(--warn-solid)" figure="Rp 989.000" caption="tagihan sampai 24 Nov" phoneHidden />
+            </div>
+          </HeroFigure>
+        )}
+      </Both>
+
+      <Both title="Kepala bagian, baris, judul hari">
+        {() => (
+          <>
+            <SectionHeader label="Aktivitas terbaru" aside={<span className="aside">hari ini dan kemarin · 7</span>} />
+            <PageRows />
+          </>
+        )}
+      </Both>
+
+      <Both title="Panel konteks dan Kakeibo">
+        {() => (
+          <Panel label="Contoh panel">
+            <PanelBlock heading="Kekayaan bersih" href="/komponen">
+              <p className="t-fig">Rp 45.828.280</p>
+              <p className="t-meta">aset Rp 58.971.280 · utang Rp 13.143.000</p>
+            </PanelBlock>
+            <PanelBlock heading="Ketahanan Dana" href="/komponen">
+              <p className="t-strong">5,4 bulan biaya pokok</p>
+              <p className="t-meta">dana darurat Rp 19.412.400 · target 6 bulan</p>
+            </PanelBlock>
+            <PanelBlock>
+              <SectionHeader label="Kakeibo siklus ini" aside={<span className="ws-linkbtn">Analisis</span>} />
+              <div className="kk-row">
+                <span className="dot" style={{ background: "var(--k-need)" }} aria-hidden="true" />
+                <span className="t-body">Kebutuhan</span>
+                <span className="t-amt">Rp 2.341.000</span>
+                <span className="prog" aria-hidden="true"><span style={{ width: "100%", background: "var(--k-need)" }} /></span>
+              </div>
+              <div className="kk-row">
+                <span className="dot is-unclassified" aria-hidden="true" />
+                <span className="t-body">Belum diklasifikasi</span>
+                <span className="t-amt">Rp 190.500</span>
+                <span className="t-meta c-accent kk-note">Perlu dipilih di Tinjau</span>
+              </div>
+            </PanelBlock>
+          </Panel>
         )}
       </Both>
 

@@ -129,8 +129,6 @@
 .switchRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 .switchRow b { display: block; font-weight: 600; }
 .switchRow span { display: block; color: var(--muted); font-size: 14px; }
-.bar :global(.ws-legend) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.bar :global(.ws-legend-v) { font-size: 16px; white-space: nowrap; }
 /* A link on its own line keeps a 24px target (WCAG 2.5.8), also at 400% zoom. */
 .linkRow { margin: 0; font-size: 14px; }
 .linkRow :global(.ws-linkbtn) { display: inline-flex; align-items: center; min-height: 24px; }

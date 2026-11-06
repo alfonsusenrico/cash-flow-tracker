@@ -32,6 +32,9 @@
 .isPressed:global(.ws-btn-accent) { background: var(--accent-pressed) !important; transform: translateY(1px); }
 .isPressed:global(.ws-btn-danger) { background: var(--danger-solid) !important; filter: brightness(0.84); }
 .isFocus { outline: 2px solid var(--focus) !important; outline-offset: 2px; }
+.rowHover :global(.row) { background: var(--surface) !important; }
+.rowPressed :global(.row) { background: var(--surface-2) !important; }
+.isFocusRow :global(.row) { outline: 2px solid var(--focus) !important; outline-offset: -2px; }
 .fieldFocus { border-color: var(--field-focus) !important; box-shadow: 0 0 0 3px var(--ring); }
 
 @media (max-width: 767px) {
