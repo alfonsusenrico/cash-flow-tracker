@@ -128,7 +128,7 @@ function expectedBasisNote(summary: CycleSummary): string | null {
 function waitingNote(summary: CycleSummary, money: Money): string | null {
   const { waiting } = summary;
   if (!waiting.count) return null;
-  return `${waiting.count} hal (${money(waiting.total)}) masih menunggu jawaban; ${money(waiting.in_keluar)} di antaranya sudah termasuk.`;
+  return `${waiting.count} hal (${money(waiting.total)}) masih menunggu jawaban. ${money(waiting.in_keluar)} di antaranya sudah termasuk.`;
 }
 
 const EXPECTED_REASONS: Record<ExpectedReason, string> = {
@@ -232,7 +232,9 @@ export function safeAmountRincian(summary: CycleSummary, money: Money): RincianD
         partNotes: scheduledLines.notes?.slice(0, 1),
       },
     ],
-    total: { label: "Aman dipakai", amount: balance(remaining.total, money) },
+    // An over period ends in what it is over by, then the result Rp 0, so "Aman dipakai" is never negative.
+    over: remaining.total < 0 ? { label: "Lebih dari uang masuk", amount: money(-remaining.total) } : null,
+    total: { label: "Aman dipakai", amount: money(Math.max(0, remaining.total)) },
     notes: [basisNote(summary, money), waitingNote(summary, money)].filter((note): note is string => Boolean(note)),
     waiting: waitingDisclosure(summary, money),
     link: { href: ledgerPeriod(summary), label: `Lihat transaksi ${periodWord(summary)}` },

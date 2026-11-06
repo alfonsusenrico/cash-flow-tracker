@@ -1128,6 +1128,8 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .rincian .row { min-height: 44px; padding: 0; }
 .rincian .row .t-amt { flex: none; }
 .rincian .row.is-total { min-height: 56px; border-top: 1px solid var(--line-strong); }
+.rincian .row.is-over { border-top: 1px solid var(--line-strong); }
+.rincian .row.is-total.after-over { border-top: 0; }
 .rincian .row.is-line[aria-expanded="true"] .chev { transform: rotate(180deg); }
 .rincian .row.is-line .chev { transition: transform var(--t-state); }
 .rincian .parts { padding: var(--sp-8) 0 var(--sp-12) var(--sp-16); border-bottom: 1px solid var(--line); }

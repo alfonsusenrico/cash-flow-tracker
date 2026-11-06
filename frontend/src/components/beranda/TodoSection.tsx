@@ -14,8 +14,6 @@ const TIME = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digi
 
 /** At most this many rows under "Perlu tindakan"; the rest is reached through "Buka Tinjau" and the bell (D6). */
 export const TODO_LIMIT = 3;
-/** Review items shown before plans take the remaining places. */
-const REVIEW_FIRST = 2;
 
 function when(iso: string | null, today: string): string {
   if (!iso) return "";
@@ -27,7 +25,6 @@ function when(iso: string | null, today: string): string {
 
 export interface TodoItem {
   key: string;
-  kind: "review" | "plan";
   icon: IconName;
   title: string;
   meta: ReactNode;
@@ -37,7 +34,11 @@ export interface TodoItem {
   onSelect?: () => void;
 }
 
-/** Everything that needs the owner, in the D6 order: review items (questions, transfers, groups), then plans. */
+/**
+ * Everything that needs the owner, ranked as D6 orders it: open questions, plans past due, plans due today,
+ * awaiting transfers, ambiguous pairs, groups, the automatic-link check, then plans due within two days. Plans
+ * arrive sorted by due date.
+ */
 export function todoItems({
   queue,
   plans,
@@ -53,107 +54,89 @@ export function todoItems({
   bal: (amount: number) => string;
   onOpenPlans: () => void;
 }): TodoItem[] {
-  const items: TodoItem[] = [];
   const signedAmount = (type: "expense" | "income", amount: number) =>
     type === "income" ? { text: `+${bal(amount)}`, income: true } : { text: `−${bal(amount)}` };
-  for (const question of queue?.questions ?? []) {
-    const tx = question.transaction;
-    items.push({
-      key: `q-${tx.id}`,
-      kind: "review",
-      icon: "help",
-      title: tx.merchant || tx.notes || "Transaksi tanpa nama",
-      meta: `Belum dikenali · ${when(tx.date, today)}`,
-      amount: signedAmount(tx.type, tx.amount),
-      href: `/review?item=${tx.id}#review-questions`,
-    });
-  }
+  const questions: TodoItem[] = (queue?.questions ?? []).map(({ transaction: tx }) => ({
+    key: `q-${tx.id}`,
+    icon: "help",
+    title: tx.merchant || tx.notes || "Transaksi tanpa nama",
+    meta: `Belum dikenali · ${when(tx.date, today)}`,
+    amount: signedAmount(tx.type, tx.amount),
+    href: `/review?item=${tx.id}#review-questions`,
+  }));
+  const duePlan = (plan: RecurringRule): TodoItem => ({
+    key: `p-${plan.id}-${plan.next_due_date}`,
+    icon: "calendar",
+    title: plan.name,
+    meta: (
+      <>
+        <span className="c-warning">{plan.next_due_date < today ? "Lewat jatuh tempo" : "Jatuh tempo hari ini"}</span> · Rencana
+      </>
+    ),
+    amount: { text: bal(plan.amount) },
+    onSelect: onOpenPlans,
+  });
+  const overdue = plans.filter((plan) => plan.next_due_date < today).map(duePlan);
+  const dueToday = plans.filter((plan) => plan.next_due_date === today).map(duePlan);
   const awaiting = queue?.awaiting ?? [];
-  if (awaiting.length) {
-    const accounts = [...new Set(awaiting.map((item) => item.account_name))].join(", ");
-    items.push({
-      key: "awaiting",
-      kind: "review",
-      icon: "swap",
-      title: `Pasangkan ${awaiting.length} pindah saldo`,
-      meta: `Pindah saldo belum lengkap · ${accounts}`,
-      href: `/review?item=${awaiting[0].id}#review-awaiting`,
-    });
-  }
+  const awaitingItems: TodoItem[] = awaiting.length
+    ? [{
+        key: "awaiting",
+        icon: "swap",
+        title: `Pasangkan ${awaiting.length} pindah saldo`,
+        meta: `Pindah saldo belum lengkap · ${[...new Set(awaiting.map((item) => item.account_name))].join(", ")}`,
+        href: `/review?item=${awaiting[0].id}#review-awaiting`,
+      }]
+    : [];
   const ambiguous = queue?.ambiguous ?? [];
-  if (ambiguous.length) {
-    items.push({
-      key: "ambiguous",
-      kind: "review",
-      icon: "swap",
-      title: `${ambiguous.length} pasangan pindah saldo belum pasti`,
-      meta: "Pilih pasangan yang benar",
-      href: `/review?item=${ambiguous[0].id}#review-ambiguous`,
+  const ambiguousItems: TodoItem[] = ambiguous.length
+    ? [{
+        key: "ambiguous",
+        icon: "swap",
+        title: `${ambiguous.length} pasangan pindah saldo belum pasti`,
+        meta: "Pilih pasangan yang benar",
+        href: `/review?item=${ambiguous[0].id}#review-ambiguous`,
+      }]
+    : [];
+  const groups: TodoItem[] = (queue?.groups ?? [])
+    .filter((group) => group.needs_review_count > 0)
+    .map((group) => {
+      const first = group.transactions[0];
+      return {
+        key: `g-${group.key}`,
+        icon: "help",
+        title: group.label,
+        meta: `Perlu jawaban · ${group.needs_review_count} transaksi${first?.date ? ` · ${when(first.date, today)}` : ""}`,
+        amount: signedAmount(group.type, group.total),
+        href: `/review?item=${first?.id ?? group.key}#review-groups`,
+      };
     });
-  }
-  for (const group of (queue?.groups ?? []).filter((item) => item.needs_review_count > 0)) {
-    const first = group.transactions[0];
-    items.push({
-      key: `g-${group.key}`,
-      kind: "review",
-      icon: "help",
-      title: group.label,
-      meta: `Perlu jawaban · ${group.needs_review_count} transaksi${first?.date ? ` · ${when(first.date, today)}` : ""}`,
-      amount: signedAmount(group.type, group.total),
-      href: `/review?item=${first?.id ?? group.key}#review-groups`,
-    });
-  }
-  if (autoLinks.length) {
-    items.push({
-      key: "auto-links",
-      kind: "plan",
-      icon: "calendar",
-      title: `${autoLinks.length} rencana ditautkan otomatis`,
-      meta: "Cek dan batalkan kalau keliru",
-      onSelect: onOpenPlans,
-    });
-  }
-  const tomorrow = jakartaDay(new Date(Date.parse(`${today}T12:00:00+07:00`) + 86_400_000));
-  for (const plan of plans) {
-    const due = plan.next_due_date;
-    const amount = { text: bal(plan.amount) };
-    if (due <= today) {
-      items.push({
-        key: `p-${plan.id}-${due}`,
-        kind: "plan",
+  const autoLinkItems: TodoItem[] = autoLinks.length
+    ? [{
+        key: "auto-links",
         icon: "calendar",
-        title: plan.name,
-        meta: (
-          <>
-            <span className="c-warning">{due < today ? "Lewat jatuh tempo" : "Jatuh tempo hari ini"}</span> · Rencana
-          </>
-        ),
-        amount,
+        title: `${autoLinks.length} rencana ditautkan otomatis`,
+        meta: "Cek dan batalkan kalau keliru",
         onSelect: onOpenPlans,
-      });
-    } else {
-      items.push({
-        key: `p-${plan.id}-${due}`,
-        kind: "plan",
-        icon: "calendar",
-        title: plan.name,
-        meta: `${due === tomorrow ? "Besok" : shortDate(due)} · Rencana`,
-        amount,
-        href: "/goals",
-      });
-    }
-  }
-  return items;
+      }]
+    : [];
+  const tomorrow = jakartaDay(new Date(Date.parse(`${today}T12:00:00+07:00`) + 86_400_000));
+  const upcoming: TodoItem[] = plans
+    .filter((plan) => plan.next_due_date > today)
+    .map((plan) => ({
+      key: `p-${plan.id}-${plan.next_due_date}`,
+      icon: "calendar",
+      title: plan.name,
+      meta: `${plan.next_due_date === tomorrow ? "Besok" : shortDate(plan.next_due_date)} · Rencana`,
+      amount: { text: bal(plan.amount) },
+      href: "/goals",
+    }));
+  return [...questions, ...overdue, ...dueToday, ...awaitingItems, ...ambiguousItems, ...groups, ...autoLinkItems, ...upcoming];
 }
 
-/** The rows Beranda shows: up to two review items, then plans up to three; review items fill free places. */
+/** The rows Beranda shows: the first three of the ranking. */
 export function visibleTodoItems(items: TodoItem[]): TodoItem[] {
-  const review = items.filter((item) => item.kind === "review");
-  const plans = items.filter((item) => item.kind === "plan");
-  const first = review.slice(0, REVIEW_FIRST);
-  const planned = plans.slice(0, TODO_LIMIT - first.length);
-  const filler = review.slice(REVIEW_FIRST, REVIEW_FIRST + TODO_LIMIT - first.length - planned.length);
-  return [...first, ...filler, ...planned];
+  return items.slice(0, TODO_LIMIT);
 }
 
 /** "Perlu tindakan" (D6): at most three whole-row items, "Buka Tinjau · N", or one calm line. */

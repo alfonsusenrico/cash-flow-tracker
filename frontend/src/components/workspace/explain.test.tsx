@@ -291,6 +291,16 @@ describe("ExplanationDialog (Rincian)", () => {
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
   });
 
+  it("ends an over period in what it is over by, then the result Rp 0, never a negative Aman dipakai", () => {
+    const over: RincianData = { ...RINCIAN, over: { label: "Lebih dari uang masuk", amount: "Rp 1.726.424" }, total: { label: "Aman dipakai", amount: "Rp 0" } };
+    render(<ExplanationDialog open onClose={() => {}} data={over} />);
+    const dialog = screen.getByRole("dialog", { name: "Aman dipakai sampai gajian" });
+    expect(lines(dialog).slice(4, 6)).toEqual(["Lebih dari uang masukRp 1.726.424", "Aman dipakaiRp 0"]);
+    expect(dialog.querySelector(".is-over .t-amt")).toHaveTextContent("Rp 1.726.424");
+    expect(dialog.querySelector(".is-total")).toHaveClass("after-over");
+    expect(dialog.querySelector(".is-total .t-fig")).toHaveTextContent("Rp 0");
+  });
+
   it("is centered from 768 px and a bottom sheet below, by the shared dialog rules", () => {
     const css = readFileSync(path.join(__dirname, "../../app/globals.css"), "utf8");
     expect(css).toMatch(/dialog\.shell-dialog \{[^}]*width: min\(var\(--dw, 560px\), calc\(100vw - 48px\)\);[^}]*margin: auto;/);

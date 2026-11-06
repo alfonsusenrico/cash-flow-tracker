@@ -27,7 +27,7 @@ export function heroLine(summary: CycleSummary, money: Money): string {
   return unavailableReason(summary).line;
 }
 
-/** The supporting figures' captions (D4, owner decisions 9 and 10). */
+/** The supporting figures' captions (D4, owner decisions 9 and 10), each short enough for one line. */
 export function legendCaptions(summary: CycleSummary) {
   const cycle = summary.period.basis === "cycle";
   const start = shortDate(summary.period.start_date);
@@ -37,7 +37,7 @@ export function legendCaptions(summary: CycleSummary) {
     masuk: cycle ? `Gaji ${start}` : monthStart(summary),
     spending: cycle ? `sejak gaji ${start}` : monthStart(summary),
     saving: savingTotal < 0 ? "Tabungan berkurang" : "Tabungan bertambah",
-    scheduled: `${setAsides ? "tagihan & setoran" : "tagihan"} sampai ${shortDate(summary.scheduled.window_end)}`,
+    scheduled: setAsides ? `termasuk setoran · ${shortDate(summary.scheduled.window_end)}` : `tagihan sampai ${shortDate(summary.scheduled.window_end)}`,
   };
 }
 

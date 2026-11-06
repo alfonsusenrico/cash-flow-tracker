@@ -22,6 +22,8 @@ export interface RincianData {
   title: string;
   rule: string;
   lines: RincianLine[];
+  /** When the period is over: what it is over by, shown before the total. */
+  over?: { label: string; amount: string } | null;
   total: { label: string; amount: string };
   notes: string[];
   /** The rows still waiting for an answer, listed under the notes. */
@@ -137,8 +139,18 @@ export function ExplanationDialog({ open, onClose, data }: { open: boolean; onCl
             {data.lines.map((line) => (
               <LineRow key={line.key} line={line} />
             ))}
+            {data.over && (
+              <li>
+                <div className="row is-plain is-over">
+                  <span className="r-main">
+                    <span className="r-title t-strong">{data.over.label}</span>
+                  </span>
+                  <MaskedMoney text={data.over.amount} className="t-amt" />
+                </div>
+              </li>
+            )}
             <li>
-              <div className="row is-plain is-total">
+              <div className={data.over ? "row is-plain is-total after-over" : "row is-plain is-total"}>
                 <span className="r-main">
                   <span className="r-title t-strong">{data.total.label}</span>
                 </span>

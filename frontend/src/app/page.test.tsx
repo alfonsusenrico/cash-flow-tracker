@@ -260,7 +260,7 @@ describe("Beranda hero", () => {
     expect(figureOf(hero, "Masuk")).toHaveTextContent("MasukRp 9.800.000Gaji 25 Okt");
     expect(figureOf(hero, "Pengeluaran")).toHaveTextContent("PengeluaranRp 2.364.500sejak gaji 25 Okt");
     expect(figureOf(hero, "Ditabung & investasi")).toHaveTextContent("Ditabung & investasiRp 800.000Tabungan bertambah");
-    expect(figureOf(hero, "Terjadwal")).toHaveTextContent("TerjadwalRp 1.713.500tagihan & setoran sampai 24 Nov");
+    expect(figureOf(hero, "Terjadwal")).toHaveTextContent("TerjadwalRp 1.713.500termasuk setoran · 24 Nov");
     expect(figureOf(hero, "Masuk")).toHaveClass("is-phone-hide");
     expect(figureOf(hero, "Terjadwal")).toHaveClass("is-phone-hide");
     expect(within(hero).getByRole("img")).toHaveAccessibleName(
@@ -316,6 +316,10 @@ describe("Beranda hero", () => {
     expect(hero.querySelector(".hero-sub")).toHaveTextContent("Siklus ini sudah lebih Rp 300.000 dari uang masuk");
     expect(hero).not.toHaveTextContent("−Rp 300.000");
     const { dialog } = await openRincian(hero);
+    expect(rowTexts(dialog).slice(4, 6)).toEqual(["Lebih dari uang masukRp 300.000", "Aman dipakaiRp 0"]);
+    expect(dialog.querySelector(".is-over")).toHaveClass("row");
+    expect(dialog.querySelector(".is-total .t-fig")).toHaveTextContent(/^Rp 0$/);
+    expect(dialog).not.toHaveTextContent(/Aman dipakai\s*−/);
     expect(dialog).toHaveTextContent("Periode ini sudah lebih Rp 300.000 dari uang masuk, jadi belum ada yang aman dipakai.");
   });
 
@@ -329,7 +333,8 @@ describe("Beranda hero", () => {
       "Aman dipakaiRp 4.922.000", "Menunggu jawaban · Rp 581.000",
     ]);
     expect(dialog).toHaveTextContent("Gaji berikutnya diperkirakan 25 November, dari gaji yang dikonfirmasi tanggal 25 Agu, 25 Sep, 25 Okt.");
-    expect(dialog).toHaveTextContent("4 hal (Rp 581.000) masih menunggu jawaban; Rp 357.000 di antaranya sudah termasuk.");
+    expect(dialog).toHaveTextContent("4 hal (Rp 581.000) masih menunggu jawaban. Rp 357.000 di antaranya sudah termasuk.");
+    expect(dialog.querySelector(".is-over")).toBeNull();
     expect(within(dialog).getByRole("link", { name: "Lihat transaksi siklus ini" })).toHaveAttribute("href", "/ledger?period=cycle");
   });
 
@@ -387,29 +392,55 @@ describe("Beranda hero", () => {
 });
 
 describe("Perlu tindakan", () => {
-  it("lists at most three whole-row items: the question, the awaiting transfers, then the plan, with Buka Tinjau and the count", async () => {
+  it("lists the first three items: the question, the awaiting transfers, then the group, with Buka Tinjau and the count", async () => {
     await beranda();
     const section = region("Perlu tindakan");
     await waitFor(() => expect(rowTexts(section)).toHaveLength(3));
     expect(rowTexts(section)).toEqual([
       "QRIS 0812-xxxxBelum dikenali · hari ini 16.05−Rp 45.000",
       "Pasangkan 2 pindah saldoPindah saldo belum lengkap · RDN Contoh",
-      "StreamioBesok · RencanaRp 65.000",
+      "Toko Serba AdaPerlu jawaban · 1 transaksi · 1 Nov 19.20−Rp 312.000",
     ]);
     const rows = within(section).getAllByRole("link").filter((link) => link.classList.contains("row"));
-    expect(rows.map((row) => row.getAttribute("href"))).toEqual(["/review?item=qris#review-questions", "/review?item=rdn-1#review-awaiting", "/goals"]);
+    expect(rows.map((row) => row.getAttribute("href"))).toEqual([
+      "/review?item=qris#review-questions", "/review?item=rdn-1#review-awaiting", "/review?item=toko#review-groups",
+    ]);
+    // The plan due tomorrow ranks last and is reached through the bell and Target & Tagihan.
+    expect(section).not.toHaveTextContent("Streamio");
     expect(within(section).getByRole("link", { name: "Buka Tinjau · 4" })).toHaveAttribute("href", "/review");
-    expect(section).not.toHaveTextContent(/menunggu jawaban|dicatat otomatis|Jawab|Pasangkan$|Selesai/);
+    expect(section).not.toHaveTextContent(/menunggu jawaban|dicatat otomatis|Jawab|Selesai/);
     expect(section.querySelector(".ws-act, .ws-pill")).toBeNull();
     expect(section.querySelectorAll(".r-ico svg[aria-hidden=true]")).toHaveLength(3);
   });
 
-  it("fills free places with review items when fewer plans are due", async () => {
-    plans = [];
+  it("ranks overdue and due-today plans above the automatic-link check and the pairing row", async () => {
+    plans = [{ ...plan, id: "yoga", name: "Kelas Yoga", amount: 150_000, next_due_date: "2026-10-31" }, { ...plan, id: "spay", name: "Tagihan SPayLater",
+      amount: 434_000, next_due_date: "2026-11-02" }, { ...plan, next_due_date: "2026-11-03" }];
+    reviewQueue = { ...queue, groups: [] };
+    const base = vi.mocked(api.get).getMockImplementation()!;
+    const linked = { rule_id: "auto", scheduled_for: "2026-11-01", linked_at: "2026-11-01T03:00:00Z", name: "Streaming Contoh", amount: 65_000,
+      type: "expense", transaction_id: "kopi", transaction_date: "2026-11-01T02:00:00Z", account_name: "Dompet Digital" };
+    vi.mocked(api.get).mockImplementation(async (path: string) => (path === "/recurring/pending" ? { rules: [], recent_auto_links: [linked] } : base(path)));
     await beranda();
     const section = region("Perlu tindakan");
-    await waitFor(() => expect(rowTexts(section)).toHaveLength(3));
-    expect(rowTexts(section)[2]).toBe("Toko Serba AdaPerlu jawaban · 1 transaksi · 1 Nov 19.20−Rp 312.000");
+    await waitFor(() => expect(rowTexts(section)).toEqual([
+      "QRIS 0812-xxxxBelum dikenali · hari ini 16.05−Rp 45.000",
+      "Kelas YogaLewat jatuh tempo · RencanaRp 150.000",
+      "Tagihan SPayLaterJatuh tempo hari ini · RencanaRp 434.000",
+    ]));
+    expect(section).not.toHaveTextContent(/ditautkan otomatis|Pasangkan|Streamio/);
+  });
+
+  it("shows the automatic-link check and an upcoming plan once nothing ranks above them", async () => {
+    reviewQueue = { ...queue, questions: [], groups: [], awaiting: [] };
+    const base = vi.mocked(api.get).getMockImplementation()!;
+    const linked = { rule_id: "auto", scheduled_for: "2026-11-01", linked_at: "2026-11-01T03:00:00Z", name: "Streaming Contoh", amount: 65_000,
+      type: "expense", transaction_id: "kopi", transaction_date: "2026-11-01T02:00:00Z", account_name: "Dompet Digital" };
+    vi.mocked(api.get).mockImplementation(async (path: string) => (path === "/recurring/pending" ? { rules: [], recent_auto_links: [linked] } : base(path)));
+    await beranda();
+    const section = region("Perlu tindakan");
+    await waitFor(() => expect(rowTexts(section)).toEqual(["1 rencana ditautkan otomatisCek dan batalkan kalau keliru", "StreamioBesok · RencanaRp 65.000"]));
+    expect(within(section).getByRole("link", { name: /^Streamio/ })).toHaveAttribute("href", "/goals");
   });
 
   it("opens Rencana jatuh tempo from a plan due today, as a centered dialog", async () => {
