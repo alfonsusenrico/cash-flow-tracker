@@ -26,7 +26,7 @@ def lock_owned_accounts(
         SELECT a.id, a.user_id, a.name, a.type, a.instrument_type,
                a.initial_balance, a.units, a.avg_buy_price, a.last_price,
                a.parent_id, a.default_pocket_id, a.default_funding_account_id, a.instrument_symbol, a.is_archived,
-               a.investment_tracking_mode, a.investment_cost_basis, a.credit_limit, a.payment_day, a.role,
+               a.investment_tracking_mode, a.investment_cost_basis, a.credit_limit, a.payment_day, a.statement_day, a.role,
                EXISTS (SELECT 1 FROM accounts child WHERE child.parent_id = a.id) AS has_children,
                a.reconciliation_required,
                EXISTS (

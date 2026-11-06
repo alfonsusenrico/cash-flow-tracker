@@ -18,6 +18,8 @@ from app.services.balance_check import check_balance, record_match
 from app.services.credit_accounts import (
     CREDIT_TYPE, credit_owed, is_credit, over_limit, refuse, validate_credit_fields,
 )
+from app.services import credit_bills
+from app.services.credit_bills import keep_past_due_dates, load_schedules, next_due_summary
 from app.services.ledger_mutations import get_locked_ledger_balance, lock_owned_accounts
 from app.services.investment_topups import convert_product_to_amount, initialize_amount_tracking
 from app.services.provenance import system_provenance
@@ -38,6 +40,8 @@ class AccountCreate(BaseModel):
     initial_balance: int = Field(default=0, ge=-(10**15), le=10**15)
     credit_limit: int | None = Field(default=None, gt=0, le=10**15)
     payment_day: int | None = Field(default=None, ge=1, le=31)
+    # The day the credit bill is issued (add-credit-spending-flow D2); 1 is assumed when empty.
+    statement_day: int | None = Field(default=None, ge=1, le=31)
     parent_id: UUID | None = None
     default_funding_account_id: UUID | None = None
     default_pocket_id: UUID | None = None
@@ -58,6 +62,8 @@ class AccountUpdate(BaseModel):
     is_archived: bool | None = None
     credit_limit: int | None = Field(default=None, gt=0, le=10**15)
     payment_day: int | None = Field(default=None, ge=1, le=31)
+    # The day the credit bill is issued (add-credit-spending-flow D2); 1 is assumed when empty.
+    statement_day: int | None = Field(default=None, ge=1, le=31)
     parent_id: UUID | None = None
     default_funding_account_id: UUID | None = None
     default_pocket_id: UUID | None = None
@@ -123,6 +129,7 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
                     a.created_at,
                     a.credit_limit,
                     a.payment_day,
+                    a.statement_day,
                     a.role,
                     (
                         a.initial_balance 
@@ -226,8 +233,14 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
             "reconciliation_discrepancy": 0 if r.get("type") == CREDIT_TYPE else min(0, ledger_balance),
             "credit_limit": int(r["credit_limit"]) if r.get("credit_limit") is not None else None,
             "payment_day": r.get("payment_day"),
+            "statement_day": r.get("statement_day"),
             "credit_owed": credit_owed(balance) if r.get("type") == CREDIT_TYPE else None,
             "over_limit": over_limit(balance, r.get("credit_limit")) if r.get("type") == CREDIT_TYPE else False,
+            # May be negative over the limit (add-credit-spending-flow D12, H8).
+            "limit_left": (
+                int(r["credit_limit"]) - credit_owed(balance)
+                if r.get("type") == CREDIT_TYPE and r.get("credit_limit") is not None else None
+            ),
             "role": r.get("role"),
             "kind": account_kind(r),
             "is_archived": r.get("is_archived", False),
@@ -344,6 +357,7 @@ async def sync_prices_endpoint(_: dict = Depends(get_current_user)):
 @router.get("")
 def list_accounts(include_archived: bool = False, current_user: dict = Depends(get_current_user)):
     accounts = get_accounts_with_balances(current_user["id"], include_archived)
+    attach_next_due(current_user["id"], accounts, include_archived)
     # Total balance sums only top-level accounts (parent_id IS NULL) to prevent duplicate counting
     total_balance = sum(a["balance"] for a in accounts if not a["is_archived"] and a["parent_id"] is None)
     return {
@@ -351,6 +365,17 @@ def list_accounts(include_archived: bool = False, current_user: dict = Depends(g
         "accounts": accounts,
         "total_balance": total_balance,
     }
+
+
+def attach_next_due(user_id: str, accounts: list[dict[str, Any]], include_archived: bool) -> None:
+    """Each credit row's next bill with something left to pay, or None; other rows get None."""
+    schedules = {}
+    if any(is_credit(account) for account in accounts):
+        with db_conn() as conn, conn.cursor() as cur:
+            schedules = load_schedules(cur, user_id, credit_bills.local_today(), include_archived=include_archived)
+    for account in accounts:
+        schedule = schedules.get(account["id"])
+        account["next_due"] = next_due_summary(schedule) if schedule else None
 
 
 @router.post("/list")
@@ -433,7 +458,7 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
         raise HTTPException(status_code=400, detail="A new account cannot select a default pocket before its child pockets exist")
     validate_credit_fields(
         account_type=payload.type, parent_id=parent_id, initial_balance=payload.initial_balance,
-        credit_limit=payload.credit_limit, payment_day=payload.payment_day,
+        credit_limit=payload.credit_limit, payment_day=payload.payment_day, statement_day=payload.statement_day,
     )
     if payload.type == CREDIT_TYPE and (payload.instrument_type or payload.instrument_symbol or payload.units):
         raise refuse("credit_fields_not_allowed")
@@ -510,13 +535,13 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                 INSERT INTO accounts (
                     user_id, parent_id, default_funding_account_id, default_pocket_id, name, type, initial_balance,
                     instrument_type, instrument_symbol, units, avg_buy_price,
-                    last_price, last_price_at, color, display_order, credit_limit, payment_day, role
+                    last_price, last_price_at, color, display_order, credit_limit, payment_day, statement_day, role
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, parent_id, default_funding_account_id, default_pocket_id, name, type, initial_balance,
                           instrument_type, instrument_symbol, units, avg_buy_price,
                           last_price, last_price_at, color, display_order, is_archived, created_at,
-                          credit_limit, payment_day, role
+                          credit_limit, payment_day, statement_day, role
                 """,
                 (
                     user_id,
@@ -536,6 +561,7 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                     payload.display_order or 0,
                     payload.credit_limit,
                     payload.payment_day,
+                    payload.statement_day,
                     role,
                 ),
             )
@@ -599,8 +625,13 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
             "cost_basis": total_cost,
             "credit_limit": int(row["credit_limit"]) if row.get("credit_limit") is not None else None,
             "payment_day": row.get("payment_day"),
+            "statement_day": row.get("statement_day"),
             "credit_owed": credit_owed(bal) if row.get("type") == CREDIT_TYPE else None,
             "over_limit": over_limit(bal, row.get("credit_limit")) if row.get("type") == CREDIT_TYPE else False,
+            "limit_left": (
+                int(row["credit_limit"]) - credit_owed(bal)
+                if row.get("type") == CREDIT_TYPE and row.get("credit_limit") is not None else None
+            ),
             "color": row.get("color") or "#3b82f6",
             "display_order": int(row.get("display_order") or 0),
             "role": row.get("role"),
@@ -678,6 +709,9 @@ async def update_account(
     if "payment_day" in payload.model_fields_set:
         updates.append("payment_day = %s")
         params.append(payload.payment_day)
+    if "statement_day" in payload.model_fields_set:
+        updates.append("statement_day = %s")
+        params.append(payload.statement_day)
 
     if not updates and "default_pocket_id" not in payload.model_fields_set and payload.role is None:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -720,10 +754,17 @@ async def update_account(
             final_payment_day = (
                 payload.payment_day if "payment_day" in payload.model_fields_set else curr_acc.get("payment_day")
             )
+            final_statement_day = (
+                payload.statement_day if "statement_day" in payload.model_fields_set else curr_acc.get("statement_day")
+            )
             validate_credit_fields(
                 account_type=final_type, parent_id=final_parent_id, initial_balance=int(curr_acc["initial_balance"]),
-                credit_limit=final_limit, payment_day=final_payment_day,
+                credit_limit=final_limit, payment_day=final_payment_day, statement_day=final_statement_day,
             )
+            days_change = (final_payment_day, final_statement_day) != (curr_acc.get("payment_day"), curr_acc.get("statement_day"))
+            if is_credit(curr_acc) and days_change:
+                # Bills already due keep their dates; only bills not yet due move (add-credit-spending-flow D2).
+                keep_past_due_dates(cur, user_id, curr_acc, credit_bills.local_today())
             if final_type == CREDIT_TYPE and final_instrument_type:
                 raise refuse("credit_fields_not_allowed")
             final_role = resolve_role_on_update(
