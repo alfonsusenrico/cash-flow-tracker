@@ -106,35 +106,44 @@ def queue_item(row: dict) -> dict[str, Any]:
     }
 
 
-def group_identity(row: dict) -> tuple[str, str, str]:
-    """(kind, key, label) of the group a queue row belongs to.
+# The fixed fallback labels of a group, by the key the web renders them from (add-language-system D7).
+FALLBACK_LABELS = {"undescribed": "Tanpa keterangan", "uncategorized": "Tanpa kategori"}
+
+
+def group_identity(row: dict) -> tuple[str, str, str, str | None]:
+    """(kind, key, label, label_key) of the group a queue row belongs to.
 
     Rows group by merchant; without one, by the notification's text signature (phase 3 match key),
     then by notes, then by category. The key includes the type, so every group can be recategorised
-    into one category kind.
+    into one category kind. `label_key` names the fixed fallback when the label is not user data.
     """
     merchant_key = merchant_match_key(row["merchant"])
     if merchant_key:
-        return "merchant", f"{row['type']}|{merchant_key}", row["merchant"]
+        return "merchant", f"{row['type']}|{merchant_key}", row["merchant"], None
     notes = (row["notes"] or "").strip()
     match_key = row.get("match_key") or ""
     if match_key.startswith("signature:"):
-        return "signature", f"{row['type']}|{match_key}", notes or "Tanpa keterangan"
+        if notes:
+            return "signature", f"{row['type']}|{match_key}", notes, None
+        return "signature", f"{row['type']}|{match_key}", FALLBACK_LABELS["undescribed"], "undescribed"
     if notes:
-        return "notes", f"{row['type']}|" + f"notes:{normalize_key_text(notes)}"[:MATCH_KEY_MAX_LENGTH], notes
+        return "notes", f"{row['type']}|" + f"notes:{normalize_key_text(notes)}"[:MATCH_KEY_MAX_LENGTH], notes, None
     category = str(row["category_id"]) if row["category_id"] else "none"
-    return "category", f"{row['type']}|category:{category}", row["category_name"] or "Tanpa kategori"
+    if row["category_name"]:
+        return "category", f"{row['type']}|category:{category}", row["category_name"], None
+    return "category", f"{row['type']}|category:{category}", FALLBACK_LABELS["uncategorized"], "uncategorized"
 
 
 def build_groups(rows: list[dict]) -> list[dict[str, Any]]:
     groups: dict[str, dict[str, Any]] = {}
     for row in rows:
-        kind, key, label = group_identity(row)
+        kind, key, label, label_key = group_identity(row)
         group = groups.get(key)
         if group is None:
             group = groups[key] = {
                 "key": key, "kind": kind, "type": row["type"],
-                "label": label, "count": 0, "total": 0, "needs_review_count": 0, "auto_count": 0,
+                "label": label, "label_source": "system" if label_key else "user", "label_key": label_key,
+                "count": 0, "total": 0, "needs_review_count": 0, "auto_count": 0,
                 "first_date": None, "last_date": None, "reasons": [], "category_ids": set(),
                 "transactions": [],
             }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
+import { useInterfaceLang } from "@/components/workspace/untranslated";
 import { cn } from "@/lib/utils";
 
 interface ConfirmActionButtonProps {
@@ -22,6 +24,8 @@ export function ConfirmActionButton({
   disabled = false,
   stopPropagation = false,
 }: ConfirmActionButtonProps) {
+  const t = useTranslations("common");
+  const lang = useInterfaceLang();
   const [isConfirming, setIsConfirming] = useState(false);
   const stopEventPropagation = (event: React.MouseEvent) => {
     if (stopPropagation) event.stopPropagation();
@@ -56,8 +60,9 @@ export function ConfirmActionButton({
         }}
         disabled={disabled}
         className="min-h-11 rounded-md bg-[var(--danger-solid)] px-2.5 text-xs font-semibold text-[var(--danger-contrast)] hover:bg-[var(--danger-solid-hover)]"
+        lang={lang}
       >
-        Ya, lanjutkan
+        {t("confirm")}
       </button>
       <button
         type="button"
@@ -66,8 +71,9 @@ export function ConfirmActionButton({
           setIsConfirming(false);
         }}
         className="min-h-11 rounded-md border border-[var(--line)] px-2.5 text-xs font-semibold text-[var(--muted)]"
+        lang={lang}
       >
-        Batal
+        {t("cancel")}
       </button>
     </span>
   );

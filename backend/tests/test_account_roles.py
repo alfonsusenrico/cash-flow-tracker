@@ -225,7 +225,9 @@ def test_rdn_as_dana_investasi(owner):
     rdn_owner(owner)
     net = owner.summary()["net_worth"]
     assert (net["liquid"], net["dana_investasi"]) == (18_450_000, 1_200_000)
-    assert {"key": "dana_investasi", "label": "Dana investasi", "amount": 1_200_000} in net["lines"]
+    assert {
+        "key": "dana_investasi", "label": "Dana investasi", "label_source": "system", "amount": 1_200_000,
+    } in net["lines"]
     rekening = owner.session.get(NET_WORTH).json()
     assert (rekening["liquid"], rekening["dana_investasi"]) == (18_450_000, 1_200_000)
     assert rekening["runway"]["balance_basis"] == "all_liquid"

@@ -61,7 +61,7 @@ function Analysis() {
   return (
     <div className={styles.root}>
       <PageActions>
-        <PeriodStepper unit={basis === "month" ? "Bulan" : "Siklus"} label={label ?? "Memuat…"} offset={offset} onChange={setCycleOffset} />
+        <PeriodStepper unit={basis === "month" ? "Bulan" : "Siklus"} label={label} offset={offset} onChange={setCycleOffset} />
       </PageActions>
       <div className={styles.toolbar}>
         <div className={styles.tabs} role="tablist" aria-label="Analisis" onKeyDown={onTabKey}>

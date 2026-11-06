@@ -274,7 +274,9 @@ def test_credit_owed_is_utang_in_net_worth(owner):
     net = owner.summary()["net_worth"]
     assert net["liquid"] == 10_000_000 and net["investment"] == 0 and net["credit_owed"] == 470_000
     assert net["total"] == 10_000_000 - 2_200_200 - 470_000
-    assert {"key": f"credit:{owner['credit']}", "label": "PayLater Contoh", "amount": -470_000} in net["lines"]
+    assert {
+        "key": f"credit:{owner['credit']}", "label": "PayLater Contoh", "label_source": "user", "amount": -470_000,
+    } in net["lines"]
     page = owner.session.get("/api/dashboard/net-worth").json()
     assert page["net_worth"] == net["total"] and page["total_liabilities"] == 2_670_200
     assert page["credit_owed"] == 470_000

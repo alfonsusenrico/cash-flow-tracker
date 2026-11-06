@@ -15,12 +15,28 @@ SYSTEM_KEYS = (INVESTMENT, INTERNAL_MOVEMENT, BALANCE_ADJUSTMENT)
 # Neither spending nor income in any report, whatever the category is named.
 NON_REPORTABLE_KEYS = (INTERNAL_MOVEMENT, INVESTMENT)
 
-# The names a system category is created with; after that the owner may rename it freely.
-SEED_NAMES = {
-    INVESTMENT: "Investasi",
-    INTERNAL_MOVEMENT: "Internal Movement",
-    BALANCE_ADJUSTMENT: "Penyesuaian Saldo",
+# The names a system category is created with, in the account's language (add-language-system D15); after
+# that the owner may rename it freely, and switching language never renames it.
+SEED_NAMES_BY_LANGUAGE = {
+    "id": {
+        INVESTMENT: "Investasi",
+        INTERNAL_MOVEMENT: "Internal Movement",
+        BALANCE_ADJUSTMENT: "Penyesuaian Saldo",
+    },
+    "en": {
+        INVESTMENT: "Investments",
+        INTERNAL_MOVEMENT: "Transfer",
+        BALANCE_ADJUSTMENT: "Balance adjustment",
+    },
 }
+# The Indonesian names: every account created before languages existed, and the parser's hint vocabulary.
+SEED_NAMES = SEED_NAMES_BY_LANGUAGE["id"]
+
+
+def seed_names(language: str | None) -> dict[str, str]:
+    """System category seed names for an account language; Indonesian for an unknown one, as before V53."""
+    return SEED_NAMES_BY_LANGUAGE.get(language or "id", SEED_NAMES)
+
 
 # The parser's `category_hint` values that stand for a system category rather than a category name (D7).
 HINT_KEYS = {
@@ -74,6 +90,8 @@ def hint_key(hint: str | None) -> str | None:
 def ensure_system_category(cur, user_id: str, key: str, kind: str) -> str:
     """The owner's category with `key` and `kind`, created with its seed name when none exists (D5).
 
+    The seed name is the one of the owner's account language at creation (add-language-system D15).
+
     A user category of that kind that already holds the seed name (created by the owner after the
     migration, when the keyed one had been renamed or deleted) is adopted by setting its key, as the
     adjustment helper always updated a same-name row. Either way the row is excluded from budget and has
@@ -102,12 +120,15 @@ def ensure_system_category(cur, user_id: str, key: str, kind: str) -> str:
                 (user_id, row["id"]),
             )
         return str(row["id"])
+    cur.execute("SELECT language FROM users WHERE id = %s", (user_id,))
+    owner = cur.fetchone()
+    name = seed_names(owner["language"] if owner else None)[key]
     cur.execute(
         f"""INSERT INTO categories (user_id, name, icon, color, kind, kakeibo_type, is_excluded_from_budget, system_key)
             VALUES (%s, %s, %s, %s, %s, NULL, TRUE, %s)
             ON CONFLICT (user_id, name, kind) DO UPDATE
             SET system_key = EXCLUDED.system_key, is_excluded_from_budget = TRUE, kakeibo_type = NULL{unarchive}
             RETURNING id""",
-        (user_id, SEED_NAMES[key], spec["icon"], spec["color"], kind, key),
+        (user_id, name, spec["icon"], spec["color"], kind, key),
     )
     return str(cur.fetchone()["id"])

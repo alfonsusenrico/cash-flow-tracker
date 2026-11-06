@@ -151,7 +151,7 @@ export function TransactionDrawer({
 
   return (
     <>
-      <Drawer open={open} onClose={onClose} title={title} subtitle={subtitle}>
+      <Drawer open={open} onClose={onClose} title={title} subtitle={subtitle} untranslated>
         {detail.isLoading && (
           <div className="flex flex-col gap-3" aria-busy="true">
             <Skeleton className="h-16" />

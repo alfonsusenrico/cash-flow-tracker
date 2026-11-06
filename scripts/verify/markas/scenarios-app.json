@@ -18,7 +18,7 @@
   "beranda": true,
   "steps": [
    {
-    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp)"
+    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp|Breakdown of safe to spend until payday|Safe to spend until payday [−-]?Rp)"
    }
   ]
  },
@@ -28,10 +28,10 @@
   "beranda": true,
   "steps": [
    {
-    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp)"
+    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp|Breakdown of safe to spend until payday|Safe to spend until payday [−-]?Rp)"
    },
    {
-    "click": "^Pengeluaran"
+    "click": "^(Pengeluaran|Spending)"
    }
   ]
  },
@@ -44,7 +44,7 @@
   "beranda": true,
   "steps": [
    {
-    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp)"
+    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp|Breakdown of safe to spend until payday|Safe to spend until payday [−-]?Rp)"
    }
   ]
  },
@@ -582,7 +582,7 @@
   "shell": true,
   "steps": [
    {
-    "click": "^Notifikasi"
+    "click": "^(Notifikasi|Notifications)"
    }
   ]
  },
@@ -592,7 +592,7 @@
   "shell": true,
   "steps": [
    {
-    "click": "^Tema$"
+    "click": "^(Tema|Theme)$"
    }
   ],
   "cells": [
@@ -606,10 +606,10 @@
   "shell": true,
   "steps": [
    {
-    "click": "^Lainnya$"
+    "click": "^(Lainnya|More)$"
    },
    {
-    "click": "^Tema"
+    "click": "^(Tema|Theme)"
    }
   ],
   "cells": [
@@ -623,7 +623,7 @@
   "shell": true,
   "steps": [
    {
-    "click": "^Akun "
+    "click": "^(Akun |Profile, )"
    }
   ],
   "cells": [
@@ -637,7 +637,7 @@
   "shell": true,
   "steps": [
    {
-    "click": "^Lainnya$"
+    "click": "^(Lainnya|More)$"
    }
   ],
   "cells": [
@@ -694,6 +694,23 @@
     "eval": "fetch('/api/ingest/test-sessions/current',{credentials:'include'}).then((r)=>r.json()).then((d)=> d.session && d.session.status==='open' ? 'open' : fetch('/api/ingest/test-sessions',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({duration_minutes:60})}).then((r)=>r.status)).then((s)=>{ location.reload(); return String(s); })",
     "after": 3500
    }
-  ]
+  ],
+  "cleanup": "fetch('/api/ingest/test-sessions/current',{credentials:'include'}).then((r)=>r.json()).then((d)=> d.session && d.session.status==='open' ? fetch('/api/ingest/test-sessions/'+d.session.id+'/end',{method:'POST',credentials:'include'}).then((r)=>'ended '+r.status) : 'none')"
+ },
+ {
+  "name": "masuk",
+  "path": "/auth/login",
+  "signedOut": true
+ },
+ {
+  "name": "daftar",
+  "path": "/auth/login",
+  "signedOut": true,
+  "steps": [
+   {
+    "click": "^(Daftar sekarang|Create one)$"
+   }
+  ],
+  "full": true
  }
 ]

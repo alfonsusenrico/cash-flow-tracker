@@ -11,7 +11,6 @@ import { replaceSearch } from "@/lib/urlState";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
 import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
-import { ALL_LIQUID_NOTICE } from "@/components/dashboard/EmergencyCoverage";
 import { Card, CardHeader, ErrorState, Pill, Skeleton, type Tone } from "@/components/workspace/primitives";
 import { Modal } from "@/components/ui/Modal";
 import { PageActions } from "@/components/workspace/context";
@@ -20,6 +19,8 @@ import type { NetWorthResponse } from "@/components/accounts/types";
 import styles from "@/components/accounts/money.module.css";
 import { useGoalDialogs } from "./GoalDialogs";
 import type { GoalItem, ObligationItem } from "./types";
+
+const ALL_LIQUID_NOTICE = "Belum ada dana darurat khusus — dihitung dari seluruh saldo kas";
 
 // The plans editor loads when it is opened, so the page's first load does not carry it (gate D18).
 const RecurringRulesModal = dynamic(() => import("@/components/recurring/RecurringRulesModal").then((module) => module.RecurringRulesModal), { ssr: false });

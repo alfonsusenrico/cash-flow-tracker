@@ -19,6 +19,9 @@
     const pass = typeof expected === "number" ? Math.abs(Number(value) - expected) <= tolerance : value === expected;
     checks.push({ check, value, expected, pass });
   };
+  // The page's language picks the expected copy; every measurement is the same in both (add-language-system D16).
+  const english = document.documentElement.lang === "en";
+  const say = (indonesian, englishText) => (english ? englishText : indonesian);
   const first = (selectors) => {
     for (const selector of selectors.split("|")) {
       const found = [...document.querySelectorAll(selector)].find((element) => element.getBoundingClientRect().width > 0);
@@ -54,7 +57,7 @@
       const name = first(".sb-brand .name");
       if (name) add("brand name", font(name), "Manrope 14/20 600");
       const labels = [...document.querySelectorAll(".sb-group > .t-label")];
-      add("group labels", labels.map((label) => label.textContent.trim().toUpperCase()).join(" "), "HARIAN RINGKASAN SIMPANAN");
+      add("group labels", labels.map((label) => label.textContent.trim().toUpperCase()).join(" "), say("HARIAN RINGKASAN SIMPANAN", "DAILY OVERVIEW MONEY"));
       if (!rail && labels[0]) {
         add("group label type", `${font(labels[0])} ${style(labels[0]).textTransform} ${style(labels[0]).letterSpacing}`, "Inter 12/16 500 uppercase 0.72px");
         add("group label colour", style(labels[0]).color, colour("muted"));
@@ -63,7 +66,16 @@
       const items = [...document.querySelectorAll(".sb .nav-item")].filter((item) => box(item).width > 0);
       add("nav items", items.length, 8);
       const labelOf = (item) => (item.querySelector(".lbl") || item).textContent.trim();
-      add("nav item labels", items.map(labelOf).join(" · "), "Beranda · Tinjau · Transaksi · Analisis · Laporan · Rekening & Kantong · Target & Tagihan · Pengaturan");
+      add("nav item labels", items.map(labelOf).join(" · "), say(
+        "Beranda · Tinjau · Transaksi · Analisis · Laporan · Rekening & Kantong · Target & Tagihan · Pengaturan",
+        "Home · Review · Transactions · Analysis · Reports · Accounts & Pockets · Goals & Bills · Settings",
+      ));
+      // English may not wrap a sidebar label: each stays on one line without an ellipsis (add-language-system D16).
+      if (!rail) {
+        const wrapped = items.map((item) => item.querySelector(".lbl")).filter((label) => label && (label.getClientRects().length > 1
+          || label.scrollWidth > label.clientWidth + 1 || box(label).height > parseFloat(style(label).lineHeight) + 1));
+        add("sidebar labels on one line", wrapped.map((label) => label.textContent.trim()).join(" · "), "");
+      }
       const resting = items.find((item) => item.getAttribute("aria-current") !== "page");
       if (resting) {
         add("nav item height", px(box(resting).height), 36);
@@ -109,7 +121,7 @@
       add("search key cap", Boolean(first(".topbar .search .kbd|.topbar .search .ws-kbd")), true);
       const names = [...bar.querySelectorAll("button")].filter((button) => box(button).width > 0)
         .map((button) => (button.getAttribute("aria-label") || button.textContent).trim().replace(/, .*$/, ""));
-      add("top bar actions", names.join(" · "), "Sembunyikan saldo · Tema · Notifikasi · Catat");
+      add("top bar actions", names.join(" · "), say("Sembunyikan saldo · Tema · Notifikasi · Catat", "Hide balances · Theme · Notifications · Add"));
       add("top bar has no heading", bar.querySelectorAll("h1, h2").length, 0);
       // The shell and the title block; page bodies keep their own buttons until their phase.
       const primary = [...document.querySelectorAll(".btn-primary, .ws-btn-accent, .ws-btn-ink")].filter(
@@ -133,7 +145,7 @@
       const targets = [...header.querySelectorAll("a, button")].filter((element) => !element.classList.contains("brand"));
       // The bell widens with its count; every target is at least 44 × 44.
       add("phone header targets ≥ 44 × 44", targets.every((element) => box(element).width >= 44 && box(element).height >= 44), true);
-      add("phone header controls", targets.map((element) => (element.getAttribute("aria-label") || "").replace(/, .*$/, "")).join(" · "), "Cari transaksi · Sembunyikan saldo · Notifikasi");
+      add("phone header controls", targets.map((element) => (element.getAttribute("aria-label") || "").replace(/, .*$/, "")).join(" · "), say("Cari transaksi · Sembunyikan saldo · Notifikasi", "Search transactions · Hide balances · Notifications"));
     }
     const tabs = first(".tabbar");
     if (tabs) {
@@ -141,7 +153,7 @@
       add("tab bar fill", style(tabs).backgroundColor, colour("s1"));
       add("tab bar line", `${style(tabs).borderTopWidth} ${style(tabs).borderTopColor}`, `1px ${colour("line")}`);
       const columns = [...tabs.children];
-      add("tab labels", columns.map((tab) => tab.textContent.replace(/\d+/g, "").trim()).join(" · "), "Beranda · Tinjau · Catat · Transaksi · Lainnya");
+      add("tab labels", columns.map((tab) => tab.textContent.replace(/\d+/g, "").trim()).join(" · "), say("Beranda · Tinjau · Catat · Transaksi · Lainnya", "Home · Review · Add · Transactions · More"));
       const current = columns.find((tab) => tab.getAttribute("aria-current") === "page");
       if (current) {
         const mark = style(current, "::before");
@@ -177,7 +189,9 @@
     // On the phone the actions wrap under the title, so the y is only fixed for a title block without actions.
     const hasActions = [...title.querySelectorAll(".tb-actions > *")].some((child) => box(child).width > 0);
     // 192 at 1440 with a one-line subtitle (168 without); a subtitle that wraps on a narrow screen adds its lines.
-    const extraLines = sub ? Math.round((box(sub).height - 20) / 20) * 20 : 0;
+    const note = title.querySelector(".untranslated-note");
+    // An untranslated page's notice line adds its own height and gap (add-language-system D10).
+    const extraLines = (sub ? Math.round((box(sub).height - 20) / 20) * 20 : 0) + (note ? box(note).height + 4 : 0);
     const expectedY = (phone ? (sub ? 56 + 24 + 32 + 4 + 20 + 24 : 56 + 24 + 32 + 24) : sub ? 192 : 168) + extraLines;
     if (next && !(phone && hasActions)) add("first content y", px(box(next).top + scrollY), expectedY, 1);
     const page = first("main");
@@ -190,7 +204,7 @@
     const actions = title.querySelector(".tb-actions");
     if (actions) {
       const visible = [...actions.children].filter((child) => box(child).width > 0);
-      add("visible actions (≤ 2 + …)", visible.filter((child) => !/Tindakan lain/.test(child.getAttribute("aria-label") || "")).length <= 2 || visible.length <= 2, true);
+      add("visible actions (≤ 2 + …)", visible.filter((child) => !/^(Tindakan lain|More actions)$/.test(child.getAttribute("aria-label") || "")).length <= 2 || visible.length <= 2, true);
     }
   }
   // Nothing in the page may reach past the frame's right edge, except inside its own horizontal scroller. The

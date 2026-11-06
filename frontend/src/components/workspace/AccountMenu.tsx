@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useWorkspace } from "./context";
 import { MenuPanel } from "./Menu";
 
@@ -15,6 +16,7 @@ export function initialsOf(name: string): string {
  * "Sembunyikan saldo" sits in the top bar and Pengaturan in the sidebar foot.
  */
 export function AccountMenu() {
+  const t = useTranslations("shell");
   const { username, displayName, logout } = useWorkspace();
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
@@ -27,7 +29,7 @@ export function AccountMenu() {
         ref={button}
         type="button"
         className="user-btn"
-        aria-label={`Akun ${name}`.trim()}
+        aria-label={name ? t("profileButton", { name }) : t("profileMenu")}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
@@ -45,7 +47,7 @@ export function AccountMenu() {
         open={open}
         anchorRef={button}
         onClose={() => setOpen(false)}
-        label="Akun"
+        label={t("profileMenu")}
         id={menuId}
         width={240}
         header={
@@ -58,8 +60,8 @@ export function AccountMenu() {
           </>
         }
         entries={[
-          { key: "profil", label: "Profil", icon: "settings", href: "/settings/profil" },
-          { key: "keluar", label: "Keluar", icon: "logout", onSelect: logout },
+          { key: "profil", label: t("profile"), icon: "settings", href: "/settings/profil" },
+          { key: "keluar", label: t("signOut"), icon: "logout", onSelect: logout },
         ]}
       />
     </>

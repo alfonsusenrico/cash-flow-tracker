@@ -1,6 +1,8 @@
 "use client";
 
 import { Icon, type IconName } from "@/components/ui/Icon";
+import { INDONESIAN_ROW_LABELS, type RowLabels } from "@/components/transactions/rowLabels";
+import { createFormat, type Format } from "@/lib/format";
 import { kakeiboBucketInfo } from "@/lib/kakeibo";
 import { isMovementCategory } from "@/lib/systemCategories";
 import type { ActivityRow } from "./types";
@@ -52,8 +54,11 @@ function ownLegIsTarget(row: ActivityRow): boolean {
   return row.movement_role ? row.movement_role === "inbound" : row.type === "income";
 }
 
-/** The label of a movement whose other leg is not known yet (OD114). */
-export const UNPAIRED_LABEL = "Pasangan belum ditemukan";
+/** The Indonesian label of a movement whose other leg is not known yet (OD114), for pages not translated yet. */
+export const UNPAIRED_LABEL = INDONESIAN_ROW_LABELS.unpaired;
+
+/** Formats of the pages not translated yet: Indonesian, region Indonesia. */
+const INDONESIAN_FORMAT = createFormat({ language: "id", region: "ID" });
 
 export function routeIncomplete(row: ActivityRow): boolean {
   if (rowKind(row) !== "movement") return false;
@@ -65,25 +70,24 @@ export function routeIncomplete(row: ActivityRow): boolean {
  * A movement seen from the account a list is filtered to (design D3): "Masuk dari …" when the money came in,
  * "Keluar ke …" when it left. Merged rows only exist in unfiltered lists, so the row's own leg is the viewed one.
  */
-export function movementDirection(row: ActivityRow): string {
+export function movementDirection(row: ActivityRow, labels: RowLabels = INDONESIAN_ROW_LABELS): string {
   const route = movementRoute(row);
   const ownIsTarget = ownLegIsTarget(row);
   const other = ownIsTarget ? route.source : route.target;
-  if (!other) return UNPAIRED_LABEL;
-  return ownIsTarget ? `Masuk dari ${other}` : `Keluar ke ${other}`;
+  if (!other) return labels.unpaired;
+  return ownIsTarget ? labels.inFrom(other) : labels.outTo(other);
 }
 
-export function rowTitle(row: ActivityRow): string {
+export function rowTitle(row: ActivityRow, labels: RowLabels = INDONESIAN_ROW_LABELS): string {
   const kind = rowKind(row);
-  if (kind === "topup") return "Top up Investasi";
+  if (kind === "topup") return labels.investmentTopUp;
   if (kind === "movement") {
     const route = movementRoute(row);
     return `${route.source ?? "?"} → ${route.target ?? "?"}`;
   }
-  return row.merchant || row.notes || row.category_name || "Tanpa keterangan";
+  return row.merchant || row.notes || row.category_name || labels.undescribed;
 }
 
-const JAKARTA_TIME = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 const JAKARTA_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });
 
 export function jakartaDay(value: Date | string): string {
@@ -91,26 +95,22 @@ export function jakartaDay(value: Date | string): string {
 }
 
 /** Status cell: waiting rows say so instead of a pillar; movements are not counted. */
-export function rowStatus(row: ActivityRow): { text: string; bucket: string; color?: string } {
+export function rowStatus(row: ActivityRow, labels: RowLabels = INDONESIAN_ROW_LABELS): { text: string; bucket: string; color?: string } {
   const kind = rowKind(row);
-  if (isWaiting(row)) return { text: "Menunggu jawaban", bucket: "waiting" };
-  if (kind === "movement") return { text: "Tidak dihitung", bucket: "none" };
-  if (kind === "income") return { text: "Uang masuk", bucket: "none" };
-  if (kind === "topup") {
-    const info = kakeiboBucketInfo("saving");
-    return { text: info?.label ?? "Tabungan", bucket: "saving", color: info?.color };
-  }
+  if (isWaiting(row)) return { text: labels.waiting, bucket: "waiting" };
+  if (kind === "movement") return { text: labels.notCounted, bucket: "none" };
+  if (kind === "income") return { text: labels.income, bucket: "none" };
+  if (kind === "topup") return { text: labels.bucket("saving"), bucket: "saving", color: kakeiboBucketInfo("saving")?.color };
   const bucket = row.kakeibo_type || "unclassified";
-  const info = kakeiboBucketInfo(bucket);
-  return { text: info?.label ?? bucket, bucket, color: info?.color };
+  return { text: labels.bucket(bucket), bucket, color: kakeiboBucketInfo(bucket)?.color };
 }
 
 /** Category cell: the owner's category name; "—" where the pillar text already says what the row is. */
-export function rowCategory(row: ActivityRow): string {
+export function rowCategory(row: ActivityRow, labels: RowLabels = INDONESIAN_ROW_LABELS): string {
   const kind = rowKind(row);
   if (kind === "movement" || kind === "topup") return "—";
   if (row.category_name) return row.category_name;
-  return isWaiting(row) ? "—" : "Tanpa kategori";
+  return isWaiting(row) ? "—" : labels.noCategory;
 }
 
 const AVATAR: Record<RowKind | "waiting", { icon: IconName | null; tone: string }> = {
@@ -145,16 +145,14 @@ export function RowAmount({ row, bal }: { row: ActivityRow; bal: (amount: number
   return <span className="ws-amt-out">−{bal(row.amount)}</span>;
 }
 
-const SHORT_DAY = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
-
 /** Day and time on the right of a row, e.g. "3 Nov · 21.04". */
-export function rowWhen(row: ActivityRow): string {
-  return `${SHORT_DAY.format(new Date(row.date))} · ${JAKARTA_TIME.format(new Date(row.date))}`;
+export function rowWhen(row: ActivityRow, format: Format = INDONESIAN_FORMAT): string {
+  return `${format.shortDateAt(row.date)} · ${format.time(row.date)}`;
 }
 
 /** The row's time in Asia/Jakarta, such as "18.23"; the day is in the day heading. */
-export function rowTime(row: ActivityRow): string {
-  return JAKARTA_TIME.format(new Date(row.date));
+export function rowTime(row: ActivityRow, format: Format = INDONESIAN_FORMAT): string {
+  return format.time(row.date);
 }
 
 /**
@@ -183,16 +181,16 @@ export function groupByDay(rows: ActivityRow[]): ActivityDay[] {
 }
 
 /** The desktop meta beside the title: the account with its bank, or what a movement says about itself. */
-export function activityMeta(row: ActivityRow): { text: string; warning?: boolean } {
+export function activityMeta(row: ActivityRow, labels: RowLabels = INDONESIAN_ROW_LABELS): { text: string; warning?: boolean } {
   const kind = rowKind(row);
-  if (kind === "movement") return routeIncomplete(row) ? { text: UNPAIRED_LABEL, warning: true } : { text: row.notes ?? "" };
+  if (kind === "movement") return routeIncomplete(row) ? { text: labels.unpaired, warning: true } : { text: row.notes ?? "" };
   return { text: accountLabel(row.account_name, row.account_parent_name) ?? "" };
 }
 
 /** The phone's second line after the time: the pillar, the income's category, or the movement. */
-export function activityPhoneStatus(row: ActivityRow): { text: string; warning?: boolean } {
+export function activityPhoneStatus(row: ActivityRow, labels: RowLabels = INDONESIAN_ROW_LABELS): { text: string; warning?: boolean } {
   const kind = rowKind(row);
-  if (kind === "income") return { text: row.category_name ?? rowStatus(row).text };
-  if (kind === "movement") return routeIncomplete(row) ? { text: UNPAIRED_LABEL, warning: true } : { text: "Pindah saldo" };
-  return { text: rowStatus(row).text };
+  if (kind === "income") return { text: row.category_name ?? rowStatus(row, labels).text };
+  if (kind === "movement") return routeIncomplete(row) ? { text: labels.unpaired, warning: true } : { text: labels.transfer };
+  return { text: rowStatus(row, labels).text };
 }

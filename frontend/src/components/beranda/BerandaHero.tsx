@@ -1,43 +1,38 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useAppCtx } from "@/components/layout/AppLayout";
 import { ExplanationDialog } from "@/components/workspace/ExplanationDialog";
 import { FigureBlock, HeroFigure, SplitBar } from "@/components/workspace/figures";
-import { MaskedMoney } from "@/components/workspace/money";
-import { type Money, safeAmountRincian, shortDate, unavailableReason } from "./explanations";
+import { MaskedMoney, useMoney } from "@/components/workspace/money";
+import type { Words } from "@/lib/i18n/types";
+import { type Money, periodBasis, safeAmountRincian, unavailableReason } from "./explanations";
 import type { CycleSummary } from "./types";
-
-const MONTH_NAME = new Intl.DateTimeFormat("id-ID", { month: "long", timeZone: "UTC" });
-
-function monthStart(summary: CycleSummary): string {
-  return `sejak 1 ${MONTH_NAME.format(new Date(`${summary.period.start_date}T00:00:00Z`))}`;
-}
+import { useWords } from "./words";
 
 /** The hero's one line (D3): the days to the expected salary, by how much the period is over, or why not known. */
-export function heroLine(summary: CycleSummary, money: Money): string {
+export function heroLine(summary: CycleSummary, money: Money, words: Words): string {
+  const { t, format } = words;
   const { safe_to_spend: safe, remaining, expected_salary: expected } = summary;
-  if (remaining.total < 0) {
-    const period = summary.period.basis === "cycle" ? "Siklus ini" : "Bulan ini";
-    return `${period} sudah lebih ${money(-remaining.total)} dari uang masuk`;
-  }
+  if (remaining.total < 0) return t("home.over", { period: periodBasis(summary), amount: money(-remaining.total) });
   if (safe.status === "available" && safe.days_left !== null && expected.date) {
-    return `${safe.days_left} hari lagi sampai gajian ${shortDate(expected.date)}`;
+    return t("home.daysUntilPayday", { days: safe.days_left, date: format.shortDate(expected.date) });
   }
-  return unavailableReason(summary).line;
+  return unavailableReason(summary, words).line;
 }
 
 /** The supporting figures' captions (D4, owner decisions 9 and 10), each short enough for one line. */
-export function legendCaptions(summary: CycleSummary) {
+export function legendCaptions(summary: CycleSummary, { t, format }: Words) {
   const cycle = summary.period.basis === "cycle";
-  const start = shortDate(summary.period.start_date);
+  const start = format.shortDate(summary.period.start_date);
+  const monthStart = t("home.captionSinceMonth", { month: format.monthName(summary.period.start_date) });
   const savingTotal = summary.tabungan ? summary.tabungan.total : summary.fresh_saving.amount;
   const setAsides = summary.scheduled.lines.some((line) => line.kind === "goal" && line.amount > 0);
+  const windowEnd = format.shortDate(summary.scheduled.window_end);
   return {
-    masuk: cycle ? `Gaji ${start}` : monthStart(summary),
-    spending: cycle ? `sejak gaji ${start}` : monthStart(summary),
-    saving: savingTotal < 0 ? "Tabungan berkurang" : "Tabungan bertambah",
-    scheduled: setAsides ? `termasuk setoran · ${shortDate(summary.scheduled.window_end)}` : `tagihan sampai ${shortDate(summary.scheduled.window_end)}`,
+    masuk: cycle ? t("home.captionSalary", { start }) : monthStart,
+    spending: cycle ? t("home.captionSinceSalary", { start }) : monthStart,
+    saving: savingTotal < 0 ? t("home.captionSavingsDown") : t("home.captionSavingsUp"),
+    scheduled: setAsides ? t("home.captionWithDeposits", { date: windowEnd }) : t("home.captionBillsUntil", { date: windowEnd }),
   };
 }
 
@@ -46,30 +41,30 @@ export function legendCaptions(summary: CycleSummary) {
  * and the four supporting figures. Every figure is a server field; the client only orders and formats them.
  */
 export function BerandaHero({ summary }: { summary: CycleSummary }) {
-  const { bal } = useAppCtx();
-  const money: Money = (amount) => bal(amount);
+  const words = useWords();
+  const { t } = words;
+  const money: Money = useMoney();
   const [open, setOpen] = useState(false);
   const opener = useRef<HTMLButtonElement>(null);
   const { masuk, spending, fresh_saving: saving, scheduled, remaining } = summary;
   const free = Math.max(0, remaining.total);
-  const captions = legendCaptions(summary);
-  const word = summary.period.basis === "cycle" ? "siklus ini" : "bulan ini";
+  const captions = legendCaptions(summary, words);
+  const period = periodBasis(summary);
   const close = () => {
     setOpen(false);
     opener.current?.focus();
   };
   const segments = [
-    { key: "spending", label: "Pengeluaran", amount: spending.amount, color: "var(--out-solid)" },
+    { key: "spending", label: t("terms.spending"), amount: spending.amount, color: "var(--out-solid)" },
     // A savings decrease takes no width in the bar; its caption names the direction in words.
-    { key: "saving", label: "Ditabung & investasi", amount: Math.max(0, saving.amount), color: "var(--inv-solid)" },
-    { key: "scheduled", label: "Terjadwal", amount: scheduled.total, color: "var(--warn-solid)" },
-    { key: "safe", label: "Aman dipakai", amount: free, color: "var(--in-solid)" },
+    { key: "saving", label: t("terms.savedInvested"), amount: Math.max(0, saving.amount), color: "var(--inv-solid)" },
+    { key: "scheduled", label: t("terms.scheduled"), amount: scheduled.total, color: "var(--warn-solid)" },
+    { key: "safe", label: t("terms.safeToSpend"), amount: free, color: "var(--in-solid)" },
   ];
-  const uang = `Uang ${word}`;
   return (
     <HeroFigure
       id="beranda-safe"
-      label="Aman dipakai sampai gajian"
+      label={t("terms.safeToSpendUntilPayday")}
       mark="var(--in-solid)"
       action={
         <button
@@ -78,28 +73,33 @@ export function BerandaHero({ summary }: { summary: CycleSummary }) {
           className="ws-btn ws-btn-quiet ws-btn-sm"
           aria-haspopup="dialog"
           aria-expanded={open}
-          aria-label="Rincian aman dipakai sampai gajian"
+          aria-label={t("home.breakdownButton")}
           onClick={() => setOpen(true)}
         >
-          Rincian
+          {t("terms.breakdown")}
         </button>
       }
       figure={<MaskedMoney text={money(free)} />}
-      line={heroLine(summary, money)}
+      line={heroLine(summary, money, words)}
     >
-      <SplitBar label={`${uang} dari ${money(masuk.total)} masuk`} emptyLabel={`${uang}: belum ada uang masuk`} total={masuk.total} segments={segments} />
+      <SplitBar
+        label={t("home.splitName", { period, income: money(masuk.total) })}
+        emptyLabel={t("home.splitEmpty", { period })}
+        total={masuk.total}
+        segments={segments}
+      />
       <div className="legend">
-        <FigureBlock label="Masuk" figure={<MaskedMoney text={money(masuk.total)} />} caption={captions.masuk} phoneHidden />
-        <FigureBlock label="Pengeluaran" mark="var(--out-solid)" figure={<MaskedMoney text={money(spending.amount)} />} caption={captions.spending} />
+        <FigureBlock label={t("terms.income")} figure={<MaskedMoney text={money(masuk.total)} />} caption={captions.masuk} phoneHidden />
+        <FigureBlock label={t("terms.spending")} mark="var(--out-solid)" figure={<MaskedMoney text={money(spending.amount)} />} caption={captions.spending} />
         <FigureBlock
-          label="Ditabung & investasi"
+          label={t("terms.savedInvested")}
           mark="var(--inv-solid)"
           figure={<MaskedMoney text={money(Math.abs(saving.amount))} />}
           caption={captions.saving}
         />
-        <FigureBlock label="Terjadwal" mark="var(--warn-solid)" figure={<MaskedMoney text={money(scheduled.total)} />} caption={captions.scheduled} phoneHidden />
+        <FigureBlock label={t("terms.scheduled")} mark="var(--warn-solid)" figure={<MaskedMoney text={money(scheduled.total)} />} caption={captions.scheduled} phoneHidden />
       </div>
-      <ExplanationDialog open={open} onClose={close} data={open ? safeAmountRincian(summary, money) : null} />
+      <ExplanationDialog open={open} onClose={close} data={open ? safeAmountRincian(summary, money, words) : null} />
     </HeroFigure>
   );
 }

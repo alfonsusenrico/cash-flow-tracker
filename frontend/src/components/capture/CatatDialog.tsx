@@ -148,7 +148,7 @@ export default function CatatDialog({ open, onClose, onManual }: { open: boolean
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Catat transaksi">
+    <Modal open={open} onClose={onClose} title="Catat transaksi" untranslated>
       <div className="ws-catat space-y-3">
         {!capture && (
           <form onSubmit={submit} className="space-y-3">

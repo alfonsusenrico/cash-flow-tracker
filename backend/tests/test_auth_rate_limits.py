@@ -84,7 +84,7 @@ def test_registration_rate_limit_is_client_scoped_and_generic(monkeypatch):
     monkeypatch.setattr(
         auth_router,
         "register_user",
-        lambda *_args: (_ for _ in ()).throw(HTTPException(status_code=400, detail="Invalid invite code")),
+        lambda *_args, **_fields: (_ for _ in ()).throw(HTTPException(status_code=400, detail="Invalid invite code")),
     )
 
     client = TestClient(app, base_url="https://testserver")

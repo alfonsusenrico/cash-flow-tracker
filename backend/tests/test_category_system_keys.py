@@ -153,7 +153,7 @@ def bare_owner(client):
     user_id = str(uuid4())
     with db_conn() as conn:
         conn.execute(
-            "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Sari Contoh', 'synthetic', 'TEST')",
+            "INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Sari Contoh', 'synthetic', 'TEST', 'id')",
             (user_id, f"ensure_{uuid4().hex}"),
         )
         conn.commit()

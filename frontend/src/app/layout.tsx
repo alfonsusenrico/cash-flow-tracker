@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
+import { IntlProvider } from "@/i18n/IntlProvider";
 import "./globals.css";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/layout/AppShell";
@@ -24,30 +26,37 @@ const manrope = localFont({
   weight: "600",
 });
 
-export const metadata: Metadata = {
-  title: PRODUCT_NAME,
-  description: "Catatan uang harian: berapa yang keluar, berapa yang aman dipakai, dan apa yang perlu dijawab.",
-  icons: {
-    icon: "/icon.png",
-    apple: "/icon.png",
-  },
-};
+/** The title is the product name; the description is in the resolved language (add-language-system D12). */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("shell");
+  return {
+    title: PRODUCT_NAME,
+    description: t("metadataDescription"),
+    icons: {
+      icon: "/icon.png",
+      apple: "/icon.png",
+    },
+  };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   return (
-    <html lang="id" className={`${inter.variable} ${manrope.variable}`} suppressHydrationWarning>
+    <html lang={locale} className={`${inter.variable} ${manrope.variable}`} suppressHydrationWarning>
       <head>
         {/* Applies the stored theme before the first paint (CSP allows inline scripts: 'unsafe-inline'). */}
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body>
-        <Providers>
-          <AppShell>{children}</AppShell>
-        </Providers>
+        <IntlProvider locale={locale} messages={messages}>
+          <Providers>
+            <AppShell>{children}</AppShell>
+          </Providers>
+        </IntlProvider>
       </body>
     </html>
   );

@@ -8,8 +8,10 @@ from fastapi import Depends, HTTPException, Request
 from passlib.hash import bcrypt
 
 from app.core.config import settings
+from app.core.errors import coded_error
 from app.db.init_db import seed_user_defaults
 from app.db.pool import db_conn
+from app.services.language import DEFAULT_LANGUAGE, DEFAULT_REGION
 
 
 def hash_token(plain: str) -> str:
@@ -35,17 +37,21 @@ def register_user(
     password: str,
     invite_code: str,
     name: str | None = None,
+    language: str = DEFAULT_LANGUAGE,
+    region: str = DEFAULT_REGION,
 ) -> dict[str, Any]:
     username = username.strip().lower()
     if not username:
-        raise HTTPException(status_code=400, detail="Username is required")
+        raise coded_error(400, "username_required", "Username is required")
     if len(password) < settings.password_min_len:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Password must be at least {settings.password_min_len} characters",
+        raise coded_error(
+            400,
+            "password_too_short",
+            f"Password must be at least {settings.password_min_len} characters",
+            {"min": settings.password_min_len},
         )
     if invite_code != settings.invite_code:
-        raise HTTPException(status_code=400, detail="Invalid invite code")
+        raise coded_error(400, "invalid_invite_code", "Invalid invite code")
 
     password_hash = bcrypt.hash(password)
     plain_key, key_hash, key_prefix = generate_api_key()
@@ -55,15 +61,15 @@ def register_user(
             # Check unique username
             cur.execute("SELECT id FROM users WHERE username = %s", (username,))
             if cur.fetchone():
-                raise HTTPException(status_code=409, detail="Username already exists")
+                raise coded_error(409, "username_taken", "Username already exists")
 
             cur.execute(
                 """
-                INSERT INTO users (username, name, password_hash, invite_code)
-                VALUES (%s, %s, %s, %s)
-                RETURNING id, username, name, payday_day, currency, created_at
+                INSERT INTO users (username, name, password_hash, invite_code, language, region)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id, username, name, payday_day, currency, language, region, created_at
                 """,
-                (username, name.strip() if name else None, password_hash, invite_code),
+                (username, name.strip() if name else None, password_hash, invite_code, language, region),
             )
             user = cur.fetchone()
             user_id = str(user["id"])
@@ -78,8 +84,8 @@ def register_user(
             )
             conn.commit()
 
-    # Seed starter categories and default accounts
-    seed_user_defaults(user_id)
+    # Seed starter categories and default accounts, named in the account's language (D15)
+    seed_user_defaults(user_id, user["language"])
 
     return {
         "id": user_id,
@@ -87,6 +93,8 @@ def register_user(
         "name": user.get("name") or user["username"],
         "payday_day": user["payday_day"],
         "currency": user["currency"],
+        "language": user["language"],
+        "region": user["region"],
         "api_key": plain_key,
     }
 
@@ -96,19 +104,21 @@ def authenticate_user(username: str, password: str) -> dict[str, Any]:
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, username, password_hash, payday_day, currency FROM users WHERE username = %s",
+                "SELECT id, username, password_hash, payday_day, currency, language, region FROM users WHERE username = %s",
                 (username,),
             )
             user = cur.fetchone()
 
     if not user or not bcrypt.verify(password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        raise coded_error(401, "invalid_credentials", "Invalid username or password")
 
     return {
         "id": str(user["id"]),
         "username": user["username"],
         "payday_day": user["payday_day"],
         "currency": user["currency"],
+        "language": user["language"],
+        "region": user["region"],
     }
 
 
@@ -119,6 +129,8 @@ def _user_view(user: dict[str, Any]) -> dict[str, Any]:
         "name": user.get("name") or user["username"],
         "payday_day": user["payday_day"],
         "currency": user["currency"],
+        "language": user["language"],
+        "region": user["region"],
         "emergency_fund_multiplier": user.get("emergency_fund_multiplier", 6),
         "monthly_spending_budget": user.get("monthly_spending_budget"),
         "name_aliases": list(user.get("name_aliases") or []),
@@ -132,7 +144,7 @@ def _session_user(request: Request) -> dict[str, Any] | None:
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, username, name, name_aliases, payday_day, currency, emergency_fund_multiplier, monthly_spending_budget FROM users WHERE id = %s",
+                "SELECT id, username, name, name_aliases, payday_day, currency, language, region, emergency_fund_multiplier, monthly_spending_budget FROM users WHERE id = %s",
                 (session["user_id"],),
             )
             user = cur.fetchone()
@@ -154,7 +166,7 @@ def get_current_user(request: Request) -> dict[str, Any]:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        SELECT u.id, u.username, u.name, u.name_aliases, u.payday_day, u.currency, u.emergency_fund_multiplier, u.monthly_spending_budget, k.id AS key_id
+                        SELECT u.id, u.username, u.name, u.name_aliases, u.payday_day, u.currency, u.language, u.region, u.emergency_fund_multiplier, u.monthly_spending_budget, k.id AS key_id
                         FROM api_keys k
                         JOIN users u ON u.id = k.user_id
                         WHERE k.key_hash = %s AND k.revoked_at IS NULL

@@ -29,8 +29,9 @@ export function HeroFigure({
   return (
     <section className="hero" aria-labelledby={id}>
       <div className="hero-top">
-        <span className="sw-bar" style={{ background: mark }} aria-hidden="true" />
+        {/* Inside the label so it stays 3 px above its first line when a longer language wraps it. */}
         <h2 className="t-label" id={id}>
+          <span className="sw-bar" style={{ background: mark }} aria-hidden="true" />
           {label}
         </h2>
         {action}

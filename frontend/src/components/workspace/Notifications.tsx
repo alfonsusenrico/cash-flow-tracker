@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { useWorkspace, type WorkspaceNotification } from "./context";
 import { Popover } from "./Menu";
@@ -52,9 +53,6 @@ export function useNotificationSeen(notifications: WorkspaceNotification[]) {
   return { unreadIds, markSeen };
 }
 
-export function bellLabel(unread: number): string {
-  return unread ? `Notifikasi, ${unread} baru` : "Notifikasi, tidak ada yang baru";
-}
 
 /** The notifications popover (400 px; a bottom sheet on the phone) with an unread dot per new item (D6, D7). */
 export function NotificationsPanel({
@@ -66,6 +64,7 @@ export function NotificationsPanel({
   anchorRef: RefObject<HTMLElement | null>;
   onClose: () => void;
 }) {
+  const t = useTranslations("shell");
   const { notifications, unreadIds, markNotificationsSeen, openDuePlans } = useWorkspace();
   const panelRef = useRef<HTMLDivElement>(null);
   // The dots show what was new when the bell opened; opening marks everything as seen.
@@ -96,14 +95,14 @@ export function NotificationsPanel({
   );
 
   return (
-    <Popover open={open} anchorRef={anchorRef} onClose={close} width={400} role="dialog" label="Notifikasi" panelRef={panelRef} trapFocus>
+    <Popover open={open} anchorRef={anchorRef} onClose={close} width={400} role="dialog" label={t("notifications")} panelRef={panelRef} trapFocus>
       <div className="popover-head">
-        <span className="t-label popover-h">Notifikasi</span>
-        <button type="button" className="ws-icon-btn popover-close" aria-label="Tutup notifikasi" onClick={() => close(true)}>
+        <span className="t-label popover-h">{t("notifications")}</span>
+        <button type="button" className="ws-icon-btn popover-close" aria-label={t("closeNotifications")} onClick={() => close(true)}>
           <Icon name="x" className="h-4 w-4" />
         </button>
       </div>
-      {notifications.length === 0 && <p className="t-body muted popover-empty">Belum ada yang baru.</p>}
+      {notifications.length === 0 && <p className="t-body muted popover-empty">{t("nothingNew")}</p>}
       {notifications.map((item) => {
         const unread = shownUnread.has(item.id);
         const body = (
@@ -112,7 +111,7 @@ export function NotificationsPanel({
             <span className="n-main">
               <span className="t-body n-title">
                 {item.title}
-                {unread && <span className="sr-only"> (baru)</span>}
+                {unread && <span className="sr-only"> {t("newMark")}</span>}
               </span>
               <span className="t-meta">{item.detail}</span>
             </span>
@@ -146,6 +145,7 @@ export function NotificationsPanel({
 
 /** The bell with its muted count of new items; it opens the notifications popover. */
 export function NotificationBell({ iconSize, id }: { iconSize: 16 | 20; id?: string }) {
+  const t = useTranslations("shell");
   const { unreadIds } = useWorkspace();
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
@@ -157,7 +157,7 @@ export function NotificationBell({ iconSize, id }: { iconSize: 16 | 20; id?: str
         id={id}
         type="button"
         className="ws-icon-btn bell"
-        aria-label={bellLabel(unread)}
+        aria-label={unread ? t("bellUnread", { unread: String(unread) }) : t("bellNothingNew")}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}

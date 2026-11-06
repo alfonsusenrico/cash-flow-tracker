@@ -1,0 +1,161 @@
+{
+ "differing": 2,
+ "scenes": {
+  "beranda": {
+   "lines": 109,
+   "names": 25,
+   "textSame": true,
+   "namesSame": true,
+   "steps": {
+    "before": [],
+    "after": []
+   }
+  },
+  "rincian": {
+   "lines": 128,
+   "names": 26,
+   "textSame": true,
+   "namesSame": true,
+   "steps": {
+    "before": [
+     "clicked"
+    ],
+    "after": [
+     "clicked"
+    ]
+   }
+  },
+  "rincian-lines": {
+   "lines": 184,
+   "names": 26,
+   "textSame": true,
+   "namesSame": true,
+   "steps": {
+    "before": [
+     "clicked",
+     "clicked",
+     "clicked",
+     "clicked",
+     "clicked",
+     "clicked"
+    ],
+    "after": [
+     "clicked",
+     "clicked",
+     "clicked",
+     "clicked",
+     "clicked",
+     "clicked"
+    ]
+   }
+  },
+  "notifikasi": {
+   "lines": 124,
+   "names": 27,
+   "textSame": true,
+   "namesSame": true,
+   "steps": {
+    "before": [
+     "clicked"
+    ],
+    "after": [
+     "clicked"
+    ]
+   }
+  },
+  "akun": {
+   "lines": 113,
+   "names": 26,
+   "textSame": true,
+   "namesSame": true,
+   "steps": {
+    "before": [
+     "clicked"
+    ],
+    "after": [
+     "clicked"
+    ]
+   }
+  },
+  "bantuan": {
+   "lines": 120,
+   "names": 26,
+   "textSame": true,
+   "namesSame": true,
+   "steps": {
+    "before": [],
+    "after": []
+   }
+  },
+  "lainnya-ponsel": {
+   "lines": 89,
+   "names": 27,
+   "textSame": true,
+   "namesSame": true,
+   "steps": {
+    "before": [
+     "clicked"
+    ],
+    "after": [
+     "clicked"
+    ]
+   }
+  },
+  "beranda-ponsel": {
+   "lines": 77,
+   "names": 25,
+   "textSame": true,
+   "namesSame": true,
+   "steps": {
+    "before": [],
+    "after": []
+   }
+  },
+  "masuk": {
+   "lines": 8,
+   "names": 1,
+   "textSame": false,
+   "namesSame": false,
+   "steps": {
+    "before": [],
+    "after": []
+   },
+   "onlyBefore": [],
+   "onlyAfter": [
+    "English",
+    "Bahasa Indonesia"
+   ],
+   "namesOnlyBefore": [],
+   "namesOnlyAfter": [
+    "Bahasa"
+   ]
+  },
+  "daftar": {
+   "lines": 15,
+   "names": 1,
+   "textSame": false,
+   "namesSame": false,
+   "steps": {
+    "before": [
+     "clicked"
+    ],
+    "after": [
+     "clicked"
+    ]
+   },
+   "onlyBefore": [],
+   "onlyAfter": [
+    "Wilayah",
+    "Indonesia",
+    "Amerika Serikat",
+    "Mengatur gaya angka dan tanggal. Bahasa hanya mengubah kata.",
+    "English",
+    "Bahasa Indonesia"
+   ],
+   "namesOnlyBefore": [],
+   "namesOnlyAfter": [
+    "Bahasa"
+   ]
+  }
+ }
+}

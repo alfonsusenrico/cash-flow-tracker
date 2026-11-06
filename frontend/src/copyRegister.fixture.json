@@ -1,0 +1,7 @@
+{
+  "id": { "home": { "checked": "Udah dicek", "ok": "Sudah dicek" } },
+  "enFigure": { "terms": { "expenses": "Expenses", "safeToSpend": "Safe to spend" } },
+  "enYour": { "home": { "yourMoney": "Your money" }, "conversation": { "question": "Is this yours?" } },
+  "enLedger": { "home": { "openLedger": "Open ledger" } },
+  "nearDuplicate": { "terms": { "savedInvested": "Saved & invested", "savedAndInvested": "Saved and invested" } }
+}

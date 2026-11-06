@@ -2,25 +2,30 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import type { IconName } from "@/components/ui/Icon";
 import { ListRow, SectionHeader } from "@/components/workspace/lists";
 import { MaskedMoney } from "@/components/workspace/money";
+import type { Words } from "@/lib/i18n/types";
 import type { ReviewQueue } from "@/lib/review";
 import type { AutoLinkedOccurrence, RecurringRule } from "@/types/recurring";
 import { jakartaDay } from "./activity";
-import { shortDate } from "./explanations";
-
-const TIME = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 
 /** At most this many rows under "Perlu tindakan"; the rest is reached through "Buka Tinjau" and the bell (D6). */
 export const TODO_LIMIT = 3;
 
-function when(iso: string | null, today: string): string {
+function when(iso: string | null, today: string, { t, format }: Words): string {
   if (!iso) return "";
   const day = jakartaDay(iso);
-  const time = TIME.format(new Date(iso));
-  if (day === today) return `hari ini ${time}`;
-  return `${shortDate(day)} ${time}`;
+  const time = format.time(iso);
+  if (day === today) return t("home.todayAt", { time });
+  return t("home.dateAt", { date: format.shortDate(day), time });
+}
+
+/** A review group's label: the stored text, or the fixed fallback from its key (add-language-system D7). */
+function groupLabel(group: ReviewQueue["groups"][number], { t }: Words): string {
+  if (group.label_source !== "system") return group.label;
+  return group.label_key === "uncategorized" ? t("terms.noCategory") : t("terms.noDescription");
 }
 
 export interface TodoItem {
@@ -45,6 +50,7 @@ export function todoItems({
   autoLinks,
   today,
   bal,
+  words,
   onOpenPlans,
 }: {
   queue: ReviewQueue | undefined;
@@ -52,15 +58,17 @@ export function todoItems({
   autoLinks: AutoLinkedOccurrence[];
   today: string;
   bal: (amount: number) => string;
+  words: Words;
   onOpenPlans: () => void;
 }): TodoItem[] {
+  const { t, format } = words;
   const signedAmount = (type: "expense" | "income", amount: number) =>
     type === "income" ? { text: `+${bal(amount)}`, income: true } : { text: `−${bal(amount)}` };
   const questions: TodoItem[] = (queue?.questions ?? []).map(({ transaction: tx }) => ({
     key: `q-${tx.id}`,
     icon: "help",
-    title: tx.merchant || tx.notes || "Transaksi tanpa nama",
-    meta: `Belum dikenali · ${when(tx.date, today)}`,
+    title: tx.merchant || tx.notes || t("home.unnamedTransaction"),
+    meta: t("home.notRecognizedWhen", { when: when(tx.date, today, words) }),
     amount: signedAmount(tx.type, tx.amount),
     href: `/review?item=${tx.id}#review-questions`,
   }));
@@ -70,7 +78,7 @@ export function todoItems({
     title: plan.name,
     meta: (
       <>
-        <span className="c-warning">{plan.next_due_date < today ? "Lewat jatuh tempo" : "Jatuh tempo hari ini"}</span> · Rencana
+        <span className="c-warning">{plan.next_due_date < today ? t("home.planOverdue") : t("home.planDueToday")}</span> · {t("home.planMark")}
       </>
     ),
     amount: { text: bal(plan.amount) },
@@ -83,8 +91,8 @@ export function todoItems({
     ? [{
         key: "awaiting",
         icon: "swap",
-        title: `Pasangkan ${awaiting.length} pindah saldo`,
-        meta: `Pindah saldo belum lengkap · ${[...new Set(awaiting.map((item) => item.account_name))].join(", ")}`,
+        title: t("home.pairTransfers", { count: awaiting.length }),
+        meta: t("home.transferNotComplete", { accounts: [...new Set(awaiting.map((item) => item.account_name))].join(", ") }),
         href: `/review?item=${awaiting[0].id}#review-awaiting`,
       }]
     : [];
@@ -93,8 +101,8 @@ export function todoItems({
     ? [{
         key: "ambiguous",
         icon: "swap",
-        title: `${ambiguous.length} pasangan pindah saldo belum pasti`,
-        meta: "Pilih pasangan yang benar",
+        title: t("home.uncertainPairs", { count: ambiguous.length }),
+        meta: t("home.choosePair"),
         href: `/review?item=${ambiguous[0].id}#review-ambiguous`,
       }]
     : [];
@@ -105,8 +113,10 @@ export function todoItems({
       return {
         key: `g-${group.key}`,
         icon: "help",
-        title: group.label,
-        meta: `Perlu jawaban · ${group.needs_review_count} transaksi${first?.date ? ` · ${when(first.date, today)}` : ""}`,
+        title: groupLabel(group, words),
+        meta: first?.date
+          ? t("home.needsAnswerCountWhen", { count: group.needs_review_count, when: when(first.date, today, words) })
+          : t("home.needsAnswerCount", { count: group.needs_review_count }),
         amount: signedAmount(group.type, group.total),
         href: `/review?item=${first?.id ?? group.key}#review-groups`,
       };
@@ -115,8 +125,8 @@ export function todoItems({
     ? [{
         key: "auto-links",
         icon: "calendar",
-        title: `${autoLinks.length} rencana ditautkan otomatis`,
-        meta: "Cek dan batalkan kalau keliru",
+        title: t("home.plansAutoLinked", { count: autoLinks.length }),
+        meta: t("home.checkAutoLinks"),
         onSelect: onOpenPlans,
       }]
     : [];
@@ -127,7 +137,7 @@ export function todoItems({
       key: `p-${plan.id}-${plan.next_due_date}`,
       icon: "calendar",
       title: plan.name,
-      meta: `${plan.next_due_date === tomorrow ? "Besok" : shortDate(plan.next_due_date)} · Rencana`,
+      meta: t("home.planWhen", { when: plan.next_due_date === tomorrow ? t("home.tomorrow") : format.shortDate(plan.next_due_date) }),
       amount: { text: bal(plan.amount) },
       href: "/goals",
     }));
@@ -141,19 +151,20 @@ export function visibleTodoItems(items: TodoItem[]): TodoItem[] {
 
 /** "Perlu tindakan" (D6): at most three whole-row items, "Buka Tinjau · N", or one calm line. */
 export function TodoSection({ attention, items, error }: { attention: number; items: TodoItem[]; error: boolean }) {
+  const t = useTranslations("home");
   const shown = visibleTodoItems(items);
   return (
     <section aria-labelledby="beranda-todo">
       <SectionHeader
         id="beranda-todo"
-        label="Perlu tindakan"
+        label={t("needsAction")}
         aside={
           <Link href="/review" className="ws-linkbtn">
-            {attention > 0 ? `Buka Tinjau · ${attention}` : "Buka Tinjau"}
+            {attention > 0 ? t("openReviewCount", { n: String(attention) }) : t("openReview")}
           </Link>
         }
       />
-      {error && <p className="t-meta">Daftar Tinjau belum bisa dimuat.</p>}
+      {error && <p className="t-meta">{t("reviewLoadError")}</p>}
       {shown.length > 0 ? (
         <ul className="list">
           {shown.map((item) => (
@@ -171,7 +182,7 @@ export function TodoSection({ attention, items, error }: { attention: number; it
           ))}
         </ul>
       ) : (
-        !error && <p className="t-body muted">Tidak ada yang perlu dijawab.</p>
+        !error && <p className="t-body muted">{t("nothingToAnswer")}</p>
       )}
     </section>
   );

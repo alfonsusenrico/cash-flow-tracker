@@ -49,6 +49,11 @@ KELUAR_BUCKETS: tuple[tuple[str, str, str], ...] = (
 
 KakeiboBreakdown = Callable[..., dict[str, Any]]
 
+# Where a line's label comes from (add-language-system D7): a name the owner gave, shown as stored, or fixed
+# wording the web renders from the line's key in the interface language. `label` itself stays Indonesian.
+USER_LABEL = "user"
+SYSTEM_LABEL = "system"
+
 
 def rupiah(amount: int) -> str:
     return "Rp " + f"{amount:,}".replace(",", ".")
@@ -93,6 +98,7 @@ def _masuk(cur, user_id: str, start: datetime, end: datetime, period: str) -> di
         lines.append({
             "key": key,
             "label": row["name"] or "Tanpa kategori",
+            "label_source": USER_LABEL if row["id"] else SYSTEM_LABEL,
             "amount": int(row["amount"]),
             "href": ledger_href(period, type="income", category=key),
         })
@@ -102,17 +108,23 @@ def _masuk(cur, user_id: str, start: datetime, end: datetime, period: str) -> di
 def _keluar(kakeibo: dict[str, Any], offsets, period: str) -> dict[str, Any]:
     lines = []
     for key, label, field in KELUAR_BUCKETS:
+        # `note_codes` carries the same facts as `note`, in the same order, for the web to render (D7).
         notes = []
+        note_codes = []
         if key == "saving":
             notes.append("Termasuk uang yang dipindah ke kantong tabungan atau diinvestasikan")
+            note_codes.append({"code": "includes_savings_moves", "params": {}})
         offset = offsets.for_pillar(key)
         if offset > 0:
             notes.append(f"Sudah dikurangi ganti uang {rupiah(offset)}")
+            note_codes.append({"code": "reduced_by_reimbursements", "params": {"amount": int(offset)}})
         lines.append({
             "key": key,
             "label": label,
+            "label_source": SYSTEM_LABEL,
             "amount": int(kakeibo[field]),
             "note": ". ".join(notes) if notes else None,
+            "note_codes": note_codes,
             "href": ledger_href(period, kakeibo=key),
         })
     total = int(kakeibo["total_allocated"])
@@ -240,6 +252,7 @@ def _goal_lines(
             "kind": "goal",
             "goal_id": goal_id,
             "label": goal["name"],
+            "label_source": USER_LABEL,
             "target_date": goal["target_date"].isoformat(),
             "months_left": months_left,
             "set_aside": set_aside,
@@ -267,21 +280,35 @@ def net_worth_breakdown(cur, user_id: str, accounts: list[dict[str, Any]]) -> di
         (user_id,),
     )
     debts = [{"id": str(row["id"]), "name": row["name"], "amount": int(row["remaining_amount"])} for row in cur.fetchall()]
-    lines = [{"key": "liquid", "label": "Dana likuid", "amount": balances["liquid_balance"]}]
+    lines = [{
+        "key": "liquid", "label": "Dana likuid", "label_source": SYSTEM_LABEL, "amount": balances["liquid_balance"],
+    }]
     if balances["dana_investasi"]:
         # Cash kept for buying investments is an asset of its own, outside Dana likuid (D2).
-        lines.append({"key": "dana_investasi", "label": "Dana investasi", "amount": balances["dana_investasi"]})
-    lines.append({"key": "investment", "label": "Investasi", "amount": balances["investment_balance"]})
+        lines.append({
+            "key": "dana_investasi", "label": "Dana investasi", "label_source": SYSTEM_LABEL,
+            "amount": balances["dana_investasi"],
+        })
+    lines.append({
+        "key": "investment", "label": "Investasi", "label_source": SYSTEM_LABEL,
+        "amount": balances["investment_balance"],
+    })
     if balances["reconciliation_pending"]:
         # Negative balances waiting for reconciliation are kept out of liquid funds but still owed.
         lines.append({
-            "key": "reconciliation_pending", "label": "Saldo minus perlu dicocokkan",
+            "key": "reconciliation_pending", "label": "Saldo minus perlu dicocokkan", "label_source": SYSTEM_LABEL,
             "amount": -balances["reconciliation_pending"],
         })
-    lines += [{"key": f"debt:{debt['id']}", "label": debt["name"], "amount": -debt["amount"]} for debt in debts]
+    lines += [
+        {"key": f"debt:{debt['id']}", "label": debt["name"], "label_source": USER_LABEL, "amount": -debt["amount"]}
+        for debt in debts
+    ]
     # What credit accounts owe is utang next to the debts (add-credit-accounts D4).
     credit_lines = [
-        {"key": f"credit:{account['id']}", "label": account["name"], "amount": -credit_owed(account["own_balance"])}
+        {
+            "key": f"credit:{account['id']}", "label": account["name"], "label_source": USER_LABEL,
+            "amount": -credit_owed(account["own_balance"]),
+        }
         for account in accounts
         if is_credit(account) and credit_owed(account["own_balance"]) > 0
     ]
@@ -405,10 +432,11 @@ def build_cycle_summary(
             window_end, window_basis = expected.date - timedelta(days=1), "expected_salary"
         else:
             window_end, window_basis = today + timedelta(days=SCHEDULE_FALLBACK_DAYS), "next_30_days"
-        scheduled_lines = (
-            unpaid_plan_lines(cur, user_id, payday_day, start_date, window_end, today)
-            + _goal_lines(cur, user_id, accounts, start, end, start_date, today)
-        )
+        plan_lines = [
+            {**line, "label_source": USER_LABEL}
+            for line in unpaid_plan_lines(cur, user_id, payday_day, start_date, window_end, today)
+        ]
+        scheduled_lines = plan_lines + _goal_lines(cur, user_id, accounts, start, end, start_date, today)
         net_worth = net_worth_breakdown(cur, user_id, accounts)
         comparison = _comparison(cur, user_id, kakeibo_breakdown, (start, end, window_label), previous)
 
@@ -418,9 +446,9 @@ def build_cycle_summary(
         raise RuntimeError("Savings change does not match the saving bucket of Keluar")
     scheduled_total = sum(line["amount"] for line in scheduled_lines)
     remaining_lines = [
-        {"key": "masuk", "label": "Masuk", "amount": masuk["total"]},
-        {"key": "keluar", "label": "Keluar", "amount": -keluar["total"]},
-        {"key": "scheduled", "label": "Terjadwal", "amount": -scheduled_total},
+        {"key": "masuk", "label": "Masuk", "label_source": SYSTEM_LABEL, "amount": masuk["total"]},
+        {"key": "keluar", "label": "Keluar", "label_source": SYSTEM_LABEL, "amount": -keluar["total"]},
+        {"key": "scheduled", "label": "Terjadwal", "label_source": SYSTEM_LABEL, "amount": -scheduled_total},
     ]
     remaining = sum(line["amount"] for line in remaining_lines)
 

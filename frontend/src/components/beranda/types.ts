@@ -1,11 +1,23 @@
 import type { KakeiboBucket } from "@/lib/kakeibo";
 
 /** `GET /api/dashboard/cycle-summary` (design D12): every Beranda figure, computed on the server. */
+/** Whether a label is a name the user gave or fixed wording the web renders from its key (add-language-system D7). */
+export type LabelSource = "user" | "system";
+
+/** A note's facts as a code with integer parameters, rendered by the web in the interface language. */
+export interface NoteCode {
+  code: "includes_savings_moves" | "reduced_by_reimbursements";
+  params: { amount?: number };
+}
+
 export interface SummaryLine {
   key: string;
+  /** Today's Indonesian wording; the web shows it only for `label_source` "user". */
   label: string;
+  label_source?: LabelSource;
   amount: number;
   note?: string | null;
+  note_codes?: NoteCode[];
   href?: string | null;
 }
 
@@ -15,6 +27,9 @@ export interface WaitingLine {
   section: WaitingSection;
   transaction_id: string;
   label: string;
+  label_source?: LabelSource;
+  /** The fixed wording of a system label, such as "undescribed". */
+  label_key?: "undescribed" | "uncategorized" | null;
   account_name: string | null;
   type: "expense" | "income";
   date: string;

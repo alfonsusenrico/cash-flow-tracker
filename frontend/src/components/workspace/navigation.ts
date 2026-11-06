@@ -6,11 +6,15 @@ export const PRODUCT_NAME = "CashFlow";
 
 export type NavBadge = "review" | "report";
 
-export type NavGroup = "Harian" | "Ringkasan" | "Simpanan";
+/** A sidebar group; its words are `nav.groups.<key>` (add-language-system D3). */
+export type NavGroup = "daily" | "overview" | "money";
+
+/** A destination's words are `nav.<key>`. */
+export type NavKey = "home" | "review" | "transactions" | "analysis" | "reports" | "accounts" | "goals" | "settings";
 
 export interface NavLink {
   href: string;
-  label: string;
+  key: NavKey;
   icon: IconName;
   badge?: NavBadge;
 }
@@ -28,23 +32,23 @@ export const LEDGER_SEARCH_HREF = "/ledger?fokus=cari";
 
 /** One ordered page list for the sidebar, the rail, the phone tab bar and Lainnya (apply-markas-shell D1). */
 export const NAV_LINKS: GroupedNavLink[] = [
-  { href: "/", label: "Beranda", icon: "home", group: "Harian" },
-  { href: REVIEW_HREF, label: "Tinjau", icon: "inbox", group: "Harian", badge: "review" },
-  { href: LEDGER_NAV_HREF, label: "Transaksi", icon: "list", group: "Harian" },
-  { href: "/insights", label: "Analisis", icon: "chart", group: "Ringkasan" },
-  { href: "/laporan", label: "Laporan", icon: "file", group: "Ringkasan", badge: "report" },
-  { href: "/accounts", label: "Rekening & Kantong", icon: "wallet", group: "Simpanan" },
-  { href: "/goals", label: "Target & Tagihan", icon: "target", group: "Simpanan" },
+  { href: "/", key: "home", icon: "home", group: "daily" },
+  { href: REVIEW_HREF, key: "review", icon: "inbox", group: "daily", badge: "review" },
+  { href: LEDGER_NAV_HREF, key: "transactions", icon: "list", group: "daily" },
+  { href: "/insights", key: "analysis", icon: "chart", group: "overview" },
+  { href: "/laporan", key: "reports", icon: "file", group: "overview", badge: "report" },
+  { href: "/accounts", key: "accounts", icon: "wallet", group: "money" },
+  { href: "/goals", key: "goals", icon: "target", group: "money" },
 ];
 
-const GROUP_ORDER: NavGroup[] = ["Harian", "Ringkasan", "Simpanan"];
+const GROUP_ORDER: NavGroup[] = ["daily", "overview", "money"];
 
-export const NAV_GROUPS: { label: NavGroup; links: GroupedNavLink[] }[] = GROUP_ORDER.map((label) => ({
-  label,
-  links: NAV_LINKS.filter((link) => link.group === label),
+export const NAV_GROUPS: { key: NavGroup; links: GroupedNavLink[] }[] = GROUP_ORDER.map((key) => ({
+  key,
+  links: NAV_LINKS.filter((link) => link.group === key),
 }));
 
-export const SETTINGS_LINK: NavLink = { href: SETTINGS_HOME, label: "Pengaturan", icon: "settings" };
+export const SETTINGS_LINK: NavLink = { href: SETTINGS_HOME, key: "settings", icon: "settings" };
 
 /** Pages on the phone tab bar; every other page sits in "Lainnya". */
 export const PHONE_TAB_HREFS = ["/", REVIEW_HREF, LEDGER_NAV_HREF] as const;
@@ -62,40 +66,17 @@ export function isActivePath(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Words for a count badge, so the number is never colour or position alone. */
-export function badgeWords(kind: NavBadge, count: number): string {
-  if (kind === "review") return `${count} perlu ditinjau`;
-  return "laporan baru siap";
-}
-
 /** The visible count: muted text, capped so the column never widens (D1). */
 export function countText(count: number): string {
   return count > 99 ? "99+" : String(count);
 }
 
-interface PageMeta {
-  title: string;
-  subtitle: string;
-  /** The frame's maximum width in px: 1040 on Transaksi and Pengaturan, 1200 elsewhere (D4). */
-  width: number;
-}
-
+/** The frame's maximum width in px: 1040 on Transaksi and Pengaturan, 1200 elsewhere (D4). */
 const FRAME_WIDTH = 1200;
 const NARROW_FRAME_WIDTH = 1040;
 
-const PAGE_META: [string, PageMeta][] = [
-  ["/review", { title: "Tinjau", subtitle: "Yang perlu dijawab dan yang dicatat otomatis", width: FRAME_WIDTH }],
-  ["/ledger", { title: "Transaksi", subtitle: "Semua uang masuk, pengeluaran, dan pindah saldo", width: NARROW_FRAME_WIDTH }],
-  ["/accounts", { title: "Rekening & Kantong", subtitle: "Saldo rekening, kantong, investasi dan utang", width: FRAME_WIDTH }],
-  ["/goals", { title: "Target & Tagihan", subtitle: "Dana darurat, tagihan, utang dan target tabungan", width: FRAME_WIDTH }],
-  ["/insights", { title: "Analisis", subtitle: "Ke mana uang digunakan, dibanding periode lalu", width: FRAME_WIDTH }],
-  ["/laporan", { title: "Laporan", subtitle: "Laporan bulanan Kakeibo", width: FRAME_WIDTH }],
-  ["/settings", { title: "Pengaturan", subtitle: "", width: NARROW_FRAME_WIDTH }],
-  ["/komponen", { title: "Komponen", subtitle: "Lembar komponen Markas+, hanya di build lokal", width: FRAME_WIDTH }],
-];
+const NARROW_ROUTES = ["/ledger", "/settings"];
 
-/** Title, subtitle and frame width of the title block from the route; Beranda writes its own date and period line. */
-export function pageMeta(pathname: string): PageMeta {
-  const match = PAGE_META.find(([href]) => isActivePath(pathname, href));
-  return match ? match[1] : { title: "Beranda", subtitle: "", width: FRAME_WIDTH };
+export function frameWidth(pathname: string): number {
+  return NARROW_ROUTES.some((href) => isActivePath(pathname, href)) ? NARROW_FRAME_WIDTH : FRAME_WIDTH;
 }

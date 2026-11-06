@@ -2,10 +2,12 @@
 
 import { createContext, type ReactNode, useContext, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useTranslations } from "next-intl";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import type { ThemeChoice, ResolvedTheme } from "@/lib/theme";
 import { MenuButton } from "./Menu";
 import { PHONE_QUERY, useMediaQuery } from "./layers";
+import { useInterfaceLang } from "./untranslated";
 
 export interface WorkspaceNotification {
   /** Includes the report end date or the plan date, so a new occurrence is new again (D6). */
@@ -87,6 +89,8 @@ export interface PageMoreAction {
  */
 export function PageActions({ children, more = [] }: { children?: ReactNode; more?: PageMoreAction[] }) {
   const context = useContext(WorkspaceContext);
+  const t = useTranslations("common");
+  const lang = useInterfaceLang();
   const phone = useMediaQuery(PHONE_QUERY);
   const listed = more.filter((action) => phone || !action.phoneOnly);
   const content = (
@@ -94,9 +98,10 @@ export function PageActions({ children, more = [] }: { children?: ReactNode; mor
       {children}
       {listed.length > 0 && (
         <MenuButton
-          label="Tindakan lain"
+          label={t("moreActions")}
+          lang={lang}
           className="ws-icon-btn"
-          menuLabel="Tindakan lain"
+          menuLabel={t("moreActions")}
           width={260}
           entries={listed.map((action) => ({
             key: action.key,
