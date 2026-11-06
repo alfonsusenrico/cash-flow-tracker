@@ -173,4 +173,4 @@ VoiceOver was **not run**: there is no interactive session in this environment. 
 
 ## Revision
 
-Implementation commit: recorded in the pull request. The archive commit follows it on `feat/language-system`.
+Implementation commit 947f8b0 (`feat(i18n): add English interface with per-account language and region`). On that exact commit: frontend type-check 0 errors, lint clean, 94 files and 900 tests passed, build passed, `openspec validate --all --strict` 85 passed, `git diff --check` clean; the backend suite above ran on the same backend tree (no backend change after it). The archive commit follows on `feat/language-system`.
