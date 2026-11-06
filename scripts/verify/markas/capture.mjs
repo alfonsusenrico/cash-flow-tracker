@@ -31,15 +31,19 @@ const CELLS = [
   { name: "390-light", width: 390, height: 844, theme: "light", mobile: true },
   { name: "390-dark", width: 390, height: 844, theme: "dark", mobile: true },
 ];
-// Extra widths for the shell's breakpoints (apply-markas-shell D2), only when named in --cells.
-const EXTRA_WIDTHS = [1920, 1280, 1024, 1023, 768, 767, 320];
+// Extra widths for the shell's breakpoints (apply-markas-shell D2) and Beranda's one-column range
+// (apply-markas-beranda D1), only when named in --cells.
+const EXTRA_WIDTHS = [1920, 1280, 1199, 1100, 1024, 1023, 768, 767, 320];
 const EXTRA_CELLS = EXTRA_WIDTHS.flatMap((width) =>
-  ["light", "dark"].map((theme) => ({ name: `${width}-${theme}`, width, height: width < 768 ? 844 : 900, theme, mobile: width < 768 })),
+  ["light", "dark"].map((theme) => ({ name: `${width}-${theme}`, width, height: width < 768 ? 844 : width === 1024 ? 768 : 900, theme, mobile: width < 768 })),
 );
 const cells = args.cells ? [...CELLS, ...EXTRA_CELLS].filter((cell) => args.cells.split(",").includes(cell.name)) : CELLS;
 const scenarios = JSON.parse(readFileSync(path.join(here, `scenarios-${args.target}.json`), "utf8"));
 const measureSource = readFileSync(path.join(here, "measure.js"), "utf8");
 const shellSource = readFileSync(path.join(here, "shell-checklist.js"), "utf8");
+const berandaSource = readFileSync(path.join(here, "beranda-checklist.js"), "utf8");
+// Settings a scenario may set (`storage`); every capture starts without them, so no scenario leaks into the next.
+const STORAGE_KEYS = { app: ["hideBalances", "sidebarCollapsed"], prototype: ["markas6-hide"] };
 mkdirSync(args.out, { recursive: true });
 const reportFile = path.join(args.out, "checklist.json");
 
@@ -126,10 +130,14 @@ try {
       if (scenario.cells && !scenario.cells.includes(cell.name)) continue;
       const key = `${scenario.name}-${cell.width}-${cell.theme}`;
       browser.consoleErrors.length = 0;
+      const storage = `${JSON.stringify(STORAGE_KEYS[args.target])}.forEach((name) => localStorage.removeItem(name));
+        Object.entries(${JSON.stringify(scenario.storage ?? {})}).forEach(([name, value]) => localStorage.setItem(name, value))`;
       if (args.target === "app") {
         // Every capture starts with unseen notifications, so the bell's count does not depend on the order.
-        await browser.evaluate(`localStorage.setItem("theme", "${cell.theme}"); localStorage.removeItem("notificationsSeen")`).catch(() => {});
+        await browser.evaluate(`localStorage.setItem("theme", "${cell.theme}"); localStorage.removeItem("notificationsSeen"); ${storage}`).catch(() => {});
       } else {
+        await browser.navigate(`${args.origin}/styles.css`);
+        await browser.evaluate(storage).catch(() => {});
         await browser.navigate("about:blank");
       }
       await browser.navigate(urlFor(scenario, cell));
@@ -151,6 +159,7 @@ try {
       await browser.evaluate(`window.__measureRoot = ${JSON.stringify(scenario.measureRoot ?? null)}`);
       const measure = await browser.evaluate(measureSource).catch((error) => ({ error: String(error).slice(0, 200) }));
       const shell = scenario.shell ? await browser.evaluate(shellSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
+      const beranda = scenario.beranda ? await browser.evaluate(berandaSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
       const violations = await browser.axe().catch((error) => [{ id: "axe-error", impact: "critical", targets: [String(error).slice(0, 120)] }]);
       report[key] = {
         path: scenario.path,
@@ -163,6 +172,7 @@ try {
         axeOther: violations.filter((violation) => !["serious", "critical"].includes(violation.impact)).map((violation) => violation.id),
         measure,
         shell,
+        beranda,
       };
       const flags = report[key].axeSeriousOrCritical.length + report[key].consoleErrors.length;
       console.log(key, hasDialog ? "dialog" : "", JSON.stringify(log), flags ? `flags ${flags}` : "");

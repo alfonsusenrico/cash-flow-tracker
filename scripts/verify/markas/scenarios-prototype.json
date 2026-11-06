@@ -5,7 +5,39 @@
  },
  {
   "name": "beranda",
-  "path": "/beranda"
+  "path": "/beranda",
+  "beranda": true
+ },
+ {
+  "name": "beranda-sembunyi",
+  "path": "/beranda",
+  "storage": {
+   "markas6-hide": "1"
+  },
+  "beranda": true
+ },
+ {
+  "name": "dlg-rincian-aman",
+  "path": "/beranda?d=rincian:safeToSpend",
+  "beranda": true,
+  "steps": [
+   {
+    "wait": 400
+   }
+  ]
+ },
+ {
+  "name": "dlg-rincian-aman-sembunyi",
+  "path": "/beranda?d=rincian:safeToSpend",
+  "storage": {
+   "markas6-hide": "1"
+  },
+  "beranda": true,
+  "steps": [
+   {
+    "wait": 400
+   }
+  ]
  },
  {
   "name": "tinjau",
