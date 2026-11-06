@@ -42,10 +42,16 @@ Approved by the owner on 2026-11-06 ("approved"), with every recommended default
 7. Kakeibo labels: each keeps its ledger link, plus "Perlu dipilih di Tinjau" when unclassified spending exists.
 8. Ketahanan Dana target: "target 6 bulan" (`target_months`).
 9. Ditabung & investasi caption: "Tabungan bertambah" or "Tabungan berkurang" without the amount.
-10. Terjadwal caption: "tagihan sampai 24 Nov", "tagihan & setoran sampai 24 Nov" with goal set-asides.
+10. Terjadwal caption: "tagihan sampai 24 Nov", and with goal set-asides "termasuk setoran · 24 Nov" (revised by the owner on 2026-11-06; the first wording was "tagihan & setoran sampai 24 Nov").
 11. Masked figure markup: `role="img"` with `aria-label="Disembunyikan"`.
 12. Top-up row title: "Top up Investasi".
 13. Legend at 1024 px: the prototype's four columns, with a measured two-column fallback recorded as a deviation only if the stress figure overflows.
+
+Three fixes approved by the owner on 2026-11-06 ("ok") after the first verification:
+1. The Terjadwal caption reads "termasuk setoran · 23 Nov" when goal set-asides are included (was "tagihan & setoran sampai 23 Nov", which wrapped), so every caption stays on one line; without set-asides it stays "tagihan sampai 23 Nov". The breakdown stays in the Rincian. This replaces decision 10's second wording.
+2. When spending exceeds income, the Rincian's total reads "Lebih dari uang masuk" with the positive amount, followed by the result "Aman dipakai Rp 0"; the dialog never shows a negative "Aman dipakai". The normal case is unchanged.
+3. In "Perlu tindakan", overdue and due-today plans rank above the automatic-link check and the transfer pairing row (D6 gives the exact order), so an overdue or due-today plan is not hidden behind them.
+The waiting note becomes two short sentences.
 
 ## What Changes
 
@@ -54,7 +60,7 @@ Approved by the owner on 2026-11-06 ("approved"), with every recommended default
   - the figure in Manrope 44/52 (32/40 below 360 px), and one muted line with the days left and the expected salary date, or the reason when that date is unknown, or by how much the period is over;
   - the 8 px split bar (Pengeluaran, Ditabung & investasi, Terjadwal, Aman dipakai; 2 px gaps; percentages in its accessible name);
   - the legend of four supporting figures at 4 × 1fr, gap 24 (2 columns below 1024 px; on the phone only Pengeluaran and Ditabung & investasi).
-- **Rincian dialog** (prototype `dlg-rincian-aman`): 480 px, centered, a bottom sheet on the phone; the rule, the four lines and the total "Aman dipakai". The lines that have server lines expand in place (decision 3), and the waiting-for-answer note sits under the total.
+- **Rincian dialog** (prototype `dlg-rincian-aman`): 480 px, centered, a bottom sheet on the phone; the rule, the four lines and the total "Aman dipakai" (when the period is over, "Lebih dari uang masuk" with the positive amount, then "Aman dipakai Rp 0"). The lines that have server lines expand in place (decision 3), and the waiting-for-answer note sits under the total.
 - **Perlu tindakan:** the shared list row with an icon column, the item's name, a meta line (kind · date and time), its amount and a chevron. The whole row opens Tinjau at the item or "Rencana jatuh tempo". At most three rows. "Buka Tinjau · N" sits in the section header, and an empty state is one line.
 - **Aktivitas terbaru:** sticky day headings ("KAMIS, 5 NOVEMBER · HARI INI"), compact one-line 56 px rows (time 40 · title and meta · status 112 · amount ≥ 120), and two-line 64 px rows on the phone. Rows waiting for an answer move to Perlu tindakan (decision 5). At most eight rows. "Semua transaksi" is a secondary button under the list. The row still opens the shared transaction dialog.
 - **Context panel** (352 px, `--s1`, radius 12, padding 24):

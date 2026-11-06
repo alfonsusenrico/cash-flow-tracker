@@ -102,7 +102,7 @@ The bar has `role="img"` and the label "Uang siklus ini dari Rp 9.518.400 masuk:
 | Masuk | `masuk.total` | cycle: "Gaji 23 Okt" (`period.start_date`); month: "sejak 1 November" |
 | Pengeluaran | `spending.amount` | cycle: "sejak gaji 23 Okt"; month: "sejak 1 November" (today's `sinceCaption`) |
 | Ditabung & investasi | `abs(fresh_saving.amount)` | "Tabungan bertambah" or "Tabungan berkurang" from the sign of `tabungan.total`, or of `fresh_saving.amount` for an older API (Owner decision 9) |
-| Terjadwal | `scheduled.total` | "tagihan sampai 24 Nov" (`scheduled.window_end`); "tagihan & setoran sampai 24 Nov" when goal set-asides are included (Owner decision 10) |
+| Terjadwal | `scheduled.total` | "tagihan sampai 24 Nov" (`scheduled.window_end`); "termasuk setoran · 24 Nov" when goal set-asides are included (Owner decision 10, revised 2026-11-06 so the caption stays on one line at every width) |
 
 No figure here is a button. Each figure's breakdown is in the Rincian dialog (D5).
 
@@ -120,8 +120,9 @@ The dialog is built on the existing shared dialog primitive (centered at 768 px 
 - **Body** (padding 0 24 24, blocks 24 apart):
   - the rule in `t-body`: "Masuk dikurangi Pengeluaran, Ditabung & investasi dan tagihan terjadwal sampai akhir siklus." (prototype wording; the month basis says "sampai akhir bulan");
   - a plain list. Four rows (min-height 44, padding 0, label 14/400, amount `t-amt` 14/600 tabular): Masuk `Rp 9.518.400` (no plus, as in the prototype), Pengeluaran `−Rp …`, Ditabung & investasi `−Rp …` (or "Tabungan berkurang" with `Rp …`), and "Terjadwal sampai 24 Nov" `−Rp …`;
-  - the total row (min-height 56, 1 px `--line-strong` top rule): "Aman dipakai" `t-strong` and `balance(remaining.total)` as `t-fig` 20/600;
-  - under the list, at most two `t-meta` notes: the expected-salary basis ("Gaji berikutnya diperkirakan 25 November, dari gaji yang dikonfirmasi …", today's `expectedBasisNote`) and the waiting note ("4 hal (Rp 190.500) masih menunggu jawaban; Rp 45.000 di antaranya sudah termasuk", today's `waitingNote`). The over-by and unavailable reasons from today's explanations replace the basis note when they apply.
+  - the total row (min-height 56, 1 px `--line-strong` top rule): "Aman dipakai" `t-strong` and `remaining.total` as `t-fig` 20/600;
+  - when the period is over (`remaining.total < 0`, owner fix 2026-11-06): the row after the four lines takes the 1 px `--line-strong` top rule and reads "Lebih dari uang masuk" `t-strong` with the positive amount `-remaining.total` as `t-amt` (min-height 44); the total row follows it, without the strong rule, as "Aman dipakai" `Rp 0`, equal to the hero. No negative "Aman dipakai" is shown;
+  - under the list, at most two `t-meta` notes: the expected-salary basis ("Gaji berikutnya diperkirakan 25 November, dari gaji yang dikonfirmasi …", today's `expectedBasisNote`) and the waiting note in two sentences ("4 hal (Rp 190.500) masih menunggu jawaban. Rp 45.000 di antaranya sudah termasuk.", today's `waitingNote`). The over-by and unavailable reasons from today's explanations replace the basis note when they apply.
 - **Footer** (padding 16 24, 1 px top line): the secondary button-link "Lihat transaksi siklus ini" (or "bulan ini") to `/ledger?period=<basis>`.
 
 **Line breakdowns (Owner decision 3, default A):** each of the four rows whose figure has server lines is a disclosure button (`aria-expanded`) with a 16 px `chevD` in `--muted` after its amount. Opening it shows the server lines in place, as 12/16 rows indented 16 px:
@@ -146,7 +147,7 @@ Rejected alternatives:
 
 Section header (`.sec-h`: min-height 32, margin-bottom 12; `h2.t-label` "Perlu tindakan"; at the right the link button "Buka Tinjau · 6" to `/review`, where N is `queue.counts.attention`; with N = 0 it reads "Buka Tinjau").
 
-Rows are the shared list row (D7 anatomy) with an icon column (`.r-ico` 40 × 20, 16 px icon, `--muted`), the title, the meta line, the amount and a 16 px chevron. Each row is one `a` or `button`, and its accessible name is its title, meta and amount. Items keep today's order and targets (`todoItems`):
+Rows are the shared list row (D7 anatomy) with an icon column (`.r-ico` 40 × 20, 16 px icon, `--muted`), the title, the meta line, the amount and a 16 px chevron. Each row is one `a` or `button`, and its accessible name is its title, meta and amount. Items keep today's targets (`todoItems`); their order is the ranking below:
 
 | Item | Icon | Title | Meta | Amount | Target |
 | --- | --- | --- | --- | --- | --- |
@@ -158,7 +159,16 @@ Rows are the shared list row (D7 anatomy) with an icon column (`.r-ico` 40 × 20
 | Plan due or overdue | calendar | plan name | "Jatuh tempo hari ini · Rencana" or "Lewat jatuh tempo · Rencana" in `--warning` | `plan.amount` | opens "Rencana jatuh tempo" (link, skip, record unchanged) |
 | Plan due within two days | calendar | plan name | "Besok · Rencana" or "12 Nov · Rencana" | `plan.amount` | `/goals` |
 
-- **At most three rows** (prototype): up to two review items in the order above, then plans and auto-links up to three. Review items fill free places when there are fewer plans. The rest is reached through "Buka Tinjau · N" and the bell.
+- **Order** (owner fix 2026-11-06, so an overdue or due-today plan is never hidden behind the automatic-link check or the pairing row): one ranked list,
+  1. open questions, in the queue's order;
+  2. plans past their due date, earliest due first;
+  3. plans due today;
+  4. awaiting transfers ("Pasangkan N pindah saldo");
+  5. ambiguous pairs;
+  6. groups that need an answer, in the queue's order;
+  7. the automatic-link check ("N rencana ditautkan otomatis");
+  8. plans due within two days, earliest first.
+- **At most three rows** (prototype): the first three of that list. The rest is reached through "Buka Tinjau · N" and the bell. On the parity seed the rows are the open question, Kelas Yoga (overdue) and Tagihan SPayLater (due today).
 - **Empty:** "Tidak ada yang perlu dijawab." (`t-body`, `--muted`), no card. **Error:** "Daftar Tinjau belum bisa dimuat." (`t-meta`).
 - **Removed:**
   - the per-item action pills ("Jawab", "Pasangkan", "Pilih", "Cek", "Atur", "Lihat"): the whole row is the action;
@@ -260,6 +270,7 @@ Masuk and Terjadwal are not shown as supporting figures on the phone (prototype)
 | Kakeibo "Tabungan" row | removed | legend Ditabung & investasi, Rincian disclosure |
 | Ketahanan Dana card, coverage bar, rupiah target | reduced | one panel block; bar and rupiah target on Target & Tagihan |
 | Perlu tindakan count chip, waiting amount, action pills, "Semua sudah ditinjau / Selesai", auto-recorded note | removed or merged | "Buka Tinjau · N"; Rincian waiting note and disclosure; whole-row links; one calm line; Tinjau's "Dilewati otomatis" and Transaksi `review=auto` |
+| Items beyond the first three of the D6 ranking | moved | "Buka Tinjau · N", the bell, and the Terjadwal disclosure for plans |
 | Activity avatars, two-line desktop rows, "4 Nov · 18.23", "akun · kategori" | replaced | time column, day headings, account meta; category in the transaction dialog |
 | Waiting rows in Aktivitas | moved | Perlu tindakan and Tinjau (Owner decision 5) |
 | Icon tiles in card headers | removed | none (SPEC §7) |
@@ -343,7 +354,7 @@ The parity seed's known disagreements with the prototype (Ketahanan Dana, payday
 
 ## Owner decisions (recommended default in bold)
 
-Decided on 2026-11-06: the owner approved the plan with every recommended default ("approved"), so each decision below takes its bold option.
+Decided on 2026-11-06: the owner approved the plan with every recommended default ("approved"), so each decision below takes its bold option. After the first verification the owner approved three fixes the same day ("ok"): decision 10's set-aside wording, the over-period total of the Rincian (D5) and the Perlu tindakan order (D6).
 
 1. **Per-day amount in the hero line.** **(B) Leave it out. The line reads "20 hari lagi sampai gajian 25 Nov".** This follows the owner's 2026-11-04 rule ("show the safe amount for the whole period, not a daily or weekly allowance") and the approved "Safe-to-Spend Today" requirement; it is a deviation from the prototype. (A) The prototype's "≈ Rp 113.000 per hari · 20 hari lagi …" from the server's rounded `per_day`. The plan's scope names a "per-day line".
 2. **Subtitle span.** **"Siklus gaji 23 Okt – 24 Nov · hari ke-14" with the server's window end, "Siklus gaji sejak 23 Okt" when the salary date is unknown**; or keep today's "Siklus sejak 23 Okt · hari ke-14".
@@ -354,7 +365,7 @@ Decided on 2026-11-06: the owner approved the plan with every recommended defaul
 7. **Kakeibo labels.** **Keep each label's ledger link (ink at rest, underline on hover) plus "Perlu dipilih di Tinjau" when unclassified spending exists**; or plain labels as in the prototype (then `kakeibo-classification-completeness` needs a change).
 8. **Ketahanan Dana target.** **"target 6 bulan" (`target_months`, prototype); the rupiah target stays on Target & Tagihan**; or keep "target Rp …".
 9. **Ditabung & investasi caption.** **"Tabungan bertambah" or "Tabungan berkurang" without the amount, which the figure above already shows**; or keep the amount.
-10. **Terjadwal caption.** **"tagihan sampai 24 Nov", and "tagihan & setoran sampai 24 Nov" when goal set-asides are included**; or always the prototype's "tagihan sampai …".
+10. **Terjadwal caption.** **"tagihan sampai 24 Nov", and "termasuk setoran · 24 Nov" when goal set-asides are included** (revised by the owner on 2026-11-06 from "tagihan & setoran sampai 24 Nov", which wrapped); or always the prototype's "tagihan sampai …".
 11. **Masked figure markup.** **`role="img"` with `aria-label="Disembunyikan"`**; or the prototype's bare `aria-label` (an axe finding); or visually hidden text.
 12. **Top-up row title.** **"Top up Investasi" (the approved `investment-topups` wording)**; or the prototype's "Top up <product>".
 13. **Legend at 1024 px with large amounts.** **The prototype's four columns. If the stress figure overflows at 1024 in the gate, a container query moves the legend to two columns below the measured width, recorded as a deviation**; or keep four columns and accept the overflow.

@@ -19,6 +19,11 @@ Beranda SHALL open with one hero, "Aman dipakai sampai gajian", as the page's on
 - **WHEN** the period's net fresh saving is −Rp 500.000
 - **THEN** Ditabung & investasi SHALL show Rp 500.000 with the caption "Tabungan berkurang", and its segment SHALL take no width in the bar
 
+#### Scenario: Terjadwal caption
+- **WHEN** the scheduled amount includes goal set-asides until 23 November
+- **THEN** the Terjadwal caption SHALL read "termasuk setoran · 23 Nov", and without set-asides "tagihan sampai 23 Nov"
+- **AND** every supporting-figure caption SHALL stay on one line from 1024 to 1440 px, also with a ten-digit amount
+
 #### Scenario: No figure leaves its block
 - **WHEN** Beranda is shown at any width from 320 px, including 1024 to 1199 px with the full sidebar
 - **THEN** no hero, supporting or panel figure SHALL extend past its block or the page frame, and the page SHALL NOT scroll horizontally
@@ -36,6 +41,12 @@ The hero SHALL carry the page's only "Rincian" control. It SHALL open the calcul
 - **THEN** Pengeluaran SHALL show its five buckets, each linked to the ledger with its `kakeibo` filter for the period
 - **AND** Ditabung & investasi SHALL show what went into savings, what was taken out and what was spent from savings
 - **AND** Terjadwal SHALL show each bill with its due date and each goal set-aside with its monthly amount and what is already funded
+
+#### Scenario: Period over
+- **GIVEN** masuk Rp 9.518.400, Pengeluaran Rp 3.422.490, Ditabung & investasi Rp 2.250.000 and Terjadwal Rp 5.572.334
+- **WHEN** the owner activates "Rincian"
+- **THEN** after the four lines the dialog SHALL read "Lebih dari uang masuk" Rp 1.726.424, then "Aman dipakai" Rp 0, equal to the hero
+- **AND** no negative "Aman dipakai" SHALL be shown
 
 #### Scenario: One Rincian per page
 - **WHEN** Beranda is shown
@@ -119,13 +130,18 @@ Beranda's hero figure SHALL be "Aman dipakai sampai gajian": the remaining amoun
 - **THEN** the hero SHALL show Rp 0 and its line SHALL say that the period is Rp 300.000 over, instead of showing a negative safe amount
 
 ### Requirement: Kerjakan Dulu
-Under "Perlu tindakan" Beranda SHALL list at most three of what needs the owner first: open questions, awaiting or ambiguous transfers, groups that need an answer, automatically linked plans to check, and plans due or due within two days. Each row SHALL name the merchant or plan, its kind and time, and its amount where it has one, and the whole row SHALL be its one action. A due plan SHALL keep its link, skip and record actions.
+Under "Perlu tindakan" Beranda SHALL list the first three of what needs the owner, ranked: open questions, plans past their due date, plans due today, awaiting transfers, ambiguous pairs, groups that need an answer, automatically linked plans to check, and plans due within two days. Each row SHALL name the merchant or plan, its kind and time, and its amount where it has one, and the whole row SHALL be its one action. A due plan SHALL keep its link, skip and record actions.
 
 #### Scenario: Items and order
 - **GIVEN** one open question, two awaiting transfer legs, one group that needs an answer and a plan due tomorrow
 - **WHEN** the owner opens Beranda
-- **THEN** the header SHALL show "Buka Tinjau · 4", and the rows SHALL be the question, then the awaiting transfers, then the plan
-- **AND** each review row SHALL open Tinjau at the matching item, and the group SHALL be reached through "Buka Tinjau"
+- **THEN** the header SHALL show "Buka Tinjau · 4", and the rows SHALL be the question, then the awaiting transfers, then the group
+- **AND** each review row SHALL open Tinjau at the matching item, and the plan due tomorrow SHALL be reached through the bell and Target & Tagihan
+
+#### Scenario: Due plans come before checks and pairing
+- **GIVEN** one open question, an awaiting transfer leg, four automatically linked plans, a plan past its due date and a plan due today
+- **WHEN** the owner opens Beranda
+- **THEN** the rows SHALL be the question, the overdue plan and the plan due today, and "N rencana ditautkan otomatis" and the pairing row SHALL be reached through "Buka Tinjau"
 
 #### Scenario: One-column Beranda
 - **WHEN** Beranda is shown at any width, including one column below 1200 px
