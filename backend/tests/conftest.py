@@ -153,6 +153,8 @@ def auth_client(client: TestClient):
             "password": password,
             "full_name": "Test User",
             "invite_code": os.getenv("INVITE_CODE", "TESTCODE"),
+            # The shared owner models an Indonesian account, whose starter data the suite names.
+            "language": "id",
         },
     )
     assert res.status_code == 200, res.text

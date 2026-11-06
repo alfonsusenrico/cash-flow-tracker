@@ -151,6 +151,8 @@ def test_settings_routes_and_method_parity():
                 "username": "payroll_user",
                 "payday_day": 29,
                 "currency": "IDR",
+                "language": "id",
+                "region": "ID",
             }
             mock_auth_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = mock_cur
 

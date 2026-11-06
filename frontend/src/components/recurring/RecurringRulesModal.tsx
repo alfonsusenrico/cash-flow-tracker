@@ -271,7 +271,7 @@ export function RecurringRulesModal({ open, onClose, investmentDraft, expenseDra
   });
 
   return (
-    <Modal open={open} onClose={onClose} title="Rencana & Pengingat">
+    <Modal open={open} onClose={onClose} title="Rencana & Pengingat" untranslated>
       <div className="space-y-4 pt-1 text-xs">
         <p className="text-[var(--text-2)]">
           Rencana tidak mencatat transaksi. Saat jatuh tempo, kaitkan transaksi yang sudah tertangkap ponsel, atau catat

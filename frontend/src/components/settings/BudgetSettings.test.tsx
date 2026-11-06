@@ -46,7 +46,7 @@ describe("Mata uang & anggaran settings", () => {
 
     await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1));
     expect(api.patch).toHaveBeenCalledWith("/auth/settings", {
-      currency: "USD", emergency_fund_multiplier: 6, monthly_spending_budget: 10_000_000,
+      currency: "USD", region: "ID", emergency_fund_multiplier: 6, monthly_spending_budget: 10_000_000,
     });
     for (const queryKey of [queryKeys.auth.all, queryKeys.pulse, queryKeys.dashboard.all, queryKeys.goals, queryKeys.recurring.all]) {
       expect(invalidate).toHaveBeenCalledWith({ queryKey });
@@ -64,7 +64,7 @@ describe("Mata uang & anggaran settings", () => {
     await user.clear(limit);
     await user.click(screen.getByRole("button", { name: "Simpan anggaran" }));
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/auth/settings", {
-      currency: "IDR", emergency_fund_multiplier: 6, monthly_spending_budget: null,
+      currency: "IDR", region: "ID", emergency_fund_multiplier: 6, monthly_spending_budget: null,
     }));
   });
 

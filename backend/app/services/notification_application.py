@@ -40,18 +40,20 @@ from app.services.provenance import (
 ROLE_CONFIRMATION_WINDOW_SECONDS = 30
 
 # myBCA "Financial Diary" uses a fixed English category taxonomy; map it to the
-# Indonesian category names this app seeds so deterministic processing can resolve them.
+# category names this app seeds so deterministic processing can resolve them.
 BANK_CATEGORY_HINT_ALIASES = {
-    "shopping": ("Belanja",),
-    "salary": ("Gaji",),
-    "food & beverage": ("Makanan & Minuman", "Makanan"),
-    "food & beverages": ("Makanan & Minuman", "Makanan"),
-    "transportation": ("Transportasi",),
-    "entertainment": ("Hiburan",),
-    "health": ("Kesehatan",),
+    # Indonesian starter names first, then the English ones (add-language-system D15), so a hint resolves
+    # for an account seeded in either language.
+    "shopping": ("Belanja", "Shopping"),
+    "salary": ("Gaji", "Salary"),
+    "food & beverage": ("Makanan & Minuman", "Makanan", "Food & drinks"),
+    "food & beverages": ("Makanan & Minuman", "Makanan", "Food & drinks"),
+    "transportation": ("Transportasi", "Transport"),
+    "entertainment": ("Hiburan", "Entertainment"),
+    "health": ("Kesehatan", "Health"),
     "education": ("Pendidikan",),
-    "bills": ("Tagihan & Utilitas", "Tagihan"),
-    "payment": ("Tagihan & Utilitas", "Pembayaran"),
+    "bills": ("Tagihan & Utilitas", "Tagihan", "Bills & utilities"),
+    "payment": ("Tagihan & Utilitas", "Pembayaran", "Bills & utilities"),
     "account transfer": ("Transfer Keluar", "Transfer Masuk", "Transfer"),
     "transfer rekening": ("Transfer Keluar", "Transfer Masuk", "Transfer"),
     "miscellaneous": ("Lainnya", "Lain-lain"),
@@ -64,11 +66,14 @@ def hinted_categories(context: dict, categories: list[dict], hint: str | None) -
         return []
     if key := hint_key(hint):
         return [row for row in categories if category_system_key(context, row) == key]
-    exact = [row for row in categories if row["name"].casefold() == hint.casefold()]
+    # A name never reaches a system category: an English account's movement category is named "Transfer",
+    # which the "account transfer" alias would otherwise file transfers to other people under.
+    named = [row for row in categories if category_system_key(context, row) is None]
+    exact = [row for row in named if row["name"].casefold() == hint.casefold()]
     if exact:
         return exact
     for alias in BANK_CATEGORY_HINT_ALIASES.get(hint.strip().casefold(), ()):
-        matches = [row for row in categories if row["name"].casefold() == alias.casefold()]
+        matches = [row for row in named if row["name"].casefold() == alias.casefold()]
         if matches:
             return matches
     return []

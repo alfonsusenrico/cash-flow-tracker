@@ -30,7 +30,7 @@ Personal, self-hosted daily cash-flow tracking: record income/outflow, understan
 
 Capabilities: database, deployed, money, personal-data, background-jobs, api-consumers, multi-user, llm
 Design surface: tool
-Language: Bahasa Indonesia for UI copy and generated ledger descriptions; retain proper names, symbols and owner labels. Parse Indonesian and English bank notifications without translating evidence. Engineering identifiers remain English. IDR uses Indonesian separators; the optional USD display uses its existing formatter. Backend calendar default is Asia/Jakarta; browser local datetime inputs must preserve the selected instant.
+Language: plain English is the default interface language and Bahasa Indonesia a per-account choice (`users.language`; before sign-in the `cft_language` cookie, then `Accept-Language`); UI copy lives in `frontend/src/messages/{en,id}.json`, and pages not translated yet stay Indonesian marked `lang="id"`. Generated ledger descriptions stay Indonesian until `localize-server-text`. User data, owner labels and notification evidence are never translated; retain proper names and symbols. Parse Indonesian and English bank notifications without translating evidence. Engineering identifiers remain English. Formats follow the account region (`users.region`): IDR reads "Rp 1.234.567" in region Indonesia in either language; the optional USD display uses its existing formatter. Backend calendar default is Asia/Jakarta; browser local datetime inputs must preserve the selected instant.
 
 ## Commands
 

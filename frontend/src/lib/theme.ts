@@ -13,11 +13,8 @@ export const THEME_STORAGE_KEY = "theme";
 const STALE_KEYS = ["theme_preset", "theme_palette"];
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
-export const THEME_CHOICES: { value: ThemeChoice; label: string }[] = [
-  { value: "light", label: "Terang" },
-  { value: "dark", label: "Gelap" },
-  { value: "system", label: "Ikuti sistem" },
-];
+/** The three choices in menu order; their names are `common.theme.<value>` (add-language-system D17). */
+export const THEME_CHOICES: { value: ThemeChoice }[] = [{ value: "light" }, { value: "dark" }, { value: "system" }];
 
 export function parseThemeChoice(value: unknown): ThemeChoice {
   return value === "light" || value === "dark" || value === "system" ? value : "system";

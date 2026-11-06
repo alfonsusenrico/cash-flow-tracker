@@ -316,6 +316,8 @@ def test_bearer_api_key_accounts_and_categories():
             "name": "Tester",
             "payday_day": 25,
             "currency": "IDR",
+            "language": "id",
+            "region": "ID",
             "emergency_fund_multiplier": 6,
             "monthly_spending_budget": None,
             "key_id": str(uuid4()),

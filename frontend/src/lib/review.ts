@@ -32,6 +32,9 @@ export interface ReviewGroup {
   kind: "merchant" | "signature" | "notes" | "category";
   type: "expense" | "income";
   label: string;
+  /** Whether `label` is the user's text or the fixed fallback named by `label_key` (add-language-system D7). */
+  label_source?: "user" | "system";
+  label_key?: "undescribed" | "uncategorized" | null;
   count: number;
   total: number;
   needs_review_count: number;

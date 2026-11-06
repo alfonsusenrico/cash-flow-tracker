@@ -27,6 +27,9 @@
     const pass = typeof expected === "number" ? Math.abs(Number(value) - expected) <= tolerance : value === expected;
     checks.push({ check, value, expected, pass });
   };
+  // The page's language picks the expected copy; every measurement is the same in both (add-language-system D16).
+  const english = document.documentElement.lang === "en";
+  const say = (indonesian, englishText) => (english ? englishText : indonesian);
   const shown = (element) => Boolean(element) && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0;
   const all = (selector, scope = document) => [...scope.querySelectorAll(selector)].filter(shown);
   const first = (selectors, scope = document) => {
@@ -88,7 +91,7 @@
         add("hero mark colour", style(mark).backgroundColor, colour("mIncome"));
         add("hero mark above the label", px(box(label).top - box(mark).bottom), 3, 1);
       }
-      const rincian = all("button").filter((button) => button.textContent.trim() === "Rincian");
+      const rincian = all("button").filter((button) => button.textContent.trim() === say("Rincian", "Breakdown"));
       add("Rincian controls on the page", rincian.length, 1);
       if (rincian[0]) {
         const button = rincian[0];
@@ -135,7 +138,9 @@
         add("legend gap", px(style(legend).columnGap), phone ? 16 : 24);
         if (split) add("legend after the bar", px(box(legend).top - box(split).bottom), 16, 1);
         const labels = blocks.map((block) => first(".fb-label .t-meta", block)?.textContent.trim());
-        add("supporting labels", labels.join(" · "), phone ? "Pengeluaran · Ditabung & investasi" : "Masuk · Pengeluaran · Ditabung & investasi · Terjadwal");
+        add("supporting labels", labels.join(" · "), phone
+          ? say("Pengeluaran · Ditabung & investasi", "Spending · Saved & invested")
+          : say("Masuk · Pengeluaran · Ditabung & investasi · Terjadwal", "Income · Spending · Saved & invested · Scheduled"));
         for (const block of blocks) {
           const name = first(".fb-label .t-meta", block)?.textContent.trim();
           const swatch = block.querySelector(".sw-bar");
@@ -204,7 +209,7 @@
       const groups = all(".day-group");
       if (groups.length > 1) add("day group gap", px(box(groups[1]).top - box(groups[0]).bottom), 24, 1);
     }
-    const more = all("a, button").find((element) => element.textContent.trim() === "Semua transaksi");
+    const more = all("a, button").find((element) => element.textContent.trim() === say("Semua transaksi", "All transactions"));
     if (more) {
       add("Semua transaksi height", px(box(more).height), phone ? 44 : 36);
       add("Semua transaksi edge", edge(more, "Top"), `1px ${colour("lineStrong")}`);
@@ -219,7 +224,7 @@
       add("panel fill", style(panel).backgroundColor, colour("s1"));
       add("panel radius", px(style(panel).borderTopLeftRadius), 12);
       add("panel padding", px(style(panel).paddingTop), phone ? 16 : 24);
-      add("panel landmark", `${panel.tagName.toLowerCase()} ${panel.getAttribute("aria-label")}`, "aside Ringkasan simpanan");
+      add("panel landmark", `${panel.tagName.toLowerCase()} ${panel.getAttribute("aria-label")}`, say("aside Ringkasan simpanan", "aside Money summary"));
       const blocks = all(".panel-block", panel);
       add("panel blocks", blocks.length, 3);
       for (const block of blocks.slice(1)) {
@@ -230,7 +235,7 @@
         add("Kekayaan bersih links to Rekening", net.tagName === "A" && /rekening|accounts/.test(net.getAttribute("href")), true);
         const fig = first(".t-fig", net);
         add("Kekayaan bersih figure", `${font(fig)} ${style(fig).color}`, `Inter 20/28 600 ${colour("ink")}`);
-        add("Kekayaan bersih caption", /^aset .+ · utang .+/.test(first(".t-meta", net)?.textContent.trim() ?? ""), true);
+        add("Kekayaan bersih caption", (english ? /^assets .+ · debts .+/ : /^aset .+ · utang .+/).test(first(".t-meta", net)?.textContent.trim() ?? ""), true);
       }
       const dana = blocks[1];
       if (dana) {
@@ -252,7 +257,7 @@
         const bar = first(".prog", row);
         if (bar) add("Kakeibo bar", `${px(box(bar).height)} ${style(bar).backgroundColor}`, `2 ${colour("s2")}`);
       }
-      add("Kakeibo labels", kakeibo.map((row) => row.querySelector(".t-body").textContent.trim()).join(" · "), "Kebutuhan · Keinginan · Budaya · Tak Terduga · Belum diklasifikasi");
+      add("Kakeibo labels", kakeibo.map((row) => row.querySelector(".t-body").textContent.trim()).join(" · "), say("Kebutuhan · Keinginan · Budaya · Tak Terduga · Belum diklasifikasi", "Needs · Wants · Culture · Unexpected · No pillar yet"));
     }
 
     // Every figure stays inside its block (the phase 2 overflow, D1).
@@ -283,22 +288,25 @@
   const header = first(".dlg-h", dialog);
   add("dialog header padding", `${style(header).paddingTop} ${style(header).paddingRight} ${style(header).paddingBottom}`, phone ? "16px 16px 12px" : "24px 24px 16px");
   const title = first(".dlg-t > :first-child", dialog);
-  add("dialog title", `${font(title)} ${title.textContent.trim()}`, "Manrope 20/28 600 Aman dipakai sampai gajian");
+  add("dialog title", `${font(title)} ${title.textContent.trim()}`, `Manrope 20/28 600 ${say("Aman dipakai sampai gajian", "Safe to spend until payday")}`);
   const meta = first(".dlg-t .t-meta", dialog);
-  add("dialog meta", meta ? `${font(meta)} ${meta.textContent.trim()}` : "none", "Inter 12/16 400 Rincian hitungan");
+  add("dialog meta", meta ? `${font(meta)} ${meta.textContent.trim()}` : "none", `Inter 12/16 400 ${say("Rincian hitungan", "Calculation breakdown")}`);
   if (meta) add("dialog meta gap", px(box(meta).top - box(title).bottom), 4, 1);
   const body = first(".dlg-b", dialog);
   add("dialog body padding", `${style(body).paddingLeft} ${style(body).paddingRight}`, phone ? "16px 16px" : "24px 24px");
   const rule = first(".dlg-b > .t-body", dialog);
-  add("rule", rule?.textContent.trim().replace(/\s+/g, " ") ?? "none", "Masuk dikurangi Pengeluaran, Ditabung & investasi dan tagihan terjadwal sampai akhir siklus.");
+  add("rule", rule?.textContent.trim().replace(/\s+/g, " ") ?? "none", say(
+    "Masuk dikurangi Pengeluaran, Ditabung & investasi dan tagihan terjadwal sampai akhir siklus.",
+    "Income less Spending, Saved & invested and scheduled bills until the end of the cycle.",
+  ));
   const calculation = first(".dlg-b .list", dialog);
   const lines = calculation ? all(":scope > li > .row", calculation) : [];
   const total = lines[lines.length - 1];
   const over = lines.find((line) => line.classList.contains("is-over"));
   const parts = lines.slice(0, -1).filter((line) => !line.closest(".parts") && line !== over);
   add("calculation lines", parts.length, 4);
-  add("calculation line labels", parts.map((line) => first(".r-title", line).textContent.trim()).join(" · ").replace(/sampai \d+ \w+/, "sampai …"),
-    "Masuk · Pengeluaran · Ditabung & investasi · Terjadwal sampai …");
+  add("calculation line labels", parts.map((line) => first(".r-title", line).textContent.trim()).join(" · ").replace(/(sampai|until) [\w ]+$/, "$1 …"),
+    say("Masuk · Pengeluaran · Ditabung & investasi · Terjadwal sampai …", "Income · Spending · Saved & invested · Scheduled until …"));
   add("line min-height", parts.every((line) => px(style(line).minHeight) === 44), true);
   add("line padding", parts.every((line) => px(style(line).paddingLeft) === 0 && px(style(line).paddingRight) === 0), true);
   const amounts = parts.map((line) => first(".t-amt|.mask", line)).filter(Boolean);
@@ -308,11 +316,11 @@
     // An over period puts "Lebih dari uang masuk" under the strong rule, then the result (owner fix, 2026-11-06).
     add("total rule", edge(over ?? total, "Top"), `1px ${colour("lineStrong")}`);
     if (over) {
-      add("over row", `${px(style(over).minHeight)} ${first(".r-title", over).textContent.trim()}`, "44 Lebih dari uang masuk");
+      add("over row", `${px(style(over).minHeight)} ${first(".r-title", over).textContent.trim()}`, `44 ${say("Lebih dari uang masuk", "More than income")}`);
       add("over amount positive", /^Rp|•/.test(first(".t-amt|.mask", over).textContent.trim()), true);
       add("total never negative", /^[−-]/.test(first(".t-fig|.mask", total).textContent.trim()), false);
     }
-    add("total label", `${font(first(".r-title", total))} ${first(".r-title", total).textContent.trim()}`, "Inter 14/20 500 Aman dipakai");
+    add("total label", `${font(first(".r-title", total))} ${first(".r-title", total).textContent.trim()}`, `Inter 14/20 500 ${say("Aman dipakai", "Safe to spend")}`);
     const figure = first(".t-fig|.mask", total);
     add("total figure type", font(figure), "Inter 20/28 600");
   }
@@ -321,7 +329,7 @@
     add("footer padding", `${style(footer).paddingTop} ${style(footer).paddingLeft}`, phone ? "12px 16px" : "16px 24px");
     add("footer line", edge(footer, "Top"), `1px ${colour("line")}`);
     const link = first("a", footer);
-    add("footer link", link?.textContent.trim(), "Lihat transaksi siklus ini");
+    add("footer link", link?.textContent.trim(), say("Lihat transaksi siklus ini", "View transactions this cycle"));
   }
   add("dialog figures ≤ 20 px", all("*", dialog).every((element) => px(style(element).fontSize) <= 20), true);
   return { theme, width: innerWidth, dialog: true, checks, passed: checks.filter((item) => item.pass).length, failed: checks.filter((item) => !item.pass).length };

@@ -1,8 +1,9 @@
 from typing import Any, Literal
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import settings
+from app.core.errors import coded_error
 from app.db.pool import db_conn
 from app.services.auth import (
     authenticate_user,
@@ -11,6 +12,7 @@ from app.services.auth import (
     get_current_user,
     register_user,
 )
+from app.services.language import DEFAULT_REGION, LANGUAGES, REGIONS, language_from_accept_language
 from app.services.state import rate_limiter
 
 router = APIRouter(tags=["Auth"])
@@ -21,6 +23,9 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=6)
     invite_code: str
     name: str | None = Field(default=None, max_length=150)
+    # The sign-up page's interface language and the chosen region (D11); see `_language` and `_region`.
+    language: str | None = Field(default=None, max_length=64)
+    region: str | None = Field(default=None, max_length=64)
 
 
 class LoginRequest(BaseModel):
@@ -38,6 +43,8 @@ class SettingsUpdate(BaseModel):
     emergency_fund_multiplier: int | None = Field(default=None, ge=1, le=36)
     monthly_spending_budget: int | None = Field(default=None, ge=0)
     name_aliases: list[str] | None = Field(default=None, max_length=10)
+    language: str | None = Field(default=None, max_length=64)
+    region: str | None = Field(default=None, max_length=64)
 
     @field_validator("name_aliases")
     @classmethod
@@ -54,6 +61,31 @@ class SettingsUpdate(BaseModel):
                 seen.add(alias.casefold())
                 aliases.append(alias)
         return aliases
+
+
+def _language(value: str) -> str:
+    """A supported interface language, or the coded 422 that saves nothing."""
+    language = value.strip().lower()
+    if language not in LANGUAGES:
+        raise coded_error(422, "invalid_language", "Unsupported language")
+    return language
+
+
+def _region(value: str) -> str:
+    """A supported region, or the coded 422 that saves nothing."""
+    region = value.strip().upper()
+    if region not in REGIONS:
+        raise coded_error(422, "invalid_region", "Unsupported region")
+    return region
+
+
+def _too_many_attempts(retry_after: int):
+    return coded_error(
+        429,
+        "too_many_attempts",
+        "Too many attempts. Please try again later.",
+        headers={"Retry-After": str(retry_after)},
+    )
 
 
 @router.get("/currency/rates")
@@ -74,12 +106,16 @@ async def get_currency_rates():
 def register(payload: RegisterRequest, request: Request, response: Response):
     client_key = f"register:client:{get_client_ip(request)}"
     if rate_limiter.exceeded(client_key, settings.register_rate_limit, settings.register_rate_window):
-        raise HTTPException(
-            status_code=429,
-            detail="Too many attempts. Please try again later.",
-            headers={"Retry-After": str(settings.register_rate_window)},
-        )
-    user = register_user(payload.username, payload.password, payload.invite_code, payload.name)
+        raise _too_many_attempts(settings.register_rate_window)
+    # No account yet, so the browser's preference is the fallback for the language (D2, D13).
+    if payload.language is not None:
+        language = _language(payload.language)
+    else:
+        language = language_from_accept_language(request.headers.get("accept-language"))
+    region = _region(payload.region) if payload.region is not None else DEFAULT_REGION
+    user = register_user(
+        payload.username, payload.password, payload.invite_code, payload.name, language=language, region=region,
+    )
     # Store session
     request.session["user_id"] = user["id"]
     request.session["username"] = user["username"]
@@ -103,11 +139,7 @@ def login(payload: LoginRequest, request: Request):
         settings.login_rate_window,
     ) or exceeded
     if exceeded:
-        raise HTTPException(
-            status_code=429,
-            detail="Too many attempts. Please try again later.",
-            headers={"Retry-After": str(settings.login_rate_window)},
-        )
+        raise _too_many_attempts(settings.login_rate_window)
     user = authenticate_user(payload.username, payload.password)
     rate_limiter.reset(user_key)
     request.session["user_id"] = user["id"]
@@ -135,7 +167,7 @@ def update_settings(payload: SettingsUpdate, response: Response, current_user: d
 
     if payload.name is not None:
         if not payload.name.strip():
-            raise HTTPException(status_code=422, detail="Display name cannot be empty")
+            raise coded_error(422, "display_name_empty", "Display name cannot be empty")
         updates.append("name = %s")
         params.append(payload.name.strip())
     if payload.payday_day is not None:
@@ -153,9 +185,15 @@ def update_settings(payload: SettingsUpdate, response: Response, current_user: d
     if payload.name_aliases is not None:
         updates.append("name_aliases = %s")
         params.append(payload.name_aliases)
+    if payload.language is not None:
+        updates.append("language = %s")
+        params.append(_language(payload.language))
+    if payload.region is not None:
+        updates.append("region = %s")
+        params.append(_region(payload.region))
 
     if not updates:
-        raise HTTPException(status_code=400, detail="No settings to update")
+        raise coded_error(400, "no_settings_to_update", "No settings to update")
 
     updates.append("updated_at = NOW()")
     params.append(user_id)
@@ -167,7 +205,8 @@ def update_settings(payload: SettingsUpdate, response: Response, current_user: d
                 UPDATE users
                 SET {', '.join(updates)}
                 WHERE id = %s
-                RETURNING id, username, name, name_aliases, payday_day, currency, emergency_fund_multiplier, monthly_spending_budget
+                RETURNING id, username, name, name_aliases, payday_day, currency, language, region,
+                          emergency_fund_multiplier, monthly_spending_budget
                 """,
                 params,
             )
@@ -182,6 +221,8 @@ def update_settings(payload: SettingsUpdate, response: Response, current_user: d
             "name": updated.get("name") or updated["username"],
             "payday_day": updated["payday_day"],
             "currency": updated["currency"],
+            "language": updated["language"],
+            "region": updated["region"],
             "emergency_fund_multiplier": updated.get("emergency_fund_multiplier", 6),
             "monthly_spending_budget": updated.get("monthly_spending_budget"),
             "name_aliases": list(updated.get("name_aliases") or []),

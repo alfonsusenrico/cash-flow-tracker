@@ -75,10 +75,14 @@ def waiting_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     lines = []
     for row in rows:
         in_keluar = bool(row["in_keluar"])
+        described = row["merchant"] or row["notes"] or row["category_name"]
         lines.append({
             "section": row["section"],
             "transaction_id": str(row["id"]),
-            "label": row["merchant"] or row["notes"] or row["category_name"] or "Tanpa keterangan",
+            "label": described or "Tanpa keterangan",
+            # User data as stored, or the fixed fallback the web renders from `label_key` (add-language-system D7).
+            "label_source": "user" if described else "system",
+            "label_key": None if described else "undescribed",
             "account_name": row["account_name"],
             "type": row["type"],
             "date": row["date"].isoformat(),

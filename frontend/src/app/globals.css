@@ -374,6 +374,8 @@ code, kbd, samp, pre { font-family: var(--font-sans); }
 .title-block { display: flex; align-items: flex-end; gap: var(--sp-16); padding: var(--sp-48) 0 var(--sp-32); }
 .title-block .tb-text { flex: 1; min-width: 0; }
 .title-block .sub { margin-top: var(--sp-4); color: var(--muted); text-wrap: pretty; }
+/* A page not translated yet says so in one muted line under its title (add-language-system D10). */
+.untranslated-note { margin-top: var(--sp-4); color: var(--muted); }
 .title-block .tb-actions { display: flex; align-items: center; gap: var(--sp-8); }
 .title-block .tb-actions:empty { display: none; }
 
@@ -1051,7 +1053,8 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .hero .hero-fig { margin-top: var(--sp-8); }
 .hero .hero-sub { margin-top: var(--sp-8); color: var(--muted); text-wrap: pretty; }
 .sw-bar { display: block; flex: none; width: 16px; height: 2px; }
-.hero-top .sw-bar { position: absolute; margin-top: -24px; }
+.hero .hero-top .t-label { position: relative; }
+.hero-top .t-label > .sw-bar { position: absolute; top: -5px; left: 0; }
 .fig-block .t-meta { margin-top: var(--sp-4); }
 .fig-block .fb-label { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-4); }
 .legend { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-24); margin-top: var(--sp-16); }

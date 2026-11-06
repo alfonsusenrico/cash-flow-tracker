@@ -10,8 +10,10 @@ from app.routers.movements import _ensure_internal_movement_categories
 def test_get_or_create_internal_categories_has_null_kakeibo():
     cur = MagicMock()
     user_id = str(uuid4())
-    # Neither keyed category exists, so each lookup is followed by an insert that returns an ID.
-    cur.fetchone.side_effect = [None, {"id": str(uuid4())}, None, {"id": str(uuid4())}]
+    # Neither keyed category exists, so each lookup is followed by the owner's language and an insert that
+    # returns an ID.
+    owner = {"language": "id"}
+    cur.fetchone.side_effect = [None, owner, {"id": str(uuid4())}, None, owner, {"id": str(uuid4())}]
 
     exp_id, inc_id = _ensure_internal_movement_categories(cur, user_id)
     assert exp_id is not None

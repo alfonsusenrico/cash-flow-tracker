@@ -4,6 +4,9 @@
  * Cookie credentials are included automatically for session auth.
  */
 
+import { createFormat } from "@/lib/format";
+import { activeRegionSetting, errorMessage } from "@/lib/i18n/runtime";
+
 const BASE = "/api";
 
 class ApiError extends Error {
@@ -18,6 +21,8 @@ class ApiError extends Error {
 export interface ApiErrorDetail {
   code?: string;
   message?: string;
+  /** Values the message needs, such as `min` for `password_too_short` (add-language-system D8). */
+  params?: Record<string, string | number>;
   available_amount?: number;
   required_amount?: number;
   requested_amount?: number;
@@ -26,69 +31,45 @@ export interface ApiErrorDetail {
   requested_units?: number;
 }
 
+/** The arguments of the two parameterised codes, formatted for the account's region. */
+function amountParams(detail: ApiErrorDetail): Record<string, string> | null {
+  const format = createFormat({ language: "id", region: activeRegionSetting() });
+  const figure = (value: number | undefined) => (typeof value === "number" ? format.integer(value) : "—");
+  if (detail.code === "insufficient_funds") {
+    return {
+      available: `Rp ${figure(detail.available_amount)}`,
+      required: `Rp ${figure(detail.required_amount ?? detail.requested_amount)}`,
+    };
+  }
+  if (detail.code === "insufficient_units") {
+    const units = (value: number | undefined) =>
+      typeof value === "number" ? value.toLocaleString(activeRegionSetting() === "US" ? "en-US" : "id-ID") : "—";
+    return { available: units(detail.available_units), required: units(detail.required_units ?? detail.requested_units) };
+  }
+  return null;
+}
+
+/**
+ * The web renders every known error code from its `errors` catalogue in the interface language (D8); an unknown
+ * code keeps the server's `message`, and a plain-string detail from an endpoint not converted yet is shown as is.
+ */
 function normalizeApiErrorDetail(detail: unknown): string | ApiErrorDetail {
   if (typeof detail !== "object" || detail === null) {
     return String(detail ?? "Request failed");
   }
 
+  // FastAPI's own 422 body is a list of field problems; the web names it with one code (D8).
+  if (Array.isArray(detail)) {
+    const invalid = errorMessage("form_invalid");
+    return invalid ? { code: "form_invalid", message: invalid } : JSON.stringify(detail);
+  }
   const structured = detail as ApiErrorDetail;
-  const investmentMessages: Record<string, string> = {
-    amount_product_required: "Top up nominal memerlukan produk reksadana tanpa pencatatan unit.",
-    amount_product_trade_not_supported: "Produk ini dicatat berdasarkan nominal. Gunakan Top up atau Perbarui nilai.",
-    amount_valuation_required: "Gunakan Perbarui nilai untuk memperbarui modal atau nilai produk ini.",
-    amount_product_must_remain_leaf: "Produk dengan top up tidak dapat memiliki kantong turunan.",
-    invalid_investment_reversal: "Koreksi akan membuat modal atau nilai investasi negatif. Periksa nilai aktual sebelum mencoba lagi.",
-    idempotency_mismatch: "Permintaan sebelumnya memakai nominal atau data berbeda. Periksa buku kas sebelum mencatat kembali.",
-    investment_topup_lifecycle_required: "Ubah atau hapus melalui detail Top up Investasi.",
-    investment_topup_deleted: "Top up ini sudah dihapus. Muat ulang buku kas.",
-    archived_topup_account: "Rekening atau produk sudah diarsipkan. Nominal top up tidak dapat ditambah.",
-    funding_selection_changed: "Kantong sumber berubah. Pilih kembali rekening sumber.",
-    already_amount_tracked: "Produk ini sudah dicatat berdasarkan nominal.",
-    unit_mutual_fund_required: "Hanya produk reksadana yang mencatat unit yang dapat diubah ke pelacakan nominal.",
-    negative_investment_value: "Nilai produk negatif. Perbarui nilai produk sebelum mengubah pelacakan.",
-    transaction_not_convertible: "Transaksi ini tidak dapat dijadikan top up. Hanya pengeluaran tunggal tanpa tagihan, target, atau jadwal yang dapat diubah.",
-    liquid_funding_required: "Top up hanya dapat berasal dari rekening bank, e-wallet, atau kas.",
-  };
-  const deviceMessages: Record<string, string> = {
-    device_not_found: "Perangkat sudah dicabut atau tidak ditemukan. Muat ulang daftar perangkat.",
-    pairing_configuration_invalid: "Pemasangan ponsel belum dikonfigurasi di server.",
-    session_required: "Masuk kembali di browser untuk membuat kode pemasangan.",
-  };
-  const creditMessages: Record<string, string> = {
-    credit_parent_not_allowed: "Rekening kredit tidak dapat memiliki kantong atau menjadi kantong.",
-    credit_balance_sign: "Saldo awal tidak sesuai jenis rekening. Utang kredit diisi sebagai angka positif.",
-    credit_fields_not_allowed: "Limit dan tanggal bayar hanya untuk rekening kredit.",
-    credit_type_change_has_transactions: "Jenis rekening kredit tidak dapat diubah setelah ada transaksi atau kantong.",
-    credit_account_not_allowed: "Rekening kredit tidak dapat dipakai di sini. Pilih rekening bank, e-wallet, atau tunai.",
-    credit_fee_not_allowed: "Biaya hanya dapat dicatat saat membayar ke rekening kredit dan tidak boleh melebihi nominal.",
-    credit_movement_needs_cash: "Salah satu sisi pindah saldo harus rekening bank, e-wallet, atau tunai.",
-    account_role_type_mismatch:
-      "Kegunaan tidak sesuai jenis rekening. Rekening kredit selalu Utang, produk investasi selalu Investasi, dan rekening bank, e-wallet, atau tunai memakai Uang harian, Tabungan, atau Dana investasi.",
-  };
-  const knownMessage = structured.code
-    ? investmentMessages[structured.code] ?? deviceMessages[structured.code] ?? creditMessages[structured.code]
-    : undefined;
-  if (knownMessage) {
-    return { ...structured, message: knownMessage };
+  if (structured.code) {
+    const params = amountParams(structured) ?? structured.params ?? {};
+    const known = errorMessage(structured.code, params);
+    if (known) return { ...structured, message: known };
   }
   if (structured.message) return structured;
-
-  const amount = (value: number | undefined) =>
-    typeof value === "number" ? new Intl.NumberFormat("id-ID").format(value) : "—";
-
-  if (structured.code === "insufficient_funds") {
-    return {
-      ...structured,
-      message: `Saldo tidak mencukupi. Tersedia Rp ${amount(structured.available_amount)} dari Rp ${amount(structured.required_amount ?? structured.requested_amount)} yang dibutuhkan.`,
-    };
-  }
-  if (structured.code === "insufficient_units") {
-    return {
-      ...structured,
-      message: `Unit investasi tidak mencukupi. Tersedia ${amount(structured.available_units)} dari ${amount(structured.required_units ?? structured.requested_units)} unit yang dibutuhkan.`,
-    };
-  }
-
   return JSON.stringify(detail);
 }
 

@@ -4,10 +4,17 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
+import { parseRegion, DEFAULT_REGION } from "@/i18n/language";
 import { TestSessionBanner } from "@/components/settings/TestSessionBanner";
 import { QuickCaptureModal } from "@/components/ui/QuickCaptureModal";
 import { api, ApiError } from "@/lib/api";
 import { setCurrencyConfig, fmtMoney as globalFmtMoney, convertAmount as globalConvertAmount } from "@/lib/utils";
+import { createFormat, RegionProvider } from "@/lib/format";
+import { configureApiRegion } from "@/lib/i18n/runtime";
+import { isTranslatedRoute } from "@/lib/i18n/translatedRoutes";
+import type { Words } from "@/lib/i18n/types";
+import { useAccountLanguage } from "@/lib/i18n/useAccountLanguage";
 import { queryKeys } from "@/lib/queryKeys";
 import { freshReport, type ReportReadiness } from "@/lib/reportReady";
 import {
@@ -21,10 +28,9 @@ import {
 } from "@/lib/theme";
 import type { AutoLinkedOccurrence, DueExpectation, RecurringRule } from "@/types/recurring";
 import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
-import { planDay } from "@/components/recurring/planDay";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import { WorkspaceContext, type PageHeader, type WorkspaceNotification, type WorkspaceValue } from "@/components/workspace/context";
-import { pageMeta } from "@/components/workspace/navigation";
+import { frameWidth } from "@/components/workspace/navigation";
 import { useNotificationSeen } from "@/components/workspace/Notifications";
 import { SideNav } from "@/components/workspace/SideNav";
 import { TitleBlock } from "@/components/workspace/TitleBlock";
@@ -33,6 +39,7 @@ import { PhoneHeader, PhoneTabBar } from "@/components/workspace/PhoneNav";
 import { ShortcutProvider, useShortcut, useShortcuts } from "@/components/workspace/shortcuts";
 import { ExplainProvider } from "@/components/workspace/explain";
 import { Drawer, ToastProvider } from "@/components/workspace/overlays";
+import { UntranslatedRegion } from "@/components/workspace/untranslated";
 
 type QuickCaptureMode = "expense" | "income" | "movement";
 
@@ -126,6 +133,7 @@ export function planNotifications(
   rules: RecurringRule[],
   pending: DueExpectation[],
   autoLinks: AutoLinkedOccurrence[],
+  { t, format }: Words,
   now = new Date(),
 ): WorkspaceNotification[] {
   const today = localIsoDate(now);
@@ -141,12 +149,20 @@ export function planNotifications(
   const items: WorkspaceNotification[] = [...byKey.values()]
     .sort((a, b) => a.due.localeCompare(b.due))
     .map((plan) => {
-      const when = plan.due < today ? "lewat jatuh tempo" : plan.due === today ? "hari ini" : plan.due === tomorrow ? "besok" : "lusa";
+      const values = { name: plan.name, amount: format.money(plan.amount) };
+      const title =
+        plan.due < today
+          ? t("shell.planOverdue", values)
+          : plan.due === today
+            ? t("shell.planDueToday", values)
+            : plan.due === tomorrow
+              ? t("shell.planDueTomorrow", values)
+              : t("shell.planDueInTwoDays", values);
       const opensDuePlans = plan.due <= today;
       return {
         id: `plan-${plan.ruleId}-${plan.due}`,
-        title: `${plan.name} ${globalFmtMoney(plan.amount)} ${when}`,
-        detail: `Rencana · jatuh tempo ${planDay(plan.due)}`,
+        title,
+        detail: t("shell.planDetail", { day: format.shortDate(plan.due) }),
         ...(opensDuePlans ? { opensDuePlans } : { href: "/goals" }),
       };
     });
@@ -155,16 +171,34 @@ export function planNotifications(
     const newest = [...autoLinks].map((link) => link.scheduled_for).sort().at(-1)!;
     items.push({
       id: `autolink-${occurrences.join(",")}`,
-      title: `${autoLinks.length} rencana ditautkan otomatis`,
-      detail: `Rencana · jatuh tempo ${planDay(newest)}`,
+      title: t("shell.plansAutoLinked", { count: autoLinks.length }),
+      detail: t("shell.planDetail", { day: format.shortDate(newest) }),
       opensDuePlans: true,
     });
   }
   return items;
 }
 
+/** The bell's name for a ready report, from its basis and dates (add-language-system D7). */
+export function reportNotification(report: NonNullable<ReturnType<typeof freshReport>>, { t, format }: Words): WorkspaceNotification {
+  // An API older than the start date keeps naming the report with its own label.
+  const period = !report.startDate
+    ? report.label
+    : report.basis === "cycle"
+      ? t("shell.reportPeriodCycle", { start: format.shortDate(report.startDate), end: format.shortDate(report.endDate) })
+      : format.monthYear(report.startDate);
+  return {
+    id: `report-${report.endDate}`,
+    title: t("shell.reportReady", { period }),
+    detail: t("shell.reportPeriodEnded", { ended: format.shortDate(report.endDate) }),
+    href: report.url,
+  };
+}
+
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const t = useTranslations();
+  const locale = useLocale();
   const { openHelp } = useShortcuts();
   const [hideBalances, setHideBalances] = useState(false);
   const [themeChoice, setThemeChoiceState] = useState<ThemeChoice>("system");
@@ -308,10 +342,18 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const user = userData?.user;
   const currency: "IDR" | "USD" = user?.currency === "USD" ? "USD" : "IDR";
   const usdidrRate = ratesData?.usdidr && ratesData.usdidr > 0 ? ratesData.usdidr : 16500;
+  const region = parseRegion(user?.region) ?? DEFAULT_REGION;
+  const regionSettings = useMemo(() => ({ region, currency, rate: usdidrRate }), [region, currency, usdidrRate]);
+  const format = useMemo(() => createFormat({ language: locale, region, currency, rate: usdidrRate }), [locale, region, currency, usdidrRate]);
+  useAccountLanguage(user?.language);
 
   useEffect(() => {
     setCurrencyConfig(currency, usdidrRate);
   }, [currency, usdidrRate]);
+
+  useEffect(() => {
+    configureApiRegion(region);
+  }, [region]);
 
   const fmtMoney = (
     n: number,
@@ -348,13 +390,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
   const report = freshReport(reportReadiness);
   const notifications = useMemo<WorkspaceNotification[]>(() => {
-    const items: WorkspaceNotification[] = [];
-    if (report) {
-      const ended = new Date(`${report.endDate}T00:00:00+07:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
-      items.push({ id: `report-${report.endDate}`, title: `Laporan ${report.label} siap dibaca`, detail: `Periodenya selesai ${ended}`, href: report.url });
-    }
-    return [...items, ...planNotifications(recurringData?.rules ?? [], pendingData?.rules ?? [], pendingData?.recent_auto_links ?? [])];
-  }, [report?.endDate, report?.label, report?.url, recurringData, pendingData]); // eslint-disable-line react-hooks/exhaustive-deps
+    const words = { t, format };
+    const items: WorkspaceNotification[] = report ? [reportNotification(report, words)] : [];
+    return [...items, ...planNotifications(recurringData?.rules ?? [], pendingData?.rules ?? [], pendingData?.recent_auto_links ?? [], words)];
+  }, [report?.endDate, report?.startDate, report?.basis, report?.url, recurringData, pendingData, t, format]); // eslint-disable-line react-hooks/exhaustive-deps
   const { unreadIds, markSeen } = useNotificationSeen(notifications);
   const openDuePlans = useCallback(() => setDuePlansOpen(true), []);
 
@@ -383,6 +422,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     setActionsSlot,
   };
 
+  // Pages no phase has translated yet stay Indonesian, marked as such, inside the translated shell (D10).
+  const untranslated = locale !== "id" && !isTranslatedRoute(pathname);
+
   if (userLoading || userError) {
     return <div className="min-h-screen bg-[var(--canvas)]" />;
   }
@@ -409,11 +451,12 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         reviewAttention: reviewSummary?.attention ?? null,
       }}
     >
+      <RegionProvider value={regionSettings}>
       <WorkspaceContext.Provider value={workspace}>
         <ToastProvider>
           <ExplainProvider>
             <a className="skip" href="#main">
-              Lewati ke isi
+              {t("shell.skipToContent")}
             </a>
             {/* The frame (D4): sidebar | main column with the top bar, the phone header and the page. */}
             <div className="app" data-collapsed={sidebarCollapsed}>
@@ -422,17 +465,25 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 <TopBar />
                 <PhoneHeader />
                 <TestSessionBanner enabled={signedIn} />
-                <main id="main" tabIndex={-1} className="page" style={{ "--page-w": `${pageMeta(pathname).width}px` } as React.CSSProperties}>
-                  <div className="page-inner">
-                    <TitleBlock />
-                    {children}
-                  </div>
+                <main
+                  id="main"
+                  tabIndex={-1}
+                  className="page"
+                  lang={untranslated ? "id" : undefined}
+                  style={{ "--page-w": `${frameWidth(pathname)}px` } as React.CSSProperties}
+                >
+                  <UntranslatedRegion active={untranslated}>
+                    <div className="page-inner">
+                      <TitleBlock />
+                      {children}
+                    </div>
+                  </UntranslatedRegion>
                 </main>
               </div>
             </div>
             <PhoneTabBar />
             {/* Due plans from the bell (D7): link, skip and record, as the Transaksi banner opened them. */}
-            <Drawer open={duePlansOpen} onClose={() => setDuePlansOpen(false)} title="Rencana jatuh tempo" subtitle="Tautkan, lewati, atau catat manual">
+            <Drawer open={duePlansOpen} onClose={() => setDuePlansOpen(false)} title={t("shell.duePlans.title")} subtitle={t("shell.duePlans.subtitle")}>
               <PendingScheduledBanner
                 onOpenRulesManager={() => {
                   setDuePlansOpen(false);
@@ -453,6 +504,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           </ExplainProvider>
         </ToastProvider>
       </WorkspaceContext.Provider>
+      </RegionProvider>
     </AppContext.Provider>
   );
 }

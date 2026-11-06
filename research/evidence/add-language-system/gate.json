@@ -1,0 +1,201 @@
+{
+ "before/signed-in": {
+  "set": "before",
+  "captures": 150,
+  "checks": 7090,
+  "failed": 34,
+  "axeSerious": 6,
+  "consoleErrors": 0,
+  "horizontalOverflow": 0,
+  "axe": [
+   "shell-analisis-kalender-390-light: ['color-contrast (5) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > small | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"] | .analysis_h3__GMFvd > span[aria-hidden=\"tr']",
+   "shell-analisis-kalender-390-dark: ['color-contrast (3) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > small | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"]']",
+   "shell-analisis-kalender-1024-light: ['color-contrast (8) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > small | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7']",
+   "shell-analisis-kalender-1024-dark: ['color-contrast (4) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > small | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7']",
+   "shell-analisis-kalender-320-light: ['color-contrast (3) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"] | .analysis_h3__GMFvd > span[aria-hidden=\"true\"]']",
+   "shell-analisis-kalender-320-dark: ['color-contrast (2) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"]']"
+  ]
+ },
+ "after-id/signed-in": {
+  "set": "after-id",
+  "captures": 150,
+  "checks": 7090,
+  "failed": 34,
+  "axeSerious": 6,
+  "consoleErrors": 0,
+  "horizontalOverflow": 0,
+  "langProblems": [],
+  "axe": [
+   "shell-analisis-kalender-390-light: ['color-contrast (5) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > small | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"] | .analysis_h3__GMFvd > span[aria-hidden=\"tr']",
+   "shell-analisis-kalender-390-dark: ['color-contrast (3) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > small | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"]']",
+   "shell-analisis-kalender-1024-light: ['color-contrast (8) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > small | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7']",
+   "shell-analisis-kalender-1024-dark: ['color-contrast (4) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > small | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7']",
+   "shell-analisis-kalender-320-light: ['color-contrast (3) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"] | .analysis_h3__GMFvd > span[aria-hidden=\"true\"]']",
+   "shell-analisis-kalender-320-dark: ['color-contrast (2) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"]']"
+  ],
+  "newFailures": [],
+  "baselineFailuresGone": [],
+  "langParts": {},
+  "noticeOn": []
+ },
+ "after-en/signed-in": {
+  "set": "after-en",
+  "captures": 150,
+  "checks": 7090,
+  "failed": 34,
+  "axeSerious": 6,
+  "consoleErrors": 0,
+  "horizontalOverflow": 0,
+  "langProblems": [],
+  "axe": [
+   "shell-analisis-kalender-390-light: ['color-contrast (5) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > small | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"] | .analysis_h3__GMFvd > span[aria-hidden=\"tr']",
+   "shell-analisis-kalender-390-dark: ['color-contrast (3) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > small | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"]']",
+   "shell-analisis-kalender-1024-light: ['color-contrast (8) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > small | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7']",
+   "shell-analisis-kalender-1024-dark: ['color-contrast (4) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > small | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7']",
+   "shell-analisis-kalender-320-light: ['color-contrast (3) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"] | .analysis_h3__GMFvd > span[aria-hidden=\"true\"]']",
+   "shell-analisis-kalender-320-dark: ['color-contrast (2) .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(2) > span[aria-hidden=\"true\"] | .analysis_h5__IYYo_.analysis_weekDay__tWJ7f:nth-child(3) > span[aria-hidden=\"true\"]']"
+  ],
+  "newFailures": [
+   "shell-sesi-uji-1440-light [shell] first content y: 252 != 212",
+   "shell-sesi-uji-1440-dark [shell] first content y: 252 != 212"
+  ],
+  "baselineFailuresGone": [
+   "shell-sesi-uji-1440-light [shell] first content y: 232 != 192",
+   "shell-sesi-uji-1440-dark [shell] first content y: 232 != 192"
+  ],
+  "langParts": {
+   "main#main[id]": [
+    "shell-analisis",
+    "shell-analisis-kalender",
+    "shell-analisis-peta-aliran",
+    "shell-laporan",
+    "shell-pengaturan",
+    "shell-rekening",
+    "shell-sesi-uji",
+    "shell-target",
+    "shell-tinjau",
+    "shell-transaksi"
+   ],
+   "h1[id]": [
+    "shell-analisis",
+    "shell-analisis-kalender",
+    "shell-analisis-peta-aliran",
+    "shell-laporan",
+    "shell-pengaturan",
+    "shell-rekening",
+    "shell-sesi-uji",
+    "shell-target",
+    "shell-tinjau",
+    "shell-transaksi"
+   ],
+   "p[id]": [
+    "shell-analisis",
+    "shell-analisis-kalender",
+    "shell-analisis-peta-aliran",
+    "shell-laporan",
+    "shell-rekening",
+    "shell-sesi-uji",
+    "shell-target",
+    "shell-tinjau",
+    "shell-transaksi"
+   ],
+   "p[en]": [
+    "shell-analisis",
+    "shell-analisis-kalender",
+    "shell-analisis-peta-aliran",
+    "shell-laporan",
+    "shell-pengaturan",
+    "shell-rekening",
+    "shell-sesi-uji",
+    "shell-target",
+    "shell-tinjau",
+    "shell-transaksi"
+   ],
+   "div[en]": [
+    "shell-analisis",
+    "shell-analisis-kalender",
+    "shell-analisis-peta-aliran",
+    "shell-laporan",
+    "shell-sesi-uji",
+    "shell-transaksi"
+   ],
+   "button[en]": [
+    "shell-rekening",
+    "shell-target"
+   ],
+   "span[id]": [
+    "shell-pengaturan"
+   ]
+  },
+  "noticeOn": [
+   "shell-analisis",
+   "shell-analisis-kalender",
+   "shell-analisis-peta-aliran",
+   "shell-laporan",
+   "shell-pengaturan",
+   "shell-rekening",
+   "shell-sesi-uji",
+   "shell-target",
+   "shell-tinjau",
+   "shell-transaksi"
+  ]
+ },
+ "before/signed-out": {
+  "set": "before",
+  "captures": 16,
+  "checks": 0,
+  "failed": 0,
+  "axeSerious": 0,
+  "consoleErrors": 16,
+  "horizontalOverflow": 0,
+  "axe": []
+ },
+ "after-id/signed-out": {
+  "set": "after-id",
+  "captures": 16,
+  "checks": 0,
+  "failed": 0,
+  "axeSerious": 0,
+  "consoleErrors": 17,
+  "horizontalOverflow": 0,
+  "langProblems": [],
+  "axe": [],
+  "newFailures": [],
+  "baselineFailuresGone": [],
+  "langParts": {
+   "button[en]": [
+    "daftar",
+    "masuk"
+   ],
+   "button[id]": [
+    "daftar",
+    "masuk"
+   ]
+  },
+  "noticeOn": []
+ },
+ "after-en/signed-out": {
+  "set": "after-en",
+  "captures": 16,
+  "checks": 0,
+  "failed": 0,
+  "axeSerious": 0,
+  "consoleErrors": 17,
+  "horizontalOverflow": 0,
+  "langProblems": [],
+  "axe": [],
+  "newFailures": [],
+  "baselineFailuresGone": [],
+  "langParts": {
+   "button[en]": [
+    "daftar",
+    "masuk"
+   ],
+   "button[id]": [
+    "daftar",
+    "masuk"
+   ]
+  },
+  "noticeOn": []
+ }
+}

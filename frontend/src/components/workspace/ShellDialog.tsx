@@ -2,6 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useId, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { UntranslatedNotice, useUntranslated } from "./untranslated";
 import { focusableIn, syncDialog, useEscapeLayer, useFocusTrap, useScrollLock } from "./layers";
 
 /**
@@ -18,6 +19,7 @@ export function ShellDialog({
   className,
   meta,
   footer,
+  untranslated: untranslatedContent,
   children,
 }: {
   open: boolean;
@@ -30,8 +32,11 @@ export function ShellDialog({
   meta?: string;
   /** The footer row with its 1 px top line; actions sit at the right. */
   footer?: ReactNode;
+  /** Content a later phase translates: Indonesian with `lang="id"` and the notice line in an English interface. */
+  untranslated?: boolean;
   children: ReactNode;
 }) {
+  const untranslated = useUntranslated(untranslatedContent);
   const ref = useRef<HTMLDialogElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -70,16 +75,17 @@ export function ShellDialog({
           <span className="sheet-grab" aria-hidden="true" />
           <div className="dlg-h">
             <div className="dlg-t">
-              <h2 id={titleId} className="t-dtitle">
+              <h2 id={titleId} className="t-dtitle" lang={untranslated ? "id" : undefined}>
                 {title}
               </h2>
               {meta && <p className="t-meta">{meta}</p>}
+              {untranslated && <UntranslatedNotice />}
             </div>
             <button type="button" className="ws-icon-btn" aria-label={closeLabel} onClick={close}>
               <Icon name="x" className="h-4 w-4" />
             </button>
           </div>
-          <div ref={bodyRef} className="dlg-b">
+          <div ref={bodyRef} className="dlg-b" lang={untranslated ? "id" : undefined}>
             {children}
           </div>
           {footer && <div className="dlg-f">{footer}</div>}

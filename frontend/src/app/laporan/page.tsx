@@ -166,7 +166,8 @@ function ReportView() {
         {ordered.length > 0 && (
           <PeriodStepper
             unit={basis === "cycle" ? "Siklus" : "Bulan"}
-            label={report?.period.label ?? "Memuat…"}
+            label={report?.period.label ?? null}
+            period={report ? { start: report.period.start_date, end: report.period.end_date } : null}
             offset={-position}
             minOffset={-(ordered.length - 1)}
             // Without `start` the API opens the latest closed period, so the running one needs its date.

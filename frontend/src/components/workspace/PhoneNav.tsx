@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { THEME_CHOICES } from "@/lib/theme";
 import { sameRouteClick } from "@/lib/urlState";
@@ -16,7 +17,6 @@ import {
   PHONE_TAB_HREFS,
   PRODUCT_NAME,
   REVIEW_HREF,
-  badgeWords,
   countText,
   isActivePath,
   type NavLink,
@@ -24,6 +24,7 @@ import {
 import { NotificationBell, NotificationsPanel } from "./Notifications";
 import { ShellDialog } from "./ShellDialog";
 import { HideBalancesButton, useThemeEntries } from "./TopBar";
+import { useBadgeWords } from "./useBadgeWords";
 
 function tabLink(href: string): NavLink {
   return NAV_LINKS.find((link) => link.href === href)!;
@@ -31,6 +32,7 @@ function tabLink(href: string): NavLink {
 
 /** The sticky 56 px phone header below 768 px (D5): brand, search, Sembunyikan saldo and the bell. */
 export function PhoneHeader() {
+  const t = useTranslations("shell");
   return (
     <header className="ph-header">
       <Link href="/" className="brand">
@@ -39,7 +41,7 @@ export function PhoneHeader() {
         </span>
         {PRODUCT_NAME}
       </Link>
-      <Link href={LEDGER_SEARCH_HREF} className="ws-icon-btn" aria-label="Cari transaksi">
+      <Link href={LEDGER_SEARCH_HREF} className="ws-icon-btn" aria-label={t("searchTransactions")}>
         <Icon name="search" className="h-5 w-5" />
       </Link>
       <HideBalancesButton iconSize={20} />
@@ -53,6 +55,8 @@ type PhoneLayer = "more" | "notifications" | "theme" | null;
 /** The 64 px tab bar below 768 px: Beranda, Tinjau, Catat, Transaksi and Lainnya (D5). */
 export function PhoneTabBar() {
   const pathname = usePathname();
+  const t = useTranslations();
+  const badgeWords = useBadgeWords();
   const { reviewAttention, openCapture } = useWorkspace();
   const [layer, setLayer] = useState<PhoneLayer>(null);
   const moreButton = useRef<HTMLButtonElement>(null);
@@ -63,16 +67,17 @@ export function PhoneTabBar() {
   const renderTab = (link: NavLink) => {
     const active = isActivePath(pathname, link.href);
     const count = link.href === REVIEW_HREF ? reviewAttention ?? 0 : 0;
+    const label = t(`nav.${link.key}`);
     return (
       <Link
         key={link.href}
         href={link.href}
         onClick={sameRouteClick(link.href, pathname)}
         aria-current={active ? "page" : undefined}
-        aria-label={count ? `${link.label}, ${badgeWords("review", count)}` : undefined}
+        aria-label={count ? t("nav.linkWithBadge", { label, badge: badgeWords("review", count) }) : undefined}
       >
         <Icon name={link.icon} className="h-5 w-5" />
-        <span>{link.label}</span>
+        <span>{label}</span>
         {count > 0 && (
           <span className="tab-count" aria-hidden="true">
             {countText(count)}
@@ -89,14 +94,14 @@ export function PhoneTabBar() {
 
   return (
     <>
-      <nav className="tabbar" aria-label="Navigasi ponsel">
+      <nav className="tabbar" aria-label={t("nav.phoneNavigation")}>
         {renderTab(home)}
         {renderTab(review)}
-        <button type="button" className="catat" onClick={openCapture} aria-label="Catat transaksi">
+        <button type="button" className="catat" onClick={openCapture} aria-label={t("shell.addTransaction")}>
           <span className="plus" aria-hidden="true">
             <Icon name="plus" className="h-5 w-5" />
           </span>
-          <span aria-hidden="true">Catat</span>
+          <span aria-hidden="true">{t("shell.add")}</span>
         </button>
         {renderTab(ledger)}
         <button
@@ -108,7 +113,7 @@ export function PhoneTabBar() {
           onClick={() => setLayer("more")}
         >
           <Icon name="more" className="h-5 w-5" />
-          <span>Lainnya</span>
+          <span>{t("nav.more")}</span>
         </button>
       </nav>
       <MoreSheet open={layer === "more"} onClose={closeTo} onOpenLayer={setLayer} />
@@ -117,8 +122,8 @@ export function PhoneTabBar() {
         open={layer === "theme"}
         anchorRef={moreButton}
         onClose={() => setLayer(null)}
-        label="Tema"
-        heading="Tema"
+        label={t("common.theme.label")}
+        heading={t("common.theme.label")}
         entries={themeEntries}
         width={220}
       />
@@ -132,30 +137,33 @@ export function PhoneTabBar() {
  */
 export function MoreSheet({ open, onClose, onOpenLayer }: { open: boolean; onClose: () => void; onOpenLayer: (layer: PhoneLayer) => void }) {
   const pathname = usePathname();
+  const t = useTranslations();
+  const badgeWords = useBadgeWords();
   const { reportBadge, unreadIds, themeChoice, logout } = useWorkspace();
   const theme = THEME_CHOICES.find((choice) => choice.value === themeChoice)!;
   const unread = unreadIds.size;
 
   return (
-    <ShellDialog open={open} onClose={onClose} title="Lainnya" width={480} closeLabel="Tutup Lainnya">
+    <ShellDialog open={open} onClose={onClose} title={t("nav.more")} width={480} closeLabel={t("nav.closeMore")}>
       <ul className="more-list">
         {MORE_LINKS.map((link) => {
           const active = isActivePath(pathname, link.href);
           const badge = link.badge === "report" && reportBadge;
+          const label = t(`nav.${link.key}`);
           return (
             <li key={link.href}>
               <Link
                 href={link.href}
                 className="more-row"
                 aria-current={active ? "page" : undefined}
-                aria-label={badge ? `${link.label}, ${badgeWords("report", 1)}` : undefined}
+                aria-label={badge ? t("nav.linkWithBadge", { label, badge: badgeWords("report", 1) }) : undefined}
                 onClick={sameRouteClick(link.href, pathname, onClose)}
               >
                 <Icon name={link.icon} className="h-5 w-5" />
-                <span className="r-title t-strong">{link.label}</span>
+                <span className="r-title t-strong">{label}</span>
                 {badge && (
                   <span className="t-meta" aria-hidden="true">
-                    1 baru
+                    {t("nav.newCount", { n: "1" })}
                   </span>
                 )}
                 <Icon name="chevron-right" className="h-4 w-4 chev" />
@@ -174,8 +182,8 @@ export function MoreSheet({ open, onClose, onOpenLayer }: { open: boolean; onClo
             }}
           >
             <Icon name="bell" className="h-5 w-5" />
-            <span className="r-title t-strong">Notifikasi</span>
-            {unread > 0 && <span className="t-meta">{unread} baru</span>}
+            <span className="r-title t-strong">{t("shell.notifications")}</span>
+            {unread > 0 && <span className="t-meta">{t("nav.newCount", { n: String(unread) })}</span>}
             <Icon name="chevron-right" className="h-4 w-4 chev" />
           </button>
         </li>
@@ -190,15 +198,15 @@ export function MoreSheet({ open, onClose, onOpenLayer }: { open: boolean; onClo
             }}
           >
             <Icon name="sun" className="h-5 w-5" />
-            <span className="r-title t-strong">Tema</span>
-            <span className="t-meta">{theme.label}</span>
+            <span className="r-title t-strong">{t("common.theme.label")}</span>
+            <span className="t-meta">{t(`common.theme.${theme.value}`)}</span>
             <Icon name="chevron-right" className="h-4 w-4 chev" />
           </button>
         </li>
         <li>
           <button type="button" className="more-row" onClick={logout}>
             <Icon name="logout" className="h-5 w-5" />
-            <span className="r-title t-strong">Keluar</span>
+            <span className="r-title t-strong">{t("shell.signOut")}</span>
           </button>
         </li>
       </ul>

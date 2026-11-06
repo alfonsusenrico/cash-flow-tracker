@@ -1,10 +1,15 @@
 "use client";
+
+import { useLocale, useTranslations } from "next-intl";
+import { UntranslatedNotice, useUntranslated } from "@/components/workspace/untranslated";
 import { useId, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { lockPageScroll } from "@/components/workspace/layers";
 import { cn } from "@/lib/utils";
 
 interface ModalProps {
+  /** Content a later phase translates: Indonesian with `lang="id"` and the notice line in an English interface. */
+  untranslated?: boolean;
   open: boolean;
   onClose: () => void;
   title: string;
@@ -18,7 +23,10 @@ interface ModalProps {
   hideCloseButton?: boolean;
 }
 
-export function Modal({ open, onClose, title, subtitle, leading, children, wide, centered, hideCloseButton }: ModalProps) {
+export function Modal({ open, onClose, title, subtitle, leading, children, wide, centered, hideCloseButton, untranslated: untranslatedContent }: ModalProps) {
+  const t = useTranslations("common");
+  const locale = useLocale();
+  const untranslated = useUntranslated(untranslatedContent);
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const onCloseRef = useRef(onClose);
@@ -112,10 +120,15 @@ export function Modal({ open, onClose, title, subtitle, leading, children, wide,
           <div className="flex min-w-0 items-center gap-3">
             {leading}
             <div className="min-w-0">
-              <h2 id={titleId} className="t-dtitle text-[var(--text)]">
+              <h2 id={titleId} className="t-dtitle text-[var(--text)]" lang={untranslated ? "id" : undefined}>
                 {title}
               </h2>
-              {subtitle && <p className="mt-1 text-xs text-[var(--muted)]">{subtitle}</p>}
+              {subtitle && (
+                <p className="mt-1 text-xs text-[var(--muted)]" lang={untranslated ? "id" : undefined}>
+                  {subtitle}
+                </p>
+              )}
+              {untranslated && <UntranslatedNotice className="mt-1 text-xs text-[var(--muted)]" />}
             </div>
           </div>
           {!hideCloseButton && (
@@ -123,7 +136,8 @@ export function Modal({ open, onClose, title, subtitle, leading, children, wide,
               onClick={onClose}
               type="button"
               className="ws-icon-btn -mr-2 -mt-1.5"
-              aria-label="Tutup"
+              aria-label={t("close")}
+              lang={untranslated ? locale : undefined}
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M6 6l12 12M18 6 6 18" />
@@ -131,7 +145,9 @@ export function Modal({ open, onClose, title, subtitle, leading, children, wide,
             </button>
           )}
         </div>
-        <div className="px-4 pb-4 sm:px-6 sm:pb-6">{children}</div>
+        <div className="px-4 pb-4 sm:px-6 sm:pb-6" lang={untranslated ? "id" : undefined}>
+          {children}
+        </div>
       </div>
     </div>,
     document.body

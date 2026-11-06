@@ -113,8 +113,8 @@ function shortDate(value: string): string {
   return SHORT_DATE.format(new Date(value));
 }
 
-function periodLabel(period: PeriodMetrics | null | undefined): string {
-  if (!period?.start || !period.end) return "Memuat…";
+function periodLabel(period: PeriodMetrics | null | undefined): string | null {
+  if (!period?.start || !period.end) return null;
   return period.label ?? `${shortDate(period.start)} – ${shortDate(period.end)}`;
 }
 
@@ -413,6 +413,7 @@ function LedgerPageContent() {
           <PeriodStepper
             unit={filters.period === "month" ? "Bulan" : "Siklus"}
             label={periodLabel(first?.summary?.period)}
+            period={first?.summary?.period?.start ? { start: first.summary.period.start, end: first.summary.period.end } : null}
             offset={filters.offset}
             onChange={(next) => updateFilters({ offset: next })}
           />
@@ -421,7 +422,7 @@ function LedgerPageContent() {
 
       {figures ? (
         // Three cards as on Beranda and Rekening (refine-workspace-layout D6, preview).
-        <section className="ws-kcards ws-kcards-3" aria-label={periodScoped ? `Total ${periodLabel(first?.summary?.period)}` : "Total semua waktu"}>
+        <section className="ws-kcards ws-kcards-3" aria-label={periodScoped ? `Total ${periodLabel(first?.summary?.period) ?? "Memuat…"}` : "Total semua waktu"}>
           <KpiCard tone="in" label="Masuk" value={bal(figures.inflow)} caption="" />
           <KpiCard
             tone="out"

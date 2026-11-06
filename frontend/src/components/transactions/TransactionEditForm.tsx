@@ -12,7 +12,7 @@ import { canConvertExpenseToTopup } from "@/lib/investmentTopups";
 import { KAKEIBO_PILLARS, kakeiboPillarInfo, pillarOrUnclassified, type KakeiboPillar } from "@/lib/kakeibo";
 import { MERCHANT_MAX_LENGTH, categoryOffsetsSpending, offsetCategoryOptions } from "@/lib/provenance";
 import { queryKeys } from "@/lib/queryKeys";
-import { formatNumberWithDots, localDatetimeToISO, toDatetimeLocal } from "@/lib/utils";
+import { formatNumberWithDots, localDatetimeToISO, toDatetimeLocal, stripGrouping } from "@/lib/utils";
 import type { LedgerRowDetail } from "./types";
 
 type EditKind = "expense" | "income";
@@ -97,7 +97,7 @@ export function TransactionEditForm({
         goal_id: goalId || null,
         obligation_id: kind === "income" ? (obligationId || null) : debtRows.length === 1 ? debtRows[0].obligation_id : null,
         ...(kind === "expense" && debtRows.length > 1
-          ? { obligation_allocations: debtRows.map((row) => ({ obligation_id: row.obligation_id, amount: Number(row.amount.replace(/\./g, "")) })) }
+          ? { obligation_allocations: debtRows.map((row) => ({ obligation_id: row.obligation_id, amount: Number(stripGrouping(row.amount)) })) }
           : {}),
         kakeibo_type: kind === "expense" && pillar ? pillar : null,
         merchant: merchant.trim() || null,
@@ -134,7 +134,7 @@ export function TransactionEditForm({
         document.getElementById("tx-edit-debt-0")?.focus();
         return;
       }
-      const splitError = allocationError(debtRows, Number(amount.replace(/\./g, "")), obligations, originalAmounts);
+      const splitError = allocationError(debtRows, Number(stripGrouping(amount)), obligations, originalAmounts);
       if (splitError) {
         setError(splitError);
         (document.getElementById("tx-edit-debt-0-amount") || document.getElementById("tx-edit-amount"))?.focus();
@@ -249,7 +249,7 @@ export function TransactionEditForm({
         {goalId && <p className="ws-caption mt-1">Kaitan ini tidak menambah progres target. Target yang terhubung ke rekening mengikuti saldonya.</p>}
       </div>
       {onCredit ? null : kind === "expense" ? (
-        <DebtAllocationEditor idPrefix="tx-edit" debts={obligations} rows={debtRows} total={Number(amount.replace(/\./g, "")) || 0} currency={bal}
+        <DebtAllocationEditor idPrefix="tx-edit" debts={obligations} rows={debtRows} total={Number(stripGrouping(amount)) || 0} currency={bal}
           originalAmounts={originalAmounts} onChange={(rows) => {
             setDebtRows(rows);
             if (rows.length) setGoalId("");
