@@ -27,6 +27,7 @@ from app.services.report_figures import (
     reportable_income_sql,
 )
 from app.services.report_windows import shift_month
+from app.services.system_categories import reportable_key_sql
 
 TOP_CHANGES = 3
 RECURRING_LOOKBACK_MONTHS = 6
@@ -346,7 +347,7 @@ def recurring_charges(cur, user_id: str, *, now: datetime | None = None) -> dict
         JOIN accounts a ON a.id = t.account_id
         LEFT JOIN categories c ON c.id = t.category_id
         WHERE t.user_id = %s AND t.type = 'expense' AND t.movement_id IS NULL AND t.fee_for_movement_id IS NULL
-          AND a.type <> 'investment' AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi')
+          AND a.type <> 'investment' AND {reportable_key_sql('c')}
           AND t.date >= %s AND t.date <= %s
         ORDER BY t.date, t.id
         """,

@@ -14,6 +14,7 @@ from app.routers.review import review_reasons
 from app.services.kakeibo import pillar_bucket_sql
 from app.services.monthly_report import ATTENTION_SQL, OPEN_QUESTION_JOIN_SQL, REVIEWABLE_ROW_SQL
 from app.services.report_figures import reportable_expense_sql
+from app.services.system_categories import INTERNAL_MOVEMENT, is_system_sql
 
 # Tinjau sections in the order the review page shows them.
 WAITING_SECTIONS: tuple[str, ...] = ("questions", "ambiguous", "awaiting", "groups")
@@ -43,7 +44,7 @@ def fetch_waiting_rows(cur, user_id: str, start: datetime, end: datetime) -> lis
         f"""
         SELECT t.id, t.type, t.amount, t.date, t.review_status, t.movement_id, t.merchant, t.notes,
                t.account_id, a.name AS account_name, c.name AS category_name,
-               COALESCE(c.name = 'Internal Movement', FALSE) AS movement_category,
+               {is_system_sql('c', INTERNAL_MOVEMENT)} AS movement_category,
                {reportable_expense_sql()} AS in_keluar,
                {pillar_bucket_sql()} AS bucket,
                ev.interpretation -> 'review_reasons' AS review_reasons,

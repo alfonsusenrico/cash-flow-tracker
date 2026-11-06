@@ -214,9 +214,9 @@ def test_rules_read_the_recording_notification_text():
     from app.services.history_suggestions import rule_proposal
     categories = {
         "patungan": {"id": "patungan", "name": "Patungan & Ganti Uang", "kind": "income", "kakeibo_type": None,
-                     "offsets_spending": True, "is_archived": False, "is_excluded_from_budget": False},
+                     "offsets_spending": True, "is_archived": False, "is_excluded_from_budget": False, "system_key": None},
         "makan": {"id": "makan", "name": "Makanan & Minuman", "kind": "expense", "kakeibo_type": "need",
-                  "offsets_spending": False, "is_archived": False, "is_excluded_from_budget": False},
+                  "offsets_spending": False, "is_archived": False, "is_excluded_from_budget": False, "system_key": None},
     }
     row = {"id": "row", "type": "income", "merchant": None, "notes": "Transfer masuk", "category_id": None,
            "event_text": "Dana masuk Rp57.000 berita: patungan bakso"}

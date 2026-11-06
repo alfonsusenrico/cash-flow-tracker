@@ -17,6 +17,7 @@ from fastapi import HTTPException
 from app.services.habits import ANSWER_WEIGHT, CORRECTION_WEIGHT, EVIDENCE_WINDOW, MIN_AGREEMENT, MIN_SUPPORT, basis_text
 from app.services.ledger_mutations import LIQUID_ACCOUNT_TYPES
 from app.services.purpose_questions import rupiah
+from app.services.system_categories import INTERNAL_MOVEMENT, is_system_sql
 
 logger = logging.getLogger(__name__)
 
@@ -246,7 +247,7 @@ def pending_debits(cur, user_id: str, *, account_id: str, amount: int, around: d
         f"""
         SELECT t.id, t.date, ev.interpretation ->> 'match_key' AS match_key
         FROM transactions t
-        JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id AND c.name = 'Internal Movement'
+        JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id AND {is_system_sql('c', INTERNAL_MOVEMENT)}
         {FIRST_EVENT_INTERPRETATION}
         LEFT JOIN LATERAL (
             SELECT f.outcome FROM investment_topup_feedback f

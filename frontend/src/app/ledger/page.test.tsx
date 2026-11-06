@@ -60,7 +60,7 @@ const QRIS = row("00000000-0000-4000-8000-00000000000b", "2026-11-02", "12:40", 
 const BAKSO = row("00000000-0000-4000-8000-00000000000c", "2026-11-01", "18:40", { merchant: "Bakso Mas Joko", amount: 45_000 });
 const TOPUP = row("00000000-0000-4000-8000-00000000000d", "2026-11-01", "10:31", {
   merchant: null, notes: "Top up Investasi", movement_id: "mv-1", movement_role: "outbound", investment_topup_id: "topup-1",
-  movement_kind: "investment_topup", transfer_target_account_name: "Reksa Dana A", amount: 150_000, category_name: "Internal Movement",
+  movement_kind: "investment_topup", transfer_target_account_name: "Reksa Dana A", amount: 150_000, category_name: "Internal Movement", category_system_key: "internal_movement",
 });
 const ROWS = [KEDAI, QRIS, BAKSO, TOPUP];
 const TOTALS = {
@@ -430,17 +430,17 @@ describe("Movement routes", () => {
   // Synthetic: BCA's ATM pocket sends to Gopay, Gopay sends on to Jago's Tabungan, and Jago's Main Pocket has an
   // income filed as a movement that nobody paired.
   const sent = row("00000000-0000-4000-8000-0000000000e1", "2026-11-04", "01:39", {
-    merchant: null, notes: "Pindah saldo ke Gopay", type: "expense", category_name: "Internal Movement", kakeibo_type: null,
+    merchant: null, notes: "Pindah saldo ke Gopay", type: "expense", category_name: "Internal Movement", category_system_key: "internal_movement", kakeibo_type: null,
     account_id: "00000000-0000-4000-8000-0000000000a1", account_name: "ATM", account_parent_name: "BCA", movement_id: "mv-a", movement_role: "outbound",
     partner_id: "00000000-0000-4000-8000-0000000000e2", transfer_target_account_name: "Gopay", transfer_target_account_parent_name: null,
   });
   const received = row("00000000-0000-4000-8000-0000000000e3", "2026-11-04", "01:41", {
-    merchant: null, notes: "Dari GoPay", type: "income", category_name: "Internal Movement", kakeibo_type: null,
+    merchant: null, notes: "Dari GoPay", type: "income", category_name: "Internal Movement", category_system_key: "internal_movement", kakeibo_type: null,
     account_id: "00000000-0000-4000-8000-0000000000a2", account_name: "Tabungan", account_parent_name: "Jago", movement_id: "mv-b", movement_role: "inbound",
     partner_id: "00000000-0000-4000-8000-0000000000e4", transfer_target_account_name: "Gopay", transfer_target_account_parent_name: null,
   });
   const unpaired = row("00000000-0000-4000-8000-0000000000e5", "2026-11-04", "01:50", {
-    merchant: null, notes: "Pindah uang dari BCA", type: "income", category_name: "Internal Movement", kakeibo_type: null,
+    merchant: null, notes: "Pindah uang dari BCA", type: "income", category_name: "Internal Movement", category_system_key: "internal_movement", kakeibo_type: null,
     account_id: "00000000-0000-4000-8000-0000000000a3", account_name: "Main Pocket", account_parent_name: "Jago", amount: 120_000,
   });
 

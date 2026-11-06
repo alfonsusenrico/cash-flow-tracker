@@ -19,7 +19,7 @@ from app.db.pool import db_conn
 from app.services.kakeibo import Pillar, effective_pillar
 from app.services.merchant_memory import live_feedback_sql, merchant_match_key, normalize_key_text, owner_identity
 from app.services.provenance import MERCHANT_MAX_LENGTH, normalize_merchant
-from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES
+from app.services.system_categories import is_non_reportable, non_reportable_sql
 
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ ELIGIBLE_SQL = f"""
       AND t.movement_id IS NULL AND t.fee_for_movement_id IS NULL
       AND t.goal_id IS NULL AND t.obligation_id IS NULL
       AND NOT EXISTS (SELECT 1 FROM transaction_obligation_allocations al WHERE al.transaction_id = t.id)
-      AND NOT COALESCE(c.name = ANY(%(non_reportable)s), FALSE)
+      AND NOT {non_reportable_sql("c")}
       AND t.date >= %(start)s AND t.date < %(end)s
 """
 
@@ -198,7 +198,7 @@ def stored_values(row: dict) -> tuple:
 
 def load_categories(cur, user_id: str) -> dict[str, dict]:
     cur.execute(
-        """SELECT id, name, kind, kakeibo_type, offsets_spending, is_archived,
+        """SELECT id, name, kind, kakeibo_type, offsets_spending, is_archived, system_key,
                   COALESCE(is_excluded_from_budget, FALSE) AS is_excluded_from_budget
            FROM categories WHERE user_id = %s""",
         (user_id,),
@@ -208,7 +208,7 @@ def load_categories(cur, user_id: str) -> dict[str, dict]:
 
 def active_categories(categories: dict[str, dict], kind: str) -> list[dict]:
     return [row for row in categories.values()
-            if row["kind"] == kind and not row["is_archived"] and row["name"] not in NON_REPORTABLE_CATEGORY_NAMES]
+            if row["kind"] == kind and not row["is_archived"] and not is_non_reportable(row["system_key"])]
 
 
 def offset_categories(categories: dict[str, dict]) -> list[dict]:
@@ -322,7 +322,7 @@ def rule_proposal(row: dict, categories: dict[str, dict], repayment_offset: str 
 def plan_window(cur, user_id: str, from_date: date, to_date: date, max_rows: int) -> Plan:
     """Eligible rows of the window, newest first, with memory and rule proposals already made."""
     start, end = window_bounds(from_date, to_date)
-    params = {"user_id": user_id, "non_reportable": list(NON_REPORTABLE_CATEGORY_NAMES), "start": start, "end": end}
+    params = {"user_id": user_id, "start": start, "end": end}
     cur.execute(f"SELECT COUNT(*) AS count FROM ({ELIGIBLE_SQL}) eligible", params)
     eligible_count = int(cur.fetchone()["count"])
     cur.execute(f"{ELIGIBLE_SQL} ORDER BY t.date DESC, t.id LIMIT %(limit)s", {**params, "limit": max_rows})

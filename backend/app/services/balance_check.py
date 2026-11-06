@@ -19,13 +19,13 @@ from fastapi import HTTPException
 from app.services.ledger_mutations import LIQUID_ACCOUNT_TYPES
 from app.services.notification_evidence import SUPPORTED_PACKAGES, collect_facts
 from app.services.notification_resolution import INSTITUTION_LABELS
+from app.services.system_categories import is_movement
 
 WINDOW_WITHOUT_ANCHOR = timedelta(days=30)  # OD140
 DUPLICATE_GAP_SECONDS = 300  # OD141: wider than the 120 s guard because the check only suggests
 CAPTURE_GAP = timedelta(hours=12)  # OD142
 CANDIDATE_LIMIT = 20
 EXPLANATION_MAX_SIZE = 3
-MOVEMENT_CATEGORY = "Internal Movement"
 WAITING_STATES = ("needs_review", "needs_confirmation", "failed")
 PENDING_STATES = ("queued", "processing")
 
@@ -115,7 +115,7 @@ def _recording_effect(direction: str | None, amount: int | None) -> int | None:
 
 ROW_CANDIDATES_SQL = """
     SELECT t.id, t.account_id, t.type, t.amount, t.date, t.merchant, t.notes, t.source,
-           t.movement_id, t.fee_for_movement_id, c.name AS category,
+           t.movement_id, t.fee_for_movement_id, c.name AS category, c.system_key AS category_system_key,
            a.name AS account_name, p.name AS parent_name, e.package_name,
            twin.id AS twin_id, twin.account_id AS twin_account_id, twin.date AS twin_date,
            twin.movement_id AS twin_movement_id, twin.account_name AS twin_account_name,
@@ -162,7 +162,7 @@ def row_candidates(cur, user_id: str, scope: CheckScope, since: datetime) -> lis
             # A pair inside the scope is one cause: report only its later row, so the effect counts once.
             if twin_in_scope and (row["twin_date"], str(twin_id)) > (row["date"], str(row["id"])):
                 twin_id = None
-        if twin_id is None and row["category"] != MOVEMENT_CATEGORY:
+        if twin_id is None and not is_movement(row["category_system_key"]):
             continue
         kind = "duplicate" if twin_id is not None else "unpaired"
         candidate = {

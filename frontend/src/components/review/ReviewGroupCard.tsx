@@ -16,6 +16,8 @@ export interface CategoryOption {
   kind: string;
   kakeibo_type?: string | null;
   is_archived?: boolean;
+  /** Read-only system key (investment, internal_movement, balance_adjustment); null for an ordinary category. */
+  system_key?: string | null;
 }
 
 export interface GroupActionRequest {

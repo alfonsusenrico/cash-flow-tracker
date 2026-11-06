@@ -2,6 +2,7 @@
 
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { kakeiboBucketInfo } from "@/lib/kakeibo";
+import { isMovementCategory } from "@/lib/systemCategories";
 import type { ActivityRow } from "./types";
 
 /** At most this many rows of today and yesterday on Beranda (beranda-cycle-summary). */
@@ -11,7 +12,7 @@ export type RowKind = "topup" | "movement" | "income" | "expense";
 
 export function rowKind(row: ActivityRow): RowKind {
   if (row.investment_topup_id) return "topup";
-  if (row.is_consolidated_transfer || row.movement_id || row.category_name === "Internal Movement" || row.is_excluded_from_budget) {
+  if (row.is_consolidated_transfer || row.movement_id || isMovementCategory(row.category_system_key) || row.is_excluded_from_budget) {
     return "movement";
   }
   return row.type === "income" ? "income" : "expense";

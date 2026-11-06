@@ -1,6 +1,7 @@
 import uuid
 
 from app.db.pool import db_conn
+from app.services.system_categories import INTERNAL_MOVEMENT, INVESTMENT, SEED_NAMES
 
 # Starter pillars apply only when a new user's categories are seeded; existing users keep their own.
 # Investasi and the movement and income categories carry none: they never count as spending.
@@ -13,10 +14,13 @@ DEFAULT_CATEGORIES = [
     {"name": "Belanja", "icon": "shopping-bag", "color": "#ec4899", "kind": "expense", "kakeibo_type": "want"},
     {"name": "Hiburan", "icon": "film", "color": "#8b5cf6", "kind": "expense", "kakeibo_type": "want"},
     {"name": "Kesehatan", "icon": "heart", "color": "#ef4444", "kind": "expense", "kakeibo_type": "need"},
-    {"name": "Investasi", "icon": "trending-up", "color": "#0ea5e9", "kind": "expense"},
+    {"name": SEED_NAMES[INVESTMENT], "icon": "trending-up", "color": "#0ea5e9", "kind": "expense",
+     "system_key": INVESTMENT},
     # Movement legs never count as spending, income or a Kakeibo pillar.
-    {"name": "Internal Movement", "icon": "repeat", "color": "#64748b", "kind": "expense", "excluded_from_budget": True},
-    {"name": "Internal Movement", "icon": "repeat", "color": "#64748b", "kind": "income", "excluded_from_budget": True},
+    {"name": SEED_NAMES[INTERNAL_MOVEMENT], "icon": "repeat", "color": "#64748b", "kind": "expense",
+     "excluded_from_budget": True, "system_key": INTERNAL_MOVEMENT},
+    {"name": SEED_NAMES[INTERNAL_MOVEMENT], "icon": "repeat", "color": "#64748b", "kind": "income",
+     "excluded_from_budget": True, "system_key": INTERNAL_MOVEMENT},
     {"name": "Gaji", "icon": "dollar-sign", "color": "#22c55e", "kind": "income"},
     {"name": "Pendapatan Lain", "icon": "plus-circle", "color": "#14b8a6", "kind": "income"},
     {"name": "Patungan & Ganti Uang", "icon": "users", "color": "#0d9488", "kind": "income", "offsets_spending": True},
@@ -40,13 +44,14 @@ def seed_user_defaults(user_id: str | uuid.UUID) -> None:
                 for cat in DEFAULT_CATEGORIES:
                     cur.execute("""
                         INSERT INTO categories
-                            (user_id, name, icon, color, kind, kakeibo_type, offsets_spending, is_excluded_from_budget)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            (user_id, name, icon, color, kind, kakeibo_type, offsets_spending, is_excluded_from_budget,
+                             system_key)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT DO NOTHING
                     """, (
                         uid, cat["name"], cat["icon"], cat["color"], cat["kind"],
                         cat.get("kakeibo_type"), cat.get("offsets_spending", False),
-                        cat.get("excluded_from_budget", False),
+                        cat.get("excluded_from_budget", False), cat.get("system_key"),
                     ))
 
             # Check existing accounts

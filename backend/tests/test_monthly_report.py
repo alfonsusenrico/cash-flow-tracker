@@ -9,6 +9,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from category_keys import seeded_key
+
 TZ = ZoneInfo("Asia/Jakarta")
 MONTHS = ("Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober",
           "November", "Desember")
@@ -61,9 +63,10 @@ def make_owner(user_id: str):
             )
         for key, name, kind, pillar, offsets, excluded in CATEGORIES:
             conn.execute(
-                """INSERT INTO categories (id, user_id, name, kind, kakeibo_type, offsets_spending, is_excluded_from_budget)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-                (ids[key], user_id, name, kind, pillar, offsets, excluded),
+                """INSERT INTO categories (id, user_id, name, kind, kakeibo_type, offsets_spending, is_excluded_from_budget,
+                                          system_key)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                (ids[key], user_id, name, kind, pillar, offsets, excluded, seeded_key(name)),
             )
         conn.commit()
     return {"user_id": user_id, **ids}

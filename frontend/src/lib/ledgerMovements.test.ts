@@ -5,7 +5,9 @@ const outbound: LedgerMovementRow = {
   id: "out",
   account_id: "source",
   account_name: "Source",
-  category_name: "Internal Movement",
+  // Renamed by the owner; the key keeps it a movement leg.
+  category_name: "Transfer",
+  category_system_key: "internal_movement",
   type: "expense",
   amount: 500,
   date: "2026-09-20T10:00:00.000Z",
@@ -43,7 +45,10 @@ describe("ledger movement display", () => {
   });
 
   it("does not infer from ordinary or already linked rows", () => {
-    expect(consolidateLedgerMovements([outbound, { ...inbound, category_name: "Other" }], true)).toHaveLength(2);
+    expect(consolidateLedgerMovements([outbound, { ...inbound, category_name: "Other", category_system_key: null }], true)).toHaveLength(2);
+    // An ordinary category that happens to carry the seed name is not a movement leg.
+    const sameName = { ...inbound, category_name: "Internal Movement", category_system_key: null };
+    expect(consolidateLedgerMovements([outbound, sameName], true)).toHaveLength(2);
     expect(consolidateLedgerMovements([outbound, { ...inbound, movement_id: "stored" }], true)).toHaveLength(2);
   });
 

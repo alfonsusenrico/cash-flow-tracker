@@ -56,6 +56,9 @@ from app.services.reimbursements import (
 )
 from app.services.report_figures import possible_duplicate_sql, reportable_expense_sql, reportable_income_sql
 from app.services.report_windows import PERIOD_PATTERN, get_timeframe_window
+from app.services.system_categories import (
+    INTERNAL_MOVEMENT, INVESTMENT, is_system_sql, non_reportable_sql, reportable_key_sql,
+)
 
 router = APIRouter(tags=["Transactions"])
 
@@ -196,11 +199,14 @@ LIST_INCLUDES = ("daily_totals", "type_counts")
 # Movement legs of an investment top-up belong to the Investasi tab, never to Pindah saldo.
 TOPUP_LEG_SQL = "EXISTS (SELECT 1 FROM investment_topups it WHERE it.id = t.movement_id AND it.user_id = t.user_id)"
 TYPE_FILTER_SQL = {
-    "transfer": "(t.type = 'transfer' OR c.name IN ('Internal Movement', 'Investasi') OR c.is_excluded_from_budget = true)",
-    "expense": "t.type = 'expense' AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND COALESCE(c.is_excluded_from_budget, false) = false",
-    "income": "t.type = 'income' AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND COALESCE(c.is_excluded_from_budget, false) = false",
-    "movement": f"((t.type = 'transfer' OR c.name = 'Internal Movement' OR c.is_excluded_from_budget = true) AND COALESCE(c.name, '') <> 'Investasi' AND NOT {TOPUP_LEG_SQL})",
-    "investment": f"({TOPUP_LEG_SQL} OR c.name = 'Investasi')",
+    "transfer": f"(t.type = 'transfer' OR {non_reportable_sql('c')} OR c.is_excluded_from_budget = true)",
+    "expense": f"t.type = 'expense' AND {reportable_key_sql('c')} AND COALESCE(c.is_excluded_from_budget, false) = false",
+    "income": f"t.type = 'income' AND {reportable_key_sql('c')} AND COALESCE(c.is_excluded_from_budget, false) = false",
+    "movement": (
+        f"((t.type = 'transfer' OR {is_system_sql('c', INTERNAL_MOVEMENT)} OR c.is_excluded_from_budget = true)"
+        f" AND NOT {is_system_sql('c', INVESTMENT)} AND NOT {TOPUP_LEG_SQL})"
+    ),
+    "investment": f"({TOPUP_LEG_SQL} OR {is_system_sql('c', INVESTMENT)})",
 }
 TAB_KEYS = ("expense", "income", "movement", "investment")
 
@@ -418,6 +424,7 @@ def list_transactions(
                     sa_parent.name AS account_parent_name,
                     t.category_id,
                     c.name AS category_name,
+                    c.system_key AS category_system_key,
                     c.icon AS category_icon,
                     c.color AS category_color,
                     COALESCE(c.is_excluded_from_budget, false) AS is_excluded_from_budget,
@@ -508,6 +515,7 @@ def list_transactions(
                 "account_parent_name": r.get("account_parent_name"),
                 "category_id": str(r["category_id"]) if r["category_id"] else None,
                 "category_name": r["category_name"],
+                "category_system_key": r["category_system_key"],
                 "category_icon": r["category_icon"],
                 "category_color": r["category_color"],
                 "is_excluded_from_budget": bool(r.get("is_excluded_from_budget", False)),
@@ -829,7 +837,9 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 # Investment trade (buy/sell) is capital deployment within portfolio, NOT monthly living budget saving
                 kakeibo_val = None
                 if not category_id:
-                    cur.execute("SELECT id FROM categories WHERE user_id = %s AND name = 'Investasi' LIMIT 1", (user_id,))
+                    cur.execute(
+                        "SELECT id FROM categories WHERE user_id = %s AND system_key = %s LIMIT 1", (user_id, INVESTMENT),
+                    )
                     inv_cat = cur.fetchone()
                     if inv_cat:
                         category_id = str(inv_cat["id"])
@@ -1046,7 +1056,8 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                 f"""
                 SELECT
                     t.id, t.account_id, sa.name AS account_name, sa_parent.name AS account_parent_name,
-                    t.category_id, c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
+                    t.category_id, c.name AS category_name, c.system_key AS category_system_key,
+                    c.icon AS category_icon, c.color AS category_color,
                     t.goal_id, g.name AS goal_name,
                     t.obligation_id, o.name AS obligation_name,
                     t.type,
@@ -1093,6 +1104,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             "account_parent_name": r.get("account_parent_name"),
             "category_id": str(r["category_id"]) if r["category_id"] else None,
             "category_name": r["category_name"],
+            "category_system_key": r["category_system_key"],
             "category_icon": r["category_icon"],
             "category_color": r["category_color"],
             "goal_id": str(r["goal_id"]) if r["goal_id"] else None,

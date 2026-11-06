@@ -170,8 +170,8 @@ def test_v51_backfill_keeps_todays_figures_and_a_rerun_keeps_owner_roles():
             categories = {}
             for kind in ("expense", "income"):
                 cur.execute(
-                    """INSERT INTO categories (user_id, name, kind, is_excluded_from_budget)
-                       VALUES (%s, 'Internal Movement', %s, TRUE) RETURNING id""",
+                    """INSERT INTO categories (user_id, name, kind, is_excluded_from_budget, system_key)
+                       VALUES (%s, 'Internal Movement', %s, TRUE, 'internal_movement') RETURNING id""",
                     (user_id, kind),
                 )
                 categories[kind] = cur.fetchone()["id"]

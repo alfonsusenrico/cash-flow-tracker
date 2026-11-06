@@ -1,3 +1,5 @@
+import { isNonReportableCategory } from "@/lib/systemCategories";
+
 export type TransactionSource =
   | "manual"
   | "notification"
@@ -85,10 +87,8 @@ interface OffsetCategoryCandidate {
   kind: string;
   is_archived?: boolean;
   is_excluded_from_budget?: boolean;
+  system_key?: string | null;
 }
-
-// Reports leave these out by name even where the excluded flag was never set, as the backend does.
-const NON_REPORTABLE_CATEGORY_NAMES = new Set(["Internal Movement", "Investasi"]);
 
 /** Expense categories a reimbursement may offset: active and counted in spending reports. */
 export function offsetCategoryOptions<T extends OffsetCategoryCandidate>(categories: readonly T[]): T[] {
@@ -97,7 +97,8 @@ export function offsetCategoryOptions<T extends OffsetCategoryCandidate>(categor
       category.kind === "expense"
       && !category.is_archived
       && !category.is_excluded_from_budget
-      && !NON_REPORTABLE_CATEGORY_NAMES.has(category.name ?? ""),
+      // Reports leave these out by key even where the excluded flag was never set, as the backend does.
+      && !isNonReportableCategory(category.system_key),
   );
 }
 

@@ -9,6 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { type MonthlyReport, categoryLedgerHref } from "@/lib/monthlyReport";
 import { queryKeys } from "@/lib/queryKeys";
+import { isNonReportableCategory } from "@/lib/systemCategories";
 import { cn } from "@/lib/utils";
 import { LINK_CLASS, ReportPanel } from "./ReportParts";
 
@@ -19,6 +20,7 @@ interface CategoryRow {
   monthly_budget: number | null;
   is_archived: boolean;
   is_excluded_from_budget: boolean;
+  system_key: string | null;
 }
 
 const digits = (value: string) => value.replace(/[^0-9]/g, "");
@@ -34,7 +36,7 @@ export function BudgetEditorDialog({ open, onClose }: { open: boolean; onClose: 
   // Reports leave these categories out of spending, so a budget on them would never be compared.
   const categories = useMemo(
     () => (data?.categories ?? []).filter(
-      (row) => row.kind === "expense" && !row.is_archived && !row.is_excluded_from_budget && !["Internal Movement", "Investasi"].includes(row.name),
+      (row) => row.kind === "expense" && !row.is_archived && !row.is_excluded_from_budget && !isNonReportableCategory(row.system_key),
     ),
     [data],
   );

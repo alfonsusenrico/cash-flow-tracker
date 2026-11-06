@@ -1,0 +1,1 @@
+{"compared_values": 23793, "running_window_ends_skipped": 68, "additive_fields_only_after": 452, "differences": 0}

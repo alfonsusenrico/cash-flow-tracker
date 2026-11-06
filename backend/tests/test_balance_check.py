@@ -9,6 +9,8 @@ from uuid import uuid4
 
 import pytest
 
+from category_keys import seeded_key
+
 NOW = datetime.now(timezone.utc)
 
 
@@ -52,8 +54,8 @@ def owner(client):
             ("shop", "Belanja Contoh", "expense"), ("other_in", "Pendapatan Lain", "income"),
         ]:
             conn.execute(
-                "INSERT INTO categories (id, user_id, name, kind) VALUES (%s, %s, %s, %s)",
-                (ids[key], user_id, name, kind),
+                "INSERT INTO categories (id, user_id, name, kind, system_key) VALUES (%s, %s, %s, %s, %s)",
+                (ids[key], user_id, name, kind, seeded_key(name)),
             )
         conn.commit()
     app.dependency_overrides[get_current_user] = lambda: {

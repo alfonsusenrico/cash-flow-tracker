@@ -17,6 +17,7 @@ from test_duplicate_arrivals import (
 from test_notification_processing_database import (
     RDN_TOP_UP, at, deposit_events, ingest, ingest_with_source_confirmation, notification, transactions_of,
 )
+from category_keys import seeded_key
 
 START_BALANCE = 1_000_000
 
@@ -62,7 +63,8 @@ def restructured_owner(client, monkeypatch):
                 ("internal_out", "Internal Movement", "expense"), ("internal_in", "Internal Movement", "income"),
                 ("belanja", "Belanja", "expense"),
             ]:
-                cur.execute("INSERT INTO categories (id, user_id, name, kind) VALUES (%s, %s, %s, %s)", (ids[key], user_id, name, kind))
+                cur.execute("INSERT INTO categories (id, user_id, name, kind, system_key) VALUES (%s, %s, %s, %s, %s)",
+                            (ids[key], user_id, name, kind, seeded_key(name)))
             cur.execute("INSERT INTO goals (user_id, name, target_amount) VALUES (%s, 'Dana Darurat Contoh', 500000) RETURNING id", (user_id,))
             cur.execute("INSERT INTO goal_accounts (goal_id, account_id) VALUES (%s, %s)", (cur.fetchone()["id"], ids["emergency"]))
         conn.commit()

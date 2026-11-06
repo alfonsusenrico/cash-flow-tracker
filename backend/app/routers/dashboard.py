@@ -26,6 +26,7 @@ from app.services.report_figures import (
 )
 from app.services.observed_insights import cash_flow_history, comparison_windows, period_comparison, recurring_charges
 from app.services.question_rate import MAX_WEEKS, question_rate
+from app.services.system_categories import reportable_key_sql
 from app.services.report_windows import (
     PERIOD_PATTERN,
     TIMEFRAME_PATTERN,
@@ -438,7 +439,7 @@ def get_dashboard_overview(
             cur.execute(
                 f"""
                 SELECT
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND {reportable_key_sql()} AND t.type != 'transfer' AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
                     COALESCE(SUM(CASE WHEN {reportable_expense_sql()} THEN t.amount ELSE 0 END), 0) AS outflow,
                     COUNT(*) AS tx_count
                 FROM transactions t
@@ -606,7 +607,7 @@ def get_dashboard_overview(
             cur.execute(
                 f"""
                 SELECT
-                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND COALESCE(c.name, '') NOT IN ('Internal Movement', 'Investasi') AND t.type != 'transfer' AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
+                    COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.is_excluded_from_budget, false) = false AND {reportable_key_sql()} AND t.type != 'transfer' AND {not_reimbursement_sql()} THEN t.amount ELSE 0 END), 0) AS inflow,
                     COALESCE(SUM(CASE WHEN {reportable_expense_sql()} THEN t.amount ELSE 0 END), 0) AS outflow,
                     COUNT(*) AS tx_count
                 FROM transactions t

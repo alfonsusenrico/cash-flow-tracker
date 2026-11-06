@@ -133,15 +133,15 @@ const recent = [
     date: "2026-11-02T09:05:00Z", review_status: "needs_review", source: "notification", classified_by: "ai", category_name: null },
   { id: "topup-out", type: "expense", amount: 250_000, notes: "", account_id: "rdn", account_name: "RDN Contoh", date: "2026-11-02T03:00:00Z",
     movement_id: "t1", movement_role: "outbound", investment_topup_id: "topup-1", transfer_target_account_name: "Reksa Dana A",
-    category_name: "Internal Movement", review_status: "reviewed" },
+    category_name: "Internal Movement", category_system_key: "internal_movement", review_status: "reviewed" },
   { id: "topup-in", type: "income", amount: 250_000, notes: "", account_id: "rda", account_name: "Reksa Dana A", date: "2026-11-02T03:00:00Z",
-    movement_id: "t1", movement_role: "inbound", investment_topup_id: "topup-1", partner_id: "topup-out", category_name: "Internal Movement",
+    movement_id: "t1", movement_role: "inbound", investment_topup_id: "topup-1", partner_id: "topup-out", category_name: "Internal Movement", category_system_key: "internal_movement",
     review_status: "reviewed" },
   { id: "move-out", type: "expense", amount: 500_000, notes: "", account_id: "bu", account_name: "Bank Utama", date: "2026-11-02T02:12:00Z",
-    movement_id: "m1", movement_role: "outbound", transfer_target_account_name: "Dompet Digital", category_name: "Internal Movement",
+    movement_id: "m1", movement_role: "outbound", transfer_target_account_name: "Dompet Digital", category_name: "Internal Movement", category_system_key: "internal_movement",
     review_status: "auto" },
   { id: "move-in", type: "income", amount: 500_000, notes: "", account_id: "dw", account_name: "Dompet Digital", date: "2026-11-02T02:12:00Z",
-    movement_id: "m1", movement_role: "inbound", partner_id: "move-out", category_name: "Internal Movement", review_status: "auto" },
+    movement_id: "m1", movement_role: "inbound", partner_id: "move-out", category_name: "Internal Movement", category_system_key: "internal_movement", review_status: "auto" },
   { id: "kopi", type: "expense", amount: 32_000, notes: null, merchant: "Kopi Pagi", account_id: "dw", account_name: "Dompet Digital",
     date: "2026-11-02T00:45:00Z", kakeibo_type: "want", review_status: "auto", source: "notification", classified_by: "habit" },
 ];
@@ -548,7 +548,7 @@ describe("Aktivitas terbaru", () => {
   });
 
   it("titles movements in the direction the money moved, with each pocket's bank, and marks an unpaired leg", async () => {
-    const movement = { type: "expense", amount: 300_000, notes: "", category_name: "Internal Movement", review_status: "reviewed", date: "2026-11-02T01:00:00Z" };
+    const movement = { type: "expense", amount: 300_000, notes: "", category_name: "Internal Movement", category_system_key: "internal_movement", review_status: "reviewed", date: "2026-11-02T01:00:00Z" };
     activityRows = [
       { ...movement, id: "pair-out", account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago", movement_id: "p1",
         movement_role: "outbound", partner_id: "pair-in", transfer_target_account_name: "ATM", transfer_target_account_parent_name: "BCA" },

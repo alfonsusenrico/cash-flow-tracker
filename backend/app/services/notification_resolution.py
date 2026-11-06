@@ -5,6 +5,7 @@ import re
 
 from app.services.notification_evidence import EvidenceError, NotificationFacts, requires_source_pocket
 from app.services.notification_interpretation import Interpretation
+from app.services.system_categories import is_movement
 
 
 NAME_TOKEN = re.compile(r"[A-Za-z*]+")
@@ -252,10 +253,16 @@ def observed_endpoint_with_basis(facts: NotificationFacts, accounts: list[dict])
     return endpoint, "default_pocket" if str(endpoint["id"]) != str(parent["id"]) else "named"
 
 
+def category_system_key(context: dict, category: dict) -> str | None:
+    """The system key of a context category, kept out of the model's input (`_system_category_keys`)."""
+    return context["_system_category_keys"].get(str(category["id"]))
+
+
 def movement_categories(context: dict) -> tuple[str, str]:
     ids = []
     for kind in ("expense", "income"):
-        rows = [row for row in context["categories"] if row["name"] == "Internal Movement" and row["kind"] == kind]
+        rows = [row for row in context["categories"]
+                if is_movement(category_system_key(context, row)) and row["kind"] == kind]
         if len(rows) != 1:
             raise EvidenceError("movement_category_missing")
         ids.append(str(rows[0]["id"]))

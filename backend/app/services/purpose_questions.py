@@ -23,7 +23,8 @@ from app.services.notification_mapping import version_tuple
 from app.services.purpose_normalization import (
     PURPOSE_PROMPT_VERSION, InvalidNormalization, validate_normalization,
 )
-from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES, validate_offset_category
+from app.services.reimbursements import validate_offset_category
+from app.services.system_categories import is_non_reportable
 from app.services.review_undo import ActionRecorder, null_token
 
 
@@ -90,7 +91,7 @@ def classification_group(values: dict) -> tuple:
 
 def owner_categories(cur, user_id: str) -> dict[str, dict]:
     cur.execute(
-        """SELECT id, name, kind, kakeibo_type, offsets_spending, is_archived,
+        """SELECT id, name, kind, kakeibo_type, offsets_spending, is_archived, system_key,
                   COALESCE(is_excluded_from_budget, FALSE) AS is_excluded_from_budget
            FROM categories WHERE user_id = %s""",
         (user_id,),
@@ -328,7 +329,7 @@ def normalizer_context(cur, user_id: str, event: dict, question: dict, text: str
     if direction == "income":
         offsets = [row for row in owned
                    if row["kind"] == "expense" and not row["is_archived"] and not row["is_excluded_from_budget"]
-                   and row["name"] not in NON_REPORTABLE_CATEGORY_NAMES]
+                   and not is_non_reportable(row["system_key"])]
     signature_parts = ((event.get("interpretation") or {}).get("text_signature") or "").split("|")
     hint = signature_parts[2] if len(signature_parts) > 2 else None
     return {
@@ -426,7 +427,7 @@ def apply_answer(event_id: str, user_id: str, answer: dict, normalized: dict | N
             key = transaction_event_key(cur, user_id, transaction_id)
             insert_feedback(cur, user_id, kind="purpose_answer", before=before, after=after,
                             key={**key, "event_id": event_id}, answer=answer)
-            if review_status == "reviewed" and is_movement_category(after.get("category_name")):
+            if review_status == "reviewed" and is_movement_category(after["category_system_key"]):
                 # A transfer answer names one side of a movement: link the other now, or keep asking (D4).
                 if not pair_answered_transfer(cur, user_id, transaction_id, recorder):
                     await_counterpart(cur, user_id, transaction_id)

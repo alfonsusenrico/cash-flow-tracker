@@ -136,6 +136,8 @@ export interface ActivityRow {
   /** The bank of a pocket; null for an account without a parent. */
   account_parent_name?: string | null;
   category_name: string | null;
+  /** The category's system key (investment, internal_movement, balance_adjustment); null for an ordinary one. */
+  category_system_key?: string | null;
   type: "expense" | "income";
   amount: number;
   date: string;

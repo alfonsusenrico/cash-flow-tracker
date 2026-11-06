@@ -26,6 +26,7 @@ from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, normalize_merchant
 from app.services.purpose_questions import list_open_questions
 from app.services.review_undo import TOKEN_PATTERN, ActionRecorder, undo_action
 from app.services.seen_twice import acknowledge, record_separately, seen_twice_items, skipped_items
+from app.services.system_categories import INTERNAL_MOVEMENT, is_system_sql
 from app.services.topup_learning import reject_suggestion, topup_suggestion
 
 router = APIRouter(prefix="/review", tags=["Review"])
@@ -35,13 +36,13 @@ QUESTION_LIMIT = 200
 BULK_LIMIT = 200
 AMBIGUOUS_CANDIDATE_LIMIT = 5
 
-QUEUE_SQL = """
+QUEUE_SQL = f"""
     SELECT t.id, t.type, t.amount, t.date, t.account_id, a.name AS account_name, a.type AS account_type,
            t.category_id, c.name AS category_name,
            CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo_type,
            t.merchant, t.notes, t.review_status, t.source, t.classified_by,
            t.movement_id, t.movement_role, t.fee_for_movement_id,
-           COALESCE(c.name = 'Internal Movement', FALSE) AS movement_category,
+           {is_system_sql('c', INTERNAL_MOVEMENT)} AS movement_category,
            ev.interpretation -> 'review_reasons' AS review_reasons,
            ev.interpretation ->> 'match_key' AS match_key,
            question.id IS NOT NULL AS has_open_question

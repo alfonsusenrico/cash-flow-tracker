@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.services.habits import EVIDENCE_KINDS, MIN_AGREEMENT, MIN_SUPPORT, Label, decide, trusted_label_sql, within_band
 from app.services.merchant_memory import live_feedback_sql
 from app.services.notification_resolution import INSTITUTION_LABELS
-from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES
+from app.services.system_categories import reportable_key_sql
 from app.services.topup_learning import label_rows, labels_from_rows, product_stats
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ def _habit_rows(cur, user_id: str) -> list[dict]:
                f.local_weekday, f.local_hour, f.created_at, a.name AS account_name
         FROM latest f
         JOIN categories c ON c.id = f.after_category_id AND c.user_id = f.user_id
-             AND c.kind = 'expense' AND c.is_archived = FALSE AND c.name <> ALL(%(excluded)s)
+             AND c.kind = 'expense' AND c.is_archived = FALSE AND {reportable_key_sql("c")}
         LEFT JOIN accounts a ON a.id = f.account_id AND a.user_id = f.user_id
         LEFT JOIN notification_events answered
              ON f.kind = 'purpose_answer' AND answered.user_id = f.user_id AND answered.id = f.event_id
@@ -60,8 +60,7 @@ def _habit_rows(cur, user_id: str) -> list[dict]:
         ORDER BY f.created_at DESC, f.id DESC
         LIMIT %(limit)s
         """,
-        {"user_id": user_id, "excluded": list(NON_REPORTABLE_CATEGORY_NAMES), "kinds": list(EVIDENCE_KINDS),
-         "limit": ROW_LIMIT},
+        {"user_id": user_id, "kinds": list(EVIDENCE_KINDS), "limit": ROW_LIMIT},
     )
     return cur.fetchall()
 

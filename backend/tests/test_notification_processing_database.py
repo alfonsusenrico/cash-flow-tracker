@@ -10,6 +10,7 @@ import pytest
 
 from app.services.notification_interpretation import Interpretation
 from app.services.openai_notification_provider import ProviderError
+from category_keys import seeded_key
 
 
 @pytest.fixture
@@ -37,7 +38,8 @@ def notification_owner(client, monkeypatch):
                 ("expense", "Tagihan & Utilitas", "expense"), ("income", "Transfer Masuk", "income"),
                 ("internal_out", "Internal Movement", "expense"), ("internal_in", "Internal Movement", "income"),
             ]:
-                cur.execute("INSERT INTO categories (id, user_id, name, kind) VALUES (%s, %s, %s, %s)", (ids[key], user_id, name, kind))
+                cur.execute("INSERT INTO categories (id, user_id, name, kind, system_key) VALUES (%s, %s, %s, %s, %s)",
+                            (ids[key], user_id, name, kind, seeded_key(name)))
             cur.execute("INSERT INTO goals (user_id, name, target_amount) VALUES (%s, 'Synthetic fund', 500000) RETURNING id", (user_id,))
             goal_id = cur.fetchone()["id"]
             cur.execute("INSERT INTO goal_accounts (goal_id, account_id) VALUES (%s, %s)", (goal_id, ids["emergency"]))

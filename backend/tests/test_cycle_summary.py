@@ -14,6 +14,8 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg.types.json import Jsonb
 
+from category_keys import seeded_key
+
 JAKARTA = ZoneInfo("Asia/Jakarta")
 SUMMARY = "/api/dashboard/cycle-summary"
 SALARY = 9_800_000
@@ -87,9 +89,10 @@ class Owner:
     def category(self, key, name, kind="expense", pillar=None, offsets=False, excluded=False):
         category_id = str(uuid4())
         self.db(
-            """INSERT INTO categories (id, user_id, name, kind, kakeibo_type, offsets_spending, is_excluded_from_budget)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-            (category_id, self.user_id, name, kind, pillar, offsets, excluded),
+            """INSERT INTO categories (id, user_id, name, kind, kakeibo_type, offsets_spending, is_excluded_from_budget,
+                                      system_key)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            (category_id, self.user_id, name, kind, pillar, offsets, excluded, seeded_key(name)),
         )
         self.ids[key] = category_id
         return category_id
