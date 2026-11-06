@@ -1044,6 +1044,7 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .panel-block + .panel-block { margin-top: var(--sp-24); padding-top: var(--sp-24); border-top: 1px solid var(--line); }
 
 /* Hero and supporting figures */
+.hero { container: hero / inline-size; }
 .hero .hero-top { position: relative; display: flex; align-items: center; gap: var(--sp-8); min-height: 32px; }
 .hero .hero-top .t-label { flex: 0 1 auto; }
 .hero .hero-top .ws-btn-quiet.ws-btn-sm { padding: 0 var(--sp-8); }
@@ -1160,6 +1161,11 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
   .cols { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 1023px) {
+  .legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Owner decision 13: four columns need 150 px each for the longest caption ("termasuk setoran · 23 Nov"), so a
+   reading column under 672 px (1200 to 1383 px wide, beside the panel) shows two, and no caption wraps. */
+@container hero (max-width: 671px) {
   .legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 767px) {

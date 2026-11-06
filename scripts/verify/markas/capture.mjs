@@ -33,7 +33,7 @@ const CELLS = [
 ];
 // Extra widths for the shell's breakpoints (apply-markas-shell D2) and Beranda's one-column range
 // (apply-markas-beranda D1), only when named in --cells.
-const EXTRA_WIDTHS = [1920, 1280, 1199, 1100, 1024, 1023, 768, 767, 320];
+const EXTRA_WIDTHS = [1920, 1400, 1380, 1280, 1199, 1100, 1024, 1023, 768, 767, 320];
 const EXTRA_CELLS = EXTRA_WIDTHS.flatMap((width) =>
   ["light", "dark"].map((theme) => ({ name: `${width}-${theme}`, width, height: width < 768 ? 844 : width === 1024 ? 768 : 900, theme, mobile: width < 768 })),
 );

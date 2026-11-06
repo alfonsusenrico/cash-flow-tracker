@@ -370,6 +370,11 @@ describe("page piece geometry in the stylesheet", () => {
     expect(rule(".split > span")).toContain("min-width: 2px");
   });
 
+  it("moves the legend to two columns in a reading column too narrow for four one-line captions", () => {
+    expect(rule(".hero")).toContain("container: hero / inline-size");
+    expect(css).toMatch(/@container hero \(max-width: 671px\) \{\s*\.legend \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
+  });
+
   it("makes rows 56 px, 64 px and two lines on the phone, with the time and status columns hidden there", () => {
     expect(rule(".row")).toMatch(/min-height: 56px;/);
     expect(rule(".row", phone)).toMatch(/min-height: 64px;/);

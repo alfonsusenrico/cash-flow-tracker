@@ -130,7 +130,8 @@
       if (legend) {
         const blocks = all(".fig-block", legend);
         add("supporting figures shown", blocks.length, phone ? 2 : 4);
-        add("legend columns", style(legend).gridTemplateColumns.trim().split(/\s+/).length, innerWidth < 1024 ? 2 : 4);
+        // Two columns below 1024 px, and in a reading column under 672 px (owner decision 13's measured fallback).
+        add("legend columns", style(legend).gridTemplateColumns.trim().split(/\s+/).length, innerWidth < 1024 || box(hero).width < 672 ? 2 : 4);
         add("legend gap", px(style(legend).columnGap), phone ? 16 : 24);
         if (split) add("legend after the bar", px(box(legend).top - box(split).bottom), 16, 1);
         const labels = blocks.map((block) => first(".fb-label .t-meta", block)?.textContent.trim());

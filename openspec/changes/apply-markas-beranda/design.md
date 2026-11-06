@@ -106,7 +106,7 @@ The bar has `role="img"` and the label "Uang siklus ini dari Rp 9.518.400 masuk:
 
 No figure here is a button. Each figure's breakdown is in the Rincian dialog (D5).
 
-**Width check at 1024 px:** the reading column is 688 px, so each legend column is 154 px. Inter 20/600 tabular "Rp 123.456.789" measures about 150 px and fits. The gate measures "Rp 1.234.567.890" and the USD display at 1024 (Owner decision 13).
+**Width check (decision 13 outcome, 2026-11-06):** measured on the app, the longest caption "termasuk setoran · 23 Nov" needs 150 px and "Rp 1.234.567.890" 174 px. Four columns therefore need a 672 px reading column for the captions: at 1440 it is 728 px and at 1024 688 px, but between 1200 and 1383 px, beside the panel, it is 568 to 671 px. A container query on the hero (`@container hero (max-width: 671px)`) shows two columns there, so no caption wraps; a ten-digit figure may still wrap under "Rp" in the four columns at 1440 and 1024, inside its block. The first estimate was: at 1024 px the reading column is 688 px, so each legend column is 154 px. Inter 20/600 tabular "Rp 123.456.789" measures about 150 px and fits. The gate measures "Rp 1.234.567.890" and the USD display at 1024 (Owner decision 13).
 
 Rejected alternatives:
 - Keep "Uang siklus ini" as its own card: it repeats the four figures (audit finding 6).
@@ -368,7 +368,7 @@ Decided on 2026-11-06: the owner approved the plan with every recommended defaul
 10. **Terjadwal caption.** **"tagihan sampai 24 Nov", and "termasuk setoran · 24 Nov" when goal set-asides are included** (revised by the owner on 2026-11-06 from "tagihan & setoran sampai 24 Nov", which wrapped); or always the prototype's "tagihan sampai …".
 11. **Masked figure markup.** **`role="img"` with `aria-label="Disembunyikan"`**; or the prototype's bare `aria-label` (an axe finding); or visually hidden text.
 12. **Top-up row title.** **"Top up Investasi" (the approved `investment-topups` wording)**; or the prototype's "Top up <product>".
-13. **Legend at 1024 px with large amounts.** **The prototype's four columns. If the stress figure overflows at 1024 in the gate, a container query moves the legend to two columns below the measured width, recorded as a deviation**; or keep four columns and accept the overflow.
+13. **Legend at 1024 px with large amounts.** **The prototype's four columns. If the stress figure overflows at 1024 in the gate, a container query moves the legend to two columns below the measured width, recorded as a deviation** (applied: below a 672 px reading column, see D4); or keep four columns and accept the overflow.
 
 ## Risks / Trade-offs
 
