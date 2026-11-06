@@ -38,8 +38,12 @@ The application SHALL provide a consistent button hierarchy built from the works
 - **THEN** the button shows a 2 px outline in the focus token 2 px outside its edge, and no coloured ring
 
 #### Scenario: Small row actions are quiet
-- **WHEN** Beranda's "Perlu tindakan" shows a "Pilih" or "Atur" action
+- **WHEN** a Tinjau row on a page not yet redesigned shows a small action such as "Pilih" or "Ubah"
 - **THEN** the action is a small quiet button with muted text and no semantic fill
+
+#### Scenario: Whole-row items
+- **WHEN** Beranda's "Perlu tindakan" lists an item
+- **THEN** the whole row SHALL be its one action, and the row SHALL show no separate action button or pill
 
 ### Requirement: Light, Dark and System Theme
 The web app SHALL offer "Terang", "Gelap" and "Ikuti sistem" themes, default to "Ikuti sistem", persist the choice in the browser, and apply it before the first paint so no page flashes the other theme. With "Ikuti sistem" the theme SHALL follow operating-system changes while the page is open.

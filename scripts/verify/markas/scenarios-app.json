@@ -1,7 +1,52 @@
 [
  {
   "name": "beranda",
-  "path": "/"
+  "path": "/",
+  "beranda": true
+ },
+ {
+  "name": "beranda-sembunyi",
+  "path": "/",
+  "storage": {
+   "hideBalances": "1"
+  },
+  "beranda": true
+ },
+ {
+  "name": "dlg-rincian-aman",
+  "path": "/",
+  "beranda": true,
+  "steps": [
+   {
+    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp)"
+   }
+  ]
+ },
+ {
+  "name": "dlg-rincian-aman-rincian-terbuka",
+  "path": "/",
+  "beranda": true,
+  "steps": [
+   {
+    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp)"
+   },
+   {
+    "click": "^Pengeluaran"
+   }
+  ]
+ },
+ {
+  "name": "dlg-rincian-aman-sembunyi",
+  "path": "/",
+  "storage": {
+   "hideBalances": "1"
+  },
+  "beranda": true,
+  "steps": [
+   {
+    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp)"
+   }
+  ]
  },
  {
   "name": "tinjau",
@@ -423,6 +468,12 @@
   "name": "komponen",
   "path": "/komponen",
   "componentSheet": true
+ },
+ {
+  "name": "komponen-beranda",
+  "path": "/komponen",
+  "componentSheet": true,
+  "beranda": true
  },
  {
   "name": "shell-beranda",

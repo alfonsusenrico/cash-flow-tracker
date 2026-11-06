@@ -1,42 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAppCtx } from "@/components/layout/AppLayout";
-import { EmergencyRunway, essentialBasisText } from "@/components/dashboard/EmergencyCoverage";
 import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
+import { TransactionDrawer } from "@/components/transactions/TransactionDrawer";
+import { useTransactionUndo } from "@/components/transactions/useTransactionUndo";
+import { Icon } from "@/components/ui/Icon";
 import { usePageHeader } from "@/components/workspace/context";
-import { ExplainableFigure } from "@/components/workspace/explain";
 import { Drawer } from "@/components/workspace/overlays";
-import { Card, CardHeader, ErrorState, KpiCard, MoneyBar, Skeleton } from "@/components/workspace/primitives";
-import { useWidthAtMost } from "@/hooks/useWidthAtMost";
 import { api } from "@/lib/api";
-import { KAKEIBO_BUCKETS } from "@/lib/kakeibo";
 import { consolidateLedgerMovements } from "@/lib/ledgerMovements";
 import { queryKeys } from "@/lib/queryKeys";
 import type { ReviewQueue } from "@/lib/review";
 import type { AutoLinkedOccurrence, DueExpectation, RecurringRule } from "@/types/recurring";
-import { ACTIVITY_LIMIT, ActivityCard, jakartaDay } from "./activity";
-import {
-  type Money,
-  balance,
-  longDate,
-  masukExplanation,
-  netWorthExplanation,
-  periodWord,
-  remainingExplanation,
-  savingChangeLabel,
-  savingExplanation,
-  scheduledExplanation,
-  shortDate,
-  spendingExplanation,
-  unavailableReason,
-} from "./explanations";
-import { TodoCard, todoItems } from "./TodoCard";
-import { TransactionDrawer } from "@/components/transactions/TransactionDrawer";
-import { useTransactionUndo } from "@/components/transactions/useTransactionUndo";
+import { ActivitySection } from "./ActivitySection";
+import { BerandaHero } from "./BerandaHero";
+import { ContextPanel, type Overview } from "./ContextPanel";
+import { TodoSection, todoItems } from "./TodoSection";
+import { jakartaDay, recentActivity } from "./activity";
+import { shortDate } from "./explanations";
 import type { ActivityRow, CycleSummary } from "./types";
 
 const SUMMARY_REFRESH_MS = 30_000;
@@ -46,283 +31,96 @@ const PLAN_NOTICE_DAYS = 2;
 const WEEKDAY_DATE = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Jakarta" });
 const MONTH_NAME = new Intl.DateTimeFormat("id-ID", { month: "long", timeZone: "UTC" });
 
-interface Overview {
-  kpis?: EmergencyRunway & {
-    runway_status?: EmergencyRunway["status"];
-    target_amount?: number | null;
-    coverage_pct?: number | null;
-    emergency_balance_basis?: EmergencyRunway["balance_basis"];
-  };
-}
-
-function useDisplayMoney(): Money {
-  const { bal } = useAppCtx();
-  return (amount: number) => bal(amount);
-}
-
-// Figures show their final value at once (SPEC §10: no counting numbers).
-function FinalMoney({ value }: { value: number }) {
-  const { bal } = useAppCtx();
-  return <>{bal(value)}</>;
-}
-
-/* ------------------------------------------------------------------------------------------------
- * KPI cards (refine-workspace-layout D5): the period's safe amount first, then the four money figures.
- * Every figure is a server field with its "Rincian hitungan"; no sentence summary and no same-date chip.
- * ---------------------------------------------------------------------------------------------- */
-
-function sinceCaption(summary: CycleSummary): string {
-  return summary.period.basis === "cycle" ? `sejak gaji ${shortDate(summary.period.start_date)}` : `sejak 1 ${MONTH_NAME.format(new Date(`${summary.period.start_date}T00:00:00Z`))}`;
-}
-
-function masukCaption(summary: CycleSummary, money: Money): string {
-  const top = [...summary.masuk.lines].sort((a, b) => b.amount - a.amount)[0];
-  if (!top) return "belum ada uang masuk";
-  return summary.masuk.lines.length > 1 ? `terbesar ${top.label} ${money(top.amount)}` : top.label;
-}
-
-export function BerandaKpis({ summary }: { summary: CycleSummary }) {
-  const money = useDisplayMoney();
-  const { safe_to_spend: safe, remaining, expected_salary: expected } = summary;
-  const word = periodWord(summary);
-  const known = safe.status === "available" && safe.days_left !== null;
-  const free = Math.max(0, remaining.total);
-  const days = known
-    ? `${safe.days_left} hari lagi${expected.date ? ` · gaji ± ${shortDate(expected.date)}` : ""}`
-    : unavailableReason(summary).short === "tanggal gaji belum jelas"
-      ? "Tanggal gaji berikutnya belum diketahui"
-      : unavailableReason(summary).short;
-  const net = summary.net_worth;
-  return (
-    <section className="ws-kcards" aria-label={`Ringkasan ${word}`}>
-      <KpiCard
-        hero
-        tone="safe"
-        label="Aman dipakai sampai gajian"
-        value={
-          <ExplainableFigure label="Aman dipakai sampai gajian" amountText={balance(remaining.total, money)} explanation={remainingExplanation(summary, money)}>
-            <FinalMoney value={free} />
-          </ExplainableFigure>
-        }
-        caption={remaining.total < 0 ? `lebih ${money(-remaining.total)} dari uang masuk` : days}
-      />
-      <KpiCard
-        tone="in"
-        label="Masuk"
-        value={
-          <ExplainableFigure label={`Masuk ${word}`} amountText={money(summary.masuk.total)} explanation={masukExplanation(summary, money)}>
-            <FinalMoney value={summary.masuk.total} />
-          </ExplainableFigure>
-        }
-        caption={masukCaption(summary, money)}
-      />
-      <KpiCard
-        tone="out"
-        label="Pengeluaran"
-        value={
-          <ExplainableFigure label={`Pengeluaran ${word}`} amountText={money(summary.spending.amount)} explanation={spendingExplanation(summary, money)}>
-            <FinalMoney value={summary.spending.amount} />
-          </ExplainableFigure>
-        }
-        caption={sinceCaption(summary)}
-      />
-      <KpiCard
-        tone="save"
-        label="Ditabung & investasi"
-        value={
-          <ExplainableFigure label="Ditabung & investasi" amountText={money(Math.abs(summary.fresh_saving.amount))} explanation={savingExplanation(summary, money)}>
-            <FinalMoney value={Math.abs(summary.fresh_saving.amount)} />
-          </ExplainableFigure>
-        }
-        caption={summary.tabungan ? savingChangeLabel(summary.tabungan.total, money) : "kantong tabungan dan investasi"}
-      />
-      <KpiCard
-        tone="net"
-        label="Kekayaan bersih"
-        value={
-          <ExplainableFigure label="Kekayaan bersih" amountText={money(net.total)} explanation={netWorthExplanation(summary, money)}>
-            <FinalMoney value={net.total} />
-          </ExplainableFigure>
-        }
-        caption={`aset ${money(net.liquid + (net.dana_investasi ?? 0) + net.investment - (net.reconciliation_pending ?? 0))} · utang ${money(net.debts + (net.credit_owed ?? 0))}`}
-      />
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------------------------------------
- * Uang siklus ini: four segments that add up to Masuk, and one formula line.
- * ---------------------------------------------------------------------------------------------- */
-
-export function MoneyCard({ summary }: { summary: CycleSummary }) {
-  const money = useDisplayMoney();
-  const { spending, fresh_saving: saving, scheduled, remaining, masuk } = summary;
-  const word = periodWord(summary);
-  const free = Math.max(0, remaining.total);
-  const legend = [
-    { key: "spending", label: "Pengeluaran", amount: spending.amount, color: "var(--out-solid)", explanation: spendingExplanation(summary, money) },
-    // A savings decrease takes no width in the bar; its legend names the direction in words.
-    { key: "saving", label: saving.amount < 0 ? "Tabungan berkurang" : "Ditabung & investasi", amount: Math.max(0, saving.amount), shown: Math.abs(saving.amount), color: "var(--k-saving)", explanation: savingExplanation(summary, money) },
-    { key: "scheduled", label: "Terjadwal", amount: scheduled.total, color: "var(--warn-solid)", explanation: scheduledExplanation(summary, money) },
-    { key: "safe", label: "Aman dipakai", amount: free, color: "var(--in-solid)", explanation: remainingExplanation(summary, money) },
-  ];
-  return (
-    <Card labelledBy="beranda-money">
-      <CardHeader
-        id="beranda-money"
-        title={`Uang ${word}`}
-        extra={<span className="text-sm font-normal text-[var(--muted)]">dari {money(masuk.total)} masuk</span>}
-        action={
-          <Link href="/goals" className="ws-linkbtn ws-accent-link">
-            Tagihan
-          </Link>
-        }
-      />
-      <div className="mt-4">
-        <MoneyBar
-          legend={false}
-          segments={legend.map((item) => ({ key: item.key, label: item.label, amount: item.amount, display: money(item.amount), className: `ws-seg-${item.key}` }))}
-        />
-        <ul className="ws-money-legend" aria-label={`Pembagian uang ${word}`}>
-          {legend.map((item) => (
-            <li key={item.key} style={{ ["--sc" as string]: item.color }}>
-              <span className="ws-money-legend-h">{item.label}</span>
-              <b>
-                <ExplainableFigure label={item.label} amountText={money(item.shown ?? item.amount)} explanation={item.explanation} />
-              </b>
-            </li>
-          ))}
-        </ul>
-      </div>
-      {remaining.total < 0 ? (
-        <p className="ws-caption mt-3 font-medium text-[var(--out-fg)]">
-          {word[0].toUpperCase() + word.slice(1)} sudah lebih {money(-remaining.total)} dari uang masuk.
-        </p>
-      ) : (
-        <p className="ws-caption mt-3">Aman dipakai = masuk − pengeluaran − ditabung − terjadwal.</p>
-      )}
-    </Card>
-  );
-}
-
-/* ------------------------------------------------------------------------------------------------
- * Kakeibo and Ketahanan Dana
- * ---------------------------------------------------------------------------------------------- */
-
-export function KakeiboCard({ summary }: { summary: CycleSummary }) {
-  const money = useDisplayMoney();
-  const word = periodWord(summary);
-  const rows = [...summary.spending.lines, ...summary.fresh_saving.lines];
-  // Bar lengths are display only: each bucket against the largest one; the amounts come from the server.
-  const largest = Math.max(1, ...rows.map((line) => line.amount));
-  const row = (line: (typeof rows)[number]) => {
-    const info = KAKEIBO_BUCKETS.find((bucket) => bucket.value === line.key);
-    return (
-      <li key={line.key} style={{ ["--kc" as string]: info?.color }}>
-        <span className="ws-kk" data-bucket={line.key}>
-          {line.href ? <Link href={line.href}>{line.label}</Link> : line.label}
-        </span>
-        <span className="ws-kk-bar" aria-hidden="true">
-          <i style={{ width: `${(line.amount / largest) * 100}%` }} />
-        </span>
-        <span className="ws-kk-amount">{money(line.amount)}</span>
-      </li>
-    );
-  };
-  return (
-    <Card labelledBy="beranda-kakeibo">
-      <CardHeader
-        id="beranda-kakeibo"
-        title={`Kakeibo ${word}`}
-        extra={
-          <span className="text-sm font-normal text-[var(--muted)]">
-            Pengeluaran <ExplainableFigure label={`Pengeluaran ${word}`} amountText={money(summary.spending.amount)} explanation={spendingExplanation(summary, money)} />
-          </span>
-        }
-        action={
-          <Link href="/insights" className="ws-linkbtn ws-accent-link">
-            Analisis
-          </Link>
-        }
-      />
-      <ul className="ws-kk-rows">{summary.spending.lines.map(row)}</ul>
-      <ul className="ws-kk-rows ws-kk-saving" aria-label="Ditabung">
-        {summary.fresh_saving.lines.map(row)}
-      </ul>
-    </Card>
-  );
-}
-
-export function DanaCard({ overview, error }: { overview: Overview | undefined; error: boolean }) {
-  const { bal } = useAppCtx();
-  const kpis = overview?.kpis;
-  const months = kpis ? kpis.coverage_months ?? kpis.runway_months : null;
-  const status = kpis?.runway_status ?? kpis?.status;
-  const unknown = !kpis || months == null || status === "unknown";
-  const basisWord = kpis?.emergency_balance_basis === "all_liquid" ? "saldo kas" : "dana darurat";
-  return (
-    <Card labelledBy="beranda-dana">
-      <CardHeader
-        id="beranda-dana"
-        icon="shield"
-        title="Ketahanan Dana"
-        action={
-          <Link href="/goals" className="ws-linkbtn ws-accent-link">
-            Detail
-          </Link>
-        }
-      />
-      {error && <p className="ws-caption mt-3">Ketahanan Dana belum bisa dimuat.</p>}
-      {kpis && unknown && (
-        <p className="ws-caption mt-3">
-          Belum bisa dihitung: biaya pokok bulanan belum diketahui. {essentialBasisText(kpis.essential_cost)}
-        </p>
-      )}
-      {kpis && !unknown && (
-        <>
-          <div className="ws-dana-big">
-            <b>{months!.toLocaleString("id-ID", { maximumFractionDigits: 1 })}</b> bulan biaya pokok
-          </div>
-          {kpis.coverage_pct != null && (
-            <div className="ws-bar mt-3" aria-hidden="true">
-              <i style={{ width: `${Math.min(100, Math.max(0, kpis.coverage_pct))}%` }} />
-            </div>
-          )}
-          <div className="ws-dana-foot">
-            <span>
-              <b>{bal(kpis.emergency_fund_balance)}</b> {basisWord}
-            </span>
-            {kpis.target_amount ? (
-              <span>
-                target <b>{bal(kpis.target_amount)}</b>
-              </span>
-            ) : null}
-          </div>
-        </>
-      )}
-    </Card>
-  );
-}
-
-/* ------------------------------------------------------------------------------------------------
- * Page
- * ---------------------------------------------------------------------------------------------- */
-
+/** The title block (D2): today's date and the period line, with the cycle's span when the salary date is known. */
 export function headerFor(summary: CycleSummary | undefined, now: Date) {
   const title = WEEKDAY_DATE.format(now);
   if (!summary) return { title, subtitle: "" };
-  const { period } = summary;
+  const { period, scheduled } = summary;
   if (period.basis === "cycle") {
-    return { title, subtitle: `Siklus sejak ${shortDate(period.start_date)} · hari ke-${period.day_index}` };
+    const span =
+      scheduled.window_basis === "expected_salary"
+        ? `${shortDate(period.start_date)} – ${shortDate(scheduled.window_end)}`
+        : `sejak ${shortDate(period.start_date)}`;
+    return { title, subtitle: `Siklus gaji ${span} · hari ke-${period.day_index}` };
   }
   const month = MONTH_NAME.format(new Date(`${period.start_date}T00:00:00Z`));
   return { title, subtitle: `${month} · siklus gaji belum tersedia` };
+}
+
+function dayBefore(day: string): string {
+  return jakartaDay(new Date(Date.parse(`${day}T12:00:00+07:00`) - 86_400_000));
 }
 
 function startOfYesterdayIso(now: Date): string {
   const today = jakartaDay(now);
   const start = Date.parse(`${today}T00:00:00+07:00`) - 86_400_000;
   return new Date(start).toISOString();
+}
+
+/** Static placeholders in the final layout (D13): the SPEC skeleton, no pulse and no amount. */
+function HeroSkeleton() {
+  return (
+    <div className="hero-skel" aria-hidden="true">
+      <span className="skel" style={{ width: 168 }} />
+      <span className="skel is-hero" style={{ width: "40%" }} />
+      <span className="skel is-line" style={{ width: 240 }} />
+      <span className="skel is-split" />
+      <div className="legend">
+        {[0, 1, 2, 3].map((index) => (
+          <div key={index} className="fig-block">
+            <span className="skel" style={{ width: 64 }} />
+            <span className="skel is-fig" style={{ width: "72%" }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RowsSkeleton() {
+  return (
+    <div aria-hidden="true">
+      <span className="skel is-label" style={{ width: 120 }} />
+      {[46, 38, 52].map((width) => (
+        <div key={width} className="skel-row">
+          <span className="skel" style={{ width: 40 }} />
+          <span className="skel" style={{ width: `${width}%` }} />
+          <span className="grow" />
+          <span className="skel" style={{ width: 96 }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PanelSkeleton() {
+  return (
+    <div className="panel" aria-hidden="true">
+      {[0, 1, 2].map((index) => (
+        <div key={index} className="panel-block">
+          <span className="skel" style={{ width: 120 }} />
+          <span className="skel is-fig" style={{ width: "60%" }} />
+          <span className="skel" style={{ width: "80%" }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The summary's failure in the hero's place (D13): the SPEC error box, no amount, and a retry. */
+function SummaryError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="error-box" role="alert">
+      <Icon name="alert" className="h-5 w-5" />
+      <div className="grow">
+        <p className="t-strong">Angka Beranda belum dapat dimuat</p>
+        <p className="t-meta">Saldo dan transaksi tetap aman; coba muat lagi.</p>
+      </div>
+      <button type="button" className="ws-btn" onClick={onRetry}>
+        Coba lagi
+      </button>
+    </div>
+  );
 }
 
 export default function BerandaView() {
@@ -333,10 +131,6 @@ export default function BerandaView() {
   const { record } = useTransactionUndo();
   const [plansOpen, setPlansOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
-  const gridRef = useRef<HTMLDivElement>(null);
-  // Same width as `@container main (max-width: 900px)`, where the grid becomes one column. The cards are
-  // then put in the phone order (D5), so reading and focus order follow the layout.
-  const singleColumn = useWidthAtMost(gridRef, 900);
 
   const summaryQuery = useQuery<CycleSummary>({
     queryKey: queryKeys.dashboard.cycleSummary,
@@ -371,7 +165,7 @@ export default function BerandaView() {
     const rows = activityQuery.data?.transactions;
     return rows ? consolidateLedgerMovements(rows, true) : null;
   }, [activityQuery.data]);
-  const recent = activity ? activity.slice(0, ACTIVITY_LIMIT) : null;
+  const recent = activity ? recentActivity(activity) : null;
   // A row deleted from the drawer leaves the list once Beranda refreshes; focus then goes to the main region.
   const [deletedId, setDeletedId] = useState<string | null>(null);
   useEffect(() => {
@@ -379,8 +173,6 @@ export default function BerandaView() {
     if (document.activeElement === document.body) document.getElementById("main")?.focus();
     setDeletedId(null);
   }, [deletedId, activity]);
-  const todayRows = activity ? activity.filter((row) => jakartaDay(row.date) === today) : [];
-  const autoToday = todayRows.filter((row) => row.review_status === "auto").length;
 
   const horizon = jakartaDay(new Date(now.getTime() + PLAN_NOTICE_DAYS * 86_400_000));
   const plans = (rulesQuery.data?.rules ?? [])
@@ -394,77 +186,37 @@ export default function BerandaView() {
     bal,
     onOpenPlans: () => setPlansOpen(true),
   });
-  const attention = queueQuery.data?.counts.attention ?? 0;
 
   usePageHeader(headerFor(summary, now));
 
-  const summaryFailed = summaryQuery.isError;
-  const retry = () => summaryQuery.refetch();
-
-  const noCycleNote =
-    summary?.period.basis === "month" ? (
-      <p className="ws-caption mb-4">
-        Siklus gaji belum tersedia, jadi Beranda memakai bulan kalender.{" "}
-        <Link href="/settings/gaji" className="ws-linkbtn">
-          Atur gaji di Pengaturan
-        </Link>
-      </p>
-    ) : null;
-
-  const todo = (
-    <TodoCard
-      attention={attention}
-      items={items}
-      autoToday={autoToday}
-      error={queueQuery.isError}
-      waitingAmount={summary && summary.waiting.count > 0 ? bal(summary.waiting.total) : null}
-    />
-  );
-  const money = summary ? <MoneyCard summary={summary} /> : null;
-  const activityCard = <ActivityCard rows={recent} bal={bal} onSelect={setSelectedTx} error={activityQuery.isError} />;
-  const kakeibo = summary ? <KakeiboCard summary={summary} /> : null;
-  const dana = <DanaCard overview={overviewQuery.data} error={overviewQuery.isError} />;
+  const loading = summaryQuery.isLoading;
+  const todoLoading = queueQuery.isLoading || rulesQuery.isLoading || pendingQuery.isLoading;
 
   return (
-    // Measured here, not on the grid: the grid only exists once the figures have loaded.
-    <div ref={gridRef}>
-      {summaryQuery.isLoading && <BerandaSkeleton />}
-      {summaryFailed && (
-        <div className="my-4">
-          <ErrorState message="Angka Beranda belum dapat dimuat. Saldo dan transaksi tetap aman; coba muat lagi." onRetry={retry} />
-        </div>
+    <>
+      {summary?.period.basis === "month" && (
+        <p className="t-meta beranda-note">
+          Siklus gaji belum tersedia, jadi Beranda memakai bulan kalender.{" "}
+          <Link href="/settings/gaji" className="ws-linkbtn">
+            Atur gaji di Pengaturan
+          </Link>
+        </p>
       )}
-      {summary && (
-        <>
-          {noCycleNote}
-          <BerandaKpis summary={summary} />
-        </>
-      )}
-      {(summary || summaryFailed) && (
-        <div className="ws-home-grid">
-          {singleColumn ? (
-            <div className="ws-stack">
-              {todo}
-              {money}
-              {activityCard}
-              {kakeibo}
-              {dana}
-            </div>
+      {/* DOM order is the visual and phone order at every width (D1): hero, Perlu tindakan, Aktivitas, panel. */}
+      <div className="cols" aria-busy={loading || undefined}>
+        <div className="stack">
+          {loading && <HeroSkeleton />}
+          {summaryQuery.isError && <SummaryError onRetry={() => summaryQuery.refetch()} />}
+          {summary && <BerandaHero summary={summary} />}
+          {todoLoading ? <RowsSkeleton /> : <TodoSection attention={queueQuery.data?.counts.attention ?? 0} items={items} error={queueQuery.isError} />}
+          {activityQuery.isLoading ? (
+            <RowsSkeleton />
           ) : (
-            <>
-              <div className="ws-stack">
-                {money}
-                {activityCard}
-              </div>
-              <div className="ws-stack">
-                {todo}
-                {kakeibo}
-                {dana}
-              </div>
-            </>
+            <ActivitySection rows={recent} today={today} yesterday={dayBefore(today)} bal={bal} onSelect={setSelectedTx} error={activityQuery.isError} />
           )}
         </div>
-      )}
+        {loading ? <PanelSkeleton /> : <ContextPanel summary={summary} overview={overviewQuery.data} overviewError={overviewQuery.isError} bal={bal} />}
+      </div>
 
       <TransactionDrawer transactionId={selectedTx?.id ?? null} onClose={() => setSelectedTx(null)} record={record} onDeleted={(row) => setDeletedId(row.id)} />
       <Drawer open={plansOpen} onClose={() => setPlansOpen(false)} title="Rencana jatuh tempo" subtitle="Tautkan, lewati, atau catat manual">
@@ -474,26 +226,6 @@ export default function BerandaView() {
         )}
       </Drawer>
       <RecurringRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
-    </div>
+    </>
   );
 }
-
-function BerandaSkeleton() {
-  return (
-    <div aria-busy="true" aria-label="Memuat Beranda">
-      <Skeleton className="h-[132px] rounded-xl" />
-      <div className="ws-home-grid">
-        <div className="ws-stack">
-          <Skeleton className="h-[160px] rounded-xl" />
-          <Skeleton className="h-[420px] rounded-xl" />
-        </div>
-        <div className="ws-stack">
-          <Skeleton className="h-[140px] rounded-xl" />
-          <Skeleton className="h-[260px] rounded-xl" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export { longDate };

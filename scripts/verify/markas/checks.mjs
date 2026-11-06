@@ -229,7 +229,7 @@ try {
 
   // Reduced motion: a dialog appears without animation and a row without transition.
   await open("/", "light", { reducedMotion: true });
-  const row = await styleOf('document.querySelector(".ws-act-row, .ws-btn")');
+  const row = await styleOf('document.querySelector(".row, .ws-btn")');
   await openCatat();
   const reduced = await styleOf('[...document.querySelectorAll("[role=dialog]")].pop()');
   record("reduced motion", reduced && reduced.animation.startsWith("none") && row.transition.split(",").every((value) => value.trim() === "0s"), { dialog: reduced?.animation, row: row?.transition });
