@@ -25,10 +25,11 @@ from app.services.notification_context import CANDIDATE_LIMIT, discover_candidat
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
 from app.services.notification_interpretation import Interpretation, validate_interpretation
 from app.services.notification_resolution import (
-    institution_parent, main_endpoint, movement_categories, observed_endpoint, observed_endpoint_with_basis,
-    pocket_endpoint, root_account_id, transfer_signature,
+    category_system_key, institution_parent, main_endpoint, movement_categories, observed_endpoint,
+    observed_endpoint_with_basis, pocket_endpoint, root_account_id, transfer_signature,
 )
 from app.services.notification_sender import sender_gate
+from app.services.system_categories import hint_key, is_movement
 from app.services.habits import HabitDecision
 from app.services.provenance import (
     MERCHANT_MAX_LENGTH, Provenance, habit_provenance, normalize_merchant, notification_provenance,
@@ -57,9 +58,12 @@ BANK_CATEGORY_HINT_ALIASES = {
 }
 
 
-def hinted_categories(categories: list[dict], hint: str | None) -> list[dict]:
+def hinted_categories(context: dict, categories: list[dict], hint: str | None) -> list[dict]:
+    """The categories a parser hint names: a system hint by key, whatever the category is named (D7)."""
     if not hint:
         return []
+    if key := hint_key(hint):
+        return [row for row in categories if category_system_key(context, row) == key]
     exact = [row for row in categories if row["name"].casefold() == hint.casefold()]
     if exact:
         return exact
@@ -149,9 +153,9 @@ def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Int
         signature = transfer_signature(facts, context, str(observed["id"]))
         self_transfer = signature["transfer"] and signature["self_identity"]
         if self_transfer:
-            matches = [row for row in categories if row["name"] == "Internal Movement"]
+            matches = [row for row in categories if is_movement(category_system_key(context, row))]
         if not matches:
-            matches = hinted_categories(categories, facts.parsed.category_hint)
+            matches = hinted_categories(context, categories, facts.parsed.category_hint)
         # No single category: the row is still recorded, uncategorised and flagged (design D1).
         category = matches[0] if len(matches) == 1 else None
         if self_transfer or (context.get("facts") or {}).get("counterparty_is_owner"):
@@ -620,7 +624,7 @@ def habit_category_name(context: dict, category_id: str) -> str:
 
 
 def movement_category_ids(context: dict) -> set[str]:
-    return {str(row["id"]) for row in context["categories"] if row["name"] == "Internal Movement"}
+    return {str(row["id"]) for row in context["categories"] if is_movement(category_system_key(context, row))}
 
 
 # The broker confirms an RDN deposit hours after the bank reports it (observed: 3 h).

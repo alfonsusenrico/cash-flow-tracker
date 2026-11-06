@@ -44,7 +44,7 @@ def list_categories(
     user_id = current_user["id"]
     query = """
         SELECT id, name, icon, color, kind, monthly_budget, is_primary, kakeibo_type, is_archived, created_at,
-               is_excluded_from_budget, offsets_spending
+               is_excluded_from_budget, offsets_spending, system_key
         FROM categories
         WHERE user_id = %s
     """
@@ -81,6 +81,8 @@ def list_categories(
                 "is_archived": r["is_archived"],
                 "is_excluded_from_budget": bool(r.get("is_excluded_from_budget", False)),
                 "offsets_spending": bool(r.get("offsets_spending", False)),
+                # Read-only: set by seeding and the system "ensure" helpers, never by a client.
+                "system_key": r["system_key"],
                 "created_at": r["created_at"].isoformat() if r["created_at"] else None,
             }
             for r in rows
@@ -185,7 +187,7 @@ def update_category(
                 # Same lock order as "Lengkapi klasifikasi": owner lock first, then the category row.
                 lock_owner(cur, user_id)
             cur.execute(
-                f"""SELECT kind, offsets_spending, {reportable_category_sql("c")} AS reportable
+                f"""SELECT kind, offsets_spending, system_key, {reportable_category_sql("c")} AS reportable
                     FROM categories c WHERE user_id = %s AND id = %s FOR UPDATE""",
                 (user_id, cid),
             )
@@ -201,6 +203,14 @@ def update_category(
                 )
                 if cur.fetchone()["is_offset"]:
                     raise HTTPException(status_code=409, detail="Category type cannot change while reimbursements offset it")
+                if current_category["system_key"]:
+                    # One system category per key and kind (uq_category_user_system_key_kind).
+                    cur.execute(
+                        "SELECT EXISTS (SELECT 1 FROM categories WHERE user_id = %s AND system_key = %s AND kind = %s) AS taken",
+                        (user_id, current_category["system_key"], payload.kind),
+                    )
+                    if cur.fetchone()["taken"]:
+                        raise HTTPException(status_code=409, detail="A system category of this type already exists")
             final_kind = payload.kind or current_category["kind"]
             if final_kind == "income":
                 if payload.monthly_budget is not None or payload.kakeibo_type is not None:

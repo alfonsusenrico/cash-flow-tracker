@@ -19,7 +19,7 @@ from app.db.pool import db_conn
 from app.services.capture_parsing import MONEY_PATTERN, fold, is_money_expression, parse_kind
 from app.services.capture_time import time_word_spans
 from app.services.merchant_memory import merchant_match_key
-from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES
+from app.services.system_categories import reportable_key_sql
 from app.services.text_capture import DEVICE_CLOCK_SKEW, TEXT_MAX_LENGTH
 
 SUGGESTION_LIMIT = 6
@@ -76,7 +76,7 @@ def entry_key(capture_key: str | None, merchant: str | None, notes: str | None) 
 def ledger_entries(cur, user_id: str, since: datetime) -> list[Entry]:
     """Owner-reviewed manual and capture rows; a recorded capture brings its text to its row."""
     cur.execute(
-        """SELECT t.type, t.amount, t.date, t.merchant, t.notes, c.name AS category_name,
+        f"""SELECT t.type, t.amount, t.date, t.merchant, t.notes, c.name AS category_name,
                   a.name AS account_name, p.name AS parent_name, tc.text AS capture_text,
                   tc.match_key AS capture_key, tc.draft -> 'facts' ->> 'amount' AS capture_amount
            FROM transactions t
@@ -87,8 +87,8 @@ def ledger_entries(cur, user_id: str, since: datetime) -> list[Entry]:
                 AND tc.status = 'recorded'
            WHERE t.user_id = %s AND t.source IN ('manual', 'capture') AND t.review_status = 'reviewed'
              AND t.type IN ('expense', 'income') AND t.movement_id IS NULL AND t.fee_for_movement_id IS NULL
-             AND (c.id IS NULL OR c.name <> ALL(%s)) AND t.date > %s""",
-        (user_id, list(NON_REPORTABLE_CATEGORY_NAMES), since),
+             AND {reportable_key_sql("c")} AND t.date > %s""",
+        (user_id, since),
     )
     entries = []
     for row in cur.fetchall():

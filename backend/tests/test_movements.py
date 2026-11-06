@@ -11,6 +11,12 @@ from app.services.auth import get_current_user
 from app.services.ledger_mutations import create_bilateral_movement
 from app.services.provenance import system_provenance
 from app.services.salary_cycles import SalaryCycle
+from app.services.system_categories import reportable_key_sql
+
+
+def movement_category(category_id):
+    """A keyed movement category as the system-category lookup returns it."""
+    return {"id": category_id, "is_excluded_from_budget": True, "kakeibo_type": None, "is_archived": False}
 
 
 def test_generic_bilateral_movement_rejects_investment_positions_before_writes():
@@ -101,11 +107,13 @@ def test_post_movement_creates_two_transactions():
         # 2. Categories check fetchall
         cur.fetchall.side_effect = [
             [{"id": src_id, "name": "BCA"}, {"id": dst_id, "name": "Jago"}],
-            [{"id": exp_cat_id, "kind": "expense"}, {"id": inc_cat_id, "kind": "income"}],
         ]
-        # 1. insert expense RETURNING id
-        # 2. insert income RETURNING id
+        # 1-2. the keyed movement categories, one lookup per kind
+        # 3. insert expense RETURNING id
+        # 4. insert income RETURNING id
         cur.fetchone.side_effect = [
+            movement_category(exp_cat_id),
+            movement_category(inc_cat_id),
             {"id": exp_tx_id},
             {"id": inc_tx_id},
         ]
@@ -242,7 +250,7 @@ def test_default_pocket_routing():
 
 
 def test_post_movement_excluded_from_pulse():
-    """Verify that transactions under category 'Internal Movement' are excluded from pulse metrics."""
+    """Verify that transactions in the movement and investment categories are excluded from pulse metrics."""
     user_id = str(uuid4())
     mock_user = {
         "id": user_id,
@@ -281,10 +289,10 @@ def test_post_movement_excluded_from_pulse():
         # Verify SQL queries executed contain the exclusion filter
         executed_sqls = [c[0][0] for c in cur.execute.call_args_list]
         today_query = next(q for q in executed_sqls if "today_spent" in q)
-        assert "NOT IN ('Internal Movement', 'Investasi')" in today_query
+        assert reportable_key_sql() in today_query
 
         cycle_query = next(q for q in executed_sqls if "cycle_spent" in q)
-        assert "NOT IN ('Internal Movement', 'Investasi')" in cycle_query
+        assert reportable_key_sql() in cycle_query
 
     app.dependency_overrides.clear()
 
@@ -350,6 +358,7 @@ def test_bearer_api_key_accounts_and_categories():
                 "is_primary": True,
                 "kakeibo_type": "need",
                 "is_archived": False,
+                "system_key": None,
                 "created_at": None,
             }
         ]
@@ -405,9 +414,10 @@ def test_post_movement_auto_resolves_parent_to_default_pocket():
                 {"id": gold_id, "name": "Gold", "type": "bank", "parent_id": bca_id, "default_pocket_id": None},
                 {"id": gopay_id, "name": "GoPay", "type": "wallet", "parent_id": None, "default_pocket_id": None},
             ],
-            [{"id": exp_cat_id, "kind": "expense"}, {"id": inc_cat_id, "kind": "income"}],
         ]
         cur.fetchone.side_effect = [
+            movement_category(exp_cat_id),
+            movement_category(inc_cat_id),
             {"id": exp_tx_id},
             {"id": inc_tx_id},
         ]

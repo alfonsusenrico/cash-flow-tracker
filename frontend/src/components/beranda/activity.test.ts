@@ -3,9 +3,11 @@ import { UNPAIRED_LABEL, movementDirection, movementRoute, routeIncomplete, rowC
 import type { ActivityRow } from "./types";
 
 // Synthetic accounts: "Main Pocket" and "Tabungan" are pockets of Jago; "ATM" is a pocket of BCA; Gopay has no parent.
+// The owner renamed the movement category to "Transfer": the key, not the name, makes a row a movement.
 function leg(extra: Partial<ActivityRow>): ActivityRow {
   return {
-    id: "row", account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago", category_name: "Internal Movement",
+    id: "row", account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago", category_name: "Transfer",
+    category_system_key: "internal_movement",
     type: "expense", amount: 500_000, date: "2026-11-04T01:39:00+07:00", notes: null, ...extra,
   };
 }
@@ -79,7 +81,7 @@ describe("movementDirection", () => {
 });
 
 describe("rowCategory", () => {
-  const spend = leg({ category_name: "Makan di Luar", merchant: "Kedai Awan", review_status: "reviewed" });
+  const spend = leg({ category_name: "Makan di Luar", category_system_key: null, merchant: "Kedai Awan", review_status: "reviewed" });
 
   it("names the owner's category for an expense and an income", () => {
     expect(rowCategory(spend)).toBe("Makan di Luar");
@@ -94,7 +96,7 @@ describe("rowCategory", () => {
   it("shows a dash for movements, top-ups and waiting rows without a category", () => {
     expect(rowCategory(outboundLeg)).toBe("—");
     expect(rowCategory(leg({}))).toBe("—");
-    expect(rowCategory({ ...spend, investment_topup_id: "topup", category_name: "Internal Movement" })).toBe("—");
+    expect(rowCategory({ ...spend, investment_topup_id: "topup", category_name: "Transfer", category_system_key: "internal_movement" })).toBe("—");
     expect(rowCategory({ ...spend, category_name: null, review_status: "needs_review" })).toBe("—");
   });
 });

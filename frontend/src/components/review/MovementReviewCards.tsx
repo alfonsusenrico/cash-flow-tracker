@@ -10,6 +10,7 @@ import type { AccountOptionItem } from "@/components/ui/AccountSelectOptions";
 import type { CategoryOption } from "@/components/review/ReviewGroupCard";
 import { isCreditAccountChoice, listCreditAccountChoices, listLiquidAccountChoices } from "@/lib/accountOptions";
 import { KAKEIBO_PILLARS } from "@/lib/kakeibo";
+import { isMovementCategory } from "@/lib/systemCategories";
 import type { AmbiguousItem, AwaitingItem, CompletionCandidate, ReviewItem, TopupProductChoice } from "@/lib/review";
 
 /** Account choices numbered 1–9 before the rest move to a select (D4). */
@@ -118,7 +119,7 @@ function ExpensePicker({ item, categories, pending, onExpense, id }: {
   const [categoryId, setCategoryId] = useState("");
   const [pillar, setPillar] = useState("");
   const [error, setError] = useState("");
-  const choices = categories.filter((category) => category.kind === "expense" && !category.is_archived && category.name !== "Internal Movement");
+  const choices = categories.filter((category) => category.kind === "expense" && !category.is_archived && !isMovementCategory(category.system_key));
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!categoryId) {

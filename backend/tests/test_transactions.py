@@ -7,6 +7,8 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.services.auth import get_current_user
 from app.services.salary_cycles import SalaryCycle
+from app.services.system_categories import reportable_key_sql
+from test_movements import movement_category
 
 
 def test_create_transaction_by_name():
@@ -110,12 +112,10 @@ def test_create_jago_pocket_movement():
                 {"id": emergency_pocket_id, "name": "Dana Darurat"},
                 {"id": jago_parent_id, "name": "Bank Jago"},
             ],
-            [
-                {"id": exp_cat_id, "kind": "expense"},
-                {"id": inc_cat_id, "kind": "income"},
-            ],
         ]
         cur.fetchone.side_effect = [
+            movement_category(exp_cat_id),  # keyed expense movement category
+            movement_category(inc_cat_id),  # keyed income movement category
             None,  # idempotency check
             {"id": str(uuid4()), "created_at": "2026-09-16T12:00:00Z"},  # expense insert returning
             {"id": str(uuid4()), "created_at": "2026-09-16T12:00:00Z"},  # income insert returning
@@ -335,14 +335,14 @@ def test_list_transactions_summary_cycle_and_cumulative():
         assert "start" in summary["cycle"]
         assert "end" in summary["cycle"]
 
-        # Verify SQL query calculates aggregate summaries while excluding Internal Movement
+        # Verify SQL query calculates aggregate summaries while excluding the movement and investment categories
         summary_call = next(c for c in cur.execute.call_args_list if "cumulative_inflow" in str(c[0][0]))
         summary_query = summary_call[0][0]
         summary_params = summary_call[0][1]
         assert "cumulative_outflow" in summary_query
         assert "cycle_inflow" in summary_query
         assert "cycle_outflow" in summary_query
-        assert "Internal Movement" in summary_query
+        assert reportable_key_sql() in summary_query
         assert "is_excluded_from_budget" in summary_query
         # Ensure parameter order matches SQL placeholders: 6 date bounds first (cycle inflow, outflow and saving), then where_clause params
         assert summary_query.count("%s") == len(summary_params)

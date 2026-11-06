@@ -26,6 +26,7 @@ from app.services.movement_linkage import (
 )
 from app.services.notification_resolution import pairing_evidence
 from app.services.provenance import system_provenance
+from app.services.system_categories import INTERNAL_MOVEMENT, is_movement, is_system_sql
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +40,11 @@ COMPLETION_KEY_PREFIX = "movement-complete:"
 COMPLETION_MATCH_WINDOW = timedelta(days=3)
 
 # Eligible unlinked legs: a notification leg the owner has not reclassified, or any row the owner or
-# the pipeline filed as Internal Movement. Rows the owner split apart never pair automatically again.
-CANDIDATE_SQL = """
+# the pipeline filed in the movement category. Rows the owner split apart never pair automatically again.
+CANDIDATE_SQL = f"""
     SELECT t.id, t.type, t.account_id, t.amount, t.date, t.source, t.review_status, t.classified_by,
            n.id AS event_id, n.interpretation AS evidence, n.result_key,
-           COALESCE(c.name = 'Internal Movement', FALSE) AS movement_category
+           {is_system_sql('c', INTERNAL_MOVEMENT)} AS movement_category
     FROM transactions t
     JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id
     LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
@@ -57,12 +58,12 @@ CANDIDATE_SQL = """
       AND t.movement_id IS NULL AND t.owner_split_at IS NULL AND t.fee_for_movement_id IS NULL
       AND t.type IN ('expense', 'income') AND (%(direction)s::text IS NULL OR t.type = %(direction)s::text)
       AND t.source IN ('notification', 'manual')
-      AND ((n.id IS NOT NULL AND t.owner_edited_at IS NULL) OR c.name = 'Internal Movement')
+      AND ((n.id IS NOT NULL AND t.owner_edited_at IS NULL) OR {is_system_sql('c', INTERNAL_MOVEMENT)})
       AND a.is_archived = FALSE AND a.type IN ('cash', 'bank', 'wallet', 'ewallet') AND a.instrument_type IS NULL
       AND t.goal_id IS NULL AND t.obligation_id IS NULL AND t.recurring_rule_id IS NULL
       AND NOT EXISTS (SELECT 1 FROM transaction_obligation_allocations alloc WHERE alloc.transaction_id = t.id)
       AND t.id <> ALL(%(exclude)s::uuid[])
-      {filters}
+      {{filters}}
     ORDER BY t.date, t.id
     LIMIT %(limit)s
 """
@@ -832,7 +833,7 @@ def complete_movement(
     """
     cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"notification:{user_id}",))
     cur.execute(
-        """SELECT t.*, c.name AS category_name FROM transactions t
+        """SELECT t.*, c.name AS category_name, c.system_key AS category_system_key FROM transactions t
            LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
            WHERE t.user_id = %s AND t.id = %s FOR UPDATE OF t""",
         (user_id, transaction_id),
@@ -864,7 +865,7 @@ def complete_movement(
                 response = {**response, "created_transaction_id": None, "linked_transaction_id": str(partner["id"])}
             return response
         raise HTTPException(status_code=409, detail={"code": "already_linked", "message": "The transaction is already part of a movement."})
-    if row["category_name"] != "Internal Movement":
+    if not is_movement(row["category_system_key"]):
         raise HTTPException(status_code=422, detail={
             "code": "not_awaiting_counterpart",
             "message": "Only an unlinked Internal Movement transaction can be completed.",
@@ -889,7 +890,7 @@ def complete_movement(
     candidates = existing_counterparts(cur, user_id, row, counterpart_account_id, new_type)
     if not create_new and candidates:
         only = candidates[0]
-        if len(candidates) == 1 and only["category_name"] == "Internal Movement" and only["owner_split_at"] is None:
+        if len(candidates) == 1 and is_movement(only["category_system_key"]) and only["owner_split_at"] is None:
             if recorder is not None:
                 recorder.capture([str(only["id"])])
             return link_existing_counterpart(cur, user_id, row, only, notes)
@@ -920,7 +921,7 @@ def complete_movement(
 
 def existing_counterparts(cur, user_id: str, row: dict, account_id: str, counterpart_type: str) -> list[dict]:
     cur.execute(
-        """SELECT t.*, c.name AS category_name FROM transactions t
+        """SELECT t.*, c.name AS category_name, c.system_key AS category_system_key FROM transactions t
            LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
            WHERE t.user_id = %s AND t.account_id = %s AND t.type = %s AND t.amount = %s
              AND t.movement_id IS NULL AND t.fee_for_movement_id IS NULL

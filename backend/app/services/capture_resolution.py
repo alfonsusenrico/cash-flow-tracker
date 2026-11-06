@@ -19,7 +19,7 @@ from app.services.capture_time import CaptureDateError, moment_label
 from app.services.ledger_mutations import LIQUID_ACCOUNT_TYPES
 from app.services.merchant_memory import load_memory, merchant_match_key, owner_identity, owner_memory_hit
 from app.services.notification_context import sanitize_text
-from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES
+from app.services.system_categories import reportable_key_sql
 
 
 ACCOUNT_OPTION_LIMIT = 6
@@ -101,10 +101,11 @@ def account_label(account: dict, accounts: list[dict]) -> str:
 
 def reportable_categories(cur, user_id: str, kind: str | None = None) -> dict[str, dict]:
     cur.execute(
-        """SELECT id, name, kind, kakeibo_type, offsets_spending FROM categories
-           WHERE user_id = %s AND is_archived = FALSE AND name <> ALL(%s) AND (%s::text IS NULL OR kind = %s)
+        f"""SELECT id, name, kind, kakeibo_type, offsets_spending FROM categories
+           WHERE user_id = %s AND is_archived = FALSE AND {reportable_key_sql("categories")}
+             AND (%s::text IS NULL OR kind = %s)
            ORDER BY kind, name, id""",
-        (user_id, list(NON_REPORTABLE_CATEGORY_NAMES), kind, kind),
+        (user_id, kind, kind),
     )
     return {str(row["id"]): row for row in cur.fetchall()}
 
@@ -169,18 +170,18 @@ def similar_rows(cur, user_id: str, facts: dict, kind: str | None = None) -> lis
         return []
     patterns = [f"%{word}%" for word in words]
     cur.execute(
-        """SELECT t.merchant, LEFT(t.notes, 160) AS description, t.category_id, t.type, t.amount, t.account_id,
+        f"""SELECT t.merchant, LEFT(t.notes, 160) AS description, t.category_id, t.type, t.amount, t.account_id,
                   CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo,
                   (t.classified_by = 'owner'
                    OR (t.review_status = 'reviewed' AND t.classified_by IS DISTINCT FROM 'habit')) AS owner_confirmed
            FROM transactions t
            JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id AND c.is_archived = FALSE
            WHERE t.user_id = %s AND t.movement_id IS NULL AND t.type IN ('expense', 'income')
-             AND (%s::text IS NULL OR t.type = %s) AND c.name <> ALL(%s)
+             AND (%s::text IS NULL OR t.type = %s) AND {reportable_key_sql("c")}
              AND (t.notes ILIKE ANY(%s) OR t.merchant ILIKE ANY(%s))
            ORDER BY owner_confirmed DESC, t.date DESC, t.id
            LIMIT %s""",
-        (user_id, kind, kind, list(NON_REPORTABLE_CATEGORY_NAMES), patterns, patterns, SIMILAR_HISTORY_LIMIT),
+        (user_id, kind, kind, patterns, patterns, SIMILAR_HISTORY_LIMIT),
     )
     return cur.fetchall()
 

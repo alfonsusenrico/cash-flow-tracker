@@ -11,19 +11,18 @@ from typing import Any
 
 from app.core.config import settings
 from app.services.apportionment import apportion
-from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES, SpendingOffsets
+from app.services.reimbursements import SpendingOffsets
+from app.services.system_categories import reportable_key_sql
 
 UNCATEGORIZED_NAME = "Tanpa kategori"
 UNCATEGORIZED_COLOR = "#64748b"
-
-_NON_REPORTABLE_SQL = ", ".join(f"'{name}'" for name in NON_REPORTABLE_CATEGORY_NAMES)
 
 
 def reportable_category_sql(category: str = "c") -> str:
     """True for a missing category or one that reports count as spending."""
     return (
         f"(COALESCE({category}.is_excluded_from_budget, FALSE) = FALSE"
-        f" AND COALESCE({category}.name, '') NOT IN ({_NON_REPORTABLE_SQL}))"
+        f" AND {reportable_key_sql(category)})"
     )
 
 

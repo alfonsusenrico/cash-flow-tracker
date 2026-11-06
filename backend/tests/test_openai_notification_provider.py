@@ -159,7 +159,7 @@ def test_context_is_owner_scoped_bounded_and_uses_separate_candidates():
     cur.fetchone.return_value = {"name": "Raka Purnama"}
     cur.fetchall.side_effect = [
         [{"id": "owned", "name": "BCA Operasional", "type": "bank", "parent_id": None}],
-        [{"id": "category", "name": "Kategori Dinamis", "kind": "expense"}],
+        [{"id": "category", "name": "Kategori Dinamis", "kind": "expense", "system_key": None}],
         [],
         [{"id": "recent", "description": "Toko Fiksi token=private-value", "merchant": None, "category_id": "category",
           "kakeibo": "want", "amount": 125000, "date": "2026-09-27", "owner_confirmed": True, "same_key": True}],

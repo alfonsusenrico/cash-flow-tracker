@@ -35,6 +35,8 @@ BASE_CONTEXT = {
         {"id": fixture_id(105), "name": "Internal Movement", "kind": "expense"},
         {"id": fixture_id(106), "name": "Internal Movement", "kind": "income"},
     ],
+    # Backend-only (underscore keys never reach the model): the movement categories' system key.
+    "_system_category_keys": {fixture_id(105): "internal_movement", fixture_id(106): "internal_movement"},
     "memory": [{
         "match_key": "merchant:kedai awan", "merchant": "Kedai Awan", "description": None,
         "category_id": fixture_id(102), "kakeibo": "want", "source": "owner",

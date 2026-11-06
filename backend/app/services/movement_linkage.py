@@ -7,58 +7,18 @@ from app.services.ledger_mutations import (
 )
 from app.services.merchant_memory import record_owner_corrections, retire_automatic_memory, snapshot_rows
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS
+from app.services.system_categories import INTERNAL_MOVEMENT, ensure_system_category
 
 
 def ensure_internal_movement_categories(cur, user_id: str) -> tuple[str, str]:
-    """Ensures both expense and income categories for 'Internal Movement' exist.
+    """The owner's expense and income movement categories (key `internal_movement`), created when missing.
+
     Returns (expense_category_id, income_category_id).
     """
-    cur.execute(
-        """
-        UPDATE categories
-        SET is_excluded_from_budget = TRUE, kakeibo_type = NULL
-        WHERE user_id = %s AND name = 'Internal Movement' AND is_archived = FALSE
-          AND (is_excluded_from_budget = FALSE OR kakeibo_type IS NOT NULL)
-        """,
-        (user_id,),
+    return (
+        ensure_system_category(cur, user_id, INTERNAL_MOVEMENT, "expense"),
+        ensure_system_category(cur, user_id, INTERNAL_MOVEMENT, "income"),
     )
-    cur.execute(
-        """
-        SELECT id, kind FROM categories
-        WHERE user_id = %s AND name = 'Internal Movement' AND is_archived = FALSE
-        """,
-        (user_id,),
-    )
-    rows = cur.fetchall()
-    cat_map = {r["kind"]: str(r["id"]) for r in rows}
-
-    expense_cat_id = cat_map.get("expense")
-    if not expense_cat_id:
-        cur.execute(
-            """
-            INSERT INTO categories (user_id, name, icon, color, kind, kakeibo_type, is_excluded_from_budget)
-            VALUES (%s, 'Internal Movement', 'arrows-right-left', '#3b82f6', 'expense', NULL, TRUE)
-            ON CONFLICT (user_id, name, kind) DO UPDATE SET is_excluded_from_budget = TRUE, kakeibo_type = NULL
-            RETURNING id
-            """,
-            (user_id,),
-        )
-        expense_cat_id = str(cur.fetchone()["id"])
-
-    income_cat_id = cat_map.get("income")
-    if not income_cat_id:
-        cur.execute(
-            """
-            INSERT INTO categories (user_id, name, icon, color, kind, kakeibo_type, is_excluded_from_budget)
-            VALUES (%s, 'Internal Movement', 'arrows-right-left', '#3b82f6', 'income', NULL, TRUE)
-            ON CONFLICT (user_id, name, kind) DO UPDATE SET is_excluded_from_budget = TRUE, kakeibo_type = NULL
-            RETURNING id
-            """,
-            (user_id,),
-        )
-        income_cat_id = str(cur.fetchone()["id"])
-
-    return expense_cat_id, income_cat_id
 
 
 SELF_TRANSFER_NOTES = {"income": "Pindah saldo masuk", "expense": "Pindah saldo keluar"}

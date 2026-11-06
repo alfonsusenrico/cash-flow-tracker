@@ -64,7 +64,7 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
     )
     accounts = cur.fetchall()
     cur.execute(
-        """SELECT id, name, kind, kakeibo_type FROM categories
+        """SELECT id, name, kind, kakeibo_type, system_key FROM categories
            WHERE user_id = %s AND is_archived = FALSE ORDER BY id LIMIT %s""",
         (user_id, CATEGORY_LIMIT + 1),
     )
@@ -143,6 +143,10 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
     # Internal fields stay out of the model input (the provider drops underscore-prefixed keys).
     context["_classification_key"] = key
     context["_owner_memory_hit"] = owner_memory_hit(memory, key, facts.direction)
+    # Backend-only, like every underscore key: the model's category list stays exactly as before.
+    context["_system_category_keys"] = {
+        str(row["id"]): row["system_key"] for row in categories[:CATEGORY_LIMIT] if row["system_key"]
+    }
     context["_habit"] = evaluate_habit(cur, user_id, facts, context)
     return context
 

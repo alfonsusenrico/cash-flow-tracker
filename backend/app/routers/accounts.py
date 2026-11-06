@@ -21,6 +21,7 @@ from app.services.credit_accounts import (
 from app.services.ledger_mutations import get_locked_ledger_balance, lock_owned_accounts
 from app.services.investment_topups import convert_product_to_amount, initialize_amount_tracking
 from app.services.provenance import system_provenance
+from app.services.system_categories import BALANCE_ADJUSTMENT, ensure_system_category
 from app.services.market_data import (
     get_instrument_quote,
     search_instruments,
@@ -913,26 +914,14 @@ def switch_to_amount_tracking(account_id: UUID, current_user: dict = Depends(get
     return {"ok": True, "account": next((a for a in accounts if a["id"] == aid), None)}
 
 
-ADJUSTMENT_CATEGORY_NAME = "Penyesuaian Saldo"
-
-
 def ensure_adjustment_category(cur, user_id: str, kind: str) -> str:
     """Return the system category for reconcile adjustments of this kind, creating it if needed.
 
     Adjustments correct balances; they are neither spending nor income, so the category is
-    excluded from budget reports and carries no Kakeibo pillar.
+    excluded from budget reports and carries no Kakeibo pillar. It is found by its key, so a
+    renamed adjustment category is reused.
     """
-    cur.execute(
-        """
-        INSERT INTO categories (user_id, name, icon, color, kind, kakeibo_type, is_excluded_from_budget)
-        VALUES (%s, %s, 'wallet', '#64748b', %s, NULL, TRUE)
-        ON CONFLICT (user_id, name, kind) DO UPDATE
-        SET is_excluded_from_budget = TRUE, kakeibo_type = NULL, is_archived = FALSE
-        RETURNING id
-        """,
-        (user_id, ADJUSTMENT_CATEGORY_NAME, kind),
-    )
-    return str(cur.fetchone()["id"])
+    return ensure_system_category(cur, user_id, BALANCE_ADJUSTMENT, kind)
 
 
 @router.post("/{account_id}/reconcile")
