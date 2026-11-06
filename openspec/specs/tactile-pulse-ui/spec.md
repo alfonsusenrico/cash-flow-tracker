@@ -73,11 +73,15 @@ After Quick Capture saves a transaction or movement, the submit button SHALL sho
 - **THEN** the modal SHALL stay open and say that the transaction was saved but the receipt was not uploaded
 
 ### Requirement: Semantic Colour Meaning
-Coral SHALL be the primary-action fill and the active-navigation mark and SHALL mark expenses. Income SHALL be green, transfers ("Pindah Saldo") sky, investments lavender and warnings amber, as text inks or marks; badges SHALL carry the ink on the neutral raised fill. Sky text and icons SHALL mean a transfer. Other information SHALL use the neutral tokens. Text SHALL measure at least 4.5:1 and meaningful icons and marks 3:1 in both themes.
+Coral SHALL be the primary-action fill and the navigation and selection mark. Expense amounts SHALL carry "−", in the ink in the shared list row and in coral text elsewhere. Income SHALL be green, transfers ("Pindah Saldo") sky, investments lavender and warnings amber, as text inks or marks; badges SHALL carry the ink on the neutral raised fill. Sky SHALL mean a transfer. Other information SHALL be neutral. Text SHALL measure at least 4.5:1 and meaningful icons and marks 3:1 in both themes.
 
 #### Scenario: Light theme coral text contrast
-- **WHEN** the light theme is active and a page shows coral text such as "Buka Tinjau", "Semua transaksi", an expense amount or "+ Tambah Tagihan"
+- **WHEN** the light theme is active and a page shows coral text such as "Buka Tinjau · 6", an expense amount on Transaksi or "+ Tambah Tagihan"
 - **THEN** the text uses the coral text ink, measures at least 4.5:1 against the surface it sits on and still reads as coral
+
+#### Scenario: Expense in the shared list row
+- **WHEN** Beranda lists an expense of Rp 30.000 in either theme at 390 or 1440 px
+- **THEN** the amount SHALL read "−Rp 30.000" in the ink, measure at least 4.5:1, and the row SHALL name its pillar in words
 
 #### Scenario: Income text
 - **WHEN** Beranda, Transaksi or Analisis shows an income amount or the "Uang Masuk" badge in the light or the dark theme at 390 or 1280 px
@@ -114,5 +118,9 @@ Each Kakeibo pillar SHALL have a mark colour from the pillar tokens: Kebutuhan v
 The interface SHALL NOT contain rainbow gradients, glow drop-shadows, 0–100 health meters, decorative empty KPI cards or unformatted text blocks. An icon tile that repeats its control's label SHALL be hidden from assistive technology, and a tile icon that conveys meaning SHALL measure at least 3:1 against its tile.
 
 #### Scenario: Decorative icon tiles
-- **WHEN** the Beranda KPI strip and card headers show their icon tiles
+- **WHEN** a page not yet redesigned, such as Transaksi, Analisis or Laporan, shows icon tiles in its KPI strip or card headers
 - **THEN** each tile that repeats its label SHALL be hidden from assistive technology, the figure SHALL be named by its label, and a tile icon that conveys meaning SHALL measure at least 3:1 against the tile in both themes
+
+#### Scenario: Beranda without tiles
+- **WHEN** Beranda is shown in either theme
+- **THEN** it SHALL show no icon tile or avatar, and the 16 px icons in its "Perlu tindakan" rows SHALL be hidden from assistive technology

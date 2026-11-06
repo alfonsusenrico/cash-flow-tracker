@@ -251,3 +251,7 @@ had passed the server's "now"):
 ## Not done here
 
 4.7 (owner acceptance) and 4.8 (archive and push) wait for the owner. Nothing is pushed.
+
+## Owner acceptance
+
+On 2026-11-06 the owner accepted phase 3 after reviewing the fixes (\"ok to all\").
