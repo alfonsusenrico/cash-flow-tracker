@@ -470,6 +470,12 @@
   "componentSheet": true
  },
  {
+  "name": "komponen-beranda",
+  "path": "/komponen",
+  "componentSheet": true,
+  "beranda": true
+ },
+ {
   "name": "shell-beranda",
   "path": "/",
   "shell": true,
