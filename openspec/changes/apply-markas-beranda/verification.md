@@ -1,8 +1,8 @@
 # Verification: apply-markas-beranda (Markas+ phase 3)
 
 Date: 2026-11-06 · Branch `feat/markas-beranda`, fast-forwarded to `origin/main` `e8ec62d` (phase 2 merged) · Code under
-test: `f08cced` (`fix(ui): inline caption amounts and scroll sheet samples`); this file and `tasks.md` are committed on
-top of it.
+test: `f08cced` for the first gate, and `f185584` for the owner's three fixes (section "Owner fixes, 2026-11-06"); this file
+and `tasks.md` are committed on top.
 
 Owner approval (2026-11-06): "approved", with every recommended default; the thirteen decisions are listed in
 `proposal.md` › Approval and marked decided in `design.md`. `PROJECT_STATE.md` lives untracked in the owner's checkout,
@@ -60,11 +60,12 @@ Every visible difference, and why:
    day later (Jumat, 6 November), with the known seed disagreements of phase 2 (the cycle starts 24 Okt; the
    scheduled amount includes goal set-asides, so the period is over and the hero is Rp 0 with "Siklus ini sudah lebih
    Rp 1.726.424 dari uang masuk"; Ketahanan Dana 8,1 bulan; Tinjau counts 4). Because the period is over, the split
-   bar has no Aman dipakai segment and the Terjadwal caption "tagihan & setoran sampai 23 Nov" wraps to two lines.
+   bar has no Aman dipakai segment. (In the first gate the Terjadwal caption "tagihan & setoran sampai 23 Nov" wrapped;
+   the owner's fix 1 shortened it, see below.)
 2. No per-day amount in the hero line (owner decision 1).
-3. "tagihan & setoran sampai …" when set-asides are scheduled (decision 10).
-4. Perlu tindakan shows the app's own items (question, awaiting transfer, "4 rencana ditautkan otomatis") in the D6
-   order; the prototype's data has no automatic links.
+3. "termasuk setoran · …" when set-asides are scheduled (decision 10 as revised on 2026-11-06).
+4. Perlu tindakan shows the app's own items in the revised D6 ranking: TRF BIFAST (question), Kelas Yoga (overdue) and
+   Tagihan SPayLater (due today); the prototype shows a second question in place of Kelas Yoga.
 5. Belum diklasifikasi keeps phase 1's dashed grey marker (D8), the prototype a solid grey dot.
 6. Kakeibo labels are links (decision 7), ink at rest, so they look the same until hovered.
 7. The Rincian has a 16 px chevron on each line with parts, the basis and waiting notes and the "Menunggu jawaban ·
@@ -145,7 +146,7 @@ alike, because a seeded row at 08.33 today passed the server's "now"; parity com
 
 Rincian against today's `remainingExplanation`: Masuk Rp 9.518.400 (was "+Rp 9.518.400"), Pengeluaran −Rp 3.422.490,
 Ditabung & investasi −Rp 2.250.000, Terjadwal −Rp 5.572.334, total −Rp 1.726.424 (was "Sisa"), and the waiting note
-"4 hal (Rp 490.500) …; Rp 190.500 di antaranya sudah termasuk" — equal values.
+"4 hal (Rp 490.500) … Rp 190.500 di antaranya sudah termasuk" — equal values (two sentences since the 2026-11-06 fix).
 
 ## Real-data shape (task 4.5)
 
@@ -159,10 +160,10 @@ Rp 1.301.029.739, hero Rp 1.235.365.139), then with the owner's currency set to 
 | Stress amount (with the Rincian) | 30 | 1,344 of 1,344 | 0 | 0 | 0 |
 | USD | 20 | 1,100 of 1,100 | 0 | 0 | 0 |
 
-No clipping, overlap or sideways scroll; long names ellipsize in rows. Owner decision 13: **four columns kept**. No
-figure leaves its block at 1024, but the 13-character stress figure "Rp 1.242.003.890" wraps under "Rp" in its
-154 px column at 1024 (the prototype's `.t-fig` wraps the same way). The two-column fallback was not applied because
-the decision ties it to an overflow; the owner can ask for it. Images: `…/markas-beranda/compare-audit/`.
+No clipping, overlap or sideways scroll; long names ellipsize in rows. In this first gate the 13-character stress
+figure "Rp 1.242.003.890" wrapped under "Rp" in its 154 px column at 1024. The re-run for the owner's fixes found the
+narrowest legend between 1200 and 1383 px, and owner decision 13's two-column fallback now applies there (below).
+Images: `…/markas-beranda/compare-audit/`.
 
 ## Frontend and repository checks (task 4.6)
 
@@ -192,11 +193,60 @@ On `f08cced`:
      "… Keluar", as the spec scenario requires.
   4. The prototype's calendar, swap, chevron-down and alert drawings are added to the shared icon set; the calendar
      drawing therefore also changes on Transaksi's stepper, the Target and Kalender headers and Rekening's menu.
-- Risk: with automatic links present, Perlu tindakan's third place goes to "N rencana ditautkan otomatis" (D6 order),
-  so an overdue or due-today plan can be hidden behind "Buka Tinjau" and the bell; on the parity seed Kelas Yoga
-  (overdue) and SPayLater (today) are not on Beranda.
+- (Resolved by the owner's fix 3 below: an overdue or due-today plan now ranks above the automatic-link check and the
+  pairing row.)
 - Interim inconsistency (as planned): Beranda shows expenses in the ink, Transaksi still in coral until phase 5.
 - Not verified: zoom to 400 % and a real screen reader; the 1199/1100 captures cover the reflow.
+
+## Owner fixes, 2026-11-06
+
+The owner approved three fixes the same day ("ok"). They are recorded in `proposal.md` › Approval, `design.md` D4, D5,
+D6, D10 and decisions 10 and 13, and the `beranda-cycle-summary` delta (new scenarios "Terjadwal caption", "Period
+over" and "Due plans come before checks and pairing"; "Items and order" updated).
+1. **Terjadwal caption:** "termasuk setoran · 23 Nov" with goal set-asides, "tagihan sampai …" without.
+   - Measured on the app: the longest caption needs 150 px and "Rp 1.234.567.890" 174 px.
+   - Beside the panel the reading column is 568 to 671 px between 1200 and 1383 px wide. There four legend columns are
+     only 124 to 149 px, so a caption still wrapped at 1280 and the stress figure passed its block there.
+   - Owner decision 13's fallback is therefore applied: `@container hero (max-width: 671px)` shows two columns. The
+     four columns stay at 1384 px and up (1440: 728 px), at 1024 to 1199 px and below 1024 px as before.
+   - The checklist has a new "caption on one line" check for every supporting figure. It passes at 1440, 1400, 1380,
+     1280, 1199, 1100 and 1024 with the parity seed, the stress amount and USD.
+   - A ten-digit figure may still wrap under "Rp" in the four columns at 1440 and 1024, inside its block, as the
+     prototype's `.t-fig` would.
+2. **Over-period total:** after the four lines the Rincian reads "Lebih dari uang masuk Rp 1.754.424" under the strong
+   rule, then "Aman dipakai Rp 0" as the result. No negative "Aman dipakai" remains anywhere. The normal case is
+   unchanged.
+3. **Perlu tindakan ranking (D6):** questions, plans past due, plans due today, awaiting transfers, ambiguous pairs,
+   groups, the automatic-link check, then plans due within two days; the first three are shown. On the parity seed the
+   rows are TRF BIFAST, Kelas Yoga (Lewat jatuh tempo) and Tagihan SPayLater (Jatuh tempo hari ini).
+4. **Waiting note:** two sentences, "4 hal (Rp 490.500) masih menunggu jawaban. Rp 190.500 di antaranya sudah termasuk."
+
+Re-run on `f185584` (the parity seed again shifted to 2026-11-06; Pengeluaran Rp 3.450.490 because a seeded row at 08.33
+had passed the server's "now"):
+
+| Set | Captures | Beranda checklist | axe serious/critical | Console | Overflow |
+| --- | --- | --- | --- | --- | --- |
+| Parity seed: `beranda`, `beranda-sembunyi`, three Rincian scenarios at 1440, 1024, 390 × 2 themes, plus 1280 × 2, 1199, 1100 (`shots/fix-after`) | 50 | **3,168 of 3,168** | 0 | 0 | 0 |
+| Audit seed + Rp 1.234.567.890, `beranda` and `dlg-rincian-aman` at 1440 × 2, 1400, 1380, 1280, 1199, 1100, 1024 × 2, 390 × 2, 320 (`shots/fix-stress`) | 24 | **1,680 of 1,680** | 0 | 0 | 0 |
+| The same with USD (`shots/fix-usd`) | 12 | **1,389 of 1,389** | 0 | 0 | 0 |
+
+- axe with Rincian open, with a line open and with hidden balances: 0 serious or critical in both themes.
+- `beranda-keys.mjs`: **33 of 33**, including the Tab order through the revised Perlu tindakan rows.
+- New composed images in `…/markas-beranda/compare-fix/`: 24 prototype/app pairs at 1440, 1024 and 390, both themes, with
+  and without hidden balances, page and Rincian. Stress and USD pairs at 1440, 1280 and 1024 are in
+  `…/markas-beranda/compare-fix-audit/`.
+- On `f185584`: `npm test` **82 files, 805 tests passed**, `npm run type-check`, `npm run lint` and `npm run build`
+  passed. `openspec validate --all --strict` gives 84 passed, 0 failed. `git diff --check origin/main` is clean, and
+  `git diff --stat origin/main -- backend db mobile nginx` is empty.
+- New tests:
+  - `page.test.tsx`: ranking, due plans above checks and pairing, the automatic-link check and an upcoming plan when
+    nothing ranks above them, the over-period total, the two-sentence waiting note, the new caption;
+  - `explain.test.tsx`: the over row;
+  - `primitives.test.tsx`: the container fallback.
+- Figure parity was not re-run: the fixes change wording, order and the over-period total row, not a figure's value.
+  The Rincian's over amount is `-remaining.total`, the same field as before.
+- Visible difference added by the fixes: between 1200 and 1383 px the legend shows 2 × 2 figures where the prototype has
+  four in a row.
 
 ## Not done here
 

@@ -42,7 +42,7 @@ Expected Result: every piece Beranda needs exists once, is measured on the compo
   - each disclosure listing today's spending, savings-change, scheduled and masuk lines, and the "Menunggu jawaban" disclosure with section and bucket per line (spec "Waiting-for-Answer Figure");
   - the "Tabungan berkurang" caption for a negative savings change.
 - [x] 3.3 Build "Perlu tindakan" on the list row (D6, Owner decision 4). Evidence: `page.test.tsx` covers:
-  - at most three rows in the D6 order, with question, awaiting transfers and plan for the spec example;
+  - the first three rows of the D6 ranking (as revised on 2026-11-06): question, awaiting transfers and group for the spec example, and question, overdue plan and due-today plan when plans are due;
   - each row's target (Tinjau anchors, "Rencana jatuh tempo", `/goals`), including that a due plan still opens the centered dialog with its link, skip and record actions;
   - "Buka Tinjau · N", and "Buka Tinjau" without a count at 0;
   - the empty line and the error line;
