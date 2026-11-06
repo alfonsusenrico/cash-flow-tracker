@@ -145,7 +145,10 @@
           add(`${name}: figure type`, `${font(fig)} ${style(fig).letterSpacing}`, "Inter 20/28 600 -0.2px");
           add(`${name}: figure colour`, style(fig).color, colour("ink"));
           add(`${name}: figure is not a button`, fig.closest("button, a") === null, true);
-          if (caption) add(`${name}: caption gap`, px(box(caption).top - box(fig).bottom), 4, 1);
+          if (caption) {
+            add(`${name}: caption gap`, px(box(caption).top - box(fig).bottom), 4, 1);
+            add(`${name}: caption on one line`, px(box(caption).height), 16);
+          }
         }
       }
     }
@@ -290,7 +293,8 @@
   const calculation = first(".dlg-b .list", dialog);
   const lines = calculation ? all(":scope > li > .row", calculation) : [];
   const total = lines[lines.length - 1];
-  const parts = lines.slice(0, -1).filter((line) => !line.closest(".parts"));
+  const over = lines.find((line) => line.classList.contains("is-over"));
+  const parts = lines.slice(0, -1).filter((line) => !line.closest(".parts") && line !== over);
   add("calculation lines", parts.length, 4);
   add("calculation line labels", parts.map((line) => first(".r-title", line).textContent.trim()).join(" · ").replace(/sampai \d+ \w+/, "sampai …"),
     "Masuk · Pengeluaran · Ditabung & investasi · Terjadwal sampai …");
@@ -300,7 +304,13 @@
   add("line amounts 14/20 600", amounts.every((amount) => font(amount) === "Inter 14/20 600"), true);
   if (total) {
     add("total row min-height", px(style(total).minHeight), 56);
-    add("total rule", edge(total, "Top"), `1px ${colour("lineStrong")}`);
+    // An over period puts "Lebih dari uang masuk" under the strong rule, then the result (owner fix, 2026-11-06).
+    add("total rule", edge(over ?? total, "Top"), `1px ${colour("lineStrong")}`);
+    if (over) {
+      add("over row", `${px(style(over).minHeight)} ${first(".r-title", over).textContent.trim()}`, "44 Lebih dari uang masuk");
+      add("over amount positive", /^Rp|•/.test(first(".t-amt|.mask", over).textContent.trim()), true);
+      add("total never negative", /^[−-]/.test(first(".t-fig|.mask", total).textContent.trim()), false);
+    }
     add("total label", `${font(first(".r-title", total))} ${first(".r-title", total).textContent.trim()}`, "Inter 14/20 500 Aman dipakai");
     const figure = first(".t-fig|.mask", total);
     add("total figure type", font(figure), "Inter 20/28 600");
