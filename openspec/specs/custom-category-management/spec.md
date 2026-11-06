@@ -100,7 +100,7 @@ At registration, the seeded expense categories SHALL carry default Kakeibo pilla
 - **THEN** the category SHALL keep no pillar and no category SHALL be added
 
 ### Requirement: System Category Identity
-Each owner's investment, movement and balance-adjustment categories SHALL carry a stable system key (`investment`, `internal_movement`, `balance_adjustment`), at most one per owner, key and kind. Every rule that treats a category specially SHALL read the key, never the category's name. Seeded and automatically created system categories SHALL carry their key. Every other category SHALL carry none.
+Each owner's investment, movement, balance-adjustment and credit-fee categories SHALL carry a stable system key (`investment`, `internal_movement`, `balance_adjustment`, `credit_fee`), at most one per owner, key and kind. Every rule that treats a category specially SHALL read the key, never the category's name. Seeded and automatically created system categories SHALL carry their key. Every other category SHALL carry none.
 
 #### Scenario: Seeded system categories carry keys
 - **WHEN** a new user registers
@@ -115,6 +115,15 @@ Each owner's investment, movement and balance-adjustment categories SHALL carry 
 - **GIVEN** an owner who renamed "Investasi" to "Investments" after the migration
 - **WHEN** the owner creates a new expense category named "Investasi" and records Rp 100.000 in it
 - **THEN** the Rp 100.000 SHALL count as spending, and an investment buy in "Investments" SHALL still not count as spending
+
+#### Scenario: Credit fee category
+- **GIVEN** an owner with an expense "Biaya kredit" holding Rp 10.000 and an income named "Biaya kredit"
+- **WHEN** the credit-fee migration runs
+- **THEN** only the expense SHALL carry `credit_fee`, its Rp 10.000 SHALL still count as spending, and every figure SHALL equal its value before the migration
+
+#### Scenario: Credit fee category in English
+- **WHEN** an English account without a credit-fee category books its first credit fee
+- **THEN** the category SHALL be created as "Credit fee" with `credit_fee`, and a renamed credit-fee category SHALL still be found by its key
 
 ### Requirement: Renaming a System Category Keeps Figures
 Renaming a system category SHALL change only its displayed name. Spending, income, movement, investment, pairing, review and report results SHALL stay exactly as before the rename.
