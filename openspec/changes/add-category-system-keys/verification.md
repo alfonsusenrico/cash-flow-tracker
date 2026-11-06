@@ -1,7 +1,10 @@
 # Verification: add-category-system-keys
 
-Date: 2026-11-06 (Asia/Jakarta). Branch `feat/category-system-keys` from `origin/main` `e8ec62d` (the base, "V51
-code"). Implementation commit `7985ff4` ("V52 code"); the checks below ran on that exact revision unless noted.
+Date: 2026-11-06 (Asia/Jakarta). Branch `feat/category-system-keys` from `origin/main` `e8ec62d`; implementation
+commit `7985ff4`. After acceptance, `origin/main` `f1ee604` (Markas phase 3) was merged in (`71010a9`, "chore: merge
+main into category system keys"). Final verification ran on the merged tree `71010a9` ("V52 code") against `main`
+`f1ee604` ("V51 code"); the first pass (on `7985ff4` against `e8ec62d`) gave the same results and is summarised in
+"First pass" below.
 
 Owner approval (2026-11-06): "ok to all" for the three-change language plan with every recommended default; this
 change merges first, on its own branch from `main`. Recorded in `proposal.md` › Plan approval and in the local
@@ -12,7 +15,7 @@ change merges first, on its own branch from `main`. Recorded in `proposal.md` �
 - Local only, synthetic data only. A new disposable `postgres:16` container on `127.0.0.1:55471`, migrated by
   `flyway/flyway:10` with the CI flags; removed after the run. No production system was contacted.
 - Backend: the project-local `backend/.venv` (`uv venv -p 3.12`, `requirements.txt` and `requirements-dev.txt`).
-- Parity stacks: "before" is `e8ec62d` exported with `git archive` into the session scratchpad (no extra worktree),
+- Parity stacks: "before" is `f1ee604` (first pass: `e8ec62d`) exported with `git archive` into the session scratchpad (no extra worktree),
   "after" is this worktree. Each ran its own backend (uvicorn, loopback, AI calls and background jobs off), its own
   production `next build --webpack` served by `next start` behind a loopback `/api` proxy
   (`research/evidence/add-category-system-keys/tools/proxy.mjs`), and its own database (below).
@@ -59,6 +62,8 @@ those places and in `system_categories.SEED_NAMES`.
 
 Web: 6 checks in 5 files (`activity.tsx`, `ledgerMovements.ts` ×2, `provenance.ts`, `BudgetPanel.tsx`,
 `MovementReviewCards.tsx`). Run against `e8ec62d`'s `frontend/src`, the web guard reports exactly these 6 lines.
+Main's phase 3 (`f1ee604`) changed no backend or migration file and added no name check; the merged
+`activity.tsx` keeps the key check and the web guard passes on the merged tree.
 
 ## Task evidence
 
@@ -161,37 +166,41 @@ summary and queue, the ledger with type counts and daily totals, and each type t
 `tools/compare.py` (every value; read-time stamps `generated_at`, `as_of` and a running window's "now" end skipped;
 the new `category_system_key`/`system_key` fields counted, not compared, where the V51 code lacks them):
 
-| Comparison (2026-11-06) | Values compared | Differences |
+| Comparison (2026-11-06, `f1ee604` vs `71010a9`) | Values compared | Differences |
 | --- | --- | --- |
-| Migration: V51 code on `before` vs V52 code on `after` (10:24–10:25) | 23,793 | **0** (452 additive fields) |
-| Rename on V52 code: V51 code unrenamed vs V52 code after renaming "Investasi" → "Investments" and both "Internal Movement" → "Transfer" through `PATCH /api/categories` (10:26) | 23,793 | **0** |
-| The old bug, for contrast: the same renames on the V51 code (10:31) | 14,548 | **173** (dashboard 82, reports 50, transactions 30, review 5, insights 4, pulse 2) |
+| Migration: V51 code on `before` vs V52 code on `after` (10:43–10:44) | 23,793 | **0** (452 additive fields) |
+| Rename on V52 code: V51 code unrenamed vs V52 code after renaming "Investasi" → "Investments" and both "Internal Movement" → "Transfer" through `PATCH /api/categories` (10:45) | 23,793 | **0** |
+| The old bug, for contrast: the same renames on the V51 code (10:46) | 14,548 | **173** (dashboard 82, reports 50, transactions 30, review 5, insights 4, pulse 2) |
 
 `parity.mjs` (every money figure, count and date in `main`, 18 routes):
 
 | Comparison | Routes identical |
 | --- | --- |
-| Migration, 10:24–10:25 | **18 of 18** (Beranda 68 figures, Tinjau 15, Transaksi 125, Analisis 74, Laporan 105, Rekening 62, Target 34, Pengaturan sections, shell Transaksi 126) |
-| V52 code renamed vs V51 code unrenamed, 10:30–10:31 | **18 of 18** |
-| Both renamed (V51 vs V52 code), 10:32 | 12 of 18: Beranda, Tinjau, Transaksi, Analisis, Laporan and shell Transaksi differ, which is the bug this change fixes |
+| Migration, 10:43–10:44 | **18 of 18** (Beranda 44 figures after phase 3, Tinjau 15, Transaksi 125, Analisis 74, Laporan 105, Rekening 62, Target 34, Pengaturan sections, shell Transaksi 126) |
+| V52 code renamed vs V51 code unrenamed, 10:45 | **18 of 18** |
+| Both renamed (V51 vs V52 code), 10:46 | 12 of 18: Beranda, Tinjau, Transaksi, Analisis, Laporan and shell Transaksi differ, which is the bug this change fixes |
 
 Under the V51 code the rename turned the Rp 1.000.000 investment buy into spending (total outflow Rp 3.575.490 →
 Rp 4.575.490 on analytics, overview and cycle summary) and moved the unlinked movement leg out of "awaiting" in
 the waiting rows. Evidence: `research/evidence/add-category-system-keys/` (`before/` with `base-commit.txt`,
 `after/`, `renamed/`, `rename-on-v51-code/`, the comparison outputs and the tools).
 
-The first `parity.mjs` run of the renamed comparison hung in the browser (its CDP calls have no timeout); it was
-stopped and rerun unchanged, and the rerun completed.
+First pass (`e8ec62d` vs `7985ff4`, 10:24–10:32): the same counts (0, 0 and 173 API differences; 18, 18 and 12 of
+18 routes identical; Beranda then had 68 figures). Its first renamed `parity.mjs` run hung in the browser (its CDP
+calls have no timeout) and was stopped and rerun unchanged. The evidence folder holds the final pass; its
+`before/base-commit.txt` names `f1ee604`.
 
 ## 5.2 Repository checks
 
-On `7985ff4`:
+On the merged tree `71010a9`:
 
-- Backend: fresh database migrated V1 to V52 by Flyway, then
+- Backend: a new disposable `postgres:16`, Flyway V1 to V52 ("Successfully applied 52 migrations … v52"), then
   `TEST_DATABASE_URL=… SKIP_TEST_MIGRATIONS=1 REQUIRE_TEST_DATABASE=1 .venv/bin/python -m pytest tests/ -ra`:
-  **1935 passed, 0 failed, 0 skipped** in 161 s (1 third-party warning: `passlib` uses the deprecated `crypt`). Skipped: none.
-- Frontend: `npm run type-check` passed; `npm run lint` passed (0 problems); `npm test` **84 files, 766 tests
-  passed**; `npm run build` passed.
+  **1935 passed, 0 failed, 0 skipped** in 163 s (1 third-party warning: `passlib` uses the deprecated `crypt`). This
+  includes both backend guard tests and the rename test.
+- Frontend: `npm run type-check` passed; `npm run lint` passed (0 problems); `npm test` **84 files, 808 tests
+  passed** (including the web guard); `npm run build` passed.
+- First pass on `7985ff4`: backend 1935 passed, 0 skipped; frontend 84 files, 766 tests passed; build passed.
 - `openspec validate --all --strict`: **84 passed, 0 failed** (also after the verification and task updates).
 - `git diff --check` and `git diff --cached --check` before each commit: clean.
 
@@ -215,7 +224,8 @@ On `7985ff4`:
 - AGENTS.md was not changed: the bullets to update (the baseline "Never open, approve, or merge a merge request…"
   and §8 "Merge Requests") do not exist in this repository's `AGENTS.md` on `main`; its only merge-request line is
   inside the managed `personal` profile block and concerns client repositories. Only `openspec/config.yaml` carries
-  the new rule. The AGENTS.md wording is left for the owner to place.
+  the new rule. Owner decision (2026-11-06, via the coordinator): no AGENTS.md edit is needed; the
+  `openspec/config.yaml` rule is enough.
 
 ## Not verified
 
@@ -231,6 +241,14 @@ Redeploy the previous release; V52 stays, unused by the old code. Before that, r
 back to its seed name ("Investasi", "Internal Movement", "Penyesuaian Saldo"), or its figures change under the old
 code, as the V51-code comparison above shows.
 
+## Merge of main
+
+`git merge origin/main` (`f1ee604`) conflicted in `frontend/src/app/page.test.tsx` only: phase 3 removed two Beranda
+activity tests from that place (it rewrote them elsewhere in the file), while this branch had added
+`category_system_key` to them. Resolved by taking main's removal and giving every "Internal Movement" fixture in the
+file its key. `activity.tsx` merged cleanly with the key check intact. Phase 3's new `activity.test.ts` cases build
+ordinary rows from this branch's movement fixture, so they now set `category_system_key: null`.
+
 ## Owner acceptance (5.3)
 
-Pending.
+Accepted by the owner on 2026-11-06: "complete all until finished", after reviewing the verification results.
