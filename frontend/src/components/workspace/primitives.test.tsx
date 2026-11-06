@@ -377,4 +377,3 @@ describe("page piece geometry in the stylesheet", () => {
     expect(rule(".row :is(.r-time, .r-cat, .r-pillar, .dt-only)", phone)).toContain("display: none");
   });
 });
-

@@ -134,7 +134,7 @@ function Pillar({ color, label }: { color: string; label: string }) {
 
 function PageRows() {
   return (
-    <div>
+    <div className={styles.wide}>
       <DayHeading label="Kamis, 5 November · hari ini" totals="Pengeluaran Rp 52.500" />
       <ul className="list">
         {ROW_STATES.map(([state, className]) => (
@@ -314,24 +314,28 @@ export function ComponentSheet() {
 
       <Both title="Angka utama, batang, angka pendukung">
         {(theme) => (
-          <HeroFigure id={`ks-hero-${theme}`} label="Aman dipakai sampai gajian" mark="var(--in-solid)" figure="Rp 2.276.410" line="20 hari lagi sampai gajian 25 Nov"
-            action={<button type="button" tabIndex={-1} className="ws-btn ws-btn-quiet ws-btn-sm">Rincian</button>}>
-            <SplitBar label="Uang siklus ini dari Rp 9.518.400 masuk" emptyLabel="Uang siklus ini: belum ada uang masuk" total={9_518_400} segments={SPLIT} />
-            <div className="legend">
-              <FigureBlock label="Masuk" figure="Rp 9.518.400" caption="Gaji 23 Okt" phoneHidden />
-              <FigureBlock label="Pengeluaran" mark="var(--out-solid)" figure="Rp 3.502.990" caption="sejak gaji 23 Okt" />
-              <FigureBlock label="Ditabung & investasi" mark="var(--inv-solid)" figure="Rp 2.750.000" caption="Tabungan bertambah" />
-              <FigureBlock label="Terjadwal" mark="var(--warn-solid)" figure="Rp 989.000" caption="tagihan sampai 24 Nov" phoneHidden />
-            </div>
-          </HeroFigure>
+          <div className={styles.scroll} tabIndex={0} role="region" aria-label={`Contoh angka utama ${theme}`}>
+            <HeroFigure id={`ks-hero-${theme}`} label="Aman dipakai sampai gajian" mark="var(--in-solid)" figure="Rp 2.276.410" line="20 hari lagi sampai gajian 25 Nov"
+              action={<button type="button" tabIndex={-1} className="ws-btn ws-btn-quiet ws-btn-sm">Rincian</button>}>
+              <SplitBar label="Uang siklus ini dari Rp 9.518.400 masuk" emptyLabel="Uang siklus ini: belum ada uang masuk" total={9_518_400} segments={SPLIT} />
+              <div className="legend">
+                <FigureBlock label="Masuk" figure="Rp 9.518.400" caption="Gaji 23 Okt" phoneHidden />
+                <FigureBlock label="Pengeluaran" mark="var(--out-solid)" figure="Rp 3.502.990" caption="sejak gaji 23 Okt" />
+                <FigureBlock label="Ditabung & investasi" mark="var(--inv-solid)" figure="Rp 2.750.000" caption="Tabungan bertambah" />
+                <FigureBlock label="Terjadwal" mark="var(--warn-solid)" figure="Rp 989.000" caption="tagihan sampai 24 Nov" phoneHidden />
+              </div>
+            </HeroFigure>
+          </div>
         )}
       </Both>
 
       <Both title="Kepala bagian, baris, judul hari">
-        {() => (
+        {(theme) => (
           <>
             <SectionHeader label="Aktivitas terbaru" aside={<span className="aside">hari ini dan kemarin · 7</span>} />
-            <PageRows />
+            <div className={styles.scroll} tabIndex={0} role="region" aria-label={`Contoh baris ${theme}`}>
+              <PageRows />
+            </div>
           </>
         )}
       </Both>

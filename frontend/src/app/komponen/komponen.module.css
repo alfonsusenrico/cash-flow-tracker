@@ -21,6 +21,9 @@
 .static { position: relative !important; inset: auto !important; left: auto !important; top: auto !important; bottom: auto !important; transform: none !important; animation: none !important; }
 .sheet { max-width: 390px; border-bottom: 0; border-radius: var(--r-layer) var(--r-layer) 0 0; }
 .dialogFoot { display: flex; justify-content: flex-end; gap: 8px; margin: 16px -24px -24px; padding: 16px 24px; border-top: 1px solid var(--line); }
+/* The page pieces keep their page width inside a half-width cell and scroll there. */
+.scroll { overflow-x: auto; padding: 0 var(--sp-12); }
+.scroll > * { min-width: 720px; }
 .skelRow { display: flex; align-items: center; gap: 16px; height: 56px; border-bottom: 1px solid var(--line); }
 .skelRow > span { height: 12px; }
 

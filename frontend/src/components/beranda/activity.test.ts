@@ -154,4 +154,3 @@ describe("Beranda's recent activity", () => {
     expect(activityPhoneStatus(topup)).toEqual({ text: "Tabungan" });
   });
 });
-

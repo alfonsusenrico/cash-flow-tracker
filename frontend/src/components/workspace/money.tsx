@@ -20,5 +20,6 @@ export function MaskedMoney({ text, className }: { text: string; className?: str
       </span>
     );
   }
-  return <span className={className}>{text}</span>;
+  // Without a class the amount stays part of its sentence's text, as the prototype writes "aset Rp … · utang Rp …".
+  return className ? <span className={className}>{text}</span> : <>{text}</>;
 }
