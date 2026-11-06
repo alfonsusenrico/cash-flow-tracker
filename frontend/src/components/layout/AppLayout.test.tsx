@@ -61,6 +61,7 @@ describe("global movement entry point", () => {
       if (path === "/review/summary") return { ok: true, attention: 4, unreviewed: 3 };
       if (path === "/reports/monthly/latest") return { ready: false, period: null, url: null };
       if (path === "/recurring") return { rules: [] };
+      if (path === "/recurring/pending") return { ok: true, rules: [], recent_auto_links: [] };
       if (path === "/ingest/test-sessions/current") return { ok: true, session: currentSession };
       throw new Error(`Unexpected GET ${path}`);
     });
@@ -95,30 +96,46 @@ describe("global movement entry point", () => {
 
   it("puts every page inside the workspace: skip link, sidebar, main and the phone tab bar", async () => {
     renderLayout();
-    expect(await screen.findByRole("link", { name: "Langsung ke konten" })).toHaveAttribute("href", "#main");
+    expect(await screen.findByRole("link", { name: "Lewati ke isi" })).toHaveAttribute("href", "#main");
     expect(screen.getByRole("complementary", { name: "Navigasi samping" })).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveAttribute("id", "main");
-    expect(screen.getByRole("navigation", { name: "Navigasi utama" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Menu utama" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Navigasi ponsel" })).toBeInTheDocument();
     // Sidebar and tab bar both name the badge in words (CSS shows one of them per width).
     expect(await screen.findAllByRole("link", { name: "Tinjau, 4 perlu ditinjau" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /Buka menu/ })).not.toBeInTheDocument();
   });
 
-  it("shows the Sesi uji banner on every page while a session runs, and ends it from there", async () => {
+  it("Session running: one neutral line above the title block with the end time, Lihat sesi and Akhiri sesi", async () => {
+    currentSession = { id: "sesi-1", status: "open", planned_end_at: "2026-11-04T11:30:00Z" };
+    renderLayout();
+    const line = await screen.findByRole("region", { name: "Sesi uji" });
+    expect(line).toHaveTextContent("Sesi uji berjalan sampai 18.30 · notifikasi disimpan, tidak dicatat");
+    expect(line).toHaveClass("session-line");
+    expect(line.className).not.toMatch(/warn|ws-banner/);
+    // Between the top bar and the page, so the title block follows it and it scrolls with the page.
+    expect(line.nextElementSibling).toBe(screen.getByRole("main"));
+    expect(within(line).getByRole("link", { name: "Lihat sesi" })).toHaveAttribute("href", "/settings/sesi-uji");
+    expect(within(line).getByRole("button", { name: "Akhiri sesi" })).toHaveClass("ws-btn-quiet", "ws-btn-sm");
+  });
+
+  it("Ending from the notice: Akhiri sesi ends the session and the line disappears", async () => {
     const user = userEvent.setup();
     currentSession = { id: "sesi-1", status: "open", planned_end_at: "2026-11-04T11:30:00Z" };
-    vi.mocked(api.post).mockResolvedValue({ ok: true });
+    vi.mocked(api.post).mockImplementation(async () => {
+      currentSession = { ...currentSession!, status: "ended" };
+      return { ok: true };
+    });
     renderLayout();
-    const banner = await screen.findByRole("region", { name: "Sesi uji" });
-    expect(banner).toHaveTextContent("Sesi uji berjalan sampai 18.30 · notifikasi disimpan tanpa dicatat");
-    expect(within(banner).getByRole("link", { name: "Lihat sesi" })).toHaveAttribute("href", "/settings/sesi-uji");
-    await user.click(within(banner).getByRole("button", { name: "Akhiri sesi" }));
+    const line = await screen.findByRole("region", { name: "Sesi uji" });
+    await user.click(within(line).getByRole("button", { name: "Akhiri sesi" }));
     expect(api.post).toHaveBeenCalledWith("/ingest/test-sessions/sesi-1/end");
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Sesi uji" })).not.toBeInTheDocument());
   });
 
   it("shows no Sesi uji banner without a running session", async () => {
     renderLayout();
-    await screen.findByRole("link", { name: "Langsung ke konten" });
+    await screen.findByRole("link", { name: "Lewati ke isi" });
     await waitFor(() => expect(api.get).toHaveBeenCalledWith("/ingest/test-sessions/current"));
     expect(screen.queryByRole("region", { name: "Sesi uji" })).not.toBeInTheDocument();
   });
@@ -128,7 +145,7 @@ describe("global movement entry point", () => {
     renderLayout();
     await user.click(await screen.findByRole("button", { name: "Ciutkan menu samping" }));
     expect(localStorage.setItem).toHaveBeenCalledWith("sidebarCollapsed", "1");
-    expect(document.querySelector(".ws-window")).toHaveAttribute("data-collapsed", "true");
+    expect(document.querySelector(".app")).toHaveAttribute("data-collapsed", "true");
   });
 
   it("opens capture with N and not while typing", async () => {

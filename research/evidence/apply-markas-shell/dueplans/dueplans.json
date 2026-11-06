@@ -1,0 +1,69 @@
+{
+ "banner": false,
+ "bellItems": [
+  "Laporan Siklus 25 Sep – 23 Okt siap dibaca (baru) Periodenya selesai 23 Okt",
+  "Kelas Yoga Rp 150.000 lewat jatuh tempo (baru) Rencana · jatuh tempo 2 Nov",
+  "Tagihan SPayLater Rp 434.000 lewat jatuh tempo (baru) Rencana · jatuh tempo 5 Nov",
+  "Token Listrik PLN Rp 200.000 hari ini (baru) Rencana · jatuh tempo 6 Nov",
+  "4 rencana ditautkan otomatis (baru) Rencana · jatuh tempo 3 Nov"
+ ],
+ "dialogTitle": "Rencana jatuh tempoTautkan, lewati, atau catat manual",
+ "dialogText": "Rencana jatuh tempo Tautkan, lewati, atau catat manual Ditautkan otomatis Satu-satunya transaksi tercatat yang sama persis (rekening, nominal, sekitar jatuh tempo) dikaitkan ke rencana ini. Batalkan jika keliru; transaksi itu tidak akan dikaitkan otomatis lagi ke rencana yang sama. Langganan Musik Ditautkan otomatisJatuh tempo 3 Nov · 3 Nov · Rp 54.990 · Langganan Musik Batalkan tautan Cicilan Motor Ditautkan otomatisJatuh tempo 1 Nov · 1 Nov · Rp 850.000 · Leasing Motor Sentosa Batalkan tautan Langganan Musik Ditautkan otomatisJatuh tempo 3 Okt · 3 Okt · Rp 54.990 · Langganan Musik Batalkan tautan Cicilan Motor Ditautkan otomatisJatuh tempo 1 Okt · 1 Okt · Rp 850.000 · Leasing Motor Sentosa Batalkan tautan 3 rencana jatuh tempo Rencana tidak mengubah saldo. Kaitkan transaksi yang sudah tercatat, lewati jika tidak terjadi, atau catat manual hanya jika notifikasinya terlewat. Kelola renca",
+ "actions": [
+  "Tutup detail",
+  "Batalkan tautan Langganan Musik jatuh tempo 3 Nov",
+  "Batalkan tautan Cicilan Motor jatuh tempo 1 Nov",
+  "Batalkan tautan Langganan Musik jatuh tempo 3 Okt",
+  "Batalkan tautan Cicilan Motor jatuh tempo 1 Okt",
+  "Kelola rencana",
+  "Kaitkan 26 Okt · Rp 150.000 · Donasi Panti Asuhan ke Kelas Yoga",
+  "Kaitkan 1 Nov · Rp 19.000 · Warung Bu Tini ke Kelas Yoga",
+  "Kaitkan 1 Nov · Rp 25.500 · Teh Tarik Corner ke Kelas Yoga",
+  "Kaitkan 1 Nov · Rp 24.000 · Warung Bu Tini ke Kelas Yoga",
+  "Kaitkan 2 Nov · Rp 259.000 · Swalayan Hemat ke Kelas Yoga",
+  "Kaitkan 2 Nov · Rp 19.500 · Warung Bu Tini ke Kelas Yoga",
+  "Kaitkan 2 Nov · Rp 459.000 · Headphone Nirkabel ke Kelas Yoga",
+  "Kaitkan 31 Okt · Rp 16.500 · Mie Ayam Pak Kumis ke Kelas Yoga",
+  "Kaitkan 31 Okt · Rp 252.000 · Swalayan Hemat ke Kelas Yoga",
+  "Kaitkan 3 Nov · Rp 21.000 · Warung Bu Tini ke Kelas Yoga",
+  "Lewati kali ini",
+  "Bukan salah satunya, catat manual",
+  "Kaitkan 4 Nov · Rp 43.000 · Pembayaran QRIS ke Tagihan SPayLater",
+  "Kaitkan 4 Nov · Rp 200.000 · Isi GoPay ke Tagihan SPayLater",
+  "Kaitkan 3 Nov · Rp 100.000 · Isi ShopeePay ke Tagihan SPayLater",
+  "Kaitkan 3 Nov · Rp 27.500 · Pembayaran QRIS ke Tagihan SPayLater",
+  "Kaitkan 2 Nov · Rp 259.000 · Swalayan Hemat ke Tagihan SPayLater",
+  "Kaitkan 31 Okt · Rp 252.000 · Swalayan Hemat ke Tagihan SPayLater",
+  "Kaitkan 30 Okt · Rp 150.000 · Isi ShopeePay ke Tagihan SPayLater",
+  "Lewati kali ini",
+  "Catat manual (tidak tertangkap)",
+  "Kaitkan 5 Nov · Rp 30.000 · Warung Bu Tini ke Token Listrik PLN",
+  "Kaitkan 5 Nov · Rp 22.500 · Teh Tarik Corner ke Token Listrik PLN",
+  "Kaitkan 5 Nov · Rp 28.000 · Nasi Padang Sederhana ke Token Listrik PLN",
+  "Kaitkan 4 Nov · Rp 300.000 · Transfer ke rekening sendiri, pasangan belum ditemukan ke Token Listrik PLN",
+  "Kaitkan 4 Nov · Rp 29.500 · Nasi Padang Sederhana ke Token Listrik PLN",
+  "Kaitkan 4 Nov · Rp 43.000 · Pembayaran QRIS ke Token Listrik PLN",
+  "Kaitkan 4 Nov · Rp 20.000 · Mie Ayam Pak Kumis ke Token Listrik PLN",
+  "Kaitkan 4 Nov · Rp 120.000 · TRF BIFAST 88213 ANDI S ke Token Listrik PLN",
+  "Kaitkan 3 Nov · Rp 25.500 · Warung Bu Tini ke Token Listrik PLN",
+  "Kaitkan 3 Nov · Rp 27.500 · Pembayaran QRIS ke Token Listrik PLN",
+  "Lewati kali ini",
+  "Catat manual (tidak tertangkap)"
+ ],
+ "skip": "clicked",
+ "afterSkip": "Rencana jatuh tempo Tautkan, lewati, atau catat manual Ditautkan otomatis Satu-satunya transaksi tercatat yang sama persis (rekening, nominal, sekitar jatuh tempo) dikaitkan ke rencana ini. Batalkan jika keliru; transaksi itu tidak akan dikaitkan otomatis lagi ke rencana yang sama. Langganan Musik Ditautkan otomatisJatuh tempo 3 Nov · 3 Nov · Rp 54.990 · Langganan Musik Batalkan tautan Cicilan Motor Ditautkan otomatisJatuh tempo 1 Nov · 1 Nov · Rp 850.000 · Leasing Motor Sentosa Batalkan tautan Langganan Musik Ditautkan otomatisJatuh tempo 3 Okt · 3 Okt · Rp 54.990 · Langganan Musik Batalkan tautan Cicilan Motor Ditautkan otomatisJatuh tempo 1 Okt · 1 Okt · Rp 850.000 · Leasing Motor Sentosa Batalkan tautan 2 rencana jatuh tempo Rencana tidak mengubah saldo. Kaitkan transaksi yang sudah tercatat, lewati jika tidak terjadi, atau catat manual hanya jika notifikasinya terlewat. Kelola renca",
+ "undo": "Batalkan tautan Langganan Musik jatuh tempo 3 Nov",
+ "afterUndo": "Rencana jatuh tempo Tautkan, lewati, atau catat manual Ditautkan otomatis Satu-satunya transaksi tercatat yang sama persis (rekening, nominal, sekitar jatuh tempo) dikaitkan ke rencana ini. Batalkan jika keliru; transaksi itu tidak akan dikaitkan otomatis lagi ke rencana yang sama. Cicilan Motor Ditautkan otomatisJatuh tempo 1 Nov · 1 Nov · Rp 850.000 · Leasing Motor Sentosa Batalkan tautan Langganan Musik Ditautkan otomatisJatuh tempo 3 Okt · 3 Okt · Rp 54.990 · Langganan Musik Batalkan tautan Cicilan Motor Ditautkan otomatisJatuh tempo 1 Okt · 1 Okt · Rp 850.000 · Leasing Motor Sentosa Batalkan tautan 3 rencana jatuh tempo Rencana tidak mengubah saldo. Kaitkan transaksi yang sudah tercatat, lewati jika tidak terjadi, atau catat manual hanya jika notifikasinya terlewat. Kelola rencana Langganan Musik Tagihan Rumah Jatuh tempo 3 Nov Rp 54.990 Ada satu transaksi dengan nominal sama, tetap",
+ "pending": {
+  "rules": [
+   "Langganan Musik 2026-11-03",
+   "Tagihan SPayLater 2026-11-05",
+   "Token Listrik PLN 2026-11-06"
+  ],
+  "autoLinks": 3
+ },
+ "berandaPlans": [
+  "3 rencana ditautkan otomatis",
+  "Tagihan SPayLater Rp 434.000 lewat jatuh tempo"
+ ]
+}

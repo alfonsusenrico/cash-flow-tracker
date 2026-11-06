@@ -5,8 +5,6 @@ import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
-import { DuePlansNotice } from "@/components/recurring/DuePlansNotice";
-import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
 import { LedgerFeed, LedgerTable, type ListSelection } from "@/components/transactions/LedgerList";
 import { TransactionDrawer } from "@/components/transactions/TransactionDrawer";
 import type { LedgerRow } from "@/components/transactions/types";
@@ -15,9 +13,9 @@ import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { Icon } from "@/components/ui/Icon";
 import { PeriodStepper } from "@/components/ui/PeriodStepper";
 import { Modal } from "@/components/ui/Modal";
-import { TopBarControls } from "@/components/workspace/context";
+import { PageActions } from "@/components/workspace/context";
 import { Disclosure } from "@/components/workspace/Disclosure";
-import { Drawer, useToast } from "@/components/workspace/overlays";
+import { useToast } from "@/components/workspace/overlays";
 import { EmptyState, ErrorState, KpiCard, Segmented, Skeleton } from "@/components/workspace/primitives";
 import { useShortcut, usePageShortcutGroup, type PageShortcutGroup } from "@/components/workspace/shortcuts";
 import { LEDGER_SEARCH_ID } from "@/components/workspace/TopBar";
@@ -49,7 +47,7 @@ import { pushSearch, replaceSearch } from "@/lib/urlState";
 
 const PAGE_SIZE = 50;
 const SEARCH_DELAY_MS = 300;
-const PHONE_LIST_WIDTH = 760;
+const PHONE_LIST_WIDTH = 767;
 const RESIZE_SETTLE_MS = 150;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -122,7 +120,6 @@ function periodLabel(period: PeriodMetrics | null | undefined): string {
 
 const PAGE_KEYS: PageShortcutGroup = {
   name: "Di Transaksi",
-  caption: "J, K, dan Z di Transaksi",
   entries: [
     { keys: ["J", "K"], text: "Pindah ke transaksi berikutnya atau sebelumnya" },
     { keys: ["Enter"], text: "Buka detail transaksi" },
@@ -170,8 +167,19 @@ function LedgerPageContent() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
+  // The phone header's search and ⌘K on a phone open Transaksi with `fokus=cari`: focus the field once and
+  // drop the parameter, so a reload or Back does not take focus again (apply-markas-shell D5).
+  const focusRequested = params.get("fokus") === "cari";
+  useEffect(() => {
+    if (!focusRequested) return;
+    document.getElementById(LEDGER_SEARCH_ID)?.focus();
+    const next = new URLSearchParams(searchKey);
+    next.delete("fokus");
+    const query = next.toString();
+    replaceSearch(query ? `/ledger?${query}` : "/ledger");
+  }, [focusRequested, searchKey]);
+
   const [recurringOpen, setRecurringOpen] = useState(false);
-  const [plansOpen, setPlansOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<LedgerRow[]>([]);
   const [mergeError, setMergeError] = useState("");
@@ -401,17 +409,15 @@ function LedgerPageContent() {
   return (
     <div className="ws-tx space-y-4">
       {filters.period !== "all" && (
-        <TopBarControls>
+        <PageActions>
           <PeriodStepper
             unit={filters.period === "month" ? "Bulan" : "Siklus"}
             label={periodLabel(first?.summary?.period)}
             offset={filters.offset}
             onChange={(next) => updateFilters({ offset: next })}
           />
-        </TopBarControls>
+        </PageActions>
       )}
-
-      <DuePlansNotice onOpen={() => setPlansOpen(true)} />
 
       {figures ? (
         // Three cards as on Beranda and Rekening (refine-workspace-layout D6, preview).
@@ -626,11 +632,6 @@ function LedgerPageContent() {
           </div>
         )}
       </Modal>
-
-      {/* The existing matching detail: link, skip and record manually, unchanged. */}
-      <Drawer open={plansOpen} onClose={() => setPlansOpen(false)} title="Rencana jatuh tempo" subtitle="Tautkan, lewati, atau catat manual">
-        <PendingScheduledBanner onOpenRulesManager={() => { setPlansOpen(false); setRecurringOpen(true); }} />
-      </Drawer>
 
       <RecurringRulesModal open={recurringOpen} onClose={() => setRecurringOpen(false)} />
 

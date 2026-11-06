@@ -112,7 +112,8 @@ export function useScrollLock(active: boolean) {
   }, [active]);
 }
 
-export const PHONE_QUERY = "(max-width: 760px)";
+/** Below 768 px the phone shell and the phone page layouts apply (apply-markas-shell D2). */
+export const PHONE_QUERY = "(max-width: 767px)";
 
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
@@ -126,6 +127,14 @@ export function useMediaQuery(query: string): boolean {
     return () => list.removeEventListener("change", listener);
   }, [query]);
   return matches;
+}
+
+/**
+ * Closes the native <dialog> around an element at once. A modal dialog makes the rest of the page inert, so a
+ * layer that opens from inside it (Lainnya › Notifikasi) can only take focus once the dialog is closed.
+ */
+export function closeEnclosingDialog(element: Element) {
+  syncDialog(element.closest("dialog"), false);
 }
 
 /** Opens a native <dialog> modally where supported; jsdom lacks showModal, so it falls back to `open`. */

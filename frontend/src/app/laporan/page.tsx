@@ -8,7 +8,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import styles from "@/components/analysis/analysis.module.css";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { PeriodStepper } from "@/components/ui/PeriodStepper";
-import { TopBarControls } from "@/components/workspace/context";
+import { PageActions } from "@/components/workspace/context";
 import { Card, CardHeader, EmptyState, ErrorState, Kpi, KpiStrip, Pill, Segmented, Skeleton } from "@/components/workspace/primitives";
 import { replaceSearch } from "@/lib/urlState";
 import { BudgetEditorDialog, BudgetPanel } from "@/components/report/BudgetPanel";
@@ -155,7 +155,7 @@ function ReportView() {
   const position = Math.max(0, ordered.findIndex((item) => item.start_date === shownStart));
 
   const controls = (
-    <TopBarControls>
+    <PageActions>
       <div className={styles.toolbar}>
         <Segmented
           label="Dasar periode"
@@ -174,7 +174,7 @@ function ReportView() {
           />
         )}
       </div>
-    </TopBarControls>
+    </PageActions>
   );
 
   if (reportQueryResult.isLoading) {

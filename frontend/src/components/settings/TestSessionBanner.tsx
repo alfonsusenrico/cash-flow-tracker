@@ -16,8 +16,9 @@ const TIME = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digi
 const PATH = "/ingest/test-sessions";
 
 /**
- * Shown on every page while a Sesi uji runs (notification-test-session D8), so a forgotten session is noticed.
- * It reads through `api` directly, like the other workspace-wide queries, and polls once a minute.
+ * One neutral line under the top bar while a Sesi uji runs (owner decision 4, apply-markas-shell D9), because
+ * notifications are then stored and not recorded. It reads through `api` directly, like the other
+ * workspace-wide queries, and polls once a minute. It scrolls with the page.
  */
 export function TestSessionBanner({ enabled }: { enabled: boolean }) {
   const queryClient = useQueryClient();
@@ -34,13 +35,16 @@ export function TestSessionBanner({ enabled }: { enabled: boolean }) {
   const session = data?.session;
   if (!session || session.status !== "open") return null;
   return (
-    <div className="ws-banner ws-banner-warn ws-plan-notice ws-test-session-banner" role="region" aria-label="Sesi uji">
-      <Icon name="clock" className="h-4 w-4 shrink-0" />
-      <span className="ws-plan-notice-t tabular-nums">
-        Sesi uji berjalan sampai <b>{TIME.format(new Date(session.planned_end_at))}</b> · notifikasi disimpan tanpa dicatat
+    <div className="session-line" role="region" aria-label="Sesi uji">
+      <Icon name="clock" className="h-4 w-4 session-ico" />
+      <span className="session-t">
+        Sesi uji berjalan sampai <span className="tabular-nums">{TIME.format(new Date(session.planned_end_at))}</span> · notifikasi
+        disimpan, tidak dicatat
       </span>
-      <Link href="/settings/sesi-uji" className="ws-btn ws-btn-sm">Lihat sesi</Link>
-      <button type="button" className="ws-btn ws-btn-sm" disabled={end.isPending} onClick={() => end.mutate(session.id)}>
+      <Link href="/settings/sesi-uji" className="ws-btn ws-btn-quiet ws-btn-sm">
+        Lihat sesi
+      </Link>
+      <button type="button" className="ws-btn ws-btn-quiet ws-btn-sm" disabled={end.isPending} onClick={() => end.mutate(session.id)}>
         {end.isPending ? "Mengakhiri…" : "Akhiri sesi"}
       </button>
     </div>

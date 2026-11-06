@@ -14,7 +14,7 @@ import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { ALL_LIQUID_NOTICE } from "@/components/dashboard/EmergencyCoverage";
 import { Card, CardHeader, ErrorState, Pill, Skeleton, type Tone } from "@/components/workspace/primitives";
 import { Modal } from "@/components/ui/Modal";
-import { TopBarControls } from "@/components/workspace/context";
+import { PageActions } from "@/components/workspace/context";
 import type { CycleSummary, PlanLine } from "@/components/beranda/types";
 import type { NetWorthResponse } from "@/components/accounts/types";
 import styles from "@/components/accounts/money.module.css";
@@ -67,24 +67,19 @@ export function GoalsView() {
   const active = dialogs.obligations.filter((debt) => !debt.is_archived && debt.remaining_amount > 0);
   const archived = dialogs.obligations.filter((debt) => debt.is_archived || debt.remaining_amount <= 0);
 
-  // The page's actions sit in the top bar beside the title (refine-workspace-layout D11).
+  // The title block's actions in the prototype's order (apply-markas-shell D4). Tambah target is secondary
+  // because "+ Catat" is the only primary button in the frame.
   const toolbar = (
-    <TopBarControls>
-    <div className={styles.toolbar}>
+    <PageActions more={[{ key: "utang", label: "Tambah utang", icon: "plus", onSelect: dialogs.openNewObligation }]}>
       <button type="button" className="ws-btn" onClick={() => setPlansOpen(true)}>
         <Icon name="calendar" className="h-4 w-4" />
         Rencana
       </button>
-      <button type="button" className="ws-btn" onClick={dialogs.openNewObligation}>
-        <Icon name="plus" className="h-4 w-4" />
-        Tambah utang
-      </button>
-      <button type="button" className="ws-btn ws-btn-accent" onClick={dialogs.openNewGoal}>
+      <button type="button" className="ws-btn" onClick={dialogs.openNewGoal}>
         <Icon name="plus" className="h-4 w-4" />
         Tambah target
       </button>
-    </div>
-    </TopBarControls>
+    </PageActions>
   );
 
   if (dialogs.loading) {

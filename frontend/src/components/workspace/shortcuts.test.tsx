@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef } from "react";
 import { axe } from "vitest-axe";
@@ -28,12 +28,16 @@ function installStorage(overrides: Partial<Storage> = {}) {
 function GlobalKeys() {
   useShortcut("n", () => handlers.n());
   useShortcut("mod+k", () => handlers.modK());
-  const { openHelp } = useShortcuts();
+  const { openHelp, singleKeysEnabled, setSingleKeysEnabled } = useShortcuts();
   return (
     <>
       <button type="button">Di luar kolom</button>
       <button type="button" onClick={openHelp}>
         Bantuan
+      </button>
+      {/* Stands in for the switch in Pengaturan › Tampilan, which uses the same setting. */}
+      <button type="button" role="switch" aria-checked={singleKeysEnabled} onClick={() => setSingleKeysEnabled(!singleKeysEnabled)}>
+        Pintasan satu tombol
       </button>
       <input aria-label="Cari transaksi" />
       <textarea aria-label="Catatan" />
@@ -56,14 +60,10 @@ function show() {
 }
 
 async function turnSingleKeysOff(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("button", { name: "Bantuan" }));
-  const help = await screen.findByRole("dialog", { name: "Pintasan keyboard" });
   const toggle = screen.getByRole("switch", { name: /Pintasan satu tombol/ });
   expect(toggle).toHaveAttribute("aria-checked", "true");
   await user.click(toggle);
   expect(toggle).toHaveAttribute("aria-checked", "false");
-  await user.click(screen.getByRole("button", { name: "Tutup bantuan" }));
-  expect(help).not.toHaveAttribute("open");
 }
 
 describe("shortcut registry", () => {
@@ -99,14 +99,28 @@ describe("shortcut registry", () => {
     expect(handlers.n).not.toHaveBeenCalled();
   });
 
-  it("opens the help dialog with ? and returns focus when it closes with Esc", async () => {
+  it("Opening Bantuan: ? opens a 560 px dialog with the facts, the key table and the Tampilan line; Esc returns focus", async () => {
     const { user } = show();
     const outside = screen.getByRole("button", { name: "Di luar kolom" });
     outside.focus();
     await user.keyboard("?");
-    const help = await screen.findByRole("dialog", { name: "Pintasan keyboard" });
+    const help = await screen.findByRole("dialog", { name: "Bantuan & pintasan" });
     expect(help).toHaveAttribute("open");
-    expect(help).toHaveTextContent("Cari transaksi (Ctrl+K di Windows)");
+    expect(help.style.getPropertyValue("--dw")).toBe("560px");
+    expect(help).toContainElement(document.activeElement as HTMLElement);
+    expect(within(help).getAllByRole("listitem")).toHaveLength(3);
+    const table = within(help).getByRole("table", { name: "Pintasan keyboard" });
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Tombol", "Fungsi"]);
+    const rows = (within(table).getAllByRole("row").slice(1) as HTMLTableRowElement[]).map((row) => [row.querySelector("kbd")?.textContent, row.cells[1].textContent]);
+    expect(rows).toEqual([
+      ["⌘K / Ctrl K", "Cari transaksi"],
+      ["N", "Catat transaksi"],
+      ["?", "Bantuan ini"],
+      ["Esc", "Tutup lapisan teratas"],
+    ]);
+    expect(help).toHaveTextContent("Pintasan satu tombol bisa dimatikan di Pengaturan › Tampilan.");
+    expect(within(help).queryByRole("switch")).not.toBeInTheDocument();
+    expect(help).not.toHaveTextContent("titik-titik");
     expect((await axe(help)).violations).toHaveLength(0);
 
     await user.keyboard("{Escape}");
@@ -117,12 +131,12 @@ describe("shortcut registry", () => {
   it("keeps Tab inside the open help dialog", async () => {
     const { user } = show();
     await user.keyboard("?");
-    const help = await screen.findByRole("dialog", { name: "Pintasan keyboard" });
-    screen.getByRole("switch").focus();
+    const help = await screen.findByRole("dialog", { name: "Bantuan & pintasan" });
+    const close = screen.getByRole("button", { name: "Tutup bantuan" });
+    close.focus();
     await user.tab();
-    expect(screen.getByRole("button", { name: "Tutup bantuan" })).toHaveFocus();
+    expect(close).toHaveFocus();
     await user.tab({ shift: true });
-    expect(screen.getByRole("switch")).toHaveFocus();
     expect(help).toContainElement(document.activeElement as HTMLElement);
   });
 
@@ -141,7 +155,7 @@ describe("shortcut registry", () => {
     expect(handlers.modK).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: "Bantuan" }));
-    expect(screen.getByRole("dialog", { name: "Pintasan keyboard" })).toHaveAttribute("open");
+    expect(screen.getByRole("dialog", { name: "Bantuan & pintasan" })).toHaveAttribute("open");
     await user.keyboard("{Escape}");
     expect(screen.getByRole("dialog", { hidden: true })).not.toHaveAttribute("open");
   });
@@ -155,7 +169,6 @@ describe("shortcut registry", () => {
     screen.getByRole("button", { name: "Di luar kolom" }).focus();
     await user.keyboard("n");
     expect(handlers.n).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Bantuan" }));
     expect(screen.getByRole("switch", { name: /Pintasan satu tombol/ })).toHaveAttribute("aria-checked", "false");
 
     await user.click(screen.getByRole("switch", { name: /Pintasan satu tombol/ }));
@@ -259,7 +272,7 @@ describe("isTypingTarget", () => {
 
   it("Page keys in the help", async () => {
     installStorage();
-    const group: PageShortcutGroup = { name: "Di Tinjau", caption: "tombol satu huruf di Tinjau", entries: [{ keys: ["J", "K"], text: "Pindah item" }] };
+    const group: PageShortcutGroup = { name: "Di Tinjau", entries: [{ keys: ["J", "K"], text: "Pindah item" }] };
     function PageKeys() {
       usePageShortcutGroup(group);
       return null;
@@ -267,16 +280,17 @@ describe("isTypingTarget", () => {
     const user = userEvent.setup();
     const view = render(<ShortcutProvider><GlobalKeys /><PageKeys /></ShortcutProvider>);
     await user.click(screen.getByRole("button", { name: "Bantuan" }));
-    let help = await screen.findByRole("dialog", { name: "Pintasan keyboard" });
-    expect(help).toHaveTextContent("Di Tinjau");
-    expect(help).toHaveTextContent("N, ?, dan tombol satu huruf di Tinjau jalan tanpa tombol lain.");
+    let help = await screen.findByRole("dialog", { name: "Bantuan & pintasan" });
+    const pageRow = within(help).getByRole("row", { name: /Pindah item di Tinjau/ });
+    expect(pageRow.querySelector("kbd")).toHaveTextContent("J / K");
+    expect(help).toHaveTextContent("Pintasan satu tombol bisa dimatikan di Pengaturan › Tampilan.");
     expect((await axe(help)).violations).toHaveLength(0);
     view.unmount();
     // On a page without its own keys (Beranda) the group and the caption are gone.
     render(<ShortcutProvider><GlobalKeys /></ShortcutProvider>);
     await user.click(screen.getByRole("button", { name: "Bantuan" }));
-    help = await screen.findByRole("dialog", { name: "Pintasan keyboard" });
-    expect(help).not.toHaveTextContent("Di Tinjau");
-    expect(help).toHaveTextContent("N dan ? jalan tanpa tombol lain.");
+    help = await screen.findByRole("dialog", { name: "Bantuan & pintasan" });
+    expect(help).not.toHaveTextContent("di Tinjau");
+    expect(help).toHaveTextContent("Pintasan satu tombol bisa dimatikan di Pengaturan › Tampilan.");
   });
 });

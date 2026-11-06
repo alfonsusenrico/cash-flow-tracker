@@ -2,11 +2,9 @@
    Workspace tokens only; marks and bars are decorative and every value is written as text. */
 
 .root { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.toolbar :global(.ws-btn) { min-height: 40px; }
 .grow { flex: 1; }
 .grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; gap: 16px; }
-.grid > .summaryFirst { order: 2; position: sticky; top: 16px; }
+.grid > .summaryFirst { order: 2; position: sticky; top: calc(var(--topbar-h) + 16px); }
 .stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .notice { margin: 0; padding: 10px 14px; border-radius: var(--r-panel); background: var(--surface-2); color: var(--text); font-size: 14px; }
 .alert { margin: 0; padding: 10px 14px; border-radius: var(--r-panel); background: var(--out-bg); color: var(--out-fg); font-size: 14px; }
@@ -67,7 +65,6 @@
   .kindCol { display: none; }
   .phoneKind { display: inline !important; }
   .phoneKind::before { content: ""; }
-  .toolbar :global(.ws-btn) { min-height: 44px; }
   .disclosure { width: 44px; height: 44px; margin: -10px 0 -10px -10px; }
 }
 
@@ -107,7 +104,7 @@
 .settingsListLink b { display: block; color: var(--text); font-size: 14px; font-weight: 600; }
 .settingsListLink span span { display: block; font-size: 12px; }
 .settingsPage { display: grid; grid-template-columns: 220px minmax(0, 720px); align-items: start; gap: 24px; }
-.settingsSide { position: sticky; top: 16px; }
+.settingsSide { position: sticky; top: calc(var(--topbar-h) + 16px); }
 .settingsIndex { display: none; }
 .settingsContent { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 .settingsBack { display: none !important; align-self: flex-start; }

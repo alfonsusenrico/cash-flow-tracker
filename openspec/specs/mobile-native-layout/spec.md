@@ -6,11 +6,11 @@ Define dedicated mobile home, quick-capture and ledger compositions for everyday
 ## Requirements
 
 ### Requirement: Dedicated Mobile Home Information Architecture
-At 760 px and below the web app SHALL render a dedicated single-column Beranda built for phones, not the desktop layout stacked.
+Below 768 px the web app SHALL render a dedicated single-column Beranda built for phones, not the desktop layout stacked.
 
 #### Scenario: Required behavior and constraints
-- **WHEN** the application renders Beranda at 760 pixels or narrower
-- **THEN** it SHALL show a compact sticky header with the date, the period line, theme and the account menu, and the companion status under it
+- **WHEN** the application renders Beranda below 768 pixels
+- **THEN** it SHALL start with the shell's phone header (brand, search, "Sembunyikan saldo" and the bell) and then the title block with the date and the period line; theme, the account's actions and the companion status SHALL NOT be in the header
 - **AND** the first card SHALL be "Aman dipakai hari ini" (or its unavailable state) with the remaining amount and days, a labelled Dipakai / Terjadwal / Aman split and the waiting amount, each figure explainable as a bottom sheet
 - **AND** "Perlu tindakan" SHALL follow, then the period's keluar and masuk, Kekayaan bersih, today's transactions and one insight
 - **AND** Kakeibo SHALL make all five classifications and "Belum diklasifikasi" identifiable where it is shown
@@ -87,8 +87,12 @@ At 760 px and below, Target & Tagihan SHALL show Ketahanan Dana first, then Targ
 - **THEN** Ketahanan Dana SHALL come first and each goal row SHALL show its progress text without truncating the amounts
 
 ### Requirement: Phone Page Actions and Targets
-On phones, the page actions of the money pages ("Tambah rekening", "Tambah target", "Tambah utang") SHALL stay reachable above the phone tab bar, every target SHALL be at least 44 by 44 CSS pixels, and a focused control SHALL not be hidden by the sticky top bar or the tab bar.
+On phones, the page actions of the money pages SHALL sit in the title block: "Tambah rekening" and "Tambah target" visible, "Perbarui harga" and "Tambah utang" in its "…" menu. Every target SHALL be at least 44 by 44 CSS pixels, and a focused control SHALL not be hidden by the sticky phone header or the tab bar.
 
 #### Scenario: Adding a target on a phone
-- **WHEN** the owner scrolls to the end of `/goals` at 390 px and tabs to "Tambah target"
-- **THEN** the control SHALL be fully visible above the tab bar with a visible focus ring, and activating it SHALL open the goal form as a bottom sheet
+- **WHEN** the owner opens `/goals` at 390 px and tabs to "Tambah target" in the title block
+- **THEN** the control SHALL be fully visible below the phone header and above the tab bar with a visible focus outline, and activating it SHALL open the goal form as a bottom sheet
+
+#### Scenario: Adding a debt on a phone
+- **WHEN** the owner opens the "…" menu of `/goals` at 390 px and chooses "Tambah utang"
+- **THEN** the menu SHALL open as a bottom sheet, and choosing the item SHALL open the debt form as a bottom sheet with focus inside it

@@ -31,9 +31,15 @@ const CELLS = [
   { name: "390-light", width: 390, height: 844, theme: "light", mobile: true },
   { name: "390-dark", width: 390, height: 844, theme: "dark", mobile: true },
 ];
-const cells = args.cells ? CELLS.filter((cell) => args.cells.split(",").includes(cell.name)) : CELLS;
+// Extra widths for the shell's breakpoints (apply-markas-shell D2), only when named in --cells.
+const EXTRA_WIDTHS = [1920, 1280, 1024, 1023, 768, 767, 320];
+const EXTRA_CELLS = EXTRA_WIDTHS.flatMap((width) =>
+  ["light", "dark"].map((theme) => ({ name: `${width}-${theme}`, width, height: width < 768 ? 844 : 900, theme, mobile: width < 768 })),
+);
+const cells = args.cells ? [...CELLS, ...EXTRA_CELLS].filter((cell) => args.cells.split(",").includes(cell.name)) : CELLS;
 const scenarios = JSON.parse(readFileSync(path.join(here, `scenarios-${args.target}.json`), "utf8"));
 const measureSource = readFileSync(path.join(here, "measure.js"), "utf8");
+const shellSource = readFileSync(path.join(here, "shell-checklist.js"), "utf8");
 mkdirSync(args.out, { recursive: true });
 const reportFile = path.join(args.out, "checklist.json");
 
@@ -121,7 +127,8 @@ try {
       const key = `${scenario.name}-${cell.width}-${cell.theme}`;
       browser.consoleErrors.length = 0;
       if (args.target === "app") {
-        await browser.evaluate(`localStorage.setItem("theme", "${cell.theme}")`).catch(() => {});
+        // Every capture starts with unseen notifications, so the bell's count does not depend on the order.
+        await browser.evaluate(`localStorage.setItem("theme", "${cell.theme}"); localStorage.removeItem("notificationsSeen")`).catch(() => {});
       } else {
         await browser.navigate("about:blank");
       }
@@ -143,6 +150,7 @@ try {
       }
       await browser.evaluate(`window.__measureRoot = ${JSON.stringify(scenario.measureRoot ?? null)}`);
       const measure = await browser.evaluate(measureSource).catch((error) => ({ error: String(error).slice(0, 200) }));
+      const shell = scenario.shell ? await browser.evaluate(shellSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
       const violations = await browser.axe().catch((error) => [{ id: "axe-error", impact: "critical", targets: [String(error).slice(0, 120)] }]);
       report[key] = {
         path: scenario.path,
@@ -154,6 +162,7 @@ try {
           .map((violation) => `${violation.id} (${violation.nodes}) ${violation.targets.join(" | ")}`.slice(0, 300)),
         axeOther: violations.filter((violation) => !["serious", "critical"].includes(violation.impact)).map((violation) => violation.id),
         measure,
+        shell,
       };
       const flags = report[key].axeSeriousOrCritical.length + report[key].consoleErrors.length;
       console.log(key, hasDialog ? "dialog" : "", JSON.stringify(log), flags ? `flags ${flags}` : "");

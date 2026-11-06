@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { fmtMoney } from "@/lib/utils";
 import { Icon } from "@/components/ui/Icon";
-import { planDay } from "./DuePlansNotice";
+import { planDay } from "./planDay";
 import { AutoLinkedOccurrence, DueExpectation, OccurrenceCandidate } from "@/types/recurring";
 
 interface Props {

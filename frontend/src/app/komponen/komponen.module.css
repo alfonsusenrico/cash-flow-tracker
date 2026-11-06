@@ -34,7 +34,7 @@
 .isFocus { outline: 2px solid var(--focus) !important; outline-offset: 2px; }
 .fieldFocus { border-color: var(--field-focus) !important; box-shadow: 0 0 0 3px var(--ring); }
 
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   .grid, .formGrid { grid-template-columns: minmax(0, 1fr); }
   .type { grid-template-columns: minmax(0, 1fr); gap: 4px; }
 }

@@ -7,14 +7,13 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { Icon } from "@/components/ui/Icon";
-import { closeTopLayer, syncDialog, useEscapeLayer, useFocusTrap } from "./layers";
+import { closeTopLayer } from "./layers";
+import { ShellDialog } from "./ShellDialog";
 
 /**
  * One registry owns the keyboard shortcuts (design D8). "mod+k" means ⌘K or Ctrl+K and works everywhere.
@@ -38,16 +37,12 @@ export interface ShortcutHelpEntry {
 }
 
 /**
- * A page's own keys, listed in the help under the page's name only while the page is mounted. The keys
- * themselves are registered with `useShortcut` and a scope; Enter stays native and is only described.
+ * A page's own keys, listed in the help only while the page is mounted, each ending in the group's name
+ * ("Di Tinjau"). The keys themselves are registered with `useShortcut` and a scope; Enter stays native and is
+ * only described.
  */
 export interface PageShortcutGroup {
   name: string;
-  /**
-   * How the switch caption names these keys, for example "tombol satu huruf di Tinjau". Absent for keys the
-   * switch does not turn off (Enter in a composer), so the caption never claims them.
-   */
-  caption?: string;
   entries: ShortcutHelpEntry[];
 }
 
@@ -117,7 +112,17 @@ export function ShortcutProvider({ children }: { children: ReactNode }) {
     return () => setPageGroups((groups) => groups.filter((item) => item !== group));
   }, []);
 
-  const openHelp = useCallback(() => setHelpOpen(true), []);
+  // Where focus returns when the help closes; recorded before the dialog takes focus.
+  const helpOpener = useRef<HTMLElement | null>(null);
+  const openHelp = useCallback(() => {
+    helpOpener.current = document.activeElement as HTMLElement | null;
+    setHelpOpen(true);
+  }, []);
+  const closeHelp = useCallback(() => {
+    setHelpOpen(false);
+    helpOpener.current?.focus?.();
+    helpOpener.current = null;
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -150,7 +155,7 @@ export function ShortcutProvider({ children }: { children: ReactNode }) {
     <ShortcutContext.Provider value={value}>
       {children}
       <ShortcutHelpRegistration onOpen={openHelp} />
-      <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <HelpDialog open={helpOpen} onClose={closeHelp} />
     </ShortcutContext.Provider>
   );
 }
@@ -183,96 +188,66 @@ function ShortcutHelpRegistration({ onOpen }: { onOpen: () => void }) {
 }
 
 const GLOBAL_KEYS: ShortcutHelpEntry[] = [
-  { keys: ["⌘", "K"], text: "Cari transaksi (Ctrl+K di Windows)" },
+  { keys: ["⌘K", "Ctrl K"], text: "Cari transaksi" },
   { keys: ["N"], text: "Catat transaksi" },
-  { keys: ["?"], text: "Buka bantuan ini" },
-  { keys: ["Esc"], text: "Tutup penjelasan, menu, atau jendela yang terbuka" },
+  { keys: ["?"], text: "Bantuan ini" },
+  { keys: ["Esc"], text: "Tutup lapisan teratas" },
 ];
 
-function KeyList({ entries }: { entries: ShortcutHelpEntry[] }) {
-  return (
-    <dl className="ws-keys">
-      {entries.map((entry) => (
-        <div key={entry.text} className="contents">
-          <dt>
-            {entry.keys.map((key) => (
-              <kbd key={key} className="ws-kbd mr-1">
-                {key}
-              </kbd>
-            ))}
-          </dt>
-          <dd>{entry.text}</dd>
-        </div>
-      ))}
-    </dl>
-  );
+/** Three facts about how the app works, in the prototype's wording (D8). */
+const HELP_FACTS = [
+  "HP mengirim notifikasi bank; transaksi tercatat sendiri.",
+  "Yang belum pasti masuk ke Tinjau. Jawab sekali, kebiasaan diingat.",
+  "Beranda menunjukkan berapa yang aman dipakai sampai gajian.",
+];
+
+/** A page key reads "… di Tinjau": the group's name ("Di Tinjau") closes the sentence. */
+function pageKeyText(group: PageShortcutGroup, entry: ShortcutHelpEntry): string {
+  const where = group.name.charAt(0).toLowerCase() + group.name.slice(1);
+  return `${entry.text} ${where}`;
 }
 
-function switchCaption(groups: PageShortcutGroup[]): string {
-  const captions = groups.flatMap((group) => (group.caption ? [group.caption] : []));
-  if (!captions.length) return "N dan ? jalan tanpa tombol lain.";
-  return `N, ?, dan ${captions.join(", ")} jalan tanpa tombol lain.`;
-}
-
+/**
+ * "Bantuan & pintasan" (D8): the facts, the global keys and the open page's keys in one table, and where the
+ * single-key shortcuts are switched off. The switch itself lives in Pengaturan › Tampilan.
+ */
 export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const returnFocus = useRef<HTMLElement | null>(null);
-  const titleId = useId();
   const context = useContext(ShortcutContext);
 
-  useEffect(() => {
-    if (open) returnFocus.current = document.activeElement as HTMLElement | null;
-    syncDialog(ref.current, open);
-    if (!open) returnFocus.current?.focus?.();
-  }, [open]);
-  useFocusTrap(ref, open);
-  useEscapeLayer(open, onClose);
+  const rows = [
+    ...GLOBAL_KEYS,
+    ...(context?.pageGroups ?? []).flatMap((group) => group.entries.map((entry) => ({ keys: entry.keys, text: pageKeyText(group, entry) }))),
+  ];
 
   return (
-    <dialog
-      ref={ref}
-      className="ws-dialog"
-      aria-labelledby={titleId}
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
-    >
-      {open && (
-        <>
-          <div className="ws-dialog-h">
-            <h2 id={titleId}>Pintasan keyboard</h2>
-            <button type="button" className="ws-close" aria-label="Tutup bantuan" onClick={onClose}>
-              <Icon name="x" className="h-4 w-4" />
-            </button>
-          </div>
-          <KeyList entries={GLOBAL_KEYS} />
-          {context?.pageGroups.map((group) => (
-            <section key={group.name} aria-label={group.name}>
-              <h3 className="ws-keys-h">{group.name}</h3>
-              <KeyList entries={group.entries} />
-            </section>
+    <ShellDialog open={open} onClose={onClose} title="Bantuan & pintasan" width={560} closeLabel="Tutup bantuan">
+      <ol className="help-facts">
+        {HELP_FACTS.map((fact) => (
+          <li key={fact} className="t-body">
+            {fact}
+          </li>
+        ))}
+      </ol>
+      <table className="help-keys">
+        <caption className="sr-only">Pintasan keyboard</caption>
+        <thead>
+          <tr>
+            <th scope="col">Tombol</th>
+            <th scope="col">Fungsi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.text}>
+              <td>
+                <kbd className="ws-kbd">{row.keys.join(" / ")}</kbd>
+              </td>
+              <td className="t-body">{row.text}</td>
+            </tr>
           ))}
-          {context && (
-            <button
-              type="button"
-              role="switch"
-              aria-checked={context.singleKeysEnabled}
-              className="ws-switch"
-              onClick={() => context.setSingleKeysEnabled(!context.singleKeysEnabled)}
-            >
-              <span>
-                <span className="block font-medium">Pintasan satu tombol</span>
-                <span className="block text-sm text-[var(--muted)]">
-                  {switchCaption(context.pageGroups)} Matikan jika bentrok dengan pembaca layar atau alat bantu lain.
-                </span>
-              </span>
-              <span className="ws-switch-track" aria-hidden="true" />
-            </button>
-          )}
-          <p className="ws-caption mt-3">Angka bergaris bawah titik-titik dapat diklik untuk melihat rincian hitungannya.</p>
-        </>
-      )}
-    </dialog>
+        </tbody>
+      </table>
+      <p className="t-meta">Pintasan satu tombol bisa dimatikan di Pengaturan › Tampilan.</p>
+    </ShellDialog>
   );
 }

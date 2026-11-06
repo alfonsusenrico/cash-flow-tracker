@@ -11,7 +11,7 @@ import type { ReviewQueue } from "@/lib/review";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
 import { ErrorState, Segmented, Skeleton } from "@/components/workspace/primitives";
-import { TopBarControls } from "@/components/workspace/context";
+import { PageActions } from "@/components/workspace/context";
 import { useWidthAtMost } from "@/hooks/useWidthAtMost";
 import { AccountDetail } from "./AccountDetail";
 import { useAccountDialogs } from "./AccountDialogs";
@@ -27,7 +27,7 @@ import styles from "./money.module.css";
 import walletStyles from "./wallet.module.css";
 
 // Phones reorder in a mode: dragging would fight the page scroll (refine-workspace-layout D9).
-const PHONE_WIDTH = 760;
+const PHONE_WIDTH = 767;
 
 type ViewTab = "kartu" | "grafik";
 const TABS: { value: ViewTab; label: string }[] = [
@@ -154,24 +154,25 @@ export function AccountsView() {
     tabRefs.current[next]?.focus();
   };
 
-  // The page's actions sit in the top bar beside the title, as in the old app (refine-workspace-layout D7).
+  const syncPrices = () => dialogs.syncPricesMutation.mutate();
+  // The title block's actions in the prototype's order (apply-markas-shell D4): Perbarui harga moves into "…"
+  // on the phone, Rencana is always there.
   const header = (
-    <TopBarControls>
-      <div className={styles.toolbar}>
-        <button type="button" className="ws-btn" onClick={() => dialogs.syncPricesMutation.mutate()} disabled={dialogs.syncPricesMutation.isPending}>
-          <Icon name="refresh-cw" className="h-4 w-4" />
-          {dialogs.syncPricesMutation.isPending ? "Memperbarui harga…" : "Perbarui harga"}
-        </button>
-        <button type="button" className="ws-btn" onClick={dialogs.openPlans}>
-          <Icon name="calendar" className="h-4 w-4" />
-          Rencana
-        </button>
-        <button type="button" className="ws-btn" onClick={dialogs.openNewAccount}>
-          <Icon name="plus" className="h-4 w-4" />
-          Tambah rekening
-        </button>
-      </div>
-    </TopBarControls>
+    <PageActions
+      more={[
+        { key: "harga", label: "Perbarui harga", icon: "refresh-cw", onSelect: syncPrices, phoneOnly: true },
+        { key: "rencana", label: "Rencana", icon: "calendar", onSelect: dialogs.openPlans },
+      ]}
+    >
+      <button type="button" className="ws-btn ph-hide" onClick={syncPrices} disabled={dialogs.syncPricesMutation.isPending}>
+        <Icon name="refresh-cw" className="h-4 w-4" />
+        {dialogs.syncPricesMutation.isPending ? "Memperbarui harga…" : "Perbarui harga"}
+      </button>
+      <button type="button" className="ws-btn" onClick={dialogs.openNewAccount}>
+        <Icon name="plus" className="h-4 w-4" />
+        Tambah rekening
+      </button>
+    </PageActions>
   );
 
   if (accountsQuery.isLoading || accountsQuery.isError) {

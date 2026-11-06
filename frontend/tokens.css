@@ -147,9 +147,13 @@
   /* Only floating layers cast a shadow: dialogs, sheets, popovers, menus and toasts. */
   --shadow-float: 0 16px 48px rgba(40, 34, 26, 0.14), 0 2px 6px rgba(40, 34, 26, 0.06);
 
-  /* Shell geometry until the shell phase replaces it. */
-  --sidebar-width: 248px;
-  --rail-width: 76px;
+  /* Shell geometry (option-6 styles.css): sidebar and icon rail, the top bar and phone header, the phone tab
+     bar and the context column. */
+  --sidebar-w: 240px;
+  --sidebar-rail-w: 64px;
+  --topbar-h: 56px;
+  --tabbar-h: 64px;
+  --context-w: 352px;
 }
 
 .dark {

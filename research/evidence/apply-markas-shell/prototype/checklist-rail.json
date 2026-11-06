@@ -1,0 +1,796 @@
+{
+ "shell-rail-1440-light": {
+  "path": "/beranda",
+  "log": [
+   "clicked Ciutkan menu samping"
+  ],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 94,
+    "Manrope": 2
+   },
+   "sizes": {
+    "12px": 48,
+    "14px": 38,
+    "20px": 5,
+    "0px": 3,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 55,
+    "500": 18,
+    "600": 23
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 34,
+    "Inter|14|400": 11,
+    "Inter|14|600": 10,
+    "Inter|12|500": 5,
+    "Inter|20|600": 4,
+    "Inter|14|500": 3,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 3,
+    "examples": [
+     "Inter 0/500 \"Harian\"",
+     "Inter 0/500 \"Ringkasan\"",
+     "Inter 0/500 \"Simpanan\""
+    ]
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "light",
+   "width": 1440,
+   "checks": [
+    {
+     "check": "sidebar width",
+     "value": 64,
+     "expected": 64,
+     "pass": true
+    },
+    {
+     "check": "sidebar fill",
+     "value": "rgb(241, 239, 235)",
+     "expected": "rgb(241, 239, 235)",
+     "pass": true
+    },
+    {
+     "check": "sidebar right line",
+     "value": "1px rgb(225, 221, 214)",
+     "expected": "1px rgb(225, 221, 214)",
+     "pass": true
+    },
+    {
+     "check": "brand row height",
+     "value": 56,
+     "expected": 56,
+     "pass": true
+    },
+    {
+     "check": "brand mark size",
+     "value": "16x24",
+     "expected": "24x24",
+     "pass": false
+    },
+    {
+     "check": "brand mark fill",
+     "value": "rgb(255, 51, 75)",
+     "expected": "rgb(255, 51, 75)",
+     "pass": true
+    },
+    {
+     "check": "brand mark radius",
+     "value": 6,
+     "expected": 6,
+     "pass": true
+    },
+    {
+     "check": "group labels",
+     "value": "HARIAN RINGKASAN SIMPANAN",
+     "expected": "HARIAN RINGKASAN SIMPANAN",
+     "pass": true
+    },
+    {
+     "check": "nav items",
+     "value": 8,
+     "expected": 8,
+     "pass": true
+    },
+    {
+     "check": "nav item labels",
+     "value": "Beranda · Tinjau · Transaksi · Analisis · Laporan · Rekening & Kantong · Target & Tagihan · Pengaturan",
+     "expected": "Beranda · Tinjau · Transaksi · Analisis · Laporan · Rekening & Kantong · Target & Tagihan · Pengaturan",
+     "pass": true
+    },
+    {
+     "check": "nav item height",
+     "value": 36,
+     "expected": 36,
+     "pass": true
+    },
+    {
+     "check": "nav item radius",
+     "value": 6,
+     "expected": 6,
+     "pass": true
+    },
+    {
+     "check": "nav item margin-left",
+     "value": 8,
+     "expected": 8,
+     "pass": true
+    },
+    {
+     "check": "nav item type",
+     "value": "Inter 14/20 500",
+     "expected": "Inter 14/20 500",
+     "pass": true
+    },
+    {
+     "check": "nav item colour",
+     "value": "rgb(91, 94, 101)",
+     "expected": "rgb(91, 94, 101)",
+     "pass": true
+    },
+    {
+     "check": "nav icon size",
+     "value": "16x16",
+     "expected": "16x16",
+     "pass": true
+    },
+    {
+     "check": "current item fill",
+     "value": "rgb(230, 227, 221)",
+     "expected": "rgb(230, 227, 221)",
+     "pass": true
+    },
+    {
+     "check": "current item text",
+     "value": "rgb(28, 30, 34)",
+     "expected": "rgb(28, 30, 34)",
+     "pass": true
+    },
+    {
+     "check": "current item border",
+     "value": "0px",
+     "expected": "0px",
+     "pass": true
+    },
+    {
+     "check": "selection bar",
+     "value": "2px 20px rgb(255, 51, 75)",
+     "expected": "2px 20px rgb(255, 51, 75)",
+     "pass": true
+    },
+    {
+     "check": "selection bar left",
+     "value": -8,
+     "expected": -8,
+     "pass": true
+    },
+    {
+     "check": "foot line",
+     "value": "1px rgb(225, 221, 214)",
+     "expected": "1px rgb(225, 221, 214)",
+     "pass": true
+    },
+    {
+     "check": "avatar",
+     "value": "32x32 r6",
+     "expected": "32x32 r6",
+     "pass": true
+    },
+    {
+     "check": "top bar height",
+     "value": 56,
+     "expected": 56,
+     "pass": true
+    },
+    {
+     "check": "top bar position",
+     "value": "sticky",
+     "expected": "sticky",
+     "pass": true
+    },
+    {
+     "check": "top bar fill",
+     "value": "rgb(248, 247, 244)",
+     "expected": "rgb(248, 247, 244)",
+     "pass": true
+    },
+    {
+     "check": "top bar line",
+     "value": "1px rgb(225, 221, 214)",
+     "expected": "1px rgb(225, 221, 214)",
+     "pass": true
+    },
+    {
+     "check": "top bar side padding",
+     "value": 48,
+     "expected": 48,
+     "pass": true
+    },
+    {
+     "check": "search size",
+     "value": "320x36",
+     "expected": "320x36",
+     "pass": true
+    },
+    {
+     "check": "search fill",
+     "value": "rgb(241, 239, 235)",
+     "expected": "rgb(241, 239, 235)",
+     "pass": true
+    },
+    {
+     "check": "search edge",
+     "value": "1px rgb(225, 221, 214)",
+     "expected": "1px rgb(225, 221, 214)",
+     "pass": true
+    },
+    {
+     "check": "search key cap",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "top bar actions",
+     "value": "Sembunyikan saldo · Tema · Notifikasi · Catat",
+     "expected": "Sembunyikan saldo · Tema · Notifikasi · Catat",
+     "pass": true
+    },
+    {
+     "check": "top bar has no heading",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    },
+    {
+     "check": "primary buttons in the shell and title block",
+     "value": 1,
+     "expected": 1,
+     "pass": true
+    },
+    {
+     "check": "Catat height",
+     "value": 36,
+     "expected": 36,
+     "pass": true
+    },
+    {
+     "check": "Catat fill",
+     "value": "rgb(255, 51, 75)",
+     "expected": "rgb(255, 51, 75)",
+     "pass": true
+    },
+    {
+     "check": "top bar icons 16 px",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "title block padding",
+     "value": "48px 32px",
+     "expected": "48px 32px",
+     "pass": true
+    },
+    {
+     "check": "title type",
+     "value": "Manrope 24/32 600 -0.36px",
+     "expected": "Manrope 24/32 600 -0.36px",
+     "pass": true
+    },
+    {
+     "check": "subtitle type",
+     "value": "Inter 14/20 400",
+     "expected": "Inter 14/20 400",
+     "pass": true
+    },
+    {
+     "check": "subtitle colour",
+     "value": "rgb(91, 94, 101)",
+     "expected": "rgb(91, 94, 101)",
+     "pass": true
+    },
+    {
+     "check": "subtitle gap",
+     "value": 4,
+     "expected": 4,
+     "pass": true
+    },
+    {
+     "check": "first content y",
+     "value": 192,
+     "expected": 192,
+     "pass": true
+    },
+    {
+     "check": "frame max width",
+     "value": "1200px",
+     "expected": "1200px",
+     "pass": true
+    },
+    {
+     "check": "page side margin",
+     "value": 48,
+     "expected": 48,
+     "pass": true
+    },
+    {
+     "check": "h1 count",
+     "value": 1,
+     "expected": 1,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 48,
+   "failed": 1
+  }
+ },
+ "shell-rail-1440-dark": {
+  "path": "/beranda",
+  "log": [
+   "NOT FOUND"
+  ],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 94,
+    "Manrope": 2
+   },
+   "sizes": {
+    "12px": 48,
+    "14px": 38,
+    "20px": 5,
+    "0px": 3,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 55,
+    "500": 18,
+    "600": 23
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 34,
+    "Inter|14|400": 11,
+    "Inter|14|600": 10,
+    "Inter|12|500": 5,
+    "Inter|20|600": 4,
+    "Inter|14|500": 3,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 3,
+    "examples": [
+     "Inter 0/500 \"Harian\"",
+     "Inter 0/500 \"Ringkasan\"",
+     "Inter 0/500 \"Simpanan\""
+    ]
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 2.276.410\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "shell": {
+   "theme": "dark",
+   "width": 1440,
+   "checks": [
+    {
+     "check": "sidebar width",
+     "value": 64,
+     "expected": 64,
+     "pass": true
+    },
+    {
+     "check": "sidebar fill",
+     "value": "rgb(28, 29, 32)",
+     "expected": "rgb(28, 29, 32)",
+     "pass": true
+    },
+    {
+     "check": "sidebar right line",
+     "value": "1px rgb(47, 48, 52)",
+     "expected": "1px rgb(47, 48, 52)",
+     "pass": true
+    },
+    {
+     "check": "brand row height",
+     "value": 56,
+     "expected": 56,
+     "pass": true
+    },
+    {
+     "check": "brand mark size",
+     "value": "16x24",
+     "expected": "24x24",
+     "pass": false
+    },
+    {
+     "check": "brand mark fill",
+     "value": "rgb(255, 71, 87)",
+     "expected": "rgb(255, 71, 87)",
+     "pass": true
+    },
+    {
+     "check": "brand mark radius",
+     "value": 6,
+     "expected": 6,
+     "pass": true
+    },
+    {
+     "check": "group labels",
+     "value": "HARIAN RINGKASAN SIMPANAN",
+     "expected": "HARIAN RINGKASAN SIMPANAN",
+     "pass": true
+    },
+    {
+     "check": "nav items",
+     "value": 8,
+     "expected": 8,
+     "pass": true
+    },
+    {
+     "check": "nav item labels",
+     "value": "Beranda · Tinjau · Transaksi · Analisis · Laporan · Rekening & Kantong · Target & Tagihan · Pengaturan",
+     "expected": "Beranda · Tinjau · Transaksi · Analisis · Laporan · Rekening & Kantong · Target & Tagihan · Pengaturan",
+     "pass": true
+    },
+    {
+     "check": "nav item height",
+     "value": 36,
+     "expected": 36,
+     "pass": true
+    },
+    {
+     "check": "nav item radius",
+     "value": 6,
+     "expected": 6,
+     "pass": true
+    },
+    {
+     "check": "nav item margin-left",
+     "value": 8,
+     "expected": 8,
+     "pass": true
+    },
+    {
+     "check": "nav item type",
+     "value": "Inter 14/20 500",
+     "expected": "Inter 14/20 500",
+     "pass": true
+    },
+    {
+     "check": "nav item colour",
+     "value": "rgb(163, 163, 167)",
+     "expected": "rgb(163, 163, 167)",
+     "pass": true
+    },
+    {
+     "check": "nav icon size",
+     "value": "16x16",
+     "expected": "16x16",
+     "pass": true
+    },
+    {
+     "check": "current item fill",
+     "value": "rgb(38, 39, 43)",
+     "expected": "rgb(38, 39, 43)",
+     "pass": true
+    },
+    {
+     "check": "current item text",
+     "value": "rgb(232, 231, 228)",
+     "expected": "rgb(232, 231, 228)",
+     "pass": true
+    },
+    {
+     "check": "current item border",
+     "value": "0px",
+     "expected": "0px",
+     "pass": true
+    },
+    {
+     "check": "selection bar",
+     "value": "2px 20px rgb(255, 71, 87)",
+     "expected": "2px 20px rgb(255, 71, 87)",
+     "pass": true
+    },
+    {
+     "check": "selection bar left",
+     "value": -8,
+     "expected": -8,
+     "pass": true
+    },
+    {
+     "check": "foot line",
+     "value": "1px rgb(47, 48, 52)",
+     "expected": "1px rgb(47, 48, 52)",
+     "pass": true
+    },
+    {
+     "check": "avatar",
+     "value": "32x32 r6",
+     "expected": "32x32 r6",
+     "pass": true
+    },
+    {
+     "check": "top bar height",
+     "value": 56,
+     "expected": 56,
+     "pass": true
+    },
+    {
+     "check": "top bar position",
+     "value": "sticky",
+     "expected": "sticky",
+     "pass": true
+    },
+    {
+     "check": "top bar fill",
+     "value": "rgb(21, 21, 23)",
+     "expected": "rgb(21, 21, 23)",
+     "pass": true
+    },
+    {
+     "check": "top bar line",
+     "value": "1px rgb(47, 48, 52)",
+     "expected": "1px rgb(47, 48, 52)",
+     "pass": true
+    },
+    {
+     "check": "top bar side padding",
+     "value": 48,
+     "expected": 48,
+     "pass": true
+    },
+    {
+     "check": "search size",
+     "value": "320x36",
+     "expected": "320x36",
+     "pass": true
+    },
+    {
+     "check": "search fill",
+     "value": "rgb(28, 29, 32)",
+     "expected": "rgb(28, 29, 32)",
+     "pass": true
+    },
+    {
+     "check": "search edge",
+     "value": "1px rgb(47, 48, 52)",
+     "expected": "1px rgb(47, 48, 52)",
+     "pass": true
+    },
+    {
+     "check": "search key cap",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "top bar actions",
+     "value": "Sembunyikan saldo · Tema · Notifikasi · Catat",
+     "expected": "Sembunyikan saldo · Tema · Notifikasi · Catat",
+     "pass": true
+    },
+    {
+     "check": "top bar has no heading",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    },
+    {
+     "check": "primary buttons in the shell and title block",
+     "value": 1,
+     "expected": 1,
+     "pass": true
+    },
+    {
+     "check": "Catat height",
+     "value": 36,
+     "expected": 36,
+     "pass": true
+    },
+    {
+     "check": "Catat fill",
+     "value": "rgb(255, 71, 87)",
+     "expected": "rgb(255, 71, 87)",
+     "pass": true
+    },
+    {
+     "check": "top bar icons 16 px",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "shell icons stroke 1.5",
+     "value": true,
+     "expected": true,
+     "pass": true
+    },
+    {
+     "check": "title block padding",
+     "value": "48px 32px",
+     "expected": "48px 32px",
+     "pass": true
+    },
+    {
+     "check": "title type",
+     "value": "Manrope 24/32 600 -0.36px",
+     "expected": "Manrope 24/32 600 -0.36px",
+     "pass": true
+    },
+    {
+     "check": "subtitle type",
+     "value": "Inter 14/20 400",
+     "expected": "Inter 14/20 400",
+     "pass": true
+    },
+    {
+     "check": "subtitle colour",
+     "value": "rgb(163, 163, 167)",
+     "expected": "rgb(163, 163, 167)",
+     "pass": true
+    },
+    {
+     "check": "subtitle gap",
+     "value": 4,
+     "expected": 4,
+     "pass": true
+    },
+    {
+     "check": "first content y",
+     "value": 192,
+     "expected": 192,
+     "pass": true
+    },
+    {
+     "check": "frame max width",
+     "value": "1200px",
+     "expected": "1200px",
+     "pass": true
+    },
+    {
+     "check": "page side margin",
+     "value": 48,
+     "expected": 48,
+     "pass": true
+    },
+    {
+     "check": "h1 count",
+     "value": 1,
+     "expected": 1,
+     "pass": true
+    },
+    {
+     "check": "content inside the frame",
+     "value": 0,
+     "expected": 0,
+     "pass": true
+    }
+   ],
+   "outsideFrame": [],
+   "passed": 48,
+   "failed": 1
+  }
+ }
+}

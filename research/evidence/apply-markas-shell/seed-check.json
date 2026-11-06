@@ -1,0 +1,1050 @@
+{
+  "data_js_sha256": "c1d9a98f743416cfaf8d40106819cbdfd1781e8e2b33b29103e514437832f089",
+  "data_js_today": "2026-11-05",
+  "seed_today": "2026-11-05",
+  "shift_days": 0,
+  "row_counts": {
+    "users": 1,
+    "salary_sources": 1,
+    "categories": 20,
+    "accounts": 22,
+    "transactions": 188,
+    "investment_topups": 2,
+    "salary_receipts": 3,
+    "salary_receipt_events": 3,
+    "obligations": 3,
+    "transaction_obligation_allocations": 2,
+    "recurring_rules": 8,
+    "recurring_executions": 7,
+    "recurring_link_events": 7,
+    "goals": 4,
+    "goal_accounts": 3,
+    "api_keys": 2,
+    "device_health": 1,
+    "notification_events": 12,
+    "classification_feedback": 5,
+    "notification_sender_aliases": 2,
+    "notification_account_aliases": 2,
+    "notification_test_sessions": 1
+  },
+  "added_rows": [
+    {
+      "row": "categories: Internal Movement (expense, income)",
+      "reason": "the app books movement legs in these excluded categories"
+    },
+    {
+      "row": "transaction 2026-08-25 PT Kreasi Nusantara 9500000 (salary receipt)",
+      "reason": "the app's expected-salary rule needs three receipts; the opening balance of bca-utama is lowered by the same amount so every stated balance holds"
+    },
+    {
+      "row": "notification text for review.items[rv-5]: 'Pembayaran Rp23.000 ke Ojek Daring berhasil.'",
+      "reason": "constructed so the app can read the amount and direction of the second report"
+    },
+    {
+      "row": "7 test-session notifications",
+      "reason": "data.js states only the count; the app counts the session's captured events"
+    }
+  ],
+  "unmapped": [
+    {
+      "field": "user.initials",
+      "reason": "browser preference or derived text; the schema stores no such column"
+    },
+    {
+      "field": "user.theme",
+      "reason": "browser preference or derived text; the schema stores no such column"
+    },
+    {
+      "field": "user.hideBalances",
+      "reason": "browser preference or derived text; the schema stores no such column"
+    },
+    {
+      "field": "settings.currencyDisplay",
+      "reason": "kept in the browser or chosen per page; no user column"
+    },
+    {
+      "field": "settings.singleKeyShortcuts",
+      "reason": "kept in the browser or chosen per page; no user column"
+    },
+    {
+      "field": "settings.reportBasis",
+      "reason": "kept in the browser or chosen per page; no user column"
+    },
+    {
+      "field": "products[inv-bnus].unitLabel",
+      "reason": "display text the app derives from units"
+    },
+    {
+      "field": "products[inv-enry].unitLabel",
+      "reason": "display text the app derives from units"
+    },
+    {
+      "field": "products[inv-rdpu].unitLabel",
+      "reason": "display text the app derives from units"
+    },
+    {
+      "field": "products[inv-indeks].unitLabel",
+      "reason": "display text the app derives from units"
+    },
+    {
+      "field": "products[inv-emas].unitLabel",
+      "reason": "display text the app derives from units"
+    },
+    {
+      "field": "accounts[].institution",
+      "reason": "no institution column; the parent account name carries it"
+    },
+    {
+      "field": "credit[].statementDay",
+      "reason": "the schema stores only the payment day of a credit account"
+    },
+    {
+      "field": "credit[].dueAmount, credit[].minPayment",
+      "reason": "stated as the Tagihan SPayLater plan (recurring r-spaylater, 434000)"
+    },
+    {
+      "field": "credit[].note",
+      "reason": "free text; no column"
+    },
+    {
+      "field": "transactions[].trade",
+      "reason": "a Beli/Jual trade is stored as a movement into the product; lots and price live on the product, not on the row"
+    },
+    {
+      "field": "obligations[].lender",
+      "reason": "stored in obligations.notes; no lender column"
+    },
+    {
+      "field": "obligations[].kind, obligations[].dueDay, obligations[].endsOn",
+      "reason": "no column; the due day follows from due_date and the plan"
+    },
+    {
+      "field": "obligations[].paidOffOn",
+      "reason": "no column; stored as updated_at of the archived debt"
+    },
+    {
+      "field": "recurring[].mode",
+      "reason": "plans never post (chk_recurring_rules_non_posting); otomatis is kept as link_method 'auto' on its paid occurrences"
+    },
+    {
+      "field": "recurring[].status",
+      "reason": "derived by the app from next_due_date and linked occurrences"
+    },
+    {
+      "field": "recurring[].estimate",
+      "reason": "no column for an estimated plan amount"
+    },
+    {
+      "field": "recurring[].cadence",
+      "reason": "every data.js plan is monthly; stored as schedule_type monthly_day"
+    },
+    {
+      "field": "goals[].contributions",
+      "reason": "no per-goal contribution rows without ledger rows; current_amount holds the saved total"
+    },
+    {
+      "field": "goals[].achieved, goals[].pct, goals[].monthlyNeeded, goals[].autoFromBalance",
+      "reason": "derived by the app from the target, the saved amount, the date and the links"
+    },
+    {
+      "field": "devices[].health['Mulai otomatis']",
+      "reason": "the app's device health has no autostart field"
+    },
+    {
+      "field": "devices[].status",
+      "reason": "derived from the key and its last report; stored as listener_connected"
+    },
+    {
+      "field": "review.items[rv-1].options",
+      "reason": "Tinjau offers suggestions from the owner's history and a free answer; the prototype's three generic options are not stored suggestions"
+    },
+    {
+      "field": "review.items[rv-2].suggestion",
+      "reason": "a group's category guess comes from the habit learner, not a stored row"
+    },
+    {
+      "field": "review.items[rv-3].candidates",
+      "reason": "the app offers counterpart candidates only from recorded opposite legs; none exist"
+    },
+    {
+      "field": "review.items[rv-3] notification text",
+      "reason": "data.js gives no raw notification text"
+    },
+    {
+      "field": "review.items[rv-4]",
+      "reason": "the six 'old Makanan & Minuman' Kopi Senja rows do not exist in data.js (every Kopi Senja row is already Jajan & Nongkrong), so no history suggestion can point at them"
+    },
+    {
+      "field": "review.items[rv-5].pair[0]",
+      "reason": "the first report's transaction (GoPay, 23,000) is not among data.js's transactions, so the item has no kept row"
+    },
+    {
+      "field": "review.items[rv-6] folder",
+      "reason": "stored as an ignored non-financial notification; the app's 'Dilewati otomatis' lists reports skipped by an account link, so it does not list promos or codes"
+    },
+    {
+      "field": "review.items[rv-7] folder",
+      "reason": "stored as an ignored non-financial notification; the app's 'Dilewati otomatis' lists reports skipped by an account link, so it does not list promos or codes"
+    },
+    {
+      "field": "review.items[rv-8]",
+      "reason": "duplicates t017, which data.js already records as the top-up of the same 750,000 at the same minute; loading both would debit BCA twice"
+    },
+    {
+      "field": "review.folders, review.keyboard",
+      "reason": "Tinjau's own labels and shortcuts, not data"
+    },
+    {
+      "field": "habits[h-2].answers",
+      "reason": "the top-up habit is learned from the converted top-ups t008 and t017 (2 in data.js, 3 stated)"
+    },
+    {
+      "field": "habits[h-3]",
+      "reason": "needs 2 labelled rows of 'QRIS NMID ID10239'; data.js has 0"
+    },
+    {
+      "field": "habits[].match, habits[].active, habits[].note",
+      "reason": "derived by the app from the labels' agreement and count"
+    },
+    {
+      "field": "senderAliases[] receiving account",
+      "reason": "data.js names none; stored for bca-utama (BCA), where the salary arrives"
+    },
+    {
+      "field": "reports",
+      "reason": "the app computes monthly reports from the rows"
+    },
+    {
+      "field": "notifications",
+      "reason": "the app derives its notifications"
+    },
+    {
+      "field": "netWorth",
+      "reason": "computed by the app"
+    },
+    {
+      "field": "ketahananDana",
+      "reason": "computed by the app"
+    },
+    {
+      "field": "cycle, previousCycle, threeMonthAverage",
+      "reason": "computed by the app from the rows"
+    },
+    {
+      "field": "explanations, captureExamples, pillars",
+      "reason": "page text and examples, not data"
+    }
+  ],
+  "figures": [
+    {
+      "figure": "netWorth.netWorth",
+      "data_js": 45828280,
+      "app": 45828280,
+      "app_source": "GET /api/dashboard/net-worth net_worth",
+      "agree": true
+    },
+    {
+      "figure": "netWorth.assets",
+      "data_js": 58971280,
+      "app": 58971280,
+      "app_source": "GET /api/dashboard/net-worth total_assets",
+      "agree": true
+    },
+    {
+      "figure": "netWorth.liquid + netWorth.tabungan",
+      "data_js": 27980520,
+      "app": 27980520,
+      "app_source": "GET /api/dashboard/net-worth liquid",
+      "agree": true,
+      "note": "the app's Dana likuid holds harian and tabungan accounts together"
+    },
+    {
+      "figure": "netWorth.liquid",
+      "data_js": 11680520,
+      "app": 11680520,
+      "app_source": "GET /api/accounts sum of leaf balances with role harian",
+      "agree": true
+    },
+    {
+      "figure": "netWorth.tabungan",
+      "data_js": 16300000,
+      "app": 16300000,
+      "app_source": "GET /api/accounts sum of leaf balances with role tabungan",
+      "agree": true
+    },
+    {
+      "figure": "netWorth.danaInvestasi",
+      "data_js": 771060,
+      "app": 771060,
+      "app_source": "GET /api/dashboard/net-worth dana_investasi",
+      "agree": true
+    },
+    {
+      "figure": "netWorth.investasi",
+      "data_js": 30219700,
+      "app": 30219700,
+      "app_source": "GET /api/dashboard/net-worth investment",
+      "agree": true
+    },
+    {
+      "figure": "netWorth.investasiCost",
+      "data_js": 29078500,
+      "app": 29078500,
+      "app_source": "GET /api/accounts sum of product cost_basis",
+      "agree": true
+    },
+    {
+      "figure": "netWorth.investasiGain",
+      "data_js": 1141200,
+      "app": 1141200,
+      "app_source": "GET /api/accounts sum of product capital_gain",
+      "agree": true
+    },
+    {
+      "figure": "netWorth.debt",
+      "data_js": 13143000,
+      "app": 13143000,
+      "app_source": "GET /api/dashboard/net-worth total_liabilities",
+      "agree": true
+    },
+    {
+      "figure": "netWorth.debtCredit",
+      "data_js": 893000,
+      "app": 893000,
+      "app_source": "GET /api/dashboard/net-worth credit_owed",
+      "agree": true
+    },
+    {
+      "figure": "netWorth.debtObligations",
+      "data_js": 12250000,
+      "app": 12250000,
+      "app_source": "GET /api/dashboard/net-worth obligations[].remaining_amount",
+      "agree": true
+    },
+    {
+      "figure": "ketahananDana.emergencyBalance",
+      "data_js": 19412400,
+      "app": 19412400,
+      "app_source": "GET /api/dashboard/net-worth runway.emergency_fund_balance",
+      "agree": true
+    },
+    {
+      "figure": "ketahananDana.monthlyCore",
+      "data_js": 3591000,
+      "app": 2397920,
+      "app_source": "GET /api/dashboard/net-worth runway.monthly_primary_expense",
+      "agree": false,
+      "note": "data.js averages stored Agu/Sep summaries with Okt; the app has rows only from 25 Sep"
+    },
+    {
+      "figure": "ketahananDana.months",
+      "data_js": 5.4,
+      "app": 8.1,
+      "app_source": "GET /api/dashboard/net-worth runway.coverage_months",
+      "agree": false
+    },
+    {
+      "figure": "ketahananDana.days",
+      "data_js": 162,
+      "app": 246,
+      "app_source": "GET /api/dashboard/net-worth runway.runway_days",
+      "agree": false
+    },
+    {
+      "figure": "ketahananDana.target",
+      "data_js": 21546000,
+      "app": 14387520,
+      "app_source": "GET /api/dashboard/net-worth runway.target_amount",
+      "agree": false
+    },
+    {
+      "figure": "ketahananDana.targetMonths",
+      "data_js": 6,
+      "app": 6,
+      "app_source": "GET /api/dashboard/net-worth runway.target_months",
+      "agree": true
+    },
+    {
+      "figure": "cycle.start",
+      "data_js": "2026-10-23",
+      "app": "2026-10-23",
+      "app_source": "GET /api/dashboard/cycle-summary period.start_date",
+      "agree": true
+    },
+    {
+      "figure": "cycle.day",
+      "data_js": 14,
+      "app": 14,
+      "app_source": "GET /api/dashboard/cycle-summary period.day_index",
+      "agree": true
+    },
+    {
+      "figure": "cycle.nextPaydayEstimate",
+      "data_js": "2026-11-25",
+      "app": "2026-11-23",
+      "app_source": "GET /api/dashboard/cycle-summary expected_salary.date",
+      "agree": false,
+      "note": "the app expects the latest receipt's day (23) next month; data.js uses the payday day (25)"
+    },
+    {
+      "figure": "cycle.daysLeft",
+      "data_js": 20,
+      "app": 18,
+      "app_source": "GET /api/dashboard/cycle-summary safe_to_spend.days_left",
+      "agree": false
+    },
+    {
+      "figure": "cycle.income",
+      "data_js": 9518400,
+      "app": 9518400,
+      "app_source": "GET /api/dashboard/cycle-summary masuk.total",
+      "agree": true
+    },
+    {
+      "figure": "cycle.expense",
+      "data_js": 3502990,
+      "app": 3502990,
+      "app_source": "GET /api/dashboard/cycle-summary spending.amount",
+      "agree": true
+    },
+    {
+      "figure": "cycle.saved",
+      "data_js": 2750000,
+      "app": 2250000,
+      "app_source": "GET /api/dashboard/cycle-summary fresh_saving.amount",
+      "agree": false,
+      "note": "data.js counts moves into dana_investasi (RDN) as saving; the app's saving rule does not"
+    },
+    {
+      "figure": "cycle.scheduled",
+      "data_js": 989000,
+      "app": 5572334,
+      "app_source": "GET /api/dashboard/cycle-summary scheduled.total",
+      "agree": false,
+      "note": "the app adds overdue plans and dated goals' monthly set-aside; data.js counts unpaid plans only"
+    },
+    {
+      "figure": "cycle.scheduled (plans only)",
+      "data_js": 989000,
+      "app": 1139000,
+      "app_source": "GET /api/dashboard/cycle-summary scheduled.plans_total",
+      "agree": false
+    },
+    {
+      "figure": "cycle.safeToSpend",
+      "data_js": 2276410,
+      "app": -1806924,
+      "app_source": "GET /api/dashboard/cycle-summary remaining.total",
+      "agree": false
+    },
+    {
+      "figure": "cycle.safePerDay",
+      "data_js": 113820,
+      "app": 0,
+      "app_source": "GET /api/dashboard/cycle-summary safe_to_spend.per_day",
+      "agree": false,
+      "note": "the app rounds down to Rp 1.000 per day"
+    },
+    {
+      "figure": "cycle.byPillar.need",
+      "data_js": 2341000,
+      "app": 2341000,
+      "app_source": "GET /api/dashboard/cycle-summary keluar.lines[need]",
+      "agree": true
+    },
+    {
+      "figure": "cycle.byPillar.want",
+      "data_js": 764490,
+      "app": 764490,
+      "app_source": "GET /api/dashboard/cycle-summary keluar.lines[want]",
+      "agree": true
+    },
+    {
+      "figure": "cycle.byPillar.culture",
+      "data_js": 150000,
+      "app": 150000,
+      "app_source": "GET /api/dashboard/cycle-summary keluar.lines[culture]",
+      "agree": true
+    },
+    {
+      "figure": "cycle.byPillar.unexpected",
+      "data_js": 57000,
+      "app": 57000,
+      "app_source": "GET /api/dashboard/cycle-summary keluar.lines[unexpected]",
+      "agree": true
+    },
+    {
+      "figure": "cycle.byPillar.none",
+      "data_js": 190500,
+      "app": 190500,
+      "app_source": "GET /api/dashboard/cycle-summary keluar.lines[unclassified]",
+      "agree": true
+    },
+    {
+      "figure": "cycle.byPillar.saving",
+      "data_js": 2750000,
+      "app": 2250000,
+      "app_source": "GET /api/dashboard/cycle-summary keluar.lines[saving]",
+      "agree": false
+    },
+    {
+      "figure": "netWorth.netWorth (Beranda)",
+      "data_js": 45828280,
+      "app": 45828280,
+      "app_source": "GET /api/dashboard/cycle-summary net_worth.total",
+      "agree": true
+    },
+    {
+      "figure": "accounts[bca].balance",
+      "data_js": 17705000,
+      "app": 17705000,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[bca-utama].balance",
+      "data_js": 6505000,
+      "app": 6505000,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[bca-darurat].balance",
+      "data_js": 11200000,
+      "app": 11200000,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[jago].balance",
+      "data_js": 8767020,
+      "app": 8767020,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[jago-utama].balance",
+      "data_js": 1234000,
+      "app": 1234000,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[jago-makan].balance",
+      "data_js": 1489000,
+      "app": 1489000,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[jago-transport].balance",
+      "data_js": 579000,
+      "app": 579000,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[jago-tagihan].balance",
+      "data_js": 365020,
+      "app": 365020,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[jago-liburan].balance",
+      "data_js": 5100000,
+      "app": 5100000,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[tunai].balance",
+      "data_js": 860500,
+      "app": 860500,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[gopay].balance",
+      "data_js": 576500,
+      "app": 576500,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[shopeepay].balance",
+      "data_js": 71500,
+      "app": 71500,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[rdn].balance",
+      "data_js": 771060,
+      "app": 771060,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[stockbit].balance",
+      "data_js": 6748000,
+      "app": 6748000,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[bibit].balance",
+      "data_js": 12584200,
+      "app": 12584200,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[emas].balance",
+      "data_js": 10887500,
+      "app": 10887500,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "accounts[spaylater].balance",
+      "data_js": -893000,
+      "app": -893000,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "products[inv-bnus].value",
+      "data_js": 5376000,
+      "app": 5376000,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "products[inv-bnus].costBasis",
+      "data_js": 4980000,
+      "app": 4980000,
+      "app_source": "GET /api/accounts cost_basis",
+      "agree": true
+    },
+    {
+      "figure": "products[inv-enry].value",
+      "data_js": 1372000,
+      "app": 1372000,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "products[inv-enry].costBasis",
+      "data_js": 1536000,
+      "app": 1536000,
+      "app_source": "GET /api/accounts cost_basis",
+      "agree": true
+    },
+    {
+      "figure": "products[inv-rdpu].value",
+      "data_js": 8212400,
+      "app": 8212400,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "products[inv-rdpu].costBasis",
+      "data_js": 8000000,
+      "app": 8000000,
+      "app_source": "GET /api/accounts cost_basis",
+      "agree": true
+    },
+    {
+      "figure": "products[inv-indeks].value",
+      "data_js": 4371800,
+      "app": 4371800,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "products[inv-indeks].costBasis",
+      "data_js": 4500000,
+      "app": 4500000,
+      "app_source": "GET /api/accounts cost_basis",
+      "agree": true
+    },
+    {
+      "figure": "products[inv-emas].value",
+      "data_js": 10887500,
+      "app": 10887500,
+      "app_source": "GET /api/accounts balance",
+      "agree": true
+    },
+    {
+      "figure": "products[inv-emas].costBasis",
+      "data_js": 10062500,
+      "app": 10062500,
+      "app_source": "GET /api/accounts cost_basis",
+      "agree": true
+    },
+    {
+      "figure": "credit.limit",
+      "data_js": 3000000,
+      "app": 3000000,
+      "app_source": "GET /api/accounts credit_limit",
+      "agree": true
+    },
+    {
+      "figure": "credit.used",
+      "data_js": 893000,
+      "app": 893000,
+      "app_source": "GET /api/accounts credit_owed",
+      "agree": true
+    },
+    {
+      "figure": "credit.available",
+      "data_js": 2107000,
+      "app": 2107000,
+      "app_source": "GET /api/accounts credit_limit - credit_owed",
+      "agree": true
+    },
+    {
+      "figure": "Tinjau badge (open review items)",
+      "data_js": 6,
+      "app": 4,
+      "app_source": "GET /api/review/summary attention",
+      "agree": false,
+      "note": "the prototype counts items (including Saran and Terlihat dua kali); the app counts waiting rows"
+    },
+    {
+      "figure": "needs_review transactions",
+      "data_js": 4,
+      "app": 4,
+      "app_source": "GET /api/review/summary attention",
+      "agree": true
+    },
+    {
+      "figure": "review folder belum_dikenali",
+      "data_js": 1,
+      "app": 1,
+      "app_source": "GET /api/review/queue counts.questions",
+      "agree": true
+    },
+    {
+      "figure": "review folder perlu_jawaban (items)",
+      "data_js": 2,
+      "app": 1,
+      "app_source": "GET /api/review/queue groups with needs_review_count > 0",
+      "agree": false,
+      "note": "rv-8 (the top-up question) is not loaded: it repeats t017, already a top-up"
+    },
+    {
+      "figure": "review folder pindah_belum_lengkap",
+      "data_js": 1,
+      "app": 1,
+      "app_source": "GET /api/review/queue counts.awaiting + counts.ambiguous",
+      "agree": true
+    },
+    {
+      "figure": "review folder saran",
+      "data_js": 1,
+      "app": 0,
+      "app_source": "GET /api/review/suggestions pending",
+      "agree": false,
+      "note": "rv-4 points at Kopi Senja rows that data.js does not hold"
+    },
+    {
+      "figure": "review folder terlihat_dua_kali",
+      "data_js": 1,
+      "app": 1,
+      "app_source": "GET /api/review/queue counts.seen_twice",
+      "agree": true
+    },
+    {
+      "figure": "review folder dilewati_otomatis",
+      "data_js": 2,
+      "app": 0,
+      "app_source": "GET /api/review/queue counts.skipped",
+      "agree": false,
+      "note": "the app's folder lists reports an account link skipped, not promos or codes"
+    },
+    {
+      "figure": "goals[g-darurat].saved",
+      "data_js": 19412400,
+      "app": 19412400,
+      "app_source": "GET /api/goals current_amount",
+      "agree": true
+    },
+    {
+      "figure": "goals[g-darurat].target",
+      "data_js": 21546000,
+      "app": 21546000,
+      "app_source": "GET /api/goals target_amount",
+      "agree": true
+    },
+    {
+      "figure": "goals[g-jepang].saved",
+      "data_js": 5100000,
+      "app": 5100000,
+      "app_source": "GET /api/goals current_amount",
+      "agree": true
+    },
+    {
+      "figure": "goals[g-jepang].target",
+      "data_js": 18000000,
+      "app": 18000000,
+      "app_source": "GET /api/goals target_amount",
+      "agree": true
+    },
+    {
+      "figure": "goals[g-laptop].saved",
+      "data_js": 3200000,
+      "app": 3200000,
+      "app_source": "GET /api/goals current_amount",
+      "agree": true
+    },
+    {
+      "figure": "goals[g-laptop].target",
+      "data_js": 14000000,
+      "app": 14000000,
+      "app_source": "GET /api/goals target_amount",
+      "agree": true
+    },
+    {
+      "figure": "goals[g-kursus].saved",
+      "data_js": 2500000,
+      "app": 2500000,
+      "app_source": "GET /api/goals current_amount",
+      "agree": true
+    },
+    {
+      "figure": "goals[g-kursus].target",
+      "data_js": 2500000,
+      "app": 2500000,
+      "app_source": "GET /api/goals target_amount",
+      "agree": true
+    },
+    {
+      "figure": "obligations[o-motor].remaining",
+      "data_js": 11050000,
+      "app": 11050000,
+      "app_source": "GET /api/obligations?include_archived=true remaining_amount",
+      "agree": true
+    },
+    {
+      "figure": "obligations[o-motor].archived",
+      "data_js": false,
+      "app": false,
+      "app_source": "GET /api/obligations?include_archived=true is_archived",
+      "agree": true
+    },
+    {
+      "figure": "obligations[o-pinjam].remaining",
+      "data_js": 1200000,
+      "app": 1200000,
+      "app_source": "GET /api/obligations?include_archived=true remaining_amount",
+      "agree": true
+    },
+    {
+      "figure": "obligations[o-pinjam].archived",
+      "data_js": false,
+      "app": false,
+      "app_source": "GET /api/obligations?include_archived=true is_archived",
+      "agree": true
+    },
+    {
+      "figure": "obligations[o-laptop].remaining",
+      "data_js": 0,
+      "app": 0,
+      "app_source": "GET /api/obligations?include_archived=true remaining_amount",
+      "agree": true
+    },
+    {
+      "figure": "obligations[o-laptop].archived",
+      "data_js": true,
+      "app": true,
+      "app_source": "GET /api/obligations?include_archived=true is_archived",
+      "agree": true
+    },
+    {
+      "figure": "recurring[r-internet].nextDate",
+      "data_js": "2026-12-01",
+      "app": "2026-12-01",
+      "app_source": "GET /api/recurring next_due_date",
+      "agree": true
+    },
+    {
+      "figure": "recurring[r-motor].nextDate",
+      "data_js": "2026-12-01",
+      "app": "2026-12-01",
+      "app_source": "GET /api/recurring next_due_date",
+      "agree": true
+    },
+    {
+      "figure": "recurring[r-musik].nextDate",
+      "data_js": "2026-12-03",
+      "app": "2026-12-03",
+      "app_source": "GET /api/recurring next_due_date",
+      "agree": true
+    },
+    {
+      "figure": "recurring[r-listrik].nextDate",
+      "data_js": "2026-11-06",
+      "app": "2026-11-06",
+      "app_source": "GET /api/recurring next_due_date",
+      "agree": true
+    },
+    {
+      "figure": "recurring[r-spaylater].nextDate",
+      "data_js": "2026-11-05",
+      "app": "2026-11-05",
+      "app_source": "GET /api/recurring next_due_date",
+      "agree": true
+    },
+    {
+      "figure": "recurring[r-air].nextDate",
+      "data_js": "2026-11-10",
+      "app": "2026-11-10",
+      "app_source": "GET /api/recurring next_due_date",
+      "agree": true
+    },
+    {
+      "figure": "recurring[r-asuransi].nextDate",
+      "data_js": "2026-11-15",
+      "app": "2026-11-15",
+      "app_source": "GET /api/recurring next_due_date",
+      "agree": true
+    },
+    {
+      "figure": "recurring[r-gym].nextDate",
+      "data_js": "2026-11-02",
+      "app": "2026-11-02",
+      "app_source": "GET /api/recurring next_due_date",
+      "agree": true
+    },
+    {
+      "figure": "reports[2026-10].income",
+      "data_js": 11068400,
+      "app": 11068400,
+      "app_source": "GET /api/reports/monthly?basis=month flow.inflow",
+      "agree": true
+    },
+    {
+      "figure": "reports[2026-10].expense",
+      "data_js": 5993830,
+      "app": 5993830,
+      "app_source": "GET /api/reports/monthly?basis=month flow.outflow",
+      "agree": true
+    },
+    {
+      "figure": "reports[2026-10].saved",
+      "data_js": 2750000,
+      "app": 2250000,
+      "app_source": "GET /api/reports/monthly?basis=month savings.fresh_saving",
+      "agree": false,
+      "note": "data.js counts moves into dana_investasi (RDN) as saving; the app's saving rule does not"
+    },
+    {
+      "figure": "previousCycle.income",
+      "data_js": 11050000,
+      "app": 11050000,
+      "app_source": "GET /api/reports/monthly?basis=cycle flow.inflow",
+      "agree": true
+    },
+    {
+      "figure": "previousCycle.expense",
+      "data_js": 5452830,
+      "app": 5452830,
+      "app_source": "GET /api/reports/monthly?basis=cycle flow.outflow",
+      "agree": true
+    },
+    {
+      "figure": "previousCycle.saved",
+      "data_js": 2750000,
+      "app": 2250000,
+      "app_source": "GET /api/reports/monthly?basis=cycle savings.fresh_saving",
+      "agree": false,
+      "note": "data.js counts moves into dana_investasi (RDN) as saving; the app's saving rule does not"
+    },
+    {
+      "figure": "previousCycle.end",
+      "data_js": "2026-10-22",
+      "app": "2026-10-23",
+      "app_source": "GET /api/reports/monthly?basis=cycle period.end_date",
+      "agree": false,
+      "note": "the app's closed cycle ends at the next receipt's instant, so its last local day is that payday"
+    },
+    {
+      "figure": "habits[h-1].answers",
+      "data_js": 5,
+      "app": 5,
+      "app_source": "GET /api/habits habits[].confirmations",
+      "agree": true
+    },
+    {
+      "figure": "habits[h-1].active",
+      "data_js": true,
+      "app": true,
+      "app_source": "GET /api/habits state == ready",
+      "agree": true
+    },
+    {
+      "figure": "habits[h-2].answers",
+      "data_js": 3,
+      "app": 2,
+      "app_source": "GET /api/habits topups[].confirmations",
+      "agree": false
+    },
+    {
+      "figure": "habits[h-2].active",
+      "data_js": true,
+      "app": false,
+      "app_source": "GET /api/habits state == ready",
+      "agree": false
+    },
+    {
+      "figure": "habits[h-3].answers",
+      "data_js": 2,
+      "app": null,
+      "app_source": "GET /api/habits habits[].confirmations",
+      "agree": false
+    },
+    {
+      "figure": "habits[h-3].active",
+      "data_js": false,
+      "app": null,
+      "app_source": "GET /api/habits state == ready",
+      "agree": false
+    },
+    {
+      "figure": "devices",
+      "data_js": 1,
+      "app": 1,
+      "app_source": "GET /api/devices paired keys",
+      "agree": true
+    }
+  ],
+  "agree": 87,
+  "disagree": [
+    "ketahananDana.monthlyCore",
+    "ketahananDana.months",
+    "ketahananDana.days",
+    "ketahananDana.target",
+    "cycle.nextPaydayEstimate",
+    "cycle.daysLeft",
+    "cycle.saved",
+    "cycle.scheduled",
+    "cycle.scheduled (plans only)",
+    "cycle.safeToSpend",
+    "cycle.safePerDay",
+    "cycle.byPillar.saving",
+    "Tinjau badge (open review items)",
+    "review folder perlu_jawaban (items)",
+    "review folder saran",
+    "review folder dilewati_otomatis",
+    "reports[2026-10].saved",
+    "previousCycle.saved",
+    "previousCycle.end",
+    "habits[h-2].answers",
+    "habits[h-2].active",
+    "habits[h-3].answers",
+    "habits[h-3].active"
+  ],
+  "api_errors": []
+}

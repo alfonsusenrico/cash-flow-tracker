@@ -2,27 +2,65 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { THEME_CHOICES } from "@/lib/theme";
 import { sameRouteClick } from "@/lib/urlState";
 import { useWorkspace } from "./context";
-import { syncDialog, useEscapeLayer, useFocusTrap } from "./layers";
-import { MORE_HREFS, NAV_LINKS, PHONE_TAB_HREFS, REVIEW_HREF, SETTINGS_LINK, badgeWords, isActivePath } from "./navigation";
+import { closeEnclosingDialog } from "./layers";
+import { MenuPanel } from "./Menu";
+import {
+  LEDGER_SEARCH_HREF,
+  MORE_LINKS,
+  NAV_LINKS,
+  PHONE_TAB_HREFS,
+  PRODUCT_NAME,
+  REVIEW_HREF,
+  badgeWords,
+  countText,
+  isActivePath,
+  type NavLink,
+} from "./navigation";
+import { NotificationBell, NotificationsPanel } from "./Notifications";
+import { ShellDialog } from "./ShellDialog";
+import { HideBalancesButton, useThemeEntries } from "./TopBar";
 
-function tabLink(href: string) {
+function tabLink(href: string): NavLink {
   return NAV_LINKS.find((link) => link.href === href)!;
 }
 
-/** Bottom tab bar at 760px and below: Beranda, Tinjau, Catat, Transaksi and Lainnya. */
+/** The sticky 56 px phone header below 768 px (D5): brand, search, Sembunyikan saldo and the bell. */
+export function PhoneHeader() {
+  return (
+    <header className="ph-header">
+      <Link href="/" className="brand">
+        <span className="mark" aria-hidden="true">
+          <Icon name="trend" className="h-4 w-4" />
+        </span>
+        {PRODUCT_NAME}
+      </Link>
+      <Link href={LEDGER_SEARCH_HREF} className="ws-icon-btn" aria-label="Cari transaksi">
+        <Icon name="search" className="h-5 w-5" />
+      </Link>
+      <HideBalancesButton iconSize={20} />
+      <NotificationBell iconSize={20} id="bell-ph" />
+    </header>
+  );
+}
+
+type PhoneLayer = "more" | "notifications" | "theme" | null;
+
+/** The 64 px tab bar below 768 px: Beranda, Tinjau, Catat, Transaksi and Lainnya (D5). */
 export function PhoneTabBar() {
   const pathname = usePathname();
   const { reviewAttention, openCapture } = useWorkspace();
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [layer, setLayer] = useState<PhoneLayer>(null);
   const moreButton = useRef<HTMLButtonElement>(null);
+  const themeEntries = useThemeEntries();
   const [home, review, ledger] = PHONE_TAB_HREFS.map(tabLink);
   const inMore = !PHONE_TAB_HREFS.some((href) => isActivePath(pathname, href));
 
-  const renderTab = (link: typeof home) => {
+  const renderTab = (link: NavLink) => {
     const active = isActivePath(pathname, link.href);
     const count = link.href === REVIEW_HREF ? reviewAttention ?? 0 : 0;
     return (
@@ -30,141 +68,140 @@ export function PhoneTabBar() {
         key={link.href}
         href={link.href}
         onClick={sameRouteClick(link.href, pathname)}
-        className="ws-tab"
         aria-current={active ? "page" : undefined}
-        aria-label={count ? `${link.label}, ${badgeWords("review", count)}` : link.label}
+        aria-label={count ? `${link.label}, ${badgeWords("review", count)}` : undefined}
       >
-        <Icon name={link.icon} />
-        <span aria-hidden="true">{link.label}</span>
+        <Icon name={link.icon} className="h-5 w-5" />
+        <span>{link.label}</span>
         {count > 0 && (
-          <span className="ws-tab-badge" aria-hidden="true">
-            {count > 99 ? "99+" : count}
+          <span className="tab-count" aria-hidden="true">
+            {countText(count)}
           </span>
         )}
       </Link>
     );
   };
 
+  const closeTo = () => {
+    setLayer(null);
+    moreButton.current?.focus();
+  };
+
   return (
     <>
-      <nav className="ws-tabbar" aria-label="Navigasi utama">
+      <nav className="tabbar" aria-label="Navigasi ponsel">
         {renderTab(home)}
         {renderTab(review)}
-        <button type="button" className="ws-tab" onClick={openCapture} aria-label="Catat transaksi">
-          <span className="ws-tab-catat" aria-hidden="true">
-            <Icon name="plus" />
+        <button type="button" className="catat" onClick={openCapture} aria-label="Catat transaksi">
+          <span className="plus" aria-hidden="true">
+            <Icon name="plus" className="h-5 w-5" />
           </span>
-          <span className="sr-only">Catat</span>
+          <span aria-hidden="true">Catat</span>
         </button>
         {renderTab(ledger)}
         <button
           ref={moreButton}
           type="button"
-          className="ws-tab"
           aria-haspopup="dialog"
-          aria-expanded={moreOpen}
+          aria-expanded={layer === "more"}
           aria-current={inMore ? "page" : undefined}
-          onClick={() => setMoreOpen(true)}
+          onClick={() => setLayer("more")}
         >
-          <Icon name="menu" />
+          <Icon name="more" className="h-5 w-5" />
           <span>Lainnya</span>
         </button>
       </nav>
-      <MoreSheet
-        open={moreOpen}
-        onClose={() => {
-          setMoreOpen(false);
-          moreButton.current?.focus();
-        }}
+      <MoreSheet open={layer === "more"} onClose={closeTo} onOpenLayer={setLayer} />
+      <NotificationsPanel open={layer === "notifications"} anchorRef={moreButton} onClose={() => setLayer(null)} />
+      <MenuPanel
+        open={layer === "theme"}
+        anchorRef={moreButton}
+        onClose={() => setLayer(null)}
+        label="Tema"
+        heading="Tema"
+        entries={themeEntries}
+        width={220}
       />
     </>
   );
 }
 
-/** Every page outside the tab bar, plus notifications and Keluar; help lives in Pengaturan (D3). Modal: focus stays inside. */
-export function MoreSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
+/**
+ * Lainnya (D5): the pages outside the tab bar in the sidebar's order, then Notifikasi, Tema and Keluar, which
+ * stays here until phase 10 adds it to Pengaturan (owner decision 7). Modal: focus stays inside.
+ */
+export function MoreSheet({ open, onClose, onOpenLayer }: { open: boolean; onClose: () => void; onOpenLayer: (layer: PhoneLayer) => void }) {
   const pathname = usePathname();
-  const { reportBadge, notifications, logout } = useWorkspace();
-  const links = [...MORE_HREFS.map(tabLink), SETTINGS_LINK];
-
-  useEffect(() => {
-    syncDialog(ref.current, open);
-    if (open) ref.current?.querySelector<HTMLElement>("a, button")?.focus();
-  }, [open]);
-  useFocusTrap(ref, open);
-  useEscapeLayer(open, onClose);
+  const { reportBadge, unreadIds, themeChoice, logout } = useWorkspace();
+  const theme = THEME_CHOICES.find((choice) => choice.value === themeChoice)!;
+  const unread = unreadIds.size;
 
   return (
-    <dialog
-      ref={ref}
-      className="ws-more"
-      aria-labelledby={titleId}
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      {open && (
-        <>
-          <div className="ws-grab" aria-hidden="true" />
-          <div className="flex items-center justify-between gap-3">
-            <h2 id={titleId} className="text-base font-medium">
-              Lainnya
-            </h2>
-            <button type="button" className="ws-close" aria-label="Tutup Lainnya" onClick={onClose}>
-              <Icon name="x" className="h-4 w-4" />
-            </button>
-          </div>
-          <nav aria-label="Halaman lain" className="mt-2 flex flex-col gap-0.5">
-            {links.map((link) => {
-              const active = isActivePath(pathname, link.href);
-              const badge = link.badge === "report" && reportBadge;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="ws-menu-item"
-                  aria-current={active ? "page" : undefined}
-                  aria-label={badge ? `${link.label}, ${badgeWords("report", 1)}` : link.label}
-                  onClick={sameRouteClick(link.href, pathname, onClose)}
-                >
-                  <Icon name={link.icon} className="h-5 w-5" />
-                  <span className="flex-1">{link.label}</span>
-                  {badge && (
-                    <span className="ws-cnt" aria-hidden="true">
-                      1
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
-          {notifications.length > 0 && (
-            <section aria-label="Notifikasi" className="mt-2 border-t border-[var(--line)] pt-2">
-              <h3 className="ws-menu-h">Notifikasi</h3>
-              {notifications.map((item) => (
-                <Link key={item.id} href={item.href} className="ws-menu-item" onClick={onClose}>
-                  <span>
-                    {item.title}
-                    <small>{item.detail}</small>
+    <ShellDialog open={open} onClose={onClose} title="Lainnya" width={480} closeLabel="Tutup Lainnya">
+      <ul className="more-list">
+        {MORE_LINKS.map((link) => {
+          const active = isActivePath(pathname, link.href);
+          const badge = link.badge === "report" && reportBadge;
+          return (
+            <li key={link.href}>
+              <Link
+                href={link.href}
+                className="more-row"
+                aria-current={active ? "page" : undefined}
+                aria-label={badge ? `${link.label}, ${badgeWords("report", 1)}` : undefined}
+                onClick={sameRouteClick(link.href, pathname, onClose)}
+              >
+                <Icon name={link.icon} className="h-5 w-5" />
+                <span className="r-title t-strong">{link.label}</span>
+                {badge && (
+                  <span className="t-meta" aria-hidden="true">
+                    1 baru
                   </span>
-                </Link>
-              ))}
-            </section>
-          )}
-          <div className="mt-2 border-t border-[var(--line)] pt-2">
-            <button type="button" className="ws-menu-item" onClick={logout}>
-              <Icon name="logout" className="h-5 w-5" />
-              Keluar
-            </button>
-          </div>
-        </>
-      )}
-    </dialog>
+                )}
+                <Icon name="chevron-right" className="h-4 w-4 chev" />
+              </Link>
+            </li>
+          );
+        })}
+        <li>
+          <button
+            type="button"
+            className="more-row"
+            aria-haspopup="dialog"
+            onClick={(event) => {
+              closeEnclosingDialog(event.currentTarget);
+              onOpenLayer("notifications");
+            }}
+          >
+            <Icon name="bell" className="h-5 w-5" />
+            <span className="r-title t-strong">Notifikasi</span>
+            {unread > 0 && <span className="t-meta">{unread} baru</span>}
+            <Icon name="chevron-right" className="h-4 w-4 chev" />
+          </button>
+        </li>
+        <li>
+          <button
+            type="button"
+            className="more-row"
+            aria-haspopup="menu"
+            onClick={(event) => {
+              closeEnclosingDialog(event.currentTarget);
+              onOpenLayer("theme");
+            }}
+          >
+            <Icon name="sun" className="h-5 w-5" />
+            <span className="r-title t-strong">Tema</span>
+            <span className="t-meta">{theme.label}</span>
+            <Icon name="chevron-right" className="h-4 w-4 chev" />
+          </button>
+        </li>
+        <li>
+          <button type="button" className="more-row" onClick={logout}>
+            <Icon name="logout" className="h-5 w-5" />
+            <span className="r-title t-strong">Keluar</span>
+          </button>
+        </li>
+      </ul>
+    </ShellDialog>
   );
 }

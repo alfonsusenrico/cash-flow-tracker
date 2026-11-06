@@ -86,7 +86,7 @@
 
 .single { grid-template-columns: minmax(0, 1fr); }
 
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   .table td, .table th { padding: 7px 4px; }
   .categoryRow td:first-child { padding-left: 14px; }
   .hideNarrow { display: none; }

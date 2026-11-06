@@ -79,7 +79,7 @@ export function KalenderTab({
   onLabel: (label: string) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const phone = useWidthAtMost(rootRef, 760);
+  const phone = useWidthAtMost(rootRef, 767);
   const query = useQuery<CalendarResponse>({
     queryKey: calendarQueryKey(basis, offset),
     queryFn: () => api.get(`/dashboard/calendar?timeframe=${basis}&cycle_offset=${offset}`),

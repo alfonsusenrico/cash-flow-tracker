@@ -245,14 +245,20 @@ describe("Transaksi list", () => {
 });
 
 describe("Due plans on Transaksi", () => {
-  it("shows one compact line and opens the existing detail in the drawer", async () => {
-    const { user } = renderPage();
-    const notice = await screen.findByRole("region", { name: "Rencana jatuh tempo" });
-    expect(notice).toHaveTextContent("1 rencana jatuh tempo · Streamio Rp 65.000 · 3 Nov");
+  it("Due plan from the bell on Transaksi: the page shows no due-plan banner (the bell carries the plans)", async () => {
+    renderPage();
+    await screen.findByRole("table");
+    expect(screen.queryByRole("region", { name: "Rencana jatuh tempo" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Lihat rencana" })).not.toBeInTheDocument();
     expect(screen.queryByText("Detail rencana")).not.toBeInTheDocument();
-    await user.click(within(notice).getByRole("button", { name: "Lihat rencana" }));
-    const drawer = await screen.findByRole("dialog", { name: /^Rencana jatuh tempo/ });
-    expect(within(drawer).getByText("Detail rencana")).toBeInTheDocument();
+  });
+});
+
+describe("Searching from the phone header", () => {
+  it("focuses the page's search once for fokus=cari and removes the parameter from the address", async () => {
+    renderPage("/ledger?period=cycle&fokus=cari");
+    await waitFor(() => expect(document.getElementById("ledger-search")).toHaveFocus());
+    expect(window.location.search).toBe("?period=cycle");
   });
 });
 

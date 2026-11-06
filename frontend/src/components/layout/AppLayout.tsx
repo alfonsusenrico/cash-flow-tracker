@@ -19,14 +19,20 @@ import {
   type ResolvedTheme,
   type ThemeChoice,
 } from "@/lib/theme";
-import type { RecurringRule } from "@/types/recurring";
+import type { AutoLinkedOccurrence, DueExpectation, RecurringRule } from "@/types/recurring";
+import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
+import { planDay } from "@/components/recurring/planDay";
+import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import { WorkspaceContext, type PageHeader, type WorkspaceNotification, type WorkspaceValue } from "@/components/workspace/context";
+import { pageMeta } from "@/components/workspace/navigation";
+import { useNotificationSeen } from "@/components/workspace/Notifications";
 import { SideNav } from "@/components/workspace/SideNav";
+import { TitleBlock } from "@/components/workspace/TitleBlock";
 import { TopBar } from "@/components/workspace/TopBar";
-import { PhoneTabBar } from "@/components/workspace/PhoneNav";
+import { PhoneHeader, PhoneTabBar } from "@/components/workspace/PhoneNav";
 import { ShortcutProvider, useShortcut, useShortcuts } from "@/components/workspace/shortcuts";
 import { ExplainProvider } from "@/components/workspace/explain";
-import { ToastProvider } from "@/components/workspace/overlays";
+import { Drawer, ToastProvider } from "@/components/workspace/overlays";
 
 type QuickCaptureMode = "expense" | "income" | "movement";
 
@@ -104,24 +110,57 @@ function localIsoDate(date: Date): string {
   return date.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
 }
 
-function planNotifications(rules: RecurringRule[], now = new Date()): WorkspaceNotification[] {
+interface PlanOccurrence {
+  ruleId: string;
+  name: string;
+  amount: number;
+  due: string;
+}
+
+/**
+ * The bell's plan items (D7): the due and overdue occurrences of `/recurring/pending` (the former Transaksi
+ * banner's source) merged with the two-day window of active expense plans, once per plan and date, by date.
+ * Due and overdue items open "Rencana jatuh tempo"; later ones keep their Target & Tagihan link.
+ */
+export function planNotifications(
+  rules: RecurringRule[],
+  pending: DueExpectation[],
+  autoLinks: AutoLinkedOccurrence[],
+  now = new Date(),
+): WorkspaceNotification[] {
   const today = localIsoDate(now);
   const horizon = localIsoDate(new Date(now.getTime() + PLAN_NOTICE_DAYS * 86_400_000));
   const tomorrow = localIsoDate(new Date(now.getTime() + 86_400_000));
-  return rules
-    .filter((rule) => rule.is_active && rule.type !== "income" && rule.next_due_date <= horizon)
-    .sort((a, b) => a.next_due_date.localeCompare(b.next_due_date))
-    .map((rule) => {
-      const due = rule.next_due_date;
-      const when = due < today ? "lewat jatuh tempo" : due === today ? "hari ini" : due === tomorrow ? "besok" : "lusa";
-      const day = new Date(`${due}T00:00:00+07:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
+  const byKey = new Map<string, PlanOccurrence>();
+  const add = (rule: RecurringRule) => {
+    const key = `${rule.id}-${rule.next_due_date}`;
+    if (!byKey.has(key)) byKey.set(key, { ruleId: rule.id, name: rule.name, amount: rule.amount, due: rule.next_due_date });
+  };
+  pending.forEach(add);
+  rules.filter((rule) => rule.is_active && rule.type !== "income" && rule.next_due_date <= horizon).forEach(add);
+  const items: WorkspaceNotification[] = [...byKey.values()]
+    .sort((a, b) => a.due.localeCompare(b.due))
+    .map((plan) => {
+      const when = plan.due < today ? "lewat jatuh tempo" : plan.due === today ? "hari ini" : plan.due === tomorrow ? "besok" : "lusa";
+      const opensDuePlans = plan.due <= today;
       return {
-        id: `plan-${rule.id}-${due}`,
-        title: `${rule.name} ${globalFmtMoney(rule.amount)} ${when}`,
-        detail: `Rencana · jatuh tempo ${day}`,
-        href: "/goals",
+        id: `plan-${plan.ruleId}-${plan.due}`,
+        title: `${plan.name} ${globalFmtMoney(plan.amount)} ${when}`,
+        detail: `Rencana · jatuh tempo ${planDay(plan.due)}`,
+        ...(opensDuePlans ? { opensDuePlans } : { href: "/goals" }),
       };
     });
+  if (autoLinks.length) {
+    const occurrences = autoLinks.map((link) => `${link.rule_id}-${link.scheduled_for}`).sort();
+    const newest = [...autoLinks].map((link) => link.scheduled_for).sort().at(-1)!;
+    items.push({
+      id: `autolink-${occurrences.join(",")}`,
+      title: `${autoLinks.length} rencana ditautkan otomatis`,
+      detail: `Rencana · jatuh tempo ${planDay(newest)}`,
+      opensDuePlans: true,
+    });
+  }
+  return items;
 }
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
@@ -140,7 +179,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const [catatOpen, setCatatOpen] = useState(false);
   const [manualAmount, setManualAmount] = useState<number | null>(null);
   const [header, setHeader] = useState<PageHeader | null>(null);
-  const [controlsSlot, setControlsSlot] = useState<HTMLElement | null>(null);
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
+  const [duePlansOpen, setDuePlansOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   const handleOpenQuickAdd = (type?: "expense" | "income") => {
     const defaultType = type ?? quickAddType;
@@ -257,6 +298,13 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     enabled: signedIn,
   });
 
+  const { data: pendingData } = useQuery<{ ok: boolean; rules: DueExpectation[]; recent_auto_links?: AutoLinkedOccurrence[] }>({
+    queryKey: queryKeys.recurring.pending,
+    queryFn: () => api.get("/recurring/pending"),
+    refetchInterval: 30000,
+    enabled: signedIn,
+  });
+
   const user = userData?.user;
   const currency: "IDR" | "USD" = user?.currency === "USD" ? "USD" : "IDR";
   const usdidrRate = ratesData?.usdidr && ratesData.usdidr > 0 ? ratesData.usdidr : 16500;
@@ -305,8 +353,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       const ended = new Date(`${report.endDate}T00:00:00+07:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
       items.push({ id: `report-${report.endDate}`, title: `Laporan ${report.label} siap dibaca`, detail: `Periodenya selesai ${ended}`, href: report.url });
     }
-    return [...items, ...planNotifications(recurringData?.rules ?? [])];
-  }, [report?.endDate, report?.label, report?.url, recurringData]); // eslint-disable-line react-hooks/exhaustive-deps
+    return [...items, ...planNotifications(recurringData?.rules ?? [], pendingData?.rules ?? [], pendingData?.recent_auto_links ?? [])];
+  }, [report?.endDate, report?.label, report?.url, recurringData, pendingData]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { unreadIds, markSeen } = useNotificationSeen(notifications);
+  const openDuePlans = useCallback(() => setDuePlansOpen(true), []);
 
   const workspace: WorkspaceValue = {
     username: user?.username ?? null,
@@ -314,6 +364,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     reviewAttention: reviewSummary?.attention ?? null,
     reportBadge: Boolean(report),
     notifications,
+    unreadIds,
+    markNotificationsSeen: markSeen,
+    openDuePlans,
     themeChoice,
     resolvedTheme: theme,
     setThemeChoice,
@@ -326,8 +379,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     logout,
     header,
     setHeader,
-    controlsSlot,
-    setControlsSlot,
+    actionsSlot,
+    setActionsSlot,
   };
 
   if (userLoading || userError) {
@@ -359,20 +412,35 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       <WorkspaceContext.Provider value={workspace}>
         <ToastProvider>
           <ExplainProvider>
-            <a className="ws-skip" href="#main">
-              Langsung ke konten
+            <a className="skip" href="#main">
+              Lewati ke isi
             </a>
-            <div className="ws-stage">
-              <div className="ws-window" data-collapsed={sidebarCollapsed}>
-                <SideNav />
-                <main id="main" tabIndex={-1} className="ws-main">
-                  <TopBar />
-                  <TestSessionBanner enabled={signedIn} />
-                  {children}
+            {/* The frame (D4): sidebar | main column with the top bar, the phone header and the page. */}
+            <div className="app" data-collapsed={sidebarCollapsed}>
+              <SideNav />
+              <div className="main-col">
+                <TopBar />
+                <PhoneHeader />
+                <TestSessionBanner enabled={signedIn} />
+                <main id="main" tabIndex={-1} className="page" style={{ "--page-w": `${pageMeta(pathname).width}px` } as React.CSSProperties}>
+                  <div className="page-inner">
+                    <TitleBlock />
+                    {children}
+                  </div>
                 </main>
               </div>
             </div>
             <PhoneTabBar />
+            {/* Due plans from the bell (D7): link, skip and record, as the Transaksi banner opened them. */}
+            <Drawer open={duePlansOpen} onClose={() => setDuePlansOpen(false)} title="Rencana jatuh tempo" subtitle="Tautkan, lewati, atau catat manual">
+              <PendingScheduledBanner
+                onOpenRulesManager={() => {
+                  setDuePlansOpen(false);
+                  setRulesOpen(true);
+                }}
+              />
+            </Drawer>
+            <RecurringRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
             <QuickCaptureModal
               open={quickAddOpen}
               onClose={() => setQuickAddOpen(false)}
