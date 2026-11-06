@@ -1,9 +1,10 @@
 import type { ExplanationData, ExplanationLine } from "@/components/workspace/explain";
+import type { RincianData } from "@/components/workspace/ExplanationDialog";
 import { kakeiboBucketInfo } from "@/lib/kakeibo";
-import type { CycleSummary, ExpectedReason, SummaryLine, WaitingSection } from "./types";
+import type { CycleSummary, ExpectedReason, SummaryLine, WaitingLine, WaitingSection } from "./types";
 
 /**
- * "Rincian hitungan" content for the Beranda figures. Everything here formats the server's figures and lines;
+ * "Rincian hitungan" content for the Beranda hero. Everything here formats the server's figures and lines;
  * nothing is added up on the client (design D13), so the web and any later view cannot drift.
  */
 export type Money = (amount: number) => string;
@@ -65,11 +66,6 @@ export function spendingExplanation(summary: CycleSummary, money: Money): Explan
   };
 }
 
-/** "Tabungan bertambah" or "Tabungan berkurang": the direction is in the words, never only in a sign. */
-export function savingChangeLabel(total: number, money: Money): string {
-  return total < 0 ? `Tabungan berkurang ${money(-total)}` : `Tabungan bertambah ${money(total)}`;
-}
-
 export function savingExplanation(summary: CycleSummary, money: Money): ExplanationData {
   const parts = summary.tabungan;
   if (parts) {
@@ -110,13 +106,6 @@ export function masukExplanation(summary: CycleSummary, money: Money): Explanati
   };
 }
 
-function remainingLines(summary: CycleSummary, money: Money): ExplanationLine[] {
-  return [
-    ...summary.remaining.lines.map((line) => ({ label: line.label, amount: signed(line.amount, money) })),
-    { label: "Sisa", amount: balance(summary.remaining.total, money) },
-  ];
-}
-
 function scheduledDetailLines(summary: CycleSummary, money: Money): ExplanationLine[] {
   return summary.scheduled.lines.map((line) =>
     line.kind === "plan"
@@ -136,110 +125,31 @@ function expectedBasisNote(summary: CycleSummary): string | null {
   return `Gaji berikutnya diperkirakan ${longDate(expected.date)}, dari gaji yang dikonfirmasi tanggal ${receipts}. Ini perkiraan, bukan batas siklus.`;
 }
 
-function waitingNote(summary: CycleSummary, money: Money): string {
+function waitingNote(summary: CycleSummary, money: Money): string | null {
   const { waiting } = summary;
-  if (!waiting.count) return "Semua transaksi sudah ditinjau, tidak ada yang menunggu jawaban.";
-  return `${waiting.count} hal (${money(waiting.total)}) masih menunggu jawaban; ${money(waiting.in_keluar)} di antaranya sudah termasuk dalam keluar.`;
+  if (!waiting.count) return null;
+  return `${waiting.count} hal (${money(waiting.total)}) masih menunggu jawaban. ${money(waiting.in_keluar)} di antaranya sudah termasuk.`;
 }
 
-const EXPECTED_REASONS: Record<ExpectedReason, { reason: string; fix: string }> = {
-  too_few_receipts: {
-    reason: "tanggal gaji berikutnya belum dapat diperkirakan karena gaji yang terkonfirmasi belum ada tiga.",
-    fix: "Begitu ada tiga gaji terkonfirmasi yang jaraknya teratur (26–35 hari), angka per hari muncul.",
-  },
-  irregular_receipts: {
-    reason: "tanggal tiga gaji terakhir tidak teratur, sehingga tanggal gaji berikutnya tidak ditebak.",
-    fix: "Jika gaji memang diterima setiap bulan pada tanggal yang sama, angka per hari muncul setelah tiga gaji yang teratur.",
-  },
-  no_salary_source: {
-    reason: "sumber gaji belum diatur, sehingga gaji yang dipakai untuk perkiraan belum diketahui.",
-    fix: "Pilih sumber gaji di Pengaturan › Gaji.",
-  },
-  no_cycle: {
-    reason: "belum ada siklus gaji yang terkonfirmasi, jadi Beranda pakai bulan kalender.",
-    fix: "Konfirmasi gaji di Pengaturan › Gaji.",
-  },
+const EXPECTED_REASONS: Record<ExpectedReason, string> = {
+  too_few_receipts: "tanggal gaji berikutnya belum dapat diperkirakan karena gaji yang terkonfirmasi belum ada tiga.",
+  irregular_receipts: "tanggal tiga gaji terakhir tidak teratur, sehingga tanggal gaji berikutnya tidak ditebak.",
+  no_salary_source: "sumber gaji belum diatur, sehingga gaji yang dipakai untuk perkiraan belum diketahui.",
+  no_cycle: "belum ada siklus gaji yang terkonfirmasi, jadi Beranda pakai bulan kalender.",
 };
 
-export function unavailableReason(summary: CycleSummary): { reason: string; fix: string; short: string } {
+/** Why the days to the next salary are unknown: the full reason for the Rincian and the hero's short line. */
+export function unavailableReason(summary: CycleSummary): { reason: string; line: string } {
   const safe = summary.safe_to_spend;
   if (safe.reason === "salary_overdue") {
     const date = summary.expected_salary.date ? longDate(summary.expected_salary.date) : "sebelumnya";
-    return {
-      reason: `gaji diperkirakan masuk ${date}, tetapi gaji baru belum tercatat.`,
-      fix: "Setelah gaji masuk dan dikonfirmasi, siklus baru dimulai dan angka per hari muncul lagi.",
-      short: "gaji baru belum tercatat",
-    };
+    return { reason: `gaji diperkirakan masuk ${date}, tetapi gaji baru belum tercatat.`, line: "Gaji baru belum tercatat" };
   }
-  if (safe.reason === "no_cycle") return { ...EXPECTED_REASONS.no_cycle, short: "siklus gaji belum ada" };
+  if (safe.reason === "no_cycle") return { reason: EXPECTED_REASONS.no_cycle, line: "Siklus gaji belum ada" };
   const detail = safe.detail ?? summary.expected_salary.reason ?? "too_few_receipts";
-  return { ...EXPECTED_REASONS[detail], short: detail === "no_salary_source" ? "sumber gaji belum diatur" : "tanggal gaji belum jelas" };
-}
-
-export function safeExplanation(summary: CycleSummary, money: Money): ExplanationData {
-  const safe = summary.safe_to_spend;
-  const base = {
-    title: "Aman dipakai hari ini",
-    rule: "Uang periode ini yang belum dipakai dan belum dijadwalkan, dibagi sisa hari sampai perkiraan gaji berikutnya.",
-  };
-  if (safe.status !== "available" || safe.per_day === null || safe.days_left === null) {
-    const why = unavailableReason(summary);
-    return {
-      ...base,
-      lines: [...summary.remaining.lines.map((line) => ({ label: line.label, amount: signed(line.amount, money) })), { label: "Sisa", amount: balance(summary.remaining.total, money) }],
-      unavailable: { reason: `Angka per hari memerlukan tanggal gaji yang teratur: ${why.reason}`, fix: why.fix },
-      notes: [waitingNote(summary, money)],
-      link: { href: "/settings/gaji", label: "Buka Pengaturan › Gaji" },
-    };
-  }
-  const notes: string[] = [];
-  if (safe.over_by) notes.push(`Periode ini sudah lebih ${money(safe.over_by)} dari uang masuk, jadi belum ada yang aman dipakai hari ini.`);
-  const basis = expectedBasisNote(summary);
-  if (basis) notes.push(basis);
-  notes.push(waitingNote(summary, money));
   return {
-    ...base,
-    lines: [
-      ...summary.remaining.lines
-        .filter((line) => line.key !== "scheduled")
-        .map((line) => ({ label: line.label, amount: signed(line.amount, money) })),
-      ...scheduledDetailLines(summary, money),
-      { label: "Sisa", amount: balance(summary.remaining.total, money) },
-      {
-        label: `÷ ${safe.days_left} hari (${shortDate(summary.period.today)} – ${shortDate(summary.scheduled.window_end)})`,
-        note: `dibulatkan ke bawah per ${money(safe.rounding)}, tidak pernah di bawah nol`,
-        amount: "",
-      },
-    ],
-    total: { label: "Aman hari ini", amount: money(safe.per_day) },
-    notes,
-    link: { href: `${ledgerPeriod(summary)}`, label: "Lihat transaksinya" },
-  };
-}
-
-export function waitingExplanation(summary: CycleSummary, money: Money): ExplanationData {
-  const { waiting } = summary;
-  if (!waiting.count) {
-    return {
-      title: "Menunggu jawaban",
-      rule: "Tidak ada yang menunggu jawaban. Semua transaksi sudah ditinjau.",
-      lines: [],
-      link: { href: "/review", label: "Buka Tinjau" },
-    };
-  }
-  return {
-    title: "Menunggu jawaban",
-    rule: "Transaksi yang sudah tercatat tetapi masih perlu dijawab di Tinjau. Semuanya tetap tercatat; jawabannya tidak ditebak.",
-    lines: waiting.lines.map((line) => ({
-      label: line.label,
-      note: `${SECTION_LABELS[line.section]} · ${
-        line.in_keluar ? `sudah dihitung sebagai ${kakeiboBucketInfo(line.in_keluar_as)?.label ?? "Belum diklasifikasi"}` : "belum masuk Keluar"
-      }`,
-      amount: money(line.amount),
-    })),
-    total: { label: "Total", amount: money(waiting.total) },
-    notes: [`${money(waiting.in_keluar)} sudah ikut dihitung di angka periode ini, ${money(waiting.not_in_keluar)} belum.`],
-    link: { href: "/review", label: "Jawab di Tinjau" },
+    reason: EXPECTED_REASONS[detail],
+    line: detail === "no_salary_source" ? "Sumber gaji belum diatur" : "Tanggal gaji berikutnya belum diketahui",
   };
 }
 
@@ -259,33 +169,74 @@ export function scheduledExplanation(summary: CycleSummary, money: Money): Expla
   };
 }
 
-export function remainingExplanation(summary: CycleSummary, money: Money): ExplanationData {
+/** Where a waiting row's amount already sits, in the words of the figures it is counted in. */
+function waitingPlace(line: WaitingLine): string {
+  if (!line.in_keluar) return "belum dihitung";
+  if (line.in_keluar_as === "saving") return "sudah dihitung di Ditabung & investasi";
+  return `sudah dihitung di Pengeluaran sebagai ${kakeiboBucketInfo(line.in_keluar_as)?.label ?? "Belum diklasifikasi"}`;
+}
+
+function waitingDisclosure(summary: CycleSummary, money: Money): RincianData["waiting"] {
+  const { waiting } = summary;
+  if (!waiting.count) return null;
+  return {
+    label: "Menunggu jawaban",
+    amount: money(waiting.total),
+    lines: waiting.lines.map((line) => ({ label: line.label, note: `${SECTION_LABELS[line.section]} · ${waitingPlace(line)}`, amount: money(line.amount) })),
+    link: { href: "/review", label: "Jawab di Tinjau" },
+  };
+}
+
+/** A capitalised sentence from a reason that is written to follow a colon. */
+function sentence(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** The note under the Rincian's total: the expected-salary basis, or why the period is over or the date unknown. */
+function basisNote(summary: CycleSummary, money: Money): string | null {
+  if (summary.remaining.total < 0) {
+    return `Periode ini sudah lebih ${money(-summary.remaining.total)} dari uang masuk, jadi belum ada yang aman dipakai.`;
+  }
+  if (summary.safe_to_spend.status !== "available") return sentence(unavailableReason(summary).reason);
+  return expectedBasisNote(summary);
+}
+
+/** A cost line of the Rincian: "−Rp …", or Rp 0 without a sign. */
+function cost(amount: number, money: Money): string {
+  return amount > 0 ? `−${money(amount)}` : money(0);
+}
+
+/**
+ * The Rincian of "Aman dipakai sampai gajian" (apply-markas-beranda D5): Masuk less Pengeluaran, Ditabung &
+ * investasi and Terjadwal, each opening the server lines behind it, the total, its notes and the waiting rows.
+ */
+export function safeAmountRincian(summary: CycleSummary, money: Money): RincianData {
+  const { masuk, spending, fresh_saving: saving, scheduled, remaining } = summary;
+  const end = summary.period.basis === "cycle" ? "siklus" : "bulan";
+  const savingLines = savingExplanation(summary, money);
+  const scheduledLines = scheduledExplanation(summary, money);
   return {
     title: "Aman dipakai sampai gajian",
-    rule: "Masuk dikurangi pengeluaran, yang ditabung dan yang terjadwal, untuk seluruh periode sampai gaji berikutnya.",
+    rule: `Masuk dikurangi Pengeluaran, Ditabung & investasi dan tagihan terjadwal sampai akhir ${end}.`,
     lines: [
-      { label: "Masuk", amount: signed(summary.masuk.total, money) },
-      { label: "Pengeluaran", amount: signed(-summary.spending.amount, money) },
-      { label: summary.fresh_saving.amount < 0 ? "Tabungan berkurang" : "Ditabung & investasi", amount: signed(-summary.fresh_saving.amount, money) },
-      { label: "Terjadwal", amount: signed(-summary.scheduled.total, money) },
+      { key: "masuk", label: "Masuk", amount: money(masuk.total), parts: masukExplanation(summary, money).lines },
+      { key: "spending", label: "Pengeluaran", amount: cost(spending.amount, money), parts: spendingExplanation(summary, money).lines },
+      saving.amount < 0
+        ? { key: "saving", label: "Tabungan berkurang", amount: money(-saving.amount), parts: savingLines.lines }
+        : { key: "saving", label: "Ditabung & investasi", amount: cost(saving.amount, money), parts: savingLines.lines },
+      {
+        key: "scheduled",
+        label: `Terjadwal sampai ${shortDate(scheduled.window_end)}`,
+        amount: cost(scheduled.total, money),
+        parts: scheduledLines.lines,
+        partNotes: scheduledLines.notes?.slice(0, 1),
+      },
     ],
-    total: { label: "Sisa", amount: balance(summary.remaining.total, money) },
-    notes: [waitingNote(summary, money)],
+    // An over period ends in what it is over by, then the result Rp 0, so "Aman dipakai" is never negative.
+    over: remaining.total < 0 ? { label: "Lebih dari uang masuk", amount: money(-remaining.total) } : null,
+    total: { label: "Aman dipakai", amount: money(Math.max(0, remaining.total)) },
+    notes: [basisNote(summary, money), waitingNote(summary, money)].filter((note): note is string => Boolean(note)),
+    waiting: waitingDisclosure(summary, money),
+    link: { href: ledgerPeriod(summary), label: `Lihat transaksi ${periodWord(summary)}` },
   };
 }
-
-export function netWorthExplanation(summary: CycleSummary, money: Money): ExplanationData {
-  return {
-    title: "Kekayaan bersih",
-    rule: "Semua saldo dan investasi dikurangi utang yang masih aktif, termasuk utang kredit.",
-    lines: summary.net_worth.lines.map((line) => ({
-      label: line.key.startsWith("credit:") ? `Utang ${line.label}` : line.label,
-      amount: signed(line.amount, money),
-    })),
-    total: { label: "Kekayaan bersih", amount: money(summary.net_worth.total) },
-    notes: ["Kantong dihitung sekali, tidak ganda dengan rekening induknya. Investasi memakai nilai terakhir yang tercatat."],
-    link: { href: "/accounts", label: "Buka Rekening & Kantong" },
-  };
-}
-
-export { remainingLines };

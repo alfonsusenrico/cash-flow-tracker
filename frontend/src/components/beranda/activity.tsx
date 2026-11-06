@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import { Icon, type IconName } from "@/components/ui/Icon";
-import { Card, CardHeader } from "@/components/workspace/primitives";
 import { kakeiboBucketInfo } from "@/lib/kakeibo";
 import { isMovementCategory } from "@/lib/systemCategories";
 import type { ActivityRow } from "./types";
@@ -149,71 +147,52 @@ export function RowAmount({ row, bal }: { row: ActivityRow; bal: (amount: number
 
 const SHORT_DAY = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
 
-/** Where the money went or came from: account and category, or what the movement or top-up was. */
-function rowSubtitle(row: ActivityRow): string {
-  const kind = rowKind(row);
-  if (isWaiting(row)) return `${row.account_name} · menunggu jawaban`;
-  if (kind === "movement") {
-    return ["Pindah saldo", routeIncomplete(row) ? UNPAIRED_LABEL : row.notes].filter(Boolean).join(" · ");
-  }
-  if (kind === "topup") return row.notes || row.account_name;
-  // A pocket named like its category ("Transportasi · Transportasi") is said once.
-  return [...new Set([row.account_name, row.category_name].filter(Boolean))].join(" · ");
-}
-
 /** Day and time on the right of a row, e.g. "3 Nov · 21.04". */
 export function rowWhen(row: ActivityRow): string {
   return `${SHORT_DAY.format(new Date(row.date))} · ${JAKARTA_TIME.format(new Date(row.date))}`;
 }
 
-/** "Aktivitas terbaru": today's and yesterday's rows, newest first, with the detail on select. */
-export function ActivityCard({
-  rows,
-  bal,
-  onSelect,
-  error,
-}: {
-  rows: ActivityRow[] | null;
-  bal: (amount: number) => string;
-  onSelect: (row: ActivityRow) => void;
-  error: boolean;
-}) {
-  return (
-    <Card labelledBy="beranda-activity">
-      <CardHeader
-        id="beranda-activity"
-        title="Aktivitas terbaru"
-        count={rows?.length}
-        countLabel={rows ? `${rows.length} transaksi` : undefined}
-        extra={<span className="text-sm font-normal text-[var(--muted)]">hari ini dan kemarin</span>}
-        action={
-          <Link href="/ledger" className="ws-linkbtn ws-accent-link">
-            Semua transaksi
-          </Link>
-        }
-      />
-      {error && <p className="ws-caption mt-3">Aktivitas belum bisa dimuat.</p>}
-      {rows && rows.length === 0 && <p className="ws-caption mt-3">Belum ada transaksi hari ini dan kemarin.</p>}
-      {rows && rows.length > 0 && (
-        // The whole row opens the transaction (owner preference, refine-workspace-layout).
-        <ul className="ws-act-list">
-          {rows.map((row) => (
-            <li key={row.id}>
-              <button type="button" className="ws-act-row" onClick={() => onSelect(row)}>
-                <RowAvatar row={row} />
-                <span className="ws-who-t">
-                  <b>{rowTitle(row)}</b>
-                  <span>{rowSubtitle(row)}</span>
-                </span>
-                <span className="ws-act-r">
-                  <RowAmount row={row} bal={bal} />
-                  <span>{rowWhen(row)}</span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
+/** The row's time in Asia/Jakarta, such as "18.23"; the day is in the day heading. */
+export function rowTime(row: ActivityRow): string {
+  return JAKARTA_TIME.format(new Date(row.date));
+}
+
+/**
+ * Beranda's "Aktivitas terbaru" (apply-markas-beranda D7, owner decision 5): rows that wait for an answer are
+ * left out, because "Perlu tindakan" and Tinjau list them; then the newest eight are kept.
+ */
+export function recentActivity(rows: ActivityRow[]): ActivityRow[] {
+  return rows.filter((row) => !isWaiting(row)).slice(0, ACTIVITY_LIMIT);
+}
+
+export interface ActivityDay {
+  day: string;
+  rows: ActivityRow[];
+}
+
+/** Rows grouped by their Asia/Jakarta day, in the order given (newest first). */
+export function groupByDay(rows: ActivityRow[]): ActivityDay[] {
+  const days: ActivityDay[] = [];
+  for (const row of rows) {
+    const day = jakartaDay(row.date);
+    const last = days[days.length - 1];
+    if (last?.day === day) last.rows.push(row);
+    else days.push({ day, rows: [row] });
+  }
+  return days;
+}
+
+/** The desktop meta beside the title: the account with its bank, or what a movement says about itself. */
+export function activityMeta(row: ActivityRow): { text: string; warning?: boolean } {
+  const kind = rowKind(row);
+  if (kind === "movement") return routeIncomplete(row) ? { text: UNPAIRED_LABEL, warning: true } : { text: row.notes ?? "" };
+  return { text: accountLabel(row.account_name, row.account_parent_name) ?? "" };
+}
+
+/** The phone's second line after the time: the pillar, the income's category, or the movement. */
+export function activityPhoneStatus(row: ActivityRow): { text: string; warning?: boolean } {
+  const kind = rowKind(row);
+  if (kind === "income") return { text: row.category_name ?? rowStatus(row).text };
+  if (kind === "movement") return routeIncomplete(row) ? { text: UNPAIRED_LABEL, warning: true } : { text: "Pindah saldo" };
+  return { text: rowStatus(row).text };
 }

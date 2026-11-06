@@ -1,12 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
-import { ExplainProvider } from "@/components/workspace/explain";
 import { headerFor } from "@/components/beranda/BerandaView";
 import type { CycleSummary } from "@/components/beranda/types";
+import { ShortcutProvider } from "@/components/workspace/shortcuts";
 import BerandaPage from "./page";
 
 vi.mock("@/lib/api", () => ({
@@ -21,6 +21,18 @@ vi.mock("@/lib/api", () => ({
 vi.mock("next/navigation", () => ({ usePathname: () => "/", useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/components/recurring/PendingScheduledBanner", () => ({ PendingScheduledBanner: () => null }));
 vi.mock("@/components/recurring/RecurringRulesModal", () => ({ RecurringRulesModal: () => null }));
+// "Sembunyikan saldo" for the hidden-balance cases; the real context otherwise.
+const display = vi.hoisted(() => ({ hidden: false }));
+vi.mock("@/components/layout/AppLayout", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/layout/AppLayout")>();
+  return {
+    ...actual,
+    useAppCtx: () => {
+      const context = actual.useAppCtx();
+      return display.hidden ? { ...context, hideBalances: true, bal: () => "Rp ••••••" } : context;
+    },
+  };
+});
 
 const NOW = new Date("2026-11-02T09:20:00Z"); // 16.20 in Jakarta, day 9 of a cycle that started 25 October
 
@@ -136,6 +148,10 @@ const recent = [
 
 let summary: CycleSummary | Error = previewSummary();
 let reviewQueue: typeof queue = queue;
+let plans: (typeof plan)[] = [plan];
+let overview: unknown = { kpis: { runway_status: "unknown", coverage_months: null, runway_months: null, runway_days: null, emergency_fund_balance: 0,
+  monthly_primary_expense: null, essential_cost: { method: "unknown" } } };
+let activityRows: unknown[] = recent;
 
 function mockApi() {
   vi.mocked(api.get).mockImplementation(async (path: string) => {
@@ -143,12 +159,17 @@ function mockApi() {
       if (summary instanceof Error) throw summary;
       return summary;
     }
-    if (path.startsWith("/dashboard/overview")) return { kpis: { runway_status: "unknown", coverage_months: null, runway_months: null,
-      runway_days: null, emergency_fund_balance: 0, monthly_primary_expense: null, essential_cost: { method: "unknown" } } };
-    if (path === "/review/queue") return reviewQueue;
-    if (path === "/recurring") return { rules: [plan] };
+    if (path.startsWith("/dashboard/overview")) {
+      if (overview instanceof Error) throw overview;
+      return overview;
+    }
+    if (path === "/review/queue") {
+      if (reviewQueue instanceof Error) throw reviewQueue;
+      return reviewQueue;
+    }
+    if (path === "/recurring") return { rules: plans };
     if (path === "/recurring/pending") return { rules: [], recent_auto_links: [] };
-    if (path.startsWith("/transactions?")) return { transactions: recent };
+    if (path.startsWith("/transactions?")) return { transactions: activityRows };
     const detail = /^\/transactions\/([^/?]+)$/.exec(path);
     if (detail) return { transaction: { ...recent.find((row) => row.id === detail[1]), waiting: false, origin: null } };
     if (path === "/accounts") return { accounts: [] };
@@ -160,294 +181,349 @@ function renderBeranda() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ExplainProvider>
+      <ShortcutProvider>
         <BerandaPage />
-      </ExplainProvider>
+      </ShortcutProvider>
     </QueryClientProvider>,
   );
 }
 
-const kpis = async () => {
-  renderBeranda();
-  return (await screen.findByRole("region", { name: "Ringkasan siklus ini" })) as HTMLElement;
-};
-const region = (name: string | RegExp) => screen.getByRole("region", { name });
-const figureNames = (scope: HTMLElement) => within(scope).getAllByRole("button").map((button) => button.getAttribute("aria-label"));
+/** Beranda once its figures and lists are in. */
+async function beranda() {
+  const view = renderBeranda();
+  const hero = await screen.findByRole("region", { name: "Aman dipakai sampai gajian" });
+  await screen.findByRole("region", { name: "Aktivitas terbaru" });
+  await screen.findByRole("region", { name: "Perlu tindakan" });
+  return { ...view, hero };
+}
+const region = (name: string) => screen.getByRole("region", { name });
+const panel = () => screen.getByRole("complementary", { name: "Ringkasan simpanan" });
+const figureOf = (hero: HTMLElement, label: string) =>
+  [...hero.querySelectorAll(".fig-block")].find((block) => block.querySelector(".fb-label")?.textContent === label) as HTMLElement;
+const rowTexts = (scope: HTMLElement) => [...scope.querySelectorAll(".list > li > .row")].map((row) => row.textContent);
+
+async function openRincian(hero: HTMLElement) {
+  const user = userEvent.setup();
+  await user.click(within(hero).getByRole("button", { name: "Rincian aman dipakai sampai gajian" }));
+  return { user, dialog: await screen.findByRole("dialog", { name: "Aman dipakai sampai gajian" }) };
+}
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
   summary = previewSummary();
   reviewQueue = queue;
+  plans = [plan];
+  overview = { kpis: { runway_status: "unknown", coverage_months: null, runway_months: null, runway_days: null, emergency_fund_balance: 0,
+    monthly_primary_expense: null, essential_cost: { method: "unknown" } } };
+  activityRows = recent;
+  display.hidden = false;
   vi.clearAllMocks();
   mockApi();
 });
 afterEach(() => vi.useRealTimers());
 
-describe("Beranda KPI cards", () => {
-  it("leads with the period's safe amount, then Masuk, Pengeluaran, Ditabung and Kekayaan bersih, each a server field", async () => {
-    const strip = await kpis();
-    expect(figureNames(strip)).toEqual([
-      "Aman dipakai sampai gajian Rp 4.922.000: lihat rincian",
-      "Masuk siklus ini Rp 9.800.000: lihat rincian",
-      "Pengeluaran siklus ini Rp 2.364.500: lihat rincian",
-      "Ditabung & investasi Rp 800.000: lihat rincian",
-      "Kekayaan bersih Rp 46.330.000: lihat rincian",
-    ]);
-    expect(strip).toHaveTextContent("23 hari lagi · gaji ± 25 Nov");
-    expect(strip).toHaveTextContent("sejak gaji 25 Okt");
-    // No per-day figure, no same-date comparison and no percentage.
-    expect(strip).not.toHaveTextContent("Rp 214.000");
-    expect(document.body).not.toHaveTextContent(/hari pertama|\/hari/);
-    expect(strip.textContent).not.toMatch(/%/);
+describe("Beranda period", () => {
+  it("names the cycle's span to the day before the expected salary, and its day", () => {
+    expect(headerFor(previewSummary(), NOW)).toEqual({ title: "Senin, 2 November", subtitle: "Siklus gaji 25 Okt – 24 Nov · hari ke-9" });
   });
 
-  it("shows each figure's final value at once, without counting up (SPEC §10)", async () => {
-    const strip = await kpis();
-    // No timer has run: a counting figure would still read Rp 0 or an intermediate value here.
-    expect(within(strip).getByRole("button", { name: /^Pengeluaran siklus ini/ })).toHaveTextContent("Rp 2.364.500");
-    expect(within(strip).getByRole("button", { name: /^Masuk siklus ini/ })).toHaveTextContent("Rp 9.800.000");
-  });
-
-  it("shows no written summary and no insight banner", async () => {
-    await kpis();
-    expect(document.querySelector(".ws-lede")).toBeNull();
-    expect(screen.queryByRole("region", { name: "Wawasan periode ini" })).not.toBeInTheDocument();
-    expect(document.body).not.toHaveTextContent(/siklus gajimu|nunggu jawabanmu/);
-  });
-
-  it("explains the safe amount as Masuk minus Pengeluaran, Ditabung and Terjadwal", async () => {
-    const user = userEvent.setup();
-    await user.click(within(await kpis()).getByRole("button", { name: /^Aman dipakai sampai gajian/ }));
-    const dialog = await screen.findByRole("dialog", { name: "Aman dipakai sampai gajian" });
-    const cells = within(dialog).getAllByRole("row").map((row) => row.textContent);
-    expect(cells).toEqual([
-      "Masuk+Rp 9.800.000", "Pengeluaran−Rp 2.364.500", "Ditabung & investasi−Rp 800.000", "Terjadwal−Rp 1.713.500", "SisaRp 4.922.000",
-    ]);
-  });
-
-  it("explains Pengeluaran with the five spending buckets and no saving", async () => {
-    const user = userEvent.setup();
-    await user.click(within(await kpis()).getByRole("button", { name: /^Pengeluaran siklus ini/ }));
-    const dialog = await screen.findByRole("dialog", { name: "Pengeluaran siklus ini" });
-    const rows = within(dialog).getAllByRole("row");
-    expect(rows).toHaveLength(6);
-    expect(rows[5]).toHaveTextContent("Total pengeluaranRp 2.364.500");
-    expect(dialog).not.toHaveTextContent("Tabungan");
-    expect(within(dialog).getByRole("link", { name: "Keinginan" })).toHaveAttribute("href", "/ledger?period=cycle&kakeibo=want");
-  });
-
-  it("says the next salary date is unknown, still with the period amount", async () => {
+  it("names only the cycle's start when the expected salary date is unknown", () => {
     const base = previewSummary();
-    summary = { ...base,
-      expected_salary: { ...base.expected_salary, status: "unknown", date: null, basis: null, reason: "irregular_receipts" },
-      safe_to_spend: { status: "unavailable", reason: "no_expected_salary", detail: "irregular_receipts", per_day: null, days_left: null, rounding: 1000, over_by: null } };
-    const strip = await kpis();
-    expect(strip).toHaveTextContent("Tanggal gaji berikutnya belum diketahui");
-    expect(within(strip).getByRole("button", { name: /^Aman dipakai sampai gajian Rp 4\.922\.000/ })).toBeInTheDocument();
+    const unknown = { ...base, scheduled: { ...base.scheduled, window_basis: "next_30_days" as const, window_end: "2026-12-01" } };
+    expect(headerFor(unknown, NOW).subtitle).toBe("Siklus gaji sejak 25 Okt · hari ke-9");
   });
 
-  it("counts what credit accounts owe in the net-worth utang, next to the debts", async () => {
-    const base = previewSummary();
-    summary = { ...base, net_worth: { ...base.net_worth, total: 45_860_000, credit_owed: 470_000, lines: [
-      ...base.net_worth.lines,
-      { key: "credit:spaylater", label: "SPayLater", amount: -470_000 },
-    ] } };
-    const user = userEvent.setup();
-    const strip = await kpis();
-    expect(strip).toHaveTextContent("aset Rp 48.730.000 · utang Rp 2.870.000");
-    await user.click(within(strip).getByRole("button", { name: "Kekayaan bersih Rp 45.860.000: lihat rincian" }));
-    const dialog = await screen.findByRole("dialog", { name: "Kekayaan bersih" });
-    expect(dialog).toHaveTextContent("Utang SPayLater");
-    expect(dialog).toHaveTextContent("Cicilan Laptop");
-  });
-
-  it("states the savings change in words, with what went in, came out and was spent from savings", async () => {
-    const base = previewSummary();
-    summary = {
-      ...base,
-      fresh_saving: { ...base.fresh_saving, amount: -500_000 },
-      keluar: { ...base.keluar, total: base.spending.amount - 500_000 },
-      tabungan: { total: -500_000, masuk: 300_000, diambil: 600_000, belanja: 200_000, pilar_tabungan: 0 },
-      net_worth: { ...base.net_worth, dana_investasi: 1_200_000 },
-    };
-    const user = userEvent.setup();
-    const strip = await kpis();
-    expect(strip).toHaveTextContent("Tabungan berkurang Rp 500.000");
-    expect(within(strip).getByRole("button", { name: "Ditabung & investasi Rp 500.000: lihat rincian" })).toBeInTheDocument();
-    // Dana investasi is an asset outside Saldo tersedia, so the caption's assets include it.
-    const assets = base.net_worth.liquid + 1_200_000 + base.net_worth.investment - (base.net_worth.reconciliation_pending ?? 0);
-    expect(strip).toHaveTextContent(`aset Rp ${assets.toLocaleString("id-ID")}`);
-    await user.click(within(strip).getByRole("button", { name: "Ditabung & investasi Rp 500.000: lihat rincian" }));
-    const dialog = await screen.findByRole("dialog", { name: "Ditabung & investasi" });
-    expect(within(dialog).getAllByRole("row").map((row) => row.textContent)).toEqual([
-      "Masuk ke tabungan+Rp 300.000",
-      "Diambil dari tabungan−Rp 600.000",
-      "Pengeluaran dari tabungantetap dihitung sebagai pengeluaran−Rp 200.000",
-      "Tabungan berkurangRp 500.000",
-    ]);
-    expect((await axe(document.body)).violations).toHaveLength(0);
-  });
-
-  it("shows Rp 0 and by how much the period is over, never a negative safe amount", async () => {
-    const base = previewSummary();
-    summary = { ...base, remaining: { ...base.remaining, total: -300_000 }, safe_to_spend: { ...base.safe_to_spend, per_day: 0, over_by: 300_000 } };
-    const strip = await kpis();
-    expect(strip).toHaveTextContent("lebih Rp 300.000 dari uang masuk");
-    expect(strip).not.toHaveTextContent("−Rp 300.000");
-    expect(region(/^Uang siklus ini/)).toHaveTextContent("Siklus ini sudah lebih Rp 300.000 dari uang masuk.");
-  });
-});
-
-describe("Beranda period and header", () => {
-  it("names the cycle start and day", () => {
-    expect(headerFor(previewSummary(), NOW)).toEqual({ title: "Senin, 2 November", subtitle: "Siklus sejak 25 Okt · hari ke-9" });
-  });
-
-  it("falls back to the calendar month without a cycle and links to the salary settings", async () => {
+  it("falls back to the calendar month without a cycle, links to the salary settings and adds no heading of its own", async () => {
     const base = previewSummary();
     const month: CycleSummary = { ...base, period: { ...base.period, basis: "month", cycle_status: "not_configured", start_date: "2026-11-01", day_index: 2,
       cycle_offset_basis: "month", label: "November 2026" },
       safe_to_spend: { ...base.safe_to_spend, status: "unavailable", reason: "no_cycle", per_day: null, days_left: null } };
     summary = month;
     expect(headerFor(month, NOW).subtitle).toBe("November · siklus gaji belum tersedia");
-    renderBeranda();
-    expect(await screen.findByRole("region", { name: "Ringkasan bulan ini" })).toHaveTextContent("sejak 1 November");
+    const { hero } = await beranda();
     expect(screen.getByRole("link", { name: "Atur gaji di Pengaturan" })).toHaveAttribute("href", "/settings/gaji");
+    expect(figureOf(hero, "Pengeluaran")).toHaveTextContent("sejak 1 November");
+    expect(figureOf(hero, "Masuk")).toHaveTextContent("sejak 1 November");
+    expect(hero.querySelector(".hero-sub")).toHaveTextContent("Siklus gaji belum ada");
+    // The shell's title block holds the page's one h1.
+    expect(document.querySelectorAll("h1")).toHaveLength(0);
   });
 });
 
-describe("Beranda cards", () => {
-  it("splits Uang siklus ini into four amounts that add up to Masuk, with one formula line", async () => {
-    await kpis();
-    const card = region(/^Uang siklus ini/);
-    const list = within(card).getByRole("list", { name: "Pembagian uang siklus ini" });
-    expect(within(list).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      "PengeluaranRp 2.364.500", "Ditabung & investasiRp 800.000", "TerjadwalRp 1.713.500", "Aman dipakaiRp 4.922.000",
-    ]);
-    expect(card.querySelector(".ws-moneybar")).toHaveAttribute("aria-hidden", "true");
-    expect(card).toHaveTextContent("Aman dipakai = masuk − pengeluaran − ditabung − terjadwal.");
-    expect(card).toHaveTextContent("dari Rp 9.800.000 masuk");
+describe("Beranda hero", () => {
+  it("shows the safe amount once at 44 px with its line, the split bar and four supporting figures, each a server field", async () => {
+    const { hero } = await beranda();
+    expect(hero.querySelector(".t-hero")).toHaveTextContent("Rp 4.922.000");
+    expect(hero.querySelector(".hero-sub")).toHaveTextContent(/^23 hari lagi sampai gajian 25 Nov$/);
+    expect(document.body).not.toHaveTextContent(/per hari|Rp 214\.000/);
+    expect(figureOf(hero, "Masuk")).toHaveTextContent("MasukRp 9.800.000Gaji 25 Okt");
+    expect(figureOf(hero, "Pengeluaran")).toHaveTextContent("PengeluaranRp 2.364.500sejak gaji 25 Okt");
+    expect(figureOf(hero, "Ditabung & investasi")).toHaveTextContent("Ditabung & investasiRp 800.000Tabungan bertambah");
+    expect(figureOf(hero, "Terjadwal")).toHaveTextContent("TerjadwalRp 1.713.500termasuk setoran · 24 Nov");
+    expect(figureOf(hero, "Masuk")).toHaveClass("is-phone-hide");
+    expect(figureOf(hero, "Terjadwal")).toHaveClass("is-phone-hide");
+    expect(within(hero).getByRole("img")).toHaveAccessibleName(
+      "Uang siklus ini dari Rp 9.800.000 masuk: Pengeluaran 24%, Ditabung & investasi 8%, Terjadwal 17%, Aman dipakai 50%",
+    );
+    expect(document.querySelectorAll(".t-hero")).toHaveLength(1);
   });
 
-  it("lists Kakeibo's spending buckets under the Pengeluaran total and Tabungan apart", async () => {
-    await kpis();
-    const card = region(/^Kakeibo siklus ini/);
-    const [spending, saving] = within(card).getAllByRole("list");
-    expect(within(spending).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+  it("has exactly one Rincian and no dotted figure", async () => {
+    await beranda();
+    const rincian = screen.getAllByRole("button").filter((button) => button.textContent === "Rincian");
+    expect(rincian).toHaveLength(1);
+    expect(rincian[0]).toHaveAccessibleName("Rincian aman dipakai sampai gajian");
+    expect(rincian[0]).toHaveAttribute("aria-haspopup", "dialog");
+    expect(document.querySelector(".ws-xn")).toBeNull();
+    expect(screen.queryByRole("button", { name: /lihat rincian/ })).not.toBeInTheDocument();
+  });
+
+  it("says only 'tagihan' when no goal set-aside is scheduled", async () => {
+    const base = previewSummary();
+    summary = { ...base, scheduled: { ...base.scheduled, lines: base.scheduled.lines.filter((line) => line.kind === "plan") } };
+    const { hero } = await beranda();
+    expect(figureOf(hero, "Terjadwal")).toHaveTextContent("tagihan sampai 24 Nov");
+  });
+
+  const unavailable = (detail: "irregular_receipts" | "no_salary_source", reason: "no_expected_salary" = "no_expected_salary") => {
+    const base = previewSummary();
+    return { ...base,
+      expected_salary: { ...base.expected_salary, status: "unknown" as const, date: null, basis: null, reason: detail },
+      safe_to_spend: { ...base.safe_to_spend, status: "unavailable" as const, reason, detail, per_day: null, days_left: null } };
+  };
+  it.each([
+    ["the next salary date is unknown", () => unavailable("irregular_receipts"), "Tanggal gaji berikutnya belum diketahui"],
+    ["no salary source is set", () => unavailable("no_salary_source"), "Sumber gaji belum diatur"],
+    ["the salary is late", () => {
+      const base = previewSummary();
+      return { ...base, expected_salary: { ...base.expected_salary, status: "overdue" as const, date: "2026-11-01" },
+        safe_to_spend: { ...base.safe_to_spend, status: "unavailable" as const, reason: "salary_overdue" as const, per_day: null, days_left: null } };
+    }, "Gaji baru belum tercatat"],
+  ])("keeps the period amount and says why when %s", async (_case, make, line) => {
+    summary = make();
+    const { hero } = await beranda();
+    expect(hero.querySelector(".t-hero")).toHaveTextContent("Rp 4.922.000");
+    expect(hero.querySelector(".hero-sub")).toHaveTextContent(new RegExp(`^${line}$`));
+    expect(hero.querySelector(".hero-sub")!.textContent).not.toMatch(/\d+ hari/);
+  });
+
+  it("shows Rp 0 and by how much the period is over, never a negative safe amount", async () => {
+    const base = previewSummary();
+    summary = { ...base, remaining: { ...base.remaining, total: -300_000 }, safe_to_spend: { ...base.safe_to_spend, per_day: 0, over_by: 300_000 } };
+    const { hero } = await beranda();
+    expect(hero.querySelector(".t-hero")).toHaveTextContent(/^Rp 0$/);
+    expect(hero.querySelector(".hero-sub")).toHaveTextContent("Siklus ini sudah lebih Rp 300.000 dari uang masuk");
+    expect(hero).not.toHaveTextContent("−Rp 300.000");
+    const { dialog } = await openRincian(hero);
+    expect(rowTexts(dialog).slice(4, 6)).toEqual(["Lebih dari uang masukRp 300.000", "Aman dipakaiRp 0"]);
+    expect(dialog.querySelector(".is-over")).toHaveClass("row");
+    expect(dialog.querySelector(".is-total .t-fig")).toHaveTextContent(/^Rp 0$/);
+    expect(dialog).not.toHaveTextContent(/Aman dipakai\s*−/);
+    expect(dialog).toHaveTextContent("Periode ini sudah lebih Rp 300.000 dari uang masuk, jadi belum ada yang aman dipakai.");
+  });
+
+  it("lists the Rincian as today's calculation: Masuk less Pengeluaran, Ditabung and Terjadwal, and its total", async () => {
+    const { hero } = await beranda();
+    const { dialog } = await openRincian(hero);
+    expect(dialog).toHaveTextContent("Rincian hitungan");
+    expect(dialog).toHaveTextContent("Masuk dikurangi Pengeluaran, Ditabung & investasi dan tagihan terjadwal sampai akhir siklus.");
+    expect(rowTexts(dialog)).toEqual([
+      "MasukRp 9.800.000", "Pengeluaran−Rp 2.364.500", "Ditabung & investasi−Rp 800.000", "Terjadwal sampai 24 Nov−Rp 1.713.500",
+      "Aman dipakaiRp 4.922.000", "Menunggu jawaban · Rp 581.000",
+    ]);
+    expect(dialog).toHaveTextContent("Gaji berikutnya diperkirakan 25 November, dari gaji yang dikonfirmasi tanggal 25 Agu, 25 Sep, 25 Okt.");
+    expect(dialog).toHaveTextContent("4 hal (Rp 581.000) masih menunggu jawaban. Rp 357.000 di antaranya sudah termasuk.");
+    expect(dialog.querySelector(".is-over")).toBeNull();
+    expect(within(dialog).getByRole("link", { name: "Lihat transaksi siklus ini" })).toHaveAttribute("href", "/ledger?period=cycle");
+  });
+
+  it("opens each line's server lines in place, and the waiting rows by section and bucket", async () => {
+    const { hero } = await beranda();
+    const { user, dialog } = await openRincian(hero);
+    const parts = async (name: RegExp) => {
+      const line = within(dialog).getByRole("button", { name });
+      await user.click(line);
+      expect(line).toHaveAttribute("aria-expanded", "true");
+      return [...document.getElementById(line.getAttribute("aria-controls")!)!.querySelectorAll(".part")].map((part) => part.textContent);
+    };
+    expect(await parts(/^Masuk/)).toEqual(["GajiRp 9.500.000", "RefundRp 300.000"]);
+    expect(await parts(/^Pengeluaran/)).toEqual([
       "KebutuhanRp 1.420.000", "KeinginanRp 610.000", "BudayaRp 245.000", "Tak TerdugaRp 89.500", "Belum diklasifikasiRp 0",
     ]);
-    expect(saving).toHaveAccessibleName("Ditabung");
-    expect(saving).toHaveTextContent("TabunganRp 800.000");
-    expect(within(card).getByRole("button", { name: "Pengeluaran siklus ini Rp 2.364.500: lihat rincian" })).toBeInTheDocument();
-    expect(within(card).getByRole("link", { name: "Belum diklasifikasi" })).toHaveAttribute("href", "/ledger?period=cycle&kakeibo=unclassified");
+    expect(within(dialog).getByRole("link", { name: "Keinginan" })).toHaveAttribute("href", "/ledger?period=cycle&kakeibo=want");
+    expect(await parts(/^Ditabung/)).toEqual(["TabunganTermasuk uang yang dipindah ke kantong tabungan atau diinvestasikanRp 800.000"]);
+    expect(await parts(/^Terjadwal/)).toEqual([
+      "Tagihan: Streamiojatuh tempo 3 NovRp 65.000", "Tagihan: Cicilan Laptopjatuh tempo 5 NovRp 600.000",
+      "Tagihan: Internet Rumahjatuh tempo 10 NovRp 330.000",
+      "Setoran target: Liburan LombokRp 600.000 per bulan, sudah masuk Rp 0Rp 600.000",
+      "Setoran target: Dana DaruratRp 118.500 per bulan, sudah masuk Rp 0Rp 118.500",
+    ]);
+    expect(dialog).toHaveTextContent("Sampai sehari sebelum perkiraan gaji berikutnya (24 Nov).");
+    expect(await parts(/^Menunggu jawaban/)).toEqual([
+      "QRIS 0812-xxxxBelum dikenali · sudah dihitung di Pengeluaran sebagai Belum diklasifikasiRp 45.000",
+      "RDN Contoh keluarPindah saldo belum lengkap · belum dihitungRp 112.000",
+      "RDN Contoh keluarPindah saldo belum lengkap · belum dihitungRp 112.000",
+      "Toko Serba AdaPerlu jawaban · sudah dihitung di Pengeluaran sebagai Belum diklasifikasiRp 312.000",
+    ]);
+    expect(within(dialog).getByRole("link", { name: "Jawab di Tinjau" })).toHaveAttribute("href", "/review");
   });
 
-  it("keeps an unknown Ketahanan Dana unknown, without a sentinel", async () => {
-    await kpis();
-    const card = region("Ketahanan Dana");
-    await waitFor(() => expect(card).toHaveTextContent("Belum bisa dihitung"));
-    expect(card.textContent).not.toMatch(/\d+ bulan|999/);
-  });
-
-  it("shows the months of Ketahanan Dana in large type with the fund and its target", async () => {
-    const base = vi.mocked(api.get).getMockImplementation()!;
-    vi.mocked(api.get).mockImplementation(async (path: string) => {
-      if (path.startsWith("/dashboard/overview")) return { kpis: { runway_status: "ok", coverage_months: 6.1, runway_months: 6.1, runway_days: 183,
-        emergency_fund_balance: 20_412_400, monthly_primary_expense: 3_346_000, target_amount: 19_963_800, coverage_pct: 100, essential_cost: { method: "median" } } };
-      return base(path);
-    });
-    await kpis();
-    const card = region("Ketahanan Dana");
-    await waitFor(() => expect(card).toHaveTextContent("6,1 bulan biaya pokok"));
-    expect(card).toHaveTextContent("Rp 20.412.400 dana darurat");
-    expect(card).toHaveTextContent("target Rp 19.963.800");
+  it("names a savings decrease in words, takes no bar width for it and opens what went in, came out and was spent", async () => {
+    const base = previewSummary();
+    summary = {
+      ...base,
+      fresh_saving: { ...base.fresh_saving, amount: -500_000 },
+      keluar: { ...base.keluar, total: base.spending.amount - 500_000 },
+      tabungan: { total: -500_000, masuk: 300_000, diambil: 600_000, belanja: 200_000, pilar_tabungan: 0 },
+    };
+    const { hero } = await beranda();
+    expect(figureOf(hero, "Ditabung & investasi")).toHaveTextContent("Ditabung & investasiRp 500.000Tabungan berkurang");
+    expect(hero.querySelector('.split [data-segment="saving"]')).toBeNull();
+    expect(within(hero).getByRole("img")).toHaveAccessibleName(/Ditabung & investasi 0%/);
+    const { user, dialog } = await openRincian(hero);
+    expect(rowTexts(dialog)[2]).toBe("Tabungan berkurangRp 500.000");
+    const line = within(dialog).getByRole("button", { name: /^Tabungan berkurang/ });
+    await user.click(line);
+    expect([...document.getElementById(line.getAttribute("aria-controls")!)!.querySelectorAll(".part")].map((part) => part.textContent)).toEqual([
+      "Masuk ke tabungan+Rp 300.000", "Diambil dari tabungan−Rp 600.000", "Pengeluaran dari tabungantetap dihitung sebagai pengeluaran−Rp 200.000",
+    ]);
   });
 });
 
 describe("Perlu tindakan", () => {
-  it("comes first when the grid is one column, and leads the side column otherwise", async () => {
-    const precedes = (first: HTMLElement, second: HTMLElement) =>
-      Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
-    const phoneOrder = () => {
-      const order = [region(/Perlu tindakan/), region(/^Uang siklus ini/), region(/Aktivitas terbaru/), region(/^Kakeibo siklus ini/), region("Ketahanan Dana")];
-      return order.every((card, index) => index === 0 || precedes(order[index - 1], card));
-    };
-
-    await kpis();
-    expect(phoneOrder()).toBe(false);
-    expect(precedes(region(/Aktivitas terbaru/), region(/Perlu tindakan/))).toBe(true);
-    cleanup();
-
-    let width = 820;
-    class FixedWidthObserver {
-      constructor(private readonly callback: ResizeObserverCallback) {}
-      observe() {
-        this.callback([{ contentRect: { width } } as ResizeObserverEntry], this as unknown as ResizeObserver);
-      }
-      unobserve() {}
-      disconnect() {}
-    }
-    vi.stubGlobal("ResizeObserver", FixedWidthObserver);
-    try {
-      await kpis();
-      await waitFor(() => expect(phoneOrder()).toBe(true));
-      cleanup();
-
-      width = 901;
-      await kpis();
-      expect(phoneOrder()).toBe(false);
-    } finally {
-      vi.unstubAllGlobals();
-    }
+  it("lists the first three items: the question, the awaiting transfers, then the group, with Buka Tinjau and the count", async () => {
+    await beranda();
+    const section = region("Perlu tindakan");
+    await waitFor(() => expect(rowTexts(section)).toHaveLength(3));
+    expect(rowTexts(section)).toEqual([
+      "QRIS 0812-xxxxBelum dikenali · hari ini 16.05−Rp 45.000",
+      "Pasangkan 2 pindah saldoPindah saldo belum lengkap · RDN Contoh",
+      "Toko Serba AdaPerlu jawaban · 1 transaksi · 1 Nov 19.20−Rp 312.000",
+    ]);
+    const rows = within(section).getAllByRole("link").filter((link) => link.classList.contains("row"));
+    expect(rows.map((row) => row.getAttribute("href"))).toEqual([
+      "/review?item=qris#review-questions", "/review?item=rdn-1#review-awaiting", "/review?item=toko#review-groups",
+    ]);
+    // The plan due tomorrow ranks last and is reached through the bell and Target & Tagihan.
+    expect(section).not.toHaveTextContent("Streamio");
+    expect(within(section).getByRole("link", { name: "Buka Tinjau · 4" })).toHaveAttribute("href", "/review");
+    expect(section).not.toHaveTextContent(/menunggu jawaban|dicatat otomatis|Jawab|Selesai/);
+    expect(section.querySelector(".ws-act, .ws-pill")).toBeNull();
+    expect(section.querySelectorAll(".r-ico svg[aria-hidden=true]")).toHaveLength(3);
   });
 
-  it("lists the question first and the plan last, with the waiting amount beside the title", async () => {
-    await kpis();
-    const card = region(/Perlu tindakan/);
-    await waitFor(() => expect(within(card).getAllByRole("listitem")).toHaveLength(4));
-    const items = within(card).getAllByRole("listitem");
-    expect(items[0]).toHaveTextContent("Belum dikenali: QRIS 0812-xxxx Rp 45.000");
-    expect(items[1]).toHaveTextContent("Pasangkan 2 pindah saldo");
-    expect(items[2]).toHaveTextContent("Toko Serba Ada: perlu jawaban");
-    expect(items[3]).toHaveTextContent("Streamio Rp 65.000 besok");
-    expect(within(items[0]).getByRole("link", { name: "Jawab: QRIS 0812-xxxx" })).toHaveAttribute("href", "/review?item=qris#review-questions");
-    expect(within(card).getByRole("link", { name: "Buka Tinjau" })).toHaveAttribute("href", "/review");
-    expect(card).toHaveTextContent("Rp 581.000 menunggu jawaban");
-    expect(within(card).getByRole("heading", { name: /Perlu tindakan.*4 perlu ditinjau/ })).toBeInTheDocument();
+  it("ranks overdue and due-today plans above the automatic-link check and the pairing row", async () => {
+    plans = [{ ...plan, id: "yoga", name: "Kelas Yoga", amount: 150_000, next_due_date: "2026-10-31" }, { ...plan, id: "spay", name: "Tagihan SPayLater",
+      amount: 434_000, next_due_date: "2026-11-02" }, { ...plan, next_due_date: "2026-11-03" }];
+    reviewQueue = { ...queue, groups: [] };
+    const base = vi.mocked(api.get).getMockImplementation()!;
+    const linked = { rule_id: "auto", scheduled_for: "2026-11-01", linked_at: "2026-11-01T03:00:00Z", name: "Streaming Contoh", amount: 65_000,
+      type: "expense", transaction_id: "kopi", transaction_date: "2026-11-01T02:00:00Z", account_name: "Dompet Digital" };
+    vi.mocked(api.get).mockImplementation(async (path: string) => (path === "/recurring/pending" ? { rules: [], recent_auto_links: [linked] } : base(path)));
+    await beranda();
+    const section = region("Perlu tindakan");
+    await waitFor(() => expect(rowTexts(section)).toEqual([
+      "QRIS 0812-xxxxBelum dikenali · hari ini 16.05−Rp 45.000",
+      "Kelas YogaLewat jatuh tempo · RencanaRp 150.000",
+      "Tagihan SPayLaterJatuh tempo hari ini · RencanaRp 434.000",
+    ]));
+    expect(section).not.toHaveTextContent(/ditautkan otomatis|Pasangkan|Streamio/);
   });
 
-  it("says Tinjau is settled and offers the automatic rows of today", async () => {
+  it("shows the automatic-link check and an upcoming plan once nothing ranks above them", async () => {
+    reviewQueue = { ...queue, questions: [], groups: [], awaiting: [] };
+    const base = vi.mocked(api.get).getMockImplementation()!;
+    const linked = { rule_id: "auto", scheduled_for: "2026-11-01", linked_at: "2026-11-01T03:00:00Z", name: "Streaming Contoh", amount: 65_000,
+      type: "expense", transaction_id: "kopi", transaction_date: "2026-11-01T02:00:00Z", account_name: "Dompet Digital" };
+    vi.mocked(api.get).mockImplementation(async (path: string) => (path === "/recurring/pending" ? { rules: [], recent_auto_links: [linked] } : base(path)));
+    await beranda();
+    const section = region("Perlu tindakan");
+    await waitFor(() => expect(rowTexts(section)).toEqual(["1 rencana ditautkan otomatisCek dan batalkan kalau keliru", "StreamioBesok · RencanaRp 65.000"]));
+    expect(within(section).getByRole("link", { name: /^Streamio/ })).toHaveAttribute("href", "/goals");
+  });
+
+  it("opens Rencana jatuh tempo from a plan due today, as a centered dialog", async () => {
+    plans = [{ ...plan, next_due_date: "2026-11-02" }];
     reviewQueue = { ...queue, counts: { ...queue.counts, attention: 0 }, questions: [], groups: [], awaiting: [] };
-    await kpis();
-    const card = region(/Perlu tindakan/);
-    await waitFor(() => expect(card).toHaveTextContent("Semua sudah ditinjau"));
-    await waitFor(() => expect(card).toHaveTextContent("2 dicatat otomatis hari ini."));
+    const user = userEvent.setup();
+    await beranda();
+    const section = region("Perlu tindakan");
+    const row = await within(section).findByRole("button", { name: /^Streamio/ });
+    expect(row).toHaveTextContent("StreamioJatuh tempo hari ini · RencanaRp 65.000");
+    expect(row.querySelector(".c-warning")).toHaveTextContent("Jatuh tempo hari ini");
+    await user.click(row);
+    const dialog = await screen.findByRole("dialog", { name: /^Rencana jatuh tempo/ });
+    expect(dialog).toHaveAttribute("data-mode", "dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+  });
+
+  it("says nothing waits in one line, with Buka Tinjau without a count", async () => {
+    plans = [];
+    reviewQueue = { ...queue, counts: { ...queue.counts, attention: 0 }, questions: [], groups: [], awaiting: [] };
+    await beranda();
+    const section = region("Perlu tindakan");
+    expect(await within(section).findByText("Tidak ada yang perlu dijawab.")).toHaveClass("t-body");
+    expect(within(section).getByRole("link", { name: "Buka Tinjau" })).toHaveAttribute("href", "/review");
+    expect(section.querySelector(".list")).toBeNull();
+  });
+
+  it("says when the Tinjau list cannot be loaded", async () => {
+    plans = [];
+    reviewQueue = new Error("boom") as unknown as typeof queue;
+    await beranda();
+    expect(await within(region("Perlu tindakan")).findByText("Daftar Tinjau belum bisa dimuat.")).toBeInTheDocument();
   });
 });
 
-describe("Beranda recent activity", () => {
-  it("names a top-up once in lavender, a movement once in sky, and a waiting row as waiting, each a whole-row button", async () => {
-    await kpis();
-    const card = region(/Aktivitas terbaru/);
-    await waitFor(() => expect(within(card).getAllByRole("listitem")).toHaveLength(4));
-    const topup = within(card).getByRole("button", { name: /^Top up Investasi/ });
-    expect(topup.querySelector(".ws-amt-inv")).toHaveTextContent("Rp 250.000");
-    expect(topup.querySelector(".ws-ava")).toHaveClass("ws-tone-inv");
-    const movement = within(card).getByRole("button", { name: /^Bank Utama → Dompet Digital/ });
-    expect(movement.querySelector(".ws-amt-tr")).toHaveTextContent("Rp 500.000");
-    expect(movement).toHaveTextContent("Pindah saldo");
-    const waiting = within(card).getByRole("button", { name: /^QRIS 0812-xxxx/ });
-    expect(waiting).toHaveTextContent("Dompet Digital · menunggu jawaban");
-    expect(waiting).toHaveTextContent("−Rp 45.000");
-    expect(waiting).toHaveTextContent("2 Nov · 16.05");
+describe("Aktivitas terbaru", () => {
+  it("lists today's answered rows under a day heading, one line each, with the time, status and signed amount", async () => {
+    await beranda();
+    const section = region("Aktivitas terbaru");
+    await waitFor(() => expect(rowTexts(section)).toHaveLength(3));
+    expect(within(section).getByRole("heading", { level: 3, name: "Senin, 2 November · hari ini" })).toBeInTheDocument();
+    expect(section.querySelector(".sec-h .aside")).toHaveTextContent("hari ini dan kemarin · 3");
+    // The waiting QRIS row is in Perlu tindakan, not here.
+    expect(section).not.toHaveTextContent("QRIS");
+    const topup = within(section).getByRole("button", { name: /Top up Investasi/ });
+    expect(topup.querySelector(".r-amt .t-amt")).toHaveClass("c-invest");
+    expect(topup.querySelector(".r-amt")).toHaveTextContent(/^Rp 250\.000$/);
+    expect(topup.querySelector(".r-pillar")).toHaveTextContent("Tabungan");
+    expect(topup.querySelector(".ws-ava")).toBeNull();
+    const movement = within(section).getByRole("button", { name: /Bank Utama → Dompet Digital/ });
+    expect(movement.querySelector(".r-amt .t-amt")).toHaveClass("c-transfer");
+    expect(movement.querySelector(".r-pillar")).toHaveTextContent("Tidak dihitung");
+    expect(movement.querySelector(".ph-only")).toHaveTextContent("09.12 · Pindah saldo");
+    const kopi = within(section).getByRole("button", { name: /Kopi Pagi/ });
+    expect(kopi.querySelector(".r-time")).toHaveTextContent("07.45");
+    expect(kopi.querySelector(".r-meta.dt-only")).toHaveTextContent("Dompet Digital");
+    expect(kopi.querySelector(".ph-only")).toHaveTextContent("07.45 · Keinginan");
+    expect(kopi.querySelector(".r-pillar")).toHaveTextContent("Keinginan");
+    const amount = kopi.querySelector(".r-amt .t-amt")!;
+    expect(amount).toHaveTextContent("−Rp 32.000");
+    expect(amount.className).toBe("t-amt");
+    expect(within(section).getByRole("link", { name: "Semua transaksi" })).toHaveAttribute("href", "/ledger");
   });
 
-  it("opens the shared transaction drawer for a row", async () => {
+  it("puts yesterday's rows under their own heading and keeps eight rows at most", async () => {
+    const yesterday = Array.from({ length: 9 }, (_, index) => ({
+      id: `y${index}`, type: "expense", amount: 10_000 + index, notes: null, merchant: `Warung ${index}`, account_id: "dw", account_name: "Pocket",
+      account_parent_name: "Jago", date: `2026-11-01T1${index}:00:00Z`, kakeibo_type: "need", review_status: "reviewed",
+    }));
+    activityRows = [...recent, ...yesterday.reverse()];
+    await beranda();
+    const section = region("Aktivitas terbaru");
+    await waitFor(() => expect(rowTexts(section)).toHaveLength(8));
+    expect(within(section).getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      "Senin, 2 November · hari ini", "Minggu, 1 November · kemarin",
+    ]);
+    expect(within(section).getByRole("button", { name: /Warung 8/ }).querySelector(".r-meta.dt-only")).toHaveTextContent("Jago · Pocket");
+  });
+
+  it("opens the shared transaction dialog for a row and returns focus to it", async () => {
     const user = userEvent.setup();
-    await kpis();
-    const card = region(/Aktivitas terbaru/);
-    const opener = await within(card).findByRole("button", { name: /^Kopi Pagi/ });
+    await beranda();
+    const opener = await within(region("Aktivitas terbaru")).findByRole("button", { name: /Kopi Pagi/ });
     await user.click(opener);
     const drawer = await screen.findByRole("dialog", { name: /^Kopi Pagi/ });
     expect(await within(drawer).findByText("Diklasifikasikan")).toBeInTheDocument();
@@ -458,87 +534,173 @@ describe("Beranda recent activity", () => {
     expect(opener).toHaveFocus();
   });
 
-  it("titles movements in the direction the money moved, with each pocket's bank", async () => {
-    const base = vi.mocked(api.get).getMockImplementation()!;
-    const movement = { type: "expense", amount: 300_000, notes: "", category_name: "Internal Movement", category_system_key: "internal_movement", review_status: "reviewed", date: "2026-11-02T01:00:00Z" };
-    const rows = [
-      { ...movement, id: "pair-out", account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago", movement_id: "p1",
-        movement_role: "outbound", partner_id: "pair-in", transfer_target_account_name: "ATM", transfer_target_account_parent_name: "BCA" },
-      { ...movement, id: "pair-in", type: "income", account_id: "atm", account_name: "ATM", account_parent_name: "BCA", movement_id: "p1",
-        movement_role: "inbound", partner_id: "pair-out", transfer_target_account_name: "Main Pocket", transfer_target_account_parent_name: "Jago" },
-      // The sending leg is outside Beranda's window, so only the receiving leg is listed.
-      { ...movement, id: "lone-in", type: "income", amount: 500_000, account_id: "tab", account_name: "Tabungan", account_parent_name: "Jago",
-        movement_id: "p2", movement_role: "inbound", partner_id: "elsewhere", transfer_target_account_name: "Gopay", transfer_target_account_parent_name: null,
-        date: "2026-11-02T01:30:00Z" },
-      { ...movement, id: "unpaired", type: "income", amount: 120_000, account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago",
-        notes: "Pindah uang dari BCA", date: "2026-11-02T02:00:00Z" },
-    ];
-    vi.mocked(api.get).mockImplementation(async (path: string) => (path.startsWith("/transactions?") ? { transactions: rows } : base(path)));
-    await kpis();
-    const card = region(/Aktivitas terbaru/);
-    await waitFor(() => expect(within(card).getAllByRole("listitem")).toHaveLength(3));
-    expect(within(card).getByRole("button", { name: /^Jago · Main Pocket → BCA · ATM/ })).toBeInTheDocument();
-    expect(within(card).getByRole("button", { name: /^Gopay → Jago · Tabungan/ })).toBeInTheDocument();
-    expect(within(card).getByRole("button", { name: /^\? → Jago · Main Pocket/ })).toHaveTextContent("Pindah saldo · Pasangan belum ditemukan");
-  });
-
-  it("opens Rencana jatuh tempo as a centered dialog, not a side panel", async () => {
-    const base = vi.mocked(api.get).getMockImplementation()!;
-    const linked = { rule_id: "plan-auto", scheduled_for: "2026-11-01", linked_at: "2026-11-01T03:00:00Z", name: "Streaming Contoh",
-      amount: 65_000, type: "expense", transaction_id: "kopi", transaction_date: "2026-11-01T02:00:00Z", account_name: "Dompet Digital" };
-    vi.mocked(api.get).mockImplementation(async (path: string) => (
-      path === "/recurring/pending" ? { rules: [], recent_auto_links: [linked] } : base(path)
-    ));
-    const user = userEvent.setup();
-    await kpis();
-    await user.click(await within(region(/Perlu tindakan/)).findByRole("button", { name: "Cek" }));
-    const dialog = await screen.findByRole("dialog", { name: /^Rencana jatuh tempo/ });
-    expect(dialog).toHaveAttribute("data-mode", "dialog");
-    expect(dialog).toHaveAttribute("aria-modal", "true");
-    expect(document.querySelector(".ws-drawer-slot")).not.toBeInTheDocument();
-  });
-
   it("says a row deleted elsewhere is gone", async () => {
     const user = userEvent.setup();
-    await kpis();
+    await beranda();
     const base = vi.mocked(api.get).getMockImplementation()!;
     const { ApiError } = await import("@/lib/api");
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === "/transactions/kopi") throw new ApiError(404, "Transaction not found");
       return base(path);
     });
-    const card = region(/Aktivitas terbaru/);
-    await user.click(await within(card).findByRole("button", { name: /^Kopi Pagi/ }));
+    await user.click(await within(region("Aktivitas terbaru")).findByRole("button", { name: /Kopi Pagi/ }));
     expect(await screen.findByText(/Transaksi ini sudah tidak ada/)).toBeInTheDocument();
+  });
+
+  it("titles movements in the direction the money moved, with each pocket's bank, and marks an unpaired leg", async () => {
+    const movement = { type: "expense", amount: 300_000, notes: "", category_name: "Internal Movement", category_system_key: "internal_movement", review_status: "reviewed", date: "2026-11-02T01:00:00Z" };
+    activityRows = [
+      { ...movement, id: "pair-out", account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago", movement_id: "p1",
+        movement_role: "outbound", partner_id: "pair-in", transfer_target_account_name: "ATM", transfer_target_account_parent_name: "BCA" },
+      { ...movement, id: "pair-in", type: "income", account_id: "atm", account_name: "ATM", account_parent_name: "BCA", movement_id: "p1",
+        movement_role: "inbound", partner_id: "pair-out", transfer_target_account_name: "Main Pocket", transfer_target_account_parent_name: "Jago" },
+      { ...movement, id: "unpaired", type: "income", amount: 120_000, account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago",
+        notes: "Pindah uang dari BCA", date: "2026-11-02T02:00:00Z" },
+    ];
+    await beranda();
+    const section = region("Aktivitas terbaru");
+    await waitFor(() => expect(rowTexts(section)).toHaveLength(2));
+    expect(within(section).getByRole("button", { name: /Jago · Main Pocket → BCA · ATM/ })).toBeInTheDocument();
+    const unpaired = within(section).getByRole("button", { name: /\? → Jago · Main Pocket/ });
+    expect(unpaired.querySelector(".r-meta.dt-only .c-warning")).toHaveTextContent("Pasangan belum ditemukan");
+    expect(unpaired.querySelector(".ph-only .c-warning")).toHaveTextContent("Pasangan belum ditemukan");
+  });
+
+  it("says when there is no activity", async () => {
+    activityRows = [];
+    await beranda();
+    expect(await within(region("Aktivitas terbaru")).findByText("Belum ada transaksi hari ini dan kemarin.")).toBeInTheDocument();
   });
 });
 
-describe("Beranda loading and failure", () => {
-  it("shows placeholders of the final layout while loading", async () => {
-    vi.mocked(api.get).mockImplementation(() => new Promise(() => {}));
-    renderBeranda();
-    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
+describe("Beranda context panel", () => {
+  it("shows Kekayaan bersih with aset and utang, credit owed included, as one link to Rekening & Kantong", async () => {
+    const base = previewSummary();
+    summary = { ...base, net_worth: { ...base.net_worth, total: 45_860_000, credit_owed: 470_000, dana_investasi: 1_200_000 } };
+    await beranda();
+    const net = within(panel()).getByRole("link", { name: /^Kekayaan bersih/ });
+    expect(net).toHaveAttribute("href", "/accounts");
+    expect(net.querySelector(".t-fig")).toHaveTextContent("Rp 45.860.000");
+    const assets = base.net_worth.liquid + 1_200_000 + base.net_worth.investment;
+    expect(net).toHaveTextContent(`aset Rp ${assets.toLocaleString("id-ID")} · utang Rp 2.870.000`);
+    expect(within(net).queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("says the figures could not be loaded, offers a retry, shows no Rp 0, and keeps the other cards", async () => {
+  it("keeps an unknown Ketahanan Dana unknown with its reason, without a number of months or a sentinel", async () => {
+    await beranda();
+    const dana = within(panel()).getByRole("link", { name: /^Ketahanan Dana/ });
+    await waitFor(() => expect(dana).toHaveTextContent("Belum bisa dihitung"));
+    expect(dana).toHaveTextContent("Belum diketahui: belum ada periode lengkap");
+    expect(dana.textContent).not.toMatch(/\d+ bulan|999/);
+    expect(dana).toHaveAttribute("href", "/goals");
+  });
+
+  it.each([
+    ["dana darurat", undefined],
+    ["saldo kas", "all_liquid"],
+  ])("states Ketahanan Dana in one line with %s and the target in months", async (word, basis) => {
+    overview = { kpis: { runway_status: "healthy", coverage_months: 6.1, runway_months: 6.1, runway_days: 183, emergency_fund_balance: 20_412_400,
+      monthly_primary_expense: 3_346_000, target_months: 6, target_amount: 19_963_800, emergency_balance_basis: basis, essential_cost: { method: "median" } } };
+    await beranda();
+    const dana = within(panel()).getByRole("link", { name: /^Ketahanan Dana/ });
+    await waitFor(() => expect(dana).toHaveTextContent("6,1 bulan biaya pokok"));
+    expect(dana).toHaveTextContent(`${word} Rp 20.412.400 · target 6 bulan`);
+    expect(dana).not.toHaveTextContent("Rp 19.963.800");
+    expect(dana.querySelector(".ws-bar, .prog")).toBeNull();
+  });
+
+  it("says when Ketahanan Dana cannot be loaded", async () => {
+    overview = new Error("boom");
+    await beranda();
+    expect(await within(panel()).findByText("Ketahanan Dana belum bisa dimuat.")).toBeInTheDocument();
+  });
+
+  it("lists the five Kakeibo buckets with ledger links, no total and no Tabungan row", async () => {
+    await beranda();
+    const rows = [...panel().querySelectorAll(".kk-row")];
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "KebutuhanRp 1.420.000", "KeinginanRp 610.000", "BudayaRp 245.000", "Tak TerdugaRp 89.500", "Belum diklasifikasiRp 0",
+    ]);
+    expect(within(panel()).getByRole("heading", { name: "Kakeibo siklus ini" })).toBeInTheDocument();
+    expect(within(panel()).getByRole("link", { name: "Analisis" })).toHaveAttribute("href", "/insights");
+    expect(within(panel()).getByRole("link", { name: "Belum diklasifikasi" })).toHaveAttribute("href", "/ledger?period=cycle&kakeibo=unclassified");
+    expect(panel()).not.toHaveTextContent(/Tabungan|Pengeluaran|Perlu dipilih di Tinjau/);
+  });
+
+  it("asks to choose a pillar in Tinjau when unclassified spending exists", async () => {
+    const base = previewSummary();
+    summary = { ...base, spending: { ...base.spending, lines: base.spending.lines.map((line) => (line.key === "unclassified" ? { ...line, amount: 40_000 } : line)) } };
+    await beranda();
+    const row = [...panel().querySelectorAll(".kk-row")][4] as HTMLElement;
+    expect(row).toHaveTextContent("Belum diklasifikasiRp 40.000Perlu dipilih di Tinjau");
+    expect(within(row).getByRole("link", { name: "Perlu dipilih di Tinjau" })).toHaveAttribute("href", "/review");
+    expect(within(row).getByRole("link", { name: "Belum diklasifikasi" })).toHaveAttribute("href", "/ledger?period=cycle&kakeibo=unclassified");
+  });
+});
+
+describe("Beranda composition, loading and failure", () => {
+  it("keeps the DOM in the reading order at every width: hero, Perlu tindakan, Aktivitas terbaru, then the panel", async () => {
+    const { hero } = await beranda();
+    const order = [hero, region("Perlu tindakan"), region("Aktivitas terbaru"), panel()];
+    order.slice(1).forEach((element, index) => {
+      expect(order[index].compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+    expect(document.querySelector(".cols > .stack")!.children).toHaveLength(3);
+  });
+
+  it("shows busy placeholders of the final layout without any amount while loading", async () => {
+    vi.mocked(api.get).mockImplementation(() => new Promise(() => {}));
+    renderBeranda();
+    const busy = document.querySelector('[aria-busy="true"]')!;
+    expect(busy).toHaveClass("cols");
+    expect(busy.querySelectorAll(".skel").length).toBeGreaterThan(10);
+    expect(busy.querySelector(".hero-skel .legend")).not.toBeNull();
+    expect(busy.querySelectorAll(".panel .panel-block")).toHaveLength(3);
+    expect(document.body).not.toHaveTextContent(/Rp/);
+    expect(document.querySelector(".animate-pulse")).toBeNull();
+  });
+
+  it("says the figures could not be loaded in the hero's place, shows no Rp 0, and keeps the blocks with their own data", async () => {
     summary = new Error("boom");
     const user = userEvent.setup();
     renderBeranda();
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Angka Beranda belum dapat dimuat.");
+    expect(alert).toHaveClass("error-box");
+    expect(alert).toHaveTextContent("Angka Beranda belum dapat dimuat");
+    expect(alert).toHaveTextContent("Saldo dan transaksi tetap aman; coba muat lagi.");
+    expect(await screen.findByRole("region", { name: "Perlu tindakan" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Aktivitas terbaru" })).toBeInTheDocument();
+    expect(within(panel()).getByRole("link", { name: /^Ketahanan Dana/ })).toBeInTheDocument();
+    expect(panel()).not.toHaveTextContent(/Kekayaan bersih|Kakeibo/);
+    expect(screen.queryByRole("region", { name: "Aman dipakai sampai gajian" })).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("Rp 0");
-    expect(screen.queryByRole("region", { name: /Ringkasan/ })).not.toBeInTheDocument();
-    expect(region(/Perlu tindakan/)).toBeInTheDocument();
-    expect(region(/Aktivitas terbaru/)).toBeInTheDocument();
+    expect((await axe(document.body)).violations).toHaveLength(0);
     summary = previewSummary();
     await user.click(within(alert).getByRole("button", { name: "Coba lagi" }));
-    expect(await screen.findByRole("region", { name: "Ringkasan siklus ini" })).toHaveTextContent("Rp 2.364.500");
+    expect(await screen.findByRole("region", { name: "Aman dipakai sampai gajian" })).toHaveTextContent("Rp 4.922.000");
   });
 
   it("has no axe violations in the normal state", async () => {
-    const { container } = renderBeranda();
-    await screen.findByRole("region", { name: "Ringkasan siklus ini" });
-    await waitFor(() => expect(within(region(/Aktivitas terbaru/)).getAllByRole("listitem").length).toBe(4));
+    const { container } = await beranda();
+    await waitFor(() => expect(rowTexts(region("Aktivitas terbaru"))).toHaveLength(3));
     expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  it("hides every Beranda figure behind Rp •••••• named Disembunyikan, also in the Rincian, with no axe violation", async () => {
+    display.hidden = true;
+    const { container, hero } = await beranda();
+    await waitFor(() => expect(rowTexts(region("Aktivitas terbaru"))).toHaveLength(3));
+    const figures = [...document.querySelectorAll(".t-hero, .t-fig, .t-amt")];
+    expect(figures.length).toBeGreaterThan(15);
+    for (const figure of figures) {
+      expect(figure.querySelector('[role="img"][aria-label="Disembunyikan"]') ?? figure.closest('[role="img"][aria-label="Disembunyikan"]') ?? figure).toHaveTextContent("Rp ••••••");
+    }
+    expect(within(hero).getAllByRole("img", { name: "Disembunyikan" }).length).toBe(5);
+    expect(within(hero).getByRole("img", { name: /^Uang siklus ini/ })).toHaveAccessibleName(/^Uang siklus ini dari Rp •••••• masuk: Pengeluaran 24%/);
+    for (const row of [...document.querySelectorAll(".row")]) expect(row.querySelector(".r-amt")?.textContent ?? "").not.toMatch(/\d/);
+    expect((await axe(container)).violations).toHaveLength(0);
+    const { dialog } = await openRincian(hero);
+    expect(within(dialog).getAllByRole("img", { name: "Disembunyikan" }).length).toBeGreaterThanOrEqual(6);
+    expect((await axe(document.body)).violations).toHaveLength(0);
   });
 });

@@ -73,7 +73,10 @@ export type IconName =
   | "trend"
   | "panel"
   | "more"
-  | "help";
+  | "help"
+  | "swap"
+  | "chevD"
+  | "alert";
 
 interface IconProps extends SVGProps<SVGSVGElement> {
   name: IconName | string;
@@ -130,7 +133,6 @@ const paths: Record<string, ReactNode> = {
   receipt: <><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" /><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" /><path d="M12 17.5v-11" /></>,
   "arrows-right-left": <><path d="m16 3 4 4-4 4" /><path d="M20 7H4" /><path d="m8 21-4-4 4-4" /><path d="M4 17h16" /></>,
   repeat: <><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></>,
-  calendar: <><rect width="18" height="18" x="3" y="4" rx="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /></>,
   clock: <><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>,
   shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
   "arrow-up-right": <><path d="M7 17 17 7" /><path d="M8 7h9v9" /></>,
@@ -141,7 +143,8 @@ const paths: Record<string, ReactNode> = {
 
 /**
  * The prototype's own 24-grid drawings (option-6 `js/core.js`), used by the shell: navigation, top bar, phone
- * header, tab bar and the shell's menus (apply-markas-shell D12). The app's older names are aliases.
+ * header, tab bar and the shell's menus (apply-markas-shell D12), and by the shared list rows and the Rincian
+ * (apply-markas-beranda D6). The app's older names are aliases.
  */
 const PROTOTYPE_PATHS: Record<string, string> = {
   home: "M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z",
@@ -166,6 +169,10 @@ const PROTOTYPE_PATHS: Record<string, string> = {
   logout: "M9 20H5V4h4M15.5 16.5 20 12l-4.5-4.5M20 12H9",
   panel: "M3 4h18v16H3zM9 4v16",
   trend: "M4 17l5-5 4 4 7-8",
+  chevD: "M6 9l6 6 6-6",
+  swap: "M7 7h13l-3.5-3.5M17 17H4l3.5 3.5",
+  alert: "M12 3.5 2.5 20.5h19zM12 10v4.5M12 17.5v.5",
+  calendar: "M3.5 5h17v15.5h-17zM3.5 10h17M8 3v4M16 3v4",
 };
 
 const PROTOTYPE_ALIASES: Record<string, string> = {

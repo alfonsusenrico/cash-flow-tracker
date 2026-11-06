@@ -5,33 +5,6 @@ Present financial summaries, cash-flow trends, budget comparisons and account al
 
 ## Requirements
 
-### Requirement: Executive KPI Summary Ribbon
-Beranda SHALL display a KPI strip of four explainable figures for the Beranda period (`beranda-cycle-summary`): "Aman dipakai hari ini", "Keluar", "Masuk" and "Kekayaan bersih". Each SHALL carry its label, an icon tile and at most one comparison chip.
-
-#### Scenario: Required behavior and constraints
-- **WHEN** the dashboard displays its financial summary
-- **THEN** the following required behavior and constraints hold:
-
-  Beranda SHALL display a KPI strip containing:
-  1. `Aman dipakai hari ini`: the safe-to-spend figure, or its unavailable state in words, with the days left to the expected salary date as its caption. It has no comparison chip, because yesterday's figure cannot be rebuilt exactly once plans have been linked since.
-  2. `Keluar`: the Beranda keluar (Kakeibo total); its chip compares with the same number of elapsed days of the previous period from the fair period comparison, as a signed amount, and is omitted below 3 compared days or without previous data.
-  3. `Masuk`: reportable income of the period, excluding movements, investments and reimbursements; its chip follows the same fair-comparison rule.
-  4. `Kekayaan bersih`: total assets less active debts; its explanation lists liquid funds, investments and each active debt, counting parent and child accounts once. It has no comparison chip until a historical valuation exists.
-  5. Liquid balance, investment balance and total balance SHALL keep being returned and labelled separately by the overview and net-worth APIs.
-  6. Ketahanan Dana SHALL be shown in its own Beranda card with the configured target multiplier.
-
-#### Scenario: Separating liquid and investment assets
-- **WHEN** a user has 10,000,000 IDR in bank accounts, 25,000,000 IDR in investment instruments and a 2,400,000 IDR active debt
-- **THEN** "Kekayaan bersih" shows 32,600,000 IDR, and its explanation lists 10,000,000 IDR liquid and 25,000,000 IDR investments separately and subtracts the debt
-
-#### Scenario: Displaying executive KPIs
-- **WHEN** the user views Beranda
-- **THEN** keluar and masuk exclude internal movements between the owner's own non-goal, non-investment accounts, every chip is a signed rupiah amount with its comparison named, and no chip shows a percentage
-
-#### Scenario: Comparison too short
-- **WHEN** the current period has run for 2 days
-- **THEN** the Keluar and Masuk chips are omitted and their explanations say that the comparison appears after 3 days
-
 ### Requirement: Inline Category Budget Editing
 The `/insights` Spending Analytics page SHALL allow users to set or update any category's monthly spending limit directly from the Category Variance table:
 1. Clicking on a category's budget cell or edit button SHALL open an inline popover or modal.

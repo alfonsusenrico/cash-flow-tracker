@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { UNPAIRED_LABEL, movementDirection, movementRoute, routeIncomplete, rowCategory, rowTitle } from "./activity";
+import {
+  ACTIVITY_LIMIT, UNPAIRED_LABEL, activityMeta, activityPhoneStatus, groupByDay, movementDirection, movementRoute, recentActivity, routeIncomplete,
+  rowCategory, rowStatus, rowTime, rowTitle,
+} from "./activity";
 import type { ActivityRow } from "./types";
 
 // Synthetic accounts: "Main Pocket" and "Tabungan" are pockets of Jago; "ATM" is a pocket of BCA; Gopay has no parent.
@@ -98,5 +101,58 @@ describe("rowCategory", () => {
     expect(rowCategory(leg({}))).toBe("—");
     expect(rowCategory({ ...spend, investment_topup_id: "topup", category_name: "Transfer", category_system_key: "internal_movement" })).toBe("—");
     expect(rowCategory({ ...spend, category_name: null, review_status: "needs_review" })).toBe("—");
+  });
+});
+
+describe("Beranda's recent activity", () => {
+  const spend = (id: string, date: string, extra: Partial<ActivityRow> = {}) =>
+    leg({ id, date, category_name: "Makan", category_system_key: null, merchant: "Kedai Awan", kakeibo_type: "need", review_status: "reviewed", ...extra });
+
+  it("groups rows by their Asia/Jakarta day across midnight, keeping the order", () => {
+    // 16.59 UTC is 23.59 in Jakarta, 17.01 UTC is 00.01 the next day.
+    const rows = [spend("after", "2026-11-04T17:01:00Z"), spend("before", "2026-11-04T16:59:00Z"), spend("earlier", "2026-11-04T01:00:00Z")];
+    expect(groupByDay(rows).map((group) => [group.day, group.rows.map((row) => row.id)])).toEqual([
+      ["2026-11-05", ["after"]],
+      ["2026-11-04", ["before", "earlier"]],
+    ]);
+    expect(rowTime(rows[0])).toBe("00.01");
+    expect(rowTime(rows[1])).toBe("23.59");
+  });
+
+  it("leaves out rows waiting for an answer before keeping the newest eight", () => {
+    const rows = [
+      spend("waiting", "2026-11-05T05:00:00Z", { review_status: "needs_review" }),
+      ...Array.from({ length: 9 }, (_, index) => spend(`r${index}`, `2026-11-05T0${4 - Math.min(index, 4)}:00:00Z`)),
+    ];
+    const kept = recentActivity(rows);
+    expect(kept).toHaveLength(ACTIVITY_LIMIT);
+    expect(kept.map((row) => row.id)).toEqual(["r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7"]);
+  });
+
+  it("words the meta and the status of each kind", () => {
+    const expense = spend("e", "2026-11-05T05:00:00Z");
+    expect(activityMeta(expense)).toEqual({ text: "Jago · Main Pocket" });
+    expect(rowStatus(expense).text).toBe("Kebutuhan");
+    expect(activityPhoneStatus(expense)).toEqual({ text: "Kebutuhan" });
+
+    const income = leg({ type: "income", category_name: "Gaji", category_system_key: null, account_name: "Utama", account_parent_name: "BCA", review_status: "reviewed" });
+    expect(activityMeta(income)).toEqual({ text: "BCA · Utama" });
+    expect(rowStatus(income).text).toBe("Uang masuk");
+    expect(activityPhoneStatus(income)).toEqual({ text: "Gaji" });
+
+    const movement = { ...outboundLeg, notes: "Isi GoPay" };
+    expect(activityMeta(movement)).toEqual({ text: "Isi GoPay" });
+    expect(rowStatus(movement).text).toBe("Tidak dihitung");
+    expect(activityPhoneStatus(movement)).toEqual({ text: "Pindah saldo" });
+
+    const unpaired = leg({ type: "income", notes: "Pindah uang dari BCA" });
+    expect(activityMeta(unpaired)).toEqual({ text: UNPAIRED_LABEL, warning: true });
+    expect(activityPhoneStatus(unpaired)).toEqual({ text: UNPAIRED_LABEL, warning: true });
+
+    const topup = leg({ investment_topup_id: "t1", account_name: "RDN", account_parent_name: "Stockbit", notes: "Tambah reksa dana" });
+    expect(rowTitle(topup)).toBe("Top up Investasi");
+    expect(activityMeta(topup)).toEqual({ text: "Stockbit · RDN" });
+    expect(rowStatus(topup)).toMatchObject({ text: "Tabungan", bucket: "saving", color: "var(--k-saving)" });
+    expect(activityPhoneStatus(topup)).toEqual({ text: "Tabungan" });
   });
 });

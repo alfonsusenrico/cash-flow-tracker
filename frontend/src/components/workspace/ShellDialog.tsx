@@ -5,7 +5,7 @@ import { Icon } from "@/components/ui/Icon";
 import { focusableIn, syncDialog, useEscapeLayer, useFocusTrap, useScrollLock } from "./layers";
 
 /**
- * A shell dialog (Lainnya, Bantuan & pintasan): the prototype's `.dialog` at `--dw`, a bottom sheet below 768 px.
+ * A shell dialog (Lainnya, Bantuan & pintasan, Rincian): the prototype's `.dialog` at `--dw`, a bottom sheet below 768 px.
  * Modal through the native <dialog>; Tab is trapped, Esc and the close button call `onClose`, and the caller
  * returns focus to whatever opened it: the dialog is closed first, so the rest of the page is no longer inert.
  */
@@ -16,6 +16,8 @@ export function ShellDialog({
   width,
   closeLabel,
   className,
+  meta,
+  footer,
   children,
 }: {
   open: boolean;
@@ -24,6 +26,10 @@ export function ShellDialog({
   width: number;
   closeLabel: string;
   className?: string;
+  /** One muted line under the title, such as "Rincian hitungan". */
+  meta?: string;
+  /** The footer row with its 1 px top line; actions sit at the right. */
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -67,6 +73,7 @@ export function ShellDialog({
               <h2 id={titleId} className="t-dtitle">
                 {title}
               </h2>
+              {meta && <p className="t-meta">{meta}</p>}
             </div>
             <button type="button" className="ws-icon-btn" aria-label={closeLabel} onClick={close}>
               <Icon name="x" className="h-4 w-4" />
@@ -75,6 +82,7 @@ export function ShellDialog({
           <div ref={bodyRef} className="dlg-b">
             {children}
           </div>
+          {footer && <div className="dlg-f">{footer}</div>}
         </>
       )}
     </dialog>
