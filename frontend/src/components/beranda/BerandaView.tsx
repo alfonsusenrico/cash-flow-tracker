@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
-import { TransactionDrawer } from "@/components/transactions/TransactionDrawer";
+import { TransactionDialog } from "@/components/transactions/TransactionDialog";
 import { useTransactionUndo } from "@/components/transactions/useTransactionUndo";
 import { Icon } from "@/components/ui/Icon";
 import { usePageHeader } from "@/components/workspace/context";
@@ -22,7 +22,8 @@ import { ActivitySection } from "./ActivitySection";
 import { BerandaHero } from "./BerandaHero";
 import { ContextPanel, type Overview } from "./ContextPanel";
 import { TodoSection, todoItems } from "./TodoSection";
-import { jakartaDay, recentActivity } from "./activity";
+import { jakartaDay } from "@/components/transactions/rows";
+import { recentActivity } from "./activity";
 import type { ActivityRow, CycleSummary } from "./types";
 import { useWords } from "./words";
 
@@ -184,7 +185,6 @@ export default function BerandaView() {
     plans,
     autoLinks: pendingQuery.data?.recent_auto_links ?? [],
     today,
-    bal,
     words,
     onOpenPlans: () => setPlansOpen(true),
   });
@@ -220,7 +220,7 @@ export default function BerandaView() {
         {loading ? <PanelSkeleton /> : <ContextPanel summary={summary} overview={overviewQuery.data} overviewError={overviewQuery.isError} bal={bal} />}
       </div>
 
-      <TransactionDrawer transactionId={selectedTx?.id ?? null} onClose={() => setSelectedTx(null)} record={record} onDeleted={(row) => setDeletedId(row.id)} />
+      <TransactionDialog transactionId={selectedTx?.id ?? null} onClose={() => setSelectedTx(null)} record={record} onDeleted={(row) => setDeletedId(row.id)} />
       <Drawer open={plansOpen} onClose={() => setPlansOpen(false)} title={t("shell.duePlans.title")} subtitle={t("shell.duePlans.subtitle")}>
         <PendingScheduledBanner onOpenRulesManager={() => setRulesOpen(true)} />
         {!(pendingQuery.data?.rules ?? []).length && !(pendingQuery.data?.recent_auto_links ?? []).length && (

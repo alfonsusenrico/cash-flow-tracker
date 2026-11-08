@@ -11,6 +11,7 @@ import { untranslatedPageTitle } from "./untranslatedPages";
 /** The fixed title and subtitle of a page its phase translated, from the catalogue (apply-markas-tinjau D2). */
 function translatedPageTitle(pathname: string, t: Translate): PageHeader | null {
   if (isActivePath(pathname, "/review")) return { title: t("nav.review"), subtitle: t("review.page.subtitle") };
+  if (isActivePath(pathname, "/ledger")) return { title: t("nav.transactions"), subtitle: t("transactions.page.subtitle") };
   return null;
 }
 

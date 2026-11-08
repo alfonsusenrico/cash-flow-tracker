@@ -508,14 +508,16 @@ describe("Aktivitas terbaru", () => {
     expect(section.querySelector(".sec-h .aside")).toHaveTextContent("hari ini dan kemarin · 3");
     // The waiting QRIS row is in Perlu tindakan, not here.
     expect(section).not.toHaveTextContent("QRIS");
-    const topup = within(section).getByRole("button", { name: /Top up Investasi/ });
+    const topup = within(section).getByRole("button", { name: /Top up Reksa Dana A/ });
     expect(topup.querySelector(".r-amt .t-amt")).toHaveClass("c-invest");
     expect(topup.querySelector(".r-amt")).toHaveTextContent(/^Rp 250\.000$/);
-    expect(topup.querySelector(".r-pillar")).toHaveTextContent("Tabungan");
+    // A top-up's pillar column names its saving direction from the server; this row carries none (owner feedback 3).
+    expect(topup.querySelector(".r-pillar")).toHaveTextContent("—");
     expect(topup.querySelector(".ws-ava")).toBeNull();
     const movement = within(section).getByRole("button", { name: /Bank Utama → Dompet Digital/ });
     expect(movement.querySelector(".r-amt .t-amt")).toHaveClass("c-transfer");
-    expect(movement.querySelector(".r-pillar")).toHaveTextContent("Tidak dihitung");
+    expect(movement.querySelector(".r-pillar")).toHaveTextContent("—");
+    expect(section).not.toHaveTextContent("Tidak dihitung");
     expect(movement.querySelector(".ph-only")).toHaveTextContent("09.12 · Pindah saldo");
     const kopi = within(section).getByRole("button", { name: /Kopi Pagi/ });
     expect(kopi.querySelector(".r-time")).toHaveTextContent("07.45");
@@ -524,7 +526,8 @@ describe("Aktivitas terbaru", () => {
     expect(kopi.querySelector(".r-pillar")).toHaveTextContent("Keinginan");
     const amount = kopi.querySelector(".r-amt .t-amt")!;
     expect(amount).toHaveTextContent("−Rp 32.000");
-    expect(amount.className).toBe("t-amt");
+    // Spending is red on Beranda too (owner feedback 1, D29).
+    expect(amount.className).toBe("t-amt c-expense");
     expect(within(section).getByRole("link", { name: "Semua transaksi" })).toHaveAttribute("href", "/ledger");
   });
 
@@ -584,7 +587,8 @@ describe("Aktivitas terbaru", () => {
     const section = region("Aktivitas terbaru");
     await waitFor(() => expect(rowTexts(section)).toHaveLength(2));
     expect(within(section).getByRole("button", { name: /Jago · Main Pocket → BCA · ATM/ })).toBeInTheDocument();
-    const unpaired = within(section).getByRole("button", { name: /\? → Jago · Main Pocket/ });
+    // A transfer is titled by its note, and the missing side is said in its meta (owner feedback 2).
+    const unpaired = within(section).getByRole("button", { name: /Pindah uang dari BCA/ });
     expect(unpaired.querySelector(".r-meta.dt-only .c-warning")).toHaveTextContent("Pasangan belum ditemukan");
     expect(unpaired.querySelector(".ph-only .c-warning")).toHaveTextContent("Pasangan belum ditemukan");
   });

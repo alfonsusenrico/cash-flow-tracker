@@ -95,7 +95,8 @@ const textPairs: [string, string[]][] = [
   ["--accent-ink", ["--accent", "--accent-hover", "--accent-pressed"]],
   ["--accent-fg", SURFACES],
   ["--in-fg", [...SURFACES, "--in-bg"]],
-  ["--out-fg", [...SURFACES, "--out-bg"]],
+  // Expense amounts are red wherever they carry "−", on the canvas too (apply-markas-transaksi D29).
+  ["--out-fg", ["--canvas", ...SURFACES, "--out-bg"]],
   ["--tr-fg", [...SURFACES, "--tr-bg"]],
   ["--inv-fg", [...SURFACES, "--inv-bg"]],
   ["--warn-fg", [...SURFACES, "--warn-bg"]],
@@ -385,6 +386,14 @@ describe("design tokens", () => {
       }
     });
 
+    it("paints expense amounts with --out-fg at 4.5:1 on the canvas, every surface and the dialog (D29)", () => {
+      for (const background of ["--canvas", ...SURFACES]) {
+        expect(contrast(painted(theme, "--out-fg"), painted(theme, background)), `--out-fg on ${background} in ${selector}`).toBeGreaterThanOrEqual(4.5);
+      }
+      // A lighter red would fail: the check is not vacuous.
+      expect(contrast(hex("#FF8A95"), painted(theme, "--surface-2")) >= 4.5 && contrast(hex("#B8142D"), painted(theme, "--surface-2")) >= 4.5).toBe(false);
+    });
+
     it.each(markPairs)("keeps the mark %s at 3:1 on its backgrounds", (mark, backgrounds) => {
       for (const background of backgrounds) {
         expect(contrast(painted(theme, mark), painted(theme, background)), `${mark} on ${background} in ${selector}`).toBeGreaterThanOrEqual(3);
@@ -430,5 +439,13 @@ describe("design tokens", () => {
       expect(blue.filter((name) => !allowed(name))).toEqual([]);
       expect(Object.keys(theme).filter((name) => name.startsWith("--info"))).toEqual([]);
     });
+  });
+});
+
+describe("the expense ink (apply-markas-transaksi D29)", () => {
+  it("resolves .c-expense to --out-fg, the class RowAmount gives every spending amount", () => {
+    expect(globals).toMatch(/\.c-expense\s*\{\s*color:\s*var\(--out-fg\);?\s*\}/);
+    const rows = readFileSync(path.join(srcDir, "components/transactions/rows.tsx"), "utf8");
+    expect(rows).toMatch(/expense:\s*"t-amt c-expense"/);
   });
 });
