@@ -7,7 +7,6 @@ when deterministic checks pass (understand-capture-time D5), and it can never to
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from pathlib import Path
 from zoneinfo import ZoneInfo
 from typing import Literal
 from uuid import UUID
@@ -15,15 +14,15 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.kakeibo import Pillar
+from app.services.prompt_language import CAPTURE_NORMALIZATION, INDONESIAN_VERSIONS
+from app.services.prompt_language import PLACEHOLDER_DESCRIPTIONS as PLACEHOLDERS_BY_LANGUAGE
 
 
-CAPTURE_PROMPT_VERSION = "capture-normalization-2"
-CAPTURE_PROMPT_PATH = Path(__file__).with_name("prompts") / "capture_normalization.md"
+CAPTURE_PROMPT_VERSION = INDONESIAN_VERSIONS[CAPTURE_NORMALIZATION]
 # Upper bound of the serialised capture input; history, then memory, are dropped to fit.
 CAPTURE_CONTEXT_BYTE_LIMIT = 30000
-PLACEHOLDER_DESCRIPTIONS = frozenset({
-    "pembayaran", "belanja", "transaksi", "pengeluaran", "pemasukan", "transfer", "lainnya",
-})
+# Either language's placeholder is dropped whatever language the model wrote in: "Payment" like "Pembayaran".
+PLACEHOLDER_DESCRIPTIONS = PLACEHOLDERS_BY_LANGUAGE["id"] | PLACEHOLDERS_BY_LANGUAGE["en"]
 # Without an explicit date, a model time older than this is not believed.
 MODEL_TIME_MAX_AGE = timedelta(days=31)
 
@@ -53,10 +52,6 @@ class CaptureNormalization(BaseModel):
 
 class InvalidCaptureNormalization(ValueError):
     pass
-
-
-def capture_prompt() -> str:
-    return CAPTURE_PROMPT_PATH.read_text(encoding="utf-8")
 
 
 def validate_capture_normalization(result: CaptureNormalization, context: dict) -> dict:

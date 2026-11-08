@@ -214,7 +214,7 @@ def make_owner(client):
         password = "synthetic-pass-1"
         with db_conn() as conn:
             user_id = str(conn.execute(
-                "INSERT INTO users (username, password_hash, invite_code) VALUES (%s, %s, 'TEST') RETURNING id",
+                "INSERT INTO users (username, password_hash, invite_code, language) VALUES (%s, %s, 'TEST', 'id') RETURNING id",
                 (username, bcrypt.hash(password)),
             ).fetchone()["id"])
             conn.commit()

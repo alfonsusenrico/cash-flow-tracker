@@ -3,10 +3,12 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
+from app.i18n import language_for_user
 from app.services.auth import get_current_user, get_session_user
 from app.services.kakeibo import Pillar
 
@@ -123,7 +125,7 @@ def ingest_notifications(
 def dry_run_guard(request: Request):
     from app.services.notification_dry_run import dry_run_available
     if not dry_run_available() or not getattr(request.app.state, "notification_provider", None):
-        raise HTTPException(status_code=404, detail="Not found")
+        raise api_error(404, ErrorCode.NOT_FOUND)
     return request.app.state.notification_provider
 
 
@@ -131,7 +133,10 @@ def dry_run_guard(request: Request):
 async def dry_run_notification(payload: DryRunNotificationIn, request: Request, current_user: dict = Depends(get_current_user)):
     from app.services.notification_dry_run import run_dry_run
     provider = dry_run_guard(request)
-    return {"ok": True, "result": await run_dry_run(provider, str(current_user["id"]), payload.event.model_dump())}
+    result = await run_dry_run(
+        provider, str(current_user["id"]), payload.event.model_dump(), account_language=language_for_user(current_user),
+    )
+    return {"ok": True, "result": result}
 
 
 @router.post("/notifications/{event_id}/dry-run")
@@ -141,8 +146,9 @@ async def dry_run_stored_notification(event_id: UUID, request: Request, current_
     provider = dry_run_guard(request)
     event = await database_operation(stored_event, str(event_id), str(current_user["id"]))
     if not event:
-        raise HTTPException(status_code=404, detail="Notification event not found")
-    return {"ok": True, "result": await run_dry_run(provider, str(current_user["id"]), event)}
+        raise api_error(404, ErrorCode.EVENT_NOT_FOUND)
+    result = await run_dry_run(provider, str(current_user["id"]), event, account_language=language_for_user(current_user))
+    return {"ok": True, "result": result}
 
 
 @router.get("/notifications/{event_id}/result")
@@ -154,7 +160,7 @@ def notification_result(event_id: UUID, current_user: dict = Depends(get_current
             cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (current_user["id"], str(event_id)))
             event = cur.fetchone()
             if not event:
-                raise HTTPException(status_code=404, detail="Notification event not found")
+                raise api_error(404, ErrorCode.EVENT_NOT_FOUND)
             result = compact_result(cur, event)
         conn.commit()
     return {"ok": True, "result": result}
@@ -171,15 +177,15 @@ def retry_notification(event_id: UUID, request: Request, current_user: dict = De
             cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (current_user["id"], str(event_id)))
             event = cur.fetchone()
             if not event:
-                raise HTTPException(status_code=404, detail="Notification event not found")
+                raise api_error(404, ErrorCode.EVENT_NOT_FOUND)
             result = notification_processing.compact_result(cur, event)
             if result["status"] not in {"needs_review", "failed", "needs_confirmation"}:
-                raise HTTPException(status_code=409, detail="Only unresolved notifications can be retried")
+                raise api_error(409, ErrorCode.EVENT_NOT_RETRYABLE)
             mode = event["processing_mode"]
             if mode not in {"ai", "deterministic"}:
                 mode = "deterministic" if event["package_name"].lower() == "com.stockbit.android" else "ai"
             if mode == "ai" and configuration_error(notification_processing.settings):
-                raise HTTPException(status_code=409, detail="AI processing unavailable")
+                raise api_error(409, ErrorCode.AI_UNAVAILABLE)
             # An event captured by an older app build can use features of the build that retries it.
             companion = newer_companion_version(event.get("source_version"), request.headers.get("X-Companion-Version"))
             cur.execute(
@@ -257,7 +263,7 @@ def get_source_pockets(event_id: UUID, current_user: dict = Depends(get_current_
         event = conn.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s",
                              (current_user["id"], event_id)).fetchone()
         if not event:
-            raise HTTPException(status_code=404, detail="Notification event not found")
+            raise api_error(404, ErrorCode.EVENT_NOT_FOUND)
         with conn.cursor() as cur:
             result = source_options(cur, event)
     return {"ok": True, "result": result}
@@ -305,7 +311,7 @@ def update_sender_alias(alias_id: UUID, payload: SenderAliasUpdate, current_user
             (name, current_user["id"], str(alias_id)),
         ).fetchone()
         if not updated:
-            raise HTTPException(status_code=404, detail="Sender alias not found")
+            raise api_error(404, ErrorCode.SENDER_ALIAS_NOT_FOUND)
         conn.commit()
     return {"ok": True}
 
@@ -319,7 +325,7 @@ def delete_sender_alias(alias_id: UUID, current_user: dict = Depends(get_current
             (current_user["id"], str(alias_id)),
         ).fetchone()
         if not deleted:
-            raise HTTPException(status_code=404, detail="Sender alias not found")
+            raise api_error(404, ErrorCode.SENDER_ALIAS_NOT_FOUND)
         conn.commit()
     return {"ok": True}
 
@@ -357,7 +363,7 @@ def delete_notification_alias(alias_id: UUID, current_user: dict = Depends(get_c
             deleted = cur.fetchone()
         conn.commit()
     if not deleted:
-        raise HTTPException(status_code=404, detail="Alias not found")
+        raise api_error(404, ErrorCode.ALIAS_NOT_FOUND)
     return {"ok": True}
 
 
@@ -614,7 +620,7 @@ def update_notification_label(
             )
             updated = cur.fetchone()
             if not updated:
-                raise HTTPException(status_code=404, detail="Notification event not found")
+                raise api_error(404, ErrorCode.EVENT_NOT_FOUND)
         conn.commit()
 
     return {"ok": True, "event_id": str(event_id)}

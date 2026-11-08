@@ -14,6 +14,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from app.errors import ErrorCode, api_error
 from app.services.notification_resolution import INSTITUTION_LABELS
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ CSV_COLUMNS = (
 
 
 def not_found() -> HTTPException:
-    return HTTPException(status_code=404, detail={"code": "test_session_not_found"})
+    return api_error(404, ErrorCode.TEST_SESSION_NOT_FOUND)
 
 
 def _now() -> datetime:
@@ -118,7 +119,7 @@ def start_session(cur, user_id: str, duration_minutes: int) -> dict[str, Any]:
     close_expired(cur, user_id, now)
     cur.execute("SELECT 1 FROM notification_test_sessions WHERE user_id = %s AND ended_at IS NULL", (user_id,))
     if cur.fetchone():
-        raise HTTPException(status_code=409, detail={"code": "test_session_open"})
+        raise api_error(409, ErrorCode.TEST_SESSION_OPEN)
     cur.execute(
         """INSERT INTO notification_test_sessions (user_id, started_at, planned_end_at)
            VALUES (%s, %s, %s) RETURNING id""",

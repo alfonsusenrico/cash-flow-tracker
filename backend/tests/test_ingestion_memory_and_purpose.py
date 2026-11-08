@@ -540,6 +540,39 @@ def test_answer_with_text_uses_normaliser(client, owner, monkeypatch):
     assert event_row(event_id)["interpretation"]["purpose_answer"]["normalizer"] == "ok"
 
 
+@pytest.mark.parametrize("enabled,language,version,outcome", [
+    (True, "en", "purpose-normalization-1-en", "invalid_normalization"),
+    (False, "en", "purpose-normalization-1", "ok"),
+    (True, "id", "purpose-normalization-1", "ok"),
+])
+def test_normaliser_uses_the_accounts_rendering_and_refuses_an_english_placeholder(
+    client, owner, monkeypatch, enabled, language, version, outcome,
+):
+    from dataclasses import replace
+    from app.core import config
+    from app.db.pool import db_conn
+    from app.main import app
+
+    event_id, question = open_question(client, owner)
+    monkeypatch.setattr(config, "settings", replace(config.settings, llm_english_output_enabled=enabled))
+    with db_conn() as conn:
+        conn.execute("UPDATE users SET language = %s WHERE id = %s", (language, owner["user_id"]))
+        conn.commit()
+    provider = AsyncMock()
+    provider.normalize_purpose.return_value = normalization(
+        merchant=None, description="Payment", category_id=owner["olahraga"], kakeibo="culture",
+        offset_category_id=None, confidence=0.88)
+    enable_ai(monkeypatch)
+    monkeypatch.setattr(app.state, "notification_provider", provider)
+    response = answer(client, event_id, {"question_id": question["question_id"], "reply_id": str(uuid4()),
+                                         "text": "sewa lapangan"})
+    assert response.status_code == 200, response.text
+    assert provider.normalize_purpose.await_args.kwargs["prompt"].version == version
+    assert provider.normalize_purpose.await_args.args[0]["answer"] == "sewa lapangan"
+    stored = event_row(event_id)["interpretation"]["purpose_answer"]
+    assert (stored["normalizer"], stored["normalizer_prompt_version"]) == (outcome, version)
+
+
 @pytest.mark.parametrize("failure", ["provider", "invalid_reference", "ai_disabled"])
 def test_normaliser_failure_keeps_text_and_flags_row(client, owner, monkeypatch, failure):
     from app.main import app

@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from app.i18n import t
 from app.routers.review import review_reasons
 from app.services.kakeibo import pillar_bucket_sql
 from app.services.monthly_report import ATTENTION_SQL, OPEN_QUESTION_JOIN_SQL, REVIEWABLE_ROW_SQL
@@ -70,7 +71,7 @@ def fetch_waiting_rows(cur, user_id: str, start: datetime, end: datetime) -> lis
     return rows
 
 
-def waiting_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def waiting_summary(rows: list[dict[str, Any]], language: str) -> dict[str, Any]:
     """Beranda's "waiting" figure: the rows by section and whether Keluar already holds each one."""
     lines = []
     for row in rows:
@@ -79,7 +80,7 @@ def waiting_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         lines.append({
             "section": row["section"],
             "transaction_id": str(row["id"]),
-            "label": described or "Tanpa keterangan",
+            "label": described or t(language, "labels.fallback.undescribed"),
             # User data as stored, or the fixed fallback the web renders from `label_key` (add-language-system D7).
             "label_source": "user" if described else "system",
             "label_key": None if described else "undescribed",

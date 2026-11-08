@@ -47,7 +47,7 @@ def sanitize_text(value: str | None, identity: str | list[str] | None = None) ->
 
 def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: int = 20) -> dict:
     history_limit = max(0, min(50, history_limit))
-    cur.execute("SELECT name, name_aliases FROM users WHERE id = %s", (user_id,))
+    cur.execute("SELECT name, name_aliases, language FROM users WHERE id = %s", (user_id,))
     profile = cur.fetchone() or {}
     identity = owner_aliases(profile)
     cur.execute(
@@ -148,6 +148,9 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
         str(row["id"]): row["system_key"] for row in categories[:CATEGORY_LIMIT] if row["system_key"]
     }
     context["_habit"] = evaluate_habit(cur, user_id, facts, context)
+    # The language generated notes are written in, once, at creation (localize-server-text D6). An unknown
+    # owner has no row and gets an empty context, so nothing is composed for it.
+    context["_language"] = profile.get("language")
     return context
 
 

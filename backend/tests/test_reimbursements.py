@@ -22,7 +22,7 @@ def owner(client):
         with conn.cursor() as cur:
             for uid in (user_id, stranger_id):
                 cur.execute(
-                    "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Dina Contoh', 'synthetic-hash', 'TEST')",
+                    "INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Dina Contoh', 'synthetic-hash', 'TEST', 'id')",
                     (uid, f"reimburse_{uuid4().hex}"),
                 )
             cur.execute(
