@@ -107,7 +107,7 @@ describe("Meter and ChangeFigure", () => {
   });
 });
 
-const DAYS = Array.from({ length: 14 }, (_, index) => ({ date: `2026-11-${String(index + 1).padStart(2, "0")}`, expense: index === 4 ? 527_000 : index === 0 ? 40_000 : 20_000 }));
+const DAYS = Array.from({ length: 14 }, (_, index) => ({ date: `2026-11-${String(index + 1).padStart(2, "0")}`, amount: index === 4 ? 527_000 : index === 0 ? 40_000 : 20_000 }));
 
 describe("Pengeluaran harian", () => {
   it("draws the highest day in the expense mark, hatches today and names both in the legend", async () => {
@@ -202,7 +202,7 @@ describe("Pengeluaran harian", () => {
 
 function day(date: string, overrides: Partial<CalendarDay> = {}): CalendarDay {
   return {
-    date, spend: 0, spend_count: 0, heat: 0, income_total: 0, income_count: 0, movement_total: 0, movement_count: 0,
+    date, spend: 0, spending: 0, spending_heat: 0, spend_count: 0, heat: 0, income_total: 0, income_count: 0, movement_total: 0, movement_count: 0,
     topup_total: 0, topup_count: 0, waiting_count: 0, waiting_amount: 0, waiting: [], plans: [], ...overrides,
   };
 }
@@ -211,20 +211,22 @@ function calendarFixture(): CalendarResponse {
   const days: CalendarDay[] = [];
   for (let index = 0; index < 30; index++) days.push(day(`2026-11-${String(index + 1).padStart(2, "0")}`));
   days[1] = day("2026-11-02", {
-    spend: 109_000, spend_count: 3, heat: 2, waiting_count: 1, waiting_amount: 45_000, movement_count: 1, movement_total: 500_000,
+    spend: 409_000, spending: 109_000, spending_heat: 2, spend_count: 3, heat: 4, waiting_count: 1, waiting_amount: 45_000, movement_count: 1, movement_total: 500_000,
     waiting: [{ transaction_id: "tx-q", section: "questions", label: "QRIS Contoh", account_name: "Dompet Digital", type: "expense", amount: 45_000 }],
   });
-  days[2] = day("2026-11-03", { spend: 1_303_500, spend_count: 1, heat: 5, income_count: 1, income_total: 9_000_000 });
+  days[2] = day("2026-11-03", { spend: 1_303_500, spending: 1_303_500, spending_heat: 5, spend_count: 1, heat: 5, income_count: 1, income_total: 9_000_000 });
   days[4] = day("2026-11-05", { plans: [{ rule_id: "r1", label: "Internet Rumah", amount: 350_000, status: "due" }] });
   return {
     window: { start: "2026-11-01", end: "2026-11-30", label: "November 2026", basis: "month", today: "2026-11-03", day_index: 3, days_total: 30, is_current: true, open: false },
     expected_salary: { date: null, available: false, status: "unknown", reason: "no_cycle" },
-    totals: { spend: 1_412_500, gross_spend: 1_412_500, offset_applied: 0 },
+    // Belanja carries a Rp 300.000 saving-pillar expense on 2 November; Kalender shows Pengeluaran (D31).
+    totals: { spend: 1_712_500, gross_spend: 1_712_500, offset_applied: 0, spending: 1_412_500 },
     days,
     upcoming: [{ date: "2026-11-05", rule_id: "r1", label: "Internet Rumah", amount: 350_000, status: "due" }],
     upcoming_total: 350_000,
     upcoming_basis: "window_end",
-    heat_thresholds: [50_000, 80_000, 100_000, 150_000],
+    heat_thresholds: [60_000, 90_000, 400_000, 900_000],
+    spending_heat_thresholds: [50_000, 80_000, 100_000, 150_000],
   };
 }
 
@@ -247,6 +249,8 @@ describe("Kalender", () => {
   it("names each cell, writes compact amounts, markers and the heat strip from the server's level", async () => {
     const { container } = wrap(<KalenderTab basis="month" offset={0} day="2026-11-02" onSelectDay={vi.fn()} onWindowLabel={() => {}} />);
     const grid = await screen.findByRole("grid", { name: "Kalender November 2026" });
+    // The hero, the cells and the strip read Pengeluaran, not Belanja (D31).
+    expect(screen.getByRole("region", { name: "Pengeluaran periode ini" }).querySelector(".hero-fig")).toHaveTextContent("Rp 1.412.500");
     const second = within(grid).getByRole("gridcell", { name: /Senin, 2 November/ });
     expect(second).toHaveAccessibleName("Senin, 2 November. Pengeluaran Rp 109.000. 1 menunggu jawaban. Pindah.");
     expect(second).toHaveAttribute("aria-selected", "true");
@@ -364,7 +368,7 @@ function flowFixture(): FlowResponse {
     ],
     summary: {
       masuk: 8_000_000, spend_gross: 1_500_000, belanja_gross: 1_500_000, reimbursement_offset: 0, belanja: 1_500_000, keluar: 2_400_000,
-      saving_net: 900_000, investment_net: 0, waiting_out: 200_000, waiting_in: 0, waiting_in_buckets: 45_000, remaining: 7_300_000, other_out: 0,
+      spending: 1_200_000, saving_net: 900_000, investment_net: 0, waiting_out: 200_000, waiting_in: 0, waiting_in_buckets: 45_000, remaining: 7_300_000, other_out: 0,
     },
   };
 }
@@ -449,7 +453,7 @@ describe("Peta Aliran tab", () => {
     expect(hero.querySelector(".hero-fig")).toHaveTextContent("Rp 8.000.000");
     const figures = [...hero.querySelectorAll(".fig-block")].map((block) => block.textContent);
     expect(figures).toEqual([
-      "PengeluaranRp 1.500.000", "Ditabung & top upRp 900.000", "Menunggu pasanganRp 200.000Ditambah Rp 45.000 menunggu jawaban di dalam pilarnya.", "Masih adaRp 7.300.000",
+      "PengeluaranRp 1.200.000", "Ditabung & top upRp 900.000", "Menunggu pasanganRp 200.000Ditambah Rp 45.000 menunggu jawaban di dalam pilarnya.", "Masih adaRp 7.300.000",
     ]);
     expect(vi.mocked(api.get).mock.calls.every(([path]) => !String(path).includes("through"))).toBe(true);
     expect(screen.queryByRole("button", { name: /Tampilkan uang masuk|Putar ulang/ })).not.toBeInTheDocument();

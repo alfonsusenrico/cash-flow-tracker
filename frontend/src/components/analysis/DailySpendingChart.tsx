@@ -11,9 +11,10 @@ import { todayIso } from "./format";
 
 type Money = (amount: number) => string;
 
+/** One day's Pengeluaran (apply-markas-analisis D31). */
 export interface DailyPoint {
   date: string;
-  expense: number;
+  amount: number;
 }
 
 const HEIGHT = 200;
@@ -83,7 +84,7 @@ export function DailySpendingChart({ days, money, today = todayIso() }: { days: 
   const { hideBalances } = useAppCtx();
   const [asTable, setAsTable] = useState(false);
   const shown = days.filter((day) => day.date <= today);
-  const peak = shown.reduce<DailyPoint | null>((best, day) => (day.expense > 0 && (!best || day.expense > best.expense) ? day : best), null);
+  const peak = shown.reduce<DailyPoint | null>((best, day) => (day.amount > 0 && (!best || day.amount > best.amount) ? day : best), null);
   const todayEntry = shown.find((day) => day.date === today) ?? null;
 
   return (
@@ -118,7 +119,7 @@ export function DailySpendingChart({ days, money, today = todayIso() }: { days: 
                           {peak?.date === day.date ? t("peakSuffix") : ""}
                           {day.date === today ? t("todaySuffix") : ""}
                         </td>
-                        <td className="num"><MaskedMoney text={money(day.expense)} className="t-amt" /></td>
+                        <td className="num"><MaskedMoney text={money(day.amount)} className="t-amt" /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -130,13 +131,13 @@ export function DailySpendingChart({ days, money, today = todayIso() }: { days: 
             {peak && (
               <span className="t-meta leg">
                 <span className="leg-sw" style={{ background: "var(--out-solid)" }} aria-hidden="true" />
-                {t.rich("peak", { date: format.shortDate(peak.date), amount: () => <MaskedMoney text={money(peak.expense)} className="t-amt" /> })}
+                {t.rich("peak", { date: format.shortDate(peak.date), amount: () => <MaskedMoney text={money(peak.amount)} className="t-amt" /> })}
               </span>
             )}
             {todayEntry && (
               <span className="t-meta leg">
                 <span className="leg-sw is-hatch" aria-hidden="true" />
-                {t.rich("today", { amount: () => <MaskedMoney text={money(todayEntry.expense)} className="t-amt" /> })}
+                {t.rich("today", { amount: () => <MaskedMoney text={money(todayEntry.amount)} className="t-amt" /> })}
               </span>
             )}
             <span className="t-meta">{t("scope")}</span>
@@ -153,7 +154,7 @@ function Bars({ days, peak, today, money, hidden }: { days: DailyPoint[]; peak: 
   const hatchId = useId().replace(/:/g, "");
   const { ref, width } = useWidth<HTMLDivElement>(720);
   const [active, setActive] = useState<string | null>(null);
-  const max = Math.max(0, ...days.map((day) => day.expense));
+  const max = Math.max(0, ...days.map((day) => day.amount));
   const top = niceMax(max);
   const y = (value: number) => HEIGHT - BOTTOM - ((HEIGHT - BOTTOM - TOP) * value) / top;
   const { barWidth, x, step } = barGeometry(width, days.length);
@@ -180,7 +181,7 @@ function Bars({ days, peak, today, money, hidden }: { days: DailyPoint[]; peak: 
   const activeIndex = active ? days.findIndex((day) => day.date === active) : -1;
   const activeDay = activeIndex >= 0 ? days[activeIndex] : null;
   const label = peak
-    ? t("chartLabel", { date: format.shortDate(peak.date), amount: money(peak.expense) })
+    ? t("chartLabel", { date: format.shortDate(peak.date), amount: money(peak.amount) })
     : t("chartLabelEmpty");
   const anchor = (centre: number, text: string): "start" | "middle" | "end" => {
     const half = (text.length * 6.5) / 2;
@@ -212,7 +213,7 @@ function Bars({ days, peak, today, money, hidden }: { days: DailyPoint[]; peak: 
           </g>
         ))}
         {days.map((day, index) => {
-          const height = Math.max(day.expense > 0 ? 2 : 0, HEIGHT - BOTTOM - y(day.expense));
+          const height = Math.max(day.amount > 0 ? 2 : 0, HEIGHT - BOTTOM - y(day.amount));
           const isPeak = peak?.date === day.date;
           const left = x(index);
           const barTop = HEIGHT - BOTTOM - height;
@@ -230,7 +231,7 @@ function Bars({ days, peak, today, money, hidden }: { days: DailyPoint[]; peak: 
               {/* The whole step is the hover target, so a 4 px bar is still easy to point at. */}
               <rect x={4 + index * step} y={TOP} width={step} height={HEIGHT - BOTTOM - TOP} fill="transparent" />
               <rect x={left} y={barTop} width={barWidth} height={height} fill={isPeak ? "var(--out-solid)" : "var(--k-none)"} data-bar={isPeak ? "peak" : day.date === today ? "today" : "day"}>
-                <title>{`${format.shortDate(day.date)}: ${money(day.expense)}`}</title>
+                <title>{`${format.shortDate(day.date)}: ${money(day.amount)}`}</title>
               </rect>
               {day.date === today && <rect x={left} y={barTop} width={barWidth} height={height} fill={`url(#${hatchId})`} pointerEvents="none" />}
             </g>
@@ -252,11 +253,11 @@ function Bars({ days, peak, today, money, hidden }: { days: DailyPoint[]; peak: 
           data-testid="daily-spend-tip"
           style={{
             left: Math.min(Math.max(x(activeIndex) + barWidth / 2, 60), width - 60),
-            bottom: Math.min(HEIGHT - y(activeDay.expense) + 6, HEIGHT - 40),
+            bottom: Math.min(HEIGHT - y(activeDay.amount) + 6, HEIGHT - 40),
           }}
         >
           <span>{activeDay.date === today ? t("tipToday", { date: format.shortDate(activeDay.date) }) : format.shortDate(activeDay.date)}</span>
-          <MaskedMoney text={money(activeDay.expense)} className="t-amt" />
+          <MaskedMoney text={money(activeDay.amount)} className="t-amt" />
         </span>
       )}
     </div>

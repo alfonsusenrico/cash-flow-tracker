@@ -63,7 +63,7 @@ export function dayMarkers(day: CalendarDay): Marker[] {
 /** The accessible name of a cell: date, spending up to today, waiting rows and markers (cycle-calendar "Kalender Grid"). */
 export function dayName(day: CalendarDay, today: string, money: Money, format: Format, t: Translate): string {
   const parts = [`${format.weekdayDate(day.date)}${day.date === today ? `, ${t("day.today")}` : ""}`];
-  if (day.date <= today) parts.push(t("calendar.cellSpending", { amount: money(day.spend) }));
+  if (day.date <= today) parts.push(t("calendar.cellSpending", { amount: money(day.spending) }));
   if (day.waiting_count) parts.push(t("calendar.cellWaiting", { count: day.waiting_count }));
   const marks = dayMarkers(day)
     .filter((mark) => mark.key !== "waiting")
@@ -157,7 +157,7 @@ export function KalenderTab({
   return (
     <div className="cols an-cols">
       <div className="stack">
-        <HeroFigure id="an-cal-hero" label={t("calendar.heroLabel")} figure={<MaskedMoney text={money(data.totals.spend)} />} line={line} />
+        <HeroFigure id="an-cal-hero" label={t("calendar.heroLabel")} figure={<MaskedMoney text={money(data.totals.spending)} />} line={line} />
         <CalendarGrid data={data} selected={selected.date} onSelect={onSelectDay} money={money} />
       </div>
       <Panel label={t("day.panel")}>
@@ -210,7 +210,7 @@ function CalendarGrid({ data, selected, onSelect, money }: { data: CalendarRespo
     onSelect(next);
   };
 
-  const thresholds = data.heat_thresholds.length === 4 ? data.heat_thresholds : null;
+  const thresholds = data.spending_heat_thresholds.length === 4 ? data.spending_heat_thresholds : null;
   const periodName = data.window.label;
   return (
     <section aria-label={t("calendar.gridLabel", { period: periodName })}>
@@ -253,14 +253,14 @@ function CalendarGrid({ data, selected, onSelect, money }: { data: CalendarRespo
                 >
                   <span className="d" aria-hidden="true">{dayNumber === 1 || entry.date === first ? format.shortDate(entry.date) : dayNumber}</span>
                   <span className="t-amt cal-amt" aria-hidden="true">
-                    {past && entry.spend > 0 ? format.compactMoney(entry.spend, { narrow, hidden: hideBalances }) : ""}
+                    {past && entry.spending > 0 ? format.compactMoney(entry.spending, { narrow, hidden: hideBalances }) : ""}
                   </span>
                   <span className="marks" aria-hidden="true">
                     {marks.map((mark) => (
                       <span key={mark.key} className={cn("mark", mark.key === "waiting" && "is-outline")} style={mark.key === "waiting" ? undefined : { background: mark.colour }} />
                     ))}
                   </span>
-                  {past && entry.heat > 0 && <span className="heat" style={{ opacity: Math.min(5, entry.heat) * 0.2 }} aria-hidden="true" />}
+                  {past && entry.spending_heat > 0 && <span className="heat" style={{ opacity: Math.min(5, entry.spending_heat) * 0.2 }} aria-hidden="true" />}
                 </div>
               );
             })}
@@ -336,7 +336,7 @@ function DayPanel({ day, data, money }: { day: CalendarDay; data: CalendarRespon
   return (
     <PanelBlock>
       <SectionHeader label={`${format.weekdayDate(day.date)}${relative}`} />
-      <p className="t-fig"><MaskedMoney text={money(future ? 0 : day.spend)} /></p>
+      <p className="t-fig"><MaskedMoney text={money(future ? 0 : day.spending)} /></p>
       <p className="t-meta">{day.date === today ? t("day.spentToday") : t("day.spentThatDay")}</p>
       {day.waiting.length > 0 && (
         <div className="day-group">

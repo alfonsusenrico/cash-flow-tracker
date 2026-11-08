@@ -29,10 +29,10 @@ function groupOf(category: CategoryVariance): Group {
  * spending are left out unless `withZero`; a budgeted category stays listed at Rp 0 so its limit stays visible.
  */
 export function groupCategories(categories: CategoryVariance[], withZero: boolean): { group: Group; rows: CategoryVariance[] }[] {
-  const shown = categories.filter((category) => category.kind !== "income" && (withZero || category.spent > 0 || (category.budget ?? 0) > 0));
+  const shown = categories.filter((category) => category.kind !== "income" && (withZero || category.spending > 0 || (category.budget ?? 0) > 0));
   return GROUP_ORDER.map((group) => ({
     group,
-    rows: shown.filter((category) => groupOf(category) === group).sort((left, right) => right.spent - left.spent || left.name.localeCompare(right.name)),
+    rows: shown.filter((category) => groupOf(category) === group).sort((left, right) => right.spending - left.spending || left.name.localeCompare(right.name)),
   })).filter((entry) => entry.rows.length > 0);
 }
 
@@ -60,7 +60,7 @@ export function CategorySpending({
   const budgetRef = useRef<HTMLButtonElement>(null);
   const expense = categories.filter((category) => category.kind !== "income");
   const anyBudget = expense.some((category) => (category.budget ?? 0) > 0);
-  const zeroCount = expense.filter((category) => category.spent <= 0 && !((category.budget ?? 0) > 0)).length;
+  const zeroCount = expense.filter((category) => category.spending <= 0 && !((category.budget ?? 0) > 0)).length;
   const groups = groupCategories(expense, withZero);
 
   const href = (category: CategoryVariance) =>
@@ -70,7 +70,7 @@ export function CategorySpending({
     const budget = category.budget ?? 0;
     if (category.is_archived) return t("archivedNoBudget");
     if (category.is_uncategorized || budget <= 0) return t("noBudget");
-    const used = Math.round(category.percentage_used ?? 0);
+    const used = Math.round(category.spending_percentage_used ?? 0);
     const over = used > 100;
     return t.rich("ofBudget", {
       share: format.integer(used),
@@ -101,7 +101,7 @@ export function CategorySpending({
             {rows.map((category) => {
               const budget = category.budget ?? 0;
               const budgeted = budget > 0 && !category.is_uncategorized && !category.is_archived;
-              const used = category.percentage_used ?? 0;
+              const used = category.spending_percentage_used ?? 0;
               const name = category.is_uncategorized ? terms("noCategory") : category.name;
               const meta = anyBudget ? budgetMeta(category) : category.is_archived ? t("archived") : null;
               const content = (
@@ -117,7 +117,7 @@ export function CategorySpending({
                   ))}
                   {meta && <span className="t-meta cat-budget dt-only">{meta}</span>}
                   <span className="r-amt">
-                    <MaskedMoney text={money(category.spent)} className="t-amt" />
+                    <MaskedMoney text={money(category.spending)} className="t-amt" />
                   </span>
                 </>
               );

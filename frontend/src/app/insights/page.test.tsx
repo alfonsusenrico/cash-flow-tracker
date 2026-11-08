@@ -111,9 +111,11 @@ function completedComparison() {
   };
 }
 
-const category = (overrides: Record<string, unknown>) => ({
-  id: "c", name: "Kategori", kind: "expense", kakeibo_type: "need", budget: null, monthly_budget: null, spent: 0, percentage_used: null, status: "unlimited", ...overrides,
-});
+/** A category row whose Pengeluaran equals its Belanja unless the overrides say otherwise. */
+const category = (overrides: Record<string, unknown>) => {
+  const row = { id: "c", name: "Kategori", kind: "expense", kakeibo_type: "need", budget: null, monthly_budget: null, spent: 0, percentage_used: null, status: "unlimited", ...overrides } as Record<string, unknown>;
+  return { spending: row.spent, spending_percentage_used: row.percentage_used, ...row };
+};
 
 const variance = [
   category({ id: "dapur", name: "Belanja Dapur", budget: 1_000_000, monthly_budget: 1_000_000, spent: 590_000, percentage_used: 59, status: "ok" }),
@@ -123,6 +125,8 @@ const variance = [
   category({ id: null, name: "Tanpa kategori", kakeibo_type: null, is_uncategorized: true, spent: 70_000 }),
   category({ id: "buku", name: "Buku", kakeibo_type: "culture" }),
   category({ id: "hadiah", name: "Hadiah", kakeibo_type: "want" }),
+  // Only saving-pillar expenses: Belanja, but no Pengeluaran (D31), so it waits behind the zero toggle.
+  category({ id: "arisan", name: "Arisan", kakeibo_type: "saving", spent: 300_000, spending: 0 }),
 ];
 
 const spendingExplanation = {
@@ -162,7 +166,7 @@ function serve({ comparison = runningComparison(), analytics = {}, latest = { re
     if (path.startsWith("/dashboard/analytics?")) {
       return {
         timeframe: "month", timeframe_label: "November 2026", category_variance: variance,
-        daily_cadence: [{ date: "2026-11-01", label: "", expense: 40_000, income: 0 }, { date: "2026-11-02", label: "", expense: 120_000, income: 0 }],
+        daily_cadence: [{ date: "2026-11-01", label: "", expense: 40_000, spending: 40_000, income: 0 }, { date: "2026-11-02", label: "", expense: 420_000, spending: 120_000, income: 0 }],
         explanations: { spending: spendingExplanation }, ...analytics,
       };
     }
@@ -265,6 +269,8 @@ describe("Ringkasan", () => {
     expect(hero.querySelectorAll(".prog")).toHaveLength(2);
     expect(api.get).toHaveBeenCalledWith("/reports/monthly/comparison?basis=month&start_date=2026-11-01");
     expect(screen.getAllByRole("button", { name: /Rincian/ })).toHaveLength(1);
+    // The chart reads Pengeluaran per day, not Belanja: 2 November's Rp 420.000 holds Rp 300.000 of saving pillar (D31).
+    expect(container.querySelector(".chart-foot")).toHaveTextContent("Tertinggi: 2 Nov Rp 120.000");
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
@@ -345,14 +351,16 @@ describe("Ringkasan", () => {
     expect((jajan.querySelector(".prog > span") as HTMLElement).style.background).toBe("var(--out-solid)");
     expect(within(section).getByRole("link", { name: /Langganan Lama/ })).toHaveTextContent("diarsipkan · tanpa anggaran");
     expect(within(section).getByRole("link", { name: /Tanpa kategori/ })).toHaveAttribute("href", "/ledger?period=month&category=uncategorized&type=expense");
-    const more = within(section).getByRole("button", { name: "Tampilkan 2 kategori tanpa pengeluaran" });
+    const more = within(section).getByRole("button", { name: "Tampilkan 3 kategori tanpa pengeluaran" });
+    expect(within(section).queryByRole("link", { name: /Arisan/ })).not.toBeInTheDocument();
     await user.click(more);
     expect(within(section).getByRole("link", { name: /Buku/ })).toBeInTheDocument();
-    expect(more).toHaveTextContent("Sembunyikan 2 kategori tanpa pengeluaran");
+    expect(within(section).getByRole("link", { name: /Arisan/ })).toHaveTextContent("Rp 0");
+    expect(more).toHaveTextContent("Sembunyikan 3 kategori tanpa pengeluaran");
   });
 
   it("shows spending only while no category has a budget", async () => {
-    serve({ analytics: { category_variance: variance.map((row) => ({ ...row, budget: null, monthly_budget: null, percentage_used: null })) } });
+    serve({ analytics: { category_variance: variance.map((row) => ({ ...row, budget: null, monthly_budget: null, percentage_used: null, spending_percentage_used: null })) } });
     renderPage();
     const section = await screen.findByRole("region", { name: "Pengeluaran per kategori" });
     expect(section).not.toHaveTextContent("tanpa anggaran");
@@ -386,7 +394,7 @@ describe("Ringkasan", () => {
   it("says when the period has no spending instead of showing Rp 0 figures", async () => {
     const empty = runningComparison();
     empty.comparison.totals = { spending: 0, inflow: 0, fresh_saving: 0, difference: 0 };
-    serve({ comparison: empty, analytics: { daily_cadence: [{ date: "2026-11-01", label: "", expense: 0, income: 0 }], explanations: undefined } });
+    serve({ comparison: empty, analytics: { daily_cadence: [{ date: "2026-11-01", label: "", expense: 0, spending: 0, income: 0 }], explanations: undefined } });
     renderPage();
     expect(await screen.findByText("Belum ada pengeluaran di periode ini.")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /Pengeluaran · November/ })).not.toBeInTheDocument();

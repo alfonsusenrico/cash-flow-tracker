@@ -158,7 +158,7 @@ export function PetaAliranTab({
           <FigureBlock
             bar={false}
             label={terms("spending")}
-            figure={<MaskedMoney text={money(summary.belanja)} />}
+            figure={<MaskedMoney text={money(summary.spending)} />}
             caption={summary.reimbursement_offset > 0 ? t.rich("flow.grossNote", { gross: () => <MaskedMoney text={money(summary.spend_gross)} />, offset: () => <MaskedMoney text={money(summary.reimbursement_offset)} /> }) : undefined}
           />
           <FigureBlock bar={false} label={t("flow.savedToppedUp")} figure={<MaskedMoney text={money(summary.saving_net + summary.investment_net)} />} />

@@ -73,7 +73,8 @@ export function RingkasanTab({ basis, offset, onWindowLabel }: { basis: PeriodBa
   } else {
     const data = analytics.data;
     const spending = comparison?.totals.spending ?? data.explanations?.spending?.total ?? null;
-    const empty = spending === 0 && (data.daily_cadence ?? []).every((day) => day.expense === 0);
+    const days = (data.daily_cadence ?? []).map((day) => ({ date: day.date, amount: day.spending }));
+    const empty = spending === 0 && days.every((day) => day.amount === 0);
     const categories = (
       <CategorySpending categories={data.category_variance ?? []} period={reportPeriodFilters(basis, offset)} money={money} />
     );
@@ -100,7 +101,7 @@ export function RingkasanTab({ basis, offset, onWindowLabel }: { basis: PeriodBa
           money={money}
         />
         {comparison && <KakeiboRows comparison={comparison} money={money} />}
-        <DailySpendingChart days={data.daily_cadence ?? []} money={money} />
+        <DailySpendingChart days={days} money={money} />
         {categories}
       </div>
     );
