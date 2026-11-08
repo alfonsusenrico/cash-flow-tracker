@@ -140,12 +140,12 @@ export function RekeningGroups({
             <span className="count">{`${t("groups.credit", { count: 0 })} · ${t("debt.billsCount", { count: obligations.count })}`}</span>
             <MaskedMoney text={`−${format.money(obligations.amount)}`} className="total t-amt c-expense" />
           </div>
-          <BillsRow obligations={obligations} />
+          <ObligationsLink obligations={obligations} />
         </section>
       )}
       {grouping === "rekening" && billsRow && (
         <div className="rk-bills is-last">
-          <BillsRow obligations={obligations} />
+          <ObligationsLink obligations={obligations} />
         </div>
       )}
     </div>
@@ -153,7 +153,7 @@ export function RekeningGroups({
 }
 
 /** One whole-row link to the obligations, named with their amount: "Tagihan −Rp X di Target & Tagihan". */
-function BillsRow({ obligations }: { obligations: { count: number; amount: number } }) {
+function ObligationsLink({ obligations }: { obligations: { count: number; amount: number } }) {
   const { t, format } = useAccountText();
   const { hideBalances } = useAppCtx();
   const amount = `−${format.money(obligations.amount)}`;
@@ -331,7 +331,7 @@ function Group({
       ) : (
         <ul className="tiles" aria-label={tilesLabel}>{tiles()}</ul>
       )}
-      {bills && <BillsRow obligations={bills} />}
+      {bills && <ObligationsLink obligations={bills} />}
     </section>
   );
 }
