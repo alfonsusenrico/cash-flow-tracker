@@ -26,6 +26,8 @@ Approved by the owner on 2026-11-06. The owner approved the three-change plan (`
 - **OD2, when English AI output turns on:** only after the owner-approved paid benchmark passes on the held-out partition. `LLM_ENGLISH_OUTPUT_ENABLED` stays `false` until then.
 - **OD3, the paid benchmark run:** not covered by the approval. Task 5.3 prepares the English cases, the command and the cost estimate and waits for the owner's explicit OK (paid).
 
+Work stopped on 2026-11-06 when the owner paused. On 2026-11-08 the owner renewed the standing instruction with "continue all", under the same defaults.
+
 ## What Changes
 
 - **Server language resolution:** the language comes from the account (`users.language`) for every authenticated request, Bearer request, background job, notification ingestion and report. `Accept-Language` is used only on unauthenticated endpoints. Responses with server text carry `Content-Language`.

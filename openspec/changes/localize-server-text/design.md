@@ -124,6 +124,8 @@ Every composed text keeps its field (`prompt`, `text`, `label`, `reason`, `expla
 | Calendar and observed-period labels (added by task 1.2) | `calendar`, `observed_periods` | `periods.*` |
 | Success messages of mutations (added by task 1.2) | `message` of 18 successful responses | `notices.*` |
 
+Questions, suggestion reasons and facts carry `code` and `params`. Period labels and system labels are nested renderings (a month name inside a range) or already carry their structure, so they carry no message code: a period label sits next to its window's start and end dates, and a system line keeps the `key` and `label_source` that `add-language-system` added. A client that renders periods itself uses the dates (decided during task 4.2, 2026-11-08).
+
 Questions stored in `notification_events.active_question` and `text_captures.question` are stored in the account's language at creation, like any generated text (D6). A question created before a language switch keeps its language, and so does its code.
 
 The English voice follows `ui-copy-register` "Conversational Voice": "What was this for?", "Looks like {category}?", "Looks like a top-up to {product}, like last month?" Indonesian stays exactly as today, including its casual wording.

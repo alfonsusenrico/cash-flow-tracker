@@ -1,0 +1,20 @@
+{
+  "status": 422,
+  "content_language": "en",
+  "body": {
+    "detail": [
+      {
+        "type": "missing",
+        "loc": [
+          "body",
+          "device_id"
+        ],
+        "msg": "Field required",
+        "input": {
+          "code": "ZZZZZZZZZZ",
+          "device_name": "Ponsel Contoh"
+        }
+      }
+    ]
+  }
+}

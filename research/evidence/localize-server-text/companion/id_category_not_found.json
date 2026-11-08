@@ -1,0 +1,12 @@
+{
+  "status": 404,
+  "content_language": "id",
+  "body": {
+    "ok": false,
+    "detail": {
+      "code": "category_not_found",
+      "params": {},
+      "message": "Kategori tidak ditemukan."
+    }
+  }
+}
