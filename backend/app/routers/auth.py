@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import settings
 from app.errors import ErrorCode, api_error
-from app.i18n import current_language, notice, t
+from app.i18n import bind_account, current_language, notice, t
 from app.db.pool import db_conn
 from app.services.auth import (
     authenticate_user,
@@ -208,6 +208,8 @@ def update_settings(payload: SettingsUpdate, response: Response, current_user: d
             )
             updated = cur.fetchone()
             conn.commit()
+    # A changed language applies from this response on: its text and its Content-Language (D1).
+    bind_account(updated)
 
     result: dict = {
         "ok": True,
