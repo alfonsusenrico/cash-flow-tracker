@@ -227,7 +227,7 @@ def test_reconcile_is_unchanged_and_also_starts_the_window(client, owner):
     assert response.status_code == 200, response.text
     assert (response.json()["ok"], response.json()["diff"]) == (True, 20_000)
     # The owner is an Indonesian account, so the notice is Indonesian (localize-server-text D1).
-    assert response.json()["message"] == "Saldo rekening dicocokkan dengan penyesuaian income sebesar Rp 20.000."
+    assert response.json()["message"] == "Saldo rekening dicocokkan dengan penyesuaian pemasukan sebesar Rp 20.000."
 
     result = check(client, owner, "standalone", 1_000_000)
 

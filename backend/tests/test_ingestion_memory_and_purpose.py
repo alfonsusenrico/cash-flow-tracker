@@ -4,6 +4,7 @@ All texts, names and amounts are synthetic.
 """
 import asyncio
 import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -15,6 +16,7 @@ import pytest
 from app.services.notification_interpretation import Interpretation
 from app.services.openai_notification_provider import ProviderError
 from app.services.purpose_normalization import PurposeNormalization
+from signed_in import leaked, rendered_texts, switch_account_language
 from test_notification_processing_database import (  # noqa: F401 - fixture
     count_transactions, enable_ai, ingest, interpretation, notification, notification_owner,
 )
@@ -485,6 +487,31 @@ def open_question(client, owner, text=GROCERIES, **kwargs):
 
 def answer(client, event_id, body):
     return client.post(f"/api/ingest/notifications/{event_id}/answer-purpose", json=body)
+
+
+@pytest.mark.parametrize("language", ["id", "en"])
+def test_purpose_question_logs_hold_its_code_and_no_rendered_text(client, owner, caplog, language):
+    """The question's key and language are logged; its prompt, amount and account name are not (D8)."""
+    switch_account_language(owner["user_id"], language)
+    caplog.set_level(logging.DEBUG)
+    event_id, question = open_question(client, owner)
+    assert question["language"] == language and question["prompt_code"] == "questions.purpose.expense_hint"
+    body = {"question_id": question["question_id"], "reply_id": str(uuid4()), "text": "Belanja bulanan Contoh"}
+    assert answer(client, event_id, body).status_code == 200
+    refused = answer(client, event_id, {**body, "reply_id": str(uuid4())})
+    assert refused.status_code == 409
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("code=questions.purpose.expense_hint" in message and f"language={language}" in message
+               for message in messages)
+    secrets = {"187.500", "187,500", "Groceries", "Belanja bulanan Contoh", *rendered_texts(question),
+               *rendered_texts(refused.json())}
+    assert leaked(messages, secrets) == []
+
+
+def test_log_leak_check_catches_a_planted_prompt():
+    prompt = "What was this for? Rp187.500 from BCA Harian"
+    assert leaked(["Purpose question asked code=questions.purpose.expense language=en suggestions=2"], {prompt}) == []
+    assert leaked([f"Purpose question asked prompt={prompt}"], {prompt}) == [f"Purpose question asked prompt={prompt}"]
 
 
 def test_answer_with_suggestion_updates_row_feedback_memory_and_result(client, owner):

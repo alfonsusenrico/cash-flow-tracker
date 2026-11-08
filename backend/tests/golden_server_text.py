@@ -219,5 +219,3 @@ def capture(language: str = "id", region: str = "ID") -> dict:
         "inline": inline_cases(language),
         "prompts": prompt_files(),
     }
-
-

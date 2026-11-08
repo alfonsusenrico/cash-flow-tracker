@@ -19,6 +19,7 @@ from app.services.openai_notification_provider import ProviderError
 from test_ingestion_memory_and_purpose import (  # noqa: F401 - fixtures
     GROCERIES, bca, feedback_rows, memory_rows, owner, tx_for,
 )
+from signed_in import leaked, switch_account_language
 from test_notification_processing_database import ingest, notification_owner  # noqa: F401 - fixture
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -187,6 +188,23 @@ def test_memory_first_rule_suggestion_skips_the_model(client, owner, ai):
     run = latest(client)
     assert (run["status"], run["memory_count"], run["ai_calls"], run["error_code"]) == ("completed", 1, 0, None)
     assert transaction(tx_id)["category_id"] is not None and str(transaction(tx_id)["category_id"]) == owner["makan"]
+
+
+@pytest.mark.parametrize("language,reason", [
+    ("id", "Sama dengan pilihan Anda untuk Kedai Awan"), ("en", "Same as your choice for Kedai Awan"),
+])
+def test_template_reason_follows_the_account_and_stays_out_of_logs(client, owner, ai, caplog, language, reason):
+    """A memory reason is rendered in the account's language with its code; the logs hold neither (D5, D8)."""
+    switch_account_language(owner["user_id"], language)
+    remember(owner, "merchant:kedai awan", category="jajan", notes="Ngopi di Kedai Awan", merchant="Kedai Awan",
+             pillar="want")
+    tx_id = add_row(owner, notes="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan")
+    caplog.set_level(logging.DEBUG)
+    assert start(client).status_code == 200
+    item = pending_by_transaction(client)[tx_id]
+    assert (item["reason"], item["reason_code"], item["reason_params"]) == (
+        reason, "reasons.history.merchant", {"merchant": "Kedai Awan"})
+    assert leaked([record.getMessage() for record in caplog.records], {reason, "Kedai Awan", "Ngopi"}) == []
 
 
 def test_signature_memory_and_repayment_and_cafe_rules(client, owner):

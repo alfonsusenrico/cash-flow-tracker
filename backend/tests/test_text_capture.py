@@ -20,6 +20,7 @@ from app.services.capture_normalization import (
 )
 from app.services.openai_notification_provider import OpenAINotificationProvider, ProviderError
 from app.services.prompt_language import load_prompt
+from signed_in import leaked, rendered_texts, switch_account_language
 from test_notification_processing_database import enable_ai, notification_owner  # noqa: F401 - fixture
 from test_openai_notification_provider import envelope
 
@@ -658,16 +659,19 @@ def test_capture_rate_limit(client, owner, monkeypatch):
     assert limited.status_code == 429 and limited.json()["detail"]["code"] == "capture_rate_limited"
 
 
-def test_logs_hold_no_text_or_amounts(client, owner, caplog):
+@pytest.mark.parametrize("language", ["id", "en"])
+def test_logs_hold_no_text_or_amounts(client, owner, caplog, language):
+    """Neither the owner's text nor the rendered follow-up question reaches the logs, in either language (D8)."""
+    switch_account_language(owner["user_id"], language)
     caplog.set_level(logging.DEBUG)
     capture = captured(client, "kopi rahasiaku 123rb tunai")
+    rendered = rendered_texts(capture)
+    assert rendered, "the capture asked no follow-up question"
     capture = answered(client, capture, option_id="c1")
     client.post(f"/api/capture/{capture['id']}/undo")
     messages = [record.getMessage() for record in caplog.records]
     assert any("Text capture" in message for message in messages)
-    for message in messages:
-        assert "rahasiaku" not in message.casefold()
-        assert "123" not in message
+    assert leaked(messages, {"rahasiaku", "123", *rendered}) == []
 
 
 # --- Schema validation and provider -----------------------------------------------------------
