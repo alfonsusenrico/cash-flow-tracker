@@ -213,6 +213,7 @@ def make_owner(client):
         username = f"cycle_summary_{uuid4().hex[:12]}"
         password = "synthetic-pass-1"
         with db_conn() as conn:
+            # An Indonesian account, as every name below is, like the shared owner in conftest.
             user_id = str(conn.execute(
                 "INSERT INTO users (username, password_hash, invite_code, language) VALUES (%s, %s, 'TEST', 'id') RETURNING id",
                 (username, bcrypt.hash(password)),

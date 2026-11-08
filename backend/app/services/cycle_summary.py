@@ -18,6 +18,8 @@ from app.core.config import settings
 from app.i18n import format_money, language_for_user, region_for_user, t
 from app.routers.accounts import summarize_account_balances
 from app.services.credit_accounts import credit_owed, is_credit
+from app.services.credit_bills import load_schedules
+from app.services.credit_figures import count_credit_bill_plans, credit_bill_plan_targets, credit_spending
 from app.services.kakeibo import UNCLASSIFIED
 from app.services.observed_insights import comparison_windows, period_comparison
 from app.services.plan_occurrences import unpaid_plan_lines
@@ -444,11 +446,20 @@ def build_cycle_summary(
             {**line, "label_source": USER_LABEL}
             for line in unpaid_plan_lines(cur, user_id, payday_day, start_date, window_end, today)
         ]
+        credit_plan_targets = credit_bill_plan_targets(cur, user_id)
+        if credit_plan_targets:
+            schedules = load_schedules(cur, user_id, today, sorted(set(credit_plan_targets.values())), include_archived=True)
+            plan_lines = count_credit_bill_plans(plan_lines, credit_plan_targets, schedules)
+        spending_on_credit = credit_spending(cur, user_id, start, end, offsets)
         scheduled_lines = plan_lines + _goal_lines(cur, user_id, accounts, start, end, start_date, today)
         net_worth = net_worth_breakdown(cur, user_id, accounts, language)
         comparison = _comparison(cur, user_id, kakeibo_breakdown, (start, end, window_label), previous)
 
     spending, fresh_saving = spending_split(keluar)
+    if spending_on_credit["spent_on_credit"] > spending["amount"]:
+        raise RuntimeError("Spending on credit exceeds Pengeluaran")
+    # Informational (add-credit-spending-flow D11): a part of Pengeluaran and the cash paid to credit.
+    spending = {**spending, "credit": spending_on_credit}
     tabungan = savings_change(kakeibo)
     if tabungan["total"] != fresh_saving["amount"]:
         raise RuntimeError("Savings change does not match the saving bucket of Keluar")
