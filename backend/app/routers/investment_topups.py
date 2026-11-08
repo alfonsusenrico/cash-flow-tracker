@@ -1,9 +1,10 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
 from app.services.auth import get_current_user
 from app.services.review_undo import ActionRecorder
 from app.services.investment_topups import (
@@ -89,7 +90,7 @@ def read_topup(topup_id: UUID, current_user: dict = Depends(get_current_user)):
 def update_topup(topup_id: UUID, payload: TopupUpdate, current_user: dict = Depends(get_current_user)):
     changes = payload.model_dump(exclude_unset=True)
     if not changes or any(value is None for name, value in changes.items() if name != "notes"):
-        raise HTTPException(status_code=422, detail="Supply a non-null amount, date, or notes correction")
+        raise api_error(422, ErrorCode.CORRECTION_REQUIRED)
     with db_conn() as conn:
         with conn.cursor() as cur:
             result = mutate_topup(cur, current_user["id"], str(topup_id), changes=changes)

@@ -378,7 +378,7 @@ def test_another_users_labels_are_never_used(client, owner):
     from app.services.habits import load_labels
     other, other_category = str(uuid4()), str(uuid4())
     with db_conn() as conn:
-        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Sari', 'x', 'T')",
+        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Sari', 'x', 'T', 'id')",
                      (other, f"other_{uuid4().hex}"))
         conn.execute("INSERT INTO categories (id, user_id, name, kind, kakeibo_type) VALUES (%s, %s, 'Makan', 'expense', 'need')",
                      (other_category, other))

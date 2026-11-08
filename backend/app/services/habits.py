@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from app.i18n import t
+
 # Approved thresholds (owner 2026-10-31): record automatically from 3 labelled payments when at least
 # 90% of their weight agrees on one category and pillar.
 MIN_SUPPORT = 3
@@ -254,13 +256,17 @@ def habit_applies(context: dict) -> bool:
     return bool(habit and habit["decision"].auto)
 
 
-def basis_text(agreeing: int, support: int) -> str:
-    return f"{agreeing} dari {support} jawaban sebelumnya"
+def basis_text(language: str, agreeing: int, support: int) -> str:
+    return t(language, "reasons.habit.basis", agreeing=agreeing, support=support)
 
 
-def habit_label(category_name: str | None) -> str:
-    return f"Dicatat dari kebiasaan: {category_name}" if category_name else "Dicatat dari kebiasaan"
+def habit_label(language: str, category_name: str | None) -> str:
+    if category_name:
+        return t(language, "labels.habit.recorded", category=category_name)
+    return t(language, "labels.habit.recorded_bare")
 
 
-def guess_label(category_name: str) -> str:
-    return f"Sepertinya {category_name}?"
+def guess_label(language: str, category_name: str) -> dict:
+    """ "Sepertinya <kategori>?" with its code and parameters (D5)."""
+    params = {"category": category_name}
+    return {"text": t(language, "questions.habit.guess", **params), "code": "questions.habit.guess", "params": params}

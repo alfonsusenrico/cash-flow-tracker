@@ -385,7 +385,7 @@ def test_another_owners_link_skips_nothing(client, notification_owner):
     other = str(uuid4())
     with db_conn() as conn:
         conn.execute(
-            "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Lain', 'x', 'TEST')",
+            "INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Lain', 'x', 'TEST', 'id')",
             (other, f"other_{uuid4().hex}"),
         )
         conn.commit()
@@ -700,7 +700,7 @@ def test_another_owner_cannot_act_on_the_item(client, notification_owner):
 
     send(client, GOPAY_CREDIT, GOPAY, 0)
     jago = send(client, JAGO_CREDIT, JAGO, 0.13)
-    app.dependency_overrides[get_current_user] = lambda: {"id": str(uuid4()), "name": "Lain", "currency": "IDR"}
+    app.dependency_overrides[get_current_user] = lambda: {"language": "id", "region": "ID", "id": str(uuid4()), "name": "Lain", "currency": "IDR"}
     for action in ("acknowledge", "record-separately"):
         response = client.post(f"/api/review/seen-twice/{jago['event_id']}/{action}")
         assert response.status_code == 404 and response.json()["detail"]["code"] == "seen_twice_not_found"
@@ -793,7 +793,7 @@ def test_another_owner_cannot_record_a_skipped_report(client, notification_owner
     add_link(notification_owner)
     send(client, GOPAY_CREDIT, GOPAY, 0)
     jago = send(client, JAGO_CREDIT, JAGO, 0.13)
-    app.dependency_overrides[get_current_user] = lambda: {"id": str(uuid4()), "name": "Lain", "currency": "IDR"}
+    app.dependency_overrides[get_current_user] = lambda: {"language": "id", "region": "ID", "id": str(uuid4()), "name": "Lain", "currency": "IDR"}
     response = client.post(f"/api/review/seen-twice/{jago['event_id']}/record-separately")
     assert response.status_code == 404 and response.json()["detail"]["code"] == "seen_twice_not_found"
     assert client.get("/api/review/queue").json()["skipped"] == []

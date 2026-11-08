@@ -21,7 +21,7 @@ def plan_owner(client):
     ids = {name: str(uuid4()) for name in ("cash", "savings", "bills", "salary")}
     with db_conn() as conn:
         conn.execute(
-            "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Rina Contoh', 'synthetic-hash', 'TEST')",
+            "INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Rina Contoh', 'synthetic-hash', 'TEST', 'id')",
             (user_id, f"plans_{uuid4().hex}"),
         )
         for key, name, balance in (("cash", "Kas Contoh", 5_000_000), ("savings", "Tabungan Contoh", 0)):

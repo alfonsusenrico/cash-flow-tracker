@@ -24,7 +24,11 @@ ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS = ROOT / "db/migrations"
 V34 = MIGRATIONS / "V34__device_pairing.sql"
 CROCKFORD = set("0123456789ABCDEFGHJKMNPQRSTVWXYZ")
-INVALID_BODY = {"ok": False, "detail": {"code": "pairing_code_invalid"}}
+# The pairing exchange is unauthenticated and the phone sends no Accept-Language, so the message is English (D1).
+INVALID_BODY = {"ok": False, "detail": {
+    "code": "pairing_code_invalid", "params": {},
+    "message": "The pairing code is not valid or has expired. Create a new code.",
+}}
 
 
 class UnlimitedLimiter:
@@ -76,7 +80,7 @@ def make_owner(client):
         password = "synthetic-pass-1"
         with db_conn() as conn:
             user_id = conn.execute(
-                "INSERT INTO users (username, password_hash, invite_code) VALUES (%s, %s, 'TEST') RETURNING id",
+                "INSERT INTO users (username, password_hash, invite_code, language) VALUES (%s, %s, 'TEST', 'id') RETURNING id",
                 (username, bcrypt.hash(password)),
             ).fetchone()["id"]
             conn.commit()
@@ -259,7 +263,7 @@ def test_invalid_pairing_server_disables_new_codes(monkeypatch, raw, owner):
     response = owner["web"].post("/api/devices/pairing-codes")
 
     assert response.status_code == 503
-    assert response.json()["detail"] == {"code": "pairing_configuration_invalid"}
+    assert response.json()["detail"]["code"] == "pairing_configuration_invalid"
     assert code_count(owner["id"]) == 0
 
 
@@ -293,7 +297,7 @@ def test_bearer_clients_cannot_create_codes(owner):
 
     for response in (bearer_only, bearer_with_session):
         assert response.status_code == 403
-        assert response.json()["detail"] == {"code": "session_required"}
+        assert response.json()["detail"]["code"] == "session_required"
     assert code_count(owner["id"]) == codes_before
 
 
@@ -308,7 +312,8 @@ def test_creating_a_code_passes_the_csrf_origin_check(owner):
     missing = no_origin.post("/api/devices/pairing-codes")
 
     assert foreign.status_code == 403 and missing.status_code == 403
-    assert foreign.json()["detail"] == "Invalid request origin"
+    # The origin check runs before authentication, so the request's header decides the language (D1).
+    assert foreign.json()["detail"] == {"code": "invalid_request_origin", "params": {}, "message": "Invalid request origin"}
     assert code_count(owner["id"]) == 0
 
 
@@ -473,7 +478,7 @@ def test_pair_is_rate_limited_per_client_ip(client, monkeypatch):
 
     assert statuses == [410] * 10
     assert limited.status_code == 429
-    assert limited.json()["detail"] == {"code": "pairing_rate_limited"}
+    assert limited.json()["detail"]["code"] == "pairing_rate_limited"
     assert limited.headers["retry-after"] == "60"
     assert set(limiter._events) == {"pair:client:testclient"}
 
@@ -513,7 +518,7 @@ def test_device_list_and_revoke_are_owner_scoped(make_owner):
     foreign = bob["web"].delete(f"/api/devices/{alice_device}")
     unknown = bob["web"].delete(f"/api/devices/{uuid4()}")
 
-    assert foreign.status_code == 404 and foreign.json()["detail"] == {"code": "device_not_found"}
+    assert foreign.status_code == 404 and foreign.json()["detail"]["code"] == "device_not_found"
     assert unknown.status_code == 404 and unknown.json() == foreign.json()
     assert bearer_status(alice_key) == 200
     assert bob["web"].delete("/api/devices/not-a-uuid").status_code == 422

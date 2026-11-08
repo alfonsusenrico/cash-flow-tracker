@@ -127,7 +127,7 @@ def test_ineligible_topup_is_atomic(auth_client, portfolio, case):
         from app.db.pool import db_conn
 
         with db_conn() as conn:
-            owner = conn.execute("INSERT INTO users (username, password_hash, invite_code) VALUES (%s, 'unused', 'fixture') RETURNING id", (f"Other fixture {uuid4().hex}",)).fetchone()["id"]
+            owner = conn.execute("INSERT INTO users (username, password_hash, invite_code, language) VALUES (%s, 'unused', 'fixture', 'id') RETURNING id", (f"Other fixture {uuid4().hex}",)).fetchone()["id"]
             target = str(conn.execute("INSERT INTO accounts (user_id, name, type, instrument_type) VALUES (%s, 'Foreign fund', 'investment', 'mutual_fund') RETURNING id", (owner,)).fetchone()["id"])
     elif case == "funding":
         source = account(auth_client, instrument="mutual_fund")

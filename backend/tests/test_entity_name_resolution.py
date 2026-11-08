@@ -101,7 +101,7 @@ def name_owner(client):
         with conn.cursor() as cur:
             for uid, prefix in ((user_id, "names"), (other_id, "names_other")):
                 cur.execute(
-                    "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Raka Purnama', 'synthetic-hash', 'TEST')",
+                    "INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Raka Purnama', 'synthetic-hash', 'TEST', 'id')",
                     (uid, f"{prefix}_{uuid4().hex}"),
                 )
             for key, name, parent, owner_id in [

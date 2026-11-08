@@ -32,11 +32,16 @@ Every error response SHALL carry `detail` as `{code, params, message}`: a stable
 - **THEN** `detail` SHALL carry `code` `insufficient_funds`, `params` with `available_amount` and `required_amount`, and the existing top-level fields SHALL remain
 
 ### Requirement: Server-Composed Text Carries Its Code
-Every question, suggestion reason, fact, period label and system label the server composes SHALL be rendered in the server text language and SHALL also carry the message code and parameters it was rendered from, so that a client can render it itself. User data inside it SHALL be inserted as stored.
+Every question, suggestion reason and fact the server composes SHALL be rendered in the server text language and SHALL also carry the message code and parameters it was rendered from, so that a client can render it itself. Period labels and system labels SHALL be rendered in the server text language next to the structured values a client renders them from: the period's start and end dates, and a system line's `key` and `label_source`. User data inside composed text SHALL be inserted as stored.
 
 #### Scenario: Purpose question for an English account
 - **WHEN** a Rp187.500 payment from BCA Harian without a merchant is recorded for an English account
 - **THEN** the question's prompt SHALL read "What was this for? Rp187.500 from BCA Harian" and SHALL carry its code and the parameters `amount` 187500 and `account` "BCA Harian"
+
+#### Scenario: Period label for an English account
+- **GIVEN** an English account whose pay cycle started on 25 October and is still open
+- **WHEN** it reads the report window of that cycle
+- **THEN** the label SHALL read "Pay cycle since 25 Oct · ongoing" and the response SHALL carry the window's start and end dates
 
 #### Scenario: Indonesian text unchanged
 - **WHEN** the same payment is recorded for an Indonesian account

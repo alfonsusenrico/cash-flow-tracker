@@ -82,7 +82,7 @@ def test_a_different_owner_cannot_confirm_or_configure_the_transaction(client, o
     account = str(uuid4())
     transaction = str(uuid4())
     with db_conn() as conn:
-        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Synthetic', 'hash', 'TEST')", (stranger, 'foreign_salary_' + uuid4().hex))
+        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Synthetic', 'hash', 'TEST', 'id')", (stranger, 'foreign_salary_' + uuid4().hex))
         conn.execute("INSERT INTO accounts (id, user_id, name, type, initial_balance) VALUES (%s, %s, 'Synthetic', 'bank', 0)", (account, stranger))
         conn.execute("INSERT INTO transactions (id, user_id, account_id, type, amount, notes, date, source, review_status) VALUES (%s, %s, %s, 'income', 1000, 'Synthetic', now(), 'manual', 'reviewed')", (transaction, stranger, account))
         conn.commit()

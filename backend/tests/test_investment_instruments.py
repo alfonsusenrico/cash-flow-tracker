@@ -232,7 +232,7 @@ def test_account_endpoints_instrument_search_and_sync():
         from app.main import app
         from app.services.auth import get_current_user
 
-        mock_user = {"id": "test-user-id", "username": "testuser", "currency": "IDR", "payday_day": 25}
+        mock_user = {"language": "id", "region": "ID", "id": "test-user-id", "username": "testuser", "currency": "IDR", "payday_day": 25}
         app.dependency_overrides[get_current_user] = lambda: mock_user
 
         with patch("app.routers.accounts.search_instruments", new_callable=AsyncMock) as mock_search, \
@@ -312,7 +312,7 @@ def test_record_investment_buy_trade_accumulates_units_and_weighted_average_pric
     from app.main import app
     from app.services.auth import get_current_user
 
-    mock_user = {"id": "user-trade-123", "username": "trader", "currency": "IDR", "payday_day": 25}
+    mock_user = {"language": "id", "region": "ID", "id": "user-trade-123", "username": "trader", "currency": "IDR", "payday_day": 25}
     app.dependency_overrides[get_current_user] = lambda: mock_user
 
     funding_id = str(uuid4())
@@ -368,7 +368,7 @@ def test_record_investment_sell_trade_decrements_units():
     from app.main import app
     from app.services.auth import get_current_user
 
-    mock_user = {"id": "user-trade-123", "username": "trader", "currency": "IDR", "payday_day": 25}
+    mock_user = {"language": "id", "region": "ID", "id": "user-trade-123", "username": "trader", "currency": "IDR", "payday_day": 25}
     app.dependency_overrides[get_current_user] = lambda: mock_user
 
     funding_id = str(uuid4())
@@ -423,7 +423,7 @@ def test_record_investment_buy_trade_by_account_names():
     from app.main import app
     from app.services.auth import get_current_user
 
-    mock_user = {"id": "user-trade-123", "username": "trader", "currency": "IDR", "payday_day": 25}
+    mock_user = {"language": "id", "region": "ID", "id": "user-trade-123", "username": "trader", "currency": "IDR", "payday_day": 25}
     app.dependency_overrides[get_current_user] = lambda: mock_user
 
     rdn_id = str(uuid4())
@@ -484,7 +484,7 @@ def test_record_investment_buy_rejects_unknown_stock_ticker():
     from app.main import app
     from app.services.auth import get_current_user
 
-    mock_user = {"id": "user-trade-123", "username": "trader", "currency": "IDR", "payday_day": 25}
+    mock_user = {"language": "id", "region": "ID", "id": "user-trade-123", "username": "trader", "currency": "IDR", "payday_day": 25}
     app.dependency_overrides[get_current_user] = lambda: mock_user
 
     rdn_id = str(uuid4())

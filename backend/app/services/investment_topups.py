@@ -7,9 +7,10 @@ import json
 from typing import Any
 from uuid import uuid4
 
-from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 
+from app.errors import ErrorCode, api_error
+from app.i18n import account_language, t
 from app.services.ledger_mutations import (
     LIQUID_ACCOUNT_TYPES,
     create_bilateral_movement,
@@ -23,28 +24,24 @@ from app.services.movement_linkage import ensure_internal_movement_categories
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, system_provenance
 from app.services.topup_learning import record_answer
 
-TOPUP_NOTE = "Top up Investasi"
+def topup_note(cur, user_id: str) -> str:
+    """ "Top up Investasi", written in the owner's language at creation (D6)."""
+    return t(account_language(cur, user_id)[0], "notes.topup")
 # A debit recorded as a top-up from the owner's repeated conversions (clarify-review-and-learn-topups D8).
 LEARNED_ASSIGNMENTS = "classified_by = 'habit', classification_confidence = NULL"
 
 
 def validate_topup_accounts(source: dict[str, Any], target: dict[str, Any]) -> None:
     if source["type"] not in LIQUID_ACCOUNT_TYPES or source.get("instrument_type"):
-        raise HTTPException(status_code=422, detail={"code": "liquid_funding_required"})
+        raise api_error(422, ErrorCode.LIQUID_FUNDING_REQUIRED)
     if (
         target.get("instrument_type") != "mutual_fund"
         or target.get("units") is not None
         or target.get("has_children")
     ):
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "amount_product_required",
-                "message": "Top up requires a mutual-fund product tracked by total amount, without units.",
-            },
-        )
+        raise api_error(422, ErrorCode.AMOUNT_PRODUCT_REQUIRED)
     if str(source["id"]) == str(target["id"]):
-        raise HTTPException(status_code=422, detail={"code": "distinct_accounts_required"})
+        raise api_error(422, ErrorCode.DISTINCT_ACCOUNTS_REQUIRED)
 
 
 def initialize_amount_tracking(cur, user_id: str, account: dict[str, Any]) -> dict[str, Any]:
@@ -73,9 +70,9 @@ def apply_contribution_delta(cur, user_id: str, account: dict[str, Any], delta: 
     old_basis = account.get("investment_cost_basis")
     basis = int(old_basis) + delta if old_basis is not None else None
     if value < 0 or (basis is not None and basis < 0):
-        raise HTTPException(status_code=409, detail={"code": "invalid_investment_reversal"})
+        raise api_error(409, ErrorCode.INVALID_INVESTMENT_REVERSAL)
     if value > 2**63 - 1 or (basis is not None and basis > 2**63 - 1):
-        raise HTTPException(status_code=422, detail={"code": "investment_amount_overflow"})
+        raise api_error(422, ErrorCode.INVESTMENT_AMOUNT_OVERFLOW)
     cur.execute(
         """UPDATE accounts SET last_price = %s, investment_cost_basis = %s,
                investment_value_estimated = TRUE, updated_at = NOW()
@@ -92,15 +89,9 @@ def convert_product_to_amount(cur, user_id: str, account_id: str) -> None:
     """Switch a unit-tracked mutual fund to amount tracking, keeping its value and invested cost."""
     account = lock_owned_accounts(cur, user_id, [account_id])[account_id]
     if account.get("investment_tracking_mode") == "amount":
-        raise HTTPException(status_code=409, detail={"code": "already_amount_tracked"})
+        raise api_error(409, ErrorCode.ALREADY_AMOUNT_TRACKED)
     if account.get("instrument_type") != "mutual_fund" or account.get("units") is None or account.get("has_children"):
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "unit_mutual_fund_required",
-                "message": "Only a mutual-fund product that records units can switch to amount tracking.",
-            },
-        )
+        raise api_error(422, ErrorCode.UNIT_MUTUAL_FUND_REQUIRED)
     units = Decimal(account["units"])
     if account.get("last_price") is not None:
         value = whole_rupiah(units * Decimal(account["last_price"]))
@@ -115,7 +106,7 @@ def convert_product_to_amount(cur, user_id: str, account_id: str) -> None:
     elif units == 0 and value == 0:
         basis = 0
     if value < 0:
-        raise HTTPException(status_code=409, detail={"code": "negative_investment_value"})
+        raise api_error(409, ErrorCode.NEGATIVE_INVESTMENT_VALUE)
     # last_price_at stays: the value still reflects the last real valuation, not this conversion.
     cur.execute(
         """UPDATE accounts SET investment_tracking_mode = 'amount', investment_cost_basis = %s,
@@ -131,10 +122,7 @@ def reject_topup_movement(cur, user_id: str, movement_id: str | None) -> None:
         return
     cur.execute("SELECT id FROM investment_topups WHERE user_id = %s AND id = %s", (user_id, movement_id))
     if cur.fetchone():
-        raise HTTPException(
-            status_code=409,
-            detail={"code": "investment_topup_lifecycle_required", "investment_topup_id": movement_id},
-        )
+        raise api_error(409, ErrorCode.INVESTMENT_TOPUP_LIFECYCLE_REQUIRED, extra={"investment_topup_id": movement_id})
 
 
 def get_topup(cur, user_id: str, topup_id: str, *, for_update: bool = False) -> dict[str, Any]:
@@ -145,7 +133,7 @@ def get_topup(cur, user_id: str, topup_id: str, *, for_update: bool = False) -> 
     )
     row = cur.fetchone()
     if not row:
-        raise HTTPException(status_code=404, detail="Investment top-up not found")
+        raise api_error(404, ErrorCode.INVESTMENT_TOPUP_NOT_FOUND)
     return row
 
 
@@ -184,7 +172,7 @@ def resolve_topup_source(cur, user_id: str, source_id: str) -> str:
     accounts = cur.fetchall()
     source = next((account for account in accounts if str(account["id"]) == source_id), None)
     if not source:
-        raise HTTPException(status_code=404, detail="Funding account not found")
+        raise api_error(404, ErrorCode.FUNDING_ACCOUNT_NOT_FOUND)
     # Resolution does not write the parent's default while financial account locks are pending.
     effective = resolve_effective_account(None, user_id, source, accounts)
     return str(effective["id"])
@@ -220,13 +208,13 @@ def create_topup(
     existing = cur.fetchone()
     if existing:
         if existing["request_fingerprint"] != fingerprint:
-            raise HTTPException(status_code=409, detail={"code": "idempotency_mismatch"})
+            raise api_error(409, ErrorCode.IDEMPOTENCY_MISMATCH)
         return topup_response(cur, existing, idempotent=True)
 
     effective_source_id = resolve_topup_source(cur, user_id, source_id)
     locked = lock_owned_accounts(cur, user_id, [source_id, effective_source_id, target_id])
     if resolve_topup_source(cur, user_id, source_id) != effective_source_id:
-        raise HTTPException(status_code=409, detail={"code": "funding_selection_changed"})
+        raise api_error(409, ErrorCode.FUNDING_SELECTION_CHANGED)
     source, target = locked[effective_source_id], locked[target_id]
     validate_topup_accounts(source, target)
     ensure_sufficient_funds(cur, user_id, source, amount)
@@ -243,7 +231,7 @@ def create_topup(
     expense_category, income_category = ensure_internal_movement_categories(cur, user_id)
     create_bilateral_movement(
         cur, user_id=user_id, source_id=effective_source_id, target_id=target_id,
-        amount=amount, notes=notes or TOPUP_NOTE, tx_date=tx_date,
+        amount=amount, notes=notes or topup_note(cur, user_id), tx_date=tx_date,
         expense_category_id=expense_category, income_category_id=income_category,
         source_account=source, target_account=target,
         idempotency_key=f"investment-topup:{topup_id}", recurring_rule_id=recurring_rule_id,
@@ -263,7 +251,7 @@ def lock_convertible_expense(cur, user_id: str, transaction_id: str) -> dict[str
     )
     expense = cur.fetchone()
     if not expense:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+        raise api_error(404, ErrorCode.TRANSACTION_NOT_FOUND)
     return expense
 
 
@@ -289,14 +277,14 @@ def convert_transaction_to_topup(
         existing = cur.fetchone()
         if existing and str(existing["target_account_id"]) == target_id:
             return topup_response(cur, existing, idempotent=True)
-        raise HTTPException(status_code=409, detail={"code": "transaction_not_convertible", "reason": "movement"})
+        raise api_error(409, ErrorCode.TRANSACTION_NOT_CONVERTIBLE, extra={"reason": 'movement'})
     linked = (
         expense["obligation_id"] or expense["goal_id"] or expense["recurring_rule_id"]
         or expense["has_debt_allocations"]
     )
     if expense["type"] != "expense" or linked:
         reason = "not_expense" if expense["type"] != "expense" else "linked"
-        raise HTTPException(status_code=409, detail={"code": "transaction_not_convertible", "reason": reason})
+        raise api_error(409, ErrorCode.TRANSACTION_NOT_CONVERTIBLE, extra={"reason": reason})
 
     source_id = str(expense["account_id"])
     locked = lock_owned_accounts(cur, user_id, [source_id, target_id])
@@ -309,7 +297,7 @@ def convert_transaction_to_topup(
     if suggested_target_id is not None and suggested_target_id != target_id:
         cur.execute("SELECT 1 FROM accounts WHERE user_id = %s AND id = %s", (user_id, suggested_target_id))
         if not cur.fetchone():
-            raise HTTPException(status_code=404, detail="Suggested product not found")
+            raise api_error(404, ErrorCode.PRODUCT_NOT_FOUND)
     target = initialize_amount_tracking(cur, user_id, target)
 
     cur.execute(
@@ -343,7 +331,7 @@ def convert_transaction_to_topup(
          f"transaction:{transaction_id}:{topup_id}", fingerprint, Jsonb(converted_from)),
     )
     expense_category, income_category = ensure_internal_movement_categories(cur, user_id)
-    leg_notes = notes or TOPUP_NOTE
+    leg_notes = notes or topup_note(cur, user_id)
     before_classification = snapshot_rows(cur, user_id, [transaction_id]) if learned_basis is None else {}
     classifier = OWNER_EDIT_ASSIGNMENTS if learned_basis is None else LEARNED_ASSIGNMENTS
     cur.execute(
@@ -412,7 +400,7 @@ def mutate_topup(
     if row["is_deleted"]:
         if delete:
             return topup_response(cur, row, idempotent=True)
-        raise HTTPException(status_code=409, detail={"code": "investment_topup_deleted"})
+        raise api_error(409, ErrorCode.INVESTMENT_TOPUP_DELETED)
     source_id, target_id = str(row["source_account_id"]), str(row["target_account_id"])
     locked = lock_owned_accounts(cur, user_id, [source_id, target_id], include_archived=True)
     updates = changes or {}
@@ -420,7 +408,7 @@ def mutate_topup(
     delta = -int(row["amount"]) if delete else amount - int(row["amount"])
     if delta > 0:
         if locked[source_id]["is_archived"] or locked[target_id]["is_archived"]:
-            raise HTTPException(status_code=409, detail={"code": "archived_topup_account"})
+            raise api_error(409, ErrorCode.ARCHIVED_TOPUP_ACCOUNT)
         validate_topup_accounts(locked[source_id], locked[target_id])
         ensure_sufficient_funds(cur, user_id, locked[source_id], delta)
     cur.execute(
@@ -428,7 +416,7 @@ def mutate_topup(
         (user_id, topup_id),
     )
     if len(cur.fetchall()) != 2:
-        raise HTTPException(status_code=409, detail={"code": "incomplete_investment_topup"})
+        raise api_error(409, ErrorCode.INCOMPLETE_INVESTMENT_TOPUP)
     if delta:
         apply_contribution_delta(cur, user_id, locked[target_id], delta)
     if delete:
@@ -451,7 +439,7 @@ def mutate_topup(
                        THEN NULL ELSE classification_confidence END,
                    review_status = CASE WHEN notes IS DISTINCT FROM %s THEN 'reviewed' ELSE review_status END
                WHERE user_id = %s AND movement_id = %s""",
-            (amount, tx_date, notes or TOPUP_NOTE, *([notes or TOPUP_NOTE] * 4), user_id, topup_id),
+            (amount, tx_date, notes or topup_note(cur, user_id), *([notes or topup_note(cur, user_id)] * 4), user_id, topup_id),
         )
         record_owner_corrections(cur, user_id, before_classification)
         cur.execute(
