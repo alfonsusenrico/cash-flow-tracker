@@ -43,9 +43,21 @@ After looking at production on 2026-11-06, the owner gave five points for Transa
 2. **Transfer rows show the note first.** The title is the movement's note, as the owner wrote it or as the server stored it; the meta is the route. Without a note, the route is the title (D11).
 3. **No "Tidak dihitung" for transfers.** The pillar column names the saving direction from the account roles, classified exactly as Beranda's "Ditabung & investasi" is computed (`dashboard.py` `get_kakeibo_breakdown`, `cycle_summary.savings_change`). The server computes the classification as an additive, read-only row field (D27).
 4. **A "Tabungan & investasi" filter** ("Savings & investments") in the rail and the type control. For the cycle its total equals Beranda's figure, which the gate checks. The API gets one additive filter value and one additive summary field (D28).
-5. **Room for credit spending.** `add-credit-spending-flow` (per-provider credit purchases and settlements, 0 % installments, "no cash out until settlement") is planned separately and is not built here. The type list takes a "Kredit" item without restructuring, and credit purchase rows keep their provider account in the meta (D30).
+5. **Credit spending (amended 2026-11-08).** The plan first left room for `add-credit-spending-flow`. That change merged in #91 before this phase was built, and its hand-off H5 is now part of this phase (D30): credit purchase rows say that no cash left that day ("dibayar nanti · SPayLater · jatuh tempo 11 Des"), payments say "bayar tagihan", the type list gains "Kredit", one provider is a view with its own header, and the transaction dialog shows and edits the instalments.
 
 The owner rejected several roles per account (one role stays, to avoid double counting). This plan adds no roles and no tags.
+
+## Credit hand-off H5 (amendment of 2026-11-08)
+
+The coordinator amended the plan on 2026-11-08, under the owner's standing instruction (renewed 2026-11-08), because `add-credit-spending-flow` merged (#91) after the plan was written. Its archived `verification.md` hands phase 5 the block H5, which this change now builds (design D30):
+- **Rows:** a credit purchase reads "dibayar nanti · {provider} · jatuh tempo {date}", with "cicilan {k}/{n}" for instalments and "lunas {date}" once settled; a payment into a credit account keeps its route and adds "bayar tagihan". The fields are the rows' `credit` block (`role`, `account_name`, `installment_count`, `installments_settled`, `next_due_date`, `settled_on`).
+- **Expense red, not ink:** H5 asked for the ink on a credit purchase. The owner's rule of 2026-11-06 (feedback 1) wins: a credit purchase is spending and its amount is red like every other expense.
+- **The type "Kredit":** a seventh entry of `LEDGER_TYPES` ("Kredit" / "Credit"), backed by an additive, read-only `type=credit` filter and `type_counts.credit` (the backend had no such filter). With it, the providers are listed so one can be chosen.
+- **The provider view:** with one credit account chosen (`account=<id>`, the API's `account_id`), the page shows that provider's header from `GET /api/credit/accounts/{id}`: what is owed, the next bill, "Pengeluaran pakai kredit" and "Tagihan kredit dibayar" for the period.
+- **The dialog:** a credit purchase shows its terms, instalments with due dates and status, and its settlement date (`GET /api/transactions/{id}` `credit.installments`); "Ubah transaksi" changes the instalment count and first due date through `PUT /api/transactions/{id}/credit-terms`, and `DELETE` returns it to paid in full.
+- **The owner's requirements (2026-11-06):** mostly buy-now-pay-later (SPayLater, Kredivo), sometimes 0 % instalments; credit grouped per provider; settlements tracked (which account paid, and when); a purchase counts as Pengeluaran on its day while the page says no cash left that day. Paying in full with no fee stays the simple default. No rule is built around any particular pocket, and the page never comments on the owner's strategy.
+- **Branch base:** this phase started stacked on phase 4's branch (`feat/markas-tinjau`, PR #92) at the coordinator's instruction; PR #92 then merged into `main` (`f855951`), and the branch was updated from `origin/main` (D26 amended).
+- **Translated routes:** besides `lib/i18n/translatedRoutes.ts`, `/ledger` also leaves `components/workspace/untranslatedPages.ts`, and the title block reads Transaksi's title from the catalogue.
 
 ## Approval
 
@@ -96,7 +108,7 @@ Each is a decision in `design.md` and is captured for the owner's end review:
 - **Title block:** the subtitle from phase 2, the restyled shared period stepper (SPEC `.stepper`, D3), and one "…" menu with "Gabungkan dua transaksi" ("Batal gabungkan" while selecting) and "Filter transaksi" (D2).
 - **Hero:** "Pengeluaran" (`spending`) in Manrope 44, with "· semua waktu" or "· {range}" in the label outside a period, and the supporting figures "Masuk" (`inflow`, "+", income green) and "Bersih · masuk − pengeluaran" (`spending_net`, sign shown, ink) beside it (D4).
 - **Layout:** `200px minmax(0,1fr)`, gap 32, from 1200 px with the sticky rail; one column with the type control from 768 to 1199 px; the phone layout below 768 px. All switches are viewport media queries, which replace the list-width measurement (D1).
-- **Rail** (phase 4 `Rail`): JENIS with `type_counts` (six types, including "Tabungan & investasi", from one list that can take "Kredit" later), a rule, PERIODE. The chosen item has the `--s1` fill and the 2 × 20 px bar (D5). Below 1200 px the prototype's `.tx-types` segmented control with counts (D6).
+- **Rail** (phase 4 `Rail`): JENIS with `type_counts` (seven types, including "Tabungan & investasi" and "Kredit", from one list), a rule, PERIODE. The chosen item has the `--s1` fill and the 2 × 20 px bar (D5). Below 1200 px the prototype's `.tx-types` segmented control with counts (D6).
 - **Toolbar:** the search field (`LEDGER_SEARCH_ID`, 300 ms delay as today) and the secondary "Filter" button with " · N"; the active filters, including the search text, as SPEC chips with "Hapus filter …" buttons (D7).
 - **Filter dialog** (640 px, `ShellDialog`): Rekening, Kategori, Pilar, Status, Sumber, "Menunggu jawaban", "Kemungkinan duplikat" while set, and Periode; "Atur ulang", "Batal" and "Terapkan", which writes the URL once (D8).
 - **Merge:** the selection mode from "…" or a long-press on the phone, a 16 px checkbox per row with the whole row as its label, and the SPEC selection bar "{n} dari 2 dipilih · Batal gabungkan · Gabungkan jadi pindah saldo". The `POST /movements/merge` request, its checks and the "Nominal tidak sama" dialog are unchanged (D9).
@@ -108,6 +120,7 @@ Each is a decision in `design.md` and is captured for the owner's end review:
 - **"Ubah transaksi"** (600 px): the edit form moved out of the drawer into its own dialog, with the Jenis and Pilar segmented controls and one-line hints instead of info icons. A transfer row opens it in movement mode, with Dari, Ke, Nominal, Tanggal, Catatan and "Pisahkan jadi dua transaksi". This replaces `InternalMovementModal`. A top-up still opens `InvestmentTopupModal`, which phase 8 owns (D15, D16).
 - **"Catat sebagai top up investasi"** (520 px): `ExpenseTopupConversionModal` moves onto `ShellDialog`, with the same request (D17).
 - **Backend, additive and read-only (flagged, D27, D28):** the row field `saving_flow`, the filter value `type=saving`, `type_counts.saving` and the summary field `saving_net`, from one shared savings-classification helper that `get_kakeibo_breakdown` also uses. No schema, migration, write path or existing figure changes.
+- **Credit (H5, amended 2026-11-08, D30):** the credit row metas, the "Kredit" type with the read-only `type=credit` filter and `type_counts.credit`, the provider chooser and header, and the credit terms in the transaction and edit dialogs.
 - **Expense colour (D29):** one shared amount component paints "−Rp" with `--out-fg` on Transaksi, the dialog, Beranda's Aktivitas terbaru and Perlu tindakan, and the Rekening detail; `tokens.test.ts` pins `--out-fg` at ≥ 4.5:1 on the canvas, every surface and the dialog in both themes.
 - **Keys and URL:** J, K, Enter and Z as today, with rows found by `data-row`; every URL parameter and history entry as today (D18, D19).
 - **Language:**
@@ -133,7 +146,7 @@ Each is a decision in `design.md` and is captured for the owner's end review:
 
 - No change to any existing API field, request, figure, count, money rule, schema, data or the Android companion. The only backend work is the additive, read-only `saving_flow`, `type=saving`, `type_counts.saving` and `saving_net` (D27, D28), with the savings predicates moved into one shared helper and Beranda's figures proven unchanged. `db/` and `mobile/` are untouched, and there is no migration. Server text, such as error messages, is shown as `localize-server-text` sends it.
 - No change to what Beranda counts as "Ditabung & investasi": the row labels follow the server's rule, including the three cases where it differs from the owner's wording (flagged, D27).
-- No credit spending flow (`add-credit-spending-flow` is a separate change, D30), no second role per account and no tags (the owner rejected them on 2026-11-06).
+- No new credit money rule: due dates, bills, settlement and the credit figures are the server's from `add-credit-spending-flow`; this phase only shows them and sends its terms requests (D30). No second role per account and no tags (the owner rejected them on 2026-11-06).
 - No change to what a filter matches, how rows are paged, grouped or consolidated (`consolidateLedgerMovements`, `listsLogicalMovements`, `groupByDay`), or what an action sends.
 - No undo for delete, no row-level duplicate flag and no receipt preview, because the API has none and adding them is backend work.
 - No other page body. Catat and its Perpindahan are phase 11. `InvestmentTopupModal` and the Rekening detail are phase 8. Analisis and Laporan adopt the restyled stepper as it is, and their pages wait for phases 6 and 7.
@@ -191,7 +204,9 @@ No capability in `AGENTS.md` changes.
   - new `backend/app/services/saving_flow.py`: the savings-destination, product and top-up predicates now in `routers/dashboard.py`, as one SQL helper;
   - `routers/dashboard.py` `get_kakeibo_breakdown` reads the helper (no behaviour change);
   - `routers/transactions.py`: `saving_flow` on list and detail rows, `type=saving` in `TYPE_FILTER_SQL`, `saving` in `TAB_KEYS` for `type_counts`, and `saving_net` in the summary;
-  - tests in `backend/tests/` for each `saving_flow` value, the filter, the count, and `saving_net` equal to `cycle_summary` `tabungan.total` for the cycle; the existing Kakeibo, cycle-summary and ledger tests unchanged.
+  - tests in `backend/tests/` for each `saving_flow` value, the filter, the count, and `saving_net` equal to `cycle_summary` `tabungan.total` for the cycle; the existing Kakeibo, cycle-summary and ledger tests unchanged;
+  - `routers/transactions.py` also gains `type=credit` and `type_counts.credit` (H5, D30), with tests.
+- **Credit (H5):** the web reads `GET /api/credit/accounts/{id}` and `credit` on the rows and the detail, and writes `PUT` and `DELETE /api/transactions/{id}/credit-terms`; all exist since #91.
 - **Tooling (local only):** `scripts/verify/markas/`:
   - the Transaksi scenarios in both scenario files;
   - `transaksi-checklist.js` for `measure.js`;
@@ -199,4 +214,4 @@ No capability in `AGENTS.md` changes.
   - the parity seed extended with a fee-linked transfer, a top-up, a reimbursement offset, a 60-row day and one transfer per saving direction;
   - the stress and USD seed for Transaksi.
 - **No change** to `db/`, `mobile/` or `nginx/`. Rollback is a revert of the merge commit; the backend additions are read-only, so a rollback drops the fields without data effects.
-- **Follow-up dependency:** `add-credit-spending-flow` builds on this phase: it adds the "Kredit" type to the same list and its own labels for credit purchases and settlements (D30).
+- **Credit dependency:** `add-credit-spending-flow` merged first (#91); this phase renders its H5 hand-off (D30).

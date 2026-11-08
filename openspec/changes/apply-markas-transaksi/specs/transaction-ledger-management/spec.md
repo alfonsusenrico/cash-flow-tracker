@@ -372,7 +372,7 @@ Each desktop ledger row SHALL be one line with the columns time, title with its 
 - **THEN** the label SHALL fit the pillar column on one line, and the row SHALL not scroll horizontally
 
 ### Requirement: Ledger Day Totals and Type Counts
-`GET /api/transactions` SHALL accept `include=daily_totals` and `include=type_counts`, and each row SHALL carry `local_date`. `daily_totals` SHALL cover every local day of the returned rows over every row matching the filters on that day, with the summary's reportable rules and `spending`. `type_counts` SHALL count matching rows per tab, including `saving`, ignoring the type filter. Without `include`, the response SHALL otherwise be unchanged.
+`GET /api/transactions` SHALL accept `include=daily_totals` and `include=type_counts`, and each row SHALL carry `local_date`. `daily_totals` SHALL cover every local day of the returned rows over every row matching the filters on that day, with the summary's reportable rules and `spending`. `type_counts` SHALL count matching rows per tab, including `saving` and `credit`, ignoring the type filter. Without `include`, the response SHALL otherwise be unchanged.
 
 #### Scenario: Day totals add up to the summary
 - **GIVEN** a filtered window whose rows span three pages
@@ -393,7 +393,7 @@ Each desktop ledger row SHALL be one line with the columns time, title with its 
 
 #### Scenario: Tab counts
 - **WHEN** the ledger is requested with `type=expense&include=type_counts`
-- **THEN** `type_counts` SHALL count the expense, income, movement, investment and saving rows of the other filters, a top-up leg SHALL count under investment and, when it is counted as saving, under saving, and no other key SHALL change
+- **THEN** `type_counts` SHALL count the expense, income, movement, investment, saving and credit rows of the other filters, a top-up leg SHALL count under investment and, when it is counted as saving, under saving, a credit purchase SHALL count under expense and credit, and no other key SHALL change
 
 #### Scenario: Only the owner's rows
 - **WHEN** another owner has rows on the same days
@@ -404,7 +404,7 @@ Each desktop ledger row SHALL be one line with the columns time, title with its 
 - **THEN** the response SHALL be 422
 
 ### Requirement: Ledger Type and Waiting Filters
-`GET /api/transactions` SHALL accept `type=movement` (internal movements and excluded categories that are not part of a top-up), `type=investment` (top-up legs and Investasi rows), `type=saving` (rows whose `saving_flow` changes "Ditabung & investasi") and `waiting=true` (rows in the Tinjau attention set). With `type=saving` and no other row filter, the summary SHALL carry `saving_net`. `type=transfer` SHALL keep its meaning.
+`GET /api/transactions` SHALL accept `type=movement` (internal movements and excluded categories that are not part of a top-up), `type=investment` (top-up legs and Investasi rows), `type=saving` (rows whose `saving_flow` changes "Ditabung & investasi"), `type=credit` (rows on a credit account and the cash legs of movements into or out of one) and `waiting=true` (rows in the Tinjau attention set). With `type=saving` and no other row filter, the summary SHALL carry `saving_net`. `type=transfer` SHALL keep its meaning.
 
 #### Scenario: Waiting filter matches the badge
 - **WHEN** the ledger is requested with `waiting=true` and no other filter
@@ -422,6 +422,11 @@ Each desktop ledger row SHALL be one line with the columns time, title with its 
 #### Scenario: Savings net only without other filters
 - **WHEN** the ledger is requested with `type=saving&account_id=<id>`
 - **THEN** the rows SHALL be filtered, `saving_net` SHALL be `null`, and every existing summary field SHALL keep its value
+
+#### Scenario: Credit type filter
+- **GIVEN** a SPayLater purchase of Rp 120.000, a SPayLater fee, a refund on SPayLater, a payment of Rp 470.000 from Jago into SPayLater and an ordinary BCA expense
+- **WHEN** the ledger is requested with `type=credit&logical_movements=true`
+- **THEN** it SHALL list the purchase, the fee, the refund and one row for the payment, SHALL NOT list the BCA expense, and every existing summary field SHALL be computed over those rows as for any type
 
 #### Scenario: Unknown type
 - **WHEN** `type=savings` or another unknown value is sent
@@ -494,7 +499,7 @@ Transaksi SHALL show one hero "Pengeluaran" with the summary's `spending` in 44 
 - **THEN** the hero SHALL read "Tidak tersedia dengan filter lain" in words, and no figure SHALL be computed in the browser
 
 ### Requirement: Transaksi Type and Period Rail
-From 1200 px Transaksi SHALL show a rail labelled "Jenis dan periode" with JENIS (Semua, Pengeluaran, Masuk, Pindah saldo, Investasi, Tabungan & investasi, with counts) and PERIODE (Siklus gaji, Bulan kalender, Semua waktu). The chosen items SHALL be marked by `aria-pressed`, a fill and the straight selection bar. Below 1200 px the types SHALL be a horizontal control and the period mode SHALL be in Filter.
+From 1200 px Transaksi SHALL show a rail labelled "Jenis dan periode" with JENIS (Semua, Pengeluaran, Masuk, Pindah saldo, Investasi, Tabungan & investasi, Kredit, with counts) and PERIODE (Siklus gaji, Bulan kalender, Semua waktu). The chosen items SHALL be marked by `aria-pressed`, a fill and the straight selection bar. Below 1200 px the types SHALL be a horizontal control and the period mode SHALL be in Filter.
 
 #### Scenario: Choosing a type
 - **WHEN** the owner presses "Pengeluaran" in the rail
@@ -567,6 +572,43 @@ Transaksi and its dialogs SHALL render in the interface language: "Transactions"
 #### Scenario: Hidden balances
 - **WHEN** "Sembunyikan saldo" is on
 - **THEN** every amount on Transaksi and in its dialogs SHALL read "Rp ••••••" and be announced as hidden in the interface language
+
+### Requirement: Credit Purchase Rows
+A credit purchase row SHALL carry the meta "dibayar nanti · {provider} · jatuh tempo {date}" ("pay later · {provider} · due {date}"). With instalments it SHALL add "cicilan {k}/{n}" ("installment {k} of {n}"), and once settled it SHALL read "{provider} · lunas {date}" ("paid {date}"). Its amount SHALL be red like every other expense, and it SHALL count as Pengeluaran on its day.
+
+#### Scenario: Credit purchase meta
+- **GIVEN** a Rp 120.000 SPayLater dinner on 5 Nov whose next due date is 11 Dec
+- **WHEN** Transaksi lists it
+- **THEN** its meta SHALL read "dibayar nanti · SPayLater · jatuh tempo 11 Des" and its amount "−Rp 120.000" in the expense red
+
+#### Scenario: Instalments and settlement
+- **WHEN** a purchase in 3 instalments has 1 settled, and another purchase was settled on 4 Dec
+- **THEN** the first SHALL read "dibayar nanti · SPayLater · cicilan 2/3 · jatuh tempo …", and the second "SPayLater · lunas 4 Des"
+
+### Requirement: Credit Payment Rows
+A movement into a credit account SHALL keep its title and route and SHALL add "bayar tagihan" ("bill payment") to its meta.
+
+#### Scenario: Credit payment meta
+- **WHEN** Jago pays Rp 470.000 into SPayLater without a note
+- **THEN** the row SHALL be titled "Jago → SPayLater" with the meta "bayar tagihan", and with the note "Bayar SPayLater" it SHALL be titled by the note with the meta "Jago → SPayLater · bayar tagihan"
+
+### Requirement: Credit Provider View
+The type "Kredit" SHALL list the credit accounts as providers to choose from. With one credit account chosen as the account filter, the page SHALL show that account's Utang, next bill, "Pengeluaran pakai kredit" and "Tagihan kredit dibayar" for the period from `GET /api/credit/accounts/{id}`, and the Rekening filter SHALL list credit accounts in a "Kredit" group.
+
+#### Scenario: Provider view
+- **WHEN** the owner chooses "Kredit" and then "SPayLater"
+- **THEN** the URL SHALL carry `type=credit&account=<id>`, the list SHALL hold SPayLater's purchases, fees, refunds and payments only, and the header SHALL show the four figures of the endpoint for the page's period, hidden with "Sembunyikan saldo"
+
+### Requirement: Credit Terms in the Transaction Dialog
+The dialog of a credit purchase SHALL show how it is paid, its next due date, its instalments with due dates and state, and its settlement date and days. "Ubah transaksi" SHALL change the instalment count and the first due date through `PUT /api/transactions/{id}/credit-terms`, and return it to paid in full through `DELETE`. Paying in full SHALL stay the default.
+
+#### Scenario: Change the instalments
+- **WHEN** the owner changes a paid-in-full SPayLater purchase to 3 instalments and saves
+- **THEN** the web SHALL send today's `PATCH` and then `PUT /api/transactions/{id}/credit-terms` with `{installment_count: 3, first_due_date: null}`, and the dialog SHALL list three instalments
+
+#### Scenario: Back to paid in full
+- **WHEN** the owner chooses "Sekali bayar" without a first due date for a purchase with terms
+- **THEN** the web SHALL send `DELETE /api/transactions/{id}/credit-terms`
 
 ## REMOVED Requirements
 

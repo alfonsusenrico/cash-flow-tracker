@@ -36,7 +36,7 @@ Owner feedback of 2026-11-06, after looking at production (proposal "Owner feedb
 2. transfer rows titled by their note, with the route as meta (D11);
 3. the saving direction instead of "Tidak dihitung" for transfers, classified like Beranda's "Ditabung & investasi" (D27);
 4. a "Tabungan & investasi" type whose cycle total equals Beranda's figure (D28);
-5. room for `add-credit-spending-flow` without building it (D30).
+5. credit spending: first room for `add-credit-spending-flow`; amended 2026-11-08 to build its hand-off H5, since it merged in #91 (D30).
 One role per account stays; the owner rejected several roles and tags.
 
 How the server counts "Ditabung & investasi" today (`routers/dashboard.py` `get_kakeibo_breakdown`, `services/cycle_summary.py` `savings_change`), which D27 and D28 follow:
@@ -151,7 +151,7 @@ Rejected:
 ### D5. Rail (≥ 1200 px)
 
 Phase 4's `Rail`, `RailItem` and `RailRule` in a `nav` labelled "Jenis dan periode":
-- `t-label` "JENIS", then six items: Semua, Pengeluaran, Masuk, Pindah saldo, Investasi, Tabungan & investasi (owner feedback 4, D28). They come from one ordered list (`LEDGER_TYPES` with its label key and count key), which `add-credit-spending-flow` extends with "Kredit" without changing the rail, the type control or the URL parser beyond the new value (D30). Each shows its count from `type_counts` (12/400 muted, right) with hidden text ("59 transaksi"). The counts are hidden while loading.
+- `t-label` "JENIS", then seven items: Semua, Pengeluaran, Masuk, Pindah saldo, Investasi, Tabungan & investasi (owner feedback 4, D28) and Kredit (H5, D30). They come from one ordered list (`LEDGER_TYPES` with its label key, count key and API value). Each shows its count from `type_counts` (12/400 muted, right) with hidden text ("59 transaksi"). The counts are hidden while loading.
 - `RailRule`, then `t-label` "PERIODE" and three items: Siklus gaji, Bulan kalender, Semua waktu.
 - Items are buttons (h 36, padding 0 12, gap 12, radius 6, 14/500 muted). The chosen item has `aria-pressed="true"` and `aria-current="true"`, the `--s1` fill (the app's token of phase 1 D3) with `--ink`, and the straight 2 × 20 px bar 8 px left of the fill. `RailItem` gains a `pressed` prop for toggle buttons, because these items filter the list rather than navigate.
 - A type item calls `updateFilters({ type })`. A period item calls `updateFilters({ period, offset: 0 })`, which still shares the period with Analisis (`setTimeframe`, `setCycleOffset`). Both keep focus on the pressed item.
@@ -249,7 +249,7 @@ The shared `ListRow`, full variant (`.row`, min-h 56, padding 0 12 with the −1
 | --- | --- |
 | `r-time` 40 | the time, `useFormat().time` ("12.37" / "12.37" in `en-ID`, "12:37 PM" in `en-US`) |
 | `r-title` | `rowTitle`: the merchant, notes, category or "Tanpa keterangan". A transfer or top-up is titled by its note (owner feedback 2), and by its route "Jago · Tabungan → Jago · Bayar Kredit" ("?" for the unknown side) when it has no note. A top-up without a note reads "Top up {product}", or "Top up Investasi" when the product is not known (deviation 11) |
-| `r-meta` (desktop) | the account with its bank. A transfer or top-up titled by its note shows its route here; one titled by its route shows nothing more. An unpaired leg adds "Pasangan belum ditemukan" in `--warning`. In a list filtered to one account, the meta is "Masuk dari …" or "Keluar ke …" (today's `movementDirection`). A credit purchase keeps its provider account here (D30) |
+| `r-meta` (desktop) | the account with its bank. A transfer or top-up titled by its note shows its route here; one titled by its route shows nothing more. An unpaired leg adds "Pasangan belum ditemukan" in `--warning`. In a list filtered to one account, the meta is "Masuk dari …" or "Keluar ke …" (today's `movementDirection`). A credit purchase reads "dibayar nanti · {provider} · jatuh tempo {date}", and a credit payment adds "bayar tagihan" (D30) |
 | `r-cat` 168 | the category name; "Pindah saldo" for a transfer; "Top up investasi" for a top-up; "Belum ada kategori" for a waiting row without one; "Tanpa kategori" otherwise |
 | `r-pillar` 136 | an 8 px dot and the pillar name (the unclassified dot dashed, "Belum diklasifikasi"); "Menunggu jawaban" in `--warning` for a waiting row; "Uang masuk" for income; for a transfer or top-up, the saving direction of D27 ("Ditabung", "Diambil dari tabungan", "Investasi", "Bayar utang") as text without a dot, or "—" (owner feedback 3; "Tidak dihitung" is no longer used) |
 | `r-amt` ≥ 120 | expense "−Rp 30.000" in `--out-fg`, the expense red (owner feedback 1, D29); income "+Rp 18.400" in `--income`; transfer "Rp 200.000" in `--transfer`; top-up "Rp 112.590" in `--invest`; all `t-amt` (14/600 tabular) through `MaskedMoney` |
@@ -412,7 +412,7 @@ Links into Transaksi from Beranda (Kakeibo rows, "Semua transaksi", Rincian), An
 - **Formatting:** the `id-ID` formatters in `app/ledger/page.tsx` (`SHORT_DATE`), `LedgerList.tsx` (`TIME`), `TransactionDrawer.tsx` (`WHEN`) and the row helpers (`JAKARTA_TIME`, `SHORT_DAY`) move to `useFormat()`. `jakartaDay` (an `en-CA` day key, not display) stays.
 - **Server text:** error responses render from `errors.<code>`. The merge's client errors ("Pilih satu transaksi keluar dan satu transaksi masuk.", "Pilih transaksi yang belum tertaut dari dua rekening berbeda.") and the movement schema messages become `transactions.*` keys. Merchant, notes, account and category names, the notification and typed text, and stored notes are user data: shown as stored, with no `lang` attribute.
 - **Registry and guards:**
-  - `/ledger` joins `lib/i18n/translatedRoutes.ts`, so the untranslated notice and `lang="id"` leave Transaksi and its dialogs;
+  - `/ledger` joins `lib/i18n/translatedRoutes.ts`, so the untranslated notice and `lang="id"` leave Transaksi and its dialogs; it also leaves `components/workspace/untranslatedPages.ts`, and the title block reads `nav.transactions` and `transactions.page.subtitle` from the catalogue, as Tinjau's does (amended 2026-11-08);
   - the untranslated-page test example, which phase 4 moved to Transaksi, moves to Analisis (`/insights`), which stays untranslated until phase 6;
   - the copy register's translated roots gain `app/ledger`, `components/transactions`, `components/ui/ExpenseTopupConversionModal.tsx`, `lib/ledgerFilters.ts`, `lib/ledgerDays.ts` and `lib/movementFormSchema.ts`;
   - catalogue parity covers `transactions`.
@@ -571,12 +571,13 @@ Legacy "Required behavior and constraints" scenarios in the modified requirement
 ### D26. Dependencies and order
 
 - **Before task 2.1 starts,** `apply-markas-tinjau` (phase 4), `add-language-system` and `localize-server-text` must be merged into `main`, and `feat/markas-transaksi` is updated from `origin/main` (task 1.2). If one is missing, the phase stops and reports. It never stacks on an unmerged branch.
+  - **Amended 2026-11-08:** at the coordinator's instruction the branch first merged phase 4's unmerged `origin/feat/markas-tinjau` (`0df677b`, PR #92). PR #92 merged into `main` (`f855951`) while this phase was starting, and the branch was then updated from `origin/main`, so the final state stacks on nothing unmerged.
 - **From phase 4:** `Rail`, `RailItem`, `RailRule`, `HeroFigure`'s optional mark, `ListRow`'s `rowKey`, `current` and `selected`, the `.raw` box, and the untranslated-test example at Transaksi.
   - If phase 4 merged a different API for one of them, this phase adapts to what is on `main` and records the difference in `verification.md`.
   - If phase 4 dropped a piece, this phase builds it in the shared place named in D22, not locally.
 - **From the language changes:** the catalogues, `terms`, `common.period.*`, `common.rowMarks.*`, `lib/format.ts`, the registry, the copy register, `renderWithIntl`, and the error codes of the movement and merge endpoints.
 - **Conflicts with phase 6:** Analisis's Kalender and Peta Aliran import `TransactionDrawer` today. This phase renames the import to `TransactionDialog`, and phase 6 starts from that.
-- **Follow-up: `add-credit-spending-flow`** (planned separately) builds on this phase and must start from it, or rebase on it: it adds "Kredit" to `LEDGER_TYPES`, a `type` value and its own row labels (D30).
+- **`add-credit-spending-flow`** merged first (#91, migration V54); this phase renders its H5 hand-off (D30).
 
 ### D27. Saving flow per row — flags decided 2026-11-06
 
@@ -655,15 +656,40 @@ Rejected:
 - The prototype's and phase 3's ink: overridden by the owner.
 - A new, brighter red token: `--out-fg` already passes on every surface, and one expense ink is simpler.
 
-### D30. Room for credit spending
+### D30. Credit spending (H5) — amended 2026-11-08
 
-`add-credit-spending-flow` (per-provider credit purchases and settlements, 0 % installments, "no cash out until settlement" labelling) is planned separately and is not built here. This phase leaves room for it:
-- **Types:** the rail, the type control, the URL parser and `type_counts` read one ordered list (`LEDGER_TYPES` with its label, count and API value). "Kredit" is one more entry there and one more `type` value on the server.
-- **Rows:** a credit purchase (an expense paid from a credit account) keeps its provider account in the meta ("SPayLater"), its category and pillar as today, and the expense red. A payment into a credit account is labelled "Bayar utang" (D27), which that change may refine for settlements.
-- **No labels or rules for installments or settlement here;** the follow-up change owns them, and its plan starts from this phase's merged state.
+The plan first only left room for `add-credit-spending-flow`. That change merged in #91 before this phase was built, and its archived `verification.md` hands this phase the block H5, which the coordinator added on 2026-11-08 under the owner's standing instruction. Every fact comes from the server; this phase adds no credit money rule.
+
+**Server fields used (all exist since #91):**
+- the row's `credit` block on `GET /api/transactions` and `/{id}`: `role` (`purchase`, `fee`, `cash_advance`, `payment`, `refund`), `account_id`, `account_name`, and for a purchase `installment_count`, `installments_settled`, `next_due_date`, `left_to_pay`, `settled_on`, `days_to_settle`, `settled_on_time`, `due_dates_unavailable`; the detail adds `installments` (each with `due_date`, `installment {number, count}`, `amount`, `left_to_pay`, `settled_on`, `bill_status`);
+- `GET /api/credit/accounts/{id}?from=&to=`: `account.owed`, `next_due {due_date, left_to_pay, status}`, `period {from, to}`, `totals.spent_on_credit`, `totals.paid_to_credit`;
+- `PUT /api/transactions/{id}/credit-terms {installment_count, first_due_date}` and `DELETE` (back to paid in full).
+
+**Rows (H5 "Credit Purchase Rows", "Credit Payment Rows"):**
+- a purchase's meta is "dibayar nanti · {provider} · jatuh tempo {date}" ("pay later · {provider} · due {date}"). With instalments it adds "cicilan {k}/{n}" ("installment {k} of {n}", k = the next unpaid one). Once `settled_on` is set it reads "{provider} · lunas {date}" ("{provider} · paid {date}"). Without a due date it reads "dibayar nanti · {provider}". On the phone the second line reads "{time} · dibayar nanti" or "{time} · lunas {date}";
+- **the amount is red** like every other expense (`--out-fg`, owner rule of 2026-11-06), overriding H5's "ink". The pillar column shows the purchase's pillar as for any expense, because it counts as Pengeluaran on its day;
+- a payment (`role = payment`) keeps its title and route by D11 and adds "bayar tagihan" ("bill payment") to its meta: "Jago → SPayLater · bayar tagihan", or "bayar tagihan" alone when the route is the title. On the credit account's own view, where the credit leg is listed, the meta is "Masuk dari Jago · bayar tagihan";
+- a fee, a refund and a cash advance keep the ordinary meta of their kind.
+
+**The type "Kredit" ("Credit"):**
+- the seventh entry of `LEDGER_TYPES`, value `credit`, with its count;
+- the backend had no such filter, so `GET /api/transactions` gains the additive, read-only `type=credit`: rows on a credit account and the cash legs of movements into or out of one. `type_counts` gains `credit`, and `logical_movements` keeps one row per movement for it, as for `saving`. No other value, count or figure changes; pytest covers it;
+- with `type=credit` the list column shows the providers ("Penyedia": Semua · SPayLater · Kredivo …, the active credit accounts from `/accounts`) as a segmented control above the toolbar; choosing one writes `account=<id>`, which is the provider view of H5. "Semua" clears the account.
+- the hero keeps the server's summary for the filtered rows, as for every type, and adds the line "Dibayar nanti: uang keluar saat tagihan dibayar." ("Pay later: the money leaves when the bill is paid.") so the page says that no cash left on the purchase day.
+
+**Provider header (H5 "Provider Filter"):** whenever `account` is a credit account (from the chooser, the Filter dialog's "Kredit" group or a link), the list column starts with a section headed "{provider} · {range}" and four figures from `GET /api/credit/accounts/{id}`: "Utang" (`account.owed`), "Tagihan berikutnya" (`next_due.due_date` with `left_to_pay`, or "Tidak ada tagihan"), "Pengeluaran pakai kredit" (`totals.spent_on_credit`) and "Tagihan kredit dibayar" (`totals.paid_to_credit`). The window is the page's period (`summary.period` start and end as local days) or its `from`/`to` range; on "Semua waktu" without a range the endpoint's default, the current cycle, is used and named by the returned `period`. Every figure goes through `MaskedMoney`; loading shows skeleton figures, and a failure one line with "Coba lagi". The Filter dialog's Rekening select lists credit accounts in a "Kredit" group.
+
+**Dialog (H5 "Credit Terms in the Transaction Dialog"):**
+- a purchase adds to its `.dl`: "Pembayaran" ("Sekali bayar" / "Cicilan {n}x"), "Jatuh tempo" (the next due date, or "—"), and when settled "Lunas" ("{date} · {days} hari setelah pembelian"); with instalments, a list of each instalment: "Cicilan {k}/{n} · jatuh tempo {date}", its amount and its state ("Lunas {date}", "Sisa {amount}", or the bill status). Facts only, never a score or advice;
+- a payment adds "Kredit" · "Bayar tagihan {provider}";
+- "Ubah transaksi" on a purchase adds "Cara bayar" (segmented: Sekali bayar · 3x · 6x · 12x · Lainnya, with a number 2–36 for Lainnya) and "Jatuh tempo pertama (opsional)". "Simpan" sends today's `PATCH`, then, only when the terms changed and the row is still a credit purchase, `PUT …/credit-terms`; choosing "Sekali bayar" with no date sends `DELETE`. A terms failure after a saved edit says so, as the receipt upload does. Paying in full with no fee stays the default and needs no input.
+
+**Not here:** bills per provider (phase 8), credit bills beside plans (phase 9), "Bayar pakai kredit" in Catat (phase 11), notification capture. No rule is built around any particular pocket, and no text comments on the owner's strategy.
 
 Rejected:
-- A placeholder "Kredit" item now: an empty filter with no behaviour.
+- the ink on a credit purchase (H5's wording): overridden by the owner's rule that every expense is red;
+- grouping rows by provider inside the "Semua" list: the provider view is the account filter, as H5 names it, and the day groups stay one order;
+- a provider header computed in the browser from the rows: the server's credit overview is the one source.
 
 ## Decisions and their defaults
 
@@ -700,7 +726,7 @@ Approved 2026-11-06 under the owner's standing instruction "complete all until f
 | D27 | Saving flow per row | Server field `saving_flow` from one shared savings helper; labels follow the server rule | Browser classification from roles; the owner's literal wording for `dana_investasi`, saving-to-product and tabungan-to-credit; several roles or tags | **Flags decided 2026-11-06:** backend addition taken; labels only where Beranda counts (`dana_investasi` and saving-to-product "—", tabungan-to-credit "Diambil dari tabungan", "Bayar utang" informational) |
 | D28 | "Tabungan & investasi" | `type=saving`, `type_counts.saving`, `saving_net` from Beranda's function; lists the two expense parts too | Browser sums; movements and top-ups only | **Flags decided 2026-11-06:** defaults taken (backend addition; all four parts listed) |
 | D29 | Expense colour | `--out-fg` on every "−" expense amount, Transaksi, dialog and Beranda; token test | Ink (prototype, phase 3); a new red token | — (owner-directed deviation 14) |
-| D30 | Credit preparation | One type list that takes "Kredit"; provider account in the meta | A placeholder item | — |
+| D30 | Credit (H5, amended 2026-11-08) | "Kredit" type with `type=credit`; credit row metas; provider chooser and header from the credit overview; terms in the dialog and edit; expense red | Ink on credit purchases; grouping inside "Semua"; browser figures | — (amendment) |
 
 No default changes money behaviour, an existing request, a count or a figure's value. The flagged D4, D14 and D27 record alternatives that would have. D27 and D28 add read-only fields; every existing figure, including Beranda's, is unchanged and tested.
 
