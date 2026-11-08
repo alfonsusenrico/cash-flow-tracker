@@ -16,10 +16,12 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
+from app.i18n import language_for_user
 from app.services import credit_bills
 from app.services.auth import get_current_user
 from app.services.credit_figures import paid_to_credit_by_account, spent_on_credit_by_account
-from app.services.credit_terms import Terms, credit_error, is_credit_purchase, lock_purchase, set_purchase_terms
+from app.services.credit_terms import Terms, is_credit_purchase, lock_purchase, set_purchase_terms
 from app.services.reimbursements import load_spending_offsets
 from app.services.report_windows import get_timeframe_window
 
@@ -34,19 +36,11 @@ class CreditTermsRequest(BaseModel):
     first_due_date: date | None = None
 
 
-def _language(user: dict[str, Any]) -> str | None:
-    return user.get("language")
-
-
-def _not_found(user: dict[str, Any], code: str):
-    return credit_error(code, _language(user), status_code=404)
-
-
 def _period(user: dict[str, Any], start: date | None, end: date | None) -> tuple[datetime, datetime, date, date]:
     """The requested local days as an inclusive instant window, or the owner's current period."""
     if start is None and end is None:
         start_utc, end_utc, start_day, end_day, _ = get_timeframe_window(
-            int(user.get("payday_day") or 25), "cycle", user_id=str(user["id"]),
+            int(user.get("payday_day") or 25), "cycle", user_id=str(user["id"]), language=language_for_user(user),
         )
         return start_utc, end_utc, start_day, end_day
     zone = ZoneInfo(settings.tz)
@@ -54,7 +48,7 @@ def _period(user: dict[str, Any], start: date | None, end: date | None) -> tuple
     start = start or end
     end = end or today
     if start > end:
-        raise credit_error("credit_period_invalid", _language(user))
+        raise api_error(422, ErrorCode.CREDIT_PERIOD_INVALID)
     end_instant = datetime.combine(end + timedelta(days=1), time.min, zone) - timedelta(microseconds=1)
     return datetime.combine(start, time.min, zone), end_instant, start, end
 
@@ -63,9 +57,9 @@ def _schedule_or_refuse(cur, user: dict[str, Any], account_id: str) -> credit_bi
     cur.execute("SELECT type FROM accounts WHERE user_id = %s AND id = %s", (str(user["id"]), account_id))
     account = cur.fetchone()
     if account is None:
-        raise _not_found(user, "account_not_found")
+        raise api_error(404, ErrorCode.ACCOUNT_NOT_FOUND)
     if account["type"] != credit_bills.CREDIT_TYPE:
-        raise credit_error("credit_account_required", _language(user))
+        raise api_error(422, ErrorCode.CREDIT_ACCOUNT_REQUIRED)
     schedules = credit_bills.load_schedules(cur, str(user["id"]), credit_bills.local_today(), [account_id], include_archived=True)
     return schedules[account_id]
 
@@ -120,7 +114,7 @@ def list_credit_bills(
 ):
     """Bills across the owner's active credit accounts by due date, without items (H9)."""
     if from_date and to_date and from_date > to_date:
-        raise credit_error("credit_period_invalid", _language(current_user))
+        raise api_error(422, ErrorCode.CREDIT_PERIOD_INVALID)
     wanted = set(status.split(",")) if status else None
     with db_conn() as conn, conn.cursor() as cur:
         schedules = credit_bills.load_schedules(cur, str(current_user["id"]), credit_bills.local_today())
@@ -169,7 +163,7 @@ def _terms_response(cur, user: dict[str, Any], row: dict[str, Any]) -> dict[str,
 def _locked_purchase(cur, user: dict[str, Any], transaction_id: str) -> dict[str, Any]:
     row = lock_purchase(cur, str(user["id"]), transaction_id)
     if row is None:
-        raise _not_found(user, "transaction_not_found")
+        raise api_error(404, ErrorCode.TRANSACTION_NOT_FOUND)
     return row
 
 
@@ -178,8 +172,7 @@ def put_credit_terms(transaction_id: UUID, payload: CreditTermsRequest, current_
     """Set or change a credit purchase's instalments and first due date; no figure changes (D3)."""
     with db_conn() as conn, conn.cursor() as cur:
         row = _locked_purchase(cur, current_user, str(transaction_id))
-        set_purchase_terms(cur, str(current_user["id"]), _language(current_user), row,
-                           payload.installment_count, payload.first_due_date)
+        set_purchase_terms(cur, str(current_user["id"]), row, payload.installment_count, payload.first_due_date)
         response = _terms_response(cur, current_user, row)
         conn.commit()
     return response
@@ -191,7 +184,7 @@ def delete_credit_terms(transaction_id: UUID, current_user: dict = Depends(get_c
     with db_conn() as conn, conn.cursor() as cur:
         row = _locked_purchase(cur, current_user, str(transaction_id))
         if not is_credit_purchase(row):
-            raise credit_error("credit_terms_not_credit_purchase", _language(current_user))
+            raise api_error(422, ErrorCode.CREDIT_TERMS_NOT_CREDIT_PURCHASE)
         cur.execute("DELETE FROM credit_purchase_terms WHERE transaction_id = %s AND user_id = %s",
                     (str(transaction_id), str(current_user["id"])))
         response = _terms_response(cur, current_user, row)

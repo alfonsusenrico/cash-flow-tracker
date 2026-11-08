@@ -23,9 +23,7 @@ from app.services.debt_allocations import (
 )
 from app.services import credit_bills
 from app.services.credit_accounts import ensure_not_credit, is_credit, over_limit, refuse
-from app.services.credit_terms import (
-    credit_error, is_credit_purchase, lock_purchase, set_purchase_terms, terms_after_edit,
-)
+from app.services.credit_terms import is_credit_purchase, lock_purchase, set_purchase_terms, terms_after_edit
 from app.services.entity_names import resolve_account_name, resolve_category_name
 from app.services.kakeibo import PILLAR_FILTER_PATTERN, PILLAR_PATTERN, effective_pillar, effective_pillar_sql, pillar_bucket_sql
 from app.services.report_figures import cash_flow_totals
@@ -828,7 +826,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 payload.type != "expense" or not is_credit(matched_source) or payload.investment_action
                 or payload.target_account_id or payload.target_account_name
             ):
-                raise credit_error("credit_terms_not_credit_purchase", current_user.get("language"))
+                raise api_error(422, ErrorCode.CREDIT_TERMS_NOT_CREDIT_PURCHASE)
 
             # Resolve target account for investment tracking if provided
             target_account_id = None
@@ -1049,7 +1047,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
             created = cur.fetchone()
             if payload.credit_terms is not None:
                 set_purchase_terms(
-                    cur, user_id, current_user.get("language"), lock_purchase(cur, user_id, str(created["id"])),
+                    cur, user_id, lock_purchase(cur, user_id, str(created["id"])),
                     payload.credit_terms.installment_count, payload.credit_terms.first_due_date,
                 )
 

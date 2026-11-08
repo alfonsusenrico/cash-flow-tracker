@@ -11,7 +11,8 @@ from typing import Any
 from fastapi import HTTPException
 
 from app.errors import api_error
-from app.services.system_categories import CREDIT_FEE, ensure_system_category, seed_names
+from app.i18n import account_language, t
+from app.services.system_categories import CREDIT_FEE, ensure_system_category
 
 CREDIT_TYPE = "credit"
 
@@ -62,17 +63,13 @@ def book_credit_fee(cur, user_id: str, credit_account_id: str, movement_id: str,
     the movement removes it. The payment lowers what is owed by its amount less this fee.
 
     The fee category is found by its `credit_fee` key, so a renamed one is reused, and a missing one is
-    created in the account's language (add-credit-spending-flow D8). The note is the fee's seed name in the
+    created in the account's language (add-credit-spending-flow D8). The note is `notes.credit_fee` in the
     account's language, written once (add-language-system D15).
     """
     category_id = ensure_system_category(cur, user_id, CREDIT_FEE, "expense")
-    cur.execute(
-        """SELECT c.kakeibo_type, u.language FROM categories c JOIN users u ON u.id = c.user_id
-           WHERE c.id = %s AND c.user_id = %s""",
-        (category_id, user_id),
-    )
+    cur.execute("SELECT kakeibo_type FROM categories WHERE id = %s AND user_id = %s", (category_id, user_id))
     category = cur.fetchone()
-    note = seed_names(category["language"])[CREDIT_FEE]
+    note = t(account_language(cur, user_id)[0], "notes.credit_fee")
     cur.execute(
         """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, kakeibo_type,
                idempotency_key, fee_for_movement_id, source, review_status, classified_by, classification_confidence)

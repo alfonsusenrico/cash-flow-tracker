@@ -444,17 +444,17 @@ def test_errors_are_in_the_accounts_language(owner):
     assert detail["message"] == "Cicilan hanya bisa diatur untuk pembelian dengan rekening kredit."
 
 
-def test_every_credit_code_is_in_both_server_and_web_catalogues():
+def test_every_credit_code_is_an_error_code_in_both_server_and_web_catalogues():
     from pathlib import Path
 
-    from app.services.credit_terms import MESSAGES
+    from app.errors import ErrorCode
 
-    web = Path(__file__).resolve().parents[2] / "frontend/src/messages"
-    for language in ("en", "id"):
-        errors = json.loads((web / f"{language}.json").read_text())["errors"]
-        for code in CREDIT_CODES:
-            assert MESSAGES[language][code] and errors[code], (language, code)
-    assert set(MESSAGES["en"]) == set(MESSAGES["id"]) == set(CREDIT_CODES)
+    messages = Path(__file__).resolve().parents[2]
+    for catalogue in ("backend/app/messages", "frontend/src/messages"):
+        for language in ("en", "id"):
+            errors = json.loads((messages / catalogue / f"{language}.json").read_text())["errors"]
+            for code in CREDIT_CODES:
+                assert ErrorCode(code) and errors[code], (catalogue, language, code)
 
 
 # --- Cycle summary: credit figures, F1 and F2 ------------------------------------------------------------

@@ -16,7 +16,7 @@ from datetime import date
 from typing import Any
 
 from app.core.config import settings
-from app.core.errors import coded_error
+from app.errors import ErrorCode, api_error
 from app.services.credit_accounts import CREDIT_TYPE
 from app.services.system_categories import CREDIT_FEE
 
@@ -25,36 +25,6 @@ MIN_INSTALLMENTS = 1
 MAX_INSTALLMENTS = 36
 OWNER = "owner"
 SYSTEM = "system"
-
-# English and Indonesian messages of the credit refusals, keyed by error code; `message` is rendered in the
-# account's language and the web renders the code itself (add-language-system D8).
-MESSAGES = {
-    "en": {
-        "credit_terms_not_credit_purchase": "Installments can only be set on a purchase made with a credit account.",
-        "credit_terms_count_range": "Choose between {min} and {max} installments.",
-        "credit_terms_due_before_purchase": "The first due date cannot be before the purchase date, {purchase_date}.",
-        "credit_account_required": "This is not a credit account.",
-        "credit_period_invalid": "The start of the period must be on or before its end.",
-        "account_not_found": "Account not found.",
-        "transaction_not_found": "Transaction not found.",
-    },
-    "id": {
-        "credit_terms_not_credit_purchase": "Cicilan hanya bisa diatur untuk pembelian dengan rekening kredit.",
-        "credit_terms_count_range": "Pilih {min} sampai {max} kali cicilan.",
-        "credit_terms_due_before_purchase": "Jatuh tempo pertama tidak boleh sebelum tanggal pembelian, {purchase_date}.",
-        "credit_account_required": "Ini bukan rekening kredit.",
-        "credit_period_invalid": "Awal periode harus sama dengan atau sebelum akhirnya.",
-        "account_not_found": "Rekening tidak ditemukan.",
-        "transaction_not_found": "Transaksi tidak ditemukan.",
-    },
-}
-
-
-def credit_error(code: str, language: str | None, *, status_code: int = 422, **params: Any):
-    """A refusal with `{code, params, message}`, the message in the account's language (English when unknown)."""
-    catalogue = MESSAGES.get(language or "", MESSAGES["en"])
-    return coded_error(status_code, code, catalogue[code].format(**params), params)
-
 
 @dataclass(frozen=True)
 class Terms:
@@ -144,11 +114,11 @@ def installment_due_dates(terms: Terms, purchase_date: date, statement_day: int 
     return dates
 
 
-def validate_terms(language: str | None, installment_count: int, first_due_date: date | None, purchase_date: date) -> None:
+def validate_terms(installment_count: int, first_due_date: date | None, purchase_date: date) -> None:
     if not MIN_INSTALLMENTS <= installment_count <= MAX_INSTALLMENTS:
-        raise credit_error("credit_terms_count_range", language, min=MIN_INSTALLMENTS, max=MAX_INSTALLMENTS)
+        raise api_error(422, ErrorCode.CREDIT_TERMS_COUNT_RANGE, {"min": MIN_INSTALLMENTS, "max": MAX_INSTALLMENTS})
     if first_due_date is not None and first_due_date < purchase_date:
-        raise credit_error("credit_terms_due_before_purchase", language, purchase_date=purchase_date.isoformat())
+        raise api_error(422, ErrorCode.CREDIT_TERMS_DUE_BEFORE_PURCHASE, {"purchase_date": purchase_date.isoformat()})
 
 
 def write_terms(cur, user_id: str, transaction_id: str, installment_count: int, first_due_date: date | None) -> None:
@@ -230,9 +200,9 @@ def is_credit_purchase(row: dict[str, Any]) -> bool:
 
 
 def set_purchase_terms(
-    cur, user_id: str, language: str | None, row: dict[str, Any], installment_count: int, first_due_date: date | None,
+    cur, user_id: str, row: dict[str, Any], installment_count: int, first_due_date: date | None,
 ) -> None:
     if not is_credit_purchase(row):
-        raise credit_error("credit_terms_not_credit_purchase", language)
-    validate_terms(language, installment_count, first_due_date, row["local_date"])
+        raise api_error(422, ErrorCode.CREDIT_TERMS_NOT_CREDIT_PURCHASE)
+    validate_terms(installment_count, first_due_date, row["local_date"])
     write_terms(cur, user_id, str(row["id"]), installment_count, first_due_date)
