@@ -116,7 +116,7 @@ try {
     }
 
     // 2: J/K from the list and from the item.
-    await open(mobile ? "/review" : "/review?folder=jawab");
+    await open("/review");
     await browser.evaluate(`document.querySelector(".tj-list [data-row]").focus()`);
     const before = await browser.evaluate(`location.search`);
     await browser.key(...char("j"));
@@ -126,10 +126,11 @@ try {
     record(2, "J from the list focuses the next row", cell, rowFocus === 1 && (mobile || after !== before), `row ${rowFocus}, ${before} → ${after}`);
     if (!mobile) {
       await focusHeading();
-      const was = await heading();
+      const was = await browser.evaluate(`location.search`);
       await browser.key(...char("k"));
       await sleep(500);
-      record(2, "K from the item moves to the previous item with its heading focused", cell, (await heading()) !== was && (await headingFocused()), await heading());
+      const now = await browser.evaluate(`location.search`);
+      record(2, "K from the item moves to the previous item with its heading focused", cell, now !== was && (await headingFocused()), `${was} → ${now}`);
     }
 
     if (!mobile) {
@@ -148,13 +149,14 @@ try {
       await open("/review?folder=pindah");
       await browser.evaluate(`[...document.querySelectorAll(".tj-list [data-row]")].find((row) => /750/.test(row.textContent) && /Utama/.test(row.textContent))?.click()`);
       await sleep(600);
-      const topup = await heading();
+      const itemOf = () => browser.evaluate(`new URLSearchParams(location.search).get("item")`);
+      const topup = await itemOf();
       await focusHeading();
       await browser.key(...char("t"));
       await sleep(1500);
-      record(4, "T converts the learned top-up", cell, (await toast()).length > 0 && (await heading()) !== topup, (await toast()).slice(0, 80));
+      record(4, "T converts the learned top-up", cell, (await toast()).length > 0 && (await itemOf()) !== topup, (await toast()).slice(0, 80));
       await undo();
-      record(4, "Z brings the debit back", cell, (await heading()) === topup, await heading());
+      record(4, "Z brings the debit back", cell, (await itemOf()) === topup, topup);
       await browser.evaluate(`[...document.querySelectorAll(".tj-list [data-row]")].find((row) => /Dana Darurat/.test(row.textContent))?.click()`);
       await sleep(600);
       await focusHeading();

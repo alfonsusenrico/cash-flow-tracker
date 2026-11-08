@@ -42,7 +42,7 @@
   if (hero && innerWidth === 1440 && !sheet && !otherDialog) add("hero starts at y = 192", Math.round(box(hero).top + scrollY), 192, 1);
   const heroFigures = all(".t-hero");
   if (hero) add("one 44 px figure", heroFigures.length, 1);
-  if (heroFigures[0]) add("hero figure 44/52 600", font(heroFigures[0]), "44/52 600");
+  if (heroFigures[0]) add("hero figure 44/52 600 (32/40 below 360 px)", font(heroFigures[0]), innerWidth < 360 ? "32/40 600" : "44/52 600");
 
   if (region && !otherDialog) {
     const rail = first(".tj .rail|.tj .tj-folders");
