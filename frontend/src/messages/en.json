@@ -37,7 +37,20 @@
     "noDescription": "No description",
     "net": "Net",
     "calendarMonth": "Calendar month",
-    "savingsAndInvestments": "Savings & investments"
+    "savingsAndInvestments": "Savings & investments",
+    "debt": "Debt",
+    "limitLeft": "Limit left",
+    "overLimit": "Over limit",
+    "leftToPay": "Left to pay",
+    "everydayMoney": "Everyday money",
+    "billStatus": {
+      "open": "Open",
+      "upcoming": "Upcoming",
+      "dueToday": "Due today",
+      "overdue": "Overdue",
+      "paid": "Paid",
+      "paidLate": "Paid late"
+    }
   },
   "common": {
     "close": "Close",
@@ -1443,5 +1456,244 @@
   },
   "notice": {
     "untranslated": "This page is in Indonesian for now."
+  },
+  "accounts": {
+    "page": {
+      "subtitle": "Balances of accounts, pockets, investments and debts",
+      "updatePrices": "Update prices",
+      "updatingPrices": "Updating prices…",
+      "addAccount": "Add account",
+      "arrange": "Arrange",
+      "arrangeDone": "Finish arranging",
+      "plans": "Plans",
+      "moreLabel": "More actions for Accounts & Pockets"
+    },
+    "hero": {
+      "fromAssets": "of {amount} in assets",
+      "splitLabel": "Assets by use",
+      "splitEmpty": "No assets yet",
+      "legend": "Share of assets by use",
+      "failed": "Net worth cannot be calculated yet."
+    },
+    "rincian": {
+      "liquid": "Available balance",
+      "rule": "Available balance, investment cash and investments, less debts, bills and negative balances to match. Pocket balances count once.",
+      "billLine": "Bill · {name}",
+      "debtLine": "Debt · {name}",
+      "openGoals": "Open Goals & Bills"
+    },
+    "controls": {
+      "view": "View",
+      "cards": "Cards",
+      "chart": "Chart",
+      "grouping": "Group",
+      "byUse": "By use",
+      "byAccount": "By account"
+    },
+    "toast": {
+      "pricesUpdated": "Prices updated · {count, plural, one {# product} other {# products}}, as of {time}",
+      "pricesFailed": "Prices could not be updated.",
+      "orderFailed": "The order could not be saved."
+    },
+    "states": {
+      "loadFailed": "Accounts could not be loaded.",
+      "emptyTitle": "No accounts yet",
+      "emptyLine": "Add a bank account, e-wallet or cash to start.",
+      "loading": "Loading accounts…"
+    },
+    "groups": {
+      "harian": "Everyday money",
+      "tabungan": "Savings",
+      "dana": "Investment cash",
+      "investasi": "Investments",
+      "utang": "Debt",
+      "danaNote": "not yet invested",
+      "pockets": "{count, plural, one {# pocket} other {# pockets}}",
+      "products": "{count, plural, one {# product} other {# products}}",
+      "accounts": "{count, plural, one {# account} other {# accounts}}",
+      "credit": "{count, plural, one {# credit account} other {# credit accounts}}",
+      "pocketsAndProducts": "{count, plural, one {# pocket or product} other {# pockets and products}}",
+      "subtotal": "{use} {amount}",
+      "needCheck": "{count, plural, one {# pocket needs a balance check} other {# pockets need a balance check}}",
+      "cards": "{title} cards",
+      "swipe": "scroll sideways",
+      "perKind": "Investments by kind"
+    },
+    "kinds": {
+      "emas": "Gold",
+      "reksa_dana": "Mutual funds",
+      "saham": "Stocks",
+      "lainnya": "Other"
+    },
+    "tile": {
+      "pocketOf": "Pocket in {parent}",
+      "default": "default",
+      "withDefault": "{meta} · {default}",
+      "inUse": "{use} · {meta}",
+      "productLine": "{platform} · {holding}",
+      "outsidePockets": "balance outside pockets",
+      "type": {
+        "bank": "Bank",
+        "cash": "Cash",
+        "wallet": "E-wallet",
+        "brokerCash": "Investment cash account",
+        "investment": "Investment account",
+        "credit": "Credit"
+      },
+      "byAmount": "recorded by amount",
+      "lots": "{count} lots",
+      "units": "{count} units",
+      "needsCheck": "Needs a balance check",
+      "needsCheckAction": "Needs a balance check: adjust the balance of {name}",
+      "awaiting": "{count, plural, one {# transfer not complete} other {# transfers not complete}}",
+      "gainUp": "gain",
+      "gainDown": "loss",
+      "costMissing": "Cost not entered",
+      "costIncomplete": "Cost incomplete",
+      "grip": "Drag to move"
+    },
+    "credit": {
+      "limitLeft": "Limit left {amount}",
+      "noLimit": "No limit",
+      "nextBill": "due {date} · {amount}",
+      "dueToday": "today",
+      "overdue": "overdue",
+      "noDueDay": "No due day yet",
+      "overpaid": "Overpaid {amount}"
+    },
+    "debt": {
+      "billsLink": "Bills in Goals & Bills",
+      "billsCount": "{count, plural, one {# bill} other {# bills}}",
+      "billsName": "Bills {amount} in Goals & Bills"
+    },
+    "grafik": {
+      "byUse": "By use",
+      "pick": "Choose a use",
+      "assets": "Assets",
+      "shareOfAssets": "{percent} of assets",
+      "perKind": "Investments by kind",
+      "perProduct": "By product",
+      "contents": "In {use}",
+      "empty": "Nothing here yet."
+    },
+    "reorder": {
+      "hint": "Drag a card within its row, or drag ⋮⋮ to move a row. With the keyboard: Alt + arrows. The order is kept.",
+      "hintPhone": "Use the up and down buttons. The order is saved right away.",
+      "done": "Done",
+      "rowHandle": "Move row {title}. Alt and the up or down arrow.",
+      "cardMove": "Alt and the left or right arrow to move.",
+      "cardEarlier": "Move {name} earlier",
+      "cardLater": "Move {name} later",
+      "rowUp": "Move row {name} up",
+      "rowDown": "Move row {name} down"
+    },
+    "announce": {
+      "cardMoved": "{name} moved to position {position} of {total}.",
+      "rowMoved": "Row {title} moved to position {position} of {total}."
+    },
+    "detail": {
+      "close": "Close",
+      "back": "Back to {name}",
+      "balance": "Balance",
+      "value": "Current value",
+      "debt": "Debt",
+      "overpaid": "Overpaid",
+      "facts": "Details of {name}",
+      "use": "Use",
+      "parent": "Parent",
+      "mainPocket": "Main pocket",
+      "check": "Balance check",
+      "cost": "Cost",
+      "notSet": "Not entered",
+      "gain": "Gain or loss",
+      "method": "How it is valued",
+      "methodByAmount": "Recorded by amount",
+      "methodLots": "{lots} lots × 100 shares",
+      "methodLotsPrice": "{lots} lots × 100 shares × {price}",
+      "methodUnits": "{units} units",
+      "estimated": "{method} · estimated value",
+      "amount": "Holding",
+      "shares": "{units} shares ({lots} lots)",
+      "lastPrice": "Last price",
+      "avgPrice": "Average buy price",
+      "code": "Code",
+      "fundingAccount": "Funding account",
+      "productCount": "Products",
+      "limit": "Limit",
+      "limitLeft": "Limit left",
+      "nextBill": "Next bill",
+      "nextBillValue": "{amount} · due {date}",
+      "noBill": "No open bill",
+      "statementDay": "Bill issued on day",
+      "paymentDay": "Due on day",
+      "dayOfMonth": "every {day, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+      "spentOnCredit": "Spending on credit",
+      "paidToCredit": "Credit bills paid",
+      "onTime": "Paid on time",
+      "onTimeValue": "{onTime} of {settled}",
+      "cycle": "This cycle",
+      "creditNote": "A credit purchase counts as spending on its day; money leaves only when the bill is paid.",
+      "bills": "Bills",
+      "billsCount": "{count, plural, one {# bill} other {# bills}}",
+      "billDue": "Due {date}",
+      "billPaid": "paid {amount}",
+      "billLeft": "{amount} left",
+      "noBills": "No bills yet.",
+      "item": {
+        "purchase": "Purchase",
+        "fee": "Credit fee",
+        "cash_advance": "Cash advance",
+        "opening": "Opening balance",
+        "title": "{kind} · {date}",
+        "installment": "installment {number} of {count}",
+        "settled": "paid {date} · {days, plural, one {# day} other {# days}} · {onTime, select, true {on time} other {late}}",
+        "left": "{amount} left"
+      },
+      "noDueDates": "Add the due day so the bills can be worked out.",
+      "billsFailed": "Bills could not be loaded.",
+      "viewInLedger": "View in Transactions",
+      "pockets": "Pockets",
+      "products": "Products",
+      "recent": "Recent transactions",
+      "noRecent": "No transactions yet.",
+      "recentFailed": "Recent transactions could not be loaded.",
+      "when": "{date} · {time}",
+      "kind": {
+        "bank": "Bank account",
+        "wallet": "E-wallet",
+        "cash": "Cash",
+        "brokerCash": "Investment cash account",
+        "investment": "Investment account",
+        "credit": "Credit",
+        "pocketOf": "Pocket in {parent}",
+        "productOf": "Product in {parent}"
+      }
+    },
+    "actions": {
+      "more": "More",
+      "moreFor": "More actions for {name}",
+      "checkBalance": "Check balance",
+      "adjustBalance": "Adjust balance",
+      "editPocket": "Edit pocket",
+      "editAccount": "Edit account",
+      "editCredit": "Edit credit",
+      "addPocket": "Add pocket",
+      "buy": "Buy",
+      "sell": "Sell",
+      "topUp": "Top up",
+      "revalue": "Update value",
+      "toAmount": "Switch to tracking by amount",
+      "payBill": "Pay bill",
+      "openParent": "Open {parent}",
+      "archive": "Archive",
+      "archiveYes": "Yes, archive",
+      "archiveConfirm": "Archive {kind, select, pocket {pocket} other {account}} \"{name}\"{withPockets, select, true { with all its pockets} other {}}?"
+    },
+    "links": {
+      "title": "Also reported by",
+      "remove": "Remove",
+      "confirm": "Yes, remove",
+      "removing": "Removing…"
+    }
   }
 }

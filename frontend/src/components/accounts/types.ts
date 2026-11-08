@@ -38,14 +38,29 @@ export interface AccountItem {
   /** Credit accounts only (add-credit-accounts D2): the provider's limit and the day the bill is paid. */
   credit_limit?: number | null;
   payment_day?: number | null;
+  /** The day of the month a credit bill is issued (add-credit-spending-flow V54). */
+  statement_day?: number | null;
   /** What a credit account owes, as a positive amount; null for every other type. */
   credit_owed?: number | null;
   over_limit?: boolean;
+  /** The limit minus what is owed; negative over the limit, null without a limit (H8). */
+  limit_left?: number | null;
+  /** The next unpaid credit bill, computed at read time (H8); null without one. */
+  next_due?: CreditNextDue | null;
   is_archived: boolean;
   is_parent?: boolean;
   default_pocket_id?: string | null;
   children?: AccountItem[];
   created_at: string;
+}
+
+export type CreditBillStatus = "open" | "upcoming" | "due_today" | "overdue" | "paid" | "paid_late";
+
+export interface CreditNextDue {
+  due_date: string;
+  amount: number;
+  left_to_pay: number;
+  status: CreditBillStatus;
 }
 
 export interface AccountsResponse {

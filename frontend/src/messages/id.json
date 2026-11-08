@@ -37,7 +37,20 @@
     "noDescription": "Tanpa keterangan",
     "net": "Bersih",
     "calendarMonth": "Bulan kalender",
-    "savingsAndInvestments": "Tabungan & investasi"
+    "savingsAndInvestments": "Tabungan & investasi",
+    "debt": "Utang",
+    "limitLeft": "Sisa limit",
+    "overLimit": "Melewati limit",
+    "leftToPay": "Sisa tagihan",
+    "everydayMoney": "Uang harian",
+    "billStatus": {
+      "open": "Terbuka",
+      "upcoming": "Akan datang",
+      "dueToday": "Jatuh tempo hari ini",
+      "overdue": "Lewat jatuh tempo",
+      "paid": "Lunas",
+      "paidLate": "Lunas terlambat"
+    }
   },
   "common": {
     "close": "Tutup",
@@ -1443,5 +1456,244 @@
   },
   "notice": {
     "untranslated": "Halaman ini masih dalam bahasa Indonesia."
+  },
+  "accounts": {
+    "page": {
+      "subtitle": "Saldo rekening, kantong, investasi dan utang",
+      "updatePrices": "Perbarui harga",
+      "updatingPrices": "Memperbarui harga…",
+      "addAccount": "Tambah rekening",
+      "arrange": "Atur urutan",
+      "arrangeDone": "Selesai mengatur urutan",
+      "plans": "Rencana",
+      "moreLabel": "Tindakan lain untuk Rekening & Kantong"
+    },
+    "hero": {
+      "fromAssets": "dari aset {amount}",
+      "splitLabel": "Pembagian aset",
+      "splitEmpty": "Belum ada aset",
+      "legend": "Porsi aset per kegunaan",
+      "failed": "Kekayaan bersih belum dapat dihitung."
+    },
+    "rincian": {
+      "liquid": "Saldo tersedia",
+      "rule": "Saldo tersedia, Dana investasi dan Investasi dikurangi utang, tagihan dan saldo minus yang perlu dicocokkan. Saldo kantong dihitung sekali.",
+      "billLine": "Tagihan · {name}",
+      "debtLine": "Utang · {name}",
+      "openGoals": "Buka Target & Tagihan"
+    },
+    "controls": {
+      "view": "Tampilan",
+      "cards": "Kartu",
+      "chart": "Grafik",
+      "grouping": "Kelompokkan",
+      "byUse": "Per kegunaan",
+      "byAccount": "Per rekening"
+    },
+    "toast": {
+      "pricesUpdated": "Harga diperbarui · {count, plural, other {# produk}}, per {time}",
+      "pricesFailed": "Harga belum dapat diperbarui.",
+      "orderFailed": "Urutan gagal disimpan."
+    },
+    "states": {
+      "loadFailed": "Daftar rekening gagal dimuat.",
+      "emptyTitle": "Belum ada rekening",
+      "emptyLine": "Tambahkan rekening bank, e-wallet atau tunai untuk mulai.",
+      "loading": "Memuat rekening…"
+    },
+    "groups": {
+      "harian": "Uang harian",
+      "tabungan": "Tabungan",
+      "dana": "Dana investasi",
+      "investasi": "Investasi",
+      "utang": "Utang",
+      "danaNote": "belum dibelikan",
+      "pockets": "{count, plural, other {# kantong}}",
+      "products": "{count, plural, other {# produk}}",
+      "accounts": "{count, plural, other {# rekening}}",
+      "credit": "{count, plural, other {# kredit}}",
+      "pocketsAndProducts": "{count, plural, other {# kantong & produk}}",
+      "subtotal": "{use} {amount}",
+      "needCheck": "{count, plural, other {# kantong perlu dicocokkan}}",
+      "cards": "Kartu {title}",
+      "swipe": "geser ke samping",
+      "perKind": "Investasi per jenis"
+    },
+    "kinds": {
+      "emas": "Emas",
+      "reksa_dana": "Reksa dana",
+      "saham": "Saham",
+      "lainnya": "Lainnya"
+    },
+    "tile": {
+      "pocketOf": "Kantong di {parent}",
+      "default": "bawaan",
+      "withDefault": "{meta} · {default}",
+      "inUse": "{use} · {meta}",
+      "productLine": "{platform} · {holding}",
+      "outsidePockets": "saldo di luar kantong",
+      "type": {
+        "bank": "Bank",
+        "cash": "Uang tunai",
+        "wallet": "E-wallet",
+        "brokerCash": "Rekening dana investasi",
+        "investment": "Akun investasi",
+        "credit": "Kredit"
+      },
+      "byAmount": "dicatat per nominal",
+      "lots": "{count} lot",
+      "units": "{count} unit",
+      "needsCheck": "Perlu dicocokkan",
+      "needsCheckAction": "Perlu dicocokkan: sesuaikan saldo {name}",
+      "awaiting": "{count, plural, other {# pindah saldo belum lengkap}}",
+      "gainUp": "untung",
+      "gainDown": "rugi",
+      "costMissing": "Modal belum diisi",
+      "costIncomplete": "Modal belum lengkap",
+      "grip": "Seret untuk memindah"
+    },
+    "credit": {
+      "limitLeft": "Sisa limit {amount}",
+      "noLimit": "Tanpa limit",
+      "nextBill": "jatuh tempo {date} · {amount}",
+      "dueToday": "hari ini",
+      "overdue": "lewat jatuh tempo",
+      "noDueDay": "Tanggal jatuh tempo belum diisi",
+      "overpaid": "Lebih bayar {amount}"
+    },
+    "debt": {
+      "billsLink": "Tagihan di Target & Tagihan",
+      "billsCount": "{count, plural, other {# tagihan}}",
+      "billsName": "Tagihan {amount} di Target & Tagihan"
+    },
+    "grafik": {
+      "byUse": "Per kegunaan",
+      "pick": "Pilih kegunaan",
+      "assets": "Aset",
+      "shareOfAssets": "{percent} aset",
+      "perKind": "Investasi per jenis",
+      "perProduct": "Per produk",
+      "contents": "Isi {use}",
+      "empty": "Belum ada isi."
+    },
+    "reorder": {
+      "hint": "Seret kartu dalam baris, atau seret ⋮⋮ untuk memindah baris. Dengan keyboard: Alt + panah. Urutan diingat.",
+      "hintPhone": "Pakai tombol naik dan turun. Urutan langsung tersimpan.",
+      "done": "Selesai",
+      "rowHandle": "Pindah baris {title}. Alt dan panah atas atau bawah.",
+      "cardMove": "Alt dan panah kiri atau kanan untuk memindah.",
+      "cardEarlier": "Geser ke depan {name}",
+      "cardLater": "Geser ke belakang {name}",
+      "rowUp": "Naikkan baris {name}",
+      "rowDown": "Turunkan baris {name}"
+    },
+    "announce": {
+      "cardMoved": "{name} dipindah ke posisi {position} dari {total}.",
+      "rowMoved": "Baris {title} dipindah ke posisi {position} dari {total}."
+    },
+    "detail": {
+      "close": "Tutup",
+      "back": "Kembali ke {name}",
+      "balance": "Saldo",
+      "value": "Nilai sekarang",
+      "debt": "Utang",
+      "overpaid": "Lebih bayar",
+      "facts": "Rincian {name}",
+      "use": "Kegunaan",
+      "parent": "Induk",
+      "mainPocket": "Kantong utama",
+      "check": "Pencocokan",
+      "cost": "Modal",
+      "notSet": "Belum diisi",
+      "gain": "Untung/rugi",
+      "method": "Cara hitung",
+      "methodByAmount": "Dicatat per nominal",
+      "methodLots": "{lots} lot × 100 lembar",
+      "methodLotsPrice": "{lots} lot × 100 lembar × {price}",
+      "methodUnits": "{units} unit",
+      "estimated": "{method} · nilai estimasi",
+      "amount": "Jumlah",
+      "shares": "{units} lembar ({lots} lot)",
+      "lastPrice": "Harga terakhir",
+      "avgPrice": "Modal beli rata-rata",
+      "code": "Kode",
+      "fundingAccount": "Rekening dana",
+      "productCount": "Produk",
+      "limit": "Limit",
+      "limitLeft": "Sisa limit",
+      "nextBill": "Tagihan berikut",
+      "nextBillValue": "{amount} · jatuh tempo {date}",
+      "noBill": "Tidak ada tagihan terbuka",
+      "statementDay": "Tagihan terbit tiap tgl",
+      "paymentDay": "Jatuh tempo tiap tgl",
+      "dayOfMonth": "tiap tanggal {day}",
+      "spentOnCredit": "Pengeluaran pakai kredit",
+      "paidToCredit": "Tagihan kredit dibayar",
+      "onTime": "Dilunasi tepat waktu",
+      "onTimeValue": "{onTime} dari {settled}",
+      "cycle": "Siklus ini",
+      "creditNote": "Pembelian dengan kredit tercatat sebagai pengeluaran di harinya; uang baru keluar saat tagihan dibayar.",
+      "bills": "Tagihan",
+      "billsCount": "{count, plural, other {# tagihan}}",
+      "billDue": "Jatuh tempo {date}",
+      "billPaid": "dibayar {amount}",
+      "billLeft": "sisa {amount}",
+      "noBills": "Belum ada tagihan.",
+      "item": {
+        "purchase": "Pembelian",
+        "fee": "Biaya kredit",
+        "cash_advance": "Tarik tunai",
+        "opening": "Saldo awal",
+        "title": "{kind} · {date}",
+        "installment": "cicilan {number} dari {count}",
+        "settled": "lunas {date} · {days, plural, other {# hari}} · {onTime, select, true {tepat waktu} other {terlambat}}",
+        "left": "sisa {amount}"
+      },
+      "noDueDates": "Isi tanggal jatuh tempo agar tagihan bisa dihitung.",
+      "billsFailed": "Tagihan belum bisa dimuat.",
+      "viewInLedger": "Lihat di Transaksi",
+      "pockets": "Kantong",
+      "products": "Produk",
+      "recent": "Transaksi terakhir",
+      "noRecent": "Belum ada transaksi.",
+      "recentFailed": "Transaksi terakhir belum bisa dimuat.",
+      "when": "{date} · {time}",
+      "kind": {
+        "bank": "Rekening bank",
+        "wallet": "E-wallet",
+        "cash": "Uang tunai",
+        "brokerCash": "Rekening dana investasi",
+        "investment": "Akun investasi",
+        "credit": "Kredit",
+        "pocketOf": "Kantong di {parent}",
+        "productOf": "Produk di {parent}"
+      }
+    },
+    "actions": {
+      "more": "Lainnya",
+      "moreFor": "Tindakan lain untuk {name}",
+      "checkBalance": "Cocokkan saldo",
+      "adjustBalance": "Sesuaikan saldo",
+      "editPocket": "Ubah kantong",
+      "editAccount": "Ubah rekening",
+      "editCredit": "Ubah kredit",
+      "addPocket": "Tambah kantong",
+      "buy": "Beli",
+      "sell": "Jual",
+      "topUp": "Top up",
+      "revalue": "Perbarui nilai",
+      "toAmount": "Ubah ke pelacakan nominal",
+      "payBill": "Bayar tagihan",
+      "openParent": "Buka {parent}",
+      "archive": "Arsipkan",
+      "archiveYes": "Ya, arsipkan",
+      "archiveConfirm": "Arsipkan {kind, select, pocket {kantong} other {rekening}} \"{name}\"{withPockets, select, true { beserta seluruh kantong di dalamnya} other {}}?"
+    },
+    "links": {
+      "title": "Juga dilaporkan",
+      "remove": "Lepaskan",
+      "confirm": "Ya, lepaskan",
+      "removing": "Melepas…"
+    }
   }
 }

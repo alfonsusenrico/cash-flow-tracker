@@ -89,6 +89,7 @@ function workspaceValue(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue
     collapsed: false,
     toggleCollapsed: vi.fn(),
     openCapture: vi.fn(),
+    openMovementCapture: vi.fn(),
     openHelp: vi.fn(),
     logout: vi.fn(),
     header: null,
@@ -162,7 +163,8 @@ describe("navigation model", () => {
     // Transaksi writes its title from the catalogue since apply-markas-transaksi, so it has no untranslated entry.
     expect({ title: untranslatedPageTitle("/ledger"), width: frameWidth("/ledger") }).toEqual({ title: null, width: 1040 });
     expect({ ...untranslatedPageTitle("/settings/profil"), width: frameWidth("/settings/profil") }).toEqual({ title: "Pengaturan", subtitle: "", width: 1040 });
-    expect(untranslatedPageTitle("/accounts")?.subtitle).toBe("Saldo rekening, kantong, investasi dan utang");
+    // Rekening & Kantong writes its title from the catalogue since apply-markas-rekening; Pengaturan stays the example.
+    expect(untranslatedPageTitle("/accounts")).toBeNull();
     expect(untranslatedPageTitle("/goals")?.subtitle).toBe("Dana darurat, tagihan, utang dan target tabungan");
     expect(frameWidth("/")).toBe(1200);
   });
