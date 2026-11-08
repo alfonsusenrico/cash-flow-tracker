@@ -36,7 +36,7 @@ const CELLS = [
 ];
 // Extra widths for the shell's breakpoints (apply-markas-shell D2) and Beranda's one-column range
 // (apply-markas-beranda D1), only when named in --cells.
-const EXTRA_WIDTHS = [1920, 1400, 1380, 1280, 1199, 1100, 1024, 1023, 768, 767, 320];
+const EXTRA_WIDTHS = [1920, 1400, 1380, 1280, 1200, 1199, 1100, 1024, 1023, 768, 767, 320];
 const EXTRA_CELLS = EXTRA_WIDTHS.flatMap((width) =>
   ["light", "dark"].map((theme) => ({ name: `${width}-${theme}`, width, height: width < 768 ? 844 : width === 1024 ? 768 : 900, theme, mobile: width < 768 })),
 );
@@ -45,6 +45,8 @@ const scenarios = JSON.parse(readFileSync(path.join(here, `scenarios-${args.targ
 const measureSource = readFileSync(path.join(here, "measure.js"), "utf8");
 const shellSource = readFileSync(path.join(here, "shell-checklist.js"), "utf8");
 const berandaSource = readFileSync(path.join(here, "beranda-checklist.js"), "utf8");
+const tinjauSource = readFileSync(path.join(here, "tinjau-checklist.js"), "utf8");
+const transaksiSource = readFileSync(path.join(here, "transaksi-checklist.js"), "utf8");
 // Settings a scenario may set (`storage`); every capture starts without them, so no scenario leaks into the next.
 const STORAGE_KEYS = { app: ["hideBalances", "sidebarCollapsed"], prototype: ["markas6-hide"] };
 mkdirSync(args.out, { recursive: true });
@@ -167,6 +169,8 @@ try {
       const measure = await browser.evaluate(measureSource).catch((error) => ({ error: String(error).slice(0, 200) }));
       const shell = scenario.shell ? await browser.evaluate(shellSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
       const beranda = scenario.beranda ? await browser.evaluate(berandaSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
+      const tinjau = scenario.tinjau ? await browser.evaluate(tinjauSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
+      const transaksi = scenario.transaksi ? await browser.evaluate(transaksiSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
       // The document language and every interface part that declares its own (WCAG 3.1.1 and 3.1.2).
       const lang = await browser.evaluate(`({
         root: document.documentElement.lang,
@@ -188,6 +192,8 @@ try {
         measure,
         shell,
         beranda,
+        tinjau,
+        transaksi,
         lang,
       };
       const flags = report[key].axeSeriousOrCritical.length + report[key].consoleErrors.length;

@@ -12,6 +12,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
+from app.i18n import account_language
 from app.services.kakeibo import UNCLASSIFIED, pillar_bucket_sql
 from app.services.monthly_comparison import build_comparison
 from app.services.observed_insights import (
@@ -27,7 +28,7 @@ from app.services.observed_periods import (
     salary_boundaries,
 )
 from app.services.report_figures import (
-    UNCATEGORIZED_NAME,
+    uncategorized_name,
     category_breakdown,
     possible_duplicate_sql,
     reportable_expense_sql,
@@ -95,11 +96,10 @@ _REVIEW_COUNT_SQL = f"""
 class ReportError(Exception):
     """A request for a period that does not exist or a basis the owner cannot use."""
 
-    def __init__(self, status: int, code: str, message: str):
-        super().__init__(message)
+    def __init__(self, status: int, code: str):
+        super().__init__(code)
         self.status = status
         self.code = code
-        self.message = message
 
 
 def _zone() -> ZoneInfo:
@@ -127,26 +127,29 @@ def list_periods(cur, user_id: str, basis: str, *, now: datetime) -> dict[str, A
     first_day = first_recorded_day(cur, user_id)
     boundaries, cycle_status = salary_boundaries(cur, user_id, now)
     cycle_available = bool(boundaries)
+    language, _region = account_language(cur, user_id)
     periods: list[ObservedPeriod] = []
     if first_day is not None and basis == "month":
         today = now.astimezone(_zone()).date()
         year, month = today.year, today.month
         for _ in range(CLOSED_PERIOD_LIMIT + 1):
-            period = month_period(year, month, now=now)
+            period = month_period(year, month, now=now, language=language)
             if local_end(period) < first_day:
                 break
             periods.append(period)
             year, month = shift_month(year, month, -1)
     elif first_day is not None and basis == "cycle" and boundaries:
-        periods.append(ObservedPeriod("cycle", boundaries[-1], now, cycle_label(boundaries[-1], now, open_cycle=True), False))
+        periods.append(ObservedPeriod("cycle", boundaries[-1], now,
+                                      cycle_label(boundaries[-1], now, open_cycle=True, language=language), False))
         closed = [
-            ObservedPeriod("cycle", start, end, cycle_label(start, end - timedelta(microseconds=1), open_cycle=False), True)
+            ObservedPeriod("cycle", start, end,
+                           cycle_label(start, end - timedelta(microseconds=1), open_cycle=False, language=language), True)
             for start, end in zip(boundaries[:-1], boundaries[1:])
         ]
         periods.extend(reversed(closed[-CLOSED_PERIOD_LIMIT:]))
     return {
         "periods": periods, "first_day": first_day,
-        "cycle_available": cycle_available, "cycle_status": cycle_status,
+        "cycle_available": cycle_available, "cycle_status": cycle_status, "language": language,
     }
 
 
@@ -168,14 +171,14 @@ def default_period(periods: list[ObservedPeriod]) -> ObservedPeriod | None:
 
 def resolve_period(listing: dict[str, Any], basis: str, start_date: date | None) -> ObservedPeriod:
     if basis == "cycle" and not listing["cycle_available"]:
-        raise ReportError(409, "cycle_unavailable", "Siklus gaji belum tersedia. Gunakan bulan kalender.")
+        raise ReportError(409, "cycle_unavailable")
     periods = listing["periods"]
     if start_date is None:
         period = default_period(periods)
     else:
         period = next((item for item in periods if local_start(item) == start_date), None)
     if period is None:
-        raise ReportError(404, "period_not_found", "Periode laporan tidak ditemukan.")
+        raise ReportError(404, "period_not_found")
     return period
 
 
@@ -188,7 +191,7 @@ def _previous_window(listing: dict[str, Any], period: ObservedPeriod, basis: str
     if basis == "month":
         start = local_start(period)
         year, month = shift_month(start.year, start.month, -1)
-        return month_period(year, month, now=now)
+        return month_period(year, month, now=now, language=listing["language"])
     return None
 
 
@@ -208,7 +211,7 @@ def _income_sources(cur, user_id: str, start: datetime, end: datetime) -> list[d
     sources = [
         {
             "category_id": str(row["category_id"]) if row["category_id"] else None,
-            "name": row["name"] or UNCATEGORIZED_NAME,
+            "name": row["name"] or uncategorized_name(cur, user_id),
             "amount": int(row["amount"]), "count": int(row["count"]),
         }
         for row in cur.fetchall()

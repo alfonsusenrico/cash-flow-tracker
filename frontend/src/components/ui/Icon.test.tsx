@@ -34,6 +34,12 @@ describe("Icon", () => {
     expect(pathOf("eye-off")).toBe("M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.9 0 3.5-.6 4.9-1.4M9.9 9.9a3 3 0 0 0 4.2 4.2");
   });
 
+  it("draws the prototype's archive and chevron-left for Tinjau (apply-markas-tinjau D19)", () => {
+    const pathOf = (name: string) => render(<Icon name={name} />).container.querySelector("path")?.getAttribute("d");
+    expect(pathOf("archive")).toBe("M3 4h18v4H3zM5 8v12h14V8M10 12h4");
+    expect(pathOf("chevL")).toBe("M15 18l-6-6 6-6");
+  });
+
   it("draws the dotted icons as three filled dots", () => {
     const { container } = render(<Icon name="more" />);
     const dots = container.querySelectorAll("circle");

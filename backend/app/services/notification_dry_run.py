@@ -8,6 +8,7 @@ from app.services.notification_evidence import EvidenceError, collect_facts
 from app.services.notification_interpretation import validate_interpretation
 from app.services.notification_processing import database_operation, source_event
 from app.services.openai_notification_provider import ProviderError, dry_run_configuration_error
+from app.services.prompt_language import NOTIFICATION_INTERPRETATION, select_prompt
 
 
 def dry_run_available() -> bool:
@@ -46,7 +47,7 @@ def compact_proposal(proposal, context: dict, resolved: dict) -> dict:
     }
 
 
-async def run_dry_run(provider, user_id: str, event: dict) -> dict:
+async def run_dry_run(provider, user_id: str, event: dict, *, account_language: str) -> dict:
     facts, context = await database_operation(context_for, user_id, event)
     if facts.status == "ignored":
         return {"status": "ignored"}
@@ -55,7 +56,7 @@ async def run_dry_run(provider, user_id: str, event: dict) -> dict:
     if facts.status != "candidate" or context is None or context["incomplete"]:
         return {"status": "needs_review", "error_code": facts.error_code or "incomplete_context"}
     try:
-        proposal = await provider.interpret(context)
+        proposal = await provider.interpret(context, prompt=select_prompt(NOTIFICATION_INTERPRETATION, account_language))
         validate_interpretation(proposal, facts, context)
         if proposal.outcome != "record":
             result = {"status": proposal.outcome}

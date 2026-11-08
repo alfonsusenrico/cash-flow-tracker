@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.i18n import language_for_user
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.services.auth import get_current_user
 from app.services.kakeibo import pillar_bucket_sql
@@ -80,7 +81,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
     today_start = datetime.combine(now_local.date(), time.min, tzinfo=tz).astimezone(timezone.utc)
     today_end = datetime.combine(now_local.date(), time.max, tzinfo=tz).astimezone(timezone.utc)
 
-    cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id)
+    cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id, language=language_for_user(current_user))
     elapsed_days = (now_local.date() - cycle_start.astimezone(tz).date()).days + 1
 
     with db_conn() as conn:
@@ -239,7 +240,7 @@ def get_insights(current_user: dict = Depends(get_current_user)):
     tz = ZoneInfo(settings.tz)
     now_local = datetime.now(tz)
 
-    cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id)
+    cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id, language=language_for_user(current_user))
     elapsed_days = (now_local.date() - cycle_start.astimezone(tz).date()).days + 1
 
     with db_conn() as conn:

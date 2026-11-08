@@ -74,7 +74,7 @@ Beranda's hero figure SHALL be "Aman dipakai sampai gajian": the remaining amoun
 - **THEN** the hero SHALL show Rp 0 and its line SHALL say that the period is Rp 300.000 over, instead of showing a negative safe amount
 
 ### Requirement: Scheduled Amount
-"Terjadwal" SHALL be the unpaid occurrences of the owner's active non-income plans that are due or overdue up to the day before the expected salary date, plus the unfunded part of the current period's goal set-asides. Paid, linked or skipped occurrences SHALL NOT count, and a set-aside already moved into the goal's accounts this period SHALL NOT count again.
+"Terjadwal" SHALL be the unpaid occurrences of the owner's active non-income plans that are due or overdue up to the day before the expected salary date, plus the unfunded part of the current period's goal set-asides. Paid, linked or skipped occurrences SHALL NOT count, and a set-aside already moved into the goal's accounts this period SHALL NOT count again. A transfer plan into a credit account SHALL count only up to that account's opening debt left to pay.
 
 #### Scenario: Linked payment leaves Terjadwal
 - **GIVEN** a Rp 600.000 plan due on 5 November inside the window
@@ -89,6 +89,16 @@ Beranda's hero figure SHALL be "Aman dipakai sampai gajian": the remaining amoun
 #### Scenario: Without an expected salary date
 - **WHEN** the expected salary date is unknown
 - **THEN** "Terjadwal" SHALL cover the next 30 days, and its explanation SHALL name that window
+
+#### Scenario: Credit-bill plan is not counted twice
+- **GIVEN** a Rp 470.000 SPayLater purchase this cycle, no opening debt, and a Rp 470.000 transfer plan Jago → SPayLater due in the window
+- **WHEN** the scheduled amount is computed
+- **THEN** the plan's line SHALL show `plan_amount` Rp 470.000, `amount` Rp 0 and `counted_elsewhere` Rp 470.000, and "Aman dipakai" SHALL be lower by Rp 470.000 only, through Pengeluaran
+
+#### Scenario: Credit-bill plan for opening debt
+- **GIVEN** Kredivo opened owing Rp 300.000 with nothing paid, and two Rp 200.000 transfer plan occurrences into Kredivo in the window
+- **WHEN** the scheduled amount is computed
+- **THEN** the two occurrences SHALL count Rp 200.000 and Rp 100.000 in due-date order, and the rest SHALL be marked as counted elsewhere
 
 ### Requirement: Kerjakan Dulu
 Under "Perlu tindakan" Beranda SHALL list the first three of what needs the owner, ranked: open questions, plans past their due date, plans due today, awaiting transfers, ambiguous pairs, groups that need an answer, automatically linked plans to check, and plans due within two days. Each row SHALL name the merchant or plan, its kind and time, and its amount where it has one, and the whole row SHALL be its one action. A due plan SHALL keep its link, skip and record actions.
@@ -117,7 +127,7 @@ Under "Perlu tindakan" Beranda SHALL list the first three of what needs the owne
 - **THEN** the section SHALL say "Tidak ada yang perlu dijawab." in one line, and its header link SHALL read "Buka Tinjau" without a count
 
 ### Requirement: Recent Activity on Beranda
-Under "Aktivitas terbaru" Beranda SHALL list up to eight transactions from today and yesterday that do not wait for an answer, newest first, under one heading per day. Each row SHALL show the time, the merchant or movement route, the account, the pillar or status, and the amount with its sign and type colour, plus a link to all transactions. Selecting a row SHALL open the shared transaction dialog of Transaksi, centered from 768 px.
+Under "Aktivitas terbaru" Beranda SHALL list up to eight transactions from today and yesterday that do not wait for an answer, newest first, under one heading per day. Each row SHALL show the time, the merchant or a movement's note or route, the account or route, the pillar, status or saving direction, and the amount with its sign and type colour, expenses in red, plus a link to all transactions. A row SHALL open the shared transaction dialog.
 
 #### Scenario: Waiting row in the list
 - **WHEN** a row from today has an open question
@@ -129,12 +139,12 @@ Under "Aktivitas terbaru" Beranda SHALL list up to eight transactions from today
 
 #### Scenario: Movement row
 - **WHEN** a "Pindah Saldo" between two of the owner's accounts is listed
-- **THEN** it SHALL appear once as "source → target" with a sky amount, and SHALL say "Tidak dihitung" instead of a pillar
+- **THEN** it SHALL appear once, titled by its note with "source → target" as its meta, or by "source → target" when it has no note, with a sky amount, and SHALL show its saving direction ("Ditabung", "Diambil dari tabungan", "Investasi", "Bayar utang") or "—" instead of a pillar, never "Tidak dihitung"
 - **AND** a pocket SHALL be named with its parent, for example "Jago · Main Pocket → BCA · ATM"
 
 #### Scenario: Expense and income rows
 - **WHEN** an expense of Rp 30.000 and an income of Rp 9.518.400 are listed
-- **THEN** the expense SHALL read "−Rp 30.000" in the ink with its pillar, and the income SHALL read "+Rp 9.518.400" in green with "Uang masuk"
+- **THEN** the expense SHALL read "−Rp 30.000" in the expense red with its pillar, and the income SHALL read "+Rp 9.518.400" in green with "Uang masuk"
 
 #### Scenario: Row opens the transaction drawer
 - **WHEN** the owner selects "Kedai Awan Rp 30.000" in "Aktivitas terbaru"
@@ -149,6 +159,10 @@ Under "Aktivitas terbaru" Beranda SHALL list up to eight transactions from today
 #### Scenario: Phone row
 - **WHEN** Beranda is shown at 390 px
 - **THEN** each row SHALL show two lines, the title and "18.23 · Kebutuhan", with the amount at the right and no horizontal scrolling
+
+#### Scenario: Expense in Perlu tindakan
+- **WHEN** "Perlu tindakan" lists an open question about an expense of Rp 187.500
+- **THEN** its amount SHALL read "−Rp 187.500" in the expense red through the same shared amount as "Aktivitas terbaru"
 
 ### Requirement: Beranda Loading and Failure
 Beranda SHALL show static placeholders of the final layout while loading. When the summary request fails, it SHALL say in the hero's place that the figures could not be loaded and offer a retry, without showing any amount, while the blocks with their own data still render.
@@ -252,3 +266,20 @@ Beside the reading column from 1200 px, and after it below, Beranda SHALL show o
 #### Scenario: Panel position
 - **WHEN** Beranda is shown at 1440 px and at 1100 px
 - **THEN** at 1440 px the panel SHALL be 352 px wide at the right of the reading column, and at 1100 px it SHALL follow the reading column at its full width with every figure inside its block
+
+### Requirement: Credit Figures in the Cycle Summary
+The cycle summary SHALL return `spending.credit` with two figures. `spent_on_credit` is the period's reportable expenses on credit accounts, a part of `spending.amount`. `paid_to_credit` is the cash moved into credit accounts in the period, from accounts that are not credit. Each SHALL have per-account lines with `label_source` `user`. Neither SHALL change Pengeluaran, Keluar, Masuk, Ditabung & investasi or Aman dipakai.
+
+#### Scenario: Purchase and payment in one cycle
+- **GIVEN** Pengeluaran of Rp 1.000.000 including a Rp 120.000 SPayLater dinner, and a Rp 470.000 movement Jago → SPayLater in the cycle
+- **WHEN** the cycle summary is read
+- **THEN** `spent_on_credit` SHALL be Rp 120.000, `paid_to_credit` Rp 470.000, and Pengeluaran SHALL stay Rp 1.000.000
+
+#### Scenario: No credit accounts
+- **WHEN** an owner has no credit account
+- **THEN** both figures SHALL be 0 with no lines, and every other figure SHALL equal its value before this change
+
+#### Scenario: Payment from a savings account
+- **GIVEN** a credit account and a role-`tabungan` pocket
+- **WHEN** the owner moves Rp 200.000 from that pocket into the credit account
+- **THEN** `paid_to_credit` SHALL grow by Rp 200.000, and "Ditabung & investasi" SHALL fall by Rp 200.000, as for any money leaving savings

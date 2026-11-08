@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import HTTPException
 
+from app.errors import ErrorCode, api_error
 from app.services.notification_evidence import SUPPORTED_PACKAGES
 from app.services.notification_resolution import INSTITUTION_LABELS
 
@@ -86,9 +86,7 @@ def stop_link(cur, user_id: str, link_id: str) -> None:
         (user_id, link_id),
     )
     if not cur.fetchone():
-        raise HTTPException(status_code=404, detail={
-            "code": "account_link_not_found", "message": "Tautan rekening tidak ditemukan.",
-        })
+        raise api_error(404, ErrorCode.ACCOUNT_LINK_NOT_FOUND)
 
 
 def _first_report(cur, user_id: str, transaction_id: str) -> dict | None:

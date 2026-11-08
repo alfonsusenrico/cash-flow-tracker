@@ -44,3 +44,8 @@
   .grid, .formGrid { grid-template-columns: minmax(0, 1fr); }
   .type { grid-template-columns: minmax(0, 1fr); gap: 4px; }
 }
+
+/* Tinjau's rail, list and answers side by side, as on the page from 1200 px. */
+.tinjau { display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: var(--sp-24); align-items: start; }
+.tinjau > :last-child { grid-column: 1 / -1; }
+@media (max-width: 767px) { .tinjau { display: block; } }

@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { MaskedMoney, useMoney } from "@/components/workspace/money";
+import { ShellDialog } from "@/components/workspace/ShellDialog";
+import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { api } from "@/lib/api";
 import { InvestmentAccount, listAmountInvestmentProducts } from "@/lib/investmentTopups";
 import { queryKeys } from "@/lib/queryKeys";
 import type { UndoFields } from "@/lib/reviewUndo";
-import { fmtIDR } from "@/lib/utils";
-import { Modal } from "./Modal";
 
 export interface ExpenseForTopup {
   id: string;
@@ -23,7 +25,16 @@ interface Props {
   onConverted: (response?: UndoFields) => void;
 }
 
+const FORM_ID = "expense-topup-form";
+
+/**
+ * "Catat sebagai top up investasi" (apply-markas-transaksi D17): an expense recorded as a top-up into an
+ * amount-tracked product, on the shell dialog. The conversion request and its eligibility are unchanged.
+ */
 export function ExpenseTopupConversionModal({ expense, accounts, onClose, onConverted }: Props) {
+  const t = useTranslations("transactions.topupConversion");
+  const common = useTranslations("common");
+  const money = useMoney();
   const qc = useQueryClient();
   const products = useMemo(() => listAmountInvestmentProducts(accounts), [accounts]);
   const [productId, setProductId] = useState("");
@@ -40,64 +51,69 @@ export function ExpenseTopupConversionModal({ expense, accounts, onClose, onConv
         .forEach((key) => qc.invalidateQueries({ queryKey: key }));
       onConverted(response);
     },
-    onError: (failure: Error) => setError(failure.message || "Top up gagal dicatat. Coba lagi."),
+    onError: (failure: Error) => setError(failure.message || t("failed")),
   });
   if (!expense) return null;
   const busy = mutation.isPending;
   const parentName = (product: InvestmentAccount) => accounts.find((account) => account.id === product.parent_id)?.name;
+  const amount = () => <MaskedMoney text={money(expense.amount)} />;
+
+  const footer = (
+    <>
+      <button type="button" className="ws-btn" onClick={onClose} disabled={busy}>{common("cancel")}</button>
+      <button type="submit" form={FORM_ID} className="ws-btn ws-btn-ink" disabled={busy || products.length === 0}>
+        {busy ? t("saving") : t("action")}
+      </button>
+    </>
+  );
 
   return (
-    <Modal open onClose={() => { if (!busy) onClose(); }} title="Jadikan Top up Investasi">
-      <form
-        className="space-y-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setError("");
-          if (!productId) {
-            setError("Pilih produk reksadana tujuan.");
-            document.getElementById("expense-topup-product")?.focus();
-            return;
-          }
-          mutation.mutate({ transactionId: expense.id, targetId: productId });
-        }}
-      >
-        <p className="text-sm">
-          Debit <span className="font-semibold tabular-nums">{fmtIDR(expense.amount)}</span>
-          {expense.account_name ? <> dari <span className="font-semibold">{expense.account_name}</span></> : null} dicatat sebagai top up ke produk yang dipilih. Saldo rekening sumber tidak berubah karena debit ini sudah tercatat.
-        </p>
-        {products.length === 0 ? (
-          <p className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 text-sm">
-            Belum ada produk reksadana yang dicatat berdasarkan nominal. Buka Rekening, pilih menu produk, lalu pilih &quot;Ubah ke pelacakan nominal&quot;.
-          </p>
-        ) : (
-          <div>
-            <label htmlFor="expense-topup-product" className="mb-1 block text-xs font-medium">Produk tujuan</label>
-            <select
-              id="expense-topup-product"
-              data-autofocus
-              value={productId}
-              onChange={(event) => setProductId(event.target.value)}
-              disabled={busy}
-              aria-invalid={Boolean(error) && !productId}
-              className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
-            >
-              <option value="">Pilih produk…</option>
-              {products.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {parentName(product) ? `${parentName(product)} · ${product.name}` : product.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        {error && <p role="alert" className="text-sm text-out-fg">{error}</p>}
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--line)] pt-3">
-          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-md border border-[var(--line)] px-3 text-sm">Batal</button>
-          <button type="submit" disabled={busy || products.length === 0} className="ws-btn ws-btn-accent disabled:opacity-50">
-            {busy ? "Menyimpan…" : "Jadikan top up"}
-          </button>
-        </div>
-      </form>
-    </Modal>
+    <UntranslatedRegion active={false}>
+      <ShellDialog open onClose={() => { if (!busy) onClose(); }} title={t("title")} width={520} closeLabel={t("close")} footer={footer}>
+        <form
+          id={FORM_ID}
+          className="form-stack"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            setError("");
+            if (!productId) {
+              setError(t("chooseProduct"));
+              document.getElementById("expense-topup-product")?.focus();
+              return;
+            }
+            mutation.mutate({ transactionId: expense.id, targetId: productId });
+          }}
+        >
+          {products.length === 0 ? (
+            <p className="t-body">{t("noProducts")}</p>
+          ) : (
+            <div className="field">
+              <label htmlFor="expense-topup-product">{t("product")}</label>
+              <select
+                id="expense-topup-product"
+                value={productId}
+                onChange={(event) => setProductId(event.target.value)}
+                disabled={busy}
+                aria-invalid={Boolean(error) && !productId}
+                aria-describedby="expense-topup-hint"
+                className="field-control"
+              >
+                <option value="">{t("productPlaceholder")}</option>
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {parentName(product) ? `${parentName(product)} · ${product.name}` : product.name}
+                  </option>
+                ))}
+              </select>
+              <p id="expense-topup-hint" className="hint">
+                {expense.account_name ? t.rich("body", { amount, account: expense.account_name }) : t.rich("bodyNoAccount", { amount })}
+              </p>
+            </div>
+          )}
+          {error && <p role="alert" className="form-alert">{error}</p>}
+        </form>
+      </ShellDialog>
+    </UntranslatedRegion>
   );
 }

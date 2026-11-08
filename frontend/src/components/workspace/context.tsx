@@ -87,7 +87,16 @@ export interface PageMoreAction {
  * labelled "Tindakan lain". The page keeps every handler; only where the controls render changes. Outside the
  * shell (page tests) they render in place.
  */
-export function PageActions({ children, more = [] }: { children?: ReactNode; more?: PageMoreAction[] }) {
+export function PageActions({
+  children,
+  more = [],
+  moreLabel,
+}: {
+  children?: ReactNode;
+  more?: PageMoreAction[];
+  /** The "…" button's name when the page names it, such as "Tindakan lain untuk Tinjau"; "Tindakan lain" otherwise. */
+  moreLabel?: string;
+}) {
   const context = useContext(WorkspaceContext);
   const t = useTranslations("common");
   const lang = useInterfaceLang();
@@ -98,8 +107,8 @@ export function PageActions({ children, more = [] }: { children?: ReactNode; mor
       {children}
       {listed.length > 0 && (
         <MenuButton
-          label={t("moreActions")}
-          lang={lang}
+          label={moreLabel ?? t("moreActions")}
+          lang={moreLabel ? undefined : lang}
           className="ws-icon-btn"
           menuLabel={t("moreActions")}
           width={260}

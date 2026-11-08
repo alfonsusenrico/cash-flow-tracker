@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  chipOf,
   listsLogicalMovements,
-  withChip,
   DEFAULT_LEDGER_FILTERS,
+  activeFilterCount,
   hasRowFilters,
   ledgerApiParams,
   ledgerFilterQuery,
@@ -65,17 +64,23 @@ describe("ledger URL filters", () => {
     expect(ledgerHref({ period: "month", offset: -1, kakeibo: "want", type: "expense" })).toBe("/ledger?period=month&offset=-1&kakeibo=want&type=expense");
   });
 
-  it("maps the Transaksi tabs and chips onto the URL and the API", () => {
+  it("maps the seven types and independent filters onto the URL and the API (D8, D28, D30)", () => {
     const base = parseLedgerFilters(new URLSearchParams("period=cycle&type=movement"));
-    const waiting = withChip(base, "waiting");
-    expect(ledgerFilterQuery(waiting)).toBe("period=cycle&type=movement&waiting=1");
-    expect(ledgerApiParams(waiting).get("waiting")).toBe("true");
-    expect(ledgerApiParams(waiting).get("type")).toBe("movement");
-    const phone = withChip(waiting, "phone");
-    expect(chipOf(phone)).toBe("phone");
-    expect(ledgerFilterQuery(phone)).toBe("period=cycle&type=movement&source=notification");
-    expect(chipOf(withChip(phone, "phone"))).toBe("none");
-    expect(ledgerFilterQuery(withChip(base, "unreviewed"))).toBe("period=cycle&type=movement&review=auto");
+    const combined = { ...base, waiting: true, source: "notification" as const, review: "auto" as const };
+    expect(ledgerFilterQuery(combined)).toBe("period=cycle&type=movement&review=auto&source=notification&waiting=1");
+    expect(ledgerApiParams(combined).get("waiting")).toBe("true");
+    expect(ledgerApiParams(combined).get("review_status")).toBe("auto");
+    expect(ledgerApiParams(combined).get("source")).toBe("notification");
+    expect(activeFilterCount(combined)).toBe(3);
+    for (const type of ["saving", "credit"] as const) {
+      const filters = parseLedgerFilters(new URLSearchParams(`type=${type}`));
+      expect(filters.type).toBe(type);
+      expect(ledgerFilterQuery(filters)).toBe(`type=${type}`);
+      expect(ledgerApiParams(filters).get("type")).toBe(type);
+      expect(listsLogicalMovements(filters, "")).toBe(true);
+    }
+    expect(parseLedgerFilters(new URLSearchParams("type=savings")).type).toBe("all");
+    expect(activeFilterCount({ ...DEFAULT_LEDGER_FILTERS, q: "kopi", type: "expense", period: "cycle" })).toBe(0);
   });
 
   it("keeps one row per movement only without row filters", () => {

@@ -13,6 +13,8 @@ export const queryKeys = {
     ledger: (params?: string) => ["transactions", "ledger", params ?? ""] as const,
     recent: (from: string) => ["transactions", "recent", from] as const,
     detail: (id: string) => ["transactions", "detail", id] as const,
+    /** A credit account's overview for a window; under `transactions` so every ledger change refreshes it. */
+    creditOverview: (accountId: string, window: string) => ["transactions", "credit-overview", accountId, window] as const,
   },
   dashboard: {
     all: ["dashboard"] as const,

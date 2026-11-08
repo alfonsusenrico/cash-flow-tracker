@@ -6,9 +6,10 @@ import re
 import unicodedata
 from uuid import uuid4
 
-from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 
+from app.errors import ErrorCode, api_error
+from app.i18n import t
 from app.services.notification_mapping import version_tuple
 
 
@@ -28,10 +29,10 @@ def validate_sender_name(value: str | None) -> str:
     from app.services.notification_context import sanitize_text
 
     if not isinstance(value, str) or any(unicodedata.category(char).startswith("C") for char in value):
-        raise HTTPException(status_code=422, detail={"code": "invalid_sender_name"})
+        raise api_error(422, ErrorCode.INVALID_SENDER_NAME)
     name = unicodedata.normalize("NFKC", value).strip()
     if not 1 <= len(name) <= 80 or sanitize_text(name) != name:
-        raise HTTPException(status_code=422, detail={"code": "invalid_sender_name"})
+        raise api_error(422, ErrorCode.INVALID_SENDER_NAME)
     return name
 
 
@@ -115,7 +116,9 @@ def sender_gate(
         )
         event["sender_resolution"] = resolution
         name = resolution.get("name")
-        return False, f"Transfer masuk dari {name}" if resolution["action"] == "name" else "Transfer masuk"
+        language = context["_language"]
+        note = t(language, "notes.sender_named", name=name) if resolution["action"] == "name" else t(language, "notes.sender")
+        return False, note
     if supports_sender_confirmation(event):
         from app.services.notification_application import account_label
 
@@ -141,7 +144,7 @@ def accept_sender_answer(cur, event: dict, answer: dict) -> bool:
     action = answer["action"]
     name = validate_sender_name(answer.get("name")) if action == "name" else None
     if action == "unknown" and answer.get("name") is not None:
-        raise HTTPException(status_code=422, detail={"code": "invalid_sender_answer"})
+        raise api_error(422, ErrorCode.INVALID_SENDER_ANSWER)
     cur.execute(
         """SELECT event_id, question_id, reply_id, action, sender_name FROM notification_sender_answers
            WHERE user_id = %s AND ((event_id = %s AND question_id = %s) OR reply_id = %s)""",
@@ -153,11 +156,11 @@ def accept_sender_answer(cur, event: dict, answer: dict) -> bool:
                 and str(receipts[0]["question_id"]) == question_id
                 and receipts[0]["action"] == action and receipts[0]["sender_name"] == name):
             return False
-        raise HTTPException(status_code=409, detail={"code": "sender_answer_conflict"})
+        raise api_error(409, ErrorCode.SENDER_ANSWER_CONFLICT)
     question = event.get("active_question") or {}
     if (event["processing_state"] != "needs_confirmation" or question.get("type") != "sender"
             or question.get("question_id") != question_id):
-        raise HTTPException(status_code=409, detail={"code": "stale_confirmation"})
+        raise api_error(409, ErrorCode.STALE_CONFIRMATION)
     resolution = {
         "institution": question["institution"], "receiving_account_id": question["receiving_account"]["id"],
         "mask_normalized": normalize_mask(question["masked_sender"]), "mask_display": question["masked_sender"],

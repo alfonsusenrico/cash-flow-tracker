@@ -65,6 +65,8 @@ class Settings:
     habit_auto_record_enabled: bool = True
     topup_auto_record_enabled: bool = True
     background_jobs_enabled: bool = True
+    # English model output for English accounts waits for the owner-approved held-out benchmark (localize-server-text D7).
+    llm_english_output_enabled: bool = False
 
 
 def _csv_env(name: str) -> tuple[str, ...]:
@@ -212,6 +214,7 @@ def load_settings() -> Settings:
         notification_ai_configuration_error=ai_configuration_error,
         app_env=app_env,
         notification_ai_dry_run_enabled=os.getenv("NOTIFICATION_AI_DRY_RUN_ENABLED", "false").lower() == "true",
+        llm_english_output_enabled=os.getenv("LLM_ENGLISH_OUTPUT_ENABLED", "false").strip().lower() == "true",
         **_movement_pairing_settings(),
         **_history_suggestion_settings(),
         **_capture_settings(),

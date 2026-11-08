@@ -1,0 +1,12 @@
+{
+  "status": 401,
+  "content_language": "en",
+  "body": {
+    "ok": false,
+    "detail": {
+      "code": "not_authenticated",
+      "params": {},
+      "message": "Not authenticated"
+    }
+  }
+}

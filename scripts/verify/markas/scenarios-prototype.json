@@ -40,12 +40,9 @@
   ]
  },
  {
-  "name": "tinjau",
-  "path": "/tinjau"
- },
- {
   "name": "transaksi",
-  "path": "/transaksi"
+  "path": "/transaksi",
+  "transaksi": true
  },
  {
   "name": "analisis",
@@ -83,6 +80,107 @@
   "steps": [
    {
     "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "tinjau",
+  "path": "/tinjau",
+  "tinjau": true
+ },
+ {
+  "name": "tinjau-perlu-jawaban",
+  "path": "/tinjau/perlu_jawaban",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-dua-kali",
+  "path": "/tinjau/terlihat_dua_kali",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-dilewati",
+  "path": "/tinjau/dilewati_otomatis",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-sheet",
+  "path": "/tinjau",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tj-list a.row')][1]; row?.click(); return row ? 'clicked' : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ],
+  "cells": [
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "state-tinjau-memuat",
+  "path": "/tinjau?state=memuat",
+  "tinjau": true
+ },
+ {
+  "name": "state-tinjau-galat",
+  "path": "/tinjau?state=galat",
+  "tinjau": true
+ },
+ {
+  "name": "state-tinjau-kosong",
+  "path": "/tinjau?state=kosong",
+  "tinjau": true
+ },
+ {
+  "name": "dlg-ubah-kategori",
+  "path": "/tinjau/perlu_jawaban",
+  "tinjau": true,
+  "steps": [
+   {
+    "click": "^\\d?Ubah kategori"
+   }
+  ]
+ },
+ {
+  "name": "dlg-saran-riwayat",
+  "path": "/tinjau",
+  "tinjau": true,
+  "steps": [
+   {
+    "click": "^Tindakan lain untuk Tinjau$"
+   },
+   {
+    "click": "^Cari saran dari riwayat$"
+   }
+  ]
+ },
+ {
+  "name": "menu-tinjau",
+  "path": "/tinjau",
+  "tinjau": true,
+  "steps": [
+   {
+    "click": "^Tindakan lain untuk Tinjau$"
    }
   ]
  },
@@ -245,6 +343,52 @@
   "steps": [
    {
     "click": "^Ciutkan menu samping$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-filter",
+  "path": "/transaksi",
+  "transaksi": true,
+  "steps": [
+   {
+    "click": "^Filter"
+   }
+  ]
+ },
+ {
+  "name": "dlg-menu-transaksi",
+  "path": "/transaksi",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const b = document.querySelector('.title-block [data-d^=\"menu\"], .title-block .icon-btn:last-child'); b?.click(); return b ? 'clicked more' : 'NOT FOUND'; })()",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-detail",
+  "path": "/transaksi",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('[data-d^=\"transaksi:\"]'); row?.click(); return row ? 'clicked row' : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-ubah",
+  "path": "/transaksi",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('[data-d^=\"transaksi:\"]'); row?.click(); return row ? 'clicked row' : 'NOT FOUND'; })()",
+    "after": 900
+   },
+   {
+    "click": "^Ubah$"
    }
   ]
  }

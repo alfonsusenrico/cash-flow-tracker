@@ -1,15 +1,99 @@
-import type { FeeLinkFields } from "@/components/ledger/LedgerRowMarks";
 import type { HabitBasis } from "@/lib/provenance";
 
-/** A row of `GET /api/transactions` and `GET /api/transactions/{id}`. */
-export interface LedgerRow extends FeeLinkFields {
+/** A transfer-fee row and its movement, linked both ways (movement pairing D5). */
+export interface FeeLinkFields {
+  movement_fee?: { transaction_id: string; amount: number } | null;
+  fee_movement?: {
+    movement_id: string;
+    source_account_name: string | null;
+    target_account_name: string | null;
+    amount: number;
+  } | null;
+}
+
+/**
+ * What a move or an expense did to "Ditabung & investasi", by the server's savings rule (apply-markas-transaksi
+ * D27); null when the row changes nothing there.
+ */
+export type SavingFlow = "saved" | "invested" | "taken" | "paid_from_savings" | "saving_pillar" | "debt_payment" | null;
+
+export type CreditRole = "purchase" | "fee" | "cash_advance" | "payment" | "refund";
+
+/** One instalment of a credit purchase, as the server's schedule sees it (add-credit-spending-flow, H5). */
+export interface CreditInstallment {
+  kind: string;
+  transaction_id: string | null;
+  date: string;
+  due_date: string;
+  installment: { number: number; count: number } | null;
+  amount: number;
+  left_to_pay: number;
+  settled_on: string | null;
+  days_to_settle: number | null;
+  settled_on_time: boolean | null;
+  bill_status?: string | null;
+}
+
+/** The row's tie to a credit account (`credit` on `GET /transactions`); null for every other row. */
+export interface CreditBlock {
+  role: CreditRole;
+  account_id: string;
+  account_name: string;
+  installment_count?: number;
+  installments_settled?: number;
+  next_due_date?: string | null;
+  left_to_pay?: number | null;
+  settled_on?: string | null;
+  days_to_settle?: number | null;
+  settled_on_time?: boolean | null;
+  due_dates_unavailable?: boolean;
+  /** Only on `GET /transactions/{id}`. */
+  installments?: CreditInstallment[];
+}
+
+/** The facts a list row describes itself with: one ledger row, or two movement legs consolidated into one. */
+export interface RowFacts {
   id: string;
   account_id: string;
   account_name: string;
   /** The bank of a pocket; null for an account without a parent. */
   account_parent_name?: string | null;
-  category_id: string | null;
   category_name: string | null;
+  /** The category's system key (investment, internal_movement, balance_adjustment); null for an ordinary one. */
+  category_system_key?: string | null;
+  type: "expense" | "income";
+  amount: number;
+  date: string;
+  notes: string | null;
+  merchant?: string | null;
+  kakeibo_type?: string | null;
+  review_status?: string | null;
+  source?: string | null;
+  classified_by?: string | null;
+  movement_id?: string | null;
+  investment_topup_id?: string | null;
+  movement_kind?: "investment_topup" | null;
+  movement_role?: "outbound" | "inbound" | null;
+  partner_id?: string | null;
+  transfer_target_account_id?: string | null;
+  transfer_target_account_name?: string | null;
+  /** The partner leg's bank when its account is a pocket. */
+  transfer_target_account_parent_name?: string | null;
+  target_account_id?: string;
+  target_account_name?: string;
+  target_account_parent_name?: string | null;
+  is_consolidated_transfer?: boolean;
+  is_inferred_transfer?: boolean;
+  is_excluded_from_budget?: boolean;
+  /** Absent from an API older than apply-markas-transaksi. */
+  saving_flow?: SavingFlow;
+  /** Absent from an API older than add-credit-spending-flow. */
+  credit?: CreditBlock | null;
+}
+
+/** A row of `GET /api/transactions` and `GET /api/transactions/{id}`. */
+export interface LedgerRow extends RowFacts, FeeLinkFields {
+  category_id: string | null;
   category_icon?: string | null;
   category_color?: string | null;
   goal_id: string | null;
@@ -18,34 +102,12 @@ export interface LedgerRow extends FeeLinkFields {
   obligation_name: string | null;
   obligation_allocations?: { obligation_id: string; obligation_name: string; amount: number }[];
   recurring_rule_id?: string | null;
-  type: "expense" | "income";
-  kakeibo_type?: string | null;
-  amount: number;
-  notes: string | null;
-  date: string;
   /** The server's local day of the row (`settings.tz`); older APIs leave it out. */
   local_date?: string;
   receipt_path: string | null;
   created_at: string;
-  is_excluded_from_budget?: boolean;
-  partner_id?: string | null;
-  is_consolidated_transfer?: boolean;
-  target_account_name?: string;
-  target_account_parent_name?: string | null;
-  target_account_id?: string;
-  movement_id?: string | null;
-  investment_topup_id?: string | null;
-  movement_kind?: "investment_topup" | null;
-  movement_role?: "outbound" | "inbound" | null;
-  transfer_target_account_id?: string | null;
-  transfer_target_account_name?: string | null;
-  /** The partner leg's bank when its account is a pocket. */
-  transfer_target_account_parent_name?: string | null;
-  is_inferred_transfer?: boolean;
-  source?: string;
-  merchant?: string | null;
   review_status?: string;
-  classified_by?: string | null;
+  source?: string;
   habit_basis?: HabitBasis | null;
   offset_category_id?: string | null;
   offset_category_name?: string | null;

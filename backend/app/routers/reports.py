@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.routers.dashboard import calculate_ketahanan_dana, get_kakeibo_breakdown
 from app.services.auth import get_current_user
@@ -49,7 +50,7 @@ class ReflectionInput(BaseModel):
 
 
 def report_error(error: ReportError) -> HTTPException:
-    return HTTPException(status_code=error.status, detail={"code": error.code, "message": error.message})
+    return api_error(error.status, error.code)
 
 
 def _essential_now(cur, user: dict) -> dict:
@@ -200,5 +201,5 @@ def remove_reflection(
             removed = delete_reflection(cur, current_user["id"], basis, start_date)
         conn.commit()
     if not removed:
-        raise HTTPException(status_code=404, detail={"code": "reflection_not_found", "message": "Catatan tidak ditemukan."})
+        raise api_error(404, ErrorCode.REFLECTION_NOT_FOUND)
     return {"ok": True}

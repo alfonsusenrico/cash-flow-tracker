@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { DOMAttributes, ReactNode } from "react";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
 
@@ -45,7 +45,7 @@ export function PanelBlock({ heading, href, children }: { heading?: string; href
 }
 
 export interface ListRowProps {
-  /** A link row; otherwise the row is a button. */
+  /** A link row; with `onClick` a button; with neither a plain row that is not a target (SPEC `is-plain`). */
   href?: string;
   onClick?: () => void;
   time?: string;
@@ -57,18 +57,36 @@ export interface ListRowProps {
   phoneMeta?: ReactNode;
   /** The category column of the full variant (Transaksi). */
   category?: ReactNode;
-  /** The status column: a pillar dot and name, or a word such as "Tidak dihitung". */
+  /** The status column: a pillar dot and name, or a word such as a transfer's saving direction ("Ditabung"). */
   status?: ReactNode;
   amount?: ReactNode;
   chevron?: boolean;
   selected?: boolean;
+  /** The item shown beside the list (Tinjau): `aria-current="true"` with the selection bar. */
+  current?: boolean;
+  /** Title over meta at every width, padding 12 and 64 px high (apply-markas-tinjau D6). */
+  layout?: "stacked";
+  /** `data-row`, which focus returns to when the item's sheet or dialog closes. */
+  rowKey?: string;
+  /** Controls at the end of a plain row, such as Tinjau's "Terima" and "Tolak" for one suggestion. */
+  actions?: ReactNode;
+  /**
+   * Selection for a merge (apply-markas-transaksi D9): the row becomes one `label` with a 16 px checkbox before the
+   * time, so the whole row toggles it; a disabled row is dimmed and its checkbox disabled.
+   */
+  selectable?: { checked: boolean; disabled: boolean; onToggle: () => void; label: string };
+  /** Pointer handlers of the row element, such as the phone's long-press that starts a merge. */
+  pressHandlers?: Pick<DOMAttributes<HTMLElement>, "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel" | "onContextMenu">;
 }
 
 /**
  * One list row (SPEC §7): time · icon · title with its meta · category · status · amount · chevron. Below 768 px
  * the row has two lines, the title and the meta, and only the amount stays beside them.
  */
-export function ListRow({ href, onClick, time, icon, title, meta, phoneMeta, category, status, amount, chevron, selected }: ListRowProps) {
+export function ListRow({
+  href, onClick, time, icon, title, meta, phoneMeta, category, status, amount, chevron, selected, current, layout, rowKey, actions,
+  selectable, pressHandlers,
+}: ListRowProps) {
   const content = (
     <>
       {time !== undefined && <span className="r-time">{time}</span>}
@@ -92,8 +110,41 @@ export function ListRow({ href, onClick, time, icon, title, meta, phoneMeta, cat
       )}
     </>
   );
-  const className = cn("row", "ws-select-row");
-  const selection = selected ? { "data-selected": "" } : {};
+  if (selectable) {
+    return (
+      <label
+        className={cn("row", "ws-select-row", "is-selectable", layout === "stacked" && "is-stacked")}
+        data-row={rowKey}
+        data-selected={selectable.checked ? "" : undefined}
+        aria-disabled={selectable.disabled || undefined}
+        {...pressHandlers}
+      >
+        <input
+          type="checkbox"
+          className="r-check"
+          checked={selectable.checked}
+          disabled={selectable.disabled}
+          onChange={selectable.onToggle}
+          aria-label={selectable.label}
+        />
+        {content}
+      </label>
+    );
+  }
+  if (!href && !onClick) {
+    return (
+      <div className={cn("row", "is-plain", layout === "stacked" && "is-stacked")}>
+        {content}
+        {actions && <span className="r-actions">{actions}</span>}
+      </div>
+    );
+  }
+  const className = cn("row", "ws-select-row", layout === "stacked" && "is-stacked");
+  const selection = {
+    ...(selected ? { "data-selected": "" } : {}),
+    ...(current ? { "aria-current": "true" as const } : {}),
+    ...(rowKey ? { "data-row": rowKey } : {}),
+  };
   if (href) {
     return (
       <Link href={href} className={className} {...selection}>
@@ -102,7 +153,7 @@ export function ListRow({ href, onClick, time, icon, title, meta, phoneMeta, cat
     );
   }
   return (
-    <button type="button" className={className} onClick={onClick} {...selection}>
+    <button type="button" className={className} onClick={onClick} {...selection} {...pressHandlers}>
       {content}
     </button>
   );

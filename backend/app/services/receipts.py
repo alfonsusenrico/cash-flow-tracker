@@ -5,10 +5,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import HTTPException
 from PIL import Image, UnidentifiedImageError
 
 from app.core.config import settings
+from app.errors import ErrorCode, api_error
 
 Image.MAX_IMAGE_PIXELS = settings.receipt_max_pixels
 
@@ -60,10 +60,10 @@ def _detect_kind(raw: bytes, filename: str | None, content_type: str | None) -> 
         if fmt == "JPEG":
             return "jpeg"
     except Image.DecompressionBombError:
-        raise HTTPException(status_code=413, detail="Receipt image dimensions are too large")
+        raise api_error(413, ErrorCode.RECEIPT_DIMENSIONS_TOO_LARGE)
     except Exception:
         pass
-    raise HTTPException(status_code=400, detail="Unsupported receipt type. Allowed: pdf, png, jpg, jpeg")
+    raise api_error(400, ErrorCode.RECEIPT_TYPE_UNSUPPORTED)
 
 
 def _compress_image_to_webp(raw: bytes, quality: int) -> bytes:
@@ -71,9 +71,9 @@ def _compress_image_to_webp(raw: bytes, quality: int) -> bytes:
         image = Image.open(io.BytesIO(raw))
         image.load()
     except Image.DecompressionBombError:
-        raise HTTPException(status_code=413, detail="Receipt image dimensions are too large")
+        raise api_error(413, ErrorCode.RECEIPT_DIMENSIONS_TOO_LARGE)
     except (UnidentifiedImageError, OSError):
-        raise HTTPException(status_code=400, detail="Invalid image file")
+        raise api_error(400, ErrorCode.RECEIPT_IMAGE_INVALID)
 
     if image.mode not in ("RGB", "RGBA"):
         if "A" in image.getbands():
@@ -95,12 +95,9 @@ def prepare_receipt_payload(
 ) -> PreparedReceipt:
     max_bytes = max(1, settings.receipt_max_mb) * 1024 * 1024
     if not raw:
-        raise HTTPException(status_code=400, detail="receipt file is empty")
+        raise api_error(400, ErrorCode.RECEIPT_EMPTY)
     if len(raw) > max_bytes:
-        raise HTTPException(
-            status_code=413,
-            detail=f"Receipt file too large (max {settings.receipt_max_mb}MB)",
-        )
+        raise api_error(413, ErrorCode.RECEIPT_TOO_LARGE, {"max_mb": settings.receipt_max_mb})
 
     kind = _detect_kind(raw, filename, content_type)
     normalized_category = sanitize_receipt_category(category)
@@ -151,7 +148,7 @@ def store_receipt(relative_path: str, content: bytes) -> Path:
     root = _storage_root()
     path = (root / relative_path).resolve()
     if root != path and root not in path.parents:
-        raise HTTPException(status_code=500, detail="Invalid receipt storage path")
+        raise api_error(500, ErrorCode.RECEIPT_PATH_INVALID)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content)
     return path

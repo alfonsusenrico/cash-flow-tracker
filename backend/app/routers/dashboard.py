@@ -7,10 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.errors import api_error
+from app.i18n import format_money, language_for_user, region_for_user, t
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.services.auth import get_current_user
 from app.services.calendar import build_calendar
-from app.services.cycle_summary import KELUAR_BUCKETS, build_cycle_summary, net_worth_breakdown, rupiah, spending_split
+from app.services.cycle_summary import (
+    KELUAR_BUCKETS, bucket_label, build_cycle_summary, net_worth_breakdown, reimbursed_note, spending_split,
+)
 from app.services.essential_cost import DEFAULT_TARGET_MONTHS, EssentialCost, coverage, estimate_essential_cost
 from app.services.kakeibo import UNCLASSIFIED, pillar_bucket_sql
 from app.services.money_flow import FlowKeyError, build_flow, clamp_through, flow_rows, load_flow_context
@@ -35,6 +39,7 @@ from app.services.report_windows import (
 )
 from app.services.salary_cycles import resolve_cycle
 from app.services.salary_receipts import receipts as salary_receipts
+from app.services.saving_flow import SAVINGS_ACCOUNT_SQL, SAVINGS_DESTINATION_SQL, counted_movement_sql
 
 router = APIRouter(tags=["Dashboard"])
 
@@ -88,12 +93,9 @@ def calc_delta_pct(current: int | float, prev: int | float) -> float:
     return round(((current - prev) / abs(prev)) * 100, 1)
 
 
-def format_idr_compact(amount: int) -> str:
-    """Format integer into Indonesian currency notation, e.g. 10.000.000"""
-    return f"{amount:,}".replace(",", ".")
-
-
 def generate_financial_narrative(
+    language: str,
+    region: str,
     current_outflow: int,
     prev_outflow: int,
     outflow_delta_pct: float,
@@ -102,53 +104,46 @@ def generate_financial_narrative(
     top_driver_delta_pct: float | None,
 ) -> tuple[str, str]:
     """
-    Generates (narrative_string, trend_status).
+    Generates (narrative_string, trend_status) in the account's language.
     trend_status is 'MENURUN' | 'MENINGKAT' | 'STABIL'.
     """
     if prev_outflow == 0 and current_outflow == 0:
-        return "Belum ada transaksi pengeluaran pada periode ini.", "STABIL"
+        return t(language, "labels.dashboard.narrative_empty"), "STABIL"
 
-    cashflow_label = "surplus" if current_net >= 0 else "defisit"
+    def bare(amount: int) -> str:
+        return format_money(amount, region, "bare")
+
+    cashflow_label = t(language, "labels.dashboard.surplus" if current_net >= 0 else "labels.dashboard.deficit")
 
     if prev_outflow == 0:
         trend_status = "MENINGKAT"
         return (
-            f"Pengeluaran periode ini tercatat Rp {format_idr_compact(current_outflow)}. "
-            f"Arus kas tercatat {cashflow_label} Rp {format_idr_compact(abs(current_net))}.",
+            t(language, "labels.dashboard.narrative_first", spending=bare(current_outflow), cashflow=cashflow_label,
+              net=bare(abs(current_net))),
             trend_status,
         )
 
     if outflow_delta_pct > 0:
         trend_status = "MENINGKAT"
-        direction = f"naik {abs(outflow_delta_pct):.1f}%"
+        direction = t(language, "labels.dashboard.direction_up", percent=f"{abs(outflow_delta_pct):.1f}")
     elif outflow_delta_pct < 0:
         trend_status = "MENURUN"
-        direction = f"turun {abs(outflow_delta_pct):.1f}%"
+        direction = t(language, "labels.dashboard.direction_down", percent=f"{abs(outflow_delta_pct):.1f}")
     else:
         trend_status = "STABIL"
-        direction = "stabil (0.0%)"
+        direction = t(language, "labels.dashboard.direction_stable")
 
     driver_clause = ""
     if top_driver_name and top_driver_delta_pct is not None:
         sign = "+" if top_driver_delta_pct > 0 else ""
-        driver_clause = f", terutama dipengaruhi oleh {top_driver_name} ({sign}{top_driver_delta_pct:.1f}%)"
+        driver_clause = t(language, "labels.dashboard.driver", category=top_driver_name,
+                          change=f"{sign}{top_driver_delta_pct:.1f}")
     elif top_driver_name:
-        driver_clause = f", terutama dipengaruhi oleh {top_driver_name} (belum ada pembanding)"
+        driver_clause = t(language, "labels.dashboard.driver_new", category=top_driver_name)
 
-    narrative = (
-        f"Dibanding periode sebelumnya, pengeluaran {direction} menjadi Rp {format_idr_compact(current_outflow)}"
-        f"{driver_clause}. Arus kas tercatat {cashflow_label} Rp {format_idr_compact(abs(current_net))}."
-    )
+    narrative = t(language, "labels.dashboard.narrative_compared", direction=direction, spending=bare(current_outflow),
+                  driver=driver_clause, cashflow=cashflow_label, net=bare(abs(current_net)))
     return narrative, trend_status
-
-
-# A savings destination (organize-accounts-by-use D3): role tabungan, a goal link or an investment product.
-# The role test is NULL-safe so a row read before V51's backfill counts as it did before V51.
-_PRODUCT_SQL = "({a}.type = 'investment' OR {a}.instrument_type IS NOT NULL)"
-_SAVINGS_DESTINATION_SQL = (
-    "({a}.role IS NOT DISTINCT FROM 'tabungan' OR {a}.type = 'investment' OR {a}.instrument_type IS NOT NULL"
-    " OR EXISTS (SELECT 1 FROM goal_accounts ga_{a} WHERE ga_{a}.account_id = {a}.id))"
-)
 
 
 def get_kakeibo_breakdown(
@@ -192,10 +187,8 @@ def get_kakeibo_breakdown(
     # (organize-accounts-by-use D3), so a role or goal link set later also applies to earlier movements.
     # A Beli/Jual trade stays outside Kakeibo: a movement touching an investment product counts only as
     # an investment top-up, or as an older row stored as saving before top-ups existed.
-    source_saving = _SAVINGS_DESTINATION_SQL.format(a="sa")
-    target_saving = _SAVINGS_DESTINATION_SQL.format(a="da")
-    source_product = _PRODUCT_SQL.format(a="sa")
-    target_product = _PRODUCT_SQL.format(a="da")
+    source_saving = SAVINGS_DESTINATION_SQL.format(a="sa")
+    target_saving = SAVINGS_DESTINATION_SQL.format(a="da")
     cur.execute(
         f"""
         SELECT
@@ -215,14 +208,7 @@ def get_kakeibo_breakdown(
             WHERE outbound.user_id = %s
               AND outbound.movement_role = 'outbound'
               AND outbound.date >= %s AND outbound.date <= %s
-              AND NOT (
-                  ({source_product} OR {target_product})
-                  AND outbound.kakeibo_type IS DISTINCT FROM 'saving'
-                  AND NOT EXISTS (
-                      SELECT 1 FROM investment_topups it
-                      WHERE it.user_id = outbound.user_id AND it.id = outbound.movement_id
-                  )
-              )
+              AND {counted_movement_sql("outbound", "sa", "da")}
         ) legs
         """,
         (user_id, start_utc, end_utc),
@@ -242,7 +228,7 @@ def get_kakeibo_breakdown(
         WHERE t.user_id = %s
           AND {reportable_expense_sql()}
           AND t.date >= %s AND t.date <= %s
-          AND (a.role IS NOT DISTINCT FROM 'tabungan' OR EXISTS (SELECT 1 FROM goal_accounts ga WHERE ga.account_id = a.id))
+          AND {SAVINGS_ACCOUNT_SQL.format(a="a")}
         """,
         (user_id, start_utc, end_utc),
     )
@@ -401,7 +387,7 @@ def get_dashboard_overview(
     payday_day = current_user.get("payday_day", 25)
 
     start_utc, end_utc, start_date, end_date, timeframe_label = get_timeframe_window(
-        payday_day, timeframe, cycle_offset=cycle_offset, user_id=user_id
+        payday_day, timeframe, cycle_offset=cycle_offset, user_id=user_id, language=language_for_user(current_user)
     )
 
     # 1. Accounts & Liquid Balances
@@ -601,7 +587,7 @@ def get_dashboard_overview(
 
             # 6b. Period Comparison, Narrative, and Kakeibo
             prev_start_utc, prev_end_utc, prev_start_date, prev_end_date, prev_label = get_previous_timeframe_window(
-                payday_day, timeframe, start_date, end_date, cycle_offset, user_id=user_id
+                payday_day, timeframe, start_date, end_date, cycle_offset, user_id=user_id, language=language_for_user(current_user)
             )
 
             cur.execute(
@@ -683,6 +669,7 @@ def get_dashboard_overview(
                     top_driver_delta_available = p_spent != 0
 
             narrative_summary, trend_status = generate_financial_narrative(
+                language_for_user(current_user), region_for_user(current_user),
                 current_outflow=total_outflow,
                 prev_outflow=prev_outflow,
                 outflow_delta_pct=outflow_delta_pct,
@@ -915,6 +902,7 @@ def analytics_ledger_href(timeframe: str, cycle_offset: int, **filters: str) -> 
 
 def analytics_explanations(
     kakeibo: dict[str, Any], offsets: SpendingOffsets, flow: dict[str, int], timeframe: str, cycle_offset: int,
+    *, language: str, region: str,
 ) -> dict[str, Any]:
     """The lines behind Analisis' Keluar and Belanja, built here so the page adds nothing up.
 
@@ -922,16 +910,16 @@ def analytics_explanations(
     as on Transaksi. Each `lines` list adds up exactly to its `total`.
     """
     keluar_lines = []
-    for key, label, field in KELUAR_BUCKETS:
+    for key, field in KELUAR_BUCKETS:
         notes = []
         if key == "saving":
-            notes.append("Termasuk uang yang dipindah ke kantong tabungan atau diinvestasikan")
+            notes.append(t(language, "notes.summary.includes_savings_moves"))
         offset = offsets.for_pillar(key)
         if offset > 0:
-            notes.append(f"Sudah dikurangi ganti uang {rupiah(offset)}")
+            notes.append(reimbursed_note(language, region, offset))
         keluar_lines.append({
             "key": key,
-            "label": label,
+            "label": bucket_label(language, key),
             "amount": int(kakeibo[field]),
             "note": ". ".join(notes) if notes else None,
             "href": analytics_ledger_href(timeframe, cycle_offset, kakeibo=key),
@@ -941,17 +929,17 @@ def analytics_explanations(
         raise RuntimeError("Kakeibo buckets do not add up to their total")
     belanja_lines = [{
         "key": "gross",
-        "label": "Belanja tercatat",
+        "label": t(language, "labels.dashboard.gross"),
         "amount": flow["gross_outflow"],
-        "note": "Pengeluaran di luar pindah saldo, investasi dan kategori yang tidak dihitung",
+        "note": t(language, "labels.dashboard.gross_note"),
         "href": analytics_ledger_href(timeframe, cycle_offset, type="expense"),
     }]
     if flow["reimbursement_offset"] > 0:
         belanja_lines.append({
             "key": "reimbursement",
-            "label": "Ganti uang",
+            "label": t(language, "labels.dashboard.reimbursement"),
             "amount": -flow["reimbursement_offset"],
-            "note": "Uang pengganti mengurangi kategori yang dibayarnya",
+            "note": t(language, "labels.dashboard.reimbursement_note"),
             "href": None,
         })
     if sum(line["amount"] for line in belanja_lines) != flow["outflow"]:
@@ -959,7 +947,7 @@ def analytics_explanations(
     keluar = {
         "total": keluar_total,
         "lines": keluar_lines,
-        "caveat": "Pindah saldo antar rekening sendiri tidak dihitung keluar.",
+        "caveat": t(language, "labels.dashboard.caveat_out"),
         "href": analytics_ledger_href(timeframe, cycle_offset, type="expense"),
     }
     # Pengeluaran is Keluar without the saving bucket, split by the rule Beranda uses (compare-whole-months).
@@ -969,13 +957,13 @@ def analytics_explanations(
         "spending": {
             "total": spending["amount"],
             "lines": spending["lines"],
-            "caveat": "Pengeluaran tidak termasuk yang ditabung atau diinvestasikan.",
+            "caveat": t(language, "labels.dashboard.caveat_spending"),
             "href": analytics_ledger_href(timeframe, cycle_offset, type="expense"),
         },
         "belanja": {
             "total": flow["outflow"],
             "lines": belanja_lines,
-            "caveat": "Belanja tidak termasuk yang ditabung atau diinvestasikan.",
+            "caveat": t(language, "labels.dashboard.caveat_belanja"),
             "href": analytics_ledger_href(timeframe, cycle_offset, type="expense"),
         },
     }
@@ -983,7 +971,7 @@ def analytics_explanations(
 
 def kakeibo_buckets(breakdown: dict[str, Any]) -> dict[str, int]:
     """The six Kakeibo buckets of a breakdown, keyed as the report buckets."""
-    return {key: int(breakdown[field]) for key, _label, field in KELUAR_BUCKETS}
+    return {key: int(breakdown[field]) for key, field in KELUAR_BUCKETS}
 
 
 @router.get("/analytics")
@@ -996,7 +984,7 @@ def get_dashboard_analytics(
     payday_day = current_user.get("payday_day", 25)
 
     start_utc, end_utc, start_date, end_date, timeframe_label = get_timeframe_window(
-        payday_day, timeframe, cycle_offset=cycle_offset, user_id=user_id
+        payday_day, timeframe, cycle_offset=cycle_offset, user_id=user_id, language=language_for_user(current_user)
     )
 
     with db_conn() as conn:
@@ -1144,7 +1132,7 @@ def get_dashboard_analytics(
             projected_cycle_outflow = None
 
             prev_start_utc, prev_end_utc, prev_start_date, prev_end_date, prev_label = get_previous_timeframe_window(
-                payday_day, timeframe, start_date, end_date, cycle_offset, user_id=user_id
+                payday_day, timeframe, start_date, end_date, cycle_offset, user_id=user_id, language=language_for_user(current_user)
             )
 
             cur.execute(
@@ -1225,6 +1213,7 @@ def get_dashboard_analytics(
                     top_driver_delta_available = p_spent != 0
 
             narrative_summary, trend_status = generate_financial_narrative(
+                language_for_user(current_user), region_for_user(current_user),
                 current_outflow=total_outflow,
                 prev_outflow=prev_outflow,
                 outflow_delta_pct=outflow_delta_pct,
@@ -1270,7 +1259,10 @@ def get_dashboard_analytics(
             "prev_timeframe_label": prev_label,
         },
         "kakeibo": kakeibo_data,
-        "explanations": analytics_explanations(kakeibo_data, analytics_offsets, flow, timeframe, cycle_offset),
+        "explanations": analytics_explanations(
+            kakeibo_data, analytics_offsets, flow, timeframe, cycle_offset,
+            language=language_for_user(current_user), region=region_for_user(current_user),
+        ),
         "narrative": {
             "summary": narrative_summary,
             "trend_status": trend_status,
@@ -1316,7 +1308,7 @@ def get_dashboard_net_worth(current_user: dict = Depends(get_current_user)):
             total_liabilities = sum(o["remaining_amount"] for o in obligations)
             # Same rule as Beranda: a negative balance waiting for reconciliation is its own owed line,
             # not a reduction of the assets.
-            breakdown = net_worth_breakdown(cur, user_id, accounts)
+            breakdown = net_worth_breakdown(cur, user_id, accounts, language_for_user(current_user))
             total_assets = breakdown["liquid"] + breakdown["dana_investasi"] + breakdown["investment"]
             net_worth = breakdown["total"]
             total_liabilities += breakdown["credit_owed"]
@@ -1380,10 +1372,10 @@ def get_period_comparison(
     user_id = current_user["id"]
     payday_day = current_user.get("payday_day", 25)
     start_utc, end_utc, start_date, end_date, label = get_timeframe_window(
-        payday_day, timeframe, cycle_offset=cycle_offset, user_id=user_id
+        payday_day, timeframe, cycle_offset=cycle_offset, user_id=user_id, language=language_for_user(current_user)
     )
     prev_start, prev_end, _, _, prev_label = get_previous_timeframe_window(
-        payday_day, timeframe, start_date, end_date, cycle_offset, user_id=user_id
+        payday_day, timeframe, start_date, end_date, cycle_offset, user_id=user_id, language=language_for_user(current_user)
     )
     previous = None if prev_end < prev_start else (prev_start, prev_end, prev_label)
     with db_conn() as conn:
@@ -1465,17 +1457,12 @@ def _flow_window(conn, current_user: dict, timeframe: str, cycle_offset: int, no
         rows = salary_receipts(conn, user_id)
         cycle = resolve_cycle([row["date"] for row in rows], offset=cycle_offset, tz_name=settings.tz, as_of=now)
     return get_timeframe_window(
-        current_user.get("payday_day") or 25, timeframe, cycle_offset=cycle_offset, user_id=user_id, cycle=cycle,
+        current_user.get("payday_day") or 25, timeframe, cycle_offset=cycle_offset, user_id=user_id, cycle=cycle, language=language_for_user(current_user)
     )
 
 
 def _flow_error(error: FlowKeyError) -> HTTPException:
-    messages = {
-        "through_outside_window": "Tanggal putar ulang di luar periode ini.",
-        "flow_link_not_found": "Aliran ini tidak ditemukan.",
-        "flow_key_invalid": "Kunci aliran tidak valid.",
-    }
-    return HTTPException(status_code=error.status, detail={"code": error.code, "message": messages[error.code]})
+    return api_error(error.status, error.code)
 
 
 @router.get("/flow")
@@ -1502,7 +1489,8 @@ def get_flow(
                 cur, user_id, start=start_utc, end=end_utc, start_date=start_date, end_date=end_date,
                 through=through_day, include_opening=True,
             )
-            flow = build_flow(cur, user_id, context, kakeibo_breakdown=get_kakeibo_breakdown)
+            flow = build_flow(cur, user_id, context, kakeibo_breakdown=get_kakeibo_breakdown,
+                              language=language_for_user(current_user))
     flow["window"]["label"] = label
     flow["window"]["is_current"] = start_date <= today <= end_date
     return {"ok": True, "timezone": settings.tz, **flow}
