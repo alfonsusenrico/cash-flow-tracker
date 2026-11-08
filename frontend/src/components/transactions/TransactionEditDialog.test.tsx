@@ -121,4 +121,37 @@ describe("Ubah transaksi (D15)", () => {
     await user.click(screen.getByRole("button", { name: "Simpan" }));
     await waitFor(() => expect(api.put).toHaveBeenCalledWith("/transactions/tx-1/credit-terms", { installment_count: 4, first_due_date: "2026-12-20" }));
   });
+
+  describe("an owner-set first due date", () => {
+    const owned = () => row({
+      account_id: "spaylater", account_name: "SPayLater",
+      credit: { role: "purchase", account_id: "spaylater", account_name: "SPayLater", installment_count: 3, first_due_date: "2026-12-20", first_due_date_set_by: "owner" },
+    });
+
+    it("starts from the stored date and sends nothing when the terms are unchanged", async () => {
+      const user = userEvent.setup();
+      renderDialog(owned());
+      expect(await screen.findByLabelText("Jatuh tempo pertama (opsional)")).toHaveValue("2026-12-20");
+      await user.click(screen.getByRole("button", { name: "Simpan" }));
+      await waitFor(() => expect(api.patch).toHaveBeenCalled());
+      expect(api.put).not.toHaveBeenCalled();
+      expect(api.del).not.toHaveBeenCalled();
+    });
+
+    it("keeps the date when only the instalment count changes", async () => {
+      const user = userEvent.setup();
+      renderDialog(owned());
+      await user.click(await screen.findByRole("radio", { name: "6x" }));
+      await user.click(screen.getByRole("button", { name: "Simpan" }));
+      await waitFor(() => expect(api.put).toHaveBeenCalledWith("/transactions/tx-1/credit-terms", { installment_count: 6, first_due_date: "2026-12-20" }));
+    });
+
+    it("follows the account again when the owner clears the date", async () => {
+      const user = userEvent.setup();
+      renderDialog(owned());
+      await user.clear(await screen.findByLabelText("Jatuh tempo pertama (opsional)"));
+      await user.click(screen.getByRole("button", { name: "Simpan" }));
+      await waitFor(() => expect(api.put).toHaveBeenCalledWith("/transactions/tx-1/credit-terms", { installment_count: 3, first_due_date: null }));
+    });
+  });
 });
