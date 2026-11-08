@@ -166,10 +166,17 @@ def test_english_output_still_validates_the_schema():
 
 
 @pytest.mark.parametrize("placeholder", ["Payment", "Pembayaran", "transfer in", "Bank   transaction", "SHOPPING"])
-def test_capture_drops_a_placeholder_of_either_language(placeholder):
+def test_english_capture_drops_a_placeholder_of_either_language(placeholder):
     result = CaptureNormalization.model_validate_json(json.dumps({**OUTPUTS[CAPTURE_NORMALIZATION], "description": placeholder}))
-    checked = validate_capture_normalization(result, {"categories": [{"id": CATEGORY, "kind": "expense"}], "accounts": []})
-    assert checked["description"] is None
+    context = {"categories": [{"id": CATEGORY, "kind": "expense"}], "accounts": []}
+    assert validate_capture_normalization(result, context, output_language="en")["description"] is None
+
+
+@pytest.mark.parametrize("description,kept", [("Pembayaran", None), ("Payment", "Payment"), ("Shopping", "Shopping")])
+def test_indonesian_capture_guard_is_unchanged(description, kept):
+    result = CaptureNormalization.model_validate_json(json.dumps({**OUTPUTS[CAPTURE_NORMALIZATION], "description": description}))
+    context = {"categories": [{"id": CATEGORY, "kind": "expense"}], "accounts": []}
+    assert validate_capture_normalization(result, context)["description"] == kept
 
 
 def purpose_result(description):

@@ -21,8 +21,12 @@ from app.services.prompt_language import PLACEHOLDER_DESCRIPTIONS as PLACEHOLDER
 CAPTURE_PROMPT_VERSION = INDONESIAN_VERSIONS[CAPTURE_NORMALIZATION]
 # Upper bound of the serialised capture input; history, then memory, are dropped to fit.
 CAPTURE_CONTEXT_BYTE_LIMIT = 30000
-# Either language's placeholder is dropped whatever language the model wrote in: "Payment" like "Pembayaran".
-PLACEHOLDER_DESCRIPTIONS = PLACEHOLDERS_BY_LANGUAGE["id"] | PLACEHOLDERS_BY_LANGUAGE["en"]
+# The Indonesian rendering keeps its guard exactly as before; English output also drops an Indonesian placeholder,
+# so "Payment" and "Pembayaran" are both refused there (D7).
+PLACEHOLDER_DESCRIPTIONS = {
+    "id": PLACEHOLDERS_BY_LANGUAGE["id"],
+    "en": PLACEHOLDERS_BY_LANGUAGE["id"] | PLACEHOLDERS_BY_LANGUAGE["en"],
+}
 # Without an explicit date, a model time older than this is not believed.
 MODEL_TIME_MAX_AGE = timedelta(days=31)
 
@@ -54,7 +58,7 @@ class InvalidCaptureNormalization(ValueError):
     pass
 
 
-def validate_capture_normalization(result: CaptureNormalization, context: dict) -> dict:
+def validate_capture_normalization(result: CaptureNormalization, context: dict, *, output_language: str = "id") -> dict:
     """Checked proposal; raises InvalidCaptureNormalization for any reference outside the context.
 
     A category of the other direction is kept: the gate only uses it when the kind matches.
@@ -71,7 +75,7 @@ def validate_capture_normalization(result: CaptureNormalization, context: dict) 
     if category and category["kind"] == "expense":
         kakeibo = result.kakeibo or category.get("default_kakeibo")
     description = " ".join(result.description.split())
-    if description.casefold() in PLACEHOLDER_DESCRIPTIONS:
+    if description.casefold() in PLACEHOLDER_DESCRIPTIONS[output_language]:
         description = ""
     return {
         "merchant": " ".join((result.merchant or "").split()) or None,

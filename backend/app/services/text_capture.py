@@ -408,7 +408,7 @@ async def submit_capture(user_id: str, raw: dict, provider) -> dict:
             model_name = getattr(provider, "model", None) or "unknown"
             try:
                 result = await provider.normalize_capture(prepared["context"], prompt=prepared["prompt"])
-                model = validate_capture_normalization(result, prepared["context"])
+                model = validate_capture_normalization(result, prepared["context"], output_language=prepared["prompt"].language)
                 classifier = "ok"
                 model_time, time_outcome = validate_capture_time(
                     result.time, text=request["text"], time_facts=prepared["time_facts"],
