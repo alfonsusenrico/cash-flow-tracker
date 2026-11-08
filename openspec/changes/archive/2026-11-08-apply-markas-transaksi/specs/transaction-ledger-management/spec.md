@@ -404,7 +404,7 @@ Each desktop ledger row SHALL be one line with the columns time, title with its 
 - **THEN** the response SHALL be 422
 
 ### Requirement: Ledger Type and Waiting Filters
-`GET /api/transactions` SHALL accept `type=movement` (internal movements and excluded categories that are not part of a top-up), `type=investment` (top-up legs and Investasi rows), `type=saving` (rows whose `saving_flow` changes "Ditabung & investasi"), `type=credit` (rows on a credit account and the cash legs of movements into or out of one) and `waiting=true` (rows in the Tinjau attention set). With `type=saving` and no other row filter, the summary SHALL carry `saving_net`. `type=transfer` SHALL keep its meaning.
+`GET /api/transactions` SHALL accept `type=movement` (internal movements and excluded categories outside top-ups), `type=investment` (top-up legs and Investasi rows), `type=saving` (rows whose `saving_flow` changes "Ditabung & investasi"), `type=credit` (rows on a credit account and cash legs of movements with one) and `waiting=true` (Tinjau's attention set). With `type=saving` and no other row filter, the summary SHALL carry `saving_net`. `type=transfer` SHALL keep its meaning.
 
 #### Scenario: Waiting filter matches the badge
 - **WHEN** the ledger is requested with `waiting=true` and no other filter
