@@ -10,6 +10,7 @@ from app.core.config import load_settings
 from app.services.notification_context import load_context, sanitize_text
 from app.services.notification_evidence import collect_facts
 from app.services.openai_notification_provider import OpenAINotificationProvider, ProviderError, configuration_error
+from app.services.prompt_language import load_prompt
 from test_notification_interpretation import event, proposal
 
 
@@ -22,7 +23,9 @@ def run_provider(handler, *, model="gpt-5.6-luna", reasoning_effort="low", conte
                 model=model,
                 reasoning_effort=reasoning_effort,
             )
-            return await provider.interpret(context or {"notification": "Synthetic payment"})
+            return await provider.interpret(
+                context or {"notification": "Synthetic payment"}, prompt=load_prompt("notification_interpretation", "id"),
+            )
     return asyncio.run(run())
 
 
@@ -103,7 +106,9 @@ def test_usage_is_accounted_even_when_output_is_incomplete():
             provider = OpenAINotificationProvider(transport, api_key="synthetic-test-credential",
                                                    model="gpt-5.6-luna", reasoning_effort="low")
             with pytest.raises(ProviderError, match="provider_invalid_output"):
-                await provider.interpret({"notification": "Synthetic payment"})
+                await provider.interpret(
+                    {"notification": "Synthetic payment"}, prompt=load_prompt("notification_interpretation", "id"),
+                )
             assert provider.last_usage == response["usage"]
 
     asyncio.run(run())
@@ -159,7 +164,7 @@ def test_context_is_owner_scoped_bounded_and_uses_separate_candidates():
     cur.fetchone.return_value = {"name": "Raka Purnama"}
     cur.fetchall.side_effect = [
         [{"id": "owned", "name": "BCA Operasional", "type": "bank", "parent_id": None}],
-        [{"id": "category", "name": "Kategori Dinamis", "kind": "expense"}],
+        [{"id": "category", "name": "Kategori Dinamis", "kind": "expense", "system_key": None}],
         [],
         [{"id": "recent", "description": "Toko Fiksi token=private-value", "merchant": None, "category_id": "category",
           "kakeibo": "want", "amount": 125000, "date": "2026-09-27", "owner_confirmed": True, "same_key": True}],
@@ -218,7 +223,7 @@ def run_normalizer(handler, context):
             provider = OpenAINotificationProvider(
                 transport, api_key="synthetic-test-credential", model="gpt-5.6-luna", reasoning_effort="low",
             )
-            return await provider.normalize_purpose(context)
+            return await provider.normalize_purpose(context, prompt=load_prompt("purpose_normalization", "id"))
     return asyncio.run(run())
 
 
@@ -253,7 +258,7 @@ def run_history(handler, context):
             provider = OpenAINotificationProvider(
                 transport, api_key="synthetic-test-credential", model="gpt-5.6-luna", reasoning_effort="low",
             )
-            return await provider.suggest_history(context)
+            return await provider.suggest_history(context, prompt=load_prompt("history_suggestions", "id"))
     return asyncio.run(run())
 
 

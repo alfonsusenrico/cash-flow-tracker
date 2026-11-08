@@ -19,6 +19,7 @@ from app.services.openai_notification_provider import ProviderError
 from test_ingestion_memory_and_purpose import (  # noqa: F401 - fixtures
     GROCERIES, bca, feedback_rows, memory_rows, owner, tx_for,
 )
+from signed_in import leaked, switch_account_language
 from test_notification_processing_database import ingest, notification_owner  # noqa: F401 - fixture
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -189,6 +190,23 @@ def test_memory_first_rule_suggestion_skips_the_model(client, owner, ai):
     assert transaction(tx_id)["category_id"] is not None and str(transaction(tx_id)["category_id"]) == owner["makan"]
 
 
+@pytest.mark.parametrize("language,reason", [
+    ("id", "Sama dengan pilihan Anda untuk Kedai Awan"), ("en", "Same as your choice for Kedai Awan"),
+])
+def test_template_reason_follows_the_account_and_stays_out_of_logs(client, owner, ai, caplog, language, reason):
+    """A memory reason is rendered in the account's language with its code; the logs hold neither (D5, D8)."""
+    switch_account_language(owner["user_id"], language)
+    remember(owner, "merchant:kedai awan", category="jajan", notes="Ngopi di Kedai Awan", merchant="Kedai Awan",
+             pillar="want")
+    tx_id = add_row(owner, notes="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan")
+    caplog.set_level(logging.DEBUG)
+    assert start(client).status_code == 200
+    item = pending_by_transaction(client)[tx_id]
+    assert (item["reason"], item["reason_code"], item["reason_params"]) == (
+        reason, "reasons.history.merchant", {"merchant": "Kedai Awan"})
+    assert leaked([record.getMessage() for record in caplog.records], {reason, "Kedai Awan", "Ngopi"}) == []
+
+
 def test_signature_memory_and_repayment_and_cafe_rules(client, owner):
     remember(owner, "signature:bca|expense|groceries", category="belanja", notes="Belanja dapur mingguan")
     recorded = ingest(client, bca(GROCERIES, days=(today() - date(2026, 9, 28)).days - 1))["results"][0]
@@ -214,17 +232,17 @@ def test_rules_read_the_recording_notification_text():
     from app.services.history_suggestions import rule_proposal
     categories = {
         "patungan": {"id": "patungan", "name": "Patungan & Ganti Uang", "kind": "income", "kakeibo_type": None,
-                     "offsets_spending": True, "is_archived": False, "is_excluded_from_budget": False},
+                     "offsets_spending": True, "is_archived": False, "is_excluded_from_budget": False, "system_key": None},
         "makan": {"id": "makan", "name": "Makanan & Minuman", "kind": "expense", "kakeibo_type": "need",
-                  "offsets_spending": False, "is_archived": False, "is_excluded_from_budget": False},
+                  "offsets_spending": False, "is_archived": False, "is_excluded_from_budget": False, "system_key": None},
     }
     row = {"id": "row", "type": "income", "merchant": None, "notes": "Transfer masuk", "category_id": None,
            "event_text": "Dana masuk Rp57.000 berita: patungan bakso"}
-    proposal = rule_proposal(row, categories, None)
+    proposal = rule_proposal(row, categories, None, "id")
     assert (proposal.category_id, proposal.offset_category_id, proposal.source) == ("patungan", "makan", "rule")
-    assert rule_proposal({**row, "event_text": "Gaji Oktober"}, categories, None) is None
+    assert rule_proposal({**row, "event_text": "Gaji Oktober"}, categories, None, "id") is None
     # "Pembayaran" contains "bayar" only inside a word, so salary-like texts are not repayments.
-    assert rule_proposal({**row, "event_text": "Pembayaran gaji"}, categories, None) is None
+    assert rule_proposal({**row, "event_text": "Pembayaran gaji"}, categories, None, "id") is None
 
 
 def test_groups_never_mix_offsets():
@@ -240,7 +258,7 @@ def test_groups_never_mix_offsets():
         {**base, "id": uuid4(), "proposed_offset_category_id": "c-food", "proposed_offset_category_name": "Makanan & Minuman"},
         {**base, "id": uuid4(), "proposed_offset_category_id": None, "proposed_offset_category_name": None},
     ]
-    groups = group_suggestions(rows)
+    groups = group_suggestions(rows, "id")
     assert sorted(group["offset_category_names"] for group in groups) == [[], ["Makanan & Minuman"]]
 
 
@@ -249,7 +267,7 @@ def test_provider_batches_are_validated_and_stored(client, owner, ai, caplog):
     rows.append(add_row(owner, notes="Belanja titipan Raka Purnama", category="belanja", days_ago=3))
     seen_contexts = []
 
-    async def suggest(context):
+    async def suggest(context, *, prompt):
         seen_contexts.append(context)
         refs = [row["ref"] for row in context["rows"]]
         items = [model_item(refs[0], owner["makan"])]
@@ -283,7 +301,7 @@ def test_low_confidence_and_unchanged_proposals_are_skipped(client, owner, ai):
     low = add_row(owner, notes="Belanja", category="belanja", days_ago=1)
     same = add_row(owner, notes="Makan siang Warung Bu Sri", merchant="Warung Bu Sri", category="makan", days_ago=2)
 
-    async def suggest(context):
+    async def suggest(context, *, prompt):
         refs = {row["description"]: row["ref"] for row in context["rows"]}
         return model_batch([model_item(refs["Belanja"], owner["makan"], confidence=0.3),
                             model_item(refs["Makan siang Warung Bu Sri"], owner["makan"])])
@@ -445,7 +463,7 @@ def test_other_owners_suggestions_are_not_found(client, owner):
     _, suggestion_ids = two_kedai_suggestions(client, owner)
     stranger = str(uuid4())
     with db_conn() as conn:
-        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Sinta', 'x', 'TEST')",
+        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Sinta', 'x', 'TEST', 'id')",
                      (stranger, f"stranger_{uuid4().hex[:8]}"))
         conn.commit()
     from app.main import app
@@ -520,3 +538,35 @@ def test_v31_is_idempotent(client, owner):
         with pytest.raises(psycopg.errors.RaiseException, match="append-only"):
             conn.execute("UPDATE classification_feedback SET after_notes = 'x' WHERE user_id = %s", (owner["user_id"],))
         conn.rollback()
+
+
+def set_account_language(owner, language):
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        conn.execute("UPDATE users SET language = %s WHERE id = %s", (language, owner["user_id"]))
+        conn.commit()
+
+
+@pytest.mark.parametrize("enabled,language,version", [
+    (True, "en", "history-suggestions-1-en"), (False, "en", "history-suggestions-1"), (True, "id", "history-suggestions-1"),
+])
+def test_runs_record_the_rendering_their_model_calls_use(client, owner, ai, monkeypatch, enabled, language, version):
+    from app.core import config
+
+    monkeypatch.setattr(config, "settings", replace(config.settings, llm_english_output_enabled=enabled))
+    set_account_language(owner, language)
+    add_row(owner, notes="Belanja", category="belanja", days_ago=1, merchant=None)
+    prompts = []
+
+    async def suggest(context, *, prompt):
+        prompts.append(prompt)
+        return model_batch([model_item(context["rows"][0]["ref"], owner["makan"], description="Payment")])
+
+    ai.suggest_history.side_effect = suggest
+    assert start(client).status_code == 200
+    run = latest(client)
+    assert run["status"] == "completed" and run["prompt_version"] == version
+    assert [prompt.version for prompt in prompts] == [version]
+    # An English placeholder keeps the row's own notes; Indonesian output is stored as before.
+    expected = "Belanja" if version.endswith("-en") else "Payment"
+    assert [row["proposed_notes"] for row in suggestion_rows(owner)] == [expected]

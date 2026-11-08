@@ -10,27 +10,22 @@ from app.routers.movements import _ensure_internal_movement_categories
 def test_get_or_create_internal_categories_has_null_kakeibo():
     cur = MagicMock()
     user_id = str(uuid4())
-    # First query returns no existing categories
-    cur.fetchall.return_value = []
-    # Both inserts return an ID
-    cur.fetchone.side_effect = [{"id": str(uuid4())}, {"id": str(uuid4())}]
+    # Neither keyed category exists, so each lookup is followed by the owner's language and an insert that
+    # returns an ID.
+    owner = {"language": "id"}
+    cur.fetchone.side_effect = [None, owner, {"id": str(uuid4())}, None, owner, {"id": str(uuid4())}]
 
     exp_id, inc_id = _ensure_internal_movement_categories(cur, user_id)
     assert exp_id is not None
     assert inc_id is not None
 
-    # Inspect executed queries
     insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO categories" in str(c)]
     assert len(insert_calls) == 2
-
-    # Check expense category insertion: kakeibo_type is NULL
-    exp_insert_sql = insert_calls[0][0][0]
-    assert "'expense', NULL, TRUE" in exp_insert_sql
-    assert "kakeibo_type = NULL" in exp_insert_sql
-
-    # Check income category insertion: kakeibo_type is NULL
-    inc_insert_sql = insert_calls[1][0][0]
-    assert "'income', NULL, TRUE" in inc_insert_sql
+    for call, kind in zip(insert_calls, ("expense", "income")):
+        sql, params = call[0]
+        # Created with the movement key, excluded from budget and without a Kakeibo pillar.
+        assert "%s, NULL, TRUE, %s" in sql and "kakeibo_type = NULL" in sql
+        assert params[4:] == (kind, "internal_movement")
 
 
 def test_kakeibo_breakdown_excludes_liquid_moves_and_preauth():

@@ -57,17 +57,17 @@ def test_format_obligation_row_payoff_timeline():
 def test_get_timeframe_window_options():
     ref_date = datetime.date(2026, 9, 10)
     # Test 30d
-    s_utc, e_utc, s_d, e_d, label = get_timeframe_window(25, "30d", ref_date)
+    s_utc, e_utc, s_d, e_d, label = get_timeframe_window(25, "30d", ref_date, language="id")
     assert (e_d - s_d).days == 29
     assert label == "30 Hari Terakhir"
 
     # Test 90d
-    s_utc, e_utc, s_d, e_d, label = get_timeframe_window(25, "90d", ref_date)
+    s_utc, e_utc, s_d, e_d, label = get_timeframe_window(25, "90d", ref_date, language="id")
     assert (e_d - s_d).days == 89
     assert label == "90 Hari Terakhir"
 
     # Test cycle
-    s_utc, e_utc, s_d, e_d, label = get_timeframe_window(25, "cycle", ref_date)
+    s_utc, e_utc, s_d, e_d, label = get_timeframe_window(25, "cycle", ref_date, language="id")
     assert s_d == datetime.date(2026, 8, 25)
     assert e_d == datetime.date(2026, 9, 24)
     assert "Periode" in label
@@ -79,6 +79,7 @@ def test_dashboard_and_domain_routes():
         from app.services.auth import get_current_user
 
         mock_user = {
+            "language": "id", "region": "ID",
             "id": "33333333-3333-3333-3333-333333333333",
             "username": "executive_user",
             "currency": "IDR",
@@ -119,13 +120,13 @@ def test_payday_29_and_31_cycles():
     ref_date = datetime.date(2026, 9, 10)
 
     # Payday on 29th
-    _, _, s_d, e_d, label = get_timeframe_window(29, "cycle", ref_date)
+    _, _, s_d, e_d, label = get_timeframe_window(29, "cycle", ref_date, language="id")
     assert s_d == datetime.date(2026, 8, 29)
     assert e_d == datetime.date(2026, 9, 28)
     assert (e_d - s_d).days == 30  # 31 total days
 
     # Payday on 31st (in Sep with 30 days, payday falls on Sep 30, so cycle ends Sep 29)
-    _, _, s_d, e_d, label = get_timeframe_window(31, "cycle", ref_date)
+    _, _, s_d, e_d, label = get_timeframe_window(31, "cycle", ref_date, language="id")
     assert s_d == datetime.date(2026, 8, 31)
     assert e_d == datetime.date(2026, 9, 29)
 
@@ -136,6 +137,7 @@ def test_settings_routes_and_method_parity():
         from app.services.auth import get_current_user
 
         mock_user = {
+            "language": "id", "region": "ID",
             "id": "44444444-4444-4444-4444-444444444444",
             "username": "payroll_user",
             "currency": "IDR",
@@ -151,6 +153,8 @@ def test_settings_routes_and_method_parity():
                 "username": "payroll_user",
                 "payday_day": 29,
                 "currency": "IDR",
+                "language": "id",
+                "region": "ID",
             }
             mock_auth_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = mock_cur
 
@@ -183,6 +187,7 @@ def test_zero_balance_runway_calculations():
         from app.services.auth import get_current_user
 
         mock_user = {
+            "language": "id", "region": "ID",
             "id": "55555555-5555-5555-5555-555555555555",
             "username": "zero_user",
             "currency": "IDR",
@@ -308,6 +313,7 @@ def test_goal_multi_account_linking_and_dynamic_balance():
         from app.services.auth import get_current_user
 
         mock_user = {
+            "language": "id", "region": "ID",
             "id": "11111111-1111-1111-1111-111111111111",
             "username": "goal_user",
             "currency": "IDR",
@@ -435,6 +441,7 @@ def test_hierarchical_accounts_and_pockets():
         from app.services.auth import get_current_user
 
         mock_user = {
+            "language": "id", "region": "ID",
             "id": "22222222-2222-2222-2222-222222222222",
             "username": "pocket_user",
             "currency": "IDR",
@@ -535,7 +542,7 @@ def test_hierarchical_accounts_and_pockets():
                     },
                 )
                 assert res.status_code == 400
-                assert "maximum 2 levels" in res.json()["detail"]
+                assert res.json()["detail"]["code"] == "pocket_depth_exceeded"
 
         app.dependency_overrides.clear()
 
@@ -546,6 +553,7 @@ def test_investment_account_crud_and_validation():
         from app.services.auth import get_current_user
 
         mock_user = {
+            "language": "id", "region": "ID",
             "id": "77777777-7777-7777-7777-777777777777",
             "username": "investor_user",
             "currency": "IDR",
@@ -601,6 +609,7 @@ def test_goal_emergency_flag_crud():
         from app.services.auth import get_current_user
 
         mock_user = {
+            "language": "id", "region": "ID",
             "id": "88888888-8888-8888-8888-888888888888",
             "username": "goal_user",
             "currency": "IDR",
@@ -655,6 +664,7 @@ def test_category_is_primary_flag_crud():
         from app.services.auth import get_current_user
 
         mock_user = {
+            "language": "id", "region": "ID",
             "id": "99999999-9999-9999-9999-999999999999",
             "username": "cat_user",
             "currency": "IDR",
@@ -894,6 +904,7 @@ def test_obligation_auto_archive_and_reversal_in_transactions():
         from app.services.auth import get_current_user
 
         mock_user = {
+            "language": "id", "region": "ID",
             "id": "11111111-2222-3333-4444-555555555555",
             "username": "debt_tester",
             "currency": "IDR",
@@ -980,6 +991,7 @@ def test_list_and_update_obligations_auto_archive():
         from app.services.auth import get_current_user
 
         mock_user = {
+            "language": "id", "region": "ID",
             "id": "11111111-2222-3333-4444-555555555555",
             "username": "debt_tester",
             "currency": "IDR",

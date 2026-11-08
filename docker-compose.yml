@@ -85,6 +85,7 @@ services:
       PAIRING_SERVER_URL: ${PAIRING_SERVER_URL:-https://finance.alfonsusenrico.com}
       APP_ENV: ${APP_ENV:-production}
       NOTIFICATION_AI_DRY_RUN_ENABLED: ${NOTIFICATION_AI_DRY_RUN_ENABLED:-false}
+      LLM_ENGLISH_OUTPUT_ENABLED: ${LLM_ENGLISH_OUTPUT_ENABLED:-false}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     volumes:
       - api_storage:/app/storage

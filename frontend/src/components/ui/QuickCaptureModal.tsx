@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, createMovement, uploadTransactionReceipt, type CreateMovementPayload } from "@/lib/api";
-import { cn, fmtMoney, formatNumberWithDots, localDatetimeToISO, toDatetimeLocal } from "@/lib/utils";
+import { cn, fmtMoney, formatNumberWithDots, localDatetimeToISO, toDatetimeLocal, stripGrouping } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { listCreditAccountChoices, listLiquidAccountChoices } from "@/lib/accountOptions";
@@ -235,7 +235,7 @@ export function QuickCaptureModal({
   // Parse numeric amount or math expression (CSP-safe, no eval / Function)
   const parseAmount = (val: string): number => {
     try {
-      const sanitized = val.replace(/\./g, "").trim();
+      const sanitized = stripGrouping(val).trim();
       if (!sanitized) return 0;
 
       // Pure integer check
@@ -360,7 +360,7 @@ export function QuickCaptureModal({
         kakeibo_type: type !== "income" ? kakeiboType : null,
         goal_id: selectedGoalId || null,
         obligation_id: type === "expense" && debtRows.length === 1 ? debtRows[0].obligation_id : null,
-        ...(type === "expense" && debtRows.length > 1 ? { obligation_allocations: debtRows.map((row) => ({ obligation_id: row.obligation_id, amount: Number(row.amount.replace(/\./g, "")) })) } : {}),
+        ...(type === "expense" && debtRows.length > 1 ? { obligation_allocations: debtRows.map((row) => ({ obligation_id: row.obligation_id, amount: Number(stripGrouping(row.amount)) })) } : {}),
         notes: notes.trim() || null,
         ...(offsetsSpending ? { offset_category_id: offsetCategoryId || null } : {}),
         date: isoDate,
@@ -530,7 +530,7 @@ export function QuickCaptureModal({
   const successLabel = type === "movement" ? "✓ Berhasil dipindahkan" : "✓ Tersimpan!";
 
   return (
-    <Modal open={open} onClose={onClose} title="Catat transaksi">
+    <Modal open={open} onClose={onClose} title="Catat transaksi" untranslated>
       <form onSubmit={handleSubmit} className="space-y-4 pt-1">
         <div className="grid grid-cols-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-1" role="group" aria-label="Jenis catatan">
           <button

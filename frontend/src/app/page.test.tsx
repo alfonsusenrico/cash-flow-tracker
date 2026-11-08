@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import { headerFor } from "@/components/beranda/BerandaView";
+import { RegionProvider } from "@/lib/format";
+import { renderWithIntl, testWords } from "@/lib/i18n/testing";
 import type { CycleSummary } from "@/components/beranda/types";
 import { ShortcutProvider } from "@/components/workspace/shortcuts";
 import BerandaPage from "./page";
@@ -36,9 +38,29 @@ vi.mock("@/components/layout/AppLayout", async (importOriginal) => {
 
 const NOW = new Date("2026-11-02T09:20:00Z"); // 16.20 in Jakarta, day 9 of a cycle that started 25 October
 
+/**
+ * The server's label sources (add-language-system D7): Kakeibo buckets are fixed wording with their note as codes,
+ * income categories and waiting rows are the user's own names.
+ */
+function withSources(summary: CycleSummary): CycleSummary {
+  const bucket = (line: CycleSummary["keluar"]["lines"][number]) => ({
+    ...line,
+    label_source: "system" as const,
+    note_codes: line.key === "saving" ? [{ code: "includes_savings_moves" as const, params: {} }] : [],
+  });
+  return {
+    ...summary,
+    keluar: { ...summary.keluar, lines: summary.keluar.lines.map(bucket) },
+    spending: { ...summary.spending, lines: summary.spending.lines.map(bucket) },
+    fresh_saving: { ...summary.fresh_saving, lines: summary.fresh_saving.lines.map(bucket) },
+    masuk: { ...summary.masuk, lines: summary.masuk.lines.map((line) => ({ ...line, label_source: "user" as const })) },
+    waiting: { ...summary.waiting, lines: summary.waiting.lines.map((line) => ({ ...line, label_source: "user" as const, label_key: null })) },
+  };
+}
+
 /** The approved preview's numbers (2 November, day 9 of the cycle since 25 October). */
 function previewSummary(): CycleSummary {
-  return {
+  return withSources({
     ok: true,
     as_of: "2026-11-02T16:20:00+07:00",
     period: { basis: "cycle", status: "open", cycle_status: "open", start_date: "2026-10-25", today: "2026-11-02", day_index: 9,
@@ -105,7 +127,7 @@ function previewSummary(): CycleSummary {
       keluar: { current: 3_164_500, previous: 3_010_000, change: 154_500 },
       masuk: { current: 9_800_000, previous: 9_500_000, change: 300_000 },
       belanja: { current: 2_364_500, previous: 2_410_000, change: -45_500 } },
-  };
+  });
 }
 
 const queue = {
@@ -133,15 +155,15 @@ const recent = [
     date: "2026-11-02T09:05:00Z", review_status: "needs_review", source: "notification", classified_by: "ai", category_name: null },
   { id: "topup-out", type: "expense", amount: 250_000, notes: "", account_id: "rdn", account_name: "RDN Contoh", date: "2026-11-02T03:00:00Z",
     movement_id: "t1", movement_role: "outbound", investment_topup_id: "topup-1", transfer_target_account_name: "Reksa Dana A",
-    category_name: "Internal Movement", review_status: "reviewed" },
+    category_name: "Internal Movement", category_system_key: "internal_movement", review_status: "reviewed" },
   { id: "topup-in", type: "income", amount: 250_000, notes: "", account_id: "rda", account_name: "Reksa Dana A", date: "2026-11-02T03:00:00Z",
-    movement_id: "t1", movement_role: "inbound", investment_topup_id: "topup-1", partner_id: "topup-out", category_name: "Internal Movement",
+    movement_id: "t1", movement_role: "inbound", investment_topup_id: "topup-1", partner_id: "topup-out", category_name: "Internal Movement", category_system_key: "internal_movement",
     review_status: "reviewed" },
   { id: "move-out", type: "expense", amount: 500_000, notes: "", account_id: "bu", account_name: "Bank Utama", date: "2026-11-02T02:12:00Z",
-    movement_id: "m1", movement_role: "outbound", transfer_target_account_name: "Dompet Digital", category_name: "Internal Movement",
+    movement_id: "m1", movement_role: "outbound", transfer_target_account_name: "Dompet Digital", category_name: "Internal Movement", category_system_key: "internal_movement",
     review_status: "auto" },
   { id: "move-in", type: "income", amount: 500_000, notes: "", account_id: "dw", account_name: "Dompet Digital", date: "2026-11-02T02:12:00Z",
-    movement_id: "m1", movement_role: "inbound", partner_id: "move-out", category_name: "Internal Movement", review_status: "auto" },
+    movement_id: "m1", movement_role: "inbound", partner_id: "move-out", category_name: "Internal Movement", category_system_key: "internal_movement", review_status: "auto" },
   { id: "kopi", type: "expense", amount: 32_000, notes: null, merchant: "Kopi Pagi", account_id: "dw", account_name: "Dompet Digital",
     date: "2026-11-02T00:45:00Z", kakeibo_type: "want", review_status: "auto", source: "notification", classified_by: "habit" },
 ];
@@ -177,14 +199,15 @@ function mockApi() {
   });
 }
 
-function renderBeranda() {
+function renderBeranda(language: "en" | "id" = "id") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(
+  return renderWithIntl(
     <QueryClientProvider client={queryClient}>
       <ShortcutProvider>
         <BerandaPage />
       </ShortcutProvider>
     </QueryClientProvider>,
+    { language },
   );
 }
 
@@ -225,13 +248,13 @@ afterEach(() => vi.useRealTimers());
 
 describe("Beranda period", () => {
   it("names the cycle's span to the day before the expected salary, and its day", () => {
-    expect(headerFor(previewSummary(), NOW)).toEqual({ title: "Senin, 2 November", subtitle: "Siklus gaji 25 Okt – 24 Nov · hari ke-9" });
+    expect(headerFor(previewSummary(), NOW, testWords())).toEqual({ title: "Senin, 2 November", subtitle: "Siklus gaji 25 Okt – 24 Nov · hari ke-9" });
   });
 
   it("names only the cycle's start when the expected salary date is unknown", () => {
     const base = previewSummary();
     const unknown = { ...base, scheduled: { ...base.scheduled, window_basis: "next_30_days" as const, window_end: "2026-12-01" } };
-    expect(headerFor(unknown, NOW).subtitle).toBe("Siklus gaji sejak 25 Okt · hari ke-9");
+    expect(headerFor(unknown, NOW, testWords()).subtitle).toBe("Siklus gaji sejak 25 Okt · hari ke-9");
   });
 
   it("falls back to the calendar month without a cycle, links to the salary settings and adds no heading of its own", async () => {
@@ -240,7 +263,7 @@ describe("Beranda period", () => {
       cycle_offset_basis: "month", label: "November 2026" },
       safe_to_spend: { ...base.safe_to_spend, status: "unavailable", reason: "no_cycle", per_day: null, days_left: null } };
     summary = month;
-    expect(headerFor(month, NOW).subtitle).toBe("November · siklus gaji belum tersedia");
+    expect(headerFor(month, NOW, testWords()).subtitle).toBe("November · siklus gaji belum tersedia");
     const { hero } = await beranda();
     expect(screen.getByRole("link", { name: "Atur gaji di Pengaturan" })).toHaveAttribute("href", "/settings/gaji");
     expect(figureOf(hero, "Pengeluaran")).toHaveTextContent("sejak 1 November");
@@ -548,7 +571,7 @@ describe("Aktivitas terbaru", () => {
   });
 
   it("titles movements in the direction the money moved, with each pocket's bank, and marks an unpaired leg", async () => {
-    const movement = { type: "expense", amount: 300_000, notes: "", category_name: "Internal Movement", review_status: "reviewed", date: "2026-11-02T01:00:00Z" };
+    const movement = { type: "expense", amount: 300_000, notes: "", category_name: "Internal Movement", category_system_key: "internal_movement", review_status: "reviewed", date: "2026-11-02T01:00:00Z" };
     activityRows = [
       { ...movement, id: "pair-out", account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago", movement_id: "p1",
         movement_role: "outbound", partner_id: "pair-in", transfer_target_account_name: "ATM", transfer_target_account_parent_name: "BCA" },
@@ -702,5 +725,150 @@ describe("Beranda composition, loading and failure", () => {
     const { dialog } = await openRincian(hero);
     expect(within(dialog).getAllByRole("img", { name: "Disembunyikan" }).length).toBeGreaterThanOrEqual(6);
     expect((await axe(document.body)).violations).toHaveLength(0);
+  });
+});
+
+describe("Beranda in English (add-language-system)", () => {
+  const en = testWords("en");
+
+  async function englishBeranda() {
+    const view = renderBeranda("en");
+    const hero = await screen.findByRole("region", { name: "Safe to spend until payday" });
+    await screen.findByRole("region", { name: "Recent activity" });
+    await screen.findByRole("region", { name: "Needs action" });
+    return { ...view, hero };
+  }
+
+  it("writes the title line for a cycle, an unknown salary date and the month fallback", () => {
+    expect(headerFor(previewSummary(), NOW, en)).toEqual({ title: "Monday, 2 November", subtitle: "Pay cycle 25 Oct – 24 Nov · day 9" });
+    const base = previewSummary();
+    const unknown = { ...base, scheduled: { ...base.scheduled, window_basis: "next_30_days" as const, window_end: "2026-12-01" } };
+    expect(headerFor(unknown, NOW, en).subtitle).toBe("Pay cycle since 25 Oct · day 9");
+    const month: CycleSummary = { ...base, period: { ...base.period, basis: "month", start_date: "2026-11-01", cycle_offset_basis: "month" } };
+    expect(headerFor(month, NOW, en).subtitle).toBe("November · pay cycle not available yet");
+    expect(headerFor(previewSummary(), NOW, testWords("en", "US")).title).toBe("Monday, November 2");
+  });
+
+  it("shows the hero, its line, captions and figures in plain English with identical amounts", async () => {
+    const { hero } = await englishBeranda();
+    expect(hero.querySelector(".t-hero")).toHaveTextContent("Rp 4.922.000");
+    expect(hero.querySelector(".hero-sub")).toHaveTextContent(/^23 days until payday on 25 Nov$/);
+    expect(figureOf(hero, "Income")).toHaveTextContent("IncomeRp 9.800.000Salary 25 Oct");
+    expect(figureOf(hero, "Spending")).toHaveTextContent("SpendingRp 2.364.500since salary on 25 Oct");
+    expect(figureOf(hero, "Saved & invested")).toHaveTextContent("Saved & investedRp 800.000Savings went up");
+    expect(figureOf(hero, "Scheduled")).toHaveTextContent("ScheduledRp 1.713.500with deposits · 24 Nov");
+    expect(within(hero).getByRole("img")).toHaveAccessibleName(
+      "Money this cycle, out of Rp 9.800.000 income: Spending 24%, Saved & invested 8%, Scheduled 17%, Safe to spend 50%",
+    );
+    const button = within(hero).getByRole("button", { name: "Breakdown of safe to spend until payday" });
+    expect(button).toHaveTextContent(/^Breakdown$/);
+  });
+
+  it("uses the singular for one day left", async () => {
+    const base = previewSummary();
+    summary = { ...base, safe_to_spend: { ...base.safe_to_spend, days_left: 1 } };
+    const { hero } = await englishBeranda();
+    expect(hero.querySelector(".hero-sub")).toHaveTextContent(/^1 day until payday on 25 Nov$/);
+  });
+
+  it("says by how much the period is over income", async () => {
+    const base = previewSummary();
+    summary = { ...base, remaining: { ...base.remaining, total: -300_000 } };
+    const { hero } = await englishBeranda();
+    expect(hero.querySelector(".hero-sub")).toHaveTextContent("This cycle is Rp 300.000 over income");
+  });
+
+  it("lists the Breakdown in English: lines, notes from codes, user labels as stored", async () => {
+    const { hero } = await englishBeranda();
+    const user = userEvent.setup();
+    await user.click(within(hero).getByRole("button", { name: "Breakdown of safe to spend until payday" }));
+    const dialog = await screen.findByRole("dialog", { name: "Safe to spend until payday" });
+    expect(dialog).toHaveTextContent("Calculation breakdown");
+    expect(dialog).toHaveTextContent("Income less Spending, Saved & invested and scheduled bills until the end of the cycle.");
+    expect(rowTexts(dialog).slice(0, 5)).toEqual([
+      "IncomeRp 9.800.000", "Spending−Rp 2.364.500", "Saved & invested−Rp 800.000", "Scheduled until 24 Nov−Rp 1.713.500", "Safe to spendRp 4.922.000",
+    ]);
+    expect(dialog).toHaveTextContent("Next salary expected on 25 November, based on salaries confirmed on 25 Aug, 25 Sept, 25 Oct.");
+    expect(dialog).toHaveTextContent("4 items (Rp 581.000) still waiting for an answer. Rp 357.000 of it is already included.");
+    await user.click(within(dialog).getByRole("button", { name: /^Income/ }));
+    expect(dialog).toHaveTextContent("Gaji");
+    await user.click(within(dialog).getByRole("button", { name: /^Saved & invested/ }));
+    expect(dialog).toHaveTextContent("Includes money moved to savings pockets or invested");
+    await user.click(within(dialog).getByRole("button", { name: /^Scheduled until/ }));
+    expect(dialog).toHaveTextContent("Bill: Streamio");
+    expect(dialog).toHaveTextContent("Goal deposit: Liburan Lombok");
+    expect(dialog).toHaveTextContent("Rp 600.000 a month, Rp 0 deposited so far");
+    await user.click(within(dialog).getByRole("button", { name: /^Waiting for an answer/ }));
+    expect(dialog).toHaveTextContent("Toko Serba Ada");
+    expect(dialog).toHaveTextContent("Needs an answer · already counted in Spending as No pillar yet");
+    expect(within(dialog).getByRole("link", { name: "View transactions this cycle" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Close breakdown" })).toBeInTheDocument();
+  });
+
+  it("words the context panel, Needs action and Recent activity in English", async () => {
+    await englishBeranda();
+    const side = screen.getByRole("complementary", { name: "Money summary" });
+    expect(side).toHaveTextContent("Net worth");
+    expect(side).toHaveTextContent(/assets Rp [\d.]+ · debts Rp [\d.]+/);
+    expect(side).toHaveTextContent("Safety net");
+    expect(side).toHaveTextContent("Cannot be calculated yet");
+    expect(side).toHaveTextContent("Unknown: no complete period yet and no budget on Needs categories.");
+    expect(side).toHaveTextContent("Kakeibo this cycle");
+    for (const name of ["Needs", "Wants", "Culture", "Unexpected", "No pillar yet"]) expect(within(side).getByRole("link", { name })).toBeInTheDocument();
+    const todo = region("Needs action");
+    expect(within(todo).getByRole("link", { name: "Open Review · 4" })).toBeInTheDocument();
+    expect(todo).toHaveTextContent("QRIS 0812-xxxx");
+    expect(todo).toHaveTextContent("Not recognized · today 16.05");
+    expect(todo).toHaveTextContent("Pair 2 transfers");
+    expect(todo).toHaveTextContent("Transfer not complete · RDN Contoh");
+    const activity = region("Recent activity");
+    expect(activity).toHaveTextContent("Monday, 2 November · today");
+    expect(activity).toHaveTextContent("Investment top-up");
+    expect(activity).toHaveTextContent("Kopi Pagi");
+    expect(within(activity).getByRole("link", { name: "All transactions" })).toBeInTheDocument();
+  });
+
+  it("puts no lang override on user data such as a transaction's name", async () => {
+    await englishBeranda();
+    const title = screen.getByText("Kopi Pagi");
+    expect(title.closest("[lang]")).toBeNull();
+  });
+
+  it("shows every figure as the same string in both languages", async () => {
+    const figures = () => (document.body.textContent ?? "").match(/[−+-]?Rp\s?[\d.]+|\b\d{1,2}[.:]\d{2}\b|\b\d{1,2} (?:Jan|Feb|Mar|Apr|Mei|May|Jun|Jul|Agu|Aug|Sep|Okt|Oct|Nov|Des|Dec)\b/g) ?? [];
+    const indonesian = renderBeranda("id");
+    await screen.findByRole("region", { name: "Aktivitas terbaru" });
+    await screen.findByRole("region", { name: "Perlu tindakan" });
+    const money = (list: string[]) => list.filter((item) => item.includes("Rp"));
+    const idFigures = money(figures());
+    indonesian.unmount();
+    await englishBeranda();
+    expect(money(figures())).toEqual(idFigures);
+    expect(idFigures.length).toBeGreaterThan(15);
+  });
+
+  it("changes number and date style with the region, never the words", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderWithIntl(
+      <QueryClientProvider client={queryClient}>
+        <RegionProvider value={{ region: "US", currency: "IDR", rate: 16000 }}>
+          <ShortcutProvider>
+            <BerandaPage />
+          </ShortcutProvider>
+        </RegionProvider>
+      </QueryClientProvider>,
+      { language: "en" },
+    );
+    const hero = await screen.findByRole("region", { name: "Safe to spend until payday" });
+    expect(hero.querySelector(".t-hero")).toHaveTextContent(/^Rp 4,922,000$/);
+    expect(hero.querySelector(".hero-sub")).toHaveTextContent(/^23 days until payday on Nov 25$/);
+    expect(figureOf(hero, "Spending")).toHaveTextContent("SpendingRp 2,364,500since salary on Oct 25");
+    expect(headerFor(previewSummary(), new Date("2026-11-05T03:00:00Z"), testWords("en", "US")).title).toBe("Thursday, November 5");
+  });
+
+  it("has no axe violations in English", async () => {
+    const { container } = await englishBeranda();
+    vi.useRealTimers();
+    expect((await axe(container)).violations).toHaveLength(0);
   });
 });

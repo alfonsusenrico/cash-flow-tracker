@@ -1,67 +1,30 @@
 from uuid import uuid4
 
-from fastapi import HTTPException
 
+from app.errors import ErrorCode, api_error
+from app.i18n import account_language, t
 from app.services.ledger_mutations import (
     MOVEMENT_ACCOUNT_TYPES, ensure_generic_movement_accounts, lock_owned_accounts, movement_kakeibo,
 )
 from app.services.merchant_memory import record_owner_corrections, retire_automatic_memory, snapshot_rows
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS
+from app.services.system_categories import INTERNAL_MOVEMENT, ensure_system_category
 
 
 def ensure_internal_movement_categories(cur, user_id: str) -> tuple[str, str]:
-    """Ensures both expense and income categories for 'Internal Movement' exist.
+    """The owner's expense and income movement categories (key `internal_movement`), created when missing.
+
     Returns (expense_category_id, income_category_id).
     """
-    cur.execute(
-        """
-        UPDATE categories
-        SET is_excluded_from_budget = TRUE, kakeibo_type = NULL
-        WHERE user_id = %s AND name = 'Internal Movement' AND is_archived = FALSE
-          AND (is_excluded_from_budget = FALSE OR kakeibo_type IS NOT NULL)
-        """,
-        (user_id,),
+    return (
+        ensure_system_category(cur, user_id, INTERNAL_MOVEMENT, "expense"),
+        ensure_system_category(cur, user_id, INTERNAL_MOVEMENT, "income"),
     )
-    cur.execute(
-        """
-        SELECT id, kind FROM categories
-        WHERE user_id = %s AND name = 'Internal Movement' AND is_archived = FALSE
-        """,
-        (user_id,),
-    )
-    rows = cur.fetchall()
-    cat_map = {r["kind"]: str(r["id"]) for r in rows}
-
-    expense_cat_id = cat_map.get("expense")
-    if not expense_cat_id:
-        cur.execute(
-            """
-            INSERT INTO categories (user_id, name, icon, color, kind, kakeibo_type, is_excluded_from_budget)
-            VALUES (%s, 'Internal Movement', 'arrows-right-left', '#3b82f6', 'expense', NULL, TRUE)
-            ON CONFLICT (user_id, name, kind) DO UPDATE SET is_excluded_from_budget = TRUE, kakeibo_type = NULL
-            RETURNING id
-            """,
-            (user_id,),
-        )
-        expense_cat_id = str(cur.fetchone()["id"])
-
-    income_cat_id = cat_map.get("income")
-    if not income_cat_id:
-        cur.execute(
-            """
-            INSERT INTO categories (user_id, name, icon, color, kind, kakeibo_type, is_excluded_from_budget)
-            VALUES (%s, 'Internal Movement', 'arrows-right-left', '#3b82f6', 'income', NULL, TRUE)
-            ON CONFLICT (user_id, name, kind) DO UPDATE SET is_excluded_from_budget = TRUE, kakeibo_type = NULL
-            RETURNING id
-            """,
-            (user_id,),
-        )
-        income_cat_id = str(cur.fetchone()["id"])
-
-    return expense_cat_id, income_cat_id
 
 
-SELF_TRANSFER_NOTES = {"income": "Pindah saldo masuk", "expense": "Pindah saldo keluar"}
+def self_transfer_note(language: str, direction: str) -> str:
+    """ "Pindah saldo masuk" / "Pindah saldo keluar" for a transfer between the owner's own accounts."""
+    return t(language, "notes.movement_in" if direction == "income" else "notes.movement_out")
 
 
 def movement_note(cur, user_id: str, target_account_id: str) -> str:
@@ -73,10 +36,11 @@ def movement_note(cur, user_id: str, target_account_id: str) -> str:
         (user_id, target_account_id),
     )
     row = cur.fetchone()
+    language, _region = account_language(cur, user_id)
     if not row:
-        return "Pindah saldo"
+        return t(language, "notes.movement")
     label = f"{row['parent_name']} · {row['name']}" if row.get("parent_name") else row["name"]
-    return f"Pindah saldo ke {label}"[:160]
+    return t(language, "notes.movement_to", account=label)[:160]
 
 
 def link_transactions_as_movement(
@@ -88,7 +52,7 @@ def link_transactions_as_movement(
     not an owner classification.
     """
     if expense_id == income_id:
-        raise HTTPException(status_code=422, detail="Choose two different transactions")
+        raise api_error(422, ErrorCode.SAME_TRANSACTION)
     cur.execute(
         """
         SELECT t.id, t.type, t.account_id, t.amount, t.movement_id,
@@ -106,24 +70,18 @@ def link_transactions_as_movement(
     )
     rows = {str(row["id"]): row for row in cur.fetchall()}
     if len(rows) != 2:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+        raise api_error(404, ErrorCode.TRANSACTION_NOT_FOUND)
 
     expense = rows[expense_id]
     income = rows[income_id]
     if expense["type"] != "expense" or income["type"] != "income":
-        raise HTTPException(
-            status_code=422,
-            detail="Choose one outgoing and one incoming transaction",
-        )
+        raise api_error(422, ErrorCode.MOVEMENT_SIDES_REQUIRED)
     if expense["amount"] <= 0 or expense["amount"] != income["amount"]:
-        raise HTTPException(
-            status_code=422,
-            detail="Both transactions must have the same positive amount",
-        )
+        raise api_error(422, ErrorCode.MOVEMENT_AMOUNT_MISMATCH)
     source_id = str(expense["account_id"])
     target_id = str(income["account_id"])
     if source_id == target_id:
-        raise HTTPException(status_code=422, detail="Accounts must be different")
+        raise api_error(422, ErrorCode.SAME_ACCOUNT)
     if any(
         row["movement_id"]
         or row["goal_id"]
@@ -133,15 +91,12 @@ def link_transactions_as_movement(
         or row["fee_for_movement_id"]
         for row in (expense, income)
     ):
-        raise HTTPException(
-            status_code=409,
-            detail="A linked, scheduled, goal, debt, or transfer-fee transaction cannot be merged",
-        )
+        raise api_error(409, ErrorCode.TRANSACTION_NOT_MERGEABLE)
 
     accounts = lock_owned_accounts(cur, user_id, [source_id, target_id])
     ensure_generic_movement_accounts(accounts[source_id], accounts[target_id])
     if any(account["type"] not in MOVEMENT_ACCOUNT_TYPES for account in accounts.values()):
-        raise HTTPException(status_code=422, detail="Both accounts must be liquid, or one may be a credit account")
+        raise api_error(422, ErrorCode.ACCOUNT_NOT_LIQUID)
 
     expense_category_id, income_category_id = ensure_internal_movement_categories(cur, user_id)
     before_classification = snapshot_rows(cur, user_id, [expense_id, income_id]) if owner_edit else {}

@@ -6,9 +6,11 @@ import {
 import type { ActivityRow } from "./types";
 
 // Synthetic accounts: "Main Pocket" and "Tabungan" are pockets of Jago; "ATM" is a pocket of BCA; Gopay has no parent.
+// The owner renamed the movement category to "Transfer": the key, not the name, makes a row a movement.
 function leg(extra: Partial<ActivityRow>): ActivityRow {
   return {
-    id: "row", account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago", category_name: "Internal Movement",
+    id: "row", account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago", category_name: "Transfer",
+    category_system_key: "internal_movement",
     type: "expense", amount: 500_000, date: "2026-11-04T01:39:00+07:00", notes: null, ...extra,
   };
 }
@@ -82,7 +84,7 @@ describe("movementDirection", () => {
 });
 
 describe("rowCategory", () => {
-  const spend = leg({ category_name: "Makan di Luar", merchant: "Kedai Awan", review_status: "reviewed" });
+  const spend = leg({ category_name: "Makan di Luar", category_system_key: null, merchant: "Kedai Awan", review_status: "reviewed" });
 
   it("names the owner's category for an expense and an income", () => {
     expect(rowCategory(spend)).toBe("Makan di Luar");
@@ -97,14 +99,14 @@ describe("rowCategory", () => {
   it("shows a dash for movements, top-ups and waiting rows without a category", () => {
     expect(rowCategory(outboundLeg)).toBe("—");
     expect(rowCategory(leg({}))).toBe("—");
-    expect(rowCategory({ ...spend, investment_topup_id: "topup", category_name: "Internal Movement" })).toBe("—");
+    expect(rowCategory({ ...spend, investment_topup_id: "topup", category_name: "Transfer", category_system_key: "internal_movement" })).toBe("—");
     expect(rowCategory({ ...spend, category_name: null, review_status: "needs_review" })).toBe("—");
   });
 });
 
 describe("Beranda's recent activity", () => {
   const spend = (id: string, date: string, extra: Partial<ActivityRow> = {}) =>
-    leg({ id, date, category_name: "Makan", merchant: "Kedai Awan", kakeibo_type: "need", review_status: "reviewed", ...extra });
+    leg({ id, date, category_name: "Makan", category_system_key: null, merchant: "Kedai Awan", kakeibo_type: "need", review_status: "reviewed", ...extra });
 
   it("groups rows by their Asia/Jakarta day across midnight, keeping the order", () => {
     // 16.59 UTC is 23.59 in Jakarta, 17.01 UTC is 00.01 the next day.
@@ -133,7 +135,7 @@ describe("Beranda's recent activity", () => {
     expect(rowStatus(expense).text).toBe("Kebutuhan");
     expect(activityPhoneStatus(expense)).toEqual({ text: "Kebutuhan" });
 
-    const income = leg({ type: "income", category_name: "Gaji", account_name: "Utama", account_parent_name: "BCA", review_status: "reviewed" });
+    const income = leg({ type: "income", category_name: "Gaji", category_system_key: null, account_name: "Utama", account_parent_name: "BCA", review_status: "reviewed" });
     expect(activityMeta(income)).toEqual({ text: "BCA · Utama" });
     expect(rowStatus(income).text).toBe("Uang masuk");
     expect(activityPhoneStatus(income)).toEqual({ text: "Gaji" });

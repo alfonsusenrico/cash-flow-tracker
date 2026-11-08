@@ -259,9 +259,12 @@ export function MenuButton({
   header,
   entries,
   width,
+  lang,
 }: {
   label: string;
   className: string;
+  /** The button's own language when its name differs from the page around it (add-language-system D10). */
+  lang?: string;
   children: ReactNode;
   menuLabel: string;
   heading?: string;
@@ -279,6 +282,7 @@ export function MenuButton({
         type="button"
         className={className}
         aria-label={label}
+        lang={lang}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}

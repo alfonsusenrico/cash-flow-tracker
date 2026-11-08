@@ -7,11 +7,13 @@ from fastapi import APIRouter, Depends
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.i18n import language_for_user
 from app.routers.accounts import get_accounts_with_balances, summarize_account_balances
 from app.services.auth import get_current_user
 from app.services.kakeibo import pillar_bucket_sql
 from app.services.reimbursements import load_spending_offsets, not_reimbursement_sql
 from app.services.report_windows import get_timeframe_window
+from app.services.system_categories import reportable_key_sql
 
 router = APIRouter(tags=["Pulse & Insights"])
 
@@ -79,7 +81,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
     today_start = datetime.combine(now_local.date(), time.min, tzinfo=tz).astimezone(timezone.utc)
     today_end = datetime.combine(now_local.date(), time.max, tzinfo=tz).astimezone(timezone.utc)
 
-    cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id)
+    cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id, language=language_for_user(current_user))
     elapsed_days = (now_local.date() - cycle_start.astimezone(tz).date()).days + 1
 
     with db_conn() as conn:
@@ -102,7 +104,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
                   AND t.type = 'expense'
                   AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
                   AND {pillar_bucket_sql()} <> 'saving'
-                  AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                  AND {reportable_key_sql()}
                   AND t.date >= %s AND t.date <= %s
                 """,
                 (user_id, today_start, today_end),
@@ -117,12 +119,12 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
                         WHEN t.type = 'expense'
                              AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
                              AND {pillar_bucket_sql()} <> 'saving'
-                             AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                             AND {reportable_key_sql()}
                         THEN t.amount ELSE 0 END), 0) AS cycle_spent,
                     COALESCE(SUM(CASE
                         WHEN t.type = 'income'
                              AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
-                             AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                             AND {reportable_key_sql()}
                              AND {not_reimbursement_sql()}
                         THEN t.amount ELSE 0 END), 0) AS cycle_income
                 FROM transactions t
@@ -238,7 +240,7 @@ def get_insights(current_user: dict = Depends(get_current_user)):
     tz = ZoneInfo(settings.tz)
     now_local = datetime.now(tz)
 
-    cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id)
+    cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id, language=language_for_user(current_user))
     elapsed_days = (now_local.date() - cycle_start.astimezone(tz).date()).days + 1
 
     with db_conn() as conn:
@@ -250,13 +252,13 @@ def get_insights(current_user: dict = Depends(get_current_user)):
                     COALESCE(SUM(CASE
                         WHEN t.type = 'income'
                              AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
-                             AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                             AND {reportable_key_sql()}
                              AND {not_reimbursement_sql()}
                         THEN t.amount ELSE 0 END), 0) AS total_income,
                     COALESCE(SUM(CASE
                         WHEN t.type = 'expense'
                              AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
-                             AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                             AND {reportable_key_sql()}
                         THEN t.amount ELSE 0 END), 0) AS total_expense
                 FROM transactions t
                 LEFT JOIN categories c ON t.category_id = c.id
@@ -271,7 +273,7 @@ def get_insights(current_user: dict = Depends(get_current_user)):
 
             # 2. Category spending vs budgets
             cur.execute(
-                """
+                f"""
                 SELECT
                     c.id, c.name, c.icon, c.color, c.monthly_budget,
                     COALESCE(SUM(t.amount), 0) AS spent
@@ -280,7 +282,7 @@ def get_insights(current_user: dict = Depends(get_current_user)):
                     AND t.type = 'expense'
                     AND t.date >= %s AND t.date <= %s
                 WHERE c.user_id = %s AND c.kind = 'expense' AND c.is_archived = FALSE
-                  AND c.name NOT IN ('Internal Movement', 'Investasi')
+                  AND {reportable_key_sql()}
                 GROUP BY c.id, c.name, c.icon, c.color, c.monthly_budget
                 ORDER BY spent DESC, c.name ASC
                 """,
@@ -296,12 +298,12 @@ def get_insights(current_user: dict = Depends(get_current_user)):
                     COALESCE(SUM(CASE
                         WHEN t.type = 'expense'
                              AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
-                             AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                             AND {reportable_key_sql()}
                         THEN t.amount ELSE 0 END), 0) AS day_expense,
                     COALESCE(SUM(CASE
                         WHEN t.type = 'income'
                              AND (c.is_excluded_from_budget IS FALSE OR c.is_excluded_from_budget IS NULL)
-                             AND (c.name IS NULL OR c.name NOT IN ('Internal Movement', 'Investasi'))
+                             AND {reportable_key_sql()}
                              AND {not_reimbursement_sql()}
                         THEN t.amount ELSE 0 END), 0) AS day_income
                 FROM transactions t

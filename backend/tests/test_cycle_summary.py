@@ -14,6 +14,8 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg.types.json import Jsonb
 
+from category_keys import seeded_key
+
 JAKARTA = ZoneInfo("Asia/Jakarta")
 SUMMARY = "/api/dashboard/cycle-summary"
 SALARY = 9_800_000
@@ -87,9 +89,10 @@ class Owner:
     def category(self, key, name, kind="expense", pillar=None, offsets=False, excluded=False):
         category_id = str(uuid4())
         self.db(
-            """INSERT INTO categories (id, user_id, name, kind, kakeibo_type, offsets_spending, is_excluded_from_budget)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-            (category_id, self.user_id, name, kind, pillar, offsets, excluded),
+            """INSERT INTO categories (id, user_id, name, kind, kakeibo_type, offsets_spending, is_excluded_from_budget,
+                                      system_key)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            (category_id, self.user_id, name, kind, pillar, offsets, excluded, seeded_key(name)),
         )
         self.ids[key] = category_id
         return category_id
@@ -211,7 +214,7 @@ def make_owner(client):
         password = "synthetic-pass-1"
         with db_conn() as conn:
             user_id = str(conn.execute(
-                "INSERT INTO users (username, password_hash, invite_code) VALUES (%s, %s, 'TEST') RETURNING id",
+                "INSERT INTO users (username, password_hash, invite_code, language) VALUES (%s, %s, 'TEST', 'id') RETURNING id",
                 (username, bcrypt.hash(password)),
             ).fetchone()["id"])
             conn.commit()
@@ -401,9 +404,9 @@ def test_safe_to_spend_divides_by_the_days_before_the_expected_salary(owner):
     remaining = SALARY - 3_164_500 - 600_000
     assert data["remaining"]["total"] == remaining == 6_035_500
     assert data["remaining"]["lines"] == [
-        {"key": "masuk", "label": "Masuk", "amount": SALARY},
-        {"key": "keluar", "label": "Keluar", "amount": -3_164_500},
-        {"key": "scheduled", "label": "Terjadwal", "amount": -600_000},
+        {"key": "masuk", "label": "Masuk", "label_source": "system", "amount": SALARY},
+        {"key": "keluar", "label": "Keluar", "label_source": "system", "amount": -3_164_500},
+        {"key": "scheduled", "label": "Terjadwal", "label_source": "system", "amount": -600_000},
     ]
     days_left = (expected - today()).days
     assert data["safe_to_spend"] == {
@@ -484,7 +487,7 @@ def test_linked_payment_leaves_terjadwal_as_it_enters_keluar(owner):
     before = owner.summary()
     assert [line["label"] for line in before["scheduled"]["lines"]] == ["Cicilan Contoh"]
     assert before["scheduled"]["lines"][0] == {
-        "kind": "plan", "rule_id": rule, "label": "Cicilan Contoh", "due_date": due.isoformat(),
+        "kind": "plan", "rule_id": rule, "label": "Cicilan Contoh", "label_source": "user", "due_date": due.isoformat(),
         "overdue": False, "amount": 600_000,
     }
 
@@ -555,7 +558,9 @@ def test_net_worth_counts_parent_and_pockets_once_and_lists_each_debt(owner):
     net = data["net_worth"]
     assert (net["liquid"], net["investment"], net["debts"]) == (21_000_000, 25_000_000, 2_400_000)
     assert net["total"] == 43_600_000
-    assert {"key": f"debt:{debt['id']}", "label": "Pinjaman Contoh", "amount": -2_400_000} in net["lines"]
+    assert {
+        "key": f"debt:{debt['id']}", "label": "Pinjaman Contoh", "label_source": "user", "amount": -2_400_000,
+    } in net["lines"]
     assert owner.session.get("/api/dashboard/net-worth").json()["net_worth"] == net["total"]
     assert owner.session.get("/api/dashboard/overview").json()["kpis"]["liquid_balance"] == net["liquid"]
 
@@ -595,7 +600,10 @@ def test_rekening_net_worth_equals_beranda_with_a_pocket_waiting_for_reconciliat
     # The minus pocket is its own owed line, never a reduction of the assets; the pockets count once.
     assert rekening["reconciliation_pending"] == 50_000
     assert rekening["liquid"] == 21_000_000
-    assert {"key": "reconciliation_pending", "label": "Saldo minus perlu dicocokkan", "amount": -50_000} in rekening["lines"]
+    assert {
+        "key": "reconciliation_pending", "label": "Saldo minus perlu dicocokkan", "label_source": "system",
+        "amount": -50_000,
+    } in rekening["lines"]
     # Archived and paid-off debts are left out.
     assert rekening["total_liabilities"] == 2_400_000
     assert [line["label"] for line in rekening["lines"] if line["key"].startswith("debt:")] == ["Pinjaman Contoh"]

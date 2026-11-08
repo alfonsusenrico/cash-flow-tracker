@@ -1,0 +1,74 @@
+{
+ "beranda": {
+  "same": true,
+  "figures": 44
+ },
+ "tinjau": {
+  "same": true,
+  "figures": 15
+ },
+ "transaksi": {
+  "same": true,
+  "figures": 125
+ },
+ "analisis": {
+  "same": true,
+  "figures": 74
+ },
+ "laporan": {
+  "same": true,
+  "figures": 105
+ },
+ "rekening": {
+  "same": true,
+  "figures": 62
+ },
+ "target": {
+  "same": true,
+  "figures": 34
+ },
+ "pengaturan": {
+  "same": true,
+  "figures": 5
+ },
+ "pengaturan-profil": {
+  "same": true,
+  "figures": 0
+ },
+ "pengaturan-gaji": {
+  "same": true,
+  "figures": 6
+ },
+ "pengaturan-anggaran": {
+  "same": true,
+  "figures": 2
+ },
+ "pengaturan-pemetaan": {
+  "same": true,
+  "figures": 0
+ },
+ "pengaturan-pengirim": {
+  "same": true,
+  "figures": 0
+ },
+ "pengaturan-perangkat": {
+  "same": true,
+  "figures": 5
+ },
+ "pengaturan-kebiasaan": {
+  "same": true,
+  "figures": 2
+ },
+ "pengaturan-sesi-uji": {
+  "same": true,
+  "figures": 3
+ },
+ "pengaturan-tampilan": {
+  "same": true,
+  "figures": 0
+ },
+ "shell-transaksi": {
+  "same": true,
+  "figures": 126
+ }
+}

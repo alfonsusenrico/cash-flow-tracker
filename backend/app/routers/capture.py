@@ -5,9 +5,10 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
+from app.errors import ErrorCode, api_error
 from app.services import capture_preview, capture_suggestions, text_capture
 from app.services.auth import get_current_user
 from app.services.kakeibo import Pillar
@@ -45,8 +46,7 @@ async def capture_text(payload: CaptureTextIn, request: Request, current_user: d
     user_id = str(current_user["id"])
     if rate_limiter.exceeded(f"capture:user:{user_id}", text_capture.CAPTURE_RATE_LIMIT,
                              text_capture.CAPTURE_RATE_WINDOW):
-        raise HTTPException(status_code=429, detail={"code": "capture_rate_limited"},
-                            headers={"Retry-After": str(text_capture.CAPTURE_RATE_WINDOW)})
+        raise api_error(429, ErrorCode.CAPTURE_RATE_LIMITED, headers={'Retry-After': str(text_capture.CAPTURE_RATE_WINDOW)})
     capture = await text_capture.submit_capture(
         user_id, payload.model_dump(), getattr(request.app.state, "notification_provider", None),
     )
@@ -60,8 +60,7 @@ def parse_capture_text(payload: CaptureParseIn, current_user: dict = Depends(get
     # Its own bucket: a preview per keystroke pause must never use up the budget for recording.
     if rate_limiter.exceeded(f"capture-parse:user:{user_id}", capture_preview.PARSE_RATE_LIMIT,
                              capture_preview.PARSE_RATE_WINDOW):
-        raise HTTPException(status_code=429, detail={"code": "capture_rate_limited"},
-                            headers={"Retry-After": str(capture_preview.PARSE_RATE_WINDOW)})
+        raise api_error(429, ErrorCode.CAPTURE_RATE_LIMITED, headers={'Retry-After': str(capture_preview.PARSE_RATE_WINDOW)})
     return {"ok": True, "preview": capture_preview.preview_capture(user_id, payload.text, payload.device_time)}
 
 

@@ -1,3 +1,5 @@
+import { isMovementCategory } from "@/lib/systemCategories";
+
 export interface LedgerMovementRow {
   id: string;
   account_id: string;
@@ -5,6 +7,8 @@ export interface LedgerMovementRow {
   /** The bank of a pocket; null for an account without a parent. */
   account_parent_name?: string | null;
   category_name: string | null;
+  /** The category's system key; a movement leg's is internal_movement whatever the category is named. */
+  category_system_key?: string | null;
   type: "expense" | "income";
   amount: number;
   date: string;
@@ -26,14 +30,14 @@ export interface LedgerMovementRow {
 }
 
 function legacyCandidates<T extends LedgerMovementRow>(row: T, items: T[]): T[] {
-  if (row.movement_id || row.category_name !== "Internal Movement") return [];
+  if (row.movement_id || !isMovementCategory(row.category_system_key)) return [];
 
   const timestamp = new Date(row.date).getTime();
   if (!Number.isFinite(timestamp)) return [];
 
   return items.filter((candidate) => {
     if (candidate.id === row.id || candidate.movement_id) return false;
-    if (candidate.category_name !== "Internal Movement") return false;
+    if (!isMovementCategory(candidate.category_system_key)) return false;
     if (candidate.type === row.type || candidate.amount !== row.amount || row.amount <= 0) return false;
     if (candidate.account_id === row.account_id) return false;
 

@@ -10,16 +10,17 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
-from fastapi import HTTPException
 
 from app.core.config import settings
+from app.errors import ErrorCode, api_error
 from app.services.capture_normalization import CAPTURE_CONTEXT_BYTE_LIMIT
 from app.services.capture_parsing import parse_capture
+from app.i18n import account_language, t
 from app.services.capture_time import CaptureDateError, moment_label
 from app.services.ledger_mutations import LIQUID_ACCOUNT_TYPES
 from app.services.merchant_memory import load_memory, merchant_match_key, owner_identity, owner_memory_hit
 from app.services.notification_context import sanitize_text
-from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES
+from app.services.system_categories import reportable_key_sql
 
 
 ACCOUNT_OPTION_LIMIT = 6
@@ -36,23 +37,20 @@ SIMILAR_WORD_LIMIT = 5
 SIMILAR_WORD_MIN_LENGTH = 3
 CATEGORY_USAGE_DAYS = 90
 KINDS = ("expense", "income", "movement")
-KIND_OPTIONS = (
-    {"id": "expense", "label": "Pengeluaran"},
-    {"id": "income", "label": "Pemasukan"},
-    {"id": "movement", "label": "Pindah saldo"},
-)
+KIND_OPTIONS = ("expense", "income", "movement")
 # Accounts each kind needs: an expense leaves a source, income arrives in a target, a movement needs both.
 KIND_ROLES = {"expense": ("source",), "income": ("target",), "movement": ("source", "target")}
+# Message keys of the questions; the text is rendered in the account's language when asked (D5).
 AMOUNT_PROMPTS = {
-    "missing": "Berapa nominalnya?",
-    "invalid": "Nominalnya kurang jelas. Berapa nominalnya?",
-    "several": "Ada beberapa nominal. Kirim satu transaksi per pesan, atau tulis nominal untuk transaksi ini.",
+    "missing": "questions.capture.amount_missing",
+    "invalid": "questions.capture.amount_invalid",
+    "several": "questions.capture.amount_several",
 }
 ACCOUNT_PROMPTS = {
-    ("expense", "source"): "Dari rekening mana?",
-    ("income", "target"): "Masuk ke rekening mana?",
-    ("movement", "source"): "Dari rekening mana?",
-    ("movement", "target"): "Ke rekening mana?",
+    ("expense", "source"): "questions.capture.account_from",
+    ("income", "target"): "questions.capture.account_into",
+    ("movement", "source"): "questions.capture.account_from",
+    ("movement", "target"): "questions.capture.account_to",
 }
 
 
@@ -101,10 +99,11 @@ def account_label(account: dict, accounts: list[dict]) -> str:
 
 def reportable_categories(cur, user_id: str, kind: str | None = None) -> dict[str, dict]:
     cur.execute(
-        """SELECT id, name, kind, kakeibo_type, offsets_spending FROM categories
-           WHERE user_id = %s AND is_archived = FALSE AND name <> ALL(%s) AND (%s::text IS NULL OR kind = %s)
+        f"""SELECT id, name, kind, kakeibo_type, offsets_spending FROM categories
+           WHERE user_id = %s AND is_archived = FALSE AND {reportable_key_sql("categories")}
+             AND (%s::text IS NULL OR kind = %s)
            ORDER BY kind, name, id""",
-        (user_id, list(NON_REPORTABLE_CATEGORY_NAMES), kind, kind),
+        (user_id, kind, kind),
     )
     return {str(row["id"]): row for row in cur.fetchall()}
 
@@ -126,7 +125,7 @@ def capture_facts(cur, user_id: str, request: dict) -> tuple[dict, list[dict], l
         facts = parse_capture(request["text"], request["device_time"], accounts=accounts, aliases=aliases,
                               tz=settings.tz)
     except CaptureDateError:
-        raise HTTPException(status_code=422, detail={"code": "invalid_capture_date"}) from None
+        raise api_error(422, ErrorCode.INVALID_CAPTURE_DATE) from None
     return {**facts.as_dict(), "sent_at": request["device_time"].isoformat()}, accounts, aliases
 
 
@@ -169,18 +168,18 @@ def similar_rows(cur, user_id: str, facts: dict, kind: str | None = None) -> lis
         return []
     patterns = [f"%{word}%" for word in words]
     cur.execute(
-        """SELECT t.merchant, LEFT(t.notes, 160) AS description, t.category_id, t.type, t.amount, t.account_id,
+        f"""SELECT t.merchant, LEFT(t.notes, 160) AS description, t.category_id, t.type, t.amount, t.account_id,
                   CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo,
                   (t.classified_by = 'owner'
                    OR (t.review_status = 'reviewed' AND t.classified_by IS DISTINCT FROM 'habit')) AS owner_confirmed
            FROM transactions t
            JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id AND c.is_archived = FALSE
            WHERE t.user_id = %s AND t.movement_id IS NULL AND t.type IN ('expense', 'income')
-             AND (%s::text IS NULL OR t.type = %s) AND c.name <> ALL(%s)
+             AND (%s::text IS NULL OR t.type = %s) AND {reportable_key_sql("c")}
              AND (t.notes ILIKE ANY(%s) OR t.merchant ILIKE ANY(%s))
            ORDER BY owner_confirmed DESC, t.date DESC, t.id
            LIMIT %s""",
-        (user_id, kind, kind, list(NON_REPORTABLE_CATEGORY_NAMES), patterns, patterns, SIMILAR_HISTORY_LIMIT),
+        (user_id, kind, kind, patterns, patterns, SIMILAR_HISTORY_LIMIT),
     )
     return cur.fetchall()
 
@@ -285,7 +284,7 @@ def resolved_time(draft: dict) -> dict | None:
     return None
 
 
-def time_question(draft: dict) -> dict:
+def time_question(draft: dict, language: str) -> dict:
     """"Jam berapa?" (or "Hari apa?") with the plausible moments as chips and a free-text answer."""
     facts = draft["facts"]
     time_facts = facts["time"]
@@ -301,12 +300,12 @@ def time_question(draft: dict) -> dict:
         if moment in seen or moment > sent_at:
             continue
         seen.add(moment)
-        options.append({"id": f"t{len(options) + 1}", "label": moment_label(moment, sent_at, settings.tz),
+        options.append({"id": f"t{len(options) + 1}", "label": moment_label(language, moment, sent_at, settings.tz),
                         "date": moment.astimezone(ZoneInfo(settings.tz)).isoformat()})
         if len(options) == TIME_OPTION_LIMIT:
             break
-    prompt = "Hari apa?" if time_facts.get("day_question") else "Jam berapa?"
-    return question("time", prompt, reason=time_facts["reason"] or time_facts["status"], options=options,
+    prompt = "questions.capture.day" if time_facts.get("day_question") else "questions.capture.time"
+    return question("time", prompt, language, reason=time_facts["reason"] or time_facts["status"], options=options,
                     allows_text=True)
 
 
@@ -479,38 +478,42 @@ def category_options(cur, user_id: str, draft: dict, kind: str) -> list[dict]:
     return options
 
 
-def question(kind: str, prompt: str, *, role: str | None = None, reason: str | None = None,
+def question(kind: str, prompt_code: str, language: str, *, role: str | None = None, reason: str | None = None,
              options: list[dict] | None = None, allows_text: bool = False, allows_other: bool = False) -> dict:
-    return {"question_id": str(uuid4()), "type": kind, "role": role, "reason": reason, "prompt": prompt,
-            "options": options or [], "allows_text": allows_text, "allows_other": allows_other}
+    """A follow-up stored with the capture in the account's language at creation, with its code (D5, D6)."""
+    return {"question_id": str(uuid4()), "type": kind, "role": role, "reason": reason,
+            "prompt": t(language, prompt_code), "prompt_code": prompt_code, "prompt_params": {},
+            "language": language, "options": options or [], "allows_text": allows_text, "allows_other": allows_other}
 
 
 def evaluate(cur, user_id: str, draft: dict) -> tuple[dict | None, dict | None]:
     """(question, plan): the first missing field asked in the order amount, time, kind, account, category."""
     facts = draft["facts"]
+    language, _region = account_language(cur, user_id)
     amount = resolved_amount(draft)
     if amount is None:
         reason = facts["amount_issue"] or "missing"
-        return question("amount", AMOUNT_PROMPTS[reason], reason=reason, allows_text=True), None
+        return question("amount", AMOUNT_PROMPTS[reason], language, reason=reason, allows_text=True), None
     moment = resolved_time(draft)
     if moment is None:
-        return time_question(draft), None
+        return time_question(draft, language), None
     kind = resolved_kind(draft)
     if kind is None:
-        return question("kind", "Ini pengeluaran, pemasukan, atau pindah saldo?", options=list(KIND_OPTIONS)), None
+        options = [{"id": option, "label": t(language, f"labels.kind.{option}")} for option in KIND_OPTIONS]
+        return question("kind", "questions.capture.kind", language, options=options), None
     accounts = owner_accounts(cur, user_id)
     leaves = liquid_leaves(accounts)
     resolved, missing, preferred = resolve_accounts(cur, user_id, draft, kind, leaves)
     if missing:
         exclude = next((resolved[role] for role in KIND_ROLES[kind] if role != missing and role in resolved), None)
         options = account_options(cur, user_id, leaves, accounts, preferred, exclude)
-        return question("account", ACCOUNT_PROMPTS[(kind, missing)], role=missing, options=options,
+        return question("account", ACCOUNT_PROMPTS[(kind, missing)], language, role=missing, options=options,
                         allows_other=True), None
     classification = None
     if kind != "movement":
         classification = classification_for(cur, user_id, draft, kind)
         if classification is None:
-            return question("category", "Kategorinya apa?", options=category_options(cur, user_id, draft, kind),
-                            allows_other=True), None
+            return question("category", "questions.capture.category", language,
+                            options=category_options(cur, user_id, draft, kind), allows_other=True), None
     return None, {"kind": kind, "amount": amount, "accounts": resolved, "classification": classification,
                   "time": moment}

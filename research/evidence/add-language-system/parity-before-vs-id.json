@@ -1,0 +1,135 @@
+{
+ "beranda": {
+  "same": true,
+  "figures": 42
+ },
+ "tinjau": {
+  "same": true,
+  "figures": 15
+ },
+ "transaksi": {
+  "same": true,
+  "figures": 128
+ },
+ "analisis": {
+  "same": true,
+  "figures": 72
+ },
+ "laporan": {
+  "same": true,
+  "figures": 105
+ },
+ "rekening": {
+  "same": true,
+  "figures": 62
+ },
+ "target": {
+  "same": true,
+  "figures": 34
+ },
+ "pengaturan": {
+  "same": true,
+  "figures": 5
+ },
+ "pengaturan-profil": {
+  "same": true,
+  "figures": 0
+ },
+ "pengaturan-gaji": {
+  "same": true,
+  "figures": 6
+ },
+ "pengaturan-anggaran": {
+  "same": true,
+  "figures": 2
+ },
+ "pengaturan-pemetaan": {
+  "same": true,
+  "figures": 0
+ },
+ "pengaturan-pengirim": {
+  "same": true,
+  "figures": 0
+ },
+ "pengaturan-perangkat": {
+  "same": true,
+  "figures": 5
+ },
+ "pengaturan-kebiasaan": {
+  "same": true,
+  "figures": 2
+ },
+ "pengaturan-sesi-uji": {
+  "same": false,
+  "figures": 33,
+  "diff": {
+   "before": [
+    "6 Nov",
+    "11.52",
+    "11.52",
+    "6 Nov",
+    "11.51",
+    "11.51",
+    "6 Nov",
+    "11.50",
+    "11.50",
+    "6 Nov",
+    "11.49",
+    "11.49",
+    "6 Nov",
+    "11.41",
+    "11.48",
+    "21 Okt",
+    "19.00",
+    "20.00"
+   ],
+   "after": [
+    "6 Nov",
+    "12.06",
+    "12.06",
+    "6 Nov",
+    "12.05",
+    "12.05",
+    "6 Nov",
+    "12.04",
+    "12.04",
+    "6 Nov",
+    "12.03",
+    "12.03",
+    "6 Nov",
+    "11.54",
+    "11.54",
+    "6 Nov",
+    "11.53",
+    "11.53",
+    "6 Nov",
+    "11.52",
+    "11.52",
+    "6 Nov",
+    "11.51",
+    "11.51",
+    "6 Nov",
+    "11.49",
+    "11.49",
+    "6 Nov",
+    "11.44",
+    "11.48",
+    "21 Okt",
+    "19.00",
+    "20.00"
+   ]
+  }
+ },
+ "pengaturan-tampilan": {
+  "same": true,
+  "figures": 0
+ },
+ "shell-transaksi": {
+  "same": true,
+  "figures": 129
+ },
+ "masuk": {
+  "same": true,
+  "figures": 42
+ }
+}

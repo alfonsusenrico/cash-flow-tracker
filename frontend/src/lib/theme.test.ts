@@ -108,3 +108,12 @@ describe("theme helpers", () => {
     expect(media.listeners.size).toBe(0);
   });
 });
+
+describe("theme names in both languages (add-language-system D17)", () => {
+  it("names the three choices from the catalogue", async () => {
+    const { testWords } = await import("@/lib/i18n/testing");
+    const { THEME_CHOICES } = await import("./theme");
+    expect(THEME_CHOICES.map((choice) => testWords("en").t(`common.theme.${choice.value}`))).toEqual(["Light", "Dark", "Match system"]);
+    expect(THEME_CHOICES.map((choice) => testWords("id").t(`common.theme.${choice.value}`))).toEqual(["Terang", "Gelap", "Ikuti sistem"]);
+  });
+});

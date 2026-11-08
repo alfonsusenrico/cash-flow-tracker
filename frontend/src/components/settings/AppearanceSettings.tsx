@@ -1,26 +1,103 @@
 "use client";
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
+import { LANGUAGES, type Language } from "@/i18n/language";
+import { api } from "@/lib/api";
+import { writeLanguageCookie } from "@/lib/i18n/cookie";
+import { queryKeys } from "@/lib/queryKeys";
 import { THEME_CHOICES } from "@/lib/theme";
 import { useAppCtx } from "@/components/layout/AppLayout";
+import { useInterfaceLang } from "@/components/workspace/untranslated";
 import { useWorkspace } from "@/components/workspace/context";
 import { useShortcuts } from "@/components/workspace/shortcuts";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import styles from "@/components/accounts/money.module.css";
 
+/** Each language named in its own words and marked with its own `lang`, without flags (add-language-system D11). */
+const LANGUAGE_NAMES: Record<Language, string> = { en: "English", id: "Bahasa Indonesia" };
+
+type ProfileQuery = { ok: boolean; user: Record<string, unknown> } | undefined;
+
+/**
+ * The Language control (add-language-system D11): choosing saves the account, writes this browser's cookie and
+ * refreshes in place, so the shell switches without a reload or a change of address and focus stays on the
+ * chosen option. A refused save keeps the previous language and says why in a polite live region.
+ */
+function LanguageChoice() {
+  const t = useTranslations("settings.language");
+  const locale = useLocale();
+  const lang = useInterfaceLang();
+  const router = useRouter();
+  const qc = useQueryClient();
+  const [pending, setPending] = useState<Language | null>(null);
+  const [status, setStatus] = useState<{ saved: true } | { error: string } | null>(null);
+  const save = useMutation({
+    mutationFn: (language: Language) => api.patch("/auth/settings", { language }),
+    onMutate: (language) => {
+      setPending(language);
+      setStatus(null);
+    },
+    onSuccess: (_response, language) => {
+      // The profile follows first, so the account reconciliation does not switch the interface back (D2).
+      qc.setQueryData<ProfileQuery>(queryKeys.auth.me, (current) => (current ? { ...current, user: { ...current.user, language } } : current));
+      writeLanguageCookie(language);
+      setStatus({ saved: true });
+      router.refresh();
+    },
+    onError: (error: Error) => {
+      setPending(null);
+      setStatus({ error: error.message || t("notSaved") });
+    },
+  });
+  // The chosen option stays selected until the refreshed page arrives in that language.
+  useEffect(() => {
+    if (pending === locale) setPending(null);
+  }, [pending, locale]);
+  const shown = pending ?? locale;
+  return (
+    <fieldset className={styles.themePick} lang={lang}>
+      <legend>{t("label")}</legend>
+      {LANGUAGES.map((language) => (
+        <label key={language} lang={language}>
+          <input
+            type="radio"
+            name="interface-language"
+            value={language}
+            checked={shown === language}
+            onChange={() => {
+              if (!save.isPending) save.mutate(language);
+            }}
+          />
+          {LANGUAGE_NAMES[language]}
+        </label>
+      ))}
+      <p role="status" aria-live="polite" className="basis-full text-xs text-[var(--muted)]">
+        {status && ("saved" in status ? t("saved") : status.error)}
+      </p>
+    </fieldset>
+  );
+}
+
 /** Tampilan (D9): the same theme, shortcut and hidden-balance state as the top bar's Tema menu and Sembunyikan saldo button. */
 export function AppearanceSettings() {
+  const theme = useTranslations("common.theme");
   const { themeChoice, setThemeChoice, openHelp } = useWorkspace();
   const { singleKeysEnabled, setSingleKeysEnabled } = useShortcuts();
   const { hideBalances, setHideBalances } = useAppCtx();
+  const lang = useInterfaceLang();
   return (
     <SettingsCard section="tampilan">
-      <fieldset className={styles.themePick}>
-        <legend>Tema</legend>
+      <LanguageChoice />
+      <fieldset className={styles.themePick} lang={lang}>
+        <legend>{theme("label")}</legend>
         {THEME_CHOICES.map((choice) => (
           <label key={choice.value}>
             <input type="radio" name="theme-choice" value={choice.value} checked={themeChoice === choice.value} onChange={() => setThemeChoice(choice.value)} />
             <span className={styles.swatch} data-theme-preview={choice.value} aria-hidden="true" />
-            {choice.label}
+            {theme(choice.value)}
           </label>
         ))}
       </fieldset>

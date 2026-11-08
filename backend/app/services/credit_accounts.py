@@ -10,6 +10,8 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from app.errors import api_error
+
 CREDIT_TYPE = "credit"
 CREDIT_FEE_CATEGORY_NAME = "Biaya kredit"
 
@@ -28,7 +30,7 @@ def over_limit(balance: int, limit: int | None) -> bool:
 
 
 def refuse(code: str) -> HTTPException:
-    return HTTPException(status_code=422, detail={"code": code})
+    return api_error(422, code)
 
 
 def validate_credit_fields(

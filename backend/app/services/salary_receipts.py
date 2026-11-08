@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 class SalaryError(Exception):
     code: str
     status: int
-    message: str
 
 
 def has_explicit_salary_marker(merchant: str | None, notes: str | None) -> bool:
@@ -41,9 +40,9 @@ def _eligible_income(cur: Any, user_id: str, transaction_id: str) -> dict[str, A
     )
     row = cur.fetchone()
     if not row:
-        raise SalaryError('salary_transaction_not_found', 404, 'Transaksi tidak ditemukan.')
+        raise SalaryError('salary_transaction_not_found', 404)
     if not row['reportable'] or row['movement_id'] is not None or row['date'] > datetime.now(timezone.utc):
-        raise SalaryError('invalid_salary_income', 422, 'Pilih pemasukan tercatat yang bukan ganti uang.')
+        raise SalaryError('invalid_salary_income', 422)
     return row
 
 
@@ -54,7 +53,7 @@ def configure_source(conn: Any, user_id: str, transaction_id: str) -> dict[str, 
         field = 'merchant' if (row['merchant'] or '').strip() else 'notes'
         value = ' '.join((row[field] or '').split())
         if not value or len(value) > 500:
-            raise SalaryError('salary_source_missing', 422, 'Pemasukan ini belum memiliki nama pengirim atau keterangan.')
+            raise SalaryError('salary_source_missing', 422)
         cur.execute(
             """INSERT INTO salary_sources (user_id, matcher_field, matcher_text)
                VALUES (%s, %s, %s)
@@ -144,7 +143,7 @@ def confirm(conn: Any, user_id: str, transaction_id: str, *, method: str = 'owne
             source = cur.fetchone()
             observed = ' '.join((row[source['matcher_field']] or '').split()) if source else ''
             if not source or observed.casefold() != source['matcher_text'].casefold() or not has_explicit_salary_marker(row['merchant'], row['notes']):
-                raise SalaryError('salary_detection_stale', 409, 'Pemasukan berubah. Periksa sebelum konfirmasi.')
+                raise SalaryError('salary_detection_stale', 409)
         cur.execute('SELECT id, revoked_at, confirmation_method FROM salary_receipts WHERE user_id = %s AND transaction_id = %s FOR UPDATE', (user_id, transaction_id))
         existing = cur.fetchone()
         if existing and method == 'detected':
@@ -160,7 +159,7 @@ def confirm(conn: Any, user_id: str, transaction_id: str, *, method: str = 'owne
         )
         conflicts = cur.fetchall()
         if any(item['confirmation_method'] == 'owner' or has_explicit_salary_marker(item['merchant'], item['notes']) for item in conflicts):
-            raise SalaryError('salary_same_day_conflict', 409, 'Sudah ada gaji terkonfirmasi pada hari ini. Periksa transaksi tersebut.')
+            raise SalaryError('salary_same_day_conflict', 409)
         if existing and existing['revoked_at'] is None:
             if existing['confirmation_method'] == 'owner':
                 return False

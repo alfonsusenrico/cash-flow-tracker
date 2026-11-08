@@ -4,9 +4,9 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
+from app.i18n import format_money
 from app.routers.dashboard import (
     calc_delta_pct,
-    format_idr_compact,
     generate_financial_narrative,
     get_kakeibo_breakdown,
 )
@@ -27,14 +27,15 @@ def test_delta_percentage_calculator():
 
 
 def test_compact_idr_formatting():
-    assert format_idr_compact(10_000_000) == "10.000.000"
-    assert format_idr_compact(450_000) == "450.000"
-    assert format_idr_compact(0) == "0"
+    assert format_money(10_000_000, "ID", "bare") == "10.000.000"
+    assert format_money(450_000, "ID", "bare") == "450.000"
+    assert format_money(0, "ID", "bare") == "0"
 
 
 def test_financial_narrative_generator():
     # Scenario: Spend jumped from 8m to 10m (+25%) with "Makan & Minum" (+75%)
     narrative, trend = generate_financial_narrative(
+        "id", "ID",
         current_outflow=10_000_000,
         prev_outflow=8_000_000,
         outflow_delta_pct=25.0,
@@ -50,6 +51,7 @@ def test_financial_narrative_generator():
 
     # Scenario: Spend decreased
     narrative_down, trend_down = generate_financial_narrative(
+        "id", "ID",
         current_outflow=7_000_000,
         prev_outflow=10_000_000,
         outflow_delta_pct=-30.0,
@@ -98,6 +100,7 @@ def test_dashboard_overview_kakeibo_and_comparison_endpoint():
 
         user_id = str(uuid.uuid4())
         mock_user = {
+            "language": "id", "region": "ID",
             "id": user_id,
             "username": "tester",
             "currency": "IDR",
@@ -225,7 +228,7 @@ def test_category_kakeibo_crud():
         from app.services.auth import get_current_user
 
         user_id = str(uuid.uuid4())
-        app.dependency_overrides[get_current_user] = lambda: {"id": user_id, "username": "tester"}
+        app.dependency_overrides[get_current_user] = lambda: {"language": "id", "region": "ID", "id": user_id, "username": "tester"}
 
         mock_conn = MagicMock()
         mock_cur = MagicMock()
@@ -278,7 +281,7 @@ def test_transaction_kakeibo_support():
         from app.services.auth import get_current_user
 
         user_id = str(uuid.uuid4())
-        app.dependency_overrides[get_current_user] = lambda: {"id": user_id, "username": "tester"}
+        app.dependency_overrides[get_current_user] = lambda: {"language": "id", "region": "ID", "id": user_id, "username": "tester"}
 
         mock_conn = MagicMock()
         mock_cur = MagicMock()
@@ -327,6 +330,7 @@ def test_burn_rate_keeps_observed_averages_but_retires_forecasts():
 
         user_id = str(uuid.uuid4())
         app.dependency_overrides[get_current_user] = lambda: {
+            "language": "id", "region": "ID",
             "id": user_id,
             "username": "tester",
             "currency": "IDR",
@@ -379,6 +383,7 @@ def test_burn_rate_keeps_observed_averages_but_retires_forecasts():
 
 def test_narrative_does_not_invent_a_percentage_for_a_new_category():
     narrative, _ = generate_financial_narrative(
+        "id", "ID",
         current_outflow=200_000, prev_outflow=100_000, outflow_delta_pct=100.0,
         current_net=0, top_driver_name="Kategori Baru", top_driver_delta_pct=None,
     )

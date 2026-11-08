@@ -8,6 +8,7 @@ import { AppearanceSettings } from "./AppearanceSettings";
 import { HabitsLearnedCard } from "@/components/analysis/HabitsLearnedCard";
 
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn() } }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 const ctx = vi.hoisted(() => ({ hide: false, setHide: vi.fn(), theme: "system", setTheme: vi.fn(), keys: true, setKeys: vi.fn() }));
 vi.mock("@/components/layout/AppLayout", () => ({
   useAppCtx: () => ({ bal: (amount: number) => (ctx.hide ? "••••" : `Rp ${amount.toLocaleString("id-ID")}`), hideBalances: ctx.hide, setHideBalances: ctx.setHide }),
@@ -101,7 +102,11 @@ describe("Kebiasaan dihafal on Ringkasan", () => {
 
 describe("Tampilan", () => {
   it("drives the shared theme, shortcut and hidden-balance state", async () => {
-    const view = render(<AppearanceSettings />);
+    const view = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AppearanceSettings />
+      </QueryClientProvider>,
+    );
     screen.getByRole("radio", { name: "Gelap" }).click();
     expect(ctx.setTheme).toHaveBeenCalledWith("dark");
     screen.getByRole("switch", { name: "Pintasan satu tombol" }).click();

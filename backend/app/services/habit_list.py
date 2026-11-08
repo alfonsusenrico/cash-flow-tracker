@@ -13,10 +13,11 @@ from collections import defaultdict
 from typing import Any
 
 from app.core.config import settings
+from app.i18n import account_language, t
 from app.services.habits import EVIDENCE_KINDS, MIN_AGREEMENT, MIN_SUPPORT, Label, decide, trusted_label_sql, within_band
 from app.services.merchant_memory import live_feedback_sql
 from app.services.notification_resolution import INSTITUTION_LABELS
-from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES
+from app.services.system_categories import reportable_key_sql
 from app.services.topup_learning import label_rows, labels_from_rows, product_stats
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ def _habit_rows(cur, user_id: str) -> list[dict]:
                f.local_weekday, f.local_hour, f.created_at, a.name AS account_name
         FROM latest f
         JOIN categories c ON c.id = f.after_category_id AND c.user_id = f.user_id
-             AND c.kind = 'expense' AND c.is_archived = FALSE AND c.name <> ALL(%(excluded)s)
+             AND c.kind = 'expense' AND c.is_archived = FALSE AND {reportable_key_sql("c")}
         LEFT JOIN accounts a ON a.id = f.account_id AND a.user_id = f.user_id
         LEFT JOIN notification_events answered
              ON f.kind = 'purpose_answer' AND answered.user_id = f.user_id AND answered.id = f.event_id
@@ -60,13 +61,12 @@ def _habit_rows(cur, user_id: str) -> list[dict]:
         ORDER BY f.created_at DESC, f.id DESC
         LIMIT %(limit)s
         """,
-        {"user_id": user_id, "excluded": list(NON_REPORTABLE_CATEGORY_NAMES), "kinds": list(EVIDENCE_KINDS),
-         "limit": ROW_LIMIT},
+        {"user_id": user_id, "kinds": list(EVIDENCE_KINDS), "limit": ROW_LIMIT},
     )
     return cur.fetchall()
 
 
-def _habits(user_id: str, rows: list[dict]) -> list[dict[str, Any]]:
+def _habits(user_id: str, rows: list[dict], language: str) -> list[dict[str, Any]]:
     by_key: dict[tuple[str, str, str], list[dict]] = defaultdict(list)
     for row in rows:
         by_key[(str(row["account_id"]), row["institution"], row["text_signature"])].append(row)
@@ -89,7 +89,7 @@ def _habits(user_id: str, rows: list[dict]) -> list[dict[str, Any]]:
             institution_name = INSTITUTION_LABELS.get(institution, institution)
             entries.append({
                 "key": "h_" + _key(user_id, account_id, institution, signature, str(anchor["transaction_id"])),
-                "label": decision.merchant or f"Tanpa nama toko · {institution_name}",
+                "label": decision.merchant or t(language, "labels.fallback.unnamed_merchant", institution=institution_name),
                 "account": {"id": account_id, "name": anchor["account_name"]},
                 "category": {"id": decision.category_id, "name": category_name},
                 "kakeibo": decision.kakeibo,
@@ -150,7 +150,7 @@ def _newest(entries: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], bool]:
 
 def habit_list(cur, user_id: str) -> dict[str, Any]:
     started = time.perf_counter()
-    habits, habits_cut = _newest(_habits(user_id, _habit_rows(cur, user_id)))
+    habits, habits_cut = _newest(_habits(user_id, _habit_rows(cur, user_id), account_language(cur, user_id)[0]))
     topups, topups_cut = _newest(_topups(cur, user_id))
     # Counts and duration only: labels, merchants and amounts never reach the logs.
     logger.info("habit_list habits=%d topups=%d ms=%.1f", len(habits), len(topups), (time.perf_counter() - started) * 1000)

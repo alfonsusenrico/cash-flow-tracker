@@ -1,3 +1,12 @@
+import createNextIntlPlugin from "next-intl/plugin";
+
+// Language without i18n routing (add-language-system D1): the request config reads the cookie and Accept-Language,
+// and the English catalogue's declaration types every key and ICU argument for `npm run type-check`.
+const withNextIntl = createNextIntlPlugin({
+  requestConfig: "./src/i18n/request.ts",
+  experimental: { createMessagesDeclaration: "./src/messages/en.json" },
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
@@ -36,4 +45,4 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

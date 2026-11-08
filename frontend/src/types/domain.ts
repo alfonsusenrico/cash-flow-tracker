@@ -36,6 +36,8 @@ export interface Category {
   color: string | null;
   icon: string | null;
   is_archived: boolean;
+  /** Read-only system key (investment, internal_movement, balance_adjustment); null for an ordinary category. */
+  system_key?: string | null;
 }
 
 export interface Transaction {

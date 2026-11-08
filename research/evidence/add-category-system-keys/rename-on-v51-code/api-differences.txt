@@ -1,0 +1,174 @@
+{"compared_values": 14548, "running_window_ends_skipped": 67, "additive_fields_only_after": 0, "differences": 173}
+//dashboard/analytics/burn_rate/daily_burn_30d: 208628 -> 241961
+//dashboard/analytics/burn_rate/daily_burn_7d: 428427 -> 571284
+//dashboard/analytics/burn_rate/projected_30d_outflow: 6258830 -> 7258830
+//dashboard/analytics/burn_rate/trailing_30d_outflow: 6258830 -> 7258830
+//dashboard/analytics/category_variance: [{"budget": null, "color": "#3b82f6", "gross_spent": 850000, "icon": "landmark", "id": "887e763f-440b-4c64-a345-767f609d -> [{"budget": null, "color": "#64748b", "gross_spent": 1000000, "icon": "tag", "id": "f5021512-6000-44b8-895f-d493066530c8
+//dashboard/analytics/comparison/gross_outflow: 3575490 -> 4575490
+//dashboard/analytics/comparison/net_cashflow: 5942910 -> 4942910
+//dashboard/analytics/comparison/net_cashflow_delta_pct: 6.2 -> -11.7
+//dashboard/analytics/comparison/outflow_delta_pct: -34.4 -> -16.1
+//dashboard/analytics/comparison/savings_rate: 62.4 -> 51.9
+//dashboard/analytics/comparison/savings_rate_delta_pts: 11.7 -> 1.2
+//dashboard/analytics/comparison/total_outflow: 3575490 -> 4575490
+//dashboard/analytics/daily_cadence[11]/expense: 128990 -> 1128990
+//dashboard/analytics/day_of_week_heatmap[3]/average_spent: 30582 -> 169070
+//dashboard/analytics/day_of_week_heatmap[3]/total_spent: 183490 -> 1183490
+//dashboard/analytics/day_of_week_heatmap[3]/tx_count: 6 -> 7
+//dashboard/analytics/explanations/belanja/lines[0]/amount: 3575490 -> 4575490
+//dashboard/analytics/explanations/belanja/total: 3575490 -> 4575490
+//dashboard/analytics/explanations/keluar/lines[5]/amount: 190500 -> 1190500
+//dashboard/analytics/explanations/keluar/total: 5825490 -> 6825490
+//dashboard/analytics/explanations/spending/lines[4]/amount: 190500 -> 1190500
+//dashboard/analytics/explanations/spending/total: 3575490 -> 4575490
+//dashboard/analytics/kakeibo/total_allocated: 5825490 -> 6825490
+//dashboard/analytics/kakeibo/unclassified_pct: 2.0 -> 12.5
+//dashboard/analytics/kakeibo/unclassified_spent: 190500 -> 1190500
+//dashboard/analytics/narrative/summary: "Dibanding periode sebelumnya, pengeluaran turun 34.4% menjadi Rp 3.575.490, terutama dipengaruhi oleh Belanja Dapur (-5 -> "Dibanding periode sebelumnya, pengeluaran turun 16.1% menjadi Rp 4.575.490, terutama dipengaruhi oleh Belanja Dapur (-5
+//dashboard/cycle-summary/comparison/belanja/change: 522500 -> 1522500
+//dashboard/cycle-summary/comparison/belanja/current: 3575490 -> 4575490
+//dashboard/cycle-summary/comparison/keluar/change: 522500 -> 1522500
+//dashboard/cycle-summary/comparison/keluar/current: 5825490 -> 6825490
+//dashboard/cycle-summary/keluar/lines[5]/amount: 190500 -> 1190500
+//dashboard/cycle-summary/keluar/total: 5825490 -> 6825490
+//dashboard/cycle-summary/remaining/lines[1]/amount: -5825490 -> -6825490
+//dashboard/cycle-summary/remaining/total: -1879424 -> -2879424
+//dashboard/cycle-summary/safe_to_spend/over_by: 1879424 -> 2879424
+//dashboard/cycle-summary/spending/amount: 3575490 -> 4575490
+//dashboard/cycle-summary/spending/lines[4]/amount: 190500 -> 1190500
+//dashboard/cycle-summary/waiting/lines[1]/section: "awaiting" -> "groups"
+//dashboard/overview?timeframe=cycle/burn_cadence[11]/expense: 128990 -> 1128990
+//dashboard/overview?timeframe=cycle/categories: [{"budget": null, "color": "#3b82f6", "gross_spent": 850000, "icon": "landmark", "id": "887e763f-440b-4c64-a345-767f609d -> [{"budget": null, "color": "#64748b", "gross_spent": 1000000, "icon": "tag", "id": "f5021512-6000-44b8-895f-d493066530c8
+//dashboard/overview?timeframe=cycle/comparison/net_cashflow_delta_pct: 6.2 -> -11.7
+//dashboard/overview?timeframe=cycle/comparison/outflow_delta_pct: -34.4 -> -16.1
+//dashboard/overview?timeframe=cycle/comparison/savings_rate_delta_pts: 11.7 -> 1.2
+//dashboard/overview?timeframe=cycle/cumulative_trendline[11]/cumulative_net: 6329410 -> 5329410
+//dashboard/overview?timeframe=cycle/cumulative_trendline[11]/cumulative_outflow: 3208990 -> 4208990
+//dashboard/overview?timeframe=cycle/cumulative_trendline[11]/expense: 128990 -> 1128990
+//dashboard/overview?timeframe=cycle/cumulative_trendline[12]/cumulative_net: 5990910 -> 4990910
+//dashboard/overview?timeframe=cycle/cumulative_trendline[12]/cumulative_outflow: 3547490 -> 4547490
+//dashboard/overview?timeframe=cycle/cumulative_trendline[13]/cumulative_net: 5962910 -> 4962910
+//dashboard/overview?timeframe=cycle/cumulative_trendline[13]/cumulative_outflow: 3575490 -> 4575490
+//dashboard/overview?timeframe=cycle/kakeibo/total_allocated: 5825490 -> 6825490
+//dashboard/overview?timeframe=cycle/kakeibo/unclassified_pct: 2.0 -> 12.5
+//dashboard/overview?timeframe=cycle/kakeibo/unclassified_spent: 190500 -> 1190500
+//dashboard/overview?timeframe=cycle/kpis/budget_remaining: 1224510 -> 224510
+//dashboard/overview?timeframe=cycle/kpis/gross_outflow: 3575490 -> 4575490
+//dashboard/overview?timeframe=cycle/kpis/net_cashflow: 5942910 -> 4942910
+//dashboard/overview?timeframe=cycle/kpis/savings_rate: 62.4 -> 51.9
+//dashboard/overview?timeframe=cycle/kpis/total_outflow: 3575490 -> 4575490
+//dashboard/overview?timeframe=cycle/narrative/summary: "Dibanding periode sebelumnya, pengeluaran turun 34.4% menjadi Rp 3.575.490, terutama dipengaruhi oleh Belanja Dapur (-5 -> "Dibanding periode sebelumnya, pengeluaran turun 16.1% menjadi Rp 4.575.490, terutama dipengaruhi oleh Belanja Dapur (-5
+//dashboard/overview?timeframe=month/burn_cadence[3]/expense: 128990 -> 1128990
+//dashboard/overview?timeframe=month/categories: [{"budget": null, "color": "#3b82f6", "gross_spent": 850000, "icon": "landmark", "id": "887e763f-440b-4c64-a345-767f609d -> [{"budget": null, "color": "#64748b", "gross_spent": 1000000, "icon": "tag", "id": "f5021512-6000-44b8-895f-d493066530c8
+//dashboard/overview?timeframe=month/comparison/net_cashflow_delta_pct: -153.1 -> -171.7
+//dashboard/overview?timeframe=month/comparison/outflow_delta_pct: -50.1 -> -32.6
+//dashboard/overview?timeframe=month/cumulative_trendline[3]/cumulative_net: -2459490 -> -3459490
+//dashboard/overview?timeframe=month/cumulative_trendline[3]/cumulative_outflow: 2479490 -> 3479490
+//dashboard/overview?timeframe=month/cumulative_trendline[3]/expense: 128990 -> 1128990
+//dashboard/overview?timeframe=month/cumulative_trendline[4]/cumulative_net: -2797990 -> -3797990
+//dashboard/overview?timeframe=month/cumulative_trendline[4]/cumulative_outflow: 2817990 -> 3817990
+//dashboard/overview?timeframe=month/cumulative_trendline[5]/cumulative_net: -2825990 -> -3825990
+//dashboard/overview?timeframe=month/cumulative_trendline[5]/cumulative_outflow: 2845990 -> 3845990
+//dashboard/overview?timeframe=month/kakeibo/essentials_pct: 68.5 -> 50.7
+//dashboard/overview?timeframe=month/kakeibo/lifestyle_pct: 24.8 -> 18.3
+//dashboard/overview?timeframe=month/kakeibo/need_pct: 68.5 -> 50.7
+//dashboard/overview?timeframe=month/kakeibo/total_allocated: 2845990 -> 3845990
+//dashboard/overview?timeframe=month/kakeibo/unclassified_pct: 6.7 -> 31.0
+//dashboard/overview?timeframe=month/kakeibo/unclassified_spent: 190500 -> 1190500
+//dashboard/overview?timeframe=month/kakeibo/want_pct: 24.8 -> 18.3
+//dashboard/overview?timeframe=month/kpis/budget_remaining: 1954010 -> 954010
+//dashboard/overview?timeframe=month/kpis/gross_outflow: 2845990 -> 3845990
+//dashboard/overview?timeframe=month/kpis/net_cashflow: -2845990 -> -3845990
+//dashboard/overview?timeframe=month/kpis/total_outflow: 2845990 -> 3845990
+//dashboard/overview?timeframe=month/narrative/summary: "Dibanding periode sebelumnya, pengeluaran turun 50.1% menjadi Rp 2.845.990, terutama dipengaruhi oleh Belanja Dapur (-5 -> "Dibanding periode sebelumnya, pengeluaran turun 32.6% menjadi Rp 3.845.990, terutama dipengaruhi oleh Belanja Dapur (-5
+//insights/categories: [{"budget": null, "color": "#3b82f6", "icon": "landmark", "id": "887e763f-440b-4c64-a345-767f609d0905", "name": "Cicilan -> [{"budget": null, "color": "#3b82f6", "icon": "arrows-right-left", "id": "77a0c41f-3119-4ea3-a7af-7d06845f917d", "name":
+//insights/daily_histogram[11]/expense: 128990 -> 1128990
+//insights/net_cashflow: 5942910 -> 4942910
+//insights/total_expense: 3575490 -> 4575490
+//pulse/cycle_remaining: 1224510 -> 224510
+//pulse/cycle_spent: 3575490 -> 4575490
+//reports/monthly/comparison/history[3]/pillars/unclassified: 190500 -> 1190500
+//reports/monthly/comparison/history[3]/spending: 2845990 -> 3845990
+//reports/monthly?basis=month&start_date=2026-11-01/budget/overall/remaining: 1954010 -> 954010
+//reports/monthly?basis=month&start_date=2026-11-01/budget/overall/spent: 2845990 -> 3845990
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/history[3]/pillars/unclassified: 190500 -> 1190500
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/history[3]/spending: 2845990 -> 3845990
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/pillars[0]/categories[0]/share: 30 -> 22
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/pillars[0]/categories[1]/share: 18 -> 13
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/pillars[0]/categories[2]/share: 14 -> 10
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/pillars[0]/categories[3]/share: 7 -> 5
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/pillars[0]/share: 69 -> 51
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/pillars[1]/categories[0]/share: 16 -> 12
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/pillars[1]/categories[1]/share: 3 -> 2
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/pillars[1]/categories[3]/share: 2 -> 1
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/pillars[1]/categories[4]/share: 2 -> 1
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/pillars[1]/share: 25 -> 18
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/pillars[4]/amount: 190500 -> 1190500
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/pillars[4]/categories: [{"amount": 190500, "baseline": 0, "baseline_change": null, "category_id": null, "change": null, "name": "Tanpa kategori -> [{"amount": 1000000, "baseline": 0, "baseline_change": null, "category_id": "f5021512-6000-44b8-895f-d493066530c8", "cha
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/pillars[4]/share: 7 -> 31
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/progress/pillars[4]/amount: 190500 -> 1190500
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/progress/share: 50 -> 67
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/progress/spending: 2845990 -> 3845990
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/totals/difference: -2845990 -> -3845990
+//reports/monthly?basis=month&start_date=2026-11-01/comparison/totals/spending: 2845990 -> 3845990
+//reports/monthly?basis=month&start_date=2026-11-01/data_quality/unclassified/amount: 190500 -> 1190500
+//reports/monthly?basis=month&start_date=2026-11-01/data_quality/unclassified/count: 3 -> 4
+//reports/monthly?basis=month&start_date=2026-11-01/flow/gross_outflow: 2845990 -> 3845990
+//reports/monthly?basis=month&start_date=2026-11-01/flow/net: -2845990 -> -3845990
+//reports/monthly?basis=month&start_date=2026-11-01/flow/outflow: 2845990 -> 3845990
+//reports/monthly?basis=month&start_date=2026-11-01/savings/surplus: -2845990 -> -3845990
+//reports/monthly?basis=month&start_date=2026-11-01/spending/pillars[5]/amount: 190500 -> 1190500
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[0]/amount: 850000 -> 1000000
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[0]/category_id: "887e763f-440b-4c64-a345-767f609d0905" -> "f5021512-6000-44b8-895f-d493066530c8"
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[0]/kakeibo_type: "need" -> null
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[0]/name: "Cicilan" -> "Investasi"
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[1]/amount: 511000 -> 850000
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[1]/category_id: "4da74940-da7c-4e27-867c-1515a589b9fe" -> "887e763f-440b-4c64-a345-767f609d0905"
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[1]/name: "Belanja Dapur" -> "Cicilan"
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[2]/amount: 459000 -> 511000
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[2]/category_id: "c3bb3914-e38e-47fe-bd1a-14d6a68ff314" -> "4da74940-da7c-4e27-867c-1515a589b9fe"
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[2]/kakeibo_type: "want" -> "need"
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[2]/name: "Belanja" -> "Belanja Dapur"
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[3]/amount: 385000 -> 459000
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[3]/category_id: "72edd2a9-5c2b-4599-854d-829b9a7326d4" -> "c3bb3914-e38e-47fe-bd1a-14d6a68ff314"
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[3]/kakeibo_type: "need" -> "want"
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[3]/name: "Tagihan & Utilitas" -> "Belanja"
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[4]/amount: 203000 -> 385000
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[4]/category_id: "dbf08d8d-aa80-4d68-8426-688c6fc9de6d" -> "72edd2a9-5c2b-4599-854d-829b9a7326d4"
+//reports/monthly?basis=month&start_date=2026-11-01/spending/top_categories[4]/name: "Makanan & Minuman" -> "Tagihan & Utilitas"
+//reports/monthly?basis=month&start_date=2026-11-01/spending/total: 2845990 -> 3845990
+//review/queue/awaiting: [{"account_id": "2a0890d7-a637-4615-9f70-46d57bb9db9f", "account_name": "Utama", "amount": 300000, "category_id": "77a0c -> []
+//review/queue/counts/awaiting: 1 -> 0
+//review/queue/counts/groups: 1 -> 2
+//review/queue/counts/needs_review: 2 -> 3
+//review/queue/groups: [{"auto_count": 0, "category": null, "count": 2, "first_date": "2026-11-04T04:43:00+00:00", "key": "expense|merchant:pem -> [{"auto_count": 0, "category": null, "count": 2, "first_date": "2026-11-04T04:43:00+00:00", "key": "expense|merchant:pem
+//transactions?include=type_counts,daily_totals&limit=200/daily_totals[2]/outflow: 128990 -> 1128990
+//transactions?include=type_counts,daily_totals&limit=200/daily_totals[2]/spending: 128990 -> 1128990
+//transactions?include=type_counts,daily_totals&limit=200/summary/cumulative/gross_outflow: 9080820 -> 10080820
+//transactions?include=type_counts,daily_totals&limit=200/summary/cumulative/net: 20987580 -> 19987580
+//transactions?include=type_counts,daily_totals&limit=200/summary/cumulative/outflow: 9080820 -> 10080820
+//transactions?include=type_counts,daily_totals&limit=200/summary/cumulative/spending: 9080820 -> 10080820
+//transactions?include=type_counts,daily_totals&limit=200/summary/cumulative/spending_net: 20987580 -> 19987580
+//transactions?include=type_counts,daily_totals&limit=200/summary/cycle/gross_outflow: 3575490 -> 4575490
+//transactions?include=type_counts,daily_totals&limit=200/summary/cycle/net: 5942910 -> 4942910
+//transactions?include=type_counts,daily_totals&limit=200/summary/cycle/outflow: 3575490 -> 4575490
+//transactions?include=type_counts,daily_totals&limit=200/summary/cycle/spending: 3575490 -> 4575490
+//transactions?include=type_counts,daily_totals&limit=200/summary/cycle/spending_net: 5942910 -> 4942910
+//transactions?include=type_counts,daily_totals&limit=200/type_counts/expense: 121 -> 122
+//transactions?include=type_counts,daily_totals&limit=200/type_counts/investment: 6 -> 5
+//transactions?type=expense&limit=200/summary/cumulative/gross_outflow: 9080820 -> 10080820
+//transactions?type=expense&limit=200/summary/cumulative/net: -9080820 -> -10080820
+//transactions?type=expense&limit=200/summary/cumulative/outflow: 9080820 -> 10080820
+//transactions?type=expense&limit=200/summary/cumulative/spending: 9080820 -> 10080820
+//transactions?type=expense&limit=200/summary/cumulative/spending_net: -9080820 -> -10080820
+//transactions?type=expense&limit=200/summary/cycle/gross_outflow: 3575490 -> 4575490
+//transactions?type=expense&limit=200/summary/cycle/net: -3575490 -> -4575490
+//transactions?type=expense&limit=200/summary/cycle/outflow: 3575490 -> 4575490
+//transactions?type=expense&limit=200/summary/cycle/spending: 3575490 -> 4575490
+//transactions?type=expense&limit=200/summary/cycle/spending_net: -3575490 -> -4575490
+//transactions?type=expense&limit=200/total: 121 -> 122
+//transactions?type=expense&limit=200/transactions: [{"account_id": "d31acb21-5ca0-446e-b172-fbd676202e49", "account_name": "Makan & Jajan", "account_parent_name": "Jago",  -> [{"account_id": "d31acb21-5ca0-446e-b172-fbd676202e49", "account_name": "Makan & Jajan", "account_parent_name": "Jago",
+//transactions?type=investment&limit=200/total: 6 -> 5
+//transactions?type=investment&limit=200/transactions: [{"account_id": "2a0890d7-a637-4615-9f70-46d57bb9db9f", "account_name": "Utama", "account_parent_name": "BCA", "amount": -> [{"account_id": "2a0890d7-a637-4615-9f70-46d57bb9db9f", "account_name": "Utama", "account_parent_name": "BCA", "amount":
+//transactions?type=transfer&limit=200/total: 66 -> 65
+//transactions?type=transfer&limit=200/transactions: [{"account_id": "2a0890d7-a637-4615-9f70-46d57bb9db9f", "account_name": "Utama", "account_parent_name": "BCA", "amount": -> [{"account_id": "2a0890d7-a637-4615-9f70-46d57bb9db9f", "account_name": "Utama", "account_parent_name": "BCA", "amount":

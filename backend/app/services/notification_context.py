@@ -47,7 +47,7 @@ def sanitize_text(value: str | None, identity: str | list[str] | None = None) ->
 
 def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: int = 20) -> dict:
     history_limit = max(0, min(50, history_limit))
-    cur.execute("SELECT name, name_aliases FROM users WHERE id = %s", (user_id,))
+    cur.execute("SELECT name, name_aliases, language FROM users WHERE id = %s", (user_id,))
     profile = cur.fetchone() or {}
     identity = owner_aliases(profile)
     cur.execute(
@@ -64,7 +64,7 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
     )
     accounts = cur.fetchall()
     cur.execute(
-        """SELECT id, name, kind, kakeibo_type FROM categories
+        """SELECT id, name, kind, kakeibo_type, system_key FROM categories
            WHERE user_id = %s AND is_archived = FALSE ORDER BY id LIMIT %s""",
         (user_id, CATEGORY_LIMIT + 1),
     )
@@ -143,7 +143,14 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
     # Internal fields stay out of the model input (the provider drops underscore-prefixed keys).
     context["_classification_key"] = key
     context["_owner_memory_hit"] = owner_memory_hit(memory, key, facts.direction)
+    # Backend-only, like every underscore key: the model's category list stays exactly as before.
+    context["_system_category_keys"] = {
+        str(row["id"]): row["system_key"] for row in categories[:CATEGORY_LIMIT] if row["system_key"]
+    }
     context["_habit"] = evaluate_habit(cur, user_id, facts, context)
+    # The language generated notes are written in, once, at creation (localize-server-text D6). An unknown
+    # owner has no row and gets an empty context, so nothing is composed for it.
+    context["_language"] = profile.get("language")
     return context
 
 

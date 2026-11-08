@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo
 import psycopg
 import pytest
 
+from category_keys import seeded_key
+
 
 @pytest.fixture
 def owner(client):
@@ -20,7 +22,7 @@ def owner(client):
         with conn.cursor() as cur:
             for uid in (user_id, stranger_id):
                 cur.execute(
-                    "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Dina Contoh', 'synthetic-hash', 'TEST')",
+                    "INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Dina Contoh', 'synthetic-hash', 'TEST', 'id')",
                     (uid, f"reimburse_{uuid4().hex}"),
                 )
             cur.execute(
@@ -38,9 +40,10 @@ def owner(client):
                 ("stranger_dinner", stranger_id, "Makan Bareng", "expense", "want", False, False),
             ]:
                 cur.execute(
-                    """INSERT INTO categories (id, user_id, name, kind, kakeibo_type, offsets_spending, is_excluded_from_budget)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-                    (ids[key], uid, name, kind, pillar, offsets, excluded),
+                    """INSERT INTO categories (id, user_id, name, kind, kakeibo_type, offsets_spending,
+                                              is_excluded_from_budget, system_key)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (ids[key], uid, name, kind, pillar, offsets, excluded, seeded_key(name)),
                 )
         conn.commit()
     app.dependency_overrides[get_current_user] = lambda: {

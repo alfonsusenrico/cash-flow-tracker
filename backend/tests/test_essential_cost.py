@@ -23,7 +23,7 @@ def household(client):
     )}
     with db_conn() as conn:
         conn.execute(
-            "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Sari Contoh', 'synthetic-hash', 'TEST')",
+            "INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Sari Contoh', 'synthetic-hash', 'TEST', 'id')",
             (user_id, f"essential_{uuid4().hex}"),
         )
         for key, name, kind, balance in (

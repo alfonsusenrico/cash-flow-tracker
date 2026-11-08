@@ -12,6 +12,7 @@ from app.services.kakeibo import effective_pillar
 from app.services.notification_evidence import SUPPORTED_PACKAGES, NotificationFacts, collect_facts
 from app.services.notification_resolution import names_owner, owner_aliases
 from app.services.provenance import MERCHANT_MAX_LENGTH
+from app.services.system_categories import INTERNAL_MOVEMENT, is_movement, is_system_sql
 
 
 # Parser fallbacks that stand in for a merchant the notification did not name.
@@ -19,7 +20,6 @@ PLACEHOLDER_COUNTERPARTIES = frozenset({
     "bca payment", "bca", "qris merchant", "debit", "bank jago", "bank jago payment", "transaksi bank",
 })
 MATCH_KEY_MAX_LENGTH = 220
-MOVEMENT_CATEGORY_NAME = "Internal Movement"
 SIGNATURE_MAX_LENGTH = 200
 MEMORY_CONTEXT_LIMIT = 30
 FEEDBACK_FIELDS: tuple[str, ...] = (
@@ -109,12 +109,12 @@ def local_time_features(moment: datetime | None) -> tuple[int | None, int | None
 def load_memory(cur, user_id: str, match_key: str | None) -> list[dict]:
     """Usable memory entries, exact key first; entries with an inactive category are left out.
 
-    Entries in Internal Movement are left out too: they were learned before transfers stopped teaching
+    Entries in the movement category are left out too: they were learned before transfers stopped teaching
     memory, and applying one would file the next report of that wording as a transfer
     (recognise-one-arrival-seen-twice D4, OD121). The rows stay; nothing here deletes owner data.
     """
     cur.execute(
-        """SELECT m.id, m.match_key, m.key_kind, m.display_merchant, m.notes, m.category_id,
+        f"""SELECT m.id, m.match_key, m.key_kind, m.display_merchant, m.notes, m.category_id,
                   m.kakeibo_type, m.source, m.hit_count, m.account_id, c.kind AS category_kind,
                   c.offsets_spending AS category_offsets_spending,
                   CASE WHEN oc.id IS NOT NULL AND oc.is_archived = FALSE AND oc.kind = 'expense'
@@ -122,11 +122,11 @@ def load_memory(cur, user_id: str, match_key: str | None) -> list[dict]:
            FROM merchant_memory m
            JOIN categories c ON c.id = m.category_id AND c.user_id = m.user_id AND c.is_archived = FALSE
            LEFT JOIN categories oc ON oc.id = m.offset_category_id AND oc.user_id = m.user_id
-           WHERE m.user_id = %s AND c.name <> %s
+           WHERE m.user_id = %s AND NOT {is_system_sql("c", INTERNAL_MOVEMENT)}
            ORDER BY (m.match_key = %s) DESC, (m.source = 'owner') DESC, m.hit_count DESC,
                     m.last_used_at DESC NULLS LAST, m.updated_at DESC, m.id
            LIMIT %s""",
-        (user_id, MOVEMENT_CATEGORY_NAME, match_key or "", MEMORY_CONTEXT_LIMIT),
+        (user_id, match_key or "", MEMORY_CONTEXT_LIMIT),
     )
     return cur.fetchall()
 
@@ -223,7 +223,8 @@ def snapshot_rows(cur, user_id: str, transaction_ids: list[str]) -> dict[str, di
         return {}
     cur.execute(
         """SELECT t.id, t.type, t.amount, t.date, t.account_id, t.merchant, t.notes, t.category_id,
-                  c.name AS category_name, t.kakeibo_type, c.kakeibo_type AS category_kakeibo_type,
+                  c.name AS category_name, c.system_key AS category_system_key, t.kakeibo_type,
+                  c.kakeibo_type AS category_kakeibo_type,
                   t.offset_category_id, t.movement_id, t.source, t.review_status, t.classified_by
            FROM transactions t LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
            WHERE t.user_id = %s AND t.id = ANY(%s::uuid[])""",
@@ -326,19 +327,19 @@ def live_feedback_sql(alias: str) -> str:
     )
 
 
-def is_movement_category(name: str | None) -> bool:
-    return name == MOVEMENT_CATEGORY_NAME
+def is_movement_category(system_key: str | None) -> bool:
+    return is_movement(system_key)
 
 
 def learn_from_owner(cur, user_id: str, after: dict, key: dict) -> None:
     """Upsert owner memory for a plain expense or income with a category (design D4).
 
-    A row filed as Internal Movement is one side of a transfer, not a classification to repeat: the
+    A row filed in the movement category is one side of a transfer, not a classification to repeat: the
     next notification with the same wording may be a different transfer or a second report of one
     (recognise-one-arrival-seen-twice D4).
     """
     if (after["type"] not in {"expense", "income"} or after.get("movement_id") or not after.get("category_id")
-            or is_movement_category(after.get("category_name"))):
+            or is_movement_category(after["category_system_key"])):
         return
     values = {
         "merchant": after.get("merchant"), "notes": after.get("notes"), "category_id": str(after["category_id"]),
@@ -402,9 +403,9 @@ def retire_automatic_memory(cur, user_id: str, transaction_ids: list[str]) -> in
     cur.execute(
         """DELETE FROM merchant_memory m
            WHERE m.user_id = %s AND m.match_key = ANY(%s) AND m.source = 'ai'
-             AND NOT EXISTS (SELECT 1 FROM categories c WHERE c.id = m.category_id AND c.name = %s)
+             AND NOT EXISTS (SELECT 1 FROM categories c WHERE c.id = m.category_id AND c.system_key = %s)
            RETURNING m.match_key""",
-        (user_id, sorted(keys), MOVEMENT_CATEGORY_NAME),
+        (user_id, sorted(keys), INTERNAL_MOVEMENT),
     )
     return len(cur.fetchall())
 

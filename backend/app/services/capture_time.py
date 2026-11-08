@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from app.i18n import t
+
 
 # A clock time a few minutes ahead of the device clock is the owner rounding ("jam 2" at 13:55).
 FUTURE_TOLERANCE = timedelta(minutes=15)
@@ -597,21 +599,18 @@ def time_word_spans(text: str) -> list[tuple[int, int]]:
 
 # --- Labels -----------------------------------------------------------------------------------------
 
-DAY_ABBREVIATIONS = ("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
-MONTH_ABBREVIATIONS = ("Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des")
-
-
-def moment_label(moment: datetime, device_time: datetime, tz: str) -> str:
-    """Indonesian label such as "Hari ini 14.00", "Kemarin 14.00" or "Sab 31 Okt 14.00"."""
+def moment_label(language: str, moment: datetime, device_time: datetime, tz: str) -> str:
+    """A label such as "Hari ini 14.00", "Kemarin 14.00" or "Sab 31 Okt 14.00", in the account's language."""
     zone = ZoneInfo(tz)
     local = moment.astimezone(zone)
     today = device_time.astimezone(zone).date()
     clock = f"{local.hour:02d}.{local.minute:02d}"
     if local.date() == today:
-        return f"Hari ini {clock}"
+        return t(language, "labels.moment.today", clock=clock)
     if local.date() == today - timedelta(days=1):
-        return f"Kemarin {clock}"
-    day = f"{DAY_ABBREVIATIONS[local.weekday()]} {local.day} {MONTH_ABBREVIATIONS[local.month - 1]}"
+        return t(language, "labels.moment.yesterday", clock=clock)
+    day = t(language, "labels.moment.day", weekday=t(language, f"labels.moment.weekday.{local.weekday()}"),
+            day=local.day, month=t(language, f"labels.moment.month.{local.month}"))
     if local.year != today.year:
-        day = f"{day} {local.year}"
-    return f"{day} {clock}"
+        day = t(language, "labels.moment.day_year", date=day, year=local.year)
+    return t(language, "labels.moment.at", date=day, clock=clock)

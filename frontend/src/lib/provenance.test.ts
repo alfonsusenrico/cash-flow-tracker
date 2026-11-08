@@ -57,13 +57,15 @@ describe("reimbursement offsets", () => {
     { id: "dinner", kind: "expense" },
     { id: "movement", kind: "expense", is_excluded_from_budget: true },
     { id: "old", kind: "expense", is_archived: true },
-    { id: "legacy-movement", name: "Internal Movement", kind: "expense" },
+    { id: "legacy-movement", name: "Transfer", kind: "expense", system_key: "internal_movement" },
+    { id: "renamed-investment", name: "Investments", kind: "expense", system_key: "investment" },
+    { id: "later-investasi", name: "Investasi", kind: "expense", system_key: null },
     { id: "salary", kind: "income" },
     { id: "repayment", kind: "income", offsets_spending: true },
   ];
 
   it("offers only active, reportable expense categories", () => {
-    expect(offsetCategoryOptions(categories).map((category) => category.id)).toEqual(["dinner"]);
+    expect(offsetCategoryOptions(categories).map((category) => category.id)).toEqual(["dinner", "later-investasi"]);
   });
 
   it("detects a category that offsets spending", () => {

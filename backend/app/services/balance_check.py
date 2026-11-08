@@ -14,18 +14,18 @@ from datetime import datetime, timedelta, timezone
 from itertools import combinations
 from typing import Any
 
-from fastapi import HTTPException
 
+from app.errors import ErrorCode, api_error
 from app.services.ledger_mutations import LIQUID_ACCOUNT_TYPES
 from app.services.notification_evidence import SUPPORTED_PACKAGES, collect_facts
 from app.services.notification_resolution import INSTITUTION_LABELS
+from app.services.system_categories import is_movement
 
 WINDOW_WITHOUT_ANCHOR = timedelta(days=30)  # OD140
 DUPLICATE_GAP_SECONDS = 300  # OD141: wider than the 120 s guard because the check only suggests
 CAPTURE_GAP = timedelta(hours=12)  # OD142
 CANDIDATE_LIMIT = 20
 EXPLANATION_MAX_SIZE = 3
-MOVEMENT_CATEGORY = "Internal Movement"
 WAITING_STATES = ("needs_review", "needs_confirmation", "failed")
 PENDING_STATES = ("queued", "processing")
 
@@ -47,11 +47,11 @@ def load_scope(cur, user_id: str, account_id: str) -> CheckScope:
     rows = cur.fetchall()
     account = next((row for row in rows if str(row["id"]) == account_id), None)
     if account is None:
-        raise HTTPException(status_code=404, detail="Account not found")
+        raise api_error(404, ErrorCode.ACCOUNT_NOT_FOUND)
     for row in rows:
         liquid = row["type"] in LIQUID_ACCOUNT_TYPES and not row.get("instrument_type")
         if not liquid or row.get("investment_tracking_mode") == "amount":
-            raise HTTPException(status_code=409, detail={"code": "balance_check_not_liquid"})
+            raise api_error(409, ErrorCode.BALANCE_CHECK_NOT_LIQUID)
     pockets = [str(row["id"]) for row in rows if str(row["id"]) != account_id]
     return CheckScope(account=account, account_ids=[account_id, *pockets], is_parent=bool(pockets))
 
@@ -115,7 +115,7 @@ def _recording_effect(direction: str | None, amount: int | None) -> int | None:
 
 ROW_CANDIDATES_SQL = """
     SELECT t.id, t.account_id, t.type, t.amount, t.date, t.merchant, t.notes, t.source,
-           t.movement_id, t.fee_for_movement_id, c.name AS category,
+           t.movement_id, t.fee_for_movement_id, c.name AS category, c.system_key AS category_system_key,
            a.name AS account_name, p.name AS parent_name, e.package_name,
            twin.id AS twin_id, twin.account_id AS twin_account_id, twin.date AS twin_date,
            twin.movement_id AS twin_movement_id, twin.account_name AS twin_account_name,
@@ -162,7 +162,7 @@ def row_candidates(cur, user_id: str, scope: CheckScope, since: datetime) -> lis
             # A pair inside the scope is one cause: report only its later row, so the effect counts once.
             if twin_in_scope and (row["twin_date"], str(twin_id)) > (row["date"], str(row["id"])):
                 twin_id = None
-        if twin_id is None and row["category"] != MOVEMENT_CATEGORY:
+        if twin_id is None and not is_movement(row["category_system_key"]):
             continue
         kind = "duplicate" if twin_id is not None else "unpaired"
         candidate = {
@@ -304,9 +304,7 @@ def record_match(cur, user_id: str, account_id: str, actual_balance: int) -> dic
     )
     recorded = recorded_balance(cur, user_id, scope.account_ids)
     if recorded != actual_balance:
-        raise HTTPException(status_code=409, detail={
-            "code": "balance_mismatch", "difference": actual_balance - recorded,
-        })
+        raise api_error(409, ErrorCode.BALANCE_MISMATCH, extra={"difference": actual_balance - recorded})
     cur.execute(
         """INSERT INTO account_balance_matches (user_id, account_id, balance)
            VALUES (%s, %s, %s) RETURNING matched_at""",

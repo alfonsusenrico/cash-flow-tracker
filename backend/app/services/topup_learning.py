@@ -14,9 +14,11 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 
+from app.errors import ErrorCode, api_error
+from app.i18n import format_money, t
 from app.services.habits import ANSWER_WEIGHT, CORRECTION_WEIGHT, EVIDENCE_WINDOW, MIN_AGREEMENT, MIN_SUPPORT, basis_text
 from app.services.ledger_mutations import LIQUID_ACCOUNT_TYPES
-from app.services.purpose_questions import rupiah
+from app.services.system_categories import INTERNAL_MOVEMENT, is_system_sql
 
 logger = logging.getLogger(__name__)
 
@@ -246,7 +248,7 @@ def pending_debits(cur, user_id: str, *, account_id: str, amount: int, around: d
         f"""
         SELECT t.id, t.date, ev.interpretation ->> 'match_key' AS match_key
         FROM transactions t
-        JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id AND c.name = 'Internal Movement'
+        JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id AND {is_system_sql('c', INTERNAL_MOVEMENT)}
         {FIRST_EVENT_INTERPRETATION}
         LEFT JOIN LATERAL (
             SELECT f.outcome FROM investment_topup_feedback f
@@ -317,35 +319,51 @@ def previous_month(earlier: datetime, later: datetime) -> bool:
     return (second.year * 12 + second.month) - (first.year * 12 + first.month) == 1
 
 
-def suggestion_view(debit: dict, assignment: Assignment, pattern: Pattern, pending: list[dict]) -> dict[str, Any]:
-    """The `topup_suggestion` of an awaiting debit in the review queue."""
+def suggestion_view(
+    debit: dict, assignment: Assignment, pattern: Pattern, pending: list[dict], *, language: str, region: str,
+) -> dict[str, Any]:
+    """The `topup_suggestion` of an awaiting debit in the review queue, in the account's language (D5)."""
     choices = [pattern.products[product_id] for product_id in assignment.choices]
-    amount_text = rupiah(int(debit["amount"]))
-    account_name = debit.get("account_name") or "rekening ini"
+    amount = int(debit["amount"])
+    amount_text = format_money(amount, region, "inline")
+    account_name = debit.get("account_name") or t(language, "labels.fallback.this_account")
     if assignment.target_id is None:
-        names = " atau ".join(product["name"] for product in choices)
+        names = [product["name"] for product in choices]
+        prompt_params = {"amount": amount, "account": account_name, "products": names}
         return {
             "target_account_id": None, "target_label": None, "choices": choices, "basis": None,
-            "prompt": f"Debit {amount_text} dari {account_name} biasanya jadi top up ke {names}. Yang mana?",
-            "explanation": "Belum bisa dipastikan produknya, jadi kamu yang pilih.",
+            "prompt": t(language, "questions.topup.choose", amount=amount_text, account=account_name,
+                        products=t(language, "labels.fallback.or").join(names)),
+            "prompt_code": "questions.topup.choose", "prompt_params": prompt_params,
+            "explanation": t(language, "reasons.topup.choose"),
+            "explanation_code": "reasons.topup.choose", "explanation_params": {},
         }
     stats = pattern.stats[assignment.target_id]
     product = pattern.products[assignment.target_id]
-    when = "kayak bulan lalu" if stats.last_confirmed and previous_month(stats.last_confirmed, debit["date"]) else "kayak sebelumnya"
+    last_month = bool(stats.last_confirmed and previous_month(stats.last_confirmed, debit["date"]))
+    prompt_code = "questions.topup.last_month" if last_month else "questions.topup.before"
     basis = stats.basis()
-    explanation = f"Dari {basis_text(basis['agreeing'], basis['support'])} untuk debit {amount_text} dari {account_name}."
+    explanation_code = "reasons.topup.single"
+    explanation_params: dict[str, Any] = {"agreeing": basis["agreeing"], "support": basis["support"],
+                                          "amount": amount, "account": account_name}
+    explanation = t(language, explanation_code, basis=basis_text(language, basis["agreeing"], basis["support"]),
+                    amount=amount_text, account=account_name)
     if assignment.rule == "pair":
-        explanation = (
-            f"{len(pending)} debit {amount_text} dari {account_name} di waktu yang berdekatan dan "
-            f"{len(assignment.choices)} produk yang biasa diisi: satu debit untuk satu produk, urut nama produk."
-        )
+        explanation_code = "reasons.topup.pair"
+        explanation_params = {"debits": len(pending), "products": len(assignment.choices),
+                              "amount": amount, "account": account_name}
+        explanation = t(language, explanation_code, **{**explanation_params, "amount": amount_text})
     return {
         "target_account_id": assignment.target_id, "target_label": product["label"], "choices": choices,
-        "basis": basis, "prompt": f"Sepertinya top up ke {product['name']}, {when}?", "explanation": explanation,
+        "basis": basis, "prompt": t(language, prompt_code, product=product["name"]),
+        "prompt_code": prompt_code, "prompt_params": {"product": product["name"]},
+        "explanation": explanation, "explanation_code": explanation_code, "explanation_params": explanation_params,
     }
 
 
-def topup_suggestion(cur, user_id: str, debit: dict, account_type: str | None, cache: dict) -> dict[str, Any] | None:
+def topup_suggestion(
+    cur, user_id: str, debit: dict, account_type: str | None, cache: dict, *, language: str, region: str,
+) -> dict[str, Any] | None:
     """The suggestion for an awaiting outgoing debit from a liquid account, or None."""
     if debit["type"] != "expense" or account_type not in LIQUID_ACCOUNT_TYPES:
         return None
@@ -356,7 +374,7 @@ def topup_suggestion(cur, user_id: str, debit: dict, account_type: str | None, c
     assignment, pending = debit_assignment(cur, user_id, debit, pattern)
     if assignment is None:
         return None
-    return suggestion_view(debit, assignment, pattern, pending)
+    return suggestion_view(debit, assignment, pattern, pending, language=language, region=region)
 
 
 # --- Owner answers ---------------------------------------------------------------------------
@@ -384,15 +402,13 @@ def reject_suggestion(cur, user_id: str, transaction_id: str, suggested_id: str 
     )
     transaction = cur.fetchone()
     if not transaction:
-        raise HTTPException(status_code=404, detail={"code": "transaction_not_found", "message": "Transaksi tidak ditemukan."})
+        raise api_error(404, ErrorCode.TRANSACTION_NOT_FOUND)
     if transaction["type"] != "expense" or transaction["movement_id"]:
-        raise HTTPException(status_code=409, detail={
-            "code": "transaction_not_suggestible", "message": "Transaksi ini bukan debit yang menunggu pasangan.",
-        })
+        raise api_error(409, ErrorCode.TRANSACTION_NOT_SUGGESTIBLE)
     if suggested_id:
         cur.execute("SELECT 1 FROM accounts WHERE user_id = %s AND id = %s", (user_id, suggested_id))
         if not cur.fetchone():
-            raise HTTPException(status_code=404, detail={"code": "account_not_found", "message": "Produk tidak ditemukan."})
+            raise api_error(404, ErrorCode.ACCOUNT_NOT_FOUND, message_key="product_not_found")
     cur.execute(
         """SELECT outcome FROM investment_topup_feedback WHERE user_id = %s AND transaction_id = %s
            ORDER BY created_at DESC, id DESC LIMIT 1""",

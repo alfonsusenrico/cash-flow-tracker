@@ -14,11 +14,9 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from app.errors import ErrorCode, api_error
 from app.services.apportionment import apportion
-
-REIMBURSEMENT_CATEGORY_NAME = "Patungan & Ganti Uang"
-# Categories that report totals already leave out by name.
-NON_REPORTABLE_CATEGORY_NAMES = ("Internal Movement", "Investasi")
+from app.services.system_categories import non_reportable_sql, reportable_key_sql
 
 
 def not_reimbursement_sql(category: str = "c") -> str:
@@ -64,12 +62,12 @@ class SpendingOffsets:
 
 def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> SpendingOffsets:
     cur.execute(
-        """
+        f"""
         SELECT r.offset_category_id, r.reimbursed, oc.kakeibo_type AS category_pillar,
                CASE
                    WHEN oc.id IS NULL
                         OR COALESCE(oc.is_excluded_from_budget, FALSE)
-                        OR oc.name = ANY(%s)
+                        OR {non_reportable_sql("oc")}
                    THEN 0
                    ELSE COALESCE((
                        SELECT SUM(e.amount) FROM transactions e
@@ -87,7 +85,7 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
                          AND e.date >= %s AND e.date <= %s
                        GROUP BY COALESCE(e.kakeibo_type, oc.kakeibo_type, 'unclassified')
                    ) expense_pillars
-               ), '{}'::jsonb) AS pillar_spending
+               ), '{{}}'::jsonb) AS pillar_spending
         FROM (
             SELECT t.user_id, t.offset_category_id, SUM(t.amount) AS reimbursed
             FROM transactions t
@@ -98,7 +96,7 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
         ) r
         LEFT JOIN categories oc ON oc.id = r.offset_category_id AND oc.user_id = r.user_id
         """,
-        (list(NON_REPORTABLE_CATEGORY_NAMES), start, end, start, end, user_id, start, end),
+        (start, end, start, end, user_id, start, end),
     )
     by_category: dict[str, int] = {}
     by_pillar: dict[str, int] = {}
@@ -136,33 +134,21 @@ def category_offsets_spending(cur, user_id: str, category_id: str | None) -> boo
 def validate_offset_category(cur, user_id: str, offset_category_id: str) -> None:
     """An offset must name an active, budget-reportable expense category of the same owner.
 
-    Reports leave "Internal Movement" and "Investasi" out by name even where the excluded flag was
+    Reports leave the movement and investment categories out by key even where the excluded flag was
     never set, so they cannot be offset either.
     """
     cur.execute(
-        """
+        f"""
         SELECT 1 FROM categories
         WHERE user_id = %s AND id = %s AND kind = 'expense' AND is_archived = FALSE
           AND COALESCE(is_excluded_from_budget, FALSE) = FALSE
-          AND NOT (name = ANY(%s))
+          AND {reportable_key_sql("categories")}
         """,
-        (user_id, offset_category_id, list(NON_REPORTABLE_CATEGORY_NAMES)),
+        (user_id, offset_category_id),
     )
     if not cur.fetchone():
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "invalid_offset_category",
-                "message": "Pilih kategori pengeluaran aktif milik Anda sebagai kategori yang dikurangi.",
-            },
-        )
+        raise api_error(422, ErrorCode.INVALID_OFFSET_CATEGORY)
 
 
 def offset_not_allowed() -> HTTPException:
-    return HTTPException(
-        status_code=422,
-        detail={
-            "code": "offset_not_allowed",
-            "message": "Hanya pemasukan dalam kategori ganti uang yang dapat mengurangi pengeluaran.",
-        },
-    )
+    return api_error(422, ErrorCode.OFFSET_NOT_ALLOWED)

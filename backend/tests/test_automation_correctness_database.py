@@ -20,7 +20,7 @@ def owner(client):
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Sari Contoh', 'synthetic-hash', 'TEST')",
+                "INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Sari Contoh', 'synthetic-hash', 'TEST', 'id')",
                 (user_id, f"pillar_{uuid4().hex}"),
             )
             cur.execute(

@@ -17,8 +17,10 @@ context: |
     the model interprets bounded redacted evidence and cannot invent entities or financial facts.
     The one exception is a typed capture's time phrase the parser flags but cannot place: the
     model may propose it, and code accepts it only after the understand-capture-time checks.
-  Language: Indonesian UI and generated ledger descriptions; preserve proper names and
-    untranslated Indonesian/English notification evidence. IDR uses Indonesian separators.
+  Language: English interface by default with Indonesian per account (cookie and Accept-Language before
+    sign-in); formats follow the account region, so IDR keeps "Rp 1.234.567" in region Indonesia. User data,
+    stored descriptions and notification evidence are never translated. Generated ledger descriptions and the
+    server's composed text stay Indonesian until localize-server-text.
   Privacy: tracked research/evidence uses synthetic data only; local journals may retain
     protected historical context and are excluded from Git. No secrets in planning artifacts.
 
@@ -37,4 +39,5 @@ rules:
     - Every task names evidence that proves completion, including relevant negative paths.
     - Track owner production confirmation in PROJECT_STATE.md, not as an open implementation task.
     - Verify database changes with migrated disposable PostgreSQL and report any skipped tests.
-    - The final task pushes the branch and reports the compare link; owner merging is separate.
+    - After owner acceptance the final task pushes the branch; when the owner says "open", the agent creates the
+      pull request (gh pr create) and reports its URL. The agent never approves or merges it.

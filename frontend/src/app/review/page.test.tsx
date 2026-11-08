@@ -196,7 +196,8 @@ describe("Tinjau triage", () => {
       if (path === "/categories") return { categories: [
         { id: "category-food", name: "Makanan & Minuman", kind: "expense", kakeibo_type: "need" },
         { id: "category-snack", name: "Jajan & Nongkrong", kind: "expense", kakeibo_type: "want" },
-        { id: "category-internal", name: "Internal Movement", kind: "expense" },
+        // Renamed by the owner: the key, not the name, keeps it out of the spending choices.
+        { id: "category-internal", name: "Transfer", kind: "expense", system_key: "internal_movement" },
         { id: "category-salary", name: "Gaji", kind: "income" },
       ] };
       if (path === "/accounts") return { accounts: [
@@ -675,7 +676,7 @@ describe("Tinjau triage", () => {
     await user.click(row("Keluar dari GoPay"));
     await user.click(within(pane()).getByRole("button", { name: /Bukan pindah saldo, ini pengeluaran/ }));
     const picker = within(pane()).getByRole("group", { name: "Bukan pindah saldo, ini pengeluaran" });
-    expect(within(within(picker).getByRole("combobox", { name: "Kategori" })).queryByRole("option", { name: "Internal Movement" })).not.toBeInTheDocument();
+    expect(within(within(picker).getByRole("combobox", { name: "Kategori" })).queryByRole("option", { name: "Transfer" })).not.toBeInTheDocument();
     await user.click(within(picker).getByRole("button", { name: "Simpan sebagai pengeluaran" }));
     expect(within(picker).getByRole("alert")).toHaveTextContent("Pilih kategori pengeluarannya.");
     await user.selectOptions(within(picker).getByRole("combobox", { name: "Kategori" }), "category-food");

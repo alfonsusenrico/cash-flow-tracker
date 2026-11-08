@@ -14,6 +14,7 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
 from app.services.auth import generate_api_key, hash_token
 from app.services.device_health import health_view
 
@@ -39,7 +40,7 @@ _LIVE_CODE = (
 
 def pairing_code_invalid() -> HTTPException:
     # One response for unknown, expired, used, superseded and burned codes, so none can be told apart.
-    return HTTPException(status_code=410, detail={"code": "pairing_code_invalid"})
+    return api_error(410, ErrorCode.PAIRING_CODE_INVALID)
 
 
 def generate_code() -> str:
@@ -60,7 +61,7 @@ def qr_payload(code: str) -> str:
 
 def create_pairing_code(user_id: str) -> dict[str, Any]:
     if settings.pairing_configuration_error:
-        raise HTTPException(status_code=503, detail={"code": settings.pairing_configuration_error})
+        raise api_error(503, settings.pairing_configuration_error)
     code = generate_code()
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -195,5 +196,5 @@ def revoke_device(user_id: str, key_id: str) -> None:
                 cur.execute("DELETE FROM device_health WHERE api_key_id = %s", (key_id,))
         conn.commit()
     if revoked is None:
-        raise HTTPException(status_code=404, detail={"code": "device_not_found"})
+        raise api_error(404, ErrorCode.DEVICE_NOT_FOUND)
     logger.info("Device key revoked key_id=%s", key_id)

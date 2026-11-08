@@ -158,3 +158,13 @@ export function kakeiboGroups(kakeibo: KakeiboBreakdown | undefined): KakeiboGro
     return { ...group, spent, pct, withinTarget };
   });
 }
+
+/** The glossary key of each bucket's name and the catalogue key of its description (add-language-system D4, D17). */
+export const KAKEIBO_TERMS = {
+  need: { term: "needs", help: "needHelp" },
+  want: { term: "wants", help: "wantHelp" },
+  culture: { term: "culture", help: "cultureHelp" },
+  unexpected: { term: "unexpected", help: "unexpectedHelp" },
+  saving: { term: "savings", help: "savingHelp" },
+  unclassified: { term: "noPillarYet", help: "unclassifiedHelp" },
+} as const satisfies Record<KakeiboBucket, { term: string; help: string }>;

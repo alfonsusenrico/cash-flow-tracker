@@ -74,7 +74,7 @@ def test_role_contradicting_the_type_is_refused_and_nothing_changes(owner):
     for account, role in ((credit, "harian"), (fund, "tabungan"), (credit, "dana_investasi"), (fund, "harian")):
         response = owner.session.patch(f"/api/accounts/{account['id']}", json={"role": role, "name": "Nama Baru"})
         assert response.status_code == 422, response.text
-        assert response.json()["detail"] == {"code": "account_role_type_mismatch"}
+        assert response.json()["detail"]["code"] == "account_role_type_mismatch"
     assert (_select_role(credit["id"]), _select_role(fund["id"])) == ("utang", "investasi")
     listed = rows(owner)
     assert (listed[credit["id"]]["name"], listed[fund["id"]]["name"]) == ("PayLater Contoh", "Reksa Dana Contoh")
@@ -83,7 +83,7 @@ def test_role_contradicting_the_type_is_refused_and_nothing_changes(owner):
         {"type": "credit", "role": "harian"}, {"type": "investment", "instrument_type": "gold", "role": "tabungan"},
     ):
         response = owner.session.post("/api/accounts", json={"name": f"Ditolak {uuid4().hex[:6]}", **payload})
-        assert response.status_code == 422 and response.json()["detail"] == {"code": "account_role_type_mismatch"}
+        assert response.status_code == 422 and response.json()["detail"]["code"] == "account_role_type_mismatch"
     unknown = owner.session.post("/api/accounts", json={"name": "Tidak Dikenal", "type": "bank", "role": "rahasia"})
     assert unknown.status_code == 422
 
@@ -99,7 +99,7 @@ def test_a_type_change_never_keeps_a_stale_role(owner):
     back = owner.session.patch(f"/api/accounts/{saving['id']}", json={"type": "bank", "instrument_type": None})
     assert back.status_code == 200 and back.json()["account"]["role"] == "harian"
     refused = owner.session.patch(f"/api/accounts/{saving['id']}", json={"type": "investment", "role": "tabungan"})
-    assert refused.status_code == 422 and refused.json()["detail"] == {"code": "account_role_type_mismatch"}
+    assert refused.status_code == 422 and refused.json()["detail"]["code"] == "account_role_type_mismatch"
     assert _select_role(saving["id"]) == "harian"
     both = owner.session.patch(f"/api/accounts/{saving['id']}", json={"type": "wallet", "role": "dana_investasi"})
     assert both.status_code == 200 and both.json()["account"]["role"] == "dana_investasi"
@@ -149,7 +149,7 @@ def test_v51_backfill_keeps_todays_figures_and_a_rerun_keeps_owner_roles():
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO users (id, username, password_hash, invite_code) VALUES (%s, %s, 'synthetic-hash', 'TEST')",
+                "INSERT INTO users (id, username, password_hash, invite_code, language) VALUES (%s, %s, 'synthetic-hash', 'TEST', 'id')",
                 (user_id, f"roles_{uuid4().hex[:10]}"),
             )
             for key, name, kind, parent, instrument in (
@@ -170,8 +170,8 @@ def test_v51_backfill_keeps_todays_figures_and_a_rerun_keeps_owner_roles():
             categories = {}
             for kind in ("expense", "income"):
                 cur.execute(
-                    """INSERT INTO categories (user_id, name, kind, is_excluded_from_budget)
-                       VALUES (%s, 'Internal Movement', %s, TRUE) RETURNING id""",
+                    """INSERT INTO categories (user_id, name, kind, is_excluded_from_budget, system_key)
+                       VALUES (%s, 'Internal Movement', %s, TRUE, 'internal_movement') RETURNING id""",
                     (user_id, kind),
                 )
                 categories[kind] = cur.fetchone()["id"]
@@ -225,7 +225,9 @@ def test_rdn_as_dana_investasi(owner):
     rdn_owner(owner)
     net = owner.summary()["net_worth"]
     assert (net["liquid"], net["dana_investasi"]) == (18_450_000, 1_200_000)
-    assert {"key": "dana_investasi", "label": "Dana investasi", "amount": 1_200_000} in net["lines"]
+    assert {
+        "key": "dana_investasi", "label": "Dana investasi", "label_source": "system", "amount": 1_200_000,
+    } in net["lines"]
     rekening = owner.session.get(NET_WORTH).json()
     assert (rekening["liquid"], rekening["dana_investasi"]) == (18_450_000, 1_200_000)
     assert rekening["runway"]["balance_basis"] == "all_liquid"

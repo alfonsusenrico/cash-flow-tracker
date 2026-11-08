@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from app.i18n import t
+
 # Approved thresholds (owner 2026-10-31): record automatically from 3 labelled payments when at least
 # 90% of their weight agrees on one category and pillar.
 MIN_SUPPORT = 3
@@ -162,7 +164,7 @@ def load_labels(cur, user_id: str, *, institution: str, signature: str, account_
     owner label (an accepted history suggestion, an unclassified answer) leaves the transaction out.
     """
     from app.services.merchant_memory import live_feedback_sql
-    from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES
+    from app.services.system_categories import reportable_key_sql
 
     cur.execute(
         f"""
@@ -182,7 +184,7 @@ def load_labels(cur, user_id: str, *, institution: str, signature: str, account_
                f.after_merchant, f.amount, f.local_weekday, f.local_hour, f.created_at
         FROM latest f
         JOIN categories c ON c.id = f.after_category_id AND c.user_id = f.user_id
-             AND c.kind = 'expense' AND c.is_archived = FALSE AND c.name <> ALL(%(excluded)s)
+             AND c.kind = 'expense' AND c.is_archived = FALSE AND {reportable_key_sql("c")}
         LEFT JOIN notification_events answered
              ON f.kind = 'purpose_answer' AND answered.user_id = f.user_id AND answered.id = f.event_id
         WHERE f.kind = ANY(%(kinds)s) AND f.after_type = 'expense' AND f.account_id = %(account_id)s
@@ -194,7 +196,7 @@ def load_labels(cur, user_id: str, *, institution: str, signature: str, account_
         LIMIT %(window)s
         """,
         {"user_id": user_id, "account_id": account_id, "signature": signature, "institution": institution,
-         "excluded": list(NON_REPORTABLE_CATEGORY_NAMES), "kinds": list(EVIDENCE_KINDS), "amount": amount,
+         "kinds": list(EVIDENCE_KINDS), "amount": amount,
          "numerator": AMOUNT_RATIO_NUMERATOR, "denominator": AMOUNT_RATIO_DENOMINATOR, "window": EVIDENCE_WINDOW},
     )
     return [Label(
@@ -254,13 +256,17 @@ def habit_applies(context: dict) -> bool:
     return bool(habit and habit["decision"].auto)
 
 
-def basis_text(agreeing: int, support: int) -> str:
-    return f"{agreeing} dari {support} jawaban sebelumnya"
+def basis_text(language: str, agreeing: int, support: int) -> str:
+    return t(language, "reasons.habit.basis", agreeing=agreeing, support=support)
 
 
-def habit_label(category_name: str | None) -> str:
-    return f"Dicatat dari kebiasaan: {category_name}" if category_name else "Dicatat dari kebiasaan"
+def habit_label(language: str, category_name: str | None) -> str:
+    if category_name:
+        return t(language, "labels.habit.recorded", category=category_name)
+    return t(language, "labels.habit.recorded_bare")
 
 
-def guess_label(category_name: str) -> str:
-    return f"Sepertinya {category_name}?"
+def guess_label(language: str, category_name: str) -> dict:
+    """ "Sepertinya <kategori>?" with its code and parameters (D5)."""
+    params = {"category": category_name}
+    return {"text": t(language, "questions.habit.guess", **params), "code": "questions.habit.guess", "params": params}

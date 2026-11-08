@@ -19,10 +19,14 @@ FIX_ROW_LIMIT = 200
 
 
 class ClassificationError(Exception):
-    def __init__(self, status: int, code: str, message: str, **extra: Any):
-        super().__init__(message)
+    """A refused classification change; the router renders it with the error contract (localize-server-text D4)."""
+
+    def __init__(self, status: int, code: str, *, message_key: str | None = None, **extra: Any):
+        super().__init__(code)
         self.status = status
-        self.detail = {"code": code, "message": message, **extra}
+        self.code = code
+        self.message_key = message_key
+        self.extra = extra
 
 
 def lock_owner(cur, user_id: str) -> None:
@@ -120,11 +124,11 @@ def set_category_pillar(cur, user_id: str, category_id: str, pillar: str) -> dic
     )
     category = cur.fetchone()
     if not category:
-        raise ClassificationError(404, "category_not_found", "Kategori tidak ditemukan.")
+        raise ClassificationError(404, "category_not_found")
     if category["kind"] != "expense":
-        raise ClassificationError(422, "pillar_not_allowed", "Pilar Kakeibo hanya untuk kategori pengeluaran.")
+        raise ClassificationError(422, "pillar_not_allowed", message_key="pillar_spending_category_only")
     if not category["reportable"]:
-        raise ClassificationError(422, "category_not_reportable", "Kategori ini tidak dihitung sebagai pengeluaran.")
+        raise ClassificationError(422, "category_not_reportable")
     following = category_followers(cur, user_id, category_id)
     before = snapshot_rows(cur, user_id, following) if category["kakeibo_type"] != pillar else {}
     cur.execute(
@@ -148,13 +152,13 @@ def set_transaction_pillars(cur, user_id: str, transaction_ids: list[str], pilla
     rows = {str(row["id"]): row for row in cur.fetchall()}
     missing = [value for value in transaction_ids if value not in rows]
     if missing:
-        raise ClassificationError(404, "transactions_not_found", "Sebagian transaksi tidak ditemukan.", transaction_ids=missing)
+        raise ClassificationError(404, "transactions_not_found", transaction_ids=missing)
     legs = sorted(row_id for row_id, row in rows.items() if row["movement_id"])
     if legs:
-        raise ClassificationError(409, "movement_leg_not_editable", "Pindah saldo tidak memakai pilar Kakeibo.", transaction_ids=legs)
+        raise ClassificationError(409, "movement_leg_not_editable", message_key="movement_leg_no_pillar", transaction_ids=legs)
     income = sorted(row_id for row_id, row in rows.items() if row["type"] != "expense")
     if income:
-        raise ClassificationError(422, "pillar_not_allowed", "Pilar Kakeibo hanya untuk pengeluaran.", transaction_ids=income)
+        raise ClassificationError(422, "pillar_not_allowed", transaction_ids=income)
     changed = [
         row_id for row_id, row in rows.items()
         if effective_pillar(row["type"], row["kakeibo_type"], row["category_kakeibo_type"]) != pillar

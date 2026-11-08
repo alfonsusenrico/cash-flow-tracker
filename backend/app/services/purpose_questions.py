@@ -8,11 +8,12 @@ import unicodedata
 from datetime import datetime
 from uuid import uuid4
 
-from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
+from app.i18n import account_language, format_money, t
 from app.services.habits import HabitDecision, guess_label
 from app.services.merchant_memory import (
     insert_feedback, live_feedback_sql, is_masked, is_movement_category, learn_from_owner, local_time_features,
@@ -20,10 +21,10 @@ from app.services.merchant_memory import (
 )
 from app.services.movement_pairing import await_counterpart, pair_answered_transfer
 from app.services.notification_mapping import version_tuple
-from app.services.purpose_normalization import (
-    PURPOSE_PROMPT_VERSION, InvalidNormalization, validate_normalization,
-)
-from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES, validate_offset_category
+from app.services.prompt_language import PURPOSE_NORMALIZATION, select_prompt
+from app.services.purpose_normalization import InvalidNormalization, validate_normalization
+from app.services.reimbursements import validate_offset_category
+from app.services.system_categories import is_non_reportable
 from app.services.review_undo import ActionRecorder, null_token
 
 
@@ -39,10 +40,6 @@ TRANSFER_HINTS = frozenset({"transfer masuk", "transfer rekening", "account tran
 def supports_purpose_question(event: dict) -> bool:
     version = version_tuple(event.get("source_version"))
     return version is not None and version >= PURPOSE_MIN_VERSION
-
-
-def rupiah(amount: int) -> str:
-    return "Rp" + f"{amount:,}".replace(",", ".")
 
 
 def amount_band(amount: int | None) -> int | None:
@@ -90,7 +87,7 @@ def classification_group(values: dict) -> tuple:
 
 def owner_categories(cur, user_id: str) -> dict[str, dict]:
     cur.execute(
-        """SELECT id, name, kind, kakeibo_type, offsets_spending, is_archived,
+        """SELECT id, name, kind, kakeibo_type, offsets_spending, is_archived, system_key,
                   COALESCE(is_excluded_from_budget, FALSE) AS is_excluded_from_budget
            FROM categories WHERE user_id = %s""",
         (user_id,),
@@ -98,13 +95,14 @@ def owner_categories(cur, user_id: str) -> dict[str, dict]:
     return {str(row["id"]): row for row in cur.fetchall()}
 
 
-def suggestion(kind: str, values: dict, categories: dict[str, dict]) -> dict:
+def suggestion(kind: str, values: dict, categories: dict[str, dict], language: str) -> dict:
     category = categories.get(str(values.get("category_id"))) if values.get("category_id") else None
     offset = categories.get(str(values.get("offset_category_id"))) if values.get("offset_category_id") else None
     notes = values.get("notes") or None
     merchant = values.get("merchant") or None
+    label = notes or merchant or (category["name"] if category else t(language, "labels.fallback.other"))
     return {
-        "kind": kind, "label": (notes or merchant or (category["name"] if category else "Lainnya"))[:160],
+        "kind": kind, "label": label[:160],
         "merchant": merchant, "notes": notes,
         "category_id": str(category["id"]) if category else None,
         "category_name": category["name"] if category else None,
@@ -114,20 +112,23 @@ def suggestion(kind: str, values: dict, categories: dict[str, dict]) -> dict:
     }
 
 
-def habit_suggestion(habit: HabitDecision, categories: dict[str, dict]) -> dict | None:
+def habit_suggestion(habit: HabitDecision, categories: dict[str, dict], language: str) -> dict | None:
     """The habit's best guess, offered first as "Sepertinya <kategori>?" (learn-habits-to-ask-less D8)."""
     category = categories.get(habit.category_id)
     if not category or category["is_archived"] or category["kind"] != "expense":
         return None
     values = {"merchant": habit.merchant, "notes": habit.notes or category["name"],
               "category_id": habit.category_id, "kakeibo": habit.kakeibo, "offset_category_id": None}
-    return {**suggestion("habit", values, categories), "label": guess_label(category["name"])[:160],
+    guess = guess_label(language, category["name"])
+    return {**suggestion("habit", values, categories, language), "label": guess["text"][:160],
+            "label_code": guess["code"], "label_params": guess["params"],
             "basis": {"agreeing": habit.agreeing, "support": habit.support}}
 
 
 def rank_suggestions(
     cur, user_id: str, *, direction: str, signature: str | None, account_id: str, amount: int,
-    moment: datetime, current: dict | None, repayment_note: str | None, habit: HabitDecision | None = None,
+    moment: datetime, current: dict | None, repayment_note: str | None, language: str,
+    habit: HabitDecision | None = None,
 ) -> list[dict]:
     """The habit's guess, then owner history, the current classification and a repayment option (design D10)."""
     categories = owner_categories(cur, user_id)
@@ -161,23 +162,23 @@ def rank_suggestions(
                                                                  "latest": example["created_at"]})
         group["score"] += score
     ranked = sorted(groups.values(), key=lambda item: (item["score"], item["latest"]), reverse=True)
-    guess = habit_suggestion(habit, categories) if habit is not None and direction == "expense" else None
+    guess = habit_suggestion(habit, categories, language) if habit is not None and direction == "expense" else None
     if guess is not None:
         guessed = classification_group(guess)
         ranked = [item for item in ranked if classification_group(item["values"]) != guessed]
     history_slots = SUGGESTION_LIMIT - (1 if guess is not None else 0)
     suggestions = ([guess] if guess is not None else []) + [
-        suggestion("history", item["values"], categories) for item in ranked[:history_slots]
+        suggestion("history", item["values"], categories, language) for item in ranked[:history_slots]
     ]
     seen = {classification_group(item) for item in suggestions}
     if current and current.get("category_id") and classification_group(current) not in seen:
         if len(suggestions) < SUGGESTION_LIMIT:
-            suggestions.append(suggestion("current", current, categories))
+            suggestions.append(suggestion("current", current, categories, language))
     if repayment_note is not None:
         repayment = next((row for row in sorted(categories.values(), key=lambda row: row["name"])
                           if row["kind"] == "income" and row["offsets_spending"] and not row["is_archived"]), None)
         if repayment and not any(item["category_id"] == str(repayment["id"]) for item in suggestions):
-            entry = suggestion("repayment", {"notes": repayment_note, "category_id": repayment["id"]}, categories)
+            entry = suggestion("repayment", {"notes": repayment_note, "category_id": repayment["id"]}, categories, language)
             if len(suggestions) >= SUGGESTION_LIMIT:
                 suggestions[SUGGESTION_LIMIT - 1] = entry
             else:
@@ -193,12 +194,17 @@ def sender_display(event: dict, facts) -> str | None:
     return counterparty if counterparty and is_masked(counterparty) else None
 
 
-def purpose_prompt_text(*, direction: str, amount: int, account: str, hint: str | None, sender: str | None) -> str:
+def purpose_prompt(
+    language: str, region: str, *, direction: str, amount: int, account: str, hint: str | None, sender: str | None,
+) -> dict:
+    """The question's text in the account's language, with the code and parameters it was rendered from (D5)."""
     if direction == "expense":
-        text = f"Apa ini? {rupiah(amount)} dari {account}"
-        return f"{text} · kategori bank: {hint}" if hint else text
-    text = f"Apa ini? {rupiah(amount)} masuk ke {account}"
-    return f"{text} dari {sender}" if sender else text
+        code, params = ("questions.purpose.expense_hint", {"hint": hint}) if hint else ("questions.purpose.expense", {})
+    else:
+        code, params = ("questions.purpose.income_sender", {"sender": sender}) if sender else ("questions.purpose.income", {})
+    params = {"amount": amount, "account": account, **params}
+    text = t(language, code, **{**params, "amount": format_money(amount, region, "inline")})
+    return {"text": text, "code": code, "params": params}
 
 
 def is_transfer_income(facts) -> bool:
@@ -213,25 +219,29 @@ def attach_purpose_question(
     from app.services.notification_application import account_label
 
     user_id = str(event["user_id"])
+    # Stored with the event in the account's language at creation, and never rewritten (D5, D6).
+    language, region = account_language(cur, user_id)
     sender = sender_display(event, facts) if facts.direction == "income" else None
     repayment_note = None
     if is_transfer_income(facts):
         name = (event.get("sender_resolution") or {}).get("name")
-        repayment_note = f"Ganti uang dari {name}" if name else "Ganti uang patungan"
+        repayment_note = t(language, "notes.repayment_named", name=name) if name else t(language, "notes.repayment_shared")
     hint = (facts.parsed.category_hint or "").strip() or None
     learned = context.get("_habit")
     habit = learned["decision"] if learned and learned["account_id"] == str(observed["id"]) else None
+    prompt = purpose_prompt(language, region, direction=facts.direction, amount=facts.amount,
+                            account=account_label(observed, context["accounts"]),
+                            hint=hint if facts.direction == "expense" else None, sender=sender)
     question = {
         "type": "purpose", "question_id": str(uuid4()), "transaction_id": transaction_id,
         "direction": facts.direction, "amount": facts.amount, "currency": facts.currency,
-        "prompt": purpose_prompt_text(direction=facts.direction, amount=facts.amount,
-                                      account=account_label(observed, context["accounts"]),
-                                      hint=hint if facts.direction == "expense" else None, sender=sender),
+        "language": language,
+        "prompt": prompt["text"], "prompt_code": prompt["code"], "prompt_params": prompt["params"],
         "allows_text": True, "text_max_length": TEXT_MAX_LENGTH,
         "suggestions": rank_suggestions(
             cur, user_id, direction=facts.direction, signature=key.get("text_signature"),
             account_id=str(observed["id"]), amount=facts.amount, moment=facts.timestamp,
-            current=current, repayment_note=repayment_note, habit=habit,
+            current=current, repayment_note=repayment_note, language=language, habit=habit,
         ),
     }
     cur.execute(
@@ -239,6 +249,9 @@ def attach_purpose_question(
         (Jsonb(question), user_id, str(event["id"])),
     )
     event["active_question"] = question
+    # The message key, language and count only: the rendered prompt holds an amount and account names (D8).
+    logger.info("Purpose question asked code=%s language=%s suggestions=%d",
+                prompt["code"], language, len(question["suggestions"]))
     return question
 
 
@@ -250,14 +263,14 @@ def open_purpose_question(event: dict) -> dict | None:
 def validate_answer_body(answer: dict) -> dict:
     suggestion_id, text = answer.get("suggestion_id"), answer.get("text")
     if (suggestion_id is None) == (text is None):
-        raise HTTPException(status_code=422, detail={"code": "invalid_purpose_answer"})
+        raise api_error(422, ErrorCode.INVALID_PURPOSE_ANSWER)
     if text is not None:
         text = unicodedata.normalize("NFKC", text).strip()
         if (not 1 <= len(text) <= TEXT_MAX_LENGTH
                 or any(unicodedata.category(char).startswith("C") for char in text)):
-            raise HTTPException(status_code=422, detail={"code": "invalid_purpose_answer"})
+            raise api_error(422, ErrorCode.INVALID_PURPOSE_ANSWER)
     elif not 1 <= len(suggestion_id) <= 16:
-        raise HTTPException(status_code=422, detail={"code": "invalid_purpose_answer"})
+        raise api_error(422, ErrorCode.INVALID_PURPOSE_ANSWER)
     return {"question_id": str(answer["question_id"]), "reply_id": str(answer["reply_id"]),
             "suggestion_id": suggestion_id, "text": text}
 
@@ -267,7 +280,7 @@ def locked_event(cur, user_id: str, event_id: str) -> dict:
     cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (user_id, event_id))
     event = cur.fetchone()
     if not event:
-        raise HTTPException(status_code=404, detail="Notification event not found")
+        raise api_error(404, ErrorCode.EVENT_NOT_FOUND)
     return event
 
 
@@ -286,10 +299,10 @@ def receipt(cur, user_id: str, reply_id: str) -> dict | None:
 def replay_matches(row: dict, event_id: str, answer: dict) -> bool:
     if (str(row["event_id"]) != event_id or str(row["question_id"]) != answer["question_id"]
             or row["suggestion_id"] != answer["suggestion_id"] or row["answer_text"] != answer["text"]):
-        raise HTTPException(status_code=409, detail={"code": "purpose_answer_conflict"})
+        raise api_error(409, ErrorCode.PURPOSE_ANSWER_CONFLICT)
     if row["undone"]:
         # The owner took this answer back in Tinjau; a late retry must not apply it again (D13).
-        raise HTTPException(status_code=409, detail={"code": "purpose_answer_undone"})
+        raise api_error(409, ErrorCode.PURPOSE_ANSWER_UNDONE)
     return True
 
 
@@ -300,20 +313,20 @@ def answerable_transaction(cur, user_id: str, question: dict) -> dict:
     )
     row = cur.fetchone()
     if not row or row["movement_id"] or row["type"] not in {"expense", "income"}:
-        raise HTTPException(status_code=409, detail={"code": "purpose_not_applicable"})
+        raise api_error(409, ErrorCode.PURPOSE_NOT_APPLICABLE)
     return row
 
 
 def checked_question(cur, event: dict, answer: dict) -> tuple[dict, dict, dict | None]:
     question = open_purpose_question(event)
     if not question or question["question_id"] != answer["question_id"]:
-        raise HTTPException(status_code=409, detail={"code": "stale_question"})
+        raise api_error(409, ErrorCode.STALE_QUESTION)
     transaction = answerable_transaction(cur, str(event["user_id"]), question)
     chosen = None
     if answer["suggestion_id"] is not None:
         chosen = next((item for item in question.get("suggestions", []) if item["id"] == answer["suggestion_id"]), None)
         if chosen is None:
-            raise HTTPException(status_code=422, detail={"code": "unknown_suggestion"})
+            raise api_error(422, ErrorCode.UNKNOWN_SUGGESTION)
     return question, transaction, chosen
 
 
@@ -328,7 +341,7 @@ def normalizer_context(cur, user_id: str, event: dict, question: dict, text: str
     if direction == "income":
         offsets = [row for row in owned
                    if row["kind"] == "expense" and not row["is_archived"] and not row["is_excluded_from_budget"]
-                   and row["name"] not in NON_REPORTABLE_CATEGORY_NAMES]
+                   and not is_non_reportable(row["system_key"])]
     signature_parts = ((event.get("interpretation") or {}).get("text_signature") or "").split("|")
     hint = signature_parts[2] if len(signature_parts) > 2 else None
     return {
@@ -358,8 +371,9 @@ def prepare_answer(event_id: str, user_id: str, answer: dict) -> dict:
                 return result
             question, _, _ = checked_question(cur, event, answer)
             context = normalizer_context(cur, user_id, event, question, answer["text"]) if answer["text"] else None
+            prompt = select_prompt(PURPOSE_NORMALIZATION, account_language(cur, user_id)[0]) if answer["text"] else None
         conn.commit()
-    return {"normalizer_context": context}
+    return {"normalizer_context": context, "prompt": prompt}
 
 
 def answer_values(cur, user_id: str, transaction: dict, chosen: dict | None, normalized: dict | None,
@@ -372,7 +386,7 @@ def answer_values(cur, user_id: str, transaction: dict, chosen: dict | None, nor
                   "kakeibo_type": chosen["kakeibo"] if direction == "expense" else None,
                   "offset_category_id": chosen["offset_category_id"]}
         if values["category_id"] is None:
-            raise HTTPException(status_code=422, detail={"code": "invalid_suggestion"})
+            raise api_error(422, ErrorCode.INVALID_SUGGESTION)
     elif normalized is not None and normalized["category_id"]:
         values = normalized
     elif normalized is not None:
@@ -389,7 +403,7 @@ def answer_values(cur, user_id: str, transaction: dict, chosen: dict | None, nor
     )
     category = cur.fetchone()
     if not category or category["kind"] != direction:
-        raise HTTPException(status_code=422, detail={"code": "invalid_suggestion"})
+        raise api_error(422, ErrorCode.INVALID_SUGGESTION)
     if values.get("offset_category_id"):
         if direction != "income" or not category["offsets_spending"]:
             values["offset_category_id"] = None
@@ -398,7 +412,8 @@ def answer_values(cur, user_id: str, transaction: dict, chosen: dict | None, nor
     return values, "reviewed"
 
 
-def apply_answer(event_id: str, user_id: str, answer: dict, normalized: dict | None, normalizer: str | None) -> dict:
+def apply_answer(event_id: str, user_id: str, answer: dict, normalized: dict | None, normalizer: str | None,
+                 prompt_version: str | None) -> dict:
     from app.services.notification_processing import compact_result
 
     with db_conn() as conn:
@@ -426,7 +441,7 @@ def apply_answer(event_id: str, user_id: str, answer: dict, normalized: dict | N
             key = transaction_event_key(cur, user_id, transaction_id)
             insert_feedback(cur, user_id, kind="purpose_answer", before=before, after=after,
                             key={**key, "event_id": event_id}, answer=answer)
-            if review_status == "reviewed" and is_movement_category(after.get("category_name")):
+            if review_status == "reviewed" and is_movement_category(after["category_system_key"]):
                 # A transfer answer names one side of a movement: link the other now, or keep asking (D4).
                 if not pair_answered_transfer(cur, user_id, transaction_id, recorder):
                     await_counterpart(cur, user_id, transaction_id)
@@ -436,7 +451,7 @@ def apply_answer(event_id: str, user_id: str, answer: dict, normalized: dict | N
             outcome = {
                 "question_id": question["question_id"], "reply_id": answer["reply_id"],
                 "suggestion_id": answer["suggestion_id"], "review_status": review_status,
-                "normalizer": normalizer, "normalizer_prompt_version": PURPOSE_PROMPT_VERSION if answer["text"] else None,
+                "normalizer": normalizer, "normalizer_prompt_version": prompt_version if answer["text"] else None,
             }
             cur.execute(
                 """UPDATE notification_events SET active_question = NULL,
@@ -488,14 +503,17 @@ async def answer_purpose(event_id: str, user_id: str, raw_answer: dict, provider
             normalizer = "ai_disabled"
         else:
             try:
-                result = await provider.normalize_purpose(context)
-                normalized = validate_normalization(result, context, context["direction"])
+                result = await provider.normalize_purpose(context, prompt=prepared["prompt"])
+                normalized = validate_normalization(
+                    result, context, context["direction"], output_language=prepared["prompt"].language,
+                )
                 normalizer = "ok" if normalized["category_id"] else "no_category"
             except ProviderError as exc:
                 normalizer = exc.code
             except InvalidNormalization:
                 normalizer = "invalid_normalization"
-    return await database_operation(apply_answer, event_id, user_id, answer, normalized, normalizer)
+    prompt_version = prepared["prompt"].version if prepared["prompt"] else None
+    return await database_operation(apply_answer, event_id, user_id, answer, normalized, normalizer, prompt_version)
 
 
 def list_open_questions(user_id: str, limit: int) -> list[dict]:

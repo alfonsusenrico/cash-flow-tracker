@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { closeTopLayer } from "./layers";
 import { ShellDialog } from "./ShellDialog";
 
@@ -187,24 +188,17 @@ function ShortcutHelpRegistration({ onOpen }: { onOpen: () => void }) {
   return null;
 }
 
-const GLOBAL_KEYS: ShortcutHelpEntry[] = [
-  { keys: ["⌘K", "Ctrl K"], text: "Cari transaksi" },
-  { keys: ["N"], text: "Catat transaksi" },
-  { keys: ["?"], text: "Bantuan ini" },
-  { keys: ["Esc"], text: "Tutup lapisan teratas" },
-];
-
-/** Three facts about how the app works, in the prototype's wording (D8). */
-const HELP_FACTS = [
-  "HP mengirim notifikasi bank; transaksi tercatat sendiri.",
-  "Yang belum pasti masuk ke Tinjau. Jawab sekali, kebiasaan diingat.",
-  "Beranda menunjukkan berapa yang aman dipakai sampai gajian.",
-];
+/** The global keys and their help keys in `shell.help`. */
+const GLOBAL_KEYS = [
+  { keys: ["⌘K", "Ctrl K"], message: "searchTransactions" },
+  { keys: ["N"], message: "addTransaction" },
+  { keys: ["?"], message: "thisHelp" },
+  { keys: ["Esc"], message: "closeTopLayer" },
+] as const;
 
 /** A page key reads "… di Tinjau": the group's name ("Di Tinjau") closes the sentence. */
-function pageKeyText(group: PageShortcutGroup, entry: ShortcutHelpEntry): string {
-  const where = group.name.charAt(0).toLowerCase() + group.name.slice(1);
-  return `${entry.text} ${where}`;
+function groupWhere(group: PageShortcutGroup): string {
+  return group.name.charAt(0).toLowerCase() + group.name.slice(1);
 }
 
 /**
@@ -213,27 +207,35 @@ function pageKeyText(group: PageShortcutGroup, entry: ShortcutHelpEntry): string
  */
 export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const context = useContext(ShortcutContext);
+  const t = useTranslations("shell.help");
+  const conversation = useTranslations("conversation");
+  const locale = useLocale();
+  // Page keys come from pages not translated yet; they keep their Indonesian words with their own `lang` (D10).
+  const pageLang = locale === "id" ? undefined : "id";
 
   const rows = [
-    ...GLOBAL_KEYS,
-    ...(context?.pageGroups ?? []).flatMap((group) => group.entries.map((entry) => ({ keys: entry.keys, text: pageKeyText(group, entry) }))),
+    ...GLOBAL_KEYS.map((entry) => ({ keys: entry.keys, text: t(entry.message), lang: undefined })),
+    ...(context?.pageGroups ?? []).flatMap((group) =>
+      group.entries.map((entry) => ({ keys: entry.keys, text: t("pageKey", { action: entry.text, where: groupWhere(group) }), lang: pageLang })),
+    ),
   ];
+  const facts = [t("factCapture"), t("factReview"), conversation("helpFactHome")];
 
   return (
-    <ShellDialog open={open} onClose={onClose} title="Bantuan & pintasan" width={560} closeLabel="Tutup bantuan">
+    <ShellDialog open={open} onClose={onClose} title={t("title")} width={560} closeLabel={t("close")}>
       <ol className="help-facts">
-        {HELP_FACTS.map((fact) => (
+        {facts.map((fact) => (
           <li key={fact} className="t-body">
             {fact}
           </li>
         ))}
       </ol>
       <table className="help-keys">
-        <caption className="sr-only">Pintasan keyboard</caption>
+        <caption className="sr-only">{t("keyboardShortcuts")}</caption>
         <thead>
           <tr>
-            <th scope="col">Tombol</th>
-            <th scope="col">Fungsi</th>
+            <th scope="col">{t("key")}</th>
+            <th scope="col">{t("action")}</th>
           </tr>
         </thead>
         <tbody>
@@ -242,12 +244,14 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
               <td>
                 <kbd className="ws-kbd">{row.keys.join(" / ")}</kbd>
               </td>
-              <td className="t-body">{row.text}</td>
+              <td className="t-body" lang={row.lang}>
+                {row.text}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <p className="t-meta">Pintasan satu tombol bisa dimatikan di Pengaturan › Tampilan.</p>
+      <p className="t-meta">{t("singleKeysNote")}</p>
     </ShellDialog>
   );
 }

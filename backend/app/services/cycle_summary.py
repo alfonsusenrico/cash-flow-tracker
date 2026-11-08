@@ -15,6 +15,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
+from app.i18n import format_money, language_for_user, region_for_user, t
 from app.routers.accounts import summarize_account_balances
 from app.services.credit_accounts import credit_owed, is_credit
 from app.services.kakeibo import UNCLASSIFIED
@@ -23,9 +24,9 @@ from app.services.plan_occurrences import unpaid_plan_lines
 from app.services.reimbursements import load_spending_offsets
 from app.services.report_figures import reportable_income_sql
 from app.services.report_windows import (
-    MONTH_NAMES_ID,
     get_previous_timeframe_window,
     get_timeframe_window,
+    month_label,
     short_local_date,
 )
 from app.services.salary_cycles import ExpectedSalary, expected_next_salary, resolve_cycle
@@ -38,20 +39,31 @@ SCHEDULE_FALLBACK_DAYS = 30
 # Fewer compared days than this make a comparison chip misleading (finance-dashboard-cockpit).
 MIN_COMPARED_DAYS = 3
 
-KELUAR_BUCKETS: tuple[tuple[str, str, str], ...] = (
-    ("need", "Kebutuhan", "need_spent"),
-    ("want", "Keinginan", "want_spent"),
-    ("culture", "Budaya", "culture_spent"),
-    ("unexpected", "Tak Terduga", "unexpected_spent"),
-    ("saving", "Tabungan", "saving_spent"),
-    (UNCLASSIFIED, "Belum diklasifikasi", "unclassified_spent"),
+# (bucket key, breakdown field). A bucket's label is `labels.pillar.<key>` in the account's language.
+KELUAR_BUCKETS: tuple[tuple[str, str], ...] = (
+    ("need", "need_spent"),
+    ("want", "want_spent"),
+    ("culture", "culture_spent"),
+    ("unexpected", "unexpected_spent"),
+    ("saving", "saving_spent"),
+    (UNCLASSIFIED, "unclassified_spent"),
 )
 
 KakeiboBreakdown = Callable[..., dict[str, Any]]
 
+# Where a line's label comes from (add-language-system D7): a name the owner gave, shown as stored, or fixed
+# wording the web renders from the line's key in the interface language. `label` is in the account's language
+# (localize-server-text D5), for the companion and older clients.
+USER_LABEL = "user"
+SYSTEM_LABEL = "system"
 
-def rupiah(amount: int) -> str:
-    return "Rp " + f"{amount:,}".replace(",", ".")
+
+def bucket_label(language: str, key: str) -> str:
+    return t(language, f"labels.pillar.{key}")
+
+
+def reimbursed_note(language: str, region: str, offset: int) -> str:
+    return t(language, "notes.summary.reduced_by_reimbursements", amount=format_money(int(offset), region, "figure"))
 
 
 def ledger_href(period: str, **filters: str) -> str:
@@ -74,7 +86,7 @@ def expected_salary_for_cycle(conn, user_id: str, cycle_open: bool, receipt_rows
     return expected_next_salary(from_source, tz_name=settings.tz, as_of=now)
 
 
-def _masuk(cur, user_id: str, start: datetime, end: datetime, period: str) -> dict[str, Any]:
+def _masuk(cur, user_id: str, start: datetime, end: datetime, period: str, language: str) -> dict[str, Any]:
     """Reportable income by category: the overview's `total_inflow`, reimbursements excluded."""
     cur.execute(
         f"""
@@ -92,27 +104,34 @@ def _masuk(cur, user_id: str, start: datetime, end: datetime, period: str) -> di
         key = str(row["id"]) if row["id"] else "uncategorized"
         lines.append({
             "key": key,
-            "label": row["name"] or "Tanpa kategori",
+            "label": row["name"] or t(language, "labels.fallback.uncategorized"),
+            "label_source": USER_LABEL if row["id"] else SYSTEM_LABEL,
             "amount": int(row["amount"]),
             "href": ledger_href(period, type="income", category=key),
         })
     return {"total": sum(line["amount"] for line in lines), "lines": lines}
 
 
-def _keluar(kakeibo: dict[str, Any], offsets, period: str) -> dict[str, Any]:
+def _keluar(kakeibo: dict[str, Any], offsets, period: str, language: str, region: str) -> dict[str, Any]:
     lines = []
-    for key, label, field in KELUAR_BUCKETS:
+    for key, field in KELUAR_BUCKETS:
+        # `note_codes` carries the same facts as `note`, in the same order, for the web to render (D7).
         notes = []
+        note_codes = []
         if key == "saving":
-            notes.append("Termasuk uang yang dipindah ke kantong tabungan atau diinvestasikan")
+            notes.append(t(language, "notes.summary.includes_savings_moves"))
+            note_codes.append({"code": "includes_savings_moves", "params": {}})
         offset = offsets.for_pillar(key)
         if offset > 0:
-            notes.append(f"Sudah dikurangi ganti uang {rupiah(offset)}")
+            notes.append(reimbursed_note(language, region, offset))
+            note_codes.append({"code": "reduced_by_reimbursements", "params": {"amount": int(offset)}})
         lines.append({
             "key": key,
-            "label": label,
+            "label": bucket_label(language, key),
+            "label_source": SYSTEM_LABEL,
             "amount": int(kakeibo[field]),
             "note": ". ".join(notes) if notes else None,
+            "note_codes": note_codes,
             "href": ledger_href(period, kakeibo=key),
         })
     total = int(kakeibo["total_allocated"])
@@ -240,6 +259,7 @@ def _goal_lines(
             "kind": "goal",
             "goal_id": goal_id,
             "label": goal["name"],
+            "label_source": USER_LABEL,
             "target_date": goal["target_date"].isoformat(),
             "months_left": months_left,
             "set_aside": set_aside,
@@ -249,7 +269,7 @@ def _goal_lines(
     return lines
 
 
-def net_worth_breakdown(cur, user_id: str, accounts: list[dict[str, Any]]) -> dict[str, Any]:
+def net_worth_breakdown(cur, user_id: str, accounts: list[dict[str, Any]], language: str) -> dict[str, Any]:
     """Assets less active debts, each account counted once (a parent's balance already holds its pockets).
 
     Assets are Dana likuid, Dana investasi and Investasi; Dana investasi is left out of Dana likuid, so
@@ -267,21 +287,35 @@ def net_worth_breakdown(cur, user_id: str, accounts: list[dict[str, Any]]) -> di
         (user_id,),
     )
     debts = [{"id": str(row["id"]), "name": row["name"], "amount": int(row["remaining_amount"])} for row in cur.fetchall()]
-    lines = [{"key": "liquid", "label": "Dana likuid", "amount": balances["liquid_balance"]}]
+    lines = [{
+        "key": "liquid", "label": t(language, "labels.summary.liquid"), "label_source": SYSTEM_LABEL, "amount": balances["liquid_balance"],
+    }]
     if balances["dana_investasi"]:
         # Cash kept for buying investments is an asset of its own, outside Dana likuid (D2).
-        lines.append({"key": "dana_investasi", "label": "Dana investasi", "amount": balances["dana_investasi"]})
-    lines.append({"key": "investment", "label": "Investasi", "amount": balances["investment_balance"]})
+        lines.append({
+            "key": "dana_investasi", "label": t(language, "labels.summary.investment_cash"), "label_source": SYSTEM_LABEL,
+            "amount": balances["dana_investasi"],
+        })
+    lines.append({
+        "key": "investment", "label": t(language, "labels.summary.investments"), "label_source": SYSTEM_LABEL,
+        "amount": balances["investment_balance"],
+    })
     if balances["reconciliation_pending"]:
         # Negative balances waiting for reconciliation are kept out of liquid funds but still owed.
         lines.append({
-            "key": "reconciliation_pending", "label": "Saldo minus perlu dicocokkan",
+            "key": "reconciliation_pending", "label": t(language, "labels.summary.negative_balance"), "label_source": SYSTEM_LABEL,
             "amount": -balances["reconciliation_pending"],
         })
-    lines += [{"key": f"debt:{debt['id']}", "label": debt["name"], "amount": -debt["amount"]} for debt in debts]
+    lines += [
+        {"key": f"debt:{debt['id']}", "label": debt["name"], "label_source": USER_LABEL, "amount": -debt["amount"]}
+        for debt in debts
+    ]
     # What credit accounts owe is utang next to the debts (add-credit-accounts D4).
     credit_lines = [
-        {"key": f"credit:{account['id']}", "label": account["name"], "amount": -credit_owed(account["own_balance"])}
+        {
+            "key": f"credit:{account['id']}", "label": account["name"], "label_source": USER_LABEL,
+            "amount": -credit_owed(account["own_balance"]),
+        }
         for account in accounts
         if is_credit(account) and credit_owed(account["own_balance"]) > 0
     ]
@@ -378,6 +412,7 @@ def build_cycle_summary(
     dashboard's breakdown, passed in so this service does not import the dashboard router.
     """
     user_id = str(user["id"])
+    language, region = language_for_user(user), region_for_user(user)
     payday_day = int(user.get("payday_day") or 25)
     zone = ZoneInfo(settings.tz)
     today = now.astimezone(zone).date()
@@ -386,30 +421,31 @@ def build_cycle_summary(
     cycle = resolve_cycle([row["date"] for row in receipt_rows], tz_name=settings.tz, as_of=now)
     basis = "cycle" if cycle.status == "open" else "month"
     start, end, start_date, end_date, window_label = get_timeframe_window(
-        payday_day, basis, user_id=user_id, cycle=cycle,
+        payday_day, basis, user_id=user_id, cycle=cycle, language=language,
     )
     previous_start, previous_end, _, _, previous_label = get_previous_timeframe_window(
-        payday_day, basis, start_date, end_date, 0, user_id=user_id,
+        payday_day, basis, start_date, end_date, 0, user_id=user_id, language=language,
     )
     previous = None if previous_end < previous_start else (previous_start, previous_end, previous_label)
     expected = expected_salary_for_cycle(conn, user_id, basis == "cycle", receipt_rows, now)
 
     with conn.cursor() as cur:
-        masuk = _masuk(cur, user_id, start, end, basis)
+        masuk = _masuk(cur, user_id, start, end, basis, language)
         offsets = load_spending_offsets(cur, user_id, start, end)
         kakeibo = kakeibo_breakdown(cur, user_id, start, end, masuk["total"], offsets)
-        keluar = _keluar(kakeibo, offsets, basis)
-        waiting = waiting_summary(fetch_waiting_rows(cur, user_id, start, end))
+        keluar = _keluar(kakeibo, offsets, basis, language, region)
+        waiting = waiting_summary(fetch_waiting_rows(cur, user_id, start, end), language)
 
         if expected.status == "estimated" and expected.date > today:
             window_end, window_basis = expected.date - timedelta(days=1), "expected_salary"
         else:
             window_end, window_basis = today + timedelta(days=SCHEDULE_FALLBACK_DAYS), "next_30_days"
-        scheduled_lines = (
-            unpaid_plan_lines(cur, user_id, payday_day, start_date, window_end, today)
-            + _goal_lines(cur, user_id, accounts, start, end, start_date, today)
-        )
-        net_worth = net_worth_breakdown(cur, user_id, accounts)
+        plan_lines = [
+            {**line, "label_source": USER_LABEL}
+            for line in unpaid_plan_lines(cur, user_id, payday_day, start_date, window_end, today)
+        ]
+        scheduled_lines = plan_lines + _goal_lines(cur, user_id, accounts, start, end, start_date, today)
+        net_worth = net_worth_breakdown(cur, user_id, accounts, language)
         comparison = _comparison(cur, user_id, kakeibo_breakdown, (start, end, window_label), previous)
 
     spending, fresh_saving = spending_split(keluar)
@@ -418,16 +454,19 @@ def build_cycle_summary(
         raise RuntimeError("Savings change does not match the saving bucket of Keluar")
     scheduled_total = sum(line["amount"] for line in scheduled_lines)
     remaining_lines = [
-        {"key": "masuk", "label": "Masuk", "amount": masuk["total"]},
-        {"key": "keluar", "label": "Keluar", "amount": -keluar["total"]},
-        {"key": "scheduled", "label": "Terjadwal", "amount": -scheduled_total},
+        {"key": "masuk", "label": t(language, "labels.summary.income"), "label_source": SYSTEM_LABEL,
+         "amount": masuk["total"]},
+        {"key": "keluar", "label": t(language, "labels.summary.out"), "label_source": SYSTEM_LABEL,
+         "amount": -keluar["total"]},
+        {"key": "scheduled", "label": t(language, "labels.summary.scheduled"), "label_source": SYSTEM_LABEL,
+         "amount": -scheduled_total},
     ]
     remaining = sum(line["amount"] for line in remaining_lines)
 
     if basis == "cycle":
-        label = f"Siklus sejak {short_local_date(start_date)}"
+        label = t(language, "periods.cycle_since", start=short_local_date(language, start_date))
     else:
-        label = f"{MONTH_NAMES_ID[start_date.month - 1]} {start_date.year}"
+        label = month_label(language, start_date.year, start_date.month)
     return {
         "as_of": now.astimezone(zone).isoformat(),
         "period": {

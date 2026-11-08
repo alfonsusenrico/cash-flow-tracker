@@ -21,6 +21,7 @@ from psycopg import errors as pg_errors
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
 from app.services.debt_allocations import reverse_allocations
 from app.services.payment_links import link_payment_to_obligation, lock_payment
 
@@ -139,10 +140,7 @@ def link_transaction(
         (transaction_id,),
     )
     if cur.fetchone():
-        raise HTTPException(
-            status_code=409,
-            detail={"code": "transaction_already_matched", "message": "Transaksi ini sudah dipakai untuk kejadian lain."},
-        )
+        raise api_error(409, ErrorCode.TRANSACTION_ALREADY_MATCHED)
     debt_changed = False
     if rule["type"] == "expense" and rule.get("obligation_id"):
         debt_changed = link_payment_to_obligation(cur, user_id, transaction, str(rule["obligation_id"]))

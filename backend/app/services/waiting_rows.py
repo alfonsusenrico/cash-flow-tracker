@@ -10,10 +10,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from app.i18n import t
 from app.routers.review import review_reasons
 from app.services.kakeibo import pillar_bucket_sql
 from app.services.monthly_report import ATTENTION_SQL, OPEN_QUESTION_JOIN_SQL, REVIEWABLE_ROW_SQL
 from app.services.report_figures import reportable_expense_sql
+from app.services.system_categories import INTERNAL_MOVEMENT, is_system_sql
 
 # Tinjau sections in the order the review page shows them.
 WAITING_SECTIONS: tuple[str, ...] = ("questions", "ambiguous", "awaiting", "groups")
@@ -43,7 +45,7 @@ def fetch_waiting_rows(cur, user_id: str, start: datetime, end: datetime) -> lis
         f"""
         SELECT t.id, t.type, t.amount, t.date, t.review_status, t.movement_id, t.merchant, t.notes,
                t.account_id, a.name AS account_name, c.name AS category_name,
-               COALESCE(c.name = 'Internal Movement', FALSE) AS movement_category,
+               {is_system_sql('c', INTERNAL_MOVEMENT)} AS movement_category,
                {reportable_expense_sql()} AS in_keluar,
                {pillar_bucket_sql()} AS bucket,
                ev.interpretation -> 'review_reasons' AS review_reasons,
@@ -69,15 +71,19 @@ def fetch_waiting_rows(cur, user_id: str, start: datetime, end: datetime) -> lis
     return rows
 
 
-def waiting_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def waiting_summary(rows: list[dict[str, Any]], language: str) -> dict[str, Any]:
     """Beranda's "waiting" figure: the rows by section and whether Keluar already holds each one."""
     lines = []
     for row in rows:
         in_keluar = bool(row["in_keluar"])
+        described = row["merchant"] or row["notes"] or row["category_name"]
         lines.append({
             "section": row["section"],
             "transaction_id": str(row["id"]),
-            "label": row["merchant"] or row["notes"] or row["category_name"] or "Tanpa keterangan",
+            "label": described or t(language, "labels.fallback.undescribed"),
+            # User data as stored, or the fixed fallback the web renders from `label_key` (add-language-system D7).
+            "label_source": "user" if described else "system",
+            "label_key": None if described else "undescribed",
             "account_name": row["account_name"],
             "type": row["type"],
             "date": row["date"].isoformat(),

@@ -1,5 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { groupDigits } from "@/lib/format";
+import { activeRegionSetting } from "@/lib/i18n/runtime";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -142,17 +144,18 @@ export function localDatetimeToISO(value: string): string {
 }
 
 /**
- * Formats a raw number or string input with Indonesian thousand dots (e.g. 20000000 -> "20.000.000").
+ * Formats a raw number or string amount input with the account region's thousands separator
+ * (20000000 -> "20.000.000" in Indonesia, "20,000,000" in the United States; add-language-system D6).
  * Strips non-digit characters and leading zeroes (unless the number is 0).
  * Returns an empty string if no digits are present.
  */
 export function formatNumberWithDots(val: string | number | null | undefined): string {
-  if (val === null || val === undefined) return "";
-  const str = String(val).trim();
-  const digits = str.replace(/[^0-9]/g, "");
-  if (!digits) return "";
-  const clean = digits.replace(/^0+(?=\d)/, "");
-  return clean.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return groupDigits(val, activeRegionSetting());
+}
+
+/** An amount input's text without the account region's thousands separator ("20.000" or "20,000" -> "20000"). */
+export function stripGrouping(value: string): string {
+  return value.replace(activeRegionSetting() === "US" ? /,/g : /\./g, "");
 }
 
 /**
@@ -176,10 +179,11 @@ export function formatDecimalInput(val: string | number | null | undefined): str
     const strNum = String(val);
     if (strNum.includes(".")) {
       const [intPart, decPart] = strNum.split(".");
-      const formattedInt = formatNumberWithDots(intPart) || "0";
+      // Decimal inputs keep Indonesian dots in every region: parseDecimal reads a comma as the decimal mark.
+      const formattedInt = groupDigits(intPart, "ID") || "0";
       return `${formattedInt},${decPart}`;
     }
-    return formatNumberWithDots(val);
+    return groupDigits(val, "ID");
   }
 
   let str = String(val).trim();

@@ -7,7 +7,6 @@ import math
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
-from pathlib import Path
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -16,16 +15,20 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.i18n import account_language, t
 from app.services.kakeibo import Pillar, effective_pillar
+from app.services.language import LANGUAGES
 from app.services.merchant_memory import live_feedback_sql, merchant_match_key, normalize_key_text, owner_identity
+from app.services.prompt_language import (
+    HISTORY_SUGGESTIONS, INDONESIAN_VERSIONS, Prompt, is_placeholder_description, prompt_for_version, select_prompt,
+)
 from app.services.provenance import MERCHANT_MAX_LENGTH, normalize_merchant
-from app.services.reimbursements import NON_REPORTABLE_CATEGORY_NAMES
+from app.services.system_categories import is_non_reportable, non_reportable_sql
 
 
 logger = logging.getLogger(__name__)
 
-HISTORY_PROMPT_VERSION = "history-suggestions-1"
-HISTORY_PROMPT_PATH = Path(__file__).with_name("prompts") / "history_suggestions.md"
+HISTORY_PROMPT_VERSION = INDONESIAN_VERSIONS[HISTORY_SUGGESTIONS]
 MAX_WINDOW_DAYS = 366
 NOTES_MAX_LENGTH = 500
 REASON_MAX_LENGTH = 160
@@ -68,7 +71,7 @@ ELIGIBLE_SQL = f"""
       AND t.movement_id IS NULL AND t.fee_for_movement_id IS NULL
       AND t.goal_id IS NULL AND t.obligation_id IS NULL
       AND NOT EXISTS (SELECT 1 FROM transaction_obligation_allocations al WHERE al.transaction_id = t.id)
-      AND NOT COALESCE(c.name = ANY(%(non_reportable)s), FALSE)
+      AND NOT {non_reportable_sql("c")}
       AND t.date >= %(start)s AND t.date < %(end)s
 """
 
@@ -92,14 +95,13 @@ class HistorySuggestionBatch(BaseModel):
     suggestions: list[HistoryProposal]
 
 
-def history_prompt() -> str:
-    return HISTORY_PROMPT_PATH.read_text(encoding="utf-8")
-
-
 class SuggestionError(Exception):
-    def __init__(self, status: int, code: str, message: str, **extra):
+    """A refused suggestion request; the router renders it with the error contract (localize-server-text D4)."""
+
+    def __init__(self, status: int, code: str, **extra):
         self.status = status
-        self.detail = {"code": code, "message": message, **extra}
+        self.code = code
+        self.extra = extra
         super().__init__(code)
 
 
@@ -198,7 +200,7 @@ def stored_values(row: dict) -> tuple:
 
 def load_categories(cur, user_id: str) -> dict[str, dict]:
     cur.execute(
-        """SELECT id, name, kind, kakeibo_type, offsets_spending, is_archived,
+        """SELECT id, name, kind, kakeibo_type, offsets_spending, is_archived, system_key,
                   COALESCE(is_excluded_from_budget, FALSE) AS is_excluded_from_budget
            FROM categories WHERE user_id = %s""",
         (user_id,),
@@ -208,7 +210,7 @@ def load_categories(cur, user_id: str) -> dict[str, dict]:
 
 def active_categories(categories: dict[str, dict], kind: str) -> list[dict]:
     return [row for row in categories.values()
-            if row["kind"] == kind and not row["is_archived"] and row["name"] not in NON_REPORTABLE_CATEGORY_NAMES]
+            if row["kind"] == kind and not row["is_archived"] and not is_non_reportable(row["system_key"])]
 
 
 def offset_categories(categories: dict[str, dict]) -> list[dict]:
@@ -250,7 +252,7 @@ def row_keys(row: dict) -> list[str]:
     return [key for key in dict.fromkeys(keys) if key]
 
 
-def memory_proposal(row: dict, memory: dict[str, dict], categories: dict[str, dict]) -> Proposal | None:
+def memory_proposal(row: dict, memory: dict[str, dict], categories: dict[str, dict], language: str) -> Proposal | None:
     """An owner memory entry for the row's merchant or bank signature."""
     for key in row_keys(row):
         entry = memory.get(key)
@@ -265,8 +267,9 @@ def memory_proposal(row: dict, memory: dict[str, dict], categories: dict[str, di
             if offset_id in {str(item["id"]) for item in offset_categories(categories)}:
                 offset = offset_id
         merchant = entry["display_merchant"] or row["merchant"]
-        reason = (f"Sama dengan pilihan Anda untuk {merchant}" if key.startswith("merchant:") and merchant
-                  else "Sama dengan pilihan Anda untuk notifikasi bank serupa")
+        # Template reasons are stored in the account's language at creation (D5, D6).
+        reason = (t(language, "reasons.history.merchant", merchant=merchant) if key.startswith("merchant:") and merchant
+                  else t(language, "reasons.history.similar"))
         return Proposal(
             transaction_id=str(row["id"]), source="memory", merchant=merchant,
             notes=entry["notes"] or row["notes"], category_id=str(category["id"]),
@@ -281,7 +284,7 @@ def row_text(row: dict) -> str:
     return " ".join(filter(None, [row["merchant"], row["notes"], row.get("event_text")]))
 
 
-def rule_proposal(row: dict, categories: dict[str, dict], repayment_offset: str | None) -> Proposal | None:
+def rule_proposal(row: dict, categories: dict[str, dict], repayment_offset: str | None, language: str) -> Proposal | None:
     """Repayments of shared spending and café or snack spending, recognised by their words."""
     text = row_text(row)
     current = categories.get(str(row["category_id"])) if row["category_id"] else None
@@ -301,9 +304,10 @@ def rule_proposal(row: dict, categories: dict[str, dict], repayment_offset: str 
         if offset is None and CAFE_PATTERN.search(text):
             offset = next((str(item["id"]) for item in eligible if folded(item["name"]) == JAJAN_CATEGORY_NAME), None)
         return Proposal(
-            transaction_id=str(row["id"]), source="rule", merchant=row["merchant"], notes="Ganti uang patungan",
+            transaction_id=str(row["id"]), source="rule", merchant=row["merchant"],
+            notes=t(language, "notes.repayment_shared"),
             category_id=str(target["id"]), kakeibo=None, offset_category_id=offset, confidence=None,
-            reason="Transfer masuk menyebut patungan atau ganti uang: teman membayar kembali, bukan pemasukan",
+            reason=t(language, "reasons.history.repayment"),
         )
     if not CAFE_PATTERN.search(text):
         return None
@@ -315,14 +319,14 @@ def rule_proposal(row: dict, categories: dict[str, dict], repayment_offset: str 
         transaction_id=str(row["id"]), source="rule", merchant=row["merchant"], notes=row["notes"],
         category_id=str(target["id"]), kakeibo=effective_pillar("expense", None, target["kakeibo_type"]),
         offset_category_id=None, confidence=None,
-        reason="Kafe, kopi atau jajanan masuk ke Jajan & Nongkrong",
+        reason=t(language, "reasons.history.cafe"),
     )
 
 
 def plan_window(cur, user_id: str, from_date: date, to_date: date, max_rows: int) -> Plan:
     """Eligible rows of the window, newest first, with memory and rule proposals already made."""
     start, end = window_bounds(from_date, to_date)
-    params = {"user_id": user_id, "non_reportable": list(NON_REPORTABLE_CATEGORY_NAMES), "start": start, "end": end}
+    params = {"user_id": user_id, "start": start, "end": end}
     cur.execute(f"SELECT COUNT(*) AS count FROM ({ELIGIBLE_SQL}) eligible", params)
     eligible_count = int(cur.fetchone()["count"])
     cur.execute(f"{ELIGIBLE_SQL} ORDER BY t.date DESC, t.id LIMIT %(limit)s", {**params, "limit": max_rows})
@@ -331,9 +335,11 @@ def plan_window(cur, user_id: str, from_date: date, to_date: date, max_rows: int
     memory = load_owner_memory(cur, user_id)
     eligible_offsets = {str(item["id"]) for item in offset_categories(categories)}
     repayment_offset = preferred_repayment_offset(cur, user_id, eligible_offsets)
+    language, _region = account_language(cur, user_id)
     plan = Plan(rows=rows, eligible_count=eligible_count)
     for row in rows:
-        proposal = memory_proposal(row, memory, categories) or rule_proposal(row, categories, repayment_offset)
+        proposal = (memory_proposal(row, memory, categories, language)
+                    or rule_proposal(row, categories, repayment_offset, language))
         if proposal:
             plan.proposals.append(proposal)
         else:
@@ -522,8 +528,13 @@ def batch_context(cur, user_id: str, rows: list[dict]) -> dict:
     return context
 
 
-def validated_proposals(batch: HistorySuggestionBatch, rows: list[dict], context: dict) -> tuple[list[Proposal], int]:
-    """Model items that reference only the batch's rows and the owner's categories; returns (valid, invalid)."""
+def validated_proposals(
+    batch: HistorySuggestionBatch, rows: list[dict], context: dict, *, output_language: str,
+) -> tuple[list[Proposal], int]:
+    """Model items that reference only the batch's rows and the owner's categories; returns (valid, invalid).
+
+    An English placeholder description such as "Payment" keeps the row's notes; Indonesian output is checked as before.
+    """
     by_ref = {item["ref"]: row for item, row in zip(context["rows"], rows)}
     categories = {item["id"]: item for item in context["categories"]}
     offsets = {item["id"] for item in context["offset_categories"]}
@@ -543,6 +554,8 @@ def validated_proposals(batch: HistorySuggestionBatch, rows: list[dict], context
         if item.confidence < MIN_AI_CONFIDENCE:
             continue
         description = " ".join(item.description.split())
+        if output_language == "en" and is_placeholder_description(description, "en"):
+            description = ""
         try:
             merchant = normalize_merchant(item.merchant) or row["merchant"]
         except ValueError:
@@ -575,6 +588,7 @@ def expire_interrupted_runs(cur, user_id: str) -> None:
 def create_run(cur, user_id: str, from_date: date, to_date: date, provider) -> dict:
     expire_interrupted_runs(cur, user_id)
     ai_reason = ai_unavailable_reason(provider)
+    prompt = select_prompt(HISTORY_SUGGESTIONS, account_language(cur, user_id)[0]) if ai_reason is None else None
     token = str(uuid4())
     try:
         cur.execute("SAVEPOINT create_suggestion_run")
@@ -585,11 +599,11 @@ def create_run(cur, user_id: str, from_date: date, to_date: date, provider) -> d
                RETURNING *""",
             (user_id, from_date, to_date, settings.history_suggestion_max_rows,
              settings.notification_ai_model if ai_reason is None else None,
-             HISTORY_PROMPT_VERSION if ai_reason is None else None, token, RUN_LEASE_SECONDS),
+             prompt.version if prompt else None, token, RUN_LEASE_SECONDS),
         )
     except psycopg.errors.UniqueViolation:
         cur.execute("ROLLBACK TO SAVEPOINT create_suggestion_run")
-        raise SuggestionError(409, "suggestion_run_active", "Pembuatan saran sedang berjalan. Tunggu hingga selesai.")
+        raise SuggestionError(409, "suggestion_run_active")
     return cur.fetchone()
 
 
@@ -700,6 +714,19 @@ def finish_run(run_id: str, token: str, status: str, error_code: str | None) -> 
         conn.commit()
 
 
+def run_prompt(run_id: str, user_id: str) -> Prompt:
+    """The prompt a run records; a run created while the model was unavailable follows the account."""
+    with db_conn() as conn:
+        row = conn.execute(
+            """SELECT r.prompt_version, u.language FROM suggestion_runs r JOIN users u ON u.id = r.user_id
+               WHERE r.id = %s AND r.user_id = %s""",
+            (run_id, user_id),
+        ).fetchone()
+    if row["prompt_version"]:
+        return prompt_for_version(row["prompt_version"])
+    return select_prompt(HISTORY_SUGGESTIONS, row["language"])
+
+
 async def execute_run(run_id: str, token: str, user_id: str, provider) -> None:
     """Memory and rule suggestions first, then model batches; a provider failure keeps what was made."""
     from app.services.notification_processing import database_operation
@@ -715,18 +742,19 @@ async def execute_run(run_id: str, token: str, user_id: str, provider) -> None:
             error_code = ai_reason
         batch_size = settings.history_suggestion_batch_size
         invalid = 0
+        prompt = await database_operation(run_prompt, run_id, user_id) if remaining and error_code is None else None
         while remaining and error_code is None:
             batch, remaining = remaining[:batch_size], remaining[batch_size:]
             context = await database_operation(prepare_batch, run_id, token, user_id, batch)
             if context is None:
                 return
             try:
-                result = await provider.suggest_history(context)
+                result = await provider.suggest_history(context, prompt=prompt)
             except ProviderError as exc:
                 error_code = exc.code
                 remaining = batch + remaining
                 break
-            proposals, rejected = validated_proposals(result, batch, context)
+            proposals, rejected = validated_proposals(result, batch, context, output_language=prompt.language)
             invalid += rejected
             if not await database_operation(store_batch, run_id, token, user_id, batch, proposals):
                 return
@@ -764,13 +792,34 @@ PENDING_SQL = """
 """
 
 
+TEMPLATE_REASONS = ("reasons.history.merchant", "reasons.history.similar", "reasons.history.repayment",
+                    "reasons.history.cafe")
+
+
+def reason_code(row: dict) -> tuple[str | None, dict]:
+    """The code and parameters of a stored template reason, recognised in either language (no schema change).
+
+    A model's reason has none: it is model output, stored as written.
+    """
+    if row["proposal_source"] not in {"memory", "rule"}:
+        return None, {}
+    for code in TEMPLATE_REASONS:
+        params = {"merchant": row["proposed_merchant"]} if code == "reasons.history.merchant" else {}
+        if code == "reasons.history.merchant" and not row["proposed_merchant"]:
+            continue
+        if any(row["reason"] == t(language, code, **params)[:REASON_MAX_LENGTH] for language in LANGUAGES):
+            return code, params
+    return None, {}
+
+
 def suggestion_item(row: dict) -> dict:
+    code, params = reason_code(row)
     return {
         "id": str(row["id"]), "transaction_id": str(row["transaction_id"]), "type": row["type"],
         "amount": int(row["amount"]), "date": row["date"].isoformat(), "account_name": row["account_name"],
         "source": row["proposal_source"],
         "confidence": float(row["confidence"]) if row["confidence"] is not None else None,
-        "reason": row["reason"],
+        "reason": row["reason"], "reason_code": code, "reason_params": params,
         "before": {
             "merchant": row["before_merchant"], "notes": row["before_notes"],
             "category_id": str(row["before_category_id"]) if row["before_category_id"] else None,
@@ -786,7 +835,7 @@ def suggestion_item(row: dict) -> dict:
     }
 
 
-def group_suggestions(rows: list[dict]) -> list[dict]:
+def group_suggestions(rows: list[dict], language: str) -> list[dict]:
     """Pending suggestions grouped by proposed merchant (or notes), category and offset."""
     groups: dict[str, dict] = {}
     for row in rows:
@@ -812,8 +861,8 @@ def group_suggestions(rows: list[dict]) -> list[dict]:
         if row["proposed_offset_category_name"]:
             group["offset_category_names"].add(row["proposed_offset_category_name"])
         group["sources"].add(row["proposal_source"])
-        before = row["before_notes"] or row["before_merchant"] or "Tanpa keterangan"
-        before_category = row["before_category_name"] or "Tanpa kategori"
+        before = row["before_notes"] or row["before_merchant"] or t(language, "labels.fallback.undescribed")
+        before_category = row["before_category_name"] or t(language, "labels.fallback.uncategorized")
         before_key = (before, before_category)
         group["before_labels"][before_key] = group["before_labels"].get(before_key, 0) + 1
     result = []
@@ -837,9 +886,10 @@ def pending_suggestions(user_id: str) -> dict:
             supersede_stale(cur, user_id)
             cur.execute(PENDING_SQL, (user_id, PENDING_LIMIT + 1))
             rows = cur.fetchall()
+            language, _region = account_language(cur, user_id)
         conn.commit()
     truncated = len(rows) > PENDING_LIMIT
-    groups = group_suggestions(rows[:PENDING_LIMIT])
+    groups = group_suggestions(rows[:PENDING_LIMIT], language)
     return {"truncated": truncated, "pending": min(len(rows), PENDING_LIMIT), "groups": groups}
 
 
@@ -852,7 +902,7 @@ def locked_suggestions(cur, user_id: str, ids: list[str]) -> dict[str, dict]:
     rows = {str(row["id"]): row for row in cur.fetchall()}
     missing = [value for value in ids if value not in rows]
     if missing:
-        raise SuggestionError(404, "suggestions_not_found", "Sebagian saran tidak ditemukan.", suggestion_ids=missing)
+        raise SuggestionError(404, "suggestions_not_found", suggestion_ids=missing)
     return rows
 
 
