@@ -1022,7 +1022,7 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 /* Bars: the split bar's square segments 2 px apart, and the 2 px progress bar */
 .split { display: flex; gap: 2px; height: 8px; margin-top: var(--sp-24); }
 .split > span { display: block; min-width: 2px; height: 100%; }
-.prog { position: relative; height: 4px; overflow: hidden; background: var(--surface-2); }
+.prog { position: relative; display: block; height: 4px; overflow: hidden; background: var(--surface-2); }
 .prog > span { position: absolute; top: 0; bottom: 0; left: 0; background: var(--text); }
 
 /* List rows: whole-row links or buttons, with a -12 px bleed so their text aligns to the column edge */
