@@ -65,3 +65,40 @@ Checked against the final API field names. Each phase adds its block to its own 
 - The existing `add-credit-accounts` refusals, `credit_fields_not_allowed` among them, still answer `{code}` only, until `localize-server-text` converts every error site.
 - Derived due dates can differ from a provider's (R1, O1), and a partial refund settles the oldest item rather than the refunded purchase (R2).
 - The SPayLater and Kredivo notification capture (D13) stays pending on real samples.
+
+## Merged with localize-server-text (2026-11-08)
+
+`origin/feat/localize-server-text` (`af8f95e`, pull request #90, not merged yet) was merged at `92f2bc8`, then `8d15185` moved the credit text onto its contract. Every check below ran at `8d15185` with a clean tree apart from the new evidence file, on loopback with synthetic data in a disposable `postgres:16` migrated with `flyway/flyway:10`. No production system was touched.
+
+### Conflicts
+
+- `services/credit_accounts.py`: both import lines kept (`app.errors.api_error` and the `credit_fee` system category helpers).
+- `routers/transactions.py`, `update_transaction`: the localized `notice("transaction_updated")` and this change's `credit_terms_reset` are both returned.
+- Two conflicts that git did not flag: `app/core/errors.py` no longer exists, and `get_timeframe_window` now needs `language`, which the credit overview's default period now passes from the account. The full suite found the second one (three failures before the fix).
+
+### Credit text on the shared contract
+
+- Five codes were added to `ErrorCode` and to the server `en`/`id` catalogues: `credit_terms_not_credit_purchase`, `credit_terms_count_range`, `credit_terms_due_before_purchase`, `credit_account_required` and `credit_period_invalid`. The web `errors` namespace already held them. Their Indonesian text is the archived copy, unchanged. The two 404s use the existing `account_not_found` and `transaction_not_found`. `ErrorCode` now holds 301 codes, the same in all four catalogues.
+- `credit_terms.MESSAGES` and `credit_error` are removed. Every credit refusal goes through `app/errors.api_error` and is rendered in the account's language. The terms helpers no longer take a language argument.
+- The seven `add-credit-accounts` refusals (`credit_parent_not_allowed`, `credit_balance_sign`, `credit_fields_not_allowed`, `credit_type_change_has_transactions`, `credit_account_not_allowed`, `credit_fee_not_allowed`, `credit_movement_needs_cash`) were already converted by `localize-server-text` and now answer `{code, params, message}`. This replaces the earlier note that they answer `{code}` only. The server text of `credit_fields_not_allowed` now names the bill day, matching the web: "A limit, a bill day and a payment date are only for credit accounts." and "Limit, tanggal tagihan terbit, dan tanggal bayar hanya untuk rekening kredit.".
+- The credit fee's note is now `notes.credit_fee` ("Credit fee", "Biaya kredit") in the account's language. It was the category seed name, which has the same text. Bill statuses stay codes that the web renders, and no other credit server text exists.
+
+### Checks
+
+| Check | Result |
+| --- | --- |
+| Flyway V1→V54 on a fresh database | Schema version 54; a second `migrate` reports "up to date". |
+| Full backend suite, `python -m pytest tests/ -ra` (`SKIP_TEST_MIGRATIONS=1`, `REQUIRE_TEST_DATABASE=1`) | 2163 passed, 0 failed, 0 skipped (2097 from `localize-server-text` plus this change's 66). |
+| Four-catalogue code parity, server catalogue parity, contract scan, every code renders, copy register (`test_server_text_language.py`) | 11 passed, the planted-problem controls among them. |
+| Indonesian golden server text | 4 passed. |
+| F1 (`test_f1_*` and `test_plans_into_other_accounts_keep_their_line_unchanged`) | 4 passed. |
+| Credit language tests (`test_errors_are_in_the_accounts_language`, `test_every_credit_code_is_an_error_code_in_both_server_and_web_catalogues`, `test_an_english_account_books_its_first_fee_as_credit_fee`) | 3 passed. |
+| Figure parity, `scripts/verify/credit_figure_parity.py`: `af8f95e` on V53 against `8d15185` on V54 | 3 owners without credit terms or credit-bill plans, 63 endpoint responses, 0 differences. The negative control without removing the added fields finds 145. Evidence: `research/evidence/add-credit-spending-flow/figure-parity-localize-merge.json`. |
+| Frontend `npm run type-check`, `npm run lint`, `npm test`, `npm run build` | All exit 0; 94 test files, 904 tests passed. `package.json` and the lockfile are unchanged, so no `npm@10 ci --dry-run` was needed. |
+| `openspec validate --all --strict` | 84 passed, 0 failed. |
+| `git diff --check` | Clean. |
+
+### Remaining risks
+
+- This branch now contains `localize-server-text`. Merge pull request #90 first, or this branch's pull request carries both changes.
+- Design D16's note that refusals use `credit_terms.credit_error` describes the state before this merge. This section supersedes it.
