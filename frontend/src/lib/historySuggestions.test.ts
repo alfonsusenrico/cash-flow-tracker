@@ -15,19 +15,20 @@ describe("history suggestions helpers", () => {
   it("validates windows like the backend", () => {
     const today = new Date(2026, 9, 28);
     expect(windowError("2026-10-01", "2026-10-28", today)).toBeNull();
-    expect(windowError("2026-10-10", "2026-10-01", today)).toMatch(/sebelum tanggal awal/);
-    expect(windowError("2026-10-01", "2026-10-29", today)).toMatch(/melewati hari ini/);
-    expect(windowError("2025-10-27", "2026-10-28", today)).toMatch(/366 hari/);
+    expect(windowError("2026-10-10", "2026-10-01", today)).toBe("order");
+    expect(windowError("2026-10-01", "2026-10-29", today)).toBe("future");
+    expect(windowError("2025-10-27", "2026-10-28", today)).toBe("tooLong");
     expect(windowError("2025-10-28", "2026-10-28", today)).toBeNull();
-    expect(windowError("", "2026-10-28", today)).toMatch(/Isi tanggal/);
+    expect(windowError("", "2026-10-28", today)).toBe("empty");
   });
 
-  it("explains run outcomes in Indonesian and keeps unknown codes visible", () => {
+  it("names run outcomes by key and keeps unknown codes visible", () => {
     expect(runNotice(run(null))).toBeNull();
-    expect(runNotice(run("ai_disabled"))).toMatch(/AI tidak aktif/);
-    expect(runNotice(run("provider_timeout"))).toContain("provider_timeout");
-    expect(runNotice(run("run_interrupted"))).toMatch(/terhenti/);
-    expect(runNotice(run("something_new"))).toContain("something_new");
+    expect(runNotice(run("ai_disabled"))).toEqual({ key: "aiDisabled", code: "ai_disabled" });
+    expect(runNotice(run("provider_timeout"))).toEqual({ key: "provider", code: "provider_timeout" });
+    expect(runNotice(run("run_interrupted"))).toEqual({ key: "interrupted", code: "run_interrupted" });
+    expect(runNotice(run("run_failed"))).toEqual({ key: "failed", code: "run_failed" });
+    expect(runNotice(run("something_new"))).toEqual({ key: "other", code: "something_new" });
   });
 
   it("splits decisions into batches of 200", () => {

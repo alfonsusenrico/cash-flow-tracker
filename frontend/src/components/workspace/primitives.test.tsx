@@ -7,8 +7,10 @@ import { axe } from "vitest-axe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FigureBlock, HeroFigure, SplitBar, type SplitSegment } from "./figures";
 import { DayHeading, ListRow, Panel, PanelBlock, SectionHeader } from "./lists";
+import { Rail, RailItem, RailRule } from "./rail";
+import { ShellDialog } from "./ShellDialog";
 import { MaskedMoney } from "./money";
-import { Card, CardHeader, ChipGroup, EmptyState, ErrorState, Kpi, KpiStrip, Pill, Segmented, Skeleton } from "./primitives";
+import { Card, CardHeader, EmptyState, ErrorState, Kpi, KpiStrip, Pill, Segmented, Skeleton } from "./primitives";
 
 const app = vi.hoisted(() => ({ hideBalances: false, currency: "IDR" as "IDR" | "USD" }));
 vi.mock("@/components/layout/AppLayout", () => ({
@@ -77,20 +79,6 @@ const PRIMITIVES: [string, () => ReactElement][] = [
         options={[
           { value: "cycle", label: "Siklus" },
           { value: "month", label: "Bulan" },
-        ]}
-      />
-    ),
-  ],
-  [
-    "ChipGroup",
-    () => (
-      <ChipGroup
-        label="Pilar"
-        selected={["need"]}
-        onToggle={() => {}}
-        options={[
-          { value: "need", label: "Kebutuhan", count: 4 },
-          { value: "want", label: "Keinginan" },
         ]}
       />
     ),
@@ -190,25 +178,6 @@ describe("primitive behaviour", () => {
     expect(screen.getByRole("button", { name: "Bulan" })).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(screen.getByRole("button", { name: "Bulan" }));
     expect(onChange).toHaveBeenCalledWith("month");
-  });
-
-  it("ChipGroup marks selected chips and toggles one", async () => {
-    const onToggle = vi.fn();
-    render(
-      <ChipGroup
-        label="Pilar"
-        selected={["need"]}
-        onToggle={onToggle}
-        options={[
-          { value: "need", label: "Kebutuhan" },
-          { value: "want", label: "Keinginan" },
-        ]}
-      />,
-    );
-    expect(screen.getByRole("group", { name: "Pilar" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Kebutuhan" })).toHaveAttribute("aria-pressed", "true");
-    await userEvent.click(screen.getByRole("button", { name: "Keinginan" }));
-    expect(onToggle).toHaveBeenCalledWith("want");
   });
 
   it("Skeleton is hidden from assistive technology", () => {
@@ -349,6 +318,82 @@ describe("list pieces", () => {
   });
 });
 
+describe("Markas+ pieces built for Tinjau (apply-markas-tinjau D19)", () => {
+  it("draws the hero without a colour mark and keeps its label row", () => {
+    render(<HeroFigure id="tj" label="Perlu ditinjau" figure="6" line="2 dicatat otomatis, opsional" />);
+    const hero = screen.getByRole("region", { name: "Perlu ditinjau" });
+    expect(hero.querySelector(".sw-bar")).toBeNull();
+    expect(hero.querySelector(".hero-top .t-label")).toHaveTextContent("Perlu ditinjau");
+    expect(hero.querySelector(".t-hero")).toHaveTextContent("6");
+  });
+
+  it("stacks a row's title over its meta as one button, marks the current row and keeps its focus key", () => {
+    render(
+      <ul className="list">
+        <li><ListRow layout="stacked" current selected rowKey="g:1" icon="alert" onClick={() => {}} title="Toko Serba Ada" meta="Perlu jawaban · 20 Okt 12.00" amount={<span className="t-amt">−Rp 400.000</span>} /></li>
+        <li><ListRow layout="stacked" href="/ledger?edit=tx" title="Kedai Awan" meta="20 Okt 12.00" /></li>
+      </ul>,
+    );
+    const row = screen.getByRole("button");
+    expect(row).toHaveClass("row", "is-stacked", "ws-select-row");
+    expect(row).toHaveAttribute("aria-current", "true");
+    expect(row).toHaveAttribute("data-selected", "");
+    expect(row).toHaveAttribute("data-row", "g:1");
+    expect(row).toHaveAccessibleName("Toko Serba Ada Perlu jawaban · 20 Okt 12.00 −Rp 400.000");
+    expect(within(row).queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByRole("link")).toHaveClass("is-stacked");
+  });
+
+  it("makes a row with neither link nor action a plain row that holds its own controls", () => {
+    render(<ListRow title="Laporan Bank Jago" meta="31 Okt 18.39" actions={<button type="button">Terima</button>} />);
+    const row = screen.getByText("Laporan Bank Jago").closest(".row")!;
+    expect(row.tagName).toBe("DIV");
+    expect(row).toHaveClass("is-plain");
+    expect(row).not.toHaveClass("ws-select-row");
+    expect(within(row as HTMLElement).getByRole("button", { name: "Terima" }).closest(".r-actions")).not.toBeNull();
+  });
+
+  it("labels the rail, marks the current item with the straight bar and names each count", async () => {
+    const onSelect = vi.fn();
+    const { container } = render(
+      <Rail label="Folder" chips>
+        <RailItem label="Semua" count="5" countName="5 item" current onSelect={onSelect} />
+        <RailItem label="Belum dikenali" count="1" countName="1 item" onSelect={onSelect} />
+        <RailRule />
+        <RailItem label="Dicatat otomatis" count="2" countName="2 item" onSelect={onSelect} />
+      </Rail>,
+    );
+    const rail = screen.getByRole("navigation", { name: "Folder" });
+    expect(rail).toHaveClass("rail", "is-chips");
+    const current = within(rail).getByRole("button", { name: "Semua 5 item" });
+    expect(current).toHaveAttribute("aria-current", "true");
+    expect(current).toHaveClass("rail-item", "ws-select-bar");
+    expect(current.querySelector(".count")).toHaveAttribute("aria-hidden", "true");
+    expect(within(rail).getByRole("button", { name: "Belum dikenali 1 item" })).not.toHaveAttribute("aria-current");
+    expect(rail.querySelector(".rail-sep")).toHaveAttribute("aria-hidden", "true");
+    await userEvent.click(within(rail).getByRole("button", { name: "Dicatat otomatis 2 item" }));
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  it("gives the shell dialog a full-height variant and leaves the default dialog as it was", () => {
+    const { rerender } = render(
+      <ShellDialog open onClose={() => {}} title="Perlu jawaban" width={880} closeLabel="Kembali ke daftar" fullHeight>
+        <p>Isi</p>
+      </ShellDialog>,
+    );
+    expect(screen.getByRole("dialog", { name: "Perlu jawaban" })).toHaveClass("shell-dialog", "is-full");
+    rerender(
+      <ShellDialog open onClose={() => {}} title="Ubah kategori" width={560} closeLabel="Tutup">
+        <p>Isi</p>
+      </ShellDialog>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Ubah kategori" });
+    expect(dialog).not.toHaveClass("is-full");
+    expect(dialog.style.getPropertyValue("--dw")).toBe("560px");
+  });
+});
+
 describe("page piece geometry in the stylesheet", () => {
   const css = readFileSync(path.join(__dirname, "../../app/globals.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
   const rule = (selector: string, from = 0) => {
@@ -380,5 +425,13 @@ describe("page piece geometry in the stylesheet", () => {
     expect(rule(".row", phone)).toMatch(/min-height: 64px;/);
     expect(rule(".row .r-main", phone)).toContain("flex-direction: column");
     expect(rule(".row :is(.r-time, .r-cat, .r-pillar, .dt-only)", phone)).toContain("display: none");
+  });
+
+  it("draws the rail 36 px with its 1 px rule, chips 44 px under 768 px and the full-height sheet square", () => {
+    expect(css).toMatch(/\.rail-item \{[^}]*height: 36px;[^}]*padding: 0 var\(--sp-12\);[^}]*border-radius: var\(--r-control\);/);
+    expect(css).toMatch(/\.rail \.rail-sep \{ height: 1px; margin: var\(--sp-12\); background: var\(--line\); \}/);
+    expect(css).toMatch(/\.rail\.is-chips \.rail-item\[aria-current="true"\] \{ border-color: var\(--line-strong\); background: var\(--surface-2\); \}/);
+    expect(css).toMatch(/\.row\.is-stacked \{ align-items: flex-start; min-height: 64px; padding: var\(--sp-12\); \}/);
+    expect(css).toMatch(/dialog\.shell-dialog\.is-full \{ height: 100vh; max-height: 100vh; margin: 0; border-radius: 0; \}/);
   });
 });

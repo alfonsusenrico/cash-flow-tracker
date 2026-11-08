@@ -20,6 +20,7 @@ export function ShellDialog({
   meta,
   footer,
   untranslated: untranslatedContent,
+  fullHeight = false,
   children,
 }: {
   open: boolean;
@@ -34,6 +35,8 @@ export function ShellDialog({
   footer?: ReactNode;
   /** Content a later phase translates: Indonesian with `lang="id"` and the notice line in an English interface. */
   untranslated?: boolean;
+  /** Below 768 px the whole screen, square and without the grab (Tinjau's item, apply-markas-tinjau D13). */
+  fullHeight?: boolean;
   children: ReactNode;
 }) {
   const untranslated = useUntranslated(untranslatedContent);
@@ -59,7 +62,7 @@ export function ShellDialog({
   return (
     <dialog
       ref={ref}
-      className={["shell-dialog", className].filter(Boolean).join(" ")}
+      className={["shell-dialog", fullHeight && "is-full", className].filter(Boolean).join(" ")}
       style={{ "--dw": `${width}px` } as React.CSSProperties}
       aria-labelledby={titleId}
       onCancel={(event) => {

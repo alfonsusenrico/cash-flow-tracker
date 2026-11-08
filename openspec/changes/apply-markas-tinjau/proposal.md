@@ -37,6 +37,7 @@ Approved 2026-11-06 under the owner's standing instruction "complete all until f
 
 Every decision, its default and the rejected alternatives are in `design.md` (D1 to D23, summarized in "Decisions and their defaults"). No default changes money behaviour: every figure is a server field shown as today, and every action sends today's request. One decision is flagged and is reviewed before implementation starts (task 1.1):
 - **D14 (scope beyond the approved behaviour):** "Semua sudah ditinjau" drops the three cycle figures (Pengeluaran, Aman dipakai sampai gajian, Belum diklasifikasi) that the "Semua Beres" requirement shows today. They stay on Beranda, one click away. Fallback if rejected: keep them as one quiet line of three small figures under the empty state.
+  - Reviewed 2026-11-08: the default is taken under the same standing instruction, renewed that day ("continue all").
 
 One rejected alternative would have changed money presentation and is recorded so it is not reopened by accident: the prototype's "Rp 190.500 menunggu jawaban" in the hero line (D3). The approved `redesign-review-triage` design rejected it on 2026-11-03, because an all-time count cannot be paired with the cycle-scoped waiting total, and the "Triage Folders and Counts" requirement keeps "no amount".
 

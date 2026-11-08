@@ -38,7 +38,7 @@ body {
 /* Tabular figures for every amount, count, time, date column, table, field, badge and chart label. */
 .tabular, .tabular-nums, .t-fig-l, .t-fig, .t-amt, .ws-cnt, .ws-kbd, .ws-pill, .ws-badge, .ws-tbl, .ws-xtable,
 .ws-kpi-value, .ws-kcard-v, .ws-dana-big b, .ws-dana-foot b,
-.ws-amt-in, .ws-amt-out, .ws-amt-tr, .ws-amt-inv, .ws-tx-amount-v, .ws-tx-daytot, .ws-tri-amount, .ws-tri-when, .ws-bigline, .ws-facts dd, .ws-rows .r,
+.ws-amt-in, .ws-amt-out, .ws-amt-tr, .ws-amt-inv, .ws-tx-amount-v, .ws-tx-daytot, .ws-bigline, .ws-rows .r,
 .ws-chip-delta, table, dd, input, select, textarea, svg text {
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: var(--features-num);
@@ -1215,104 +1215,136 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .ws-ph-row b { display: -webkit-box; overflow: hidden; font-weight: 600; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; }
 
 /* ======================================================================
- * Tinjau triage (redesign-review-triage D5): a list and one item side by side above 720px of main
- * column; one pane at a time at 720px or narrower. JavaScript measures the same 720px so the DOM,
- * history and focus follow the layout.
+ * Fields that stay on older pages: Transaksi's selects and inputs, and Analisis' learned habits.
  * ====================================================================== */
-.ws-triage { display: grid; grid-template-columns: minmax(300px, 370px) minmax(0, 1fr); align-items: start; gap: 16px; }
-.ws-triage[data-panes="one"] { grid-template-columns: minmax(0, 1fr); }
-.ws-tri-list { display: flex; flex-direction: column; min-width: 0; padding: 16px 0 0; }
-.ws-triage[data-panes="two"] .ws-tri-list { position: sticky; top: calc(var(--topbar-h) + 16px); max-height: calc(100vh - 150px); overflow: auto; }
-.ws-tri-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 8px; padding: 0 18px; }
-.ws-tri-head h2 { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
-.ws-tri-folders { padding: 12px 18px; }
-.ws-tri-folders .ws-chip { min-height: 32px; padding: 0 11px; font-size: 14px; }
-.ws-tri-ul { margin: 0; padding: 0; list-style: none; }
-.ws-tri-row { position: relative; display: flex; align-items: flex-start; gap: 12px; width: 100%; min-height: 44px; padding: 12px 18px; border-top: 1px solid var(--line); color: var(--text); text-align: left; }
-.ws-tri-row:hover { background: var(--surface-2); }
-
-
-.ws-tri-row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-.ws-tri-row .ws-ava { width: 32px; height: 32px; }
-.ws-tri-t { flex: 1; min-width: 0; }
-.ws-tri-top, .ws-tri-bot { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.ws-tri-top b { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.ws-tri-when { flex: none; color: var(--muted); font-size: 12px; white-space: nowrap; }
-.ws-tri-bot { margin-top: 3px; font-size: 14px; }
-.ws-tri-line { min-width: 0; overflow: hidden; color: var(--text-2); text-overflow: ellipsis; white-space: nowrap; }
-.ws-tri-bot .tabular { flex: none; white-space: nowrap; }
-/* One pane (phones, narrow windows, high zoom): row texts wrap instead of being cut off. */
-.ws-triage[data-panes="one"] .ws-tri-top b,
-.ws-triage[data-panes="one"] .ws-tri-line { overflow-wrap: anywhere; white-space: normal; }
-.ws-tri-empty { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--line); color: var(--ok-fg); }
-.ws-tri-fold { border-top: 1px dashed var(--line-strong); }
-.ws-tri-fold summary { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 44px; padding: 10px 18px; cursor: pointer; font-size: 14px; list-style: none; }
-.ws-tri-fold summary::-webkit-details-marker { display: none; }
-.ws-tri-fold summary svg { width: 15px; height: 15px; color: var(--muted); transition: transform var(--t-state); }
-.ws-tri-fold[open] summary svg { transform: rotate(90deg); }
-.ws-tri-fold summary b { font-weight: 600; }
-.ws-tri-fold .ws-opt { margin-left: auto; color: var(--muted); font-size: 12px; }
-.ws-tri-fold > p { padding: 0 18px 8px; }
-.ws-tri-foot { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding: 12px 18px; border-top: 1px solid var(--line); background: var(--surface); }
-.ws-triage[data-panes="two"] .ws-tri-foot { position: sticky; bottom: 0; }
-.ws-tri-foot { border-radius: 0 0 var(--r-panel) var(--r-panel); }
-.ws-tri-hints { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 12px; }
-.ws-tri-hints .ws-kbd { padding: 2px 5px; margin-right: 2px; }
-.ws-tri-item { min-width: 0; padding: 0; }
-.ws-tri-item:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.ws-tri-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
-.ws-tri-bar .ws-grow { flex: 1; }
-.ws-tri-bar .ws-kbd { padding: 1px 5px; font-size: 12px; }
-.ws-tri-body { max-width: 780px; padding: 22px 28px 28px; }
-.ws-tri-title { margin: 12px 0 8px; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; text-wrap: balance; overflow-wrap: anywhere; outline: none; }
-.ws-tri-title:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
-.ws-tri-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 14px; }
-.ws-tri-meta span { display: inline-flex; align-items: center; gap: 5px; }
-.ws-tri-meta svg { width: 14px; height: 14px; }
-.ws-tri-amount { margin: 14px 0 12px; font-size: 32px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
-.ws-tri-reasons { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; }
-.ws-tri-note { margin: 12px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-panel); }
-.ws-tri-note small { color: var(--muted); font-size: 12px; }
-.ws-tri-note p { margin-top: 2px; color: var(--text); font-weight: 600; }
-.ws-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
-.ws-choice { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 56px; padding: 11px 14px; border: 1px solid var(--line-strong); border-radius: var(--r-panel); background: var(--surface); color: var(--text); text-align: left; }
-.ws-choice:hover { border-color: var(--line-strong); background: var(--surface); }
-.ws-choice:disabled { cursor: default; opacity: 0.55; }
-.ws-choice .ws-lbl { display: block; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
-.ws-choice .ws-sub { display: block; margin-top: 1px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-.ws-choice[data-primary-choice] { border-color: var(--line-strong); background: var(--surface-2); }
-.ws-choice[data-primary-choice] .ws-sub { color: var(--accent-fg); }
-.ws-choice[aria-expanded="true"] { border-color: var(--line-strong); background: var(--surface-2); }
-.ws-choice .ws-kbd { flex: none; }
-.ws-picker { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-panel); }
-.ws-picker h3 { margin-bottom: 2px; font-size: 14px; font-weight: 600; }
 .ws-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 14px; color: var(--muted); }
 .ws-field select, .ws-field input { min-height: 40px; width: 100%; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-control); background: var(--window); color: var(--text); font-size: var(--fs-14); }
-.ws-form-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
-.ws-form-row > .ws-field { flex: 1 1 12rem; }
-.ws-suggest { margin-top: 14px; padding: 16px; border-radius: var(--r-panel); background: var(--accent-soft); }
-.ws-suggest b { display: block; color: var(--text); font-size: 16px; font-weight: 600; }
-.ws-suggest p { color: var(--text-2); font-size: 14px; }
 .ws-rows { margin: 14px 0 0; padding: 0; list-style: none; }
 .ws-rows li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
 .ws-rows .ws-rows-t { min-width: 0; }
 .ws-rows .ws-rows-t span { display: block; color: var(--muted); font-size: 12px; }
-.ws-alert { margin: 12px 0 0; padding: 10px 14px; border-radius: var(--r-panel); background: var(--out-bg); color: var(--out-fg); font-size: 14px; }
-.ws-alert a { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .ws-notice { margin: 0 0 12px; padding: 10px 14px; border-radius: var(--r-panel); background: var(--surface-2); color: var(--text); font-size: 14px; }
-.ws-facts { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; width: min(360px, 100%); margin: 6px auto 0; text-align: left; font-size: 14px; }
-.ws-facts dt { color: var(--muted); }
-.ws-facts dd { margin: 0; font-weight: 600; }
-.ws-btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-@container main (max-width: 720px) {
-  .ws-tri-body { padding: 18px 16px 22px; }
-  .ws-tri-title { font-size: 20px; }
-  .ws-tri-amount { font-size: 32px; }
-  .ws-choices { grid-template-columns: minmax(0, 1fr); }
+
+/* ======================================================================
+ * Markas+ fields and forms (option-6 SPEC §7): a 12/500 label 8 px over a 40 px control, the error and hint
+ * lines, and the two-column form grid of the dialogs.
+ * ====================================================================== */
+.field { display: flex; flex-direction: column; gap: var(--sp-8); min-width: 0; }
+.field > label, .field > .flabel { color: var(--muted); font-size: var(--fs-12); line-height: 16px; font-weight: 500; }
+.field .err { color: var(--out-fg); font-size: var(--fs-12); line-height: 16px; }
+.field .ws-seg { flex-wrap: wrap; align-self: flex-start; }
+.field-control { width: 100%; height: 40px; padding: 0 var(--sp-12); border-radius: var(--r-control); color: var(--text); font-size: var(--fs-14); }
+.form-stack > * + * { margin-top: var(--sp-24); }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-16) var(--sp-24); }
+.form-grid .full-row { grid-column: 1 / -1; }
+.c-expense { color: var(--out-fg); }
+.dlg-f .grow { flex: 1; }
+.dlg-f .dlg-error { flex-basis: 100%; order: 1; text-align: right; }
+.run-progress { display: block; width: 100%; height: 8px; margin-top: var(--sp-8); accent-color: var(--accent); }
+.history-estimate > * + *, .history-run > * + * { margin-top: var(--sp-4); }
+
+/* ======================================================================
+ * Rail (option-6 SPEC "Rail item", apply-markas-tinjau D5): 36 px items with a right-aligned count, the current
+ * one with its fill and the straight bar (.ws-select-bar); with .is-chips one line of 44 px chips under 768 px.
+ * ====================================================================== */
+.rail { display: flex; flex-direction: column; min-width: 0; }
+.rail .rail-label { padding: var(--sp-8) var(--sp-12); }
+.rail-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-12);
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--sp-12);
+  border-radius: var(--r-control);
+  color: var(--muted);
+  font-weight: 500;
+  text-align: left;
+  transition: background-color var(--t-state), color var(--t-state);
+}
+.rail-item:hover, .rail-item[aria-current="true"] { background: var(--surface); color: var(--text); }
+.rail-item:focus-visible { outline-offset: -2px; }
+.rail-item .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-item .count { flex: none; color: var(--muted); font-size: var(--fs-12); line-height: 16px; font-weight: 400; font-variant-numeric: tabular-nums lining-nums; font-feature-settings: var(--features-num); }
+.rail .rail-sep { height: 1px; margin: var(--sp-12); background: var(--line); }
+.rail-skel { display: flex; align-items: center; height: 36px; padding: 0 var(--sp-12); }
+
+/* ======================================================================
+ * Tinjau (apply-markas-tinjau D1 to D8, D13): the hero, then rail · list · item at 232 · 336 · 1fr on one top edge;
+ * from 768 to 1199 px the item spans below the rail and the list; under 768 px chips, the list and a sheet.
+ * ====================================================================== */
+.hero + .tj { margin-top: var(--sp-32); }
+.tj { display: grid; grid-template-columns: 232px 336px minmax(0, 1fr); align-items: start; gap: var(--sp-24); }
+.tj-list { min-width: 0; margin-right: calc(-1 * var(--sp-8)); padding-right: var(--sp-24); border-right: 1px solid var(--line); }
+.tj-list .list { margin: 0; }
+.tj-caption { padding: var(--sp-8) var(--sp-12) var(--sp-12); }
+.tj-detail { min-width: 0; max-width: 880px; }
+.tj .row, .tj-q { scroll-margin-top: calc(var(--topbar-h) + var(--sp-16)); }
+.row.is-stacked { align-items: flex-start; min-height: 64px; padding: var(--sp-12); }
+.row.is-stacked .r-main { flex-direction: column; align-items: flex-start; gap: 0; }
+.row.is-stacked .r-main > * { max-width: 100%; }
+.row.is-stacked .r-meta { flex: none; }
+.row.is-stacked .r-amt { min-width: 0; }
+.row .r-actions { display: flex; flex: none; align-items: center; gap: var(--sp-4); }
+.skel-row.is-stacked { height: 64px; padding: 0 var(--sp-12); }
+.tj-skel-line { margin-top: var(--sp-16); }
+.tj-head .t-label { flex: 1; }
+.tj-nav { display: flex; align-items: center; gap: var(--sp-8); }
+.tj-nav .pos { min-width: 48px; color: var(--muted); font-size: var(--fs-12); line-height: 16px; text-align: center; font-variant-numeric: tabular-nums lining-nums; font-feature-settings: var(--features-num); }
+.tj-q { margin-top: var(--sp-16); overflow-wrap: anywhere; }
+.tj-q:focus-visible { outline-offset: 4px; }
+.tj-meta { margin-top: var(--sp-4); }
+.tj-line { margin-top: var(--sp-8); }
+.tj-status:not(:empty) { margin-top: var(--sp-8); }
+.tj-after { margin-top: var(--sp-12); }
+.tj-rows { margin-top: var(--sp-24); }
+.tj-other { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-12); margin-top: var(--sp-16); }
+.tj-other .field { flex: 1 1 12rem; }
+.answers { margin-top: var(--sp-24); border-top: 1px solid var(--line); }
+.answers-nested { margin-top: var(--sp-16); }
+.answers-nested > .answers { margin-top: var(--sp-8); }
+.answer {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-16);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--sp-8) var(--sp-12);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  text-align: left;
+  transition: background-color var(--t-state);
+}
+.answer:hover { background: var(--surface); }
+.answer:active { background: var(--surface-2); }
+.answer:focus-visible { outline-offset: -2px; }
+.answer:disabled { cursor: not-allowed; opacity: 0.45; }
+.answer .a-main { display: flex; flex: 1; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.answer .a-cap { flex: none; width: 20px; }
+.answer .ws-kbd, .answer .a-chev { flex: none; }
+.answer .a-chev { color: var(--muted); }
+.raw { margin-top: var(--sp-24); padding: var(--sp-12) var(--sp-16); border-radius: var(--r-control); background: var(--surface); color: var(--muted); font-size: var(--fs-12); line-height: 16px; overflow-wrap: anywhere; }
+.tj-empty { padding-top: var(--sp-24); }
+
+@media (max-width: 1199px) {
+  .tj { grid-template-columns: 184px minmax(0, 1fr); }
+  .tj-detail { grid-column: 1 / -1; }
+  .tj-list { margin-right: 0; padding-right: 0; border-right: 0; }
 }
 @media (max-width: 767px) {
-  .ws-choice, .ws-tri-folders .ws-chip, .ws-tri-bar .ws-btn { min-height: 44px; }
-  .ws-tri-hints { display: none; }
+  .tj { display: block; }
+  .rail.is-chips { flex-direction: row; gap: var(--sp-8); margin-bottom: var(--sp-16); padding-bottom: 2px; overflow-x: auto; }
+  .rail.is-chips .rail-label, .rail.is-chips .rail-sep { display: none; }
+  .rail.is-chips .rail-item { flex: none; width: auto; height: 44px; border: 1px solid var(--line); }
+  .rail.is-chips .rail-item[aria-current="true"] { border-color: var(--line-strong); background: var(--surface-2); }
+  .rail.is-chips .rail-item::before { content: none; }
+  .rail.is-chips .rail-skel { flex: 0 0 96px; height: 44px; }
+  .tj-detail { max-width: none; }
+  .tj-sheet .tj-detail .tj-q { margin-top: 0; }
+  dialog.shell-dialog.is-full { height: 100vh; max-height: 100vh; margin: 0; border-radius: 0; }
+  dialog.shell-dialog.is-full .sheet-grab { display: none; }
+  .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .tj-nav .ws-icon-btn { width: 44px; height: 44px; }
 }
 
 /* Layers enter in 200 ms with opacity and a short rise; sheets rise further (SPEC §10). */

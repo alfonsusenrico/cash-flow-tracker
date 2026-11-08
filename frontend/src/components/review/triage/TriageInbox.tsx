@@ -1,31 +1,24 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAppCtx } from "@/components/layout/AppLayout";
-import { AmbiguousMovementCard, AwaitingMovementCard, type TopupOptions } from "@/components/review/MovementReviewCards";
-import { HistorySuggestionsSection } from "@/components/review/HistorySuggestionsSection";
-import { SeenTwiceCard } from "@/components/review/SeenTwiceCard";
-import { PurposeQuestionCard, type PurposeAnswerBody } from "@/components/review/PurposeQuestionCard";
-import { ReviewGroupCard, type CategoryOption, type GroupActionRequest } from "@/components/review/ReviewGroupCard";
-import { SuggestionGroupCard, type SuggestionDecisionRequest } from "@/components/review/SuggestionGroupCard";
-import type { CycleSummary } from "@/components/beranda/types";
+import { HistorySuggestionsDialog } from "@/components/review/HistorySuggestionsDialog";
+import type { CategoriesState, CategoryOption } from "@/components/review/CategoryDialog";
 import type { AccountOptionItem } from "@/components/ui/AccountSelectOptions";
 import { Icon } from "@/components/ui/Icon";
-import { useEscapeLayer } from "@/components/workspace/layers";
+import { PageActions } from "@/components/workspace/context";
+import { HeroFigure } from "@/components/workspace/figures";
+import { PHONE_QUERY, useMediaQuery } from "@/components/workspace/layers";
+import { useMoney } from "@/components/workspace/money";
 import { useToast } from "@/components/workspace/overlays";
-import { EmptyState, ErrorState, Skeleton } from "@/components/workspace/primitives";
+import { EmptyState } from "@/components/workspace/primitives";
+import { ShellDialog } from "@/components/workspace/ShellDialog";
 import { usePageShortcutGroup, useShortcut, useShortcuts, type PageShortcutGroup } from "@/components/workspace/shortcuts";
-import { useWidthAtMost } from "@/hooks/useWidthAtMost";
 import { isLiquidAccountChoice } from "@/lib/accountOptions";
 import { api } from "@/lib/api";
 import { chunkSuggestionIds, type SuggestionDecisionResult, type SuggestionList } from "@/lib/historySuggestions";
-import {
-  canSwitchToAmountTracking,
-  listAmountInvestmentProducts,
-  type InvestmentAccount,
-} from "@/lib/investmentTopups";
+import { canSwitchToAmountTracking, listAmountInvestmentProducts, type InvestmentAccount } from "@/lib/investmentTopups";
 import { queryKeys } from "@/lib/queryKeys";
 import {
   chunkIds,
@@ -34,88 +27,54 @@ import {
   reviewErrorMessage,
   type AmbiguousItem,
   type CompletionCandidate,
+  type LearnedAccountLink,
   type PurposeQuestionEntry,
   type ReviewItem,
   type ReviewQueue,
-  type LearnedAccountLink,
   type SeenTwiceItem,
   type TopupProductChoice,
 } from "@/lib/review";
-import {
-  batchOf,
-  NOTHING_TO_UNDO,
-  undoEntry,
-  undoMessage,
-  UndoStack,
-  type UndoBatch,
-  type UndoEntry,
-  type UndoFields,
-  type UndoResponse,
-} from "@/lib/reviewUndo";
+import { batchOf, undoEntry, undoMessage, undoText, UndoStack, type UndoBatch, type UndoEntry, type UndoFields, type UndoResponse } from "@/lib/reviewUndo";
 import {
   buildTriage,
-  FOLDER_LABELS,
   folderFromParams,
-  transaksiHref,
   folderItems,
   isOptionalFolder,
-  itemFolderLabel,
-  itemTitle,
   itemTransactionId,
   neededCount,
   nextAfter,
   resolveDeepLink,
   triageSearch,
   type FolderKey,
-  type OptionalFolder,
   type Triage,
   type TriageItem,
 } from "@/lib/triage";
-import { TriageList } from "./TriageList";
-import { pressChoice, pressMarked } from "./Choice";
+import { pressChoice, pressMarked } from "./Answers";
+import { HEADING_ID, ItemBody, ItemHeadRow, StatusLine, type Failure } from "./ItemBody";
+import { TriageList, TriageRail } from "./TriageList";
+import { folderName, itemTitle, kindName, useTriageWords } from "./copy";
+import { groupParts, type GroupActionRequest } from "./items/GroupItem";
+import { ambiguousParts, awaitingParts, type TopupOptions } from "./items/MovementItems";
+import { questionParts, type PurposeAnswerBody } from "./items/QuestionItem";
+import { seenTwiceParts } from "./items/SeenTwiceItem";
+import { suggestionParts, type SuggestionDecisionRequest } from "./items/SuggestionItem";
+import type { ItemContext, ItemParts, SaveResult } from "./types";
 
-/** Main column width at or below which one pane shows at a time (D5, the preview's threshold). */
-export const TWO_PANE_MIN = 720;
-const RUN_PANEL_ID = "run:suggestions";
-const HEADING_ID = "triage-item-heading";
 const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-const PAGE_KEYS: PageShortcutGroup = {
-  name: "Di Tinjau",
-  entries: [
-    { keys: ["J", "K"], text: "Pindah ke item berikutnya atau sebelumnya" },
-    { keys: ["Enter"], text: "Buka item yang dipilih" },
-    { keys: ["E"], text: "Terima saran yang disorot" },
-    { keys: ["T"], text: "Ini top up investasi" },
-    { keys: ["1–9"], text: "Pilih jawaban bernomor" },
-    { keys: ["Z"], text: "Urungkan jawaban terakhir" },
-  ],
-};
-
-const ACTION_DONE: Record<GroupActionRequest["action"], string> = {
-  accept: "ditandai sudah ditinjau",
-  recategorise: "dipindahkan ke kategori baru",
-  rename: "diganti namanya",
-  keep_separate: "dibiarkan terpisah",
-};
+/** The server lists at most this many rows; a truncated queue says so (review-queue "Review Queue"). */
+const QUEUE_LIMIT = 1000;
 
 interface ActionOutcome {
+  /** The saved action in words, inside "Tersimpan: …". */
   message: string;
   batches: (UndoBatch | null)[];
   /** The item stays (for example when the server asks to choose an existing leg). */
   stay?: boolean;
 }
 
-interface Failure {
-  message: string;
-  transactionId?: string | null;
-}
-
 /** "Induk · Produk" choices for top-ups and the unit-tracked funds that must switch first. */
 function topupChoices(accounts: InvestmentAccount[]): { products: TopupProductChoice[]; unitFunds: TopupProductChoice[] } {
-  const flattened = [...new Map(
-    accounts.flatMap((account) => [account, ...(account.children ?? [])]).map((account) => [account.id, account]),
-  ).values()];
+  const flattened = [...new Map(accounts.flatMap((account) => [account, ...(account.children ?? [])]).map((account) => [account.id, account])).values()];
   const label = (account: InvestmentAccount): TopupProductChoice => {
     const parent = flattened.find((candidate) => candidate.id === account.parent_id);
     return { id: account.id, name: account.name, label: parent ? `${parent.name} · ${account.name}` : account.name };
@@ -130,15 +89,127 @@ function focusHeading() {
   window.requestAnimationFrame(() => document.getElementById(HEADING_ID)?.focus());
 }
 
-/** The Tinjau triage inbox: folders, a list and one item, keys, auto-advance and Urungkan. */
+function focusRow(id: string | null, fallback: HTMLElement | null) {
+  window.requestAnimationFrame(() => {
+    const row = id ? document.querySelector<HTMLElement>(`[data-row="${CSS.escape(id)}"]`) : null;
+    (row ?? fallback?.querySelector<HTMLElement>("[data-row]"))?.focus();
+  });
+}
+
+/** A dialog opened over the item (category, answer, help) owns the keys; the phone's item sheet does not. */
+function insideItemDialog(): boolean {
+  const dialog = document.activeElement?.closest("dialog");
+  return Boolean(dialog && !dialog.classList.contains("tj-sheet"));
+}
+
+function everyItemOf(triage: Triage): TriageItem[] {
+  return [...folderItems(triage, "semua"), ...triage.folders.otomatis, ...triage.folders.saran, ...triage.folders.dua, ...triage.folders.lewat];
+}
+
+function questionItem(entry: PurposeQuestionEntry): TriageItem {
+  return { kind: "question", id: `q:${entry.event_id}`, folder: "apa", transactionIds: [entry.transaction.id], entry };
+}
+
+function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  const copy = { ...record };
+  delete copy[key];
+  return copy;
+}
+
+/** What each kind's answers send; every action goes through the page's `act` (auto-advance, toast, Urungkan). */
+interface ItemHandlers {
+  accounts: AccountOptionItem[];
+  categories: CategoriesState;
+  completionChoices: Record<string, CompletionCandidate[]>;
+  answerQuestion: (entry: PurposeQuestionEntry) => (body: PurposeAnswerBody) => Promise<SaveResult>;
+  groupAction: (item: TriageItem) => (request: GroupActionRequest) => Promise<SaveResult>;
+  completeMovement: (item: TriageItem) => (leg: ReviewItem, accountId: string, createNew?: boolean) => Promise<SaveResult>;
+  merge: (item: TriageItem) => (leg: ReviewItem | AmbiguousItem, counterpartId: string) => Promise<SaveResult>;
+  keepSeparate: (item: TriageItem) => (leg: AmbiguousItem) => Promise<SaveResult>;
+  recordAsSpending: (item: TriageItem) => (leg: ReviewItem, fields: Record<string, string>) => Promise<SaveResult>;
+  topupFor: (item: TriageItem, leg: ReviewItem) => TopupOptions | undefined;
+  acknowledgeSeenTwice: (item: TriageItem) => (entry: SeenTwiceItem) => Promise<SaveResult>;
+  recordSeenTwice: (item: TriageItem) => (entry: SeenTwiceItem) => Promise<SaveResult>;
+  decide: (item: TriageItem) => (request: SuggestionDecisionRequest) => Promise<SaveResult>;
+}
+
+/** The selected item's body: its kind's parts in the one item pattern (D7, D9). */
+function ItemContent({ item, ctx, status, handlers }: { item: TriageItem; ctx: ItemContext; status: ReactNode; handlers: ItemHandlers }) {
+  const parts = ((): ItemParts => {
+    switch (item.kind) {
+      case "question":
+        return questionParts(item.entry, ctx, handlers.answerQuestion(item.entry));
+      case "group":
+        return groupParts(item.group, item.folder === "otomatis", ctx, handlers.categories, handlers.groupAction(item));
+      case "awaiting":
+        return awaitingParts(item.item, ctx, {
+          accounts: handlers.accounts,
+          categories: handlers.categories,
+          candidates: handlers.completionChoices[item.item.id],
+          onComplete: handlers.completeMovement(item),
+          onLinkExisting: handlers.merge(item),
+          onSpending: handlers.recordAsSpending(item),
+          topup: handlers.topupFor(item, item.item),
+        });
+      case "ambiguous":
+        return ambiguousParts(item.item, ctx, handlers.merge(item), handlers.keepSeparate(item));
+      case "suggestion":
+        return suggestionParts(item.group, ctx, handlers.decide(item));
+      case "seen_twice":
+        return seenTwiceParts(item.item, ctx, handlers.acknowledgeSeenTwice(item), handlers.recordSeenTwice(item));
+    }
+  })();
+  return <ItemBody parts={parts} status={status} />;
+}
+
+/** Static placeholders in the panes' final geometry (D15): no hero, count or amount, nothing pulses. */
+function TriageSkeleton({ phone }: { phone: boolean }) {
+  return (
+    <>
+      <div className="tj-rail rail is-chips" aria-hidden="true">
+        {[64, 56, 72, 60, 52].map((width) => (
+          <span key={width} className="rail-skel">
+            <span className="skel" style={{ width: `${width}%` }} />
+          </span>
+        ))}
+      </div>
+      <div className="tj-list" aria-hidden="true">
+        {[46, 38, 52, 30, 44, 36].map((width) => (
+          <div key={width} className="skel-row is-stacked">
+            <span className="skel" style={{ width: 40 }} />
+            <span className="skel" style={{ width: `${width}%` }} />
+            <span className="grow" />
+            <span className="skel" style={{ width: 96 }} />
+          </div>
+        ))}
+      </div>
+      {!phone && (
+        <div className="tj-detail" aria-hidden="true">
+          {["30%", "70%", "50%"].map((width) => (
+            <span key={width} className="skel tj-skel-line" style={{ width }} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * Tinjau (apply-markas-tinjau): the title block with "…", the hero, and the folder rail, item list and item in one
+ * keyboard region. Folder membership, auto-advance, Urungkan, deep links and the keys are unchanged; on a phone the
+ * item opens in a full-height sheet with its own history entry.
+ */
 export function TriageInbox() {
   const qc = useQueryClient();
-  const { bal } = useAppCtx();
+  const words = useTriageWords();
+  const { t, format } = words;
+  const money = useMoney();
+  const { hideBalances } = useAppCtx();
   const { showToast } = useToast();
+  const phone = useMediaQuery(PHONE_QUERY);
   const regionRef = useRef<HTMLElement>(null);
-  const listRef = useRef<HTMLElement>(null);
-  const itemRef = useRef<HTMLElement>(null);
-  const onePane = useWidthAtMost(regionRef, TWO_PANE_MIN);
+  const listRef = useRef<HTMLDivElement>(null);
+  const itemRef = useRef<HTMLDivElement>(null);
   const undoStack = useRef(new UndoStack());
   const acting = useRef(false);
   const pushedItem = useRef(false);
@@ -147,46 +218,52 @@ export function TriageInbox() {
 
   const [folder, setFolder] = useState<FolderKey>("semua");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [pane, setPane] = useState<"list" | "item">("list");
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState("");
   const [failure, setFailure] = useState<Failure | null>(null);
-  const [foldOpen, setFoldOpen] = useState<Record<OptionalFolder, boolean>>({ otomatis: false, saran: false, dua: false, lewat: false });
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [completionChoices, setCompletionChoices] = useState<Record<string, CompletionCandidate[]>>({});
 
-  usePageShortcutGroup(PAGE_KEYS);
-  const { register } = useShortcuts();
+  const pageKeys = useMemo<PageShortcutGroup>(
+    () => ({
+      name: t("review.keys.group"),
+      translated: true,
+      entries: [
+        { keys: ["J", "K"], text: t("review.keys.move") },
+        { keys: ["Enter"], text: t("review.keys.open") },
+        { keys: ["E"], text: t("review.keys.accept") },
+        { keys: ["T"], text: t("review.keys.topup") },
+        { keys: ["1–9"], text: t("review.keys.numbered") },
+        { keys: ["Z"], text: t("review.keys.undo") },
+      ],
+    }),
+    [t],
+  );
+  usePageShortcutGroup(pageKeys);
+  const { register, openHelp } = useShortcuts();
 
   const queueQuery = useQuery<ReviewQueue>({ queryKey: queryKeys.review.queue, queryFn: () => api.get("/review/queue") });
   const suggestionsQuery = useQuery<SuggestionList>({ queryKey: queryKeys.review.suggestions, queryFn: () => api.get("/review/suggestions") });
-  const { data: categoriesData } = useQuery<{ categories: CategoryOption[] }>({ queryKey: queryKeys.categories, queryFn: () => api.get("/categories") });
+  const categoriesQuery = useQuery<{ categories: CategoryOption[] }>({ queryKey: queryKeys.categories, queryFn: () => api.get("/categories") });
   const { data: accountsData } = useQuery<{ accounts: AccountOptionItem[] }>({ queryKey: queryKeys.accounts, queryFn: () => api.get("/accounts") });
 
   const triage: Triage | null = useMemo(
     () => (queueQuery.data ? buildTriage(queueQuery.data, suggestionsQuery.data) : null),
     [queueQuery.data, suggestionsQuery.data],
   );
-  const allDone = triage !== null && neededCount(triage) === 0;
-  const summaryQuery = useQuery<CycleSummary>({
-    queryKey: queryKeys.dashboard.cycleSummary,
-    queryFn: () => api.get("/dashboard/cycle-summary"),
-    enabled: allDone,
-  });
-
   const items = useMemo(() => (triage ? folderItems(triage, folder) : []), [triage, folder]);
-  const everyItem = useMemo(
-    () => (triage ? everyItemOf(triage) : []),
-    [triage],
-  );
-  const selected = selectedId === RUN_PANEL_ID ? null : everyItem.find((item) => item.id === selectedId) ?? null;
-  const categories = categoriesData?.categories ?? [];
+  const everyItem = useMemo(() => (triage ? everyItemOf(triage) : []), [triage]);
+  const selected = everyItem.find((item) => item.id === selectedId) ?? null;
+  const categories: CategoriesState = {
+    categories: categoriesQuery.data?.categories ?? [],
+    failed: categoriesQuery.isError,
+    retry: () => void categoriesQuery.refetch(),
+  };
   const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData]);
   const choices = useMemo(() => topupChoices(accounts as unknown as InvestmentAccount[]), [accounts]);
 
-  const showItemPane = !onePane || pane === "item";
-  const showListPane = !onePane || pane === "list";
-
-  // --- URL state (D7) -----------------------------------------------------------------------
+  // --- URL state (redesign-review-triage D7) ----------------------------------------------------
   const writeUrl = useCallback((nextFolder: FolderKey, item: TriageItem | null, push: boolean) => {
     const url = `${window.location.pathname}${triageSearch(nextFolder, item)}`;
     if (push) window.history.pushState({ triageItem: item?.id ?? null }, "", url);
@@ -201,76 +278,71 @@ export function TriageInbox() {
     const transactionId = params.get("item");
     const linkedFolder = folderFromParams(params.get("folder"), window.location.hash);
     if (!transactionId && !linkedFolder) {
-      const first = folderItems(triage, "semua")[0] ?? null;
-      setSelectedId(first?.id ?? null);
+      setSelectedId(folderItems(triage, "semua")[0]?.id ?? null);
       return;
     }
     const link = resolveDeepLink(triage, transactionId, linkedFolder);
     const target = link.itemId ?? folderItems(triage, link.folder)[0]?.id ?? null;
     setFolder(link.folder);
     setSelectedId(target);
-    if (isOptionalFolder(link.folder)) setFoldOpen((open) => ({ ...open, [link.folder]: true }));
-    if (link.resolved) setNotice("Item yang dibuka sudah selesai.");
+    if (link.resolved) setNotice(t("review.notice.linkDone"));
     const item = everyItemOf(triage).find((entry) => entry.id === target) ?? null;
     writeUrl(link.folder, link.itemId ? item : null, false);
     if (link.itemId) {
-      setPane("item");
+      setSheetOpen(true);
       focusHeading();
     }
-  }, [triage, writeUrl]);
+  }, [triage, writeUrl, t]);
 
-  // Selection is held by id across refetches; an item answered elsewhere is replaced by the next one (D6).
+  // Selection is held by id across refetches; an item answered elsewhere is replaced by the next one.
   useEffect(() => {
     if (!triage || !deepLinkRead.current) return;
     const ids = items.map((item) => item.id);
     const visible = new Set(everyItemOf(triage).map((item) => item.id));
-    if (!acting.current && selectedId && selectedId !== RUN_PANEL_ID && !visible.has(selectedId)) {
-      const next = nextAfter(lastIds.current, selectedId, new Set(ids));
-      setSelectedId(next);
-      setNotice("Item ini sudah diselesaikan di tempat lain.");
+    if (!acting.current && selectedId && !visible.has(selectedId)) {
+      setSelectedId(nextAfter(lastIds.current, selectedId, new Set(ids)));
+      setNotice(t("review.notice.doneElsewhere"));
     }
     lastIds.current = ids;
-  }, [triage, items, selectedId]);
+  }, [triage, items, selectedId, t]);
 
-  // On one pane, the browser's back gesture returns from the item to the list (D5).
+  // On the phone the browser's back gesture closes the item's sheet (D13).
   useEffect(() => {
     const onPop = () => {
-      if (pane !== "item" || !onePane) return;
+      if (!sheetOpen || !pushedItem.current) return;
       pushedItem.current = false;
-      setPane("list");
-      focusRow(selectedId);
+      setSheetOpen(false);
+      focusRow(selectedId, listRef.current);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, [pane, onePane, selectedId]);
+  }, [sheetOpen, selectedId]);
 
-  const backToList = useCallback(() => {
+  const closeSheet = useCallback(() => {
     if (pushedItem.current) {
       window.history.back();
       return;
     }
-    setPane("list");
-    focusRow(selectedId);
+    setSheetOpen(false);
+    focusRow(selectedId, listRef.current);
   }, [selectedId]);
-  useEscapeLayer(onePane && pane === "item", backToList);
 
   // --- Selection ------------------------------------------------------------------------------
   const open = useCallback((item: TriageItem) => {
     setNotice("");
     setFailure(null);
     setSelectedId(item.id);
-    if (isOptionalFolder(item.folder)) setFolder(item.folder);
-    else if (isOptionalFolder(folder)) setFolder("semua");
     const nextFolder = isOptionalFolder(item.folder) ? item.folder : isOptionalFolder(folder) ? "semua" : folder;
-    if (onePane) {
-      setPane("item");
+    setFolder(nextFolder);
+    if (phone) {
+      setSheetOpen(true);
       pushedItem.current = true;
       writeUrl(nextFolder, item, true);
       focusHeading();
     } else {
       writeUrl(nextFolder, item, false);
     }
-  }, [folder, onePane, writeUrl]);
+  }, [folder, phone, writeUrl]);
 
   const chooseFolder = useCallback((next: FolderKey) => {
     if (!triage) return;
@@ -278,35 +350,25 @@ export function TriageInbox() {
     setNotice("");
     const first = folderItems(triage, next)[0] ?? null;
     setSelectedId(first?.id ?? null);
-    writeUrl(next, onePane ? null : first, false);
-  }, [triage, onePane, writeUrl]);
-
-  const openRunPanel = () => {
-    setSelectedId(RUN_PANEL_ID);
-    if (onePane) {
-      setPane("item");
-      pushedItem.current = true;
-      window.history.pushState({ triageItem: RUN_PANEL_ID }, "", window.location.href);
-    }
-    focusHeading();
-  };
+    writeUrl(next, phone ? null : first, false);
+  }, [triage, phone, writeUrl]);
 
   const move = useCallback((step: 1 | -1, fromList: boolean) => {
     const index = items.findIndex((item) => item.id === selectedId);
     const next = items[index + step];
     if (!next) {
-      setNotice(step > 0 ? "Ini yang terakhir." : "Ini yang pertama.");
+      setNotice(step > 0 ? t("review.notice.last") : t("review.notice.first"));
       return;
     }
     setNotice("");
     setFailure(null);
     setSelectedId(next.id);
     writeUrl(folder, next, false);
-    if (fromList && !onePane) focusRow(next.id);
+    if (fromList) focusRow(next.id, listRef.current);
     else focusHeading();
-  }, [items, selectedId, folder, onePane, writeUrl]);
+  }, [items, selectedId, folder, writeUrl, t]);
 
-  // --- Actions and auto-advance (D6) -----------------------------------------------------------
+  // --- Actions and auto-advance (redesign-review-triage D6) ------------------------------------
   const refresh = useCallback(async () => {
     await Promise.all([
       qc.invalidateQueries({ queryKey: queryKeys.review.all }),
@@ -321,10 +383,12 @@ export function TriageInbox() {
     return queue ? buildTriage(queue, qc.getQueryData<SuggestionList>(queryKeys.review.suggestions)) : null;
   }, [qc]);
 
+  const errorText = useCallback((error: unknown) => reviewErrorMessage(error) ?? t("review.notice.requestFailed"), [t]);
+
   const undo = useRef<() => Promise<void>>(async () => {});
 
-  const act = useCallback(async (item: TriageItem, work: () => Promise<ActionOutcome>): Promise<boolean> => {
-    const before = (isOptionalFolder(item.folder) ? folderItems(triage!, item.folder) : items).map((entry) => entry.id);
+  const act = useCallback(async (item: TriageItem, work: () => Promise<ActionOutcome>): Promise<SaveResult> => {
+    const before = (isOptionalFolder(item.folder) && triage ? folderItems(triage, item.folder) : items).map((entry) => entry.id);
     setPending(true);
     setFailure(null);
     setNotice("");
@@ -339,24 +403,25 @@ export function TriageInbox() {
     const saved = (outcome?.batches ?? (error as { savedBatches?: UndoBatch[] } | null)?.savedBatches ?? []).filter(Boolean) as UndoBatch[];
     const entry = saved.length
       ? undoStack.current.push({
-        batches: saved,
-        label: itemTitle(item),
-        transactionId: itemTransactionId(item),
-        folderLabel: itemFolderLabel(item),
-      })
+          batches: saved,
+          label: itemTitle(t, item),
+          transactionId: itemTransactionId(item),
+          folderLabel: folderName(t, item.folder),
+        })
       : null;
     await refresh();
     acting.current = false;
     setPending(false);
-    if (error) {
-      setFailure({ message: reviewErrorMessage(error) });
-      return false;
+    const withUndo = entry ? { onUndo: () => void undo.current() } : undefined;
+    if (error || !outcome) {
+      const message = errorText(error);
+      setFailure({ message });
+      return { saved: false, error: message };
     }
-    if (!outcome) return false;
     const fresh = latestTriage();
     if (outcome.stay || !fresh) {
-      showToast(`Tersimpan: ${outcome.message}`, entry ? { onUndo: () => void undo.current() } : undefined);
-      return true;
+      showToast(t("review.toast.saved", { message: outcome.message }), withUndo);
+      return { saved: true };
     }
     let nextFolder: FolderKey = isOptionalFolder(item.folder) ? item.folder : folder;
     let remaining = folderItems(fresh, nextFolder);
@@ -369,18 +434,29 @@ export function TriageInbox() {
     const next = remaining.find((entry) => entry.id === nextId) ?? null;
     setFolder(nextFolder);
     setSelectedId(nextId);
-    writeUrl(nextFolder, onePane && !next ? null : next, false);
-    if (onePane && !next) setPane("item");
-    const following = next ? ` Berikutnya: ${itemTitle(next)}.` : neededCount(fresh) === 0 ? " Semua sudah ditinjau." : "";
-    showToast(`Tersimpan: ${outcome.message}.${following}`, entry ? { onUndo: () => void undo.current() } : undefined);
-    focusHeading();
-    return true;
-  }, [triage, items, folder, onePane, refresh, latestTriage, showToast, writeUrl]);
+    writeUrl(nextFolder, phone && !next ? null : next, false);
+    if (phone && !next) {
+      if (pushedItem.current) {
+        pushedItem.current = false;
+        window.history.back();
+      }
+      setSheetOpen(false);
+      focusRow(null, listRef.current);
+    }
+    const text = next
+      ? t("review.toast.savedNext", { message: outcome.message, title: itemTitle(t, next) })
+      : neededCount(fresh) === 0
+        ? t("review.toast.savedAllDone", { message: outcome.message })
+        : t("review.toast.saved", { message: outcome.message });
+    showToast(text, withUndo);
+    if (next) focusHeading();
+    return { saved: true };
+  }, [triage, items, folder, phone, refresh, latestTriage, showToast, writeUrl, errorText, t]);
 
   const runUndo = useCallback(async () => {
     const entry: UndoEntry | null = undoStack.current.newest();
     if (!entry) {
-      setNotice(NOTHING_TO_UNDO);
+      setNotice(t("review.undo.nothing"));
       return;
     }
     setPending(true);
@@ -391,7 +467,7 @@ export function TriageInbox() {
     await refresh();
     acting.current = false;
     setPending(false);
-    const message = undoMessage(outcome, entry);
+    const message = undoText(t, undoMessage(outcome, entry));
     if (outcome.failure) {
       setFailure({ message, transactionId: outcome.failure === "network" ? null : outcome.conflictIds[0] ?? entry.transactionId });
       return;
@@ -402,35 +478,37 @@ export function TriageInbox() {
       if (link.itemId) {
         setFolder(link.folder);
         setSelectedId(link.itemId);
-        if (isOptionalFolder(link.folder)) setFoldOpen((open) => ({ ...open, [link.folder]: true }));
         writeUrl(link.folder, everyItemOf(fresh).find((item) => item.id === link.itemId) ?? null, false);
-        if (onePane) setPane("item");
+        if (phone) setSheetOpen(true);
       }
     }
     showToast(message);
     focusHeading();
-  }, [refresh, latestTriage, showToast, writeUrl, onePane]);
+  }, [refresh, latestTriage, showToast, writeUrl, phone, t]);
   useLayoutEffect(() => {
     undo.current = runUndo;
   }, [runUndo]);
 
-  const answerQuestion = (entry: PurposeQuestionEntry, body: PurposeAnswerBody) =>
+  const answerQuestion = (entry: PurposeQuestionEntry) => (body: PurposeAnswerBody) =>
     act(questionItem(entry), async () => {
       const response = await api.post<{ answer: { status: "applied" | "needs_review"; notes: string | null } } & UndoFields>(
         `/ingest/notifications/${entry.event_id}/answer-purpose`,
         { question_id: entry.question.question_id, reply_id: newReplyId(), ...body },
       );
+      const applied = response.answer?.status === "applied";
       return {
-        message: response.answer?.status === "applied"
-          ? `jawaban ${response.answer.notes ?? "tersimpan"}`
-          : "jawaban disimpan sebagai catatan, kategorinya masih perlu dipilih",
+        message: !applied
+          ? t("review.toast.answerAsNote")
+          : response.answer.notes
+            ? t("review.toast.answerApplied", { notes: response.answer.notes })
+            : t("review.toast.answerSaved"),
         batches: [batchOf(response, 1)],
       };
     });
 
   const groupAction = (item: TriageItem) => (request: GroupActionRequest) =>
     act(item, async () => {
-      // Each request is one database transaction; a group larger than a batch is sent in parts (D14).
+      // Each request is one database transaction; a group larger than a batch is sent in parts.
       const batches: UndoBatch[] = [];
       let done = 0;
       for (const ids of chunkIds(request.ids)) {
@@ -440,12 +518,19 @@ export function TriageInbox() {
           if (batch) batches.push(batch);
         } catch (failed) {
           if (done === 0) throw failed;
-          const partial = new Error(`${done} dari ${request.ids.length} transaksi tersimpan; sisanya gagal: ${reviewErrorMessage(failed)}`);
+          const partial = new Error(t("review.toast.partialRows", { done: format.integer(done), total: format.integer(request.ids.length), error: errorText(failed) }));
           throw Object.assign(partial, { savedBatches: batches });
         }
         done += ids.length;
       }
-      return { message: `${request.label}, ${done} transaksi ${ACTION_DONE[request.action]}`, batches };
+      const values = { label: request.label, count: done };
+      const message =
+        request.action === "recategorise"
+          ? t("review.toast.groupRecategorised", values)
+          : request.action === "rename"
+            ? t("review.toast.groupRenamed", values)
+            : t("review.toast.groupAccepted", values);
+      return { message, batches };
     });
 
   const completeMovement = (item: TriageItem) => (leg: ReviewItem, accountId: string, createNew = false) =>
@@ -458,7 +543,7 @@ export function TriageInbox() {
         });
         setCompletionChoices((current) => withoutKey(current, leg.id));
         return {
-          message: response.linked_transaction_id ? "dihubungkan dengan transaksi yang sudah ada" : "pindah saldo dilengkapi",
+          message: response.linked_transaction_id ? t("review.toast.linkedExisting") : t("review.toast.transferCompleted"),
           batches: [batchOf(response, 2)],
         };
       } catch (failed) {
@@ -466,30 +551,28 @@ export function TriageInbox() {
         if (!candidates) throw failed;
         // The other leg may already be recorded; creating another would count the money twice.
         setCompletionChoices((current) => ({ ...current, [leg.id]: candidates }));
-        return { message: "rekening itu sudah punya transaksi yang cocok. Hubungkan, atau catat baru", batches: [], stay: true };
+        return { message: t("review.toast.candidatesFound"), batches: [], stay: true };
       }
     });
 
-  const merge = (item: TriageItem) => async (leg: ReviewItem | AmbiguousItem, counterpartId: string) =>
+  const merge = (item: TriageItem) => (leg: ReviewItem | AmbiguousItem, counterpartId: string) =>
     act(item, async () => {
       const [expense, income] = leg.type === "expense" ? [leg.id, counterpartId] : [counterpartId, leg.id];
       const response = await api.post<UndoFields>("/movements/merge", { expense_transaction_id: expense, income_transaction_id: income });
       setCompletionChoices((current) => withoutKey(current, leg.id));
-      return { message: "kedua transaksi digabung sebagai pindah saldo", batches: [batchOf(response, 2)] };
+      return { message: t("review.toast.merged"), batches: [batchOf(response, 2)] };
     });
 
   const keepSeparate = (item: TriageItem) => (leg: AmbiguousItem) =>
     act(item, async () => {
       const response = await api.post<UndoFields>("/review/bulk", { action: "keep_separate", transaction_ids: [leg.id] });
-      return { message: "dibiarkan terpisah", batches: [batchOf(response, 1)] };
+      return { message: t("review.toast.keptSeparate"), batches: [batchOf(response, 1)] };
     });
 
-  const recordAsExpense = (item: TriageItem) => (leg: ReviewItem, categoryId: string, pillar: string | null) =>
+  const recordAsSpending = (item: TriageItem) => (leg: ReviewItem, fields: Record<string, string>) =>
     act(item, async () => {
-      const response = await api.post<UndoFields>("/review/bulk", {
-        action: "recategorise", transaction_ids: [leg.id], category_id: categoryId, ...(pillar ? { kakeibo_type: pillar } : {}),
-      });
-      return { message: "dicatat sebagai pengeluaran", batches: [batchOf(response, 1)] };
+      const response = await api.post<UndoFields>("/review/bulk", { action: "recategorise", transaction_ids: [leg.id], ...fields });
+      return { message: t("review.toast.recordedSpending"), batches: [batchOf(response, 1)] };
     });
 
   const topupFor = (item: TriageItem, leg: ReviewItem): TopupOptions | undefined => {
@@ -500,16 +583,18 @@ export function TriageInbox() {
       ...choices,
       onConvert: (debit, productId, suggestedId) => act(item, async () => {
         const response = await api.post<UndoFields>("/investment-topups/from-transaction", {
-          transaction_id: debit.id, target_account_id: productId,
+          transaction_id: debit.id,
+          target_account_id: productId,
           ...(suggestedId ? { suggested_target_account_id: suggestedId } : {}),
         });
-        return { message: "debit dicatat sebagai top up investasi", batches: [batchOf(response, 2)] };
+        return { message: t("review.toast.topupRecorded"), batches: [batchOf(response, 2)] };
       }),
       onReject: (debit, suggestedId) => act(item, async () => {
         const response = await api.post<UndoFields>("/review/topup-suggestions/reject", {
-          transaction_id: debit.id, ...(suggestedId ? { suggested_target_account_id: suggestedId } : {}),
+          transaction_id: debit.id,
+          ...(suggestedId ? { suggested_target_account_id: suggestedId } : {}),
         });
-        return { message: "bukan top up. Pilih rekening pasangannya", batches: [batchOf(response, 1)], stay: true };
+        return { message: t("review.toast.notTopup"), batches: [batchOf(response, 1)], stay: true };
       }),
     };
   };
@@ -519,286 +604,246 @@ export function TriageInbox() {
     try {
       await api.del(`/ingest/account-links/${link.id}`);
       await qc.invalidateQueries({ queryKey: ["account-links"] });
-      showToast(`Tautan dibatalkan. Laporan ${link.institution_label} serupa akan ditanyakan lagi.`);
+      showToast(t("review.toast.linkCancelled", { institution: link.institution_label }));
     } catch (error) {
-      setFailure({ message: reviewErrorMessage(error) });
+      setFailure({ message: errorText(error) });
     }
   };
 
   const acknowledgeSeenTwice = (item: TriageItem) => async (entry: SeenTwiceItem) => {
     const learned: { link: LearnedAccountLink | null } = { link: null };
-    const done = await act(item, async () => {
+    const result = await act(item, async () => {
       const response = await api.post<{ link: LearnedAccountLink | null }>(`/review/seen-twice/${entry.event_id}/acknowledge`, {});
       learned.link = response.link?.created ? response.link : null;
-      return { message: "ditandai satu transaksi", batches: [] };
+      return { message: t("review.toast.acknowledged"), batches: [] };
     });
     const link = learned.link;
-    if (done && link) {
+    if (result.saved && link) {
       void qc.invalidateQueries({ queryKey: ["account-links"] });
-      showToast(`${link.account_label ?? "Rekening"} juga dilaporkan ${link.institution_label}. Laporan serupa dilewati otomatis.`, {
-        actionLabel: "Batalkan", onUndo: () => void stopLearnedLink(link),
+      showToast(t("review.toast.learnedLink", { account: link.account_label ?? t("review.answer.account"), institution: link.institution_label }), {
+        actionLabel: t("review.toast.cancelLink"),
+        onUndo: () => void stopLearnedLink(link),
       });
     }
-    return done;
+    return result;
   };
 
   const recordSeenTwice = (item: TriageItem) => (entry: SeenTwiceItem) =>
     act(item, async () => {
       const response = await api.post<UndoFields>(`/review/seen-twice/${entry.event_id}/record-separately`, {});
-      return { message: "dicatat sebagai transaksi terpisah", batches: [batchOf(response, 1)] };
+      return { message: t("review.toast.recordedSeparately"), batches: [batchOf(response, 1)] };
     });
 
   const decide = (item: TriageItem) => (request: SuggestionDecisionRequest) =>
     act(item, async () => {
       const batches: UndoBatch[] = [];
+      const accepting = request.decision === "accept";
       let done = 0;
       let skipped = 0;
       for (const ids of chunkSuggestionIds(request.ids)) {
         try {
           const result = await api.post<SuggestionDecisionResult & UndoFields>(`/review/suggestions/${request.decision}`, { suggestion_ids: ids });
-          const count = (request.decision === "accept" ? result.accepted : result.rejected) ?? 0;
+          const count = (accepting ? result.accepted : result.rejected) ?? 0;
           done += count;
           skipped += result.skipped.length;
           const batch = batchOf(result, count);
           if (batch) batches.push(batch);
         } catch (failed) {
           if (done === 0 && skipped === 0) throw failed;
-          const verb = request.decision === "accept" ? "diterima" : "ditolak";
-          throw Object.assign(new Error(`${done} dari ${request.ids.length} saran ${verb}; sisanya gagal: ${reviewErrorMessage(failed)}`), { savedBatches: batches });
+          const values = { done: format.integer(done), total: format.integer(request.ids.length), error: errorText(failed) };
+          const partial = new Error(accepting ? t("review.toast.partialAccepted", values) : t("review.toast.partialRejected", values));
+          throw Object.assign(partial, { savedBatches: batches });
         }
       }
-      const note = skipped > 0 ? `; ${skipped} dilewati karena transaksinya sudah berubah atau sudah diputuskan` : "";
-      return { message: `${request.label}, ${done} saran ${request.decision === "accept" ? "diterima" : "ditolak"}${note}`, batches };
+      const values = { label: request.label, count: done, skipped: format.integer(skipped) };
+      const message = skipped > 0
+        ? accepting ? t("review.toast.suggestionsAcceptedSkipped", values) : t("review.toast.suggestionsRejectedSkipped", values)
+        : accepting ? t("review.toast.suggestionsAccepted", values) : t("review.toast.suggestionsRejected", values);
+      return { message, batches };
     });
 
-  // --- Keys (D8) ------------------------------------------------------------------------------
+  // --- Keys (redesign-review-triage D8, apply-markas-tinjau D16) --------------------------------
   const inList = () => Boolean(listRef.current?.contains(document.activeElement));
-  useShortcut("j", () => move(1, inList()), regionRef);
-  useShortcut("k", () => move(-1, inList()), regionRef);
+  useShortcut("j", () => {
+    if (!insideItemDialog()) move(1, inList());
+  }, regionRef);
+  useShortcut("k", () => {
+    if (!insideItemDialog()) move(-1, inList());
+  }, regionRef);
   useShortcut("e", () => {
-    if (!pressMarked(itemRef.current, "data-primary-choice")) setNotice("Belum ada saran untuk diterima.");
+    if (insideItemDialog()) return;
+    if (!pressMarked(itemRef.current, "data-primary-choice")) setNotice(t("review.notice.noSuggested"));
   }, regionRef);
   useShortcut("t", () => {
-    if (!pressMarked(itemRef.current, "data-topup")) setNotice("T hanya untuk pindah saldo keluar yang belum lengkap.");
+    if (insideItemDialog()) return;
+    if (!pressMarked(itemRef.current, "data-topup")) setNotice(t("review.notice.topupOnly"));
   }, regionRef);
-  useShortcut("z", () => void runUndo(), regionRef);
+  useShortcut("z", () => {
+    if (!insideItemDialog()) void runUndo();
+  }, regionRef);
   useEffect(() => {
     const press = (n: number) => {
-      if (!pressChoice(itemRef.current, n)) setNotice(`Tidak ada pilihan nomor ${n}.`);
+      if (insideItemDialog()) return;
+      if (!pressChoice(itemRef.current, n)) setNotice(t("review.notice.noAnswer", { n: String(n) }));
     };
     const removers = DIGITS.map((n) => register({ key: String(n), scope: regionRef, handler: () => press(n) }));
     return () => removers.forEach((remove) => remove());
-  }, [register]);
+  }, [register, t]);
 
   // --- Render -----------------------------------------------------------------------------------
-  // The region is always rendered, so its width is measured from the first paint (D5).
+  const actions = (
+    <PageActions
+      moreLabel={t("review.page.more")}
+      more={[
+        { key: "suggestions", label: t("review.page.findSuggestions"), icon: "search", onSelect: () => setHistoryOpen(true) },
+        { key: "help", label: t("review.page.help"), icon: "help", onSelect: openHelp },
+      ]}
+    />
+  );
+  const historyDialog = <HistorySuggestionsDialog open={historyOpen} onClose={() => setHistoryOpen(false)} />;
+
   if (queueQuery.isLoading) {
     return (
-      <section ref={regionRef} className="ws-triage" data-panes={onePane ? "one" : "two"} aria-busy="true" aria-label="Memuat Tinjau">
-        <Skeleton className="h-[420px]" />
-        {!onePane && <Skeleton className="h-[420px]" />}
-      </section>
+      <>
+        {actions}
+        <section ref={regionRef} className="tj" aria-busy="true" aria-label={t("review.states.loading")}>
+          <TriageSkeleton phone={phone} />
+        </section>
+        {historyDialog}
+      </>
     );
   }
   if (queueQuery.isError || !triage) {
     return (
-      <section ref={regionRef} aria-label="Tinjau">
-        <ErrorState message="Daftar Tinjau gagal dimuat." onRetry={() => void queueQuery.refetch()} />
-      </section>
+      <>
+        {actions}
+        <section ref={regionRef} aria-label={t("review.page.region")}>
+          <div className="error-box" role="alert">
+            <Icon name="alert" className="h-5 w-5" />
+            <div className="grow">
+              <p className="t-strong">{t("review.states.error")}</p>
+              <p className="t-meta">{t("review.states.errorDetail")}</p>
+            </div>
+            <button type="button" className="ws-btn" onClick={() => void queueQuery.refetch()}>
+              {t("common.tryAgain")}
+            </button>
+          </div>
+        </section>
+        {historyDialog}
+      </>
     );
   }
 
+  const nothingAtAll = everyItem.length === 0;
   const position = selected ? items.findIndex((item) => item.id === selected.id) : -1;
-  const headingProps = { headingId: HEADING_ID, pending };
+  const ctx: ItemContext = { words, money, hidden: hideBalances, pending, headingId: HEADING_ID };
+  const status = <StatusLine notice={notice} failure={failure} folder={folder} />;
 
-  const body = () => {
-    if (selectedId === RUN_PANEL_ID) {
-      return (
-        <>
-          <h2 id={HEADING_ID} className="ws-tri-title" tabIndex={-1} data-item-heading="">Cari saran dari riwayat</h2>
-          <HistorySuggestionsSection headingId={HEADING_ID} />
-        </>
-      );
-    }
-    if (!selected) return null;
-    switch (selected.kind) {
-      case "question":
-        return <PurposeQuestionCard key={selected.id} entry={selected.entry} onAnswer={answerQuestion} {...headingProps} />;
-      case "group":
-        return (
-          <ReviewGroupCard
-            key={selected.id}
-            group={selected.group}
-            categories={categories}
-            automatic={selected.folder === "otomatis"}
-            onAction={groupAction(selected)}
-            {...headingProps}
-          />
-        );
-      case "awaiting":
-        return (
-          <AwaitingMovementCard
-            key={selected.id}
-            item={selected.item}
-            accounts={accounts}
-            categories={categories}
-            candidates={completionChoices[selected.item.id]}
-            onComplete={completeMovement(selected)}
-            onLinkExisting={merge(selected)}
-            onExpense={recordAsExpense(selected)}
-            topup={topupFor(selected, selected.item)}
-            {...headingProps}
-          />
-        );
-      case "ambiguous":
-        return (
-          <AmbiguousMovementCard
-            key={selected.id}
-            item={selected.item}
-            onLink={merge(selected)}
-            onKeepSeparate={keepSeparate(selected)}
-            {...headingProps}
-          />
-        );
-      case "suggestion":
-        return <SuggestionGroupCard key={selected.id} group={selected.group} onDecide={decide(selected)} {...headingProps} />;
-      case "seen_twice":
-        return (
-          <SeenTwiceCard
-            key={selected.id}
-            item={selected.item}
-            onAcknowledge={acknowledgeSeenTwice(selected)}
-            onRecordSeparately={recordSeenTwice(selected)}
-            {...headingProps}
-          />
-        );
-    }
+  const handlers: ItemHandlers = {
+    accounts,
+    categories,
+    completionChoices,
+    answerQuestion,
+    groupAction,
+    completeMovement,
+    merge,
+    keepSeparate,
+    recordAsSpending,
+    topupFor,
+    acknowledgeSeenTwice,
+    recordSeenTwice,
+    decide,
   };
 
-  const empty = !selected && selectedId !== RUN_PANEL_ID;
-  const summary = summaryQuery.data;
-  const doneState = allDone && empty;
+  const checkAutomatic = () => {
+    const first = triage.folders.otomatis[0];
+    if (first) open(first);
+    focusHeading();
+  };
+  const doneState = (
+    <EmptyState
+      title={t("review.states.done.title")}
+      action={
+        triage.folders.otomatis.length > 0 ? (
+          <button type="button" className="ws-btn" onClick={checkAutomatic}>
+            {t("review.states.done.checkAuto")}
+          </button>
+        ) : undefined
+      }
+    >
+      {t("review.states.done.line")}
+    </EmptyState>
+  );
+
+  if (nothingAtAll) {
+    return (
+      <>
+        {actions}
+        <section ref={regionRef} className="tj-empty" aria-label={t("review.page.region")}>
+          <EmptyState title={t("review.states.done.title")}>{t("review.states.done.line")}</EmptyState>
+        </section>
+        {historyDialog}
+      </>
+    );
+  }
+
+  const detail = selected ? (
+    <>
+      {!phone && <ItemHeadRow kind={kindName(t, selected)} index={position} total={items.length} onMove={(step) => move(step, false)} />}
+      <ItemContent item={selected} ctx={ctx} status={status} handlers={handlers} />
+    </>
+  ) : (
+    <>
+      {status}
+      {neededCount(triage) === 0 && folder === "semua" ? doneState : null}
+    </>
+  );
 
   return (
-    <section ref={regionRef} className="ws-triage" data-panes={onePane ? "one" : "two"} aria-label="Tinjau">
-      {showListPane && (
+    <>
+      {actions}
+      <HeroFigure
+        id="tinjau-hero"
+        label={t("review.hero.label")}
+        figure={format.integer(triage.attention)}
+        line={t("review.hero.line", { unreviewed: format.integer(triage.unreviewed) })}
+      >
+        {triage.truncated && <p className="hero-sub t-body">{t("review.hero.truncated", { limit: format.integer(QUEUE_LIMIT) })}</p>}
+      </HeroFigure>
+      <section ref={regionRef} className="tj" aria-label={t("review.page.region")}>
+        <TriageRail triage={triage} folder={folder} onFolder={chooseFolder} words={words} />
+        {phone && !sheetOpen && status}
         <TriageList
           triage={triage}
           folder={folder}
           items={items}
           selectedId={selectedId}
-          onFolder={chooseFolder}
           onOpen={open}
-          foldOpen={foldOpen}
-          onFold={(key, value) => setFoldOpen((current) => (current[key] === value ? current : { ...current, [key]: value }))}
-          onSearchSuggestions={openRunPanel}
-          searchOpen={selectedId === RUN_PANEL_ID}
           listRef={listRef}
+          words={words}
+          empty={phone && folder === "semua" && neededCount(triage) === 0 ? doneState : undefined}
         />
-      )}
-      {showItemPane && (
-        <section ref={itemRef} className="ws-card ws-tri-item" aria-labelledby={empty ? undefined : HEADING_ID} aria-label={empty ? (doneState ? "Semua sudah ditinjau" : "Item") : undefined}>
-          {!empty && (
-            <div className="ws-tri-bar">
-              {onePane && (
-                <button type="button" className="ws-btn ws-btn-sm" onClick={backToList}>
-                  <Icon name="chevron-left" className="h-4 w-4" />
-                  Daftar
-                </button>
-              )}
-              <span className="ws-caption tabular">
-                {selectedId === RUN_PANEL_ID ? FOLDER_LABELS.saran : position >= 0 ? `${position + 1} dari ${items.length}` : selected ? FOLDER_LABELS[selected.folder] : ""}
-              </span>
-              <span className="ws-grow" />
-              <button type="button" className="ws-btn ws-btn-sm" aria-label="Item sebelumnya" disabled={position <= 0} onClick={() => move(-1, false)}>
-                <Icon name="chevron-down" className="h-4 w-4 rotate-180" />
-                <kbd className="ws-kbd" aria-hidden="true">K</kbd>
-              </button>
-              <button type="button" className="ws-btn ws-btn-sm" aria-label="Item berikutnya" disabled={position < 0 || position >= items.length - 1} onClick={() => move(1, false)}>
-                <Icon name="chevron-down" className="h-4 w-4" />
-                <kbd className="ws-kbd" aria-hidden="true">J</kbd>
-              </button>
+        {phone ? (
+          <ShellDialog
+            open={sheetOpen && Boolean(selected)}
+            onClose={closeSheet}
+            title={selected ? kindName(t, selected) : ""}
+            width={880}
+            closeLabel={t("review.sheet.close")}
+            className="tj-sheet"
+            fullHeight
+          >
+            <div ref={itemRef} className="tj-detail">
+              {selected && detail}
             </div>
-          )}
-          <div className="ws-tri-body">
-            <div aria-live="polite">{notice && <p className="ws-notice">{notice}</p>}</div>
-            {failure && (
-              <p role="alert" className="ws-alert">
-                {failure.message}
-                {failure.transactionId && (
-                  <>
-                    {" "}
-                    <Link href={transaksiHref(failure.transactionId, folder)}>Buka di Transaksi</Link>
-                  </>
-                )}
-              </p>
-            )}
-            {empty ? (
-              doneState ? (
-                <EmptyState title="Semua sudah ditinjau">
-                  Tidak ada yang perlu dijawab. Transaksi baru dari HP tetap dicatat.
-                </EmptyState>
-              ) : (
-                <EmptyState icon="inbox" title="Pilih satu dari daftar">Atau tekan J untuk mulai dari atas.</EmptyState>
-              )
-            ) : (
-              body()
-            )}
-            {doneState && (
-              <div className="space-y-3 pb-4 text-center">
-                {summary && (
-                  <dl className="ws-facts tabular" aria-label="Siklus ini">
-                    <dt>Pengeluaran siklus ini</dt>
-                    <dd>{bal(summary.spending?.amount ?? summary.keluar.total)}</dd>
-                    {/* The period's safe amount, as on Beranda (refine-workspace-layout D5); no per-day figure. */}
-                    <dt>Aman dipakai sampai gajian</dt>
-                    <dd>{bal(Math.max(0, summary.remaining.total))}</dd>
-                    <dt>Belum diklasifikasi</dt>
-                    <dd>{bal(summary.keluar.lines.find((line) => line.key === "unclassified")?.amount ?? 0)}</dd>
-                  </dl>
-                )}
-                {triage.folders.otomatis.length > 0 && (
-                  <p className="ws-caption">{triage.counts.otomatis} transaksi dicatat otomatis dapat dicek. Opsional.</p>
-                )}
-                <div className="ws-btn-row">
-                  <Link href="/" className="ws-btn">Kembali ke Beranda</Link>
-                  {triage.folders.otomatis.length > 0 && (
-                    <button type="button" className="ws-btn" onClick={() => {
-                      setFoldOpen((current) => ({ ...current, otomatis: true }));
-                      const first = triage.folders.otomatis[0];
-                      if (first) open(first);
-                      focusHeading();
-                    }}>
-                      Cek yang otomatis
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-    </section>
+          </ShellDialog>
+        ) : (
+          <section className="tj-detail" aria-label={t("review.detail.region")}>
+            <div ref={itemRef}>{detail}</div>
+          </section>
+        )}
+      </section>
+      {historyDialog}
+    </>
   );
-}
-
-function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T> {
-  const copy = { ...record };
-  delete copy[key];
-  return copy;
-}
-
-function everyItemOf(triage: Triage): TriageItem[] {
-  return [...folderItems(triage, "semua"), ...triage.folders.otomatis, ...triage.folders.saran, ...triage.folders.dua, ...triage.folders.lewat];
-}
-
-function questionItem(entry: PurposeQuestionEntry): TriageItem {
-  return { kind: "question", id: `q:${entry.event_id}`, folder: "apa", transactionIds: [entry.transaction.id], entry };
-}
-
-function focusRow(id: string | null) {
-  window.requestAnimationFrame(() => {
-    const row = id ? document.querySelector<HTMLElement>(`[data-row="${CSS.escape(id)}"]`) : null;
-    row?.focus();
-  });
 }

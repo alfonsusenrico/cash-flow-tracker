@@ -329,6 +329,8 @@ Rejected:
 **Flag.** This removes figures that today's "Semua Beres" requirement shows, which goes beyond presenting the same behaviour. It is reviewed before implementation (task 1.1).
 - Fallback: keep them as one quiet `t-meta` line of three small figures under the empty state, with the spec's "no Rp 0 on failure" rule.
 
+**Review outcome (2026-11-08): default taken.** Under the owner's standing instruction "complete all until finished" (2026-11-06, renewed 2026-11-08 "continue all"), every decision takes its recommended default, D14 included: "Semua sudah ditinjau" drops the three cycle figures and Tinjau no longer requests the cycle summary. The fallback is not built.
+
 Rejected:
 - Keeping the three figures as a `dl` (today): it repeats Beranda's figures, the prototype has none, and the owner asked for no text walls.
 
@@ -556,7 +558,7 @@ Approved 2026-11-06 under the owner's standing instruction "complete all until f
 | D11 | Text answer | 520 dialog behind a quiet button | Inline field | — |
 | D12 | History suggestions | 520 dialog, estimate then start | One-click start; pane | — (deviation 7) |
 | D13 | Phone item | Full-height sheet with history entry | In-place swap; 92 vh sheet | — |
-| D14 | Done state | Empty state only; cycle figures removed | Keep the three figures | **Flag: scope** (removes figures a requirement shows) |
+| D14 | Done state | Empty state only; cycle figures removed | Keep the three figures | **Flag: scope** (removes figures a requirement shows); reviewed 2026-11-08: default taken |
 | D15 | Loading and failure | SPEC skeleton rows and error box | Grey blocks | — |
 | D16 | Keys and URL | Unchanged bindings and scope (region + sheet) | Page-wide keys | — |
 | D17 | Hidden balances | `MaskedMoney` everywhere on Tinjau | — | — |
@@ -585,7 +587,7 @@ No data, API or schema change. Rollback is a revert of the merge commit. The URL
 
 ## Open Questions
 
-None beyond the flagged D14, which is reviewed before implementation (task 1.1).
+None. The flagged D14 was reviewed on 2026-11-08 and takes its default (D14).
 
 ## Appendix A. Tinjau copy as message keys (`review` namespace; Indonesian · English)
 

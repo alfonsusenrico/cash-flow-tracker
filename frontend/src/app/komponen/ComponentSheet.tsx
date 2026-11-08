@@ -6,7 +6,9 @@ import { MonetaryInput } from "@/components/ui/FormField";
 import { Icon } from "@/components/ui/Icon";
 import { Input, Select } from "@/components/ui/Input";
 import { FigureBlock, HeroFigure, SplitBar } from "@/components/workspace/figures";
+import { Answer, AnswerList } from "@/components/review/triage/Answers";
 import { DayHeading, ListRow, Panel, PanelBlock, SectionHeader } from "@/components/workspace/lists";
+import { Rail, RailItem, RailRule } from "@/components/workspace/rail";
 import { EmptyState, ErrorState, Pill, Segmented, Skeleton } from "@/components/workspace/primitives";
 import { KAKEIBO_BUCKETS } from "@/lib/kakeibo";
 import styles from "./komponen.module.css";
@@ -165,6 +167,41 @@ function PageRows() {
           <ListRow icon="help" title="TRF BIFAST 88213 ANDI S" meta="Belum dikenali · 4 Nov 09.12" amount={<span className="t-amt">−Rp 120.000</span>} chevron />
         </li>
       </ul>
+    </div>
+  );
+}
+
+/** Tinjau's pieces (apply-markas-tinjau D19): the rail (chips under 768 px), stacked rows and numbered answers. */
+function TinjauPieces({ theme }: { theme: "light" | "dark" }) {
+  return (
+    <div className={styles.tinjau}>
+      <Rail label={`Folder ${theme}`} chips>
+        <RailItem label="Semua" count="6" countName="6 item" current onSelect={() => undefined} />
+        <RailItem label="Belum dikenali" count="2" countName="2 item" onSelect={() => undefined} />
+        <RailItem label="Pindah saldo belum lengkap" count="1" countName="1 item" onSelect={() => undefined} />
+        <RailRule />
+        <RailItem label="Dicatat otomatis" count="4" countName="4 item" onSelect={() => undefined} />
+      </Rail>
+      <ul className="list" aria-label={`Baris bertumpuk ${theme}`}>
+        {ROW_STATES.map(([state, className]) => (
+          <li key={state} className={className}>
+            <ListRow layout="stacked" icon="help" title={`TRF BIFAST 88213 (${state})`} meta="Belum dikenali · 4 Nov 09.12"
+              amount={<span className="t-amt c-expense">−Rp 120.000</span>} onClick={() => undefined} />
+          </li>
+        ))}
+        <li>
+          <ListRow layout="stacked" icon="alert" title="Kedai Awan (terpilih)" meta="Perlu jawaban · 4 Nov 12.10" selected current
+            amount={<span className="t-amt c-expense">−Rp 54.000</span>} onClick={() => undefined} />
+        </li>
+      </ul>
+      <div>
+        <p id={`ks-question-${theme}`} className="t-lead">Kategori untuk Kedai Awan: Makan & Minum?</p>
+        <AnswerList labelledBy={`ks-question-${theme}`}>
+          <Answer n={1} primary label="Terima semua (3)" detail="Kategorinya sudah benar" onClick={() => undefined} />
+          <Answer n={2} label="Ubah kategori" detail="Kategori dan pilar Kakeibo" onClick={() => undefined} />
+          <Answer n={3} label="Ganti nama" detail="Nama toko dan catatan" disabled onClick={() => undefined} />
+        </AnswerList>
+      </div>
     </div>
   );
 }
@@ -338,6 +375,10 @@ export function ComponentSheet() {
             </div>
           </>
         )}
+      </Both>
+
+      <Both title="Rail Tinjau, baris bertumpuk, jawaban bernomor">
+        {(theme) => <TinjauPieces theme={theme} />}
       </Both>
 
       <Both title="Panel konteks dan Kakeibo">

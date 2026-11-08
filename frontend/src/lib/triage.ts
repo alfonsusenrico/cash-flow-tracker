@@ -4,7 +4,7 @@ import type { AmbiguousItem, AwaitingItem, PurposeQuestionEntry, ReviewGroup, Re
 /**
  * Tinjau's folders and items, derived from the existing queue and suggestion responses
  * (redesign-review-triage D1, D2, D6, D7). Counts are rows, so the three needed folders add up to the
- * badge's `attention`; positions count items.
+ * badge's `attention`; positions count items. Labels come from the `review` catalogue (apply-markas-tinjau D18).
  */
 
 export type NeededFolder = "apa" | "jawab" | "pindah";
@@ -18,17 +18,6 @@ export const FOLDER_PARAMS: readonly FolderKey[] = ["apa", "jawab", "pindah", "s
 export function isOptionalFolder(folder: FolderKey): folder is OptionalFolder {
   return (OPTIONAL_FOLDERS as readonly string[]).includes(folder);
 }
-
-export const FOLDER_LABELS: Record<FolderKey, string> = {
-  semua: "Semua",
-  apa: "Belum dikenali",
-  jawab: "Perlu jawaban",
-  pindah: "Pindah saldo belum lengkap",
-  saran: "Saran dari riwayat",
-  otomatis: "Dicatat otomatis",
-  dua: "Terlihat dua kali",
-  lewat: "Dilewati otomatis",
-};
 
 /**
  * The Transaksi drawer for a row of Tinjau; closing it returns to the same item (redesign-transactions-workspace
@@ -162,30 +151,6 @@ export function resolveDeepLink(triage: Triage, transactionId: string | null, fo
     if (found) return { folder: (NEEDED_FOLDERS as readonly string[]).includes(key) ? "semua" : key, itemId: found.id, resolved: false };
   }
   return { folder: "semua", itemId: null, resolved: transactionId !== null };
-}
-
-/** The folder an item belongs to when it is shown on its own (for messages and "kembali ke"). */
-export function itemFolderLabel(item: TriageItem): string {
-  return FOLDER_LABELS[item.folder];
-}
-
-/** Short title of an item for the list, the toast and announcements. */
-export function itemTitle(item: TriageItem): string {
-  switch (item.kind) {
-    case "question": {
-      const { merchant, notes, type } = item.entry.transaction;
-      return merchant || notes || (type === "income" ? "Uang masuk" : "Pembayaran tanpa nama toko");
-    }
-    case "group":
-    case "suggestion":
-      return item.group.label;
-    case "awaiting":
-      return item.item.type === "expense" ? `Keluar dari ${item.item.account_name}` : `Masuk ke ${item.item.account_name}`;
-    case "ambiguous":
-      return item.item.type === "expense" ? `Keluar dari ${item.item.account_name}` : `Masuk ke ${item.item.account_name}`;
-    case "seen_twice":
-      return item.item.kind === "skipped" ? `${item.item.app}: dilewati` : `${item.item.app}: laporan kedua`;
-  }
 }
 
 /** The transaction a "Transaksi" link opens for an item. */
