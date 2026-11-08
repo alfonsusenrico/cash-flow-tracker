@@ -64,6 +64,20 @@ describe("createFormat", () => {
     expect(enUS.decimal(5.4)).toBe("5.4");
   });
 
+  it("writes a Tinjau row's date and time, and a group's range, by language and region (apply-markas-tinjau D18)", () => {
+    const row = new Date("2026-11-04T14:40:00Z"); // 21.40 in Asia/Jakarta
+    const when = (format: typeof idID) => `${format.shortDateAt(row)} ${format.time(row)}`;
+    expect(when(idID)).toBe("4 Nov 21.40");
+    expect(when(enID)).toBe("4 Nov 21.40");
+    expect(when(enUS)).toBe("Nov 4 9:40 PM");
+    expect(idID.dateRangeAt("2026-10-19T05:00:00Z", "2026-10-20T05:00:00Z")).toBe("19 Okt – 20 Okt 2026");
+    expect(enUS.dateRangeAt("2026-10-19T05:00:00Z", "2026-10-20T05:00:00Z")).toBe("Oct 19 – Oct 20, 2026");
+    expect(idID.dateRangeAt("2026-10-20T01:00:00Z", "2026-10-20T05:00:00Z")).toBe("20 Okt 2026");
+    expect(idID.dateRangeAt(null, "2026-10-20T05:00:00Z")).toBeNull();
+    expect(idID.yearDate("2026-10-03")).toBe("3 Okt 2026");
+    expect(enUS.yearDate("2026-10-03")).toBe("Oct 3, 2026");
+  });
+
   it("keeps a calendar date on its day in every time zone of the input", () => {
     expect(enID.shortDate("2026-11-01T00:00:00+07:00")).toBe("1 Nov");
   });

@@ -19,8 +19,8 @@ const JARGON_EN = /\b(outflow|inflow|ledger|reconcil\w*|liabilit\w*|runway|cost 
 const YOU_EN = /\b(you|your|yours|you're)\b/i;
 /** "Spend" as a noun and "Expenses" or "Spent" never name a figure; the verb in "safe to spend" is allowed. */
 const SPEND_EN = /\b(expenses?|spent)\b|(?<!to )\bspend\b/i;
-/** Indonesian spending figures are "Pengeluaran"; "Keluar ke …" is a movement's direction, not a figure. */
-const SPENDING_ID = /\b(Keluar(?! ke )|Belanja)\b/;
+/** Indonesian spending figures are "Pengeluaran"; "Keluar ke …" and "Keluar dari …" are a movement's direction, not a figure. */
+const SPENDING_ID = /\b(Keluar(?! (ke|dari) )|Belanja)\b/;
 
 /**
  * "Aman dipakai sampai gajian" and the two phrases built on it are the hero figure's name as the owner approved it
@@ -55,11 +55,14 @@ function englishOffenders(catalogue: Catalogue): string[] {
     });
 }
 
-/** The glossary in English; in Indonesian also Beranda's and the Rincian's messages, which hold its figure labels. */
+/**
+ * The glossary and Tinjau's messages in both languages (apply-markas-tinjau D18); in Indonesian also Beranda's and
+ * the Rincian's messages, which hold their figure labels.
+ */
 function spendingTermOffenders(catalogue: Catalogue, language: "en" | "id"): string[] {
   const rule = language === "en" ? SPEND_EN : SPENDING_ID;
   return messages(catalogue)
-    .filter(([key]) => key.startsWith("terms.") || (language === "id" && /^(home|breakdown)\./.test(key)))
+    .filter(([key]) => /^(terms|review)\./.test(key) || (language === "id" && /^(home|breakdown)\./.test(key)))
     .filter(([, value]) => rule.test(value))
     .map(([key]) => key);
 }
@@ -105,8 +108,6 @@ function visibleLines(file: string): { line: number; text: string }[] {
 
 /** The conversation strings still written in sources not translated yet: the connect-phone guide's prose. */
 const SOURCE_CONVERSATION = [
-  // The hero figure's approved name, quoted by Tinjau until its phase moves it to the catalogue.
-  "Aman dipakai sampai gajian",
   "HP-mu siap! Mulai sekarang transaksi tercatat sendiri.",
   "Tenang, aplikasi di HP-mu bakal nunjukin cara benerinnya.",
   "Biar nggak dimatiin diam-diam",
@@ -124,6 +125,8 @@ const TRANSLATED_ROOTS = [
   "components/workspace", "components/layout", "components/beranda", "app/page.tsx", "app/layout.tsx", "app/auth/login/page.tsx",
   "components/recurring/PendingScheduledBanner.tsx", "components/ui/PeriodStepper.tsx", "components/ui/Modal.tsx",
   "components/ui/ConfirmActionButton.tsx", "components/settings/TestSessionBanner.tsx", "i18n", "lib/i18n", "lib/format.ts",
+  // Tinjau (apply-markas-tinjau D18).
+  "components/review", "app/review", "lib/triage.ts", "lib/review.ts", "lib/reviewUndo.ts", "lib/historySuggestions.ts",
 ];
 /** Indonesian page copy that lives in a translated root until its page's phase moves it (D10). */
 const UNTRANSLATED_FILES = ["components/workspace/untranslatedPages.ts"];
@@ -134,10 +137,9 @@ const MONEY_ROOTS = ["components/accounts", "components/goals", "components/sett
   "components/ui/SalarySettingsSection.tsx", "components/ui/SenderAliasesSection.tsx", "components/recurring/RecurringRulesModal.tsx",
   "components/dashboard/EmergencyCoverage.tsx", "lib/habits.ts"];
 
-const UNTRANSLATED_ROOTS = ["components/review", "components/transactions", "components/capture",
+const UNTRANSLATED_ROOTS = ["components/transactions", "components/capture",
   "components/ui/DeviceHealthChecklist.tsx", "components/ui/DevicePairingDialog.tsx", "components/ui/DevicePairingSection.tsx",
-  "app/ledger/page.tsx", "app/review/page.tsx", "lib/deviceHealth.ts", "lib/reviewUndo.ts", "lib/triage.ts",
-  "lib/provenance.ts", "lib/ledgerFilters.ts", "lib/historySuggestions.ts", "lib/capture.ts",
+  "app/ledger/page.tsx", "lib/deviceHealth.ts", "lib/provenance.ts", "lib/ledgerFilters.ts", "lib/capture.ts",
   // Analisis and Laporan (redesign-analysis-and-reports D13).
   "components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx",
   // Rekening & Kantong, Target & Tagihan, Pengaturan and their modals (redesign-money-and-settings D16).
@@ -241,6 +243,9 @@ describe("catalogue copy register", () => {
     expect(englishOffenders(planted.enYour)).toEqual(["home.yourMoney: you"]);
     expect(englishOffenders(planted.enLedger)).toEqual(["home.openLedger: jargon"]);
     expect(nearDuplicateTerms(planted.nearDuplicate)).toEqual(["terms.savedInvested ~ terms.savedAndInvested"]);
+    expect(spendingTermOffenders(planted.idReview, "id")).toEqual(["review.hero.label"]);
+    expect(spendingTermOffenders(planted.enReview, "en")).toEqual(["review.hero.label"]);
+    expect(englishOffenders(planted.enReview)).toEqual(["review.answer.typeOwn: you"]);
   });
 });
 
@@ -287,7 +292,7 @@ describe("source copy register for areas not translated yet", () => {
   // Spending Terms (refine-workspace-layout D4): "Pengeluaran" and "Ditabung & investasi" name the figures; "Keluar"
   // and "Belanja" are no longer figure labels. "Keluar" as sign-out and "Uang keluar" in row text are not figure labels.
   it("names spending figures Pengeluaran, never Keluar or Belanja, on Transaksi, Tinjau and the money pages", () => {
-    const roots = ["components/transactions", "components/review", "components/capture", "components/accounts",
+    const roots = ["components/transactions", "components/capture", "components/accounts",
       "components/goals", "app/ledger/page.tsx"];
     const owned = roots.flatMap(sources).filter(isSource);
     const figureLabel = /(label|title|text)(=|: )["`](Keluar|Belanja)\b|<dt>(Keluar|Belanja)\b|>(Keluar|Belanja)<\/button|"(Keluar|Belanja) siklus/;

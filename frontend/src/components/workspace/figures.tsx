@@ -19,8 +19,8 @@ export function HeroFigure({
 }: {
   id: string;
   label: string;
-  /** The colour token of the 16 × 2 px mark above the label. */
-  mark: string;
+  /** The colour token of the 16 × 2 px mark above the label; a count such as Tinjau's has none (apply-markas-tinjau D3). */
+  mark?: string;
   action?: ReactNode;
   figure: ReactNode;
   line: ReactNode;
@@ -31,7 +31,7 @@ export function HeroFigure({
       <div className="hero-top">
         {/* Inside the label so it stays 3 px above its first line when a longer language wraps it. */}
         <h2 className="t-label" id={id}>
-          <span className="sw-bar" style={{ background: mark }} aria-hidden="true" />
+          {mark && <span className="sw-bar" style={{ background: mark }} aria-hidden="true" />}
           {label}
         </h2>
         {action}

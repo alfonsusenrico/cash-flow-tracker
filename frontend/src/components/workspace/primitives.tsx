@@ -158,35 +158,6 @@ export function Segmented<T extends string>({
   );
 }
 
-export function ChipGroup<T extends string>({
-  label,
-  options,
-  selected,
-  onToggle,
-}: {
-  label: string;
-  options: { value: T; label: string; count?: number }[];
-  selected: readonly T[];
-  onToggle: (value: T) => void;
-}) {
-  return (
-    <div className="ws-chips" role="group" aria-label={label}>
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          className="ws-chip"
-          aria-pressed={selected.includes(option.value)}
-          onClick={() => onToggle(option.value)}
-        >
-          {option.label}
-          {option.count !== undefined && <span className="ws-cnt">{option.count}</span>}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return <div className={cn("ws-skeleton", className)} style={style} aria-hidden="true" />;
 }

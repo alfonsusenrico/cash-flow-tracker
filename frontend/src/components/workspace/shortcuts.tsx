@@ -45,6 +45,8 @@ export interface ShortcutHelpEntry {
 export interface PageShortcutGroup {
   name: string;
   entries: ShortcutHelpEntry[];
+  /** The page's own phase translated it, so its words follow the interface language without a `lang` mark. */
+  translated?: boolean;
 }
 
 interface ShortcutContextValue {
@@ -216,7 +218,11 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const rows = [
     ...GLOBAL_KEYS.map((entry) => ({ keys: entry.keys, text: t(entry.message), lang: undefined })),
     ...(context?.pageGroups ?? []).flatMap((group) =>
-      group.entries.map((entry) => ({ keys: entry.keys, text: t("pageKey", { action: entry.text, where: groupWhere(group) }), lang: pageLang })),
+      group.entries.map((entry) => ({
+        keys: entry.keys,
+        text: t("pageKey", { action: entry.text, where: groupWhere(group) }),
+        lang: group.translated ? undefined : pageLang,
+      })),
     ),
   ];
   const facts = [t("factCapture"), t("factReview"), conversation("helpFactHome")];
