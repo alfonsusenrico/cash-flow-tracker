@@ -229,7 +229,7 @@ On `a8d879d`:
 - `npm test`: **95 files, 967 tests passed**; `npm run type-check` passed; `npm run lint` passed (0 warnings);
   `npm run build` passed.
 - Backend: 2179 passed (above; the backend is unchanged since `bae149e`).
-- `git diff --check f855951 HEAD`: clean. `openspec validate --all --strict`: 85 passed before archiving.
+- `git diff --check f855951 HEAD`: clean. `openspec validate --all --strict`: 85 passed before archiving, 84 of 84 after (one long requirement shortened).
 - `git diff --stat f855951 -- backend` lists only `routers/dashboard.py`, `routers/transactions.py`,
   `services/saving_flow.py`, `tests/test_ledger_saving_flow.py` and `tests/test_ledger_day_totals.py`.
 - No package file changed, so no lockfile step was needed.
