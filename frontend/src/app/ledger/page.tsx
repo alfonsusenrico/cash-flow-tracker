@@ -321,7 +321,9 @@ function LedgerPageContent() {
   }), [t]);
   usePageShortcutGroup(pageKeys);
   const moveFocus = (step: number) => {
-    const rows = [...(listRegionRef.current?.querySelectorAll<HTMLElement>("[data-row]") ?? [])];
+    // While merging, a row that cannot be chosen has a disabled checkbox, which cannot take focus: J and K skip it.
+    const rows = [...(listRegionRef.current?.querySelectorAll<HTMLElement>("[data-row]") ?? [])]
+      .filter((row) => !row.querySelector("input:disabled"));
     if (!rows.length) return;
     const active = document.activeElement;
     const index = rows.findIndex((element) => element === active || element.contains(active));

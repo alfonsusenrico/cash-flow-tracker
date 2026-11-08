@@ -468,6 +468,23 @@ describe("Merge into a transfer", () => {
     expect(await screen.findByText("Digabung sebagai pindah saldo.")).toBeInTheDocument();
   });
 
+  it("walks the checkboxes with J while selecting, skipping rows that cannot join, and toggles with Space", async () => {
+    pages = [[OUT, { ...TOPUP, local_date: "2026-11-02" }, IN]];
+    withTotals = false;
+    const { user } = renderPage();
+    await findRow(/Transfer keluar/);
+    await user.click(screen.getByRole("button", { name: "Tindakan lain" }));
+    await user.click(screen.getByRole("menuitem", { name: "Gabungkan dua transaksi" }));
+    const first = screen.getByRole("checkbox", { name: /Transfer keluar/ });
+    first.focus();
+    await user.keyboard(" ");
+    await user.keyboard("j");
+    const second = screen.getByRole("checkbox", { name: /Transfer masuk/ });
+    expect(second).toHaveFocus();
+    await user.keyboard(" ");
+    expect(screen.getByRole("region", { name: "Gabungkan dua transaksi" })).toHaveTextContent("2 dari 2 dipilih");
+  });
+
   it("rejects unequal amounts before converting", async () => {
     pages = [[OUT, { ...IN, amount: 60_000 }]];
     withTotals = false;

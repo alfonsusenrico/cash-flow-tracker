@@ -221,9 +221,12 @@ try {
       // 13: the return=review deep link.
       const waiting = await browser.evaluate(`fetch("/api/transactions?waiting=true&limit=1").then((r) => r.json()).then((d) => d.transactions[0]?.id ?? null)`);
       await open(`/ledger?edit=${waiting}&return=review&folder=jawab`);
+      // Tinjau may move the item to its own folder once it loads, so the navigation itself is what is checked.
+      await browser.evaluate(`window.__pushed = []; const push = history.pushState.bind(history); history.pushState = (state, title, target) => { window.__pushed.push(String(target)); return push(state, title, target); }`);
       await browser.key(...ESC);
       await sleep(1500);
-      record(13, "Esc on a dialog opened from Tinjau returns to the same item and folder", cell, (await url()) === `/review?item=${waiting}&folder=jawab`, await url());
+      const pushed = await browser.evaluate("window.__pushed ?? []");
+      record(13, "Esc on a dialog opened from Tinjau returns to the same item and folder", cell, pushed.some((target) => target.endsWith(`/review?item=${waiting}&folder=jawab`)), JSON.stringify(pushed));
 
       // 14: the single-key switch.
       await open("/ledger?period=cycle");

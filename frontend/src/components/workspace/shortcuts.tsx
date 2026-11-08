@@ -68,10 +68,14 @@ function readSingleKeysEnabled(): boolean {
   }
 }
 
+/** Inputs that take no typed text: a single key there is a shortcut (Transaksi's J and K between merge checkboxes). */
+const KEYLESS_INPUTS = new Set(["checkbox", "radio", "button", "submit", "reset"]);
+
 export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
+  if (tag === "INPUT") return !KEYLESS_INPUTS.has((target as HTMLInputElement).type);
+  return tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
 function matches(definition: ShortcutDefinition, event: KeyboardEvent): boolean {
