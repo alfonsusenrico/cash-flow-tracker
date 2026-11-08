@@ -503,4 +503,3 @@ describe("Transaksi's shared pieces (apply-markas-transaksi D9, D4, D5, D22)", (
     expect(second).toHaveFocus();
   });
 });
-
